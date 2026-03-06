@@ -1,0 +1,537 @@
+#!/usr/bin/env python3
+"""
+bin/evolve — AlphaEvolve-style genome evolution for Daedalus
+
+Computes fitness, proposes LLM-driven mutations to a genome file,
+lets you review/approve, applies changes, and commits to git.
+
+Usage:
+  bin/evolve --genome soul              # evolve SOUL.md
+  bin/evolve --genome principles        # evolve PRINCIPLES.md
+  bin/evolve --genome agents            # evolve AGENTS.md section
+  bin/evolve --genome skill/commit      # evolve skills/commit/SKILL.md
+  bin/evolve --score-only               # print fitness score, no mutations
+  bin/evolve --dry-run                  # show mutations, don't apply
+  bin/evolve --days 14                  # wider evaluation window
+  bin/evolve --model sonnet             # use sonnet for mutations (default)
+  bin/evolve --model opus               # use opus for higher-quality mutations
+
+Based on AlphaEvolve (DeepMind, 2026): treat genome files as evolvable
+code, use LLMs as semantic mutation operators, evaluate against fitness
+signals, select winners via git history.
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+WORKSPACE = Path(__file__).parent.parent
+BASELINE_FILE = WORKSPACE / ".tmp" / "evolve-baseline.json"
+
+GENOME_MAP = {
+    "soul": WORKSPACE / "SOUL.md",
+    "principles": WORKSPACE / "PRINCIPLES.md",
+    "agents": WORKSPACE / "AGENTS.md",
+    "tools": WORKSPACE / "TOOLS.md",
+    "memory": WORKSPACE / "MEMORY.md",
+}
+
+MODEL_MAP = {
+    "sonnet": "claude-sonnet-4-6",
+    "opus": "claude-opus-4-6",
+    "haiku": "claude-haiku-4-5-20251001",
+}
+
+# ── Genome resolution ─────────────────────────────────────────────────────────
+
+def resolve_genome(name):
+    """Resolve genome name to (label, path)."""
+    if name in GENOME_MAP:
+        return name, GENOME_MAP[name]
+
+    # skill/NAME pattern
+    if name.startswith("skill/"):
+        skill_name = name[6:]
+        path = WORKSPACE / "skills" / skill_name / "SKILL.md"
+        return name, path
+
+    # Direct path
+    p = Path(name)
+    if not p.is_absolute():
+        p = WORKSPACE / p
+    return p.stem, p
+
+
+# ── Mutation prompt ───────────────────────────────────────────────────────────
+
+MUTATION_PROMPT = """You are an expert at evolving AI agent behavior definitions to improve performance.
+
+## Current Genome: {genome_label}
+
+```
+{genome_content}
+```
+
+## Fitness Report (last {days} days)
+
+Score: {score:.3f} [{grade}]{delta_str}
+
+Breakdown:
+- Task completion rate: {completion_rate:.1%} ({tasks_done} done, {tasks_failed} failed)
+- Correction score: {correction_score:.3f} ({corrections_recent} recent corrections)
+- Daily signal score: {daily_signal:.3f} ({daily_hits} correction keywords found)
+{spark_line}
+
+## Recent Lessons (corrections and patterns)
+
+{lessons_excerpt}
+
+## Your Task
+
+Propose exactly 3 targeted mutations to improve this genome's fitness.
+
+Mutation philosophy (from AlphaEvolve):
+- Prefer minimal, high-confidence changes over rewrites
+- Address the weakest signal first (lowest scoring dimension)
+- Each mutation should be independently applicable
+- Non-intuitive improvements are often the most valuable — don't just rewrite in your own words
+
+Output format — use EXACTLY this structure for each mutation:
+
+=== MUTATION 1: [short title] ===
+RATIONALE: [1-2 sentences: what signal this addresses and why]
+CONFIDENCE: [high|medium|low]
+IMPACT: [which fitness dimension this targets]
+
+FIND:
+<<<
+[exact text from the genome to replace — must match verbatim]
+>>>
+
+REPLACE:
+<<<
+[replacement text]
+>>>
+
+=== MUTATION 2: [short title] ===
+[same format]
+
+=== MUTATION 3: [short title] ===
+[same format]
+
+Rules:
+- FIND must match the genome content exactly (copy-paste)
+- REPLACE should be similar length or shorter — don't bloat
+- If the fix is an addition (no replacement), use an empty FIND block and specify where to insert in RATIONALE
+- Do not propose mutations that duplicate existing content
+- Rank by expected fitness impact (highest first)
+"""
+
+
+def build_prompt(genome_label, genome_content, fitness, days, lessons_excerpt):
+    b = fitness["breakdown"]
+    r = fitness["raw"]
+
+    delta_str = ""
+    if fitness["delta"] is not None:
+        arrow = "▲" if fitness["delta"] > 0 else ("▼" if fitness["delta"] < 0 else "→")
+        delta_str = f" {arrow} {fitness['delta']:+.3f} vs baseline"
+
+    spark_line = "- Spark quality: n/a (not installed)"
+    if b.get("spark_quality_score") is not None:
+        spark_line = f"- Spark quality: {b['spark_quality_score']:.3f}"
+
+    return MUTATION_PROMPT.format(
+        genome_label=genome_label,
+        genome_content=genome_content,
+        days=days,
+        score=fitness["score"],
+        grade=fitness["grade"],
+        delta_str=delta_str,
+        completion_rate=b["task_completion_rate"],
+        tasks_done=r["tasks_done"],
+        tasks_failed=r["tasks_failed"],
+        correction_score=b["correction_score"],
+        corrections_recent=r["corrections_recent"],
+        daily_signal=b["daily_signal_score"],
+        daily_hits=r["daily_keyword_hits"],
+        spark_line=spark_line,
+        lessons_excerpt=lessons_excerpt,
+    )
+
+
+# ── LLM call ──────────────────────────────────────────────────────────────────
+
+def call_claude(prompt, model="claude-sonnet-4-6"):
+    """Call claude CLI in non-interactive mode. Returns response text."""
+    cmd = ["claude", "-p", prompt, "--model", model]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            print(f"[evolve] claude CLI error:\n{result.stderr}", file=sys.stderr)
+            return None
+        return result.stdout.strip()
+    except FileNotFoundError:
+        print("[evolve] Error: 'claude' CLI not found in PATH.", file=sys.stderr)
+        return None
+    except subprocess.TimeoutExpired:
+        print("[evolve] Error: claude CLI timed out after 120s.", file=sys.stderr)
+        return None
+
+
+# ── Mutation parsing ──────────────────────────────────────────────────────────
+
+def parse_mutations(response):
+    """
+    Parse structured mutations from LLM response.
+    Returns list of {title, rationale, confidence, impact, find, replace}
+    """
+    mutations = []
+    # Split on === MUTATION N: ... ===
+    parts = re.split(r"={3}\s*MUTATION\s+\d+:\s*(.+?)\s*={3}", response)
+
+    # parts[0] = preamble, then alternating: title, body, title, body...
+    i = 1
+    while i + 1 < len(parts):
+        title = parts[i].strip()
+        body = parts[i + 1]
+        i += 2
+
+        rationale = _extract_field(body, "RATIONALE")
+        confidence = _extract_field(body, "CONFIDENCE")
+        impact = _extract_field(body, "IMPACT")
+        find = _extract_block(body, "FIND")
+        replace = _extract_block(body, "REPLACE")
+
+        mutations.append({
+            "title": title,
+            "rationale": rationale,
+            "confidence": confidence or "medium",
+            "impact": impact or "unknown",
+            "find": find,
+            "replace": replace,
+        })
+
+    return mutations
+
+
+def _extract_field(text, field):
+    m = re.search(rf"^{field}:\s*(.+?)$", text, re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
+def _extract_block(text, label):
+    """Extract content between <<< and >>> after a label."""
+    # Pattern: LABEL:\n<<<\ncontent\n>>>
+    pattern = rf"{label}:\s*\n<<<\n(.*?)\n>>>"
+    m = re.search(pattern, text, re.DOTALL)
+    if m:
+        return m.group(1)
+    # Fallback: no delimiters found — try indented block after label
+    return ""
+
+
+# ── Mutation application ──────────────────────────────────────────────────────
+
+def apply_mutation(genome_path, mutation):
+    """
+    Apply a single mutation to the genome file.
+    Returns (success, message).
+    """
+    content = genome_path.read_text(encoding="utf-8")
+    find = mutation["find"]
+    replace = mutation["replace"]
+
+    if not find:
+        return False, "Empty FIND block — skipping (addition mutations require manual application)"
+
+    if find not in content:
+        # Try normalizing whitespace
+        normalized_content = re.sub(r"\s+", " ", content)
+        normalized_find = re.sub(r"\s+", " ", find)
+        if normalized_find not in normalized_content:
+            return False, f"FIND text not found in genome (may have changed). Skipping."
+
+        # Apply with normalized approach — less precise, warn
+        print("  [warn] Applied with whitespace normalization — verify the result.")
+        new_content = normalized_content.replace(normalized_find, replace, 1)
+        genome_path.write_text(new_content, encoding="utf-8")
+        return True, "Applied (normalized)"
+
+    new_content = content.replace(find, replace, 1)
+    genome_path.write_text(new_content, encoding="utf-8")
+    return True, "Applied"
+
+
+# ── Baseline management ───────────────────────────────────────────────────────
+
+def save_baseline(genome_label, fitness):
+    BASELINE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    baseline = {
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "genome": genome_label,
+        "fitness_score": fitness["score"],
+        "fitness_grade": fitness["grade"],
+        "breakdown": fitness["breakdown"],
+    }
+    BASELINE_FILE.write_text(json.dumps(baseline, indent=2), encoding="utf-8")
+    return baseline
+
+
+def git_commit(genome_path, mutation_titles, fitness_before, fitness_after):
+    """Commit genome changes with evolution metadata."""
+    title_summary = ", ".join(f'"{t}"' for t in mutation_titles[:2])
+    if len(mutation_titles) > 2:
+        title_summary += f" +{len(mutation_titles) - 2} more"
+
+    delta = round(fitness_after["score"] - fitness_before["score"], 3)
+    delta_str = f"{delta:+.3f}" if delta != 0 else "0.000"
+
+    msg = (
+        f"evolve({genome_path.stem.lower()}): {title_summary}\n\n"
+        f"Fitness: {fitness_before['score']:.3f} [{fitness_before['grade']}] → "
+        f"{fitness_after['score']:.3f} [{fitness_after['grade']}]  ({delta_str})\n\n"
+        f"AlphaEvolve-style mutation — genome evolved via LLM-proposed semantic changes.\n\n"
+        f"Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+    )
+
+    try:
+        subprocess.run(
+            ["git", "add", str(genome_path)],
+            cwd=str(WORKSPACE),
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", msg],
+            cwd=str(WORKSPACE),
+            check=True,
+            capture_output=True,
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"  [warn] git commit failed: {e.stderr.decode()}", file=sys.stderr)
+        return False
+
+
+# ── Lessons excerpt ───────────────────────────────────────────────────────────
+
+def get_lessons_excerpt(max_lines=10):
+    lessons_file = WORKSPACE / ".learnings" / "lessons.md"
+    if not lessons_file.exists():
+        return "(no lessons file found)"
+
+    lines = lessons_file.read_text(encoding="utf-8").split("\n")
+    lesson_lines = [l.strip() for l in lines if l.strip().startswith("[")]
+    # Most recent lessons last (they're typically appended at bottom)
+    recent = lesson_lines[-max_lines:]
+    return "\n".join(recent) if recent else "(no lessons recorded)"
+
+
+# ── Display helpers ───────────────────────────────────────────────────────────
+
+def print_mutation(idx, m):
+    conf_color = {"high": "✓✓", "medium": "✓", "low": "?"}.get(m["confidence"].lower(), "?")
+    print(f"\n  [{idx}] {m['title']}  {conf_color}  [{m['confidence']}]")
+    print(f"      Impact: {m['impact']}")
+    print(f"      {m['rationale']}")
+    if m["find"]:
+        preview_find = m["find"][:80].replace("\n", "↵")
+        preview_replace = m["replace"][:80].replace("\n", "↵")
+        print(f"      FIND:    {preview_find!r}")
+        print(f"      REPLACE: {preview_replace!r}")
+    else:
+        print("      (addition — no FIND block)")
+
+
+def print_fitness(fitness):
+    b = fitness["breakdown"]
+    r = fitness["raw"]
+    delta = fitness["delta"]
+    delta_str = ""
+    if delta is not None:
+        arrow = "▲" if delta > 0 else ("▼" if delta < 0 else "→")
+        delta_str = f"  {arrow} {delta:+.3f}"
+
+    print(f"\n  Fitness: {fitness['score']:.3f} [{fitness['grade']}]{delta_str}")
+    print(f"  Tasks:       {b['task_completion_rate']:.1%} completion  ({r['tasks_done']} done / {r['tasks_failed']} failed)")
+    print(f"  Corrections: score={b['correction_score']:.3f}  ({r['corrections_recent']} recent)")
+    print(f"  Daily notes: score={b['daily_signal_score']:.3f}  ({r['daily_keyword_hits']} keyword hits)")
+    if b.get("spark_quality_score") is not None:
+        print(f"  Spark:       {b['spark_quality_score']:.3f}")
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="AlphaEvolve-style genome evolution for Daedalus",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    ap.add_argument(
+        "--genome", default="soul",
+        help="Genome to evolve: soul, principles, agents, tools, skill/NAME (default: soul)"
+    )
+    ap.add_argument(
+        "--score-only", action="store_true",
+        help="Print fitness score only, no mutations"
+    )
+    ap.add_argument(
+        "--dry-run", action="store_true",
+        help="Show proposed mutations but don't apply or commit"
+    )
+    ap.add_argument(
+        "--days", type=int, default=7,
+        help="Evaluation window in days (default: 7)"
+    )
+    ap.add_argument(
+        "--model", default="sonnet", choices=list(MODEL_MAP.keys()),
+        help="Claude model for mutations (default: sonnet)"
+    )
+    ap.add_argument(
+        "--no-commit", action="store_true",
+        help="Apply mutations but skip git commit"
+    )
+    args = ap.parse_args()
+
+    model = MODEL_MAP[args.model]
+
+    # ── Step 1: Fitness ────────────────────────────────────────────────────
+    sys.path.insert(0, str(WORKSPACE / "bin"))
+    from fitness_score import compute_fitness, print_report
+
+    print("\n╔══════════════════════════════════════╗")
+    print("║       DAEDALUS GENOME EVOLUTION      ║")
+    print("╚══════════════════════════════════════╝")
+
+    print(f"\nGenome:  {args.genome}")
+    print(f"Window:  {args.days} days")
+    print(f"Model:   {model}")
+
+    fitness = compute_fitness(days=args.days)
+    print_fitness(fitness)
+
+    if args.score_only:
+        return
+
+    # ── Step 2: Load genome ───────────────────────────────────────────────
+    genome_label, genome_path = resolve_genome(args.genome)
+
+    if not genome_path.exists():
+        print(f"\n[evolve] Error: genome file not found: {genome_path}", file=sys.stderr)
+        sys.exit(1)
+
+    genome_content = genome_path.read_text(encoding="utf-8")
+    print(f"\n  Genome file: {genome_path.relative_to(WORKSPACE)}  ({len(genome_content)} chars)")
+
+    # ── Step 3: Propose mutations ─────────────────────────────────────────
+    print(f"\n  Calling {model} for mutation proposals...")
+
+    lessons = get_lessons_excerpt()
+    prompt = build_prompt(genome_label, genome_content, fitness, args.days, lessons)
+
+    response = call_claude(prompt, model=model)
+    if not response:
+        print("[evolve] Failed to get mutations from Claude. Exiting.", file=sys.stderr)
+        sys.exit(1)
+
+    mutations = parse_mutations(response)
+
+    if not mutations:
+        print("\n[evolve] Could not parse mutations from response. Raw output:")
+        print("─" * 60)
+        print(response[:2000])
+        sys.exit(1)
+
+    # ── Step 4: Review ────────────────────────────────────────────────────
+    print(f"\n  Proposed {len(mutations)} mutation(s):")
+    print("─" * 60)
+    for i, m in enumerate(mutations, 1):
+        print_mutation(i, m)
+
+    if args.dry_run:
+        print("\n  [dry-run] No changes applied.")
+        return
+
+    # ── Step 5: Approval ──────────────────────────────────────────────────
+    print("\n─" * 60)
+    print("  Apply which mutations? (e.g. '1', '1 2', 'all', 'none')")
+    try:
+        choice = input("  > ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("\n  Aborted.")
+        return
+
+    if choice in ("none", "n", "0", ""):
+        print("  No mutations applied.")
+        return
+
+    if choice in ("all", "a"):
+        selected = list(range(len(mutations)))
+    else:
+        selected = []
+        for tok in choice.split():
+            try:
+                idx = int(tok) - 1
+                if 0 <= idx < len(mutations):
+                    selected.append(idx)
+            except ValueError:
+                pass
+
+    if not selected:
+        print("  No valid selection. Exiting.")
+        return
+
+    # ── Step 6: Apply ─────────────────────────────────────────────────────
+    applied_titles = []
+    for idx in selected:
+        m = mutations[idx]
+        print(f"\n  Applying: {m['title']}...")
+        ok, msg = apply_mutation(genome_path, m)
+        if ok:
+            print(f"  ✓ {msg}")
+            applied_titles.append(m["title"])
+        else:
+            print(f"  ✗ {msg}")
+
+    if not applied_titles:
+        print("\n  No mutations were successfully applied.")
+        return
+
+    # ── Step 7: Re-score ──────────────────────────────────────────────────
+    fitness_after = compute_fitness(days=args.days)
+    delta = round(fitness_after["score"] - fitness["score"], 3)
+    arrow = "▲" if delta > 0 else ("▼" if delta < 0 else "→")
+    print(f"\n  Post-mutation fitness: {fitness_after['score']:.3f} [{fitness_after['grade']}]  {arrow} {delta:+.3f}")
+
+    # ── Step 8: Commit ────────────────────────────────────────────────────
+    if not args.no_commit:
+        do_commit = input("\n  Commit to git? [Y/n] ").strip().lower()
+        if do_commit not in ("n", "no"):
+            ok = git_commit(genome_path, applied_titles, fitness, fitness_after)
+            if ok:
+                print("  ✓ Committed.")
+            else:
+                print("  ✗ Commit failed — changes saved to disk, commit manually.")
+
+    # ── Step 9: Save baseline ─────────────────────────────────────────────
+    save_baseline(genome_label, fitness_after)
+    print(f"  ✓ Baseline updated → {BASELINE_FILE.relative_to(WORKSPACE)}")
+
+    print(f"\n  Done. {len(applied_titles)} mutation(s) applied to {genome_path.name}.")
+    print()
+
+
+if __name__ == "__main__":
+    main()

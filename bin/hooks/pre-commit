@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# pre-commit hook — Skill Security Gate
+# Scans staged skill directories for dangerous patterns before allowing commit.
+# Set SKIP_SKILL_SCAN=1 to bypass.
+
+set -euo pipefail
+
+# ── Bypass ────────────────────────────────────────────────────────────────────
+if [ "${SKIP_SKILL_SCAN:-0}" = "1" ]; then
+  exit 0
+fi
+
+# ── Locate scanner ────────────────────────────────────────────────────────────
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+SCANNER="$REPO_ROOT/skills/openclaw-skill-scanner/scanner.py"
+
+if [ ! -f "$SCANNER" ]; then
+  exit 0
+fi
+
+# ── Identify changed skill directories ────────────────────────────────────────
+CHANGED_SKILLS=$(git diff --cached --name-only --diff-filter=ACMR \
+  | grep -E '^skills/' \
+  | sed 's|^skills/\([^/]*\)/.*|\1|' \
+  | sort -u) || true
+
+if [ -z "$CHANGED_SKILLS" ]; then
+  exit 0
+fi
+
+# ── Scan each changed skill ──────────────────────────────────────────────────
+BLOCKED=0
+WARNED=0
+
+for skill_name in $CHANGED_SKILLS; do
+  # Skip self (the scanner itself)
+  if [ "$skill_name" = "openclaw-skill-scanner" ]; then
+    continue
+  fi
+
+  # Skip if directory no longer exists (deleted skill)
+  if [ ! -d "$REPO_ROOT/skills/$skill_name" ]; then
+    continue
+  fi
+
+  # Run scanner
+  SCAN_OUTPUT=$(python3 "$SCANNER" --skill "$skill_name" --json 2>/dev/null) || continue
+
+  # Extract risk_score from JSON
+  RISK_SCORE=$(python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.argv[1])
+    print(data.get('risk_score', 0))
+except Exception:
+    print(0)
+" "$SCAN_OUTPUT" 2>/dev/null) || RISK_SCORE=0
+
+  if [ "$RISK_SCORE" -ge 70 ] 2>/dev/null; then
+    echo "BLOCKED: skills/$skill_name — risk_score $RISK_SCORE/100 (dangerous)"
+    BLOCKED=1
+  elif [ "$RISK_SCORE" -ge 30 ] 2>/dev/null; then
+    echo "WARNING: skills/$skill_name — risk_score $RISK_SCORE/100 (suspicious)"
+    WARNED=1
+  fi
+done
+
+# ── Final verdict ─────────────────────────────────────────────────────────────
+if [ "$BLOCKED" -eq 1 ]; then
+  echo ""
+  echo "Commit blocked by skill security gate."
+  echo "Fix the flagged skills or run: SKIP_SKILL_SCAN=1 git commit ..."
+  exit 1
+fi
+
+if [ "$WARNED" -eq 1 ]; then
+  echo "Proceeding with warnings."
+fi
+
+exit 0

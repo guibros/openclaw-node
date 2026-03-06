@@ -1,0 +1,16 @@
+{
+  "nodeId": "${OPENCLAW_NODE_ID}",
+  "workspace": "${OPENCLAW_WORKSPACE}",
+  "timezone": "${OPENCLAW_TIMEZONE}",
+  "intervals": {
+    "pollMs": 30000,
+    "activityWindowMs": 900000,
+    "activeThresholdMs": 300000,
+    "idleThresholdMs": 900000,
+    "sessionRecapMs": 600000,
+    "maintenanceMs": 1800000,
+    "obsidianSyncMs": 1800000
+  },
+  "clawvaultBin": "bin/clawvault-local",
+  "obsidianVault": "projects/arcane-vault"
+}

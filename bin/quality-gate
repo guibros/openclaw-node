@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# quality-gate — Write-time quality check for sub-agent work
+#
+# Usage:
+#   bin/quality-gate --files file1 file2 ...
+#   bin/quality-gate --check-all             # scan all uncommitted changes
+#   bin/quality-gate --project arcane        # scope to a project
+#   bin/quality-gate --help
+#
+# Checks:
+#   1. Security patterns (eval, exec, secrets, dangerouslySetInnerHTML)
+#   2. TypeScript compilation (tsc --noEmit, if tsconfig exists)
+#   3. Test proximity (warn if .test file exists but wasn't run)
+#   4. Solidity basics (unchecked calls)
+#   5. Screenshot gate (UI file modifications require visual evidence)
+#
+# Exit codes:
+#   0 = all gates passed
+#   1 = gate failure (must fix before proceeding)
+#   2 = warnings only (can proceed with caution)
+
+set -euo pipefail
+
+WORKSPACE="/Users/moltymac/.openclaw/workspace"
+FAILURES=0
+WARNINGS=0
+
+# --- Parse args ---
+FILES=()
+CHECK_ALL=false
+PROJECT=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --files) shift; while [[ $# -gt 0 && ! "$1" =~ ^-- ]]; do FILES+=("$1"); shift; done ;;
+    --check-all) CHECK_ALL=true; shift ;;
+    --project) PROJECT="$2"; shift 2 ;;
+    --help|-h)
+      sed -n '2,/^$/p' "$0" | sed 's/^# //' | sed 's/^#//'
+      exit 0 ;;
+    *) FILES+=("$1"); shift ;;
+  esac
+done
+
+# If check-all, gather uncommitted changes
+if $CHECK_ALL; then
+  mapfile -t STAGED < <(git -C "$WORKSPACE" diff --cached --name-only 2>/dev/null || true)
+  mapfile -t UNSTAGED < <(git -C "$WORKSPACE" diff --name-only HEAD 2>/dev/null || true)
+  FILES=("${STAGED[@]}" "${UNSTAGED[@]}")
+  # Deduplicate
+  if [ ${#FILES[@]} -gt 0 ]; then
+    mapfile -t FILES < <(printf '%s\n' "${FILES[@]}" | sort -u)
+  fi
+fi
+
+if [ ${#FILES[@]} -eq 0 ]; then
+  echo "No files to check."
+  exit 0
+fi
+
+echo "Quality gate: checking ${#FILES[@]} file(s)..."
+
+# --- Gate 1: Security patterns ---
+SECURITY_PATTERNS='(eval\(|execSync\(|dangerouslySetInnerHTML|PRIVATE_KEY\s*=|SECRET_KEY\s*=|password\s*=\s*["\x27][^"\x27])'
+for f in "${FILES[@]}"; do
+  FULL="$WORKSPACE/$f"
+  [ -f "$FULL" ] || continue
+  MATCHES=$(grep -nE "$SECURITY_PATTERNS" "$FULL" 2>/dev/null || true)
+  if [ -n "$MATCHES" ]; then
+    echo "  WARN [security]: Suspicious pattern in $f:"
+    echo "$MATCHES" | head -3 | sed 's/^/    /'
+    WARNINGS=$((WARNINGS + 1))
+  fi
+done
+
+# --- Gate 2: TypeScript compilation ---
+TS_FILES=()
+for f in "${FILES[@]}"; do
+  [[ "$f" =~ \.(ts|tsx)$ ]] && TS_FILES+=("$f")
+done
+
+if [ ${#TS_FILES[@]} -gt 0 ]; then
+  PROJECT_DIR=""
+  if [ -n "$PROJECT" ]; then
+    PROJECT_DIR="$WORKSPACE/projects/$PROJECT"
+  else
+    FIRST="${TS_FILES[0]}"
+    if [[ "$FIRST" =~ ^projects/([^/]+)/ ]]; then
+      PROJECT_DIR="$WORKSPACE/projects/${BASH_REMATCH[1]}"
+    fi
+  fi
+
+  if [ -n "$PROJECT_DIR" ] && [ -f "$PROJECT_DIR/tsconfig.json" ]; then
+    echo "  Checking TypeScript compilation..."
+    if ! (cd "$PROJECT_DIR" && npx --yes tsc --noEmit 2>&1 | tail -5); then
+      echo "  FAIL [typescript]: Compilation errors detected"
+      FAILURES=$((FAILURES + 1))
+    else
+      echo "  OK [typescript]: Clean"
+    fi
+  fi
+fi
+
+# --- Gate 3: Test proximity warning ---
+for f in "${FILES[@]}"; do
+  [[ "$f" =~ \.(ts|tsx|js|jsx)$ ]] || continue
+  [[ "$f" =~ \.test\. ]] && continue
+  [[ "$f" =~ \.spec\. ]] && continue
+
+  # Try common test file patterns
+  BASE="${f%.*}"
+  EXT="${f##*.}"
+  for PATTERN in "${BASE}.test.${EXT}" "${BASE}.spec.${EXT}"; do
+    if [ -f "$WORKSPACE/$PATTERN" ]; then
+      echo "  INFO [test]: Test file exists for $f -> $PATTERN (consider running)"
+      break
+    fi
+  done
+done
+
+# --- Gate 4: Solidity checks ---
+SOL_FILES=()
+for f in "${FILES[@]}"; do
+  [[ "$f" =~ \.sol$ ]] && SOL_FILES+=("$f")
+done
+
+if [ ${#SOL_FILES[@]} -gt 0 ]; then
+  echo "  Checking Solidity files..."
+  for f in "${SOL_FILES[@]}"; do
+    FULL="$WORKSPACE/$f"
+    [ -f "$FULL" ] || continue
+    # Check for low-level calls without success check
+    if grep -qE '\.call\{|\.call\(' "$FULL" 2>/dev/null; then
+      if ! grep -qE '(require|assert|if\s*\(success)' "$FULL" 2>/dev/null; then
+        echo "  WARN [solidity]: Potentially unchecked external call in $f"
+        WARNINGS=$((WARNINGS + 1))
+      fi
+    fi
+    # Check for selfdestruct
+    if grep -q 'selfdestruct' "$FULL" 2>/dev/null; then
+      echo "  WARN [solidity]: selfdestruct found in $f"
+      WARNINGS=$((WARNINGS + 1))
+    fi
+  done
+fi
+
+# --- Gate 5: Screenshot gate (UI file detection) ---
+UI_FILES=()
+for f in "${FILES[@]}"; do
+  if [[ "$f" =~ \.(tsx|jsx|css|scss)$ ]] && [[ "$f" =~ (components|pages|app|screens)/ ]]; then
+    UI_FILES+=("$f")
+  fi
+done
+
+if [ ${#UI_FILES[@]} -gt 0 ]; then
+  echo "  SCREENSHOT GATE: ${#UI_FILES[@]} UI file(s) modified — visual evidence required in artifacts:"
+  for f in "${UI_FILES[@]}"; do
+    echo "    - $f"
+  done
+  WARNINGS=$((WARNINGS + 1))
+fi
+
+# --- Result ---
+echo ""
+if [ $FAILURES -gt 0 ]; then
+  echo "QUALITY GATE: FAILED ($FAILURES failure(s), $WARNINGS warning(s))"
+  exit 1
+elif [ $WARNINGS -gt 0 ]; then
+  echo "QUALITY GATE: PASSED with $WARNINGS warning(s)"
+  exit 2
+else
+  echo "QUALITY GATE: PASSED"
+  exit 0
+fi

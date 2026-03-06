@@ -1,0 +1,599 @@
+#!/usr/bin/env python3
+"""
+Skill Routing Evaluation — Test trigger routing accuracy across all skills.
+
+Usage:
+    bin/skill-routing-eval                    # Run all, terminal output
+    bin/skill-routing-eval --skill <name>     # Single skill
+    bin/skill-routing-eval --json             # JSON output
+    bin/skill-routing-eval --report FILE      # Markdown report
+    bin/skill-routing-eval --threshold 0.40   # Custom threshold
+    bin/skill-routing-eval --baseline         # Save to .tmp/last-routing-eval.json
+    bin/skill-routing-eval --compare FILE     # Diff against baseline
+    bin/skill-routing-eval --auto-only        # Only auto-generated tests
+    bin/skill-routing-eval --manual-only      # Only manual JSON tests
+
+No external dependencies — stdlib only.
+"""
+
+from __future__ import annotations
+
+import sys
+import os
+import json
+import argparse
+import re
+from pathlib import Path
+from typing import Optional
+
+# Add bin/ to path for lib imports
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
+from lib.frontmatter import parse_frontmatter
+
+# ─── Constants ────────────────────────────────────────────────────────────────
+
+VERSION = "1.0.0"
+DEFAULT_SKILLS_DIR = Path.home() / ".openclaw" / "workspace" / "skills"
+DEFAULT_MANUAL_TESTS = Path.home() / ".openclaw" / "workspace" / "bin" / "routing-eval-tests.json"
+DEFAULT_BASELINE_PATH = Path.home() / ".openclaw" / "workspace" / ".tmp" / "last-routing-eval.json"
+DEFAULT_THRESHOLD = 0.35
+
+STOP_WORDS = {
+    "a", "an", "the", "is", "to", "for", "of", "in", "on",
+    "this", "that", "it", "and", "or", "my", "me", "i",
+    "do", "can", "you", "please", "help", "want", "need", "how",
+}
+
+# ANSI colors
+class C:
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    CYAN = "\033[96m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+
+
+# ─── Matching Engine ─────────────────────────────────────────────────────────
+
+def tokenize(text: str) -> set:
+    """Lowercase, extract word tokens, remove stop words and single chars."""
+    words = re.findall(r'\b[a-z0-9]+\b', text.lower())
+    return set(w for w in words if w not in STOP_WORDS and len(w) > 1)
+
+
+def jaccard_score(a: set, b: set) -> float:
+    """Jaccard similarity between two token sets."""
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def score_query_against_skill(
+    query: str, triggers: list, negative_triggers: list,
+    threshold: float = DEFAULT_THRESHOLD,
+) -> dict:
+    """Score a query against a skill's triggers. Returns match result dict."""
+    q_tokens = tokenize(query)
+    best_pos = max((jaccard_score(q_tokens, tokenize(t)) for t in triggers), default=0.0)
+    best_neg = max((jaccard_score(q_tokens, tokenize(n)) for n in negative_triggers), default=0.0)
+    match = best_pos >= threshold and best_pos > best_neg
+    return {"positive_score": best_pos, "negative_score": best_neg, "match": match}
+
+
+# ─── Skill Loading ───────────────────────────────────────────────────────────
+
+def load_skill(skill_path: Path) -> Optional[dict]:
+    """Load a skill's frontmatter. Returns None if SKILL.md missing."""
+    skill_md = skill_path / "SKILL.md"
+    if not skill_md.exists():
+        return None
+    raw = skill_md.read_text()
+    fm, _ = parse_frontmatter(raw)
+    if not fm:
+        return None
+    name = fm.get("name", skill_path.name)
+    triggers = fm.get("triggers", [])
+    negative_triggers = fm.get("negative_triggers", [])
+    if not isinstance(triggers, list):
+        triggers = []
+    if not isinstance(negative_triggers, list):
+        negative_triggers = []
+    return {
+        "name": name,
+        "triggers": triggers,
+        "negative_triggers": negative_triggers,
+    }
+
+
+def load_all_skills(skills_dir: Path, single_skill: Optional[str] = None) -> list:
+    """Load all skills (or a single one) from the skills directory."""
+    if single_skill:
+        sp = skills_dir / single_skill
+        if not sp.exists():
+            return []
+        sk = load_skill(sp)
+        return [sk] if sk else []
+
+    skills = []
+    for d in sorted(skills_dir.iterdir()):
+        if d.is_dir():
+            sk = load_skill(d)
+            if sk:
+                skills.append(sk)
+    return skills
+
+
+# ─── Test Case Generation ────────────────────────────────────────────────────
+
+def generate_auto_tests(skills: list) -> list:
+    """Auto-generate test cases from skill frontmatter triggers."""
+    tests = []
+    for skill in skills:
+        name = skill["name"]
+        for trigger in skill["triggers"]:
+            tests.append({
+                "query": trigger,
+                "expected_skills": [name],
+                "unexpected_skills": [],
+                "category": "auto-positive",
+                "source_skill": name,
+            })
+        for neg in skill["negative_triggers"]:
+            tests.append({
+                "query": neg,
+                "expected_skills": [],
+                "unexpected_skills": [name],
+                "category": "auto-negative",
+                "source_skill": name,
+            })
+    return tests
+
+
+def load_manual_tests(path: Path) -> list:
+    """Load manual test cases from JSON file. Returns [] if file missing."""
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text())
+        cases = data.get("test_cases", [])
+        for c in cases:
+            c.setdefault("category", "manual")
+            c.setdefault("expected_skills", [])
+            c.setdefault("unexpected_skills", [])
+        return cases
+    except (json.JSONDecodeError, KeyError):
+        print(f"Warning: could not parse {path}", file=sys.stderr)
+        return []
+
+
+# ─── Evaluation Engine ───────────────────────────────────────────────────────
+
+def evaluate(skills: list, test_cases: list, threshold: float) -> dict:
+    """Run all test cases against all skills. Returns evaluation results."""
+    # Per-skill accumulators
+    skill_stats = {}
+    for sk in skills:
+        skill_stats[sk["name"]] = {"tp": 0, "fp": 0, "fn": 0, "queries": []}
+
+    correct = 0
+    total = len(test_cases)
+    conflict_map = {}  # (query) -> list of matched skill names
+
+    for tc in test_cases:
+        query = tc["query"]
+        expected = set(tc.get("expected_skills", []))
+        unexpected = set(tc.get("unexpected_skills", []))
+
+        matched_skills = set()
+        for sk in skills:
+            result = score_query_against_skill(
+                query, sk["triggers"], sk["negative_triggers"], threshold
+            )
+            if result["match"]:
+                matched_skills.add(sk["name"])
+
+        # Track conflicts (multiple skills matching same query)
+        if len(matched_skills) > 1:
+            key = frozenset(matched_skills)
+            if key not in conflict_map:
+                conflict_map[key] = []
+            conflict_map[key].append(query)
+
+        # Determine correctness for this test case
+        case_correct = True
+
+        # Check expected skills (should be in matched)
+        for exp in expected:
+            if exp in skill_stats:
+                if exp in matched_skills:
+                    skill_stats[exp]["tp"] += 1
+                else:
+                    skill_stats[exp]["fn"] += 1
+                    case_correct = False
+
+        # Check unexpected skills (should NOT be in matched)
+        for unexp in unexpected:
+            if unexp in skill_stats:
+                if unexp in matched_skills:
+                    skill_stats[unexp]["fp"] += 1
+                    skill_stats[unexp]["queries"].append(query)
+                    case_correct = False
+
+        # Also count FP for skills that matched but weren't expected/unexpected
+        for m in matched_skills:
+            if m not in expected and m not in unexpected and m in skill_stats:
+                # Only count as FP if there were expected skills (i.e., a targeted test)
+                if expected:
+                    skill_stats[m]["fp"] += 1
+                    skill_stats[m]["queries"].append(query)
+
+        if case_correct:
+            correct += 1
+
+    # Compute per-skill metrics
+    skill_results = []
+    for sk in skills:
+        name = sk["name"]
+        st = skill_stats[name]
+        tp, fp, fn = st["tp"], st["fp"], st["fn"]
+
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 1.0
+        f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+
+        skill_results.append({
+            "name": name,
+            "precision": round(precision, 2),
+            "recall": round(recall, 2),
+            "f1": round(f1, 2),
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "conflicts": [],
+        })
+
+    # Build conflict pairs
+    conflict_pairs = []
+    for skill_set, queries in conflict_map.items():
+        names = sorted(skill_set)
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                existing = next(
+                    (cp for cp in conflict_pairs
+                     if cp["skill_a"] == names[i] and cp["skill_b"] == names[j]),
+                    None,
+                )
+                if existing:
+                    existing["count"] += len(queries)
+                    for q in queries:
+                        if q not in existing["example_queries"]:
+                            existing["example_queries"].append(q)
+                else:
+                    conflict_pairs.append({
+                        "skill_a": names[i],
+                        "skill_b": names[j],
+                        "count": len(queries),
+                        "example_queries": list(queries[:5]),
+                    })
+
+    # Attach conflict info to skill results
+    for cp in conflict_pairs:
+        for sr in skill_results:
+            if sr["name"] in (cp["skill_a"], cp["skill_b"]):
+                other = cp["skill_b"] if sr["name"] == cp["skill_a"] else cp["skill_a"]
+                if other not in sr["conflicts"]:
+                    sr["conflicts"].append(other)
+
+    # Identify problem skills
+    under_triggered = [sr["name"] for sr in skill_results if sr["recall"] < 0.5 and sr["tp"] + sr["fn"] > 0]
+    over_triggered = [sr["name"] for sr in skill_results if sr["precision"] < 0.5 and sr["tp"] + sr["fp"] > 0]
+
+    overall_accuracy = correct / total if total > 0 else 0.0
+
+    return {
+        "version": VERSION,
+        "total_skills": len(skills),
+        "total_tests": total,
+        "threshold": threshold,
+        "overall_accuracy": round(overall_accuracy, 4),
+        "correct": correct,
+        "skills": skill_results,
+        "conflict_pairs": conflict_pairs,
+        "under_triggered": under_triggered,
+        "over_triggered": over_triggered,
+    }
+
+
+# ─── Output Formatters ───────────────────────────────────────────────────────
+
+def f1_color(f1: float) -> str:
+    """Color code for F1 score."""
+    if f1 >= 0.9:
+        return C.GREEN
+    if f1 >= 0.7:
+        return C.CYAN
+    if f1 >= 0.5:
+        return C.YELLOW
+    return C.RED
+
+
+def print_table(results: dict):
+    """Print colored table to terminal."""
+    total_skills = results["total_skills"]
+    total_tests = results["total_tests"]
+    threshold = results["threshold"]
+    correct = results["correct"]
+    accuracy = results["overall_accuracy"]
+
+    print(f"\n{C.BOLD}Routing Evaluation{C.RESET}  "
+          f"({total_skills} skills, {total_tests} test cases, threshold={threshold})\n")
+
+    # Table header
+    print(f"  {'Skill':<35} {'Prec':>5}  {'Rec':>5}  {'F1':>4}  Issues")
+    print(f"  {'─' * 35} {'─' * 5}  {'─' * 5}  {'─' * 4}  {'─' * 30}")
+
+    # Sort by F1 ascending (worst first), then name
+    skill_results = sorted(results["skills"], key=lambda s: (s["f1"], s["name"]))
+
+    for sr in skill_results:
+        fc = f1_color(sr["f1"])
+        issues = []
+        if sr["conflicts"]:
+            issues.append("conflicts: " + ", ".join(sr["conflicts"][:3]))
+        if sr["fn"] > 0:
+            issues.append(f"missed {sr['fn']}")
+        if sr["fp"] > 0:
+            issues.append(f"false+ {sr['fp']}")
+
+        issue_str = "; ".join(issues) if issues else f"{C.DIM}clean{C.RESET}"
+        if len(issue_str) > 50:
+            issue_str = issue_str[:47] + "..."
+
+        print(f"  {sr['name']:<35} {sr['precision']:>5.2f}  {sr['recall']:>5.2f}  "
+              f"{fc}{sr['f1']:>4.1f}{C.RESET}  {issue_str}")
+
+    # Conflict pairs
+    conflict_pairs = results["conflict_pairs"]
+    if conflict_pairs:
+        print(f"\n{C.BOLD}CONFLICTS ({len(conflict_pairs)} pairs):{C.RESET}")
+        for cp in sorted(conflict_pairs, key=lambda c: -c["count"]):
+            example = cp["example_queries"][0] if cp["example_queries"] else ""
+            if len(example) > 40:
+                example = example[:37] + "..."
+            print(f"  {cp['skill_a']} <-> {cp['skill_b']}  "
+                  f"({cp['count']} shared queries)  {C.DIM}{example}{C.RESET}")
+
+    # Summary
+    print(f"\n{C.BOLD}Overall:{C.RESET} {correct}/{total_tests} correct ({accuracy * 100:.1f}%)")
+
+    under = results["under_triggered"]
+    over = results["over_triggered"]
+    if under:
+        print(f"{C.YELLOW}Under-triggered (recall<0.5):{C.RESET} {', '.join(under)}")
+    if over:
+        print(f"{C.RED}Over-triggered (precision<0.5):{C.RESET} {', '.join(over)}")
+    print()
+
+
+def generate_json(results: dict) -> str:
+    """Generate JSON output."""
+    return json.dumps(results, indent=2)
+
+
+def generate_report(results: dict) -> str:
+    """Generate markdown report."""
+    lines = [
+        "# Routing Evaluation Report",
+        "",
+        f"**Total skills:** {results['total_skills']}  ",
+        f"**Total tests:** {results['total_tests']}  ",
+        f"**Threshold:** {results['threshold']}  ",
+        f"**Overall accuracy:** {results['overall_accuracy'] * 100:.1f}%  ",
+        "",
+        "## Per-Skill Results",
+        "",
+        "| Skill | Precision | Recall | F1 | TP | FP | FN | Conflicts |",
+        "|-------|-----------|--------|----|----|----|----|-----------| ",
+    ]
+
+    for sr in sorted(results["skills"], key=lambda s: (s["f1"], s["name"])):
+        conflicts = ", ".join(sr["conflicts"]) if sr["conflicts"] else "-"
+        lines.append(
+            f"| {sr['name']} | {sr['precision']:.2f} | {sr['recall']:.2f} | "
+            f"{sr['f1']:.2f} | {sr['tp']} | {sr['fp']} | {sr['fn']} | {conflicts} |"
+        )
+
+    if results["conflict_pairs"]:
+        lines.append("")
+        lines.append("## Conflict Pairs")
+        lines.append("")
+        for cp in sorted(results["conflict_pairs"], key=lambda c: -c["count"]):
+            examples = "; ".join(cp["example_queries"][:3])
+            lines.append(f"- **{cp['skill_a']}** <-> **{cp['skill_b']}** "
+                         f"({cp['count']} shared) — e.g. _{examples}_")
+
+    if results["under_triggered"]:
+        lines.append("")
+        lines.append("## Under-Triggered (recall < 0.5)")
+        lines.append("")
+        for name in results["under_triggered"]:
+            lines.append(f"- {name}")
+
+    if results["over_triggered"]:
+        lines.append("")
+        lines.append("## Over-Triggered (precision < 0.5)")
+        lines.append("")
+        for name in results["over_triggered"]:
+            lines.append(f"- {name}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+# ─── Baseline / Compare ──────────────────────────────────────────────────────
+
+def save_baseline(results: dict, path: Path):
+    """Save evaluation results as a baseline JSON file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(results, indent=2))
+    print(f"Baseline saved to {path}")
+
+
+def compare_baseline(current: dict, baseline_path: Path):
+    """Compare current results against a saved baseline."""
+    if not baseline_path.exists():
+        print(f"Error: baseline not found: {baseline_path}", file=sys.stderr)
+        sys.exit(1)
+
+    baseline = json.loads(baseline_path.read_text())
+
+    print(f"\n{C.BOLD}Comparison vs baseline{C.RESET}  ({baseline_path.name})\n")
+
+    # Overall accuracy diff
+    old_acc = baseline.get("overall_accuracy", 0)
+    new_acc = current["overall_accuracy"]
+    diff = new_acc - old_acc
+    arrow = C.GREEN + "+" if diff > 0 else C.RED
+    if diff == 0:
+        arrow = C.DIM + "="
+    print(f"  Overall accuracy: {old_acc * 100:.1f}% -> {new_acc * 100:.1f}%  "
+          f"{arrow}{diff * 100:+.1f}%{C.RESET}")
+
+    # Build baseline skill lookup
+    base_skills = {s["name"]: s for s in baseline.get("skills", [])}
+
+    # Per-skill diffs
+    improved = []
+    regressed = []
+    new_skills = []
+    removed_skills = []
+
+    for sr in current["skills"]:
+        name = sr["name"]
+        if name not in base_skills:
+            new_skills.append(name)
+            continue
+        old_f1 = base_skills[name]["f1"]
+        new_f1 = sr["f1"]
+        if new_f1 > old_f1:
+            improved.append((name, old_f1, new_f1))
+        elif new_f1 < old_f1:
+            regressed.append((name, old_f1, new_f1))
+
+    for name in base_skills:
+        if not any(sr["name"] == name for sr in current["skills"]):
+            removed_skills.append(name)
+
+    if improved:
+        print(f"\n  {C.GREEN}Improved ({len(improved)}):{C.RESET}")
+        for name, old, new in improved:
+            print(f"    {name}: F1 {old:.2f} -> {new:.2f}")
+
+    if regressed:
+        print(f"\n  {C.RED}Regressed ({len(regressed)}):{C.RESET}")
+        for name, old, new in regressed:
+            print(f"    {name}: F1 {old:.2f} -> {new:.2f}")
+
+    if new_skills:
+        print(f"\n  {C.CYAN}New skills:{C.RESET} {', '.join(new_skills)}")
+    if removed_skills:
+        print(f"\n  {C.YELLOW}Removed skills:{C.RESET} {', '.join(removed_skills)}")
+
+    print()
+
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description="Skill Routing Evaluation")
+    parser.add_argument("--skill", help="Evaluate a single skill by name")
+    parser.add_argument("--json", action="store_true", help="JSON output")
+    parser.add_argument("--report", metavar="FILE", help="Write markdown report to file")
+    parser.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD,
+                        help=f"Jaccard match threshold (default: {DEFAULT_THRESHOLD})")
+    parser.add_argument("--baseline", action="store_true",
+                        help="Save results to .tmp/last-routing-eval.json")
+    parser.add_argument("--compare", metavar="FILE",
+                        help="Diff against a baseline file")
+    parser.add_argument("--auto-only", action="store_true",
+                        help="Only run auto-generated tests from frontmatter")
+    parser.add_argument("--manual-only", action="store_true",
+                        help="Only run manual tests from routing-eval-tests.json")
+    parser.add_argument("--skills-dir", default=str(DEFAULT_SKILLS_DIR),
+                        help="Skills directory")
+    args = parser.parse_args()
+
+    skills_dir = Path(args.skills_dir)
+    if not skills_dir.exists():
+        print(f"Error: skills directory not found: {skills_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    # Load skills — always load all for cross-skill scoring
+    all_skills = load_all_skills(skills_dir)
+    if not all_skills:
+        print("No skills found.", file=sys.stderr)
+        sys.exit(1)
+
+    # If --skill, filter test generation but still score against all skills
+    if args.skill:
+        target_skills = load_all_skills(skills_dir, single_skill=args.skill)
+        if not target_skills:
+            print(f"Error: skill not found: {args.skill}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        target_skills = all_skills
+
+    # Build test cases
+    test_cases = []
+    if not args.manual_only:
+        test_cases.extend(generate_auto_tests(target_skills))
+    if not args.auto_only:
+        manual = load_manual_tests(DEFAULT_MANUAL_TESTS)
+        if args.skill:
+            manual = [
+                tc for tc in manual
+                if args.skill in tc.get("expected_skills", [])
+                or args.skill in tc.get("unexpected_skills", [])
+            ]
+        test_cases.extend(manual)
+
+    if not test_cases:
+        print("No test cases generated.", file=sys.stderr)
+        sys.exit(1)
+
+    # Run evaluation
+    results = evaluate(all_skills, test_cases, args.threshold)
+
+    # If --skill, filter results to only show that skill
+    if args.skill:
+        results["skills"] = [
+            sr for sr in results["skills"] if sr["name"] == args.skill
+        ]
+        results["conflict_pairs"] = [
+            cp for cp in results["conflict_pairs"]
+            if args.skill in (cp["skill_a"], cp["skill_b"])
+        ]
+
+    # Output
+    if args.json:
+        print(generate_json(results))
+    elif args.report:
+        report = generate_report(results)
+        Path(args.report).write_text(report)
+        print(f"Report written to {args.report}")
+    else:
+        print_table(results)
+
+    # Baseline save
+    if args.baseline:
+        save_baseline(results, DEFAULT_BASELINE_PATH)
+
+    # Baseline compare
+    if args.compare:
+        compare_baseline(results, Path(args.compare))
+
+
+if __name__ == "__main__":
+    main()

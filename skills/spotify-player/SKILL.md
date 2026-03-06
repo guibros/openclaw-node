@@ -1,0 +1,44 @@
+---
+name: spotify-player
+description: "Controls Spotify playback, search, and device management from the terminal via spogo or spotify_player. Use when the user wants to play, pause, skip, or search for music."
+triggers:
+  - "play some music"
+  - "next song"
+  - "search spotify for"
+  - "pause the music"
+  - "what song is playing"
+negative_triggers:
+  - "play a video"
+  - "search the web"
+  - "play a game"
+homepage: https://www.spotify.com
+metadata: {"clawdbot":{"emoji":"🎵","requires":{"anyBins":["spogo","spotify_player"]},"install":[{"id":"brew","kind":"brew","formula":"spogo","tap":"steipete/tap","bins":["spogo"],"label":"Install spogo (brew)"},{"id":"brew","kind":"brew","formula":"spotify_player","bins":["spotify_player"],"label":"Install spotify_player (brew)"}]}}
+---
+
+# spogo / spotify_player
+
+Use `spogo` **(preferred)** for Spotify playback/search. Fall back to `spotify_player` if needed.
+
+Requirements
+- Spotify Premium account.
+- Either `spogo` or `spotify_player` installed.
+
+spogo setup
+- Import cookies: `spogo auth import --browser chrome`
+
+Common CLI commands
+- Search: `spogo search track "query"`
+- Playback: `spogo play|pause|next|prev`
+- Devices: `spogo device list`, `spogo device set "<name|id>"`
+- Status: `spogo status`
+
+spotify_player commands (fallback)
+- Search: `spotify_player search "query"`
+- Playback: `spotify_player playback play|pause|next|previous`
+- Connect device: `spotify_player connect`
+- Like track: `spotify_player like`
+
+Notes
+- Config folder: `~/.config/spotify-player` (e.g., `app.toml`).
+- For Spotify Connect integration, set a user `client_id` in config.
+- TUI shortcuts are available via `?` in the app.

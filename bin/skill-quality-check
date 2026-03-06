@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# skill-quality-check — Compare current skill audit against last cached result.
+# Outputs regressions if any, otherwise silent.
+# Used by heartbeat for periodic quality monitoring.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE="${SCRIPT_DIR}/.."
+CACHE_DIR="${WORKSPACE}/.tmp"
+CACHE_FILE="${CACHE_DIR}/last-skill-audit.json"
+EVENTS_FILE="${WORKSPACE}/skills/capability-evolver/assets/gep/events.jsonl"
+
+mkdir -p "$CACHE_DIR"
+
+# Run current audit
+CURRENT=$(python3 "${SCRIPT_DIR}/skill-audit" --json 2>/dev/null)
+if [ $? -ne 0 ]; then
+  echo "ERROR: skill-audit failed"
+  exit 1
+fi
+
+CURRENT_AVG=$(echo "$CURRENT" | python3 -c "import sys,json; print(json.load(sys.stdin)['average_score'])")
+CURRENT_DIST=$(echo "$CURRENT" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)['grade_distribution']
+parts=[f\"{g}:{d[g]}\" for g in ['A','B','C','D','F'] if d.get(g,0)>0]
+print(' '.join(parts))
+")
+
+# Compare against cache
+if [ -f "$CACHE_FILE" ]; then
+  PREV_AVG=$(python3 -c "import json; print(json.load(open('$CACHE_FILE'))['average_score'])" 2>/dev/null || echo "0")
+
+  # Find regressions (skills that dropped grade)
+  REGRESSIONS=$(python3 -c "
+import json, sys
+
+prev = {s['name']: s['grade'] for s in json.load(open('$CACHE_FILE')).get('skills', [])}
+curr = {s['name']: s['grade'] for s in json.loads('''$CURRENT''').get('skills', [])}
+
+grade_rank = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'F': 4}
+regs = []
+for name, grade in curr.items():
+    old = prev.get(name)
+    if old and grade_rank.get(grade, 5) > grade_rank.get(old, 5):
+        regs.append(f'{name}: {old}->{grade}')
+
+if regs:
+    print('REGRESSIONS: ' + ', '.join(regs))
+else:
+    print('OK')
+" 2>/dev/null || echo "OK")
+
+  if [[ "$REGRESSIONS" == OK ]]; then
+    # Find improvements
+    IMPROVEMENTS=$(python3 -c "
+import json
+prev = {s['name']: s['grade'] for s in json.load(open('$CACHE_FILE')).get('skills', [])}
+curr = {s['name']: s['grade'] for s in json.loads('''$CURRENT''').get('skills', [])}
+grade_rank = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'F': 4}
+imps = []
+for name, grade in curr.items():
+    old = prev.get(name)
+    if old and grade_rank.get(grade, 5) < grade_rank.get(old, 5):
+        imps.append(f'{name}: {old}->{grade}')
+print(','.join(imps) if imps else 'none')
+" 2>/dev/null || echo "none")
+
+    # Silent if no changes
+    if [[ "$IMPROVEMENTS" == "none" ]]; then
+      # Update cache and exit silently
+      echo "$CURRENT" > "$CACHE_FILE"
+      exit 0
+    fi
+  fi
+
+  # Report
+  echo "Skill Quality: ${CURRENT_AVG}/100 (${CURRENT_DIST})"
+  echo "$REGRESSIONS"
+  if [[ "${IMPROVEMENTS:-none}" != "none" ]]; then
+    echo "IMPROVEMENTS: $IMPROVEMENTS"
+  fi
+
+  # Append GEP event
+  if [ -d "$(dirname "$EVENTS_FILE")" ]; then
+    TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+event = {
+    'type': 'EvolutionEvent',
+    'timestamp': '$TIMESTAMP',
+    'category': 'quality_audit',
+    'summary': '${CURRENT_AVG}/100 (${CURRENT_DIST})',
+    'changes': {
+        'regressions': '${REGRESSIONS}'.split(', ') if '${REGRESSIONS}' != 'OK' else [],
+        'improvements': '${IMPROVEMENTS}'.split(',') if '${IMPROVEMENTS}' != 'none' else []
+    }
+}
+print(json.dumps(event))
+" >> "$EVENTS_FILE" 2>/dev/null || true
+  fi
+else
+  echo "First run — baseline captured: ${CURRENT_AVG}/100 (${CURRENT_DIST})"
+fi
+
+# Update cache
+echo "$CURRENT" > "$CACHE_FILE"

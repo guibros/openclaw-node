@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# bin/screenshot — Capture desktop screenshot for OpenClaw
+# Usage: screenshot [--display N] [--delay N] [--clipboard] [output_path]
+#
+# Defaults: full main display, no delay, saved to .tmp/screenshots/<timestamp>.png
+# Returns: absolute path to captured image on stdout
+
+set -euo pipefail
+
+WORKSPACE="${OPENCLAW_WORKSPACE:-$(cd "$(dirname "$0")/.." && pwd)}"
+SCREENSHOT_DIR="$WORKSPACE/.tmp/screenshots"
+mkdir -p "$SCREENSHOT_DIR"
+
+# Defaults
+DISPLAY_FLAG=""
+DELAY=""
+CLIPBOARD=false
+OUTPUT=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --display|-D)
+      DISPLAY_FLAG="-D${2}"
+      shift 2
+      ;;
+    --delay|-T)
+      DELAY="-T${2}"
+      shift 2
+      ;;
+    --clipboard|-c)
+      CLIPBOARD=true
+      shift
+      ;;
+    --help|-h)
+      echo "Usage: screenshot [--display N] [--delay N] [--clipboard] [output_path]"
+      echo ""
+      echo "Options:"
+      echo "  --display N   Capture display N (1=main, 2=secondary)"
+      echo "  --delay N     Wait N seconds before capture"
+      echo "  --clipboard   Also copy to clipboard"
+      echo "  output_path   Custom output path (default: .tmp/screenshots/<timestamp>.png)"
+      exit 0
+      ;;
+    *)
+      OUTPUT="$1"
+      shift
+      ;;
+  esac
+done
+
+# Generate output path if not provided
+if [[ -z "$OUTPUT" ]]; then
+  TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+  OUTPUT="$SCREENSHOT_DIR/${TIMESTAMP}.png"
+fi
+
+# Build screencapture args
+ARGS=(-x)  # silent (no shutter sound)
+
+if [[ -n "$DISPLAY_FLAG" ]]; then
+  ARGS+=("$DISPLAY_FLAG")
+fi
+
+if [[ -n "$DELAY" ]]; then
+  ARGS+=("$DELAY")
+fi
+
+if $CLIPBOARD; then
+  ARGS+=(-c)
+fi
+
+ARGS+=("$OUTPUT")
+
+# Capture
+if screencapture "${ARGS[@]}" 2>/dev/null; then
+  if [[ -f "$OUTPUT" ]]; then
+    echo "$OUTPUT"
+  else
+    echo "ERROR: screencapture ran but no file produced at $OUTPUT" >&2
+    echo "Check System Settings > Privacy & Security > Screen Recording" >&2
+    exit 1
+  fi
+else
+  echo "ERROR: screencapture failed. Check screen recording permissions." >&2
+  echo "System Settings > Privacy & Security > Screen Recording > enable for Terminal/iTerm" >&2
+  exit 1
+fi

@@ -1,0 +1,22 @@
+{
+  "sources": [
+    {
+      "name": "claude-code-workspace",
+      "path": "~/.claude/projects/-Users-${USER}--openclaw-workspace/",
+      "format": "claude-code",
+      "enabled": true
+    },
+    {
+      "name": "claude-code-home",
+      "path": "~/.claude/projects/-Users-${USER}/",
+      "format": "claude-code",
+      "enabled": true
+    },
+    {
+      "name": "gateway",
+      "path": "~/.openclaw/agents/main/sessions/",
+      "format": "openclaw-gateway",
+      "enabled": true
+    }
+  ]
+}

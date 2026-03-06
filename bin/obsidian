@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# obsidian — CLI bridge to Obsidian via Local REST API
+#
+# Usage:
+#   bin/obsidian open <note-path>         Open a note in Obsidian
+#   bin/obsidian read <note-path>         Read note content via API
+#   bin/obsidian search <query>           Search vault
+#   bin/obsidian command <command-id>     Execute an Obsidian command
+#   bin/obsidian commands                 List available commands
+#   bin/obsidian status                   Check if API is reachable
+#   bin/obsidian active                   Get currently active file
+#   bin/obsidian launch                   Open the vault in Obsidian
+#   bin/obsidian help                     Show this help
+#
+# Requires: Obsidian running with Local REST API plugin enabled
+# API key is read from OBSIDIAN_API_KEY env var or .obsidian-api-key file
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+OC_WORKSPACE="${OPENCLAW_WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
+VAULT_PATH="${OBSIDIAN_VAULT_PATH:-$OC_WORKSPACE/projects/arcane-vault}"
+API_PORT="${OBSIDIAN_API_PORT:-27124}"
+API_BASE="https://127.0.0.1:${API_PORT}"
+
+# Load API key
+if [ -n "${OBSIDIAN_API_KEY:-}" ]; then
+  API_KEY="$OBSIDIAN_API_KEY"
+elif [ -f "$VAULT_PATH/.obsidian-api-key" ]; then
+  API_KEY=$(cat "$VAULT_PATH/.obsidian-api-key")
+else
+  API_KEY=""
+fi
+
+api_call() {
+  local method="$1" endpoint="$2"
+  shift 2
+  curl -sk -X "$method" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    "${API_BASE}${endpoint}" "$@" 2>/dev/null
+}
+
+cmd_status() {
+  local resp
+  resp=$(api_call GET "/" || echo "UNREACHABLE")
+  if echo "$resp" | grep -q "authenticated"; then
+    echo "Obsidian API: connected (port $API_PORT)"
+    return 0
+  elif echo "$resp" | grep -q "UNREACHABLE"; then
+    echo "Obsidian API: not reachable on port $API_PORT"
+    echo "  → Is Obsidian running with Local REST API enabled?"
+    return 1
+  else
+    echo "Obsidian API: reachable but auth may be needed"
+    echo "  → Set OBSIDIAN_API_KEY or save key to $VAULT_PATH/.obsidian-api-key"
+    return 1
+  fi
+}
+
+cmd_open() {
+  local note_path="$1"
+  # Try API first
+  if api_call POST "/open/${note_path}" > /dev/null 2>&1; then
+    echo "Opened: $note_path"
+  else
+    # Fallback to URI scheme
+    open "obsidian://open?vault=arcane-vault&file=${note_path}"
+    echo "Opened via URI: $note_path"
+  fi
+}
+
+cmd_read() {
+  local note_path="$1"
+  api_call GET "/vault/${note_path}"
+}
+
+cmd_search() {
+  local query="$1"
+  api_call POST "/search/simple/" -d "{\"query\": \"$query\"}"
+}
+
+cmd_command() {
+  local command_id="$1"
+  api_call POST "/commands/${command_id}/"
+}
+
+cmd_commands() {
+  api_call GET "/commands/"
+}
+
+cmd_active() {
+  api_call GET "/active/"
+}
+
+cmd_launch() {
+  open "obsidian://open?path=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$VAULT_PATH'))")"
+  echo "Opening vault in Obsidian..."
+  echo "After Obsidian loads:"
+  echo "  1. Go to Settings → Community Plugins → Enable 'Local REST API'"
+  echo "  2. Copy the API key from the plugin settings"
+  echo "  3. Run: echo 'YOUR_KEY' > $VAULT_PATH/.obsidian-api-key"
+  echo "  4. Test: bin/obsidian status"
+}
+
+cmd_help() {
+  sed -n '2,/^$/p' "$0" | sed 's/^# //' | sed 's/^#//'
+}
+
+# --- Main ---
+ACTION="${1:-help}"
+shift || true
+
+case "$ACTION" in
+  status)   cmd_status ;;
+  open)     cmd_open "${1:?Usage: bin/obsidian open <note-path>}" ;;
+  read)     cmd_read "${1:?Usage: bin/obsidian read <note-path>}" ;;
+  search)   cmd_search "${1:?Usage: bin/obsidian search <query>}" ;;
+  command)  cmd_command "${1:?Usage: bin/obsidian command <command-id>}" ;;
+  commands) cmd_commands ;;
+  active)   cmd_active ;;
+  launch)   cmd_launch ;;
+  help|-h|--help) cmd_help ;;
+  *) echo "Unknown command: $ACTION"; cmd_help; exit 1 ;;
+esac

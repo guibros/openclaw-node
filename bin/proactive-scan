@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# proactive-scan — Scan for actionable triggers during heartbeat
+#
+# Usage:
+#   bin/proactive-scan [--dry-run]    # show triggers without acting
+#   bin/proactive-scan                # report triggers for agent spawning
+#   bin/proactive-scan --help
+#
+# Checks:
+#   1. Stale running tasks (running > 30min without update)
+#   2. Uncommitted work in project directories
+#   3. Circuit breaker recovery opportunities
+#
+# Output: JSON array of trigger objects
+# Exit: 0 if triggers found, 1 if none
+
+set -euo pipefail
+
+WORKSPACE="/Users/moltymac/.openclaw/workspace"
+ACTIVE_TASKS="$WORKSPACE/memory/active-tasks.md"
+TRUST_REGISTRY="$WORKSPACE/.tmp/trust-registry.json"
+DRY_RUN=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=true; shift ;;
+    --help|-h) sed -n '2,/^$/p' "$0" | sed 's/^# //' | sed 's/^#//'; exit 0 ;;
+    *) shift ;;
+  esac
+done
+
+# Collect triggers as JSON via Python (reliable parsing)
+TRIGGERS=$(python3 << 'PYEOF'
+import json, re, os, subprocess
+from datetime import datetime, timedelta
+from pathlib import Path
+
+workspace = "/Users/moltymac/.openclaw/workspace"
+active_tasks = os.path.join(workspace, "memory/active-tasks.md")
+trust_registry = os.path.join(workspace, ".tmp/trust-registry.json")
+triggers = []
+
+# --- Check 1: Stale running tasks ---
+if os.path.isfile(active_tasks):
+    content = open(active_tasks).read()
+    blocks = re.split(r'^- task_id:', content, flags=re.MULTILINE)
+    now = datetime.now()
+
+    for block in blocks[1:]:
+        task_id = block.split('\n')[0].strip()
+        status_m = re.search(r'status:\s*(\S+)', block)
+        updated_m = re.search(r'updated_at:\s*(.+)', block)
+        title_m = re.search(r'title:\s*(.+)', block)
+
+        if not status_m or status_m.group(1) != 'running':
+            continue
+
+        if updated_m:
+            ts_raw = updated_m.group(1).strip()
+            # Handle both formats: "2026-02-21 09:15 America/Montreal" and ISO
+            for fmt in ('%Y-%m-%d %H:%M America/Montreal', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%d %H:%M'):
+                try:
+                    dt = datetime.strptime(ts_raw.replace('America/Montreal', '').strip(), fmt.replace(' America/Montreal', ''))
+                    if (now - dt) > timedelta(minutes=30):
+                        title = title_m.group(1).strip().strip('"') if title_m else task_id
+                        minutes = int((now - dt).total_seconds() / 60)
+                        triggers.append({
+                            "type": "stale_task",
+                            "description": f"Task {task_id} ({title}) running for {minutes}min without update",
+                            "task_id": task_id,
+                            "action": "check_status_or_escalate"
+                        })
+                    break
+                except ValueError:
+                    continue
+
+# --- Check 2: Uncommitted work in project dirs ---
+projects_dir = os.path.join(workspace, "projects")
+if os.path.isdir(projects_dir):
+    for proj in sorted(os.listdir(projects_dir)):
+        proj_path = os.path.join(projects_dir, proj)
+        git_dir = os.path.join(proj_path, ".git")
+        if not os.path.isdir(proj_path) or not os.path.exists(git_dir):
+            continue
+        try:
+            result = subprocess.run(
+                ["git", "-C", proj_path, "diff", "--stat", "HEAD"],
+                capture_output=True, text=True, timeout=5
+            )
+            stat = result.stdout.strip()
+            if stat and "file" in stat.split('\n')[-1]:
+                summary = stat.split('\n')[-1].strip()
+                triggers.append({
+                    "type": "uncommitted_work",
+                    "description": f"Uncommitted changes in projects/{proj}: {summary}",
+                    "task_id": None,
+                    "action": "review_and_commit"
+                })
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+
+# --- Check 3: Circuit breaker recovery ---
+if os.path.isfile(trust_registry):
+    try:
+        reg = json.load(open(trust_registry))
+        now = datetime.now()
+        for soul_id, s in reg.get("souls", {}).items():
+            state = s.get("circuit_state", "closed")
+            if state == "open":
+                opened = s.get("circuit_opened_at")
+                cooldown = s.get("cooldown_minutes", 30)
+                if opened:
+                    try:
+                        elapsed = (now - datetime.fromisoformat(opened)).total_seconds() / 60
+                        if elapsed >= cooldown:
+                            triggers.append({
+                                "type": "circuit_recovery",
+                                "description": f"Soul {soul_id} cooldown expired ({int(elapsed)}min). Ready for probe.",
+                                "task_id": None,
+                                "action": "probe_delegation"
+                            })
+                    except (ValueError, TypeError):
+                        pass
+    except (json.JSONDecodeError, OSError):
+        pass
+
+print(json.dumps(triggers, indent=2))
+PYEOF
+)
+
+COUNT=$(echo "$TRIGGERS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
+
+if [ "$COUNT" -eq 0 ]; then
+  echo "No actionable triggers found."
+  exit 1
+fi
+
+echo "$TRIGGERS"
+echo ""
+echo "Found $COUNT actionable trigger(s)."
+
+if $DRY_RUN; then
+  echo "(dry-run: no actions taken)"
+fi
+
+exit 0

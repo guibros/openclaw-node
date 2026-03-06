@@ -1,0 +1,32 @@
+{
+  "skills": [
+    "arcane-dev-ops"
+  ],
+  "tools": [
+    "Read",
+    "Bash",
+    "Grep",
+    "Glob",
+    "WebFetch",
+    "WebSearch"
+  ],
+  "mcpServers": [],
+  "permissions": {
+    "memory": {
+      "shared": "read",
+      "private": ["qa-evidence"],
+      "handoffs": "read"
+    },
+    "restrictedActions": [
+      "git push",
+      "file deletion",
+      "deployment commands",
+      "contract modifications"
+    ]
+  },
+  "evolutionConfig": {
+    "captureTypes": ["regression_pattern", "viewport_failure", "performance_baseline", "test_strategy"],
+    "reviewRequired": true,
+    "autoApprove": false
+  }
+}

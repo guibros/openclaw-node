@@ -1,0 +1,209 @@
+{
+  "version": "1.0.0",
+  "souls": [
+    {
+      "id": "daedalus",
+      "type": "orchestrator",
+      "basePath": "~/.openclaw/souls/daedalus",
+      "capabilities": {
+        "skills": [
+          "arcane-dev-ops",
+          "cc-godmode",
+          "soulcraft",
+          "capability-evolver",
+          "self-improving-agent",
+          "ui-ux-pro-max",
+          "growth-loop",
+          "deep-research",
+          "twitter",
+          "n8n-workflow-automation",
+          "agent-browser",
+          "prompt-guard",
+          "agentic-compass"
+        ],
+        "tools": [
+          "Task",
+          "Bash",
+          "Read",
+          "Write",
+          "Edit",
+          "Glob",
+          "Grep",
+          "WebFetch",
+          "WebSearch",
+          "Skill",
+          "TodoWrite",
+          "AskUserQuestion",
+          "EnterPlanMode",
+          "ExitPlanMode",
+          "TeamCreate",
+          "TeamDelete",
+          "SendMessage",
+          "TaskOutput",
+          "TaskStop"
+        ],
+        "mcpServers": []
+      },
+      "specializations": [
+        "orchestration",
+        "multi-agent",
+        "planning",
+        "execution"
+      ],
+      "evolutionEnabled": true,
+      "parentSoul": null,
+      "createdAt": "2026-02-20T06:55:00.000Z",
+      "updatedAt": "2026-02-20T06:55:00.000Z"
+    },
+    {
+      "id": "blockchain-auditor",
+      "type": "specialist",
+      "basePath": "~/.openclaw/souls/blockchain-auditor",
+      "capabilities": {
+        "skills": [
+          "arcane-dev-ops",
+          "solidity-audit",
+          "mythril-scanner",
+          "slither-analyzer"
+        ],
+        "tools": [
+          "Read",
+          "Bash",
+          "Grep",
+          "Glob",
+          "WebSearch"
+        ],
+        "mcpServers": []
+      },
+      "specializations": [
+        "solidity",
+        "security",
+        "formal-verification"
+      ],
+      "evolutionEnabled": true,
+      "parentSoul": "daedalus",
+      "createdAt": "2026-02-20T07:03:55.489Z",
+      "updatedAt": "2026-02-20T07:03:55.489Z"
+    },
+    {
+      "id": "lore-writer",
+      "type": "specialist",
+      "basePath": "~/.openclaw/souls/lore-writer",
+      "capabilities": {
+        "skills": [
+          "narrative-designer",
+          "world-builder",
+          "flavor-text-writer"
+        ],
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "WebSearch"
+        ],
+        "mcpServers": []
+      },
+      "specializations": [
+        "narrative",
+        "world-building",
+        "game-lore"
+      ],
+      "evolutionEnabled": true,
+      "parentSoul": "daedalus",
+      "createdAt": "2026-02-20T07:04:02.006Z",
+      "updatedAt": "2026-02-20T07:04:02.006Z"
+    },
+    {
+      "id": "infra-ops",
+      "type": "specialist",
+      "basePath": "~/.openclaw/souls/infra-ops",
+      "capabilities": {
+        "skills": [
+          "arcane-dev-ops",
+          "git-essentials"
+        ],
+        "tools": [
+          "Read",
+          "Bash",
+          "Grep",
+          "Glob",
+          "WebSearch"
+        ],
+        "mcpServers": []
+      },
+      "specializations": [
+        "infrastructure",
+        "ci-cd",
+        "deployment",
+        "monitoring"
+      ],
+      "evolutionEnabled": true,
+      "parentSoul": "daedalus",
+      "createdAt": "2026-03-04T21:30:00.000Z",
+      "updatedAt": "2026-03-04T21:30:00.000Z"
+    },
+    {
+      "id": "qa-evidence",
+      "type": "specialist",
+      "basePath": "~/.openclaw/souls/qa-evidence",
+      "capabilities": {
+        "skills": [
+          "arcane-dev-ops"
+        ],
+        "tools": [
+          "Read",
+          "Bash",
+          "Grep",
+          "Glob",
+          "WebFetch",
+          "WebSearch"
+        ],
+        "mcpServers": []
+      },
+      "specializations": [
+        "quality-assurance",
+        "visual-verification",
+        "performance-testing",
+        "evidence-collection"
+      ],
+      "evolutionEnabled": true,
+      "parentSoul": "daedalus",
+      "createdAt": "2026-03-04T21:30:00.000Z",
+      "updatedAt": "2026-03-04T21:30:00.000Z"
+    },
+    {
+      "id": "identity-architect",
+      "type": "specialist",
+      "basePath": "~/.openclaw/souls/identity-architect",
+      "capabilities": {
+        "skills": [
+          "arcane-dev-ops",
+          "deep-research"
+        ],
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Bash",
+          "Grep",
+          "Glob",
+          "WebSearch",
+          "WebFetch"
+        ],
+        "mcpServers": []
+      },
+      "specializations": [
+        "cryptographic-identity",
+        "trust-systems",
+        "delegation-chains",
+        "zero-trust"
+      ],
+      "evolutionEnabled": true,
+      "parentSoul": "daedalus",
+      "createdAt": "2026-03-04T21:30:00.000Z",
+      "updatedAt": "2026-03-04T21:30:00.000Z"
+    }
+  ]
+}

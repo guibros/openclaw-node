@@ -1,0 +1,494 @@
+#!/usr/bin/env python3
+"""
+Skill Quality Audit — Grade SKILL.md files for description, trigger, and structural quality.
+
+Usage:
+    bin/skill-audit                    # Audit all skills
+    bin/skill-audit --skill <name>     # Single skill
+    bin/skill-audit --json             # JSON output
+    bin/skill-audit --report out.md    # Markdown report
+    bin/skill-audit --min-grade B      # Exit 1 if any below B (CI gate)
+
+No external dependencies — stdlib only.
+"""
+
+from __future__ import annotations
+
+import sys
+import os
+import json
+import argparse
+import subprocess
+from pathlib import Path
+from typing import Optional
+
+# Add bin/ to path for lib imports
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
+from lib.frontmatter import parse_frontmatter
+
+# ─── Constants ────────────────────────────────────────────────────────────────
+
+VERSION = "1.0.0"
+DEFAULT_SKILLS_DIR = Path.home() / ".openclaw" / "workspace" / "skills"
+SCANNER_PATH = DEFAULT_SKILLS_DIR / "openclaw-skill-scanner" / "scanner.py"
+
+GRADE_THRESHOLDS = {"A": 90, "B": 75, "C": 50, "D": 25, "F": 0}
+GRADE_ORDER = ["A", "B", "C", "D", "F"]
+
+# ANSI colors
+class C:
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    CYAN = "\033[96m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+
+
+# ─── Quality Checks ──────────────────────────────────────────────────────────
+
+def check_description_exists(fm: dict) -> tuple[int, str]:
+    """10 pts: description field exists and is non-empty."""
+    desc = fm.get("description", "")
+    if isinstance(desc, str) and desc.strip():
+        return 10, "OK"
+    return 0, "Missing or empty description"
+
+
+def check_description_quality(fm: dict) -> tuple[int, str]:
+    """15 pts: WHAT + WHEN pattern, 50-300 chars."""
+    desc = fm.get("description", "")
+    if not isinstance(desc, str):
+        return 0, "Description is not a string"
+
+    desc = desc.strip()
+    length = len(desc)
+    score = 0
+    issues = []
+
+    if length < 50:
+        issues.append(f"too short ({length} chars, need 50+)")
+    elif length > 300:
+        issues.append(f"too long ({length} chars, max 300)")
+    else:
+        score += 8
+
+    # Check for WHEN clause indicators
+    when_patterns = ["use when", "use for", "use this", "use to", "invoke when"]
+    has_when = any(p in desc.lower() for p in when_patterns)
+    if has_when:
+        score += 7
+    else:
+        issues.append("missing WHEN clause (e.g., 'Use when...')")
+
+    return score, "; ".join(issues) if issues else "OK"
+
+
+def check_triggers_exist(fm: dict) -> tuple[int, str]:
+    """15 pts: 3+ trigger phrases."""
+    triggers = fm.get("triggers", [])
+    if not isinstance(triggers, list):
+        return 0, "triggers is not a list"
+    count = len(triggers)
+    if count >= 3:
+        return 15, f"OK ({count} triggers)"
+    if count > 0:
+        return 5, f"Only {count} triggers (need 3+)"
+    return 0, "No triggers defined"
+
+
+def check_trigger_quality(fm: dict) -> tuple[int, str]:
+    """10 pts: triggers are 2-5 words each, not duplicating description."""
+    triggers = fm.get("triggers", [])
+    if not isinstance(triggers, list) or not triggers:
+        return 0, "No triggers to evaluate"
+
+    desc = fm.get("description", "").lower()
+    score = 10
+    issues = []
+
+    for t in triggers:
+        if not isinstance(t, str):
+            continue
+        words = t.split()
+        if len(words) < 2:
+            issues.append(f"'{t}' too short (1 word)")
+            score -= 2
+        elif len(words) > 8:
+            issues.append(f"'{t}' too long ({len(words)} words)")
+            score -= 1
+        if t.lower() == desc.lower()[:len(t)]:
+            issues.append(f"'{t}' duplicates description start")
+            score -= 2
+
+    return max(0, score), "; ".join(issues[:3]) if issues else "OK"
+
+
+def check_negative_triggers_exist(fm: dict) -> tuple[int, str]:
+    """10 pts: 2+ negative triggers."""
+    neg = fm.get("negative_triggers", [])
+    if not isinstance(neg, list):
+        return 0, "negative_triggers is not a list"
+    count = len(neg)
+    if count >= 2:
+        return 10, f"OK ({count} negative triggers)"
+    if count > 0:
+        return 3, f"Only {count} negative trigger (need 2+)"
+    return 0, "No negative triggers defined"
+
+
+def check_file_size(skill_path: Path) -> tuple[int, str]:
+    """10 pts: SKILL.md under 250 lines."""
+    skill_md = skill_path / "SKILL.md"
+    if not skill_md.exists():
+        return 0, "SKILL.md not found"
+    lines = skill_md.read_text().count("\n") + 1
+    if lines <= 250:
+        return 10, f"OK ({lines} lines)"
+    if lines <= 350:
+        return 5, f"Over limit ({lines} lines, max 250)"
+    return 0, f"Way over limit ({lines} lines)"
+
+
+def check_yaml_valid(fm: dict, raw_text: str) -> tuple[int, str]:
+    """10 pts: frontmatter parses without error."""
+    if not raw_text.startswith("---"):
+        return 0, "No YAML frontmatter block"
+    if fm:
+        return 10, "OK"
+    return 0, "Frontmatter block present but empty/unparseable"
+
+
+def check_name_matches_dir(fm: dict, dir_name: str) -> tuple[int, str]:
+    """5 pts: name field matches directory name."""
+    name = fm.get("name", "")
+    if not name:
+        return 0, "No name field"
+    # Normalize: lowercase, strip
+    if name.lower().strip() == dir_name.lower().strip():
+        return 5, "OK"
+    return 0, f"Name '{name}' != dir '{dir_name}'"
+
+
+def check_has_references_if_large(skill_path: Path) -> tuple[int, str]:
+    """5 pts: references/ exists if SKILL.md >200 lines."""
+    skill_md = skill_path / "SKILL.md"
+    if not skill_md.exists():
+        return 5, "N/A"
+    lines = skill_md.read_text().count("\n") + 1
+    if lines <= 200:
+        return 5, "OK (under 200 lines)"
+    refs = skill_path / "references"
+    if refs.exists() and refs.is_dir():
+        return 5, "OK (references/ exists)"
+    return 0, f"Over 200 lines ({lines}) but no references/ dir"
+
+
+def check_no_readme(skill_path: Path) -> tuple[int, str]:
+    """5 pts: no README.md in skill dir (SKILL.md is canonical)."""
+    readme = skill_path / "README.md"
+    if readme.exists():
+        return 0, "README.md exists (should use SKILL.md only)"
+    return 5, "OK"
+
+
+def check_structure_valid(body: str) -> tuple[int, str]:
+    """5 pts: has heading after frontmatter."""
+    stripped = body.strip()
+    if not stripped:
+        return 0, "Empty body after frontmatter"
+    # Check for markdown heading in first 10 lines
+    for line in stripped.split("\n")[:10]:
+        if line.strip().startswith("#"):
+            return 5, "OK"
+    return 0, "No heading found in first 10 lines after frontmatter"
+
+
+# ─── Audit Engine ─────────────────────────────────────────────────────────────
+
+ALL_CHECKS = [
+    ("description_exists", 10, check_description_exists),
+    ("description_quality", 15, check_description_quality),
+    ("triggers_exist", 15, check_triggers_exist),
+    ("trigger_quality", 10, check_trigger_quality),
+    ("negative_triggers_exist", 10, check_negative_triggers_exist),
+    ("file_size", 10, None),  # special: needs skill_path
+    ("yaml_valid", 10, None),  # special: needs raw_text
+    ("name_matches_dir", 5, None),  # special: needs dir_name
+    ("has_references_if_large", 5, None),  # special: needs skill_path
+    ("no_readme", 5, None),  # special: needs skill_path
+    ("structure_valid", 5, None),  # special: needs body
+]
+
+
+def score_to_grade(score: int) -> str:
+    for grade in GRADE_ORDER:
+        if score >= GRADE_THRESHOLDS[grade]:
+            return grade
+    return "F"
+
+
+def grade_color(grade: str) -> str:
+    if grade == "A":
+        return C.GREEN
+    if grade == "B":
+        return C.CYAN
+    if grade == "C":
+        return C.YELLOW
+    return C.RED
+
+
+def audit_skill(skill_path: Path) -> dict:
+    """Audit a single skill directory. Returns result dict."""
+    dir_name = skill_path.name
+    skill_md = skill_path / "SKILL.md"
+
+    if not skill_md.exists():
+        return {
+            "name": dir_name,
+            "path": str(skill_path),
+            "score": 0,
+            "grade": "F",
+            "checks": {},
+            "error": "SKILL.md not found",
+        }
+
+    raw_text = skill_md.read_text()
+    fm, body = parse_frontmatter(raw_text)
+
+    checks = {}
+    total_score = 0
+
+    # Run frontmatter-based checks
+    for name, _weight, fn in ALL_CHECKS:
+        if fn is not None:
+            pts, msg = fn(fm)
+            checks[name] = {"points": pts, "max": _weight, "message": msg}
+            total_score += pts
+
+    # Run special checks
+    pts, msg = check_file_size(skill_path)
+    checks["file_size"] = {"points": pts, "max": 10, "message": msg}
+    total_score += pts
+
+    pts, msg = check_yaml_valid(fm, raw_text)
+    checks["yaml_valid"] = {"points": pts, "max": 10, "message": msg}
+    total_score += pts
+
+    pts, msg = check_name_matches_dir(fm, dir_name)
+    checks["name_matches_dir"] = {"points": pts, "max": 5, "message": msg}
+    total_score += pts
+
+    pts, msg = check_has_references_if_large(skill_path)
+    checks["has_references_if_large"] = {"points": pts, "max": 5, "message": msg}
+    total_score += pts
+
+    pts, msg = check_no_readme(skill_path)
+    checks["no_readme"] = {"points": pts, "max": 5, "message": msg}
+    total_score += pts
+
+    pts, msg = check_structure_valid(body)
+    checks["structure_valid"] = {"points": pts, "max": 5, "message": msg}
+    total_score += pts
+
+    grade = score_to_grade(total_score)
+
+    return {
+        "name": dir_name,
+        "path": str(skill_path),
+        "score": total_score,
+        "grade": grade,
+        "checks": checks,
+    }
+
+
+def get_security_score(skill_name: str) -> Optional[dict]:
+    """Shell out to scanner.py for security risk score."""
+    if not SCANNER_PATH.exists():
+        return None
+    try:
+        result = subprocess.run(
+            [sys.executable, str(SCANNER_PATH), "--skill", skill_name, "--json"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if isinstance(data, list) and data:
+                return data[0]
+            return data
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
+        pass
+    return None
+
+
+# ─── Output Formatters ────────────────────────────────────────────────────────
+
+def print_table(results: list[dict], verbose: bool = False):
+    """Print colored table to terminal."""
+    # Sort by grade (worst first), then name
+    results.sort(key=lambda r: (GRADE_ORDER.index(r["grade"]), r["name"]))
+
+    # Grade distribution
+    dist = {g: 0 for g in GRADE_ORDER}
+    for r in results:
+        dist[r["grade"]] += 1
+
+    total = len(results)
+    avg = sum(r["score"] for r in results) / total if total else 0
+
+    print(f"\n{C.BOLD}Skill Quality Audit{C.RESET}  ({total} skills, avg {avg:.0f}/100)\n")
+    print(f"  Grade distribution: ", end="")
+    for g in GRADE_ORDER:
+        if dist[g]:
+            print(f"{grade_color(g)}{g}:{dist[g]}{C.RESET}  ", end="")
+    print("\n")
+
+    # Table header
+    print(f"  {'Skill':<35} {'Score':>5}  {'Grade':>5}  {'Issues'}")
+    print(f"  {'─' * 35} {'─' * 5}  {'─' * 5}  {'─' * 40}")
+
+    for r in results:
+        gc = grade_color(r["grade"])
+        issues = []
+        if "error" in r:
+            issues.append(r["error"])
+        else:
+            for check_name, check_data in r.get("checks", {}).items():
+                if check_data["points"] < check_data["max"]:
+                    issues.append(f"{check_name}: {check_data['message']}")
+
+        issue_str = "; ".join(issues[:2]) if issues else f"{C.DIM}clean{C.RESET}"
+        if len(issue_str) > 60:
+            issue_str = issue_str[:57] + "..."
+
+        print(f"  {r['name']:<35} {r['score']:>5}  {gc}{r['grade']:>5}{C.RESET}  {issue_str}")
+
+    print()
+
+
+def generate_json(results: list[dict]) -> str:
+    """Generate JSON output."""
+    summary = {
+        "version": VERSION,
+        "total_skills": len(results),
+        "average_score": sum(r["score"] for r in results) / len(results) if results else 0,
+        "grade_distribution": {},
+        "skills": results,
+    }
+    for g in GRADE_ORDER:
+        summary["grade_distribution"][g] = sum(1 for r in results if r["grade"] == g)
+    return json.dumps(summary, indent=2)
+
+
+def generate_report(results: list[dict]) -> str:
+    """Generate markdown report."""
+    total = len(results)
+    avg = sum(r["score"] for r in results) / total if total else 0
+    dist = {g: sum(1 for r in results if r["grade"] == g) for g in GRADE_ORDER}
+
+    lines = [
+        "# Skill Quality Audit Report",
+        "",
+        f"**Total skills:** {total}  ",
+        f"**Average score:** {avg:.0f}/100  ",
+        f"**Grade distribution:** " + " | ".join(f"{g}: {dist[g]}" for g in GRADE_ORDER if dist[g]),
+        "",
+        "## Results",
+        "",
+        "| Skill | Score | Grade | Top Issue |",
+        "|-------|-------|-------|-----------|",
+    ]
+
+    results.sort(key=lambda r: (GRADE_ORDER.index(r["grade"]), r["name"]))
+    for r in results:
+        issues = []
+        for cn, cd in r.get("checks", {}).items():
+            if cd["points"] < cd["max"]:
+                issues.append(f"{cn}: {cd['message']}")
+        issue = issues[0] if issues else "clean"
+        lines.append(f"| {r['name']} | {r['score']} | {r['grade']} | {issue[:50]} |")
+
+    lines.append("")
+
+    # Detail section for non-A grades
+    below_a = [r for r in results if r["grade"] != "A"]
+    if below_a:
+        lines.append("## Issues Detail")
+        lines.append("")
+        for r in below_a:
+            lines.append(f"### {r['name']} ({r['grade']}, {r['score']}/100)")
+            for cn, cd in r.get("checks", {}).items():
+                if cd["points"] < cd["max"]:
+                    lines.append(f"- **{cn}** ({cd['points']}/{cd['max']}): {cd['message']}")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description="Skill Quality Audit")
+    parser.add_argument("--skill", help="Audit a single skill by name")
+    parser.add_argument("--json", action="store_true", help="JSON output")
+    parser.add_argument("--report", metavar="FILE", help="Write markdown report to file")
+    parser.add_argument("--min-grade", metavar="GRADE", help="Exit 1 if any skill below this grade (CI gate)")
+    parser.add_argument("--skills-dir", default=str(DEFAULT_SKILLS_DIR), help="Skills directory")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show all check details")
+    args = parser.parse_args()
+
+    skills_dir = Path(args.skills_dir)
+    if not skills_dir.exists():
+        print(f"Error: skills directory not found: {skills_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    # Collect skill directories
+    if args.skill:
+        skill_path = skills_dir / args.skill
+        if not skill_path.exists():
+            print(f"Error: skill not found: {args.skill}", file=sys.stderr)
+            sys.exit(1)
+        skill_dirs = [skill_path]
+    else:
+        skill_dirs = sorted(
+            [d for d in skills_dir.iterdir() if d.is_dir() and (d / "SKILL.md").exists()],
+            key=lambda d: d.name,
+        )
+
+    if not skill_dirs:
+        print("No skills found.", file=sys.stderr)
+        sys.exit(1)
+
+    # Audit all skills
+    results = [audit_skill(d) for d in skill_dirs]
+
+    # Output
+    if args.json:
+        print(generate_json(results))
+    elif args.report:
+        report = generate_report(results)
+        Path(args.report).write_text(report)
+        print(f"Report written to {args.report}")
+    else:
+        print_table(results, verbose=args.verbose)
+
+    # CI gate
+    if args.min_grade:
+        min_grade = args.min_grade.upper()
+        if min_grade not in GRADE_THRESHOLDS:
+            print(f"Error: invalid grade '{min_grade}'", file=sys.stderr)
+            sys.exit(1)
+        min_threshold = GRADE_THRESHOLDS[min_grade]
+        failures = [r for r in results if r["score"] < min_threshold]
+        if failures:
+            print(f"\n{C.RED}FAIL:{C.RESET} {len(failures)} skill(s) below grade {min_grade}:")
+            for r in failures:
+                print(f"  {r['name']}: {r['grade']} ({r['score']})")
+            sys.exit(1)
+        else:
+            print(f"\n{C.GREEN}PASS:{C.RESET} All skills at grade {min_grade} or above.")
+
+
+if __name__ == "__main__":
+    main()

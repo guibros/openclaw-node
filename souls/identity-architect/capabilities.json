@@ -1,0 +1,34 @@
+{
+  "skills": [
+    "arcane-dev-ops",
+    "deep-research"
+  ],
+  "tools": [
+    "Read",
+    "Write",
+    "Edit",
+    "Bash",
+    "Grep",
+    "Glob",
+    "WebSearch",
+    "WebFetch"
+  ],
+  "mcpServers": [],
+  "permissions": {
+    "memory": {
+      "shared": "readwrite",
+      "private": ["identity-architect"],
+      "handoffs": "readwrite"
+    },
+    "restrictedActions": [
+      "git push",
+      "deployment commands",
+      "key generation in production"
+    ]
+  },
+  "evolutionConfig": {
+    "captureTypes": ["trust_model_pattern", "delegation_exploit", "identity_standard", "verification_protocol"],
+    "reviewRequired": true,
+    "autoApprove": false
+  }
+}

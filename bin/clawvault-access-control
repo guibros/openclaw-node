@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# ClawVault Access Control Helper
+# Validates soul access permissions to memory categories
+
+set -euo pipefail
+
+SOUL_ID="${1:-}"
+CATEGORY="${2:-}"
+ACTION="${3:-read}" # read or write
+
+VAULT_DIR="${HOME}/.openclaw/workspace/memory-vault"
+SOULS_DIR="${HOME}/.openclaw/souls"
+
+if [[ -z "$SOUL_ID" || -z "$CATEGORY" ]]; then
+  echo "Usage: clawvault-access-control <soul-id> <category> [read|write]"
+  exit 1
+fi
+
+# Load soul capabilities
+CAPABILITIES_FILE="${SOULS_DIR}/${SOUL_ID}/capabilities.json"
+if [[ ! -f "$CAPABILITIES_FILE" ]]; then
+  echo "ERROR: Soul $SOUL_ID not found"
+  exit 1
+fi
+
+# Check access rules
+case "$CATEGORY" in
+  shared)
+    # All souls can read shared, orchestrator can write
+    if [[ "$ACTION" == "write" && "$SOUL_ID" != "daedalus" ]]; then
+      echo "DENIED: Only orchestrator can write to shared/"
+      exit 1
+    fi
+    echo "GRANTED"
+    ;;
+
+  private/*)
+    # Extract soul from path (e.g., private/blockchain-auditor)
+    PRIVATE_SOUL=$(echo "$CATEGORY" | cut -d'/' -f2)
+
+    if [[ "$SOUL_ID" != "$PRIVATE_SOUL" && "$SOUL_ID" != "daedalus" ]]; then
+      echo "DENIED: Can only access own private memory"
+      exit 1
+    fi
+    echo "GRANTED"
+    ;;
+
+  handoffs)
+    # Orchestrator can always access, specialists can read their own handoffs
+    if [[ "$SOUL_ID" == "daedalus" ]]; then
+      echo "GRANTED"
+    elif [[ "$ACTION" == "read" ]]; then
+      # Check if handoff involves this soul
+      echo "GRANTED" # TODO: Implement handoff-specific validation
+    else
+      echo "DENIED: Only orchestrator can write handoffs"
+      exit 1
+    fi
+    ;;
+
+  *)
+    echo "DENIED: Unknown category $CATEGORY"
+    exit 1
+    ;;
+esac

@@ -1,0 +1,187 @@
+# Boot Manifest — Controls what gets compiled into each profile
+#
+# Each entry maps an AGENTS.md section (by H2/H3 header) to:
+#   profile: which boot profiles include this section
+#   priority: boot (always loaded) | lazy (loaded on demand)
+#   compile: how to transform for model ingestion
+#     - structured: convert to YAML-like rules (max compression)
+#     - prose_slim: keep prose but strip explanations/analogies
+#     - verbatim: keep as-is (for sections that are already lean)
+#     - drop: exclude entirely (documented elsewhere or automated)
+#   lazy_file: where to find full version if priority=lazy
+#
+# Profiles:
+#   main     — full interactive session with Gui
+#   heartbeat — 20-min automated poll
+#   discord  — group chat / bridge session
+#   worker   — sub-agent (gets contract, not full boot)
+#   lite     — small-context model (<32K), essentials only
+#
+# Target backbones: Claude (primary), OpenAI, Kimi 2.5, MiniMax
+# All have 128K+ context — compression is about cost/latency/signal, not context limits.
+
+sections:
+  # --- Identity & Boot ---
+  "First Run":
+    profile: [main]
+    priority: boot
+    compile: prose_slim
+
+  "Every Session":
+    profile: [main, lite]
+    priority: boot
+    compile: structured
+    note: "Boot order list. Stays structured even for Claude — it's just a list."
+
+  # --- Memory ---
+  "Memory":
+    profile: [main, lite]
+    priority: boot
+    compile: structured
+    note: "File locations only. Children handle details. Don't use prose here (causes duplication with child sections)."
+
+  "Memory Automation":
+    profile: []
+    priority: lazy
+    compile: drop
+    note: "auto-checkpoint enforces this. Agent never calls it."
+
+  "ClawVault Integration":
+    profile: [main]
+    priority: boot
+    compile: structured
+    note: "Only on-demand commands. Automated lifecycle = drop."
+
+  "MEMORY.md - Your Long-Term Memory":
+    profile: [main]
+    priority: boot
+    compile: structured
+
+  "Write It Down":
+    profile: [main, lite]
+    priority: boot
+    compile: prose_slim
+
+  "Write Rules":
+    profile: [main, lite]
+    priority: boot
+    compile: structured
+    claude_compile: prose_slim
+    note: "For Claude: the always/never/maybe prose is clearer than YAML arrays."
+
+  "Memory Decay":
+    profile: []
+    priority: lazy
+    compile: drop
+    note: "memory-maintenance handles this automatically."
+
+  "Temporal Weighting":
+    profile: [main]
+    priority: boot
+    compile: structured
+    note: "Only MEMORY.md structure + conflict resolution rule."
+
+  # --- Task Completion ---
+  "Task Completion":
+    profile: [main, lite, discord]
+    priority: boot
+    compile: structured
+    claude_compile: prose_slim
+
+  "Task Lifecycle":
+    profile: [main, lite]
+    priority: boot
+    compile: structured
+    claude_compile: prose_slim
+    note: "For Claude: the file-driven vs API distinction reads better as prose."
+
+  # --- Delegation ---
+  "Sub-Agent Value Injection":
+    profile: [main]
+    priority: boot
+    compile: structured
+    claude_compile: prose_slim
+    note: "Standard preamble at boot. Soul-aware spawning is a separate lazy entry."
+
+  "Soul-Aware Spawning":
+    profile: [main]
+    priority: lazy
+    compile: structured
+    lazy_file: DELEGATION.md
+
+  "Intelligent Delegation Protocol":
+    profile: [main]
+    priority: lazy
+    compile: structured
+    lazy_file: DELEGATION.md
+    note: "All sub-sections (trust, circuit breaker, review gates, etc.) go here."
+
+  # --- Safety ---
+  "Safety":
+    profile: [main, lite, discord, heartbeat, worker]
+    priority: boot
+    compile: verbatim
+
+  "External vs Internal":
+    profile: [main, lite, discord]
+    priority: boot
+    compile: verbatim
+
+  # --- Group Chats ---
+  "Group Chats":
+    profile: [discord]
+    priority: boot
+    compile: prose_slim
+
+  # --- Meta ---
+  "Decision Stack":
+    profile: [main, lite]
+    priority: boot
+    compile: structured
+
+  "Tools":
+    profile: [main]
+    priority: boot
+    compile: prose_slim
+
+  "Document Timestamps":
+    profile: [main, discord]
+    priority: boot
+    compile: verbatim
+    note: "Includes platform formatting (Discord/WhatsApp) via hierarchical parse."
+
+  "Heartbeats":
+    profile: [heartbeat]
+    priority: boot
+    compile: verbatim
+
+# Model adjustments:
+# When --model is specified, the compiler applies these overrides.
+# All target models are large-context (128K+). Differences are about:
+#   - Prompt caching (Claude has it, others don't)
+#   - Prose comprehension (Claude/GPT-4o strong, others vary)
+#   - Input token pricing
+model_overrides:
+  claude:
+    # Prompt caching makes full boot effectively free after first call.
+    # Keep prose — Claude reads intent from narrative context.
+    keep_why_blocks: true
+    max_boot_tokens: 8000
+
+  openai:
+    # GPT-4o: strong prose comprehension, no prompt caching.
+    # Slim the explanations but keep behavioral prose.
+    keep_why_blocks: false
+    max_boot_tokens: 5000
+
+  kimi:
+    # Kimi 2.5: large context, good instruction following.
+    # Similar to OpenAI profile.
+    keep_why_blocks: false
+    max_boot_tokens: 5000
+
+  minimax:
+    # MiniMax: large context. Structured helps with reliability.
+    keep_why_blocks: false
+    max_boot_tokens: 4000
+    force_structured: false  # keep prose_slim, don't go full structured

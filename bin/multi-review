@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# multi-review — Multi-perspective code review for high-criticality tasks
+#
+# Usage:
+#   bin/multi-review --task-id T-xxx --files file1 file2
+#   bin/multi-review --help
+#
+# Generates 3 review prompt blocks for parallel sub-agent spawning:
+#   1. Logic & Edge Cases
+#   2. Security & Scalability
+#   3. Architecture & Patterns
+#
+# Output: Review prompts to stdout. Caller spawns 3 Explore sub-agents.
+
+set -euo pipefail
+
+TASK_ID=""
+FILES=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --task-id) TASK_ID="$2"; shift 2 ;;
+    --files) shift; while [[ $# -gt 0 && ! "$1" =~ ^-- ]]; do FILES+=("$1"); shift; done ;;
+    --help|-h) sed -n '2,/^$/p' "$0" | sed 's/^# //' | sed 's/^#//'; exit 0 ;;
+    *) shift ;;
+  esac
+done
+
+if [ ${#FILES[@]} -eq 0 ]; then
+  echo "Error: --files required" >&2
+  echo "Usage: bin/multi-review --task-id T-xxx --files file1 file2 ..." >&2
+  exit 1
+fi
+
+FILE_LIST=$(printf '  - %s\n' "${FILES[@]}")
+
+cat << EOF
+========================================
+REVIEWER 1: Logic & Edge Cases
+========================================
+
+You are a specialist reviewing code for correctness. Read the following files and analyze them.
+
+Task: ${TASK_ID:-unspecified}
+Files to review:
+${FILE_LIST}
+
+Focus areas:
+- Logic errors, off-by-one bugs, null/undefined handling
+- Edge cases: empty inputs, boundary values, concurrent access
+- Error handling: are all failure modes covered?
+- Data flow: do inputs transform correctly to outputs?
+- State management: are race conditions possible?
+- Type safety: are types correct and exhaustive?
+
+For each issue found, report:
+- File + line number
+- Severity: critical / major / minor
+- Description + suggested fix
+
+If no issues found, state "Logic review: PASS" with brief reasoning.
+
+========================================
+REVIEWER 2: Security & Scalability
+========================================
+
+You are a specialist reviewing code for security and scalability. Read the following files and analyze them.
+
+Task: ${TASK_ID:-unspecified}
+Files to review:
+${FILE_LIST}
+
+Focus areas:
+- Input validation and sanitization
+- Authentication/authorization checks
+- SQL injection, XSS, CSRF, command injection vectors
+- Secret/credential exposure (hardcoded keys, tokens in logs)
+- Resource exhaustion (unbounded loops, memory leaks, missing pagination)
+- Denial of service vectors
+- Dependency vulnerabilities (known CVEs)
+- For Solidity: reentrancy, overflow, access control, oracle manipulation
+
+For each issue found, report:
+- File + line number
+- Severity: critical / major / minor
+- CVE category or OWASP classification if applicable
+- Description + remediation
+
+If no issues found, state "Security review: PASS" with brief reasoning.
+
+========================================
+REVIEWER 3: Architecture & Patterns
+========================================
+
+You are a specialist reviewing code for architectural quality. Read the following files and analyze them.
+
+Task: ${TASK_ID:-unspecified}
+Files to review:
+${FILE_LIST}
+
+Focus areas:
+- Does this follow existing codebase patterns and conventions?
+- Is the abstraction level appropriate (not over/under-engineered)?
+- Coupling: are dependencies minimal and explicit?
+- Is there unnecessary complexity or scope creep?
+- Are there missing tests for the changes?
+- Does this introduce technical debt?
+- Naming conventions and code organization
+- API design: are interfaces clean and consistent?
+
+For each issue found, report:
+- File + location
+- Severity: critical / major / minor
+- Description + recommended change
+
+If no issues found, state "Architecture review: PASS" with brief reasoning.
+
+========================================
+CONSOLIDATION TEMPLATE
+========================================
+
+After all 3 reviewers complete, consolidate:
+- Total issues: [N critical, N major, N minor]
+- Blocking issues (critical): [list or "none"]
+- Recommended fixes (major): [list or "none"]
+- Suggestions (minor): [list or "none"]
+- Verdict: APPROVE / REVISE / REJECT
+
+Rule: ANY critical issue = REVISE or REJECT. No exceptions.
+EOF

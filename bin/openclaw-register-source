@@ -1,0 +1,102 @@
+#!/usr/bin/env node
+/**
+ * openclaw-register-source — Manage transcript source registry.
+ *
+ * Usage:
+ *   openclaw-register-source add --name "kimi" --path "/path/to/sessions" --format "generic"
+ *   openclaw-register-source remove --name "kimi"
+ *   openclaw-register-source list
+ *
+ * Registry: ~/.openclaw/config/transcript-sources.json
+ */
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+const CONFIG_PATH = path.join(os.homedir(), '.openclaw/config/transcript-sources.json');
+
+function loadRegistry() {
+  if (!fs.existsSync(CONFIG_PATH)) {
+    return { sources: [] };
+  }
+  return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+}
+
+function saveRegistry(reg) {
+  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(reg, null, 2) + '\n', 'utf-8');
+}
+
+function parseArgs(args) {
+  const result = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith('--') && i + 1 < args.length) {
+      result[args[i].slice(2)] = args[i + 1];
+      i++;
+    }
+  }
+  return result;
+}
+
+const [,, command, ...rest] = process.argv;
+const opts = parseArgs(rest);
+
+switch (command) {
+  case 'add': {
+    if (!opts.name || !opts.path) {
+      console.error('Usage: openclaw-register-source add --name <name> --path <dir> [--format generic|claude-code|openclaw-gateway]');
+      process.exit(1);
+    }
+    const reg = loadRegistry();
+    const existing = reg.sources.findIndex(s => s.name === opts.name);
+    const entry = {
+      name: opts.name,
+      path: opts.path,
+      format: opts.format || 'generic',
+      enabled: true
+    };
+    if (existing >= 0) {
+      reg.sources[existing] = entry;
+      console.log(`Updated source: ${opts.name}`);
+    } else {
+      reg.sources.push(entry);
+      console.log(`Added source: ${opts.name} → ${opts.path}`);
+    }
+    saveRegistry(reg);
+    break;
+  }
+  case 'remove': {
+    if (!opts.name) {
+      console.error('Usage: openclaw-register-source remove --name <name>');
+      process.exit(1);
+    }
+    const reg = loadRegistry();
+    const before = reg.sources.length;
+    reg.sources = reg.sources.filter(s => s.name !== opts.name);
+    if (reg.sources.length < before) {
+      saveRegistry(reg);
+      console.log(`Removed source: ${opts.name}`);
+    } else {
+      console.log(`Source not found: ${opts.name}`);
+    }
+    break;
+  }
+  case 'list': {
+    const reg = loadRegistry();
+    if (reg.sources.length === 0) {
+      console.log('No transcript sources registered.');
+    } else {
+      console.log(`${reg.sources.length} transcript source(s):\n`);
+      for (const s of reg.sources) {
+        const status = s.enabled === false ? ' [disabled]' : '';
+        console.log(`  ${s.name} (${s.format})${status}`);
+        console.log(`    → ${s.path}`);
+      }
+    }
+    break;
+  }
+  default:
+    console.log('Usage: openclaw-register-source <add|remove|list> [--name ...] [--path ...] [--format ...]');
+    process.exit(command ? 1 : 0);
+}

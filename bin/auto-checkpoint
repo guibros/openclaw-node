@@ -1,0 +1,60 @@
+#!/bin/bash
+# auto-checkpoint — Claude Code frontend adapter
+#
+# Called by Claude Code PostToolUse hook on Edit|Write|Bash.
+# Signals the platform-level memory daemon (bin/memory-daemon)
+# that a frontend is active.
+#
+# The memory daemon (ai.openclaw.memory-daemon launchd service)
+# handles all memory lifecycle: companion-state flush, session
+# recap, memory maintenance, clawvault, compile-boot.
+#
+# This script's ONLY job: signal activity + report session ID.
+
+# Derive workspace from script location (portable across machines)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE="${OPENCLAW_WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
+
+STATE_DIR="$WORKSPACE/.tmp"
+ACTIVITY_FILE="$STATE_DIR/frontend-activity"
+SESSION_FILE="$STATE_DIR/active-sessions/claude-code"
+
+mkdir -p "$STATE_DIR/active-sessions"
+
+# 1. Signal activity to the memory daemon
+touch "$ACTIVITY_FILE"
+
+# 1b. Check for MC-Kanban notifications (written by Mission Control API)
+NOTIFY_FILE="$STATE_DIR/mc-kanban-notify.txt"
+if [ -f "$NOTIFY_FILE" ]; then
+  MSG=$(cat "$NOTIFY_FILE" 2>/dev/null)
+  if [ -n "$MSG" ]; then
+    echo "$MSG"
+  fi
+  rm -f "$NOTIFY_FILE"
+fi
+
+# 1c. Check for dispatched auto-start task (written by scheduler)
+DISPATCH_FILE="$STATE_DIR/daedalus-dispatch.json"
+if [ -f "$DISPATCH_FILE" ]; then
+  TASK_ID=$(python3 -c "import json; d=json.load(open('$DISPATCH_FILE')); print(d.get('taskId',''))" 2>/dev/null)
+  TASK_TITLE=$(python3 -c "import json; d=json.load(open('$DISPATCH_FILE')); print(d.get('title',''))" 2>/dev/null)
+  if [ -n "$TASK_ID" ]; then
+    echo "MC-Kanban: NEW AUTOTASK FOR DAEDALUS: $TASK_ID — $TASK_TITLE"
+  fi
+  rm -f "$DISPATCH_FILE"
+fi
+
+# 2. Write current Claude Code session ID (if available)
+#    Derive Claude Code project dir from workspace path (portable)
+WORKSPACE_ABS="$(cd "$WORKSPACE" && pwd)"
+CLAUDE_PROJECT_SLUG="$(echo "$WORKSPACE_ABS" | sed 's|[/.]|-|g')"
+CLAUDE_PROJECT_DIR="$HOME/.claude/projects/$CLAUDE_PROJECT_SLUG"
+if [ -d "$CLAUDE_PROJECT_DIR" ]; then
+  LATEST=$(ls -t "$CLAUDE_PROJECT_DIR"/*.jsonl 2>/dev/null | head -1)
+  if [ -n "$LATEST" ]; then
+    basename "$LATEST" .jsonl > "$SESSION_FILE"
+  fi
+fi
+
+exit 0

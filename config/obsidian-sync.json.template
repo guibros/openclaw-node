@@ -1,0 +1,39 @@
+{
+  "enabled": false,
+  "vaultPath": "projects/arcane-vault",
+  "apiPort": 27124,
+  "apiKeyFile": "projects/arcane-vault/.obsidian-api-key",
+  "nodeId": "${OPENCLAW_NODE_ID}",
+  "syncDirection": "push",
+  "nodePrivateRoutes": [
+    { "pattern": "memory/last-session-recap.md", "dest": "nodes/{nodeId}/recaps/" },
+    { "pattern": "memory/archive/**", "dest": "nodes/{nodeId}/archive/" },
+    { "pattern": "memory/*.md", "dest": "nodes/{nodeId}/daily/" },
+    { "pattern": ".learnings/lessons.md", "dest": "nodes/{nodeId}/lessons/" },
+    { "pattern": ".learnings/ERRORS.md", "dest": "nodes/{nodeId}/lessons/" },
+    { "pattern": ".companion-state.md", "dest": "nodes/{nodeId}/state/" },
+    { "pattern": ".tmp/trust-registry.json", "dest": "nodes/{nodeId}/trust/" },
+    { "pattern": "memory-vault/handoffs/*.md", "dest": "nodes/{nodeId}/handoffs/" },
+    { "pattern": "memory-vault/ledger/observations/**", "dest": "nodes/{nodeId}/observations/" },
+    { "pattern": "memory-vault/ledger/reflections/**", "dest": "nodes/{nodeId}/reflections/" },
+    { "pattern": "memory-vault/preferences/*.md", "dest": "nodes/{nodeId}/preferences/" },
+    { "pattern": "memory-vault/decisions/*.md", "dest": "nodes/{nodeId}/decisions/" },
+    { "pattern": "memory-vault/patterns/*.md", "dest": "nodes/{nodeId}/patterns/" },
+    { "pattern": "memory-vault/lessons/*.md", "dest": "nodes/{nodeId}/lessons/" }
+  ],
+  "sharedRoutes": [],
+  "excludePatterns": [
+    "**/*.zip",
+    "**/*.pdf",
+    "**/node_modules/**",
+    "**/.tmp/**",
+    "**/package-lock.json",
+    "**/.DS_Store",
+    "**/.npm-cache/**",
+    "**/.next/**"
+  ],
+  "frontmatterDefaults": {
+    "status": "draft",
+    "tags": ["auto-synced"]
+  }
+}

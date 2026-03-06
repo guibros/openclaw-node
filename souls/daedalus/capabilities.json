@@ -1,0 +1,46 @@
+{
+  "skills": [
+    "arcane-dev-ops",
+    "cc-godmode",
+    "soulcraft",
+    "capability-evolver",
+    "self-improving-agent",
+    "ui-ux-pro-max",
+    "growth-loop",
+    "deep-research",
+    "twitter",
+    "n8n-workflow-automation",
+    "agent-browser",
+    "prompt-guard",
+    "agentic-compass"
+  ],
+  "tools": [
+    "Task",
+    "Bash",
+    "Read",
+    "Write",
+    "Edit",
+    "Glob",
+    "Grep",
+    "WebFetch",
+    "WebSearch",
+    "Skill",
+    "TodoWrite",
+    "AskUserQuestion",
+    "EnterPlanMode",
+    "ExitPlanMode",
+    "TeamCreate",
+    "TeamDelete",
+    "SendMessage",
+    "TaskOutput",
+    "TaskStop"
+  ],
+  "mcpServers": [],
+  "permissions": {
+    "memory": {
+      "shared": "readwrite",
+      "private": ["daedalus"],
+      "handoffs": "readwrite"
+    }
+  }
+}

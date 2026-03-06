@@ -1,0 +1,33 @@
+{
+  "skills": [
+    "arcane-dev-ops",
+    "git-essentials"
+  ],
+  "tools": [
+    "Read",
+    "Bash",
+    "Grep",
+    "Glob",
+    "WebSearch"
+  ],
+  "mcpServers": [],
+  "permissions": {
+    "memory": {
+      "shared": "read",
+      "private": ["infra-ops"],
+      "handoffs": "read"
+    },
+    "restrictedActions": [
+      "git push",
+      "npm publish",
+      "mainnet deployment",
+      "DNS changes",
+      "secret rotation"
+    ]
+  },
+  "evolutionConfig": {
+    "captureTypes": ["deployment_pattern", "failure_mode", "cost_optimization", "pipeline_improvement"],
+    "reviewRequired": true,
+    "autoApprove": false
+  }
+}

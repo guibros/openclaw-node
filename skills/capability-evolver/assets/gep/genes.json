@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "genes": [
+    {
+      "type": "Gene",
+      "id": "gene_gep_repair_from_errors",
+      "category": "repair",
+      "signals_match": [
+        "error",
+        "exception",
+        "failed",
+        "unstable"
+      ],
+      "preconditions": [
+        "signals contains error-related indicators"
+      ],
+      "strategy": [
+        "Extract structured signals from logs and user instructions",
+        "Select an existing Gene by signals match (no improvisation)",
+        "Estimate blast radius (files, lines) before editing",
+        "Apply smallest reversible patch",
+        "Validate using declared validation steps; rollback on failure",
+        "Solidify knowledge: append EvolutionEvent, update Gene/Capsule store"
+      ],
+      "constraints": {
+        "max_files": 12,
+        "forbidden_paths": [
+          ".git",
+          "node_modules"
+        ]
+      },
+      "validation": [
+        "node index.js run",
+        "node -e \"require('./src/evolve')\""
+      ]
+    },
+    {
+      "type": "Gene",
+      "id": "gene_gep_optimize_prompt_and_assets",
+      "category": "optimize",
+      "signals_match": [
+        "protocol",
+        "gep",
+        "prompt",
+        "audit",
+        "reusable"
+      ],
+      "preconditions": [
+        "need stricter, auditable evolution protocol outputs"
+      ],
+      "strategy": [
+        "Extract signals and determine selection rationale via Selector JSON",
+        "Prefer reusing existing Gene/Capsule; only create if no match exists",
+        "Refactor prompt assembly to embed assets (genes, capsules, parent event)",
+        "Reduce noise and ambiguity; enforce strict output schema",
+        "Validate by running node index.js run and ensuring no runtime errors",
+        "Solidify: record EvolutionEvent, update Gene definitions, create Capsule on success"
+      ],
+      "constraints": {
+        "max_files": 20,
+        "forbidden_paths": [
+          ".git",
+          "node_modules"
+        ]
+      },
+      "validation": [
+        "node index.js run"
+      ]
+    },
+    {
+      "type": "Gene",
+      "id": "gene_skill_quality_regression",
+      "category": "repair",
+      "signals_match": [
+        "skill",
+        "quality",
+        "regression",
+        "grade_drop",
+        "trigger_missing"
+      ],
+      "preconditions": [
+        "bin/skill-quality-check reports REGRESSIONS",
+        "a skill grade dropped below its previous level"
+      ],
+      "strategy": [
+        "Run bin/skill-audit --json to get current state",
+        "Identify which skills regressed and why (check details)",
+        "For description issues: rewrite to WHAT + WHEN pattern, under 300 chars",
+        "For missing triggers: add 3-5 user-phrase triggers",
+        "For missing negative_triggers: add 2-4 disambiguation phrases",
+        "For file_size: move bulk content to references/",
+        "Re-run bin/skill-audit --min-grade B to verify fix"
+      ],
+      "constraints": {
+        "max_files": 10,
+        "forbidden_paths": [".git", "node_modules"]
+      },
+      "validation": [
+        "bin/skill-audit --min-grade B"
+      ]
+    }
+  ]
+}
+

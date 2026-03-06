@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+# soul-prompt — Assemble a soul-enriched preamble for Task tool spawning
+#
+# Usage:
+#   bin/soul-prompt <soul-id> [--task-id T-xxx] [--extra-context "..."]
+#
+# Outputs:
+#   stdout: the assembled prompt preamble
+#   stderr: the recommended subagent_type (general-purpose or Explore)
+
+set -euo pipefail
+
+SOULS_DIR="${HOME}/.openclaw/souls"
+HANDOFFS_DIR="${HOME}/.openclaw/workspace/memory-vault/handoffs"
+
+# --- Parse args ---
+SOUL_ID=""
+TASK_ID=""
+EXTRA_CONTEXT=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --task-id)
+      TASK_ID="$2"
+      shift 2
+      ;;
+    --extra-context)
+      EXTRA_CONTEXT="$2"
+      shift 2
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+    *)
+      SOUL_ID="$1"
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$SOUL_ID" ]]; then
+  echo "Usage: soul-prompt <soul-id> [--task-id T-xxx] [--extra-context \"...\"]" >&2
+  exit 1
+fi
+
+SOUL_DIR="${SOULS_DIR}/${SOUL_ID}"
+
+if [[ ! -d "$SOUL_DIR" ]]; then
+  echo "ERROR: Soul '${SOUL_ID}' not found at ${SOUL_DIR}" >&2
+  exit 1
+fi
+
+# --- Parse all JSON + determine subagent_type in a single subprocess ---
+CAPS_FILE="${SOUL_DIR}/capabilities.json"
+GENES_FILE="${SOUL_DIR}/evolution/genes.json"
+
+# Single Python call: outputs subagent_type to fd3, genes markdown + constraints markdown to stdout
+PARSED=$(python3 -c "
+import json, sys, os
+
+caps_file = '${CAPS_FILE}'
+genes_file = '${GENES_FILE}'
+out = []
+
+# --- Subagent type from capabilities ---
+subagent_type = 'general-purpose'
+caps = {}
+if os.path.isfile(caps_file):
+    caps = json.load(open(caps_file))
+    tools = caps.get('tools', [])
+    if not any(t in tools for t in ['Write', 'Edit', 'Bash']):
+        subagent_type = 'Explore'
+
+print('SUBAGENT_TYPE=' + subagent_type, file=sys.stderr)
+
+# --- Genes markdown ---
+if os.path.isfile(genes_file):
+    data = json.load(open(genes_file))
+    genes = data.get('genes', [])
+    if genes:
+        out.append('---')
+        out.append('')
+        out.append('# Learned Patterns (apply these during analysis)')
+        out.append('')
+        for gene in genes:
+            out.append(f'## {gene[\"id\"]}')
+            out.append(f'**Category:** {gene.get(\"category\", \"unknown\")}')
+            out.append(f'**Signal:** {gene.get(\"signal\", \"\")}')
+            for p in gene.get('preconditions', []):
+                out.append(f'  - {p}')
+            strategy = gene.get('strategy', [])
+            if strategy:
+                out.append('**Strategy:**')
+                for s in strategy:
+                    out.append(f'  1. {s}')
+            out.append('')
+
+# --- Capabilities / constraints markdown ---
+if caps:
+    perms = caps.get('permissions', {})
+    memory = perms.get('memory', {})
+    restricted = perms.get('restrictedActions', [])
+    tools = caps.get('tools', [])
+
+    if memory or restricted or tools:
+        out.append('---')
+        out.append('')
+        out.append('# Operational Constraints')
+        out.append('')
+        if memory:
+            out.append('## Memory Access')
+            for k, v in memory.items():
+                out.append(f'- **{k}:** {v}')
+            out.append('')
+        if restricted:
+            out.append('## Restricted Actions (DO NOT execute these)')
+            for r in restricted:
+                out.append(f'- {r}')
+            out.append('')
+        if tools:
+            out.append('## Available Tools')
+            out.append(', '.join(tools))
+            out.append('')
+
+print('\n'.join(out))
+" 2>/tmp/soul-prompt-meta || true)
+
+# Extract subagent type from stderr output
+SUBAGENT_TYPE=$(grep -oP 'SUBAGENT_TYPE=\K.*' /tmp/soul-prompt-meta 2>/dev/null || echo "general-purpose")
+echo "$SUBAGENT_TYPE" >&2
+
+# --- Assemble preamble ---
+
+# 1. Identity (SOUL.md) — static
+SOUL_MD="${SOUL_DIR}/SOUL.md"
+if [[ -f "$SOUL_MD" ]]; then
+  echo "# Soul Identity"
+  echo ""
+  cat "$SOUL_MD"
+  echo ""
+fi
+
+# 2. Principles (PRINCIPLES.md) — static
+PRINCIPLES_MD="${SOUL_DIR}/PRINCIPLES.md"
+if [[ -f "$PRINCIPLES_MD" ]]; then
+  echo "---"
+  echo ""
+  echo "# Decision Principles"
+  echo ""
+  cat "$PRINCIPLES_MD"
+  echo ""
+fi
+
+# 3-4. Genes + Constraints (from single Python call above)
+if [[ -n "$PARSED" ]]; then
+  echo "$PARSED"
+fi
+
+# 5. Handoff context (if task-id provided)
+if [[ -n "$TASK_ID" ]]; then
+  HANDOFF_DOC="${HANDOFFS_DIR}/${TASK_ID}-handoff.md"
+  if [[ -f "$HANDOFF_DOC" ]]; then
+    echo "---"
+    echo ""
+    echo "# Task Handoff Context"
+    echo ""
+    cat "$HANDOFF_DOC"
+    echo ""
+  fi
+fi
+
+# 6. Extra context
+if [[ -n "$EXTRA_CONTEXT" ]]; then
+  echo "---"
+  echo ""
+  echo "# Additional Context"
+  echo ""
+  echo "$EXTRA_CONTEXT"
+  echo ""
+fi
+
+# 7. Trust tier + autonomy level (from trust-registry)
+WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+TRUST_REGISTRY="${WORKSPACE}/.tmp/trust-registry.json"
+if [[ -f "$TRUST_REGISTRY" ]]; then
+  TRUST_INFO=$(python3 -c "
+import json, sys
+reg = json.load(open('${TRUST_REGISTRY}'))
+s = reg.get('souls', {}).get('${SOUL_ID}', {})
+total = s.get('tasks_total', 0)
+succeeded = s.get('tasks_succeeded', 0)
+if total == 0:
+    trust = 0.5
+else:
+    success_rate = succeeded / total
+    verified = s.get('tasks_verified', 0)
+    avg_turns = s.get('avg_turns', 10.0)
+    ver_rate = verified / max(1, succeeded)
+    eff = max(0.0, 1.0 - min(1.0, avg_turns / 20.0))
+    trust = round(success_rate * 0.50 + ver_rate * 0.30 + eff * 0.20, 3)
+if total >= 25 and trust >= 0.80: tier = 'expert'
+elif total >= 10 and trust >= 0.65: tier = 'proven'
+elif total >= 3 and trust >= 0.50: tier = 'developing'
+else: tier = 'new'
+autonomy = {'new': 'atomic', 'developing': 'guided', 'proven': 'open-ended', 'expert': 'full'}[tier]
+print(f'Trust: {trust} | Tier: {tier} | Autonomy: {autonomy} | Track record: {succeeded}/{total}')
+" 2>/dev/null || echo "Trust: 0.500 | Tier: new | Autonomy: atomic | Track record: 0/0")
+  echo "---"
+  echo ""
+  echo "# Delegation Trust"
+  echo ""
+  echo "$TRUST_INFO"
+  echo ""
+fi
+
+# 7b. Circuit breaker check
+CB_OUT=$("$WORKSPACE/bin/trust-registry" check "${SOUL_ID}" 2>/dev/null) || true
+if echo "$CB_OUT" | grep -q "OPEN"; then
+  echo "---"
+  echo ""
+  echo "# ⚡ Circuit Breaker Warning"
+  echo ""
+  echo "This soul's circuit breaker is OPEN due to consecutive failures."
+  echo "Delegation is not recommended. Consider using an alternative soul."
+  echo ""
+fi
+
+# 8. Standard completion protocol + contract template
+echo "---"
+echo ""
+echo "# Completion Protocol"
+echo ""
+echo "- When done: report what was accomplished concisely"
+echo "- If blocked: surface the blocker immediately — do not spiral or guess"
+echo "- Do not add scope beyond what was asked"
+echo "- Prefer editing existing files over creating new ones"
+echo "- Security-first: no secrets in output, no destructive commands without confirmation"
+echo "- No writing to genome files (SOUL.md, PRINCIPLES.md, AGENTS.md, MEMORY.md)"
+echo ""
+echo "## Contract (delegator fills this in)"
+echo ""
+echo "- **Deliverable:** [to be specified]"
+echo "- **Verification:** [to be specified] + \`bin/quality-gate --files <changed-files>\` exits 0 or 2"
+echo "- **Boundaries:** [to be specified]"
+echo "- **Budget:** 15 turns max (default)"
+echo "- **Criticality:** normal | high"
+echo "- **Escalation:** Report blocker immediately, do not retry more than once"
+echo "- **Quality Gate:** Run \`bin/quality-gate --files <changed-files>\` before reporting done"
+echo "- **Screenshot Gate:** If modifying UI files (*.tsx/*.jsx in components/pages/app/, *.css), include visual evidence in artifacts"

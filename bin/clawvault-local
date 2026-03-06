@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Derive workspace from script location (portable across machines)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE="${OPENCLAW_WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
+
+CLAWVAULT_BIN="$WORKSPACE/.npm-global/bin/clawvault"
+DEFAULT_VAULT="$WORKSPACE/memory-vault"
+
+export PATH="$HOME/.bun/bin:$PATH"
+
+if [ "$#" -eq 0 ]; then
+  exec "$CLAWVAULT_BIN" status --vault "$DEFAULT_VAULT"
+fi
+
+cmd="$1"
+shift || true
+
+# Commands that don't accept --vault
+case "$cmd" in
+  --help|-h|help|shell-init|init|setup|template|compat|dashboard)
+    exec "$CLAWVAULT_BIN" "$cmd" "$@"
+    ;;
+  *)
+    exec "$CLAWVAULT_BIN" "$cmd" --vault "$DEFAULT_VAULT" "$@"
+    ;;
+esac

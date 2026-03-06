@@ -1,0 +1,33 @@
+{
+  "skills": [
+    "narrative-designer",
+    "world-builder",
+    "flavor-text-writer"
+  ],
+  "tools": [
+    "Read",
+    "Write",
+    "Edit",
+    "Grep",
+    "Glob",
+    "WebSearch"
+  ],
+  "mcpServers": [],
+  "permissions": {
+    "memory": {
+      "shared": "read",
+      "private": ["lore-writer"],
+      "handoffs": "read"
+    },
+    "restrictedActions": [
+      "git push",
+      "deployment commands",
+      "contract modifications"
+    ]
+  },
+  "evolutionConfig": {
+    "captureTypes": ["tone_guideline", "naming_convention", "story_beat"],
+    "reviewRequired": true,
+    "autoApprove": false
+  }
+}

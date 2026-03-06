@@ -1,0 +1,296 @@
+#!/usr/bin/env bash
+# install-daemon — Cross-platform service installer for OpenClaw memory daemon
+#
+# Detects OS and installs the appropriate persistent service:
+#   - macOS:   launchd (~/Library/LaunchAgents/)
+#   - Linux:   systemd user service (~/.config/systemd/user/)
+#   - Other:   pm2 (requires: npm install -g pm2)
+#
+# Usage:
+#   bin/install-daemon              # install and start
+#   bin/install-daemon --uninstall  # stop and remove
+#   bin/install-daemon --status     # check service status
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE="${OPENCLAW_WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
+DAEMON_SCRIPT="$WORKSPACE/bin/memory-daemon.mjs"
+SERVICE_NAME="ai.openclaw.memory-daemon"
+SERVICES_DIR="$HOME/.openclaw/services"
+
+# Find Node.js
+NODE_BIN="$(command -v node 2>/dev/null || echo "")"
+if [ -z "$NODE_BIN" ]; then
+  echo "Error: Node.js not found in PATH"
+  echo "Install Node.js 18+ and try again"
+  exit 1
+fi
+
+NODE_VERSION=$("$NODE_BIN" -e "console.log(process.versions.node.split('.')[0])")
+if [ "$NODE_VERSION" -lt 18 ]; then
+  echo "Error: Node.js 18+ required (found v$NODE_VERSION)"
+  exit 1
+fi
+
+detect_os() {
+  case "$(uname -s)" in
+    Darwin)              echo "macos" ;;
+    Linux)               echo "linux" ;;
+    MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
+    *)                   echo "unknown" ;;
+  esac
+}
+
+OS=$(detect_os)
+
+# ============================================================
+# macOS — launchd
+# ============================================================
+
+PLIST_PATH="$HOME/Library/LaunchAgents/${SERVICE_NAME}.plist"
+
+install_macos() {
+  mkdir -p "$HOME/Library/LaunchAgents" "$SERVICES_DIR"
+
+  # Build PATH for the daemon
+  local daemon_path="$WORKSPACE/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+  cat > "$PLIST_PATH" << PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>${SERVICE_NAME}</string>
+    <key>Comment</key>
+    <string>OpenClaw Memory Daemon v2 — Node.js long-running process</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>${NODE_BIN}</string>
+      <string>${DAEMON_SCRIPT}</string>
+    </array>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${WORKSPACE}/.tmp/memory-daemon.log</string>
+    <key>StandardErrorPath</key>
+    <string>${WORKSPACE}/.tmp/memory-daemon.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key>
+      <string>${HOME}</string>
+      <key>PATH</key>
+      <string>${daemon_path}</string>
+      <key>TZ</key>
+      <string>America/Montreal</string>
+      <key>OPENCLAW_WORKSPACE</key>
+      <string>${WORKSPACE}</string>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+  </dict>
+</plist>
+PLISTEOF
+
+  # Copy to services dir for reference
+  cp "$PLIST_PATH" "$SERVICES_DIR/"
+
+  # Unload if already loaded (ignore errors)
+  launchctl unload "$PLIST_PATH" 2>/dev/null || true
+
+  # Load the service
+  launchctl load "$PLIST_PATH"
+
+  echo "Installed: launchd service at $PLIST_PATH"
+  echo "Status: $(launchctl list | grep "$SERVICE_NAME" || echo "loading...")"
+  echo ""
+  echo "Commands:"
+  echo "  launchctl start $SERVICE_NAME    # force start"
+  echo "  launchctl stop $SERVICE_NAME     # stop"
+  echo "  launchctl unload $PLIST_PATH     # disable"
+  echo "  tail -f $WORKSPACE/.tmp/memory-daemon.log  # watch logs"
+}
+
+uninstall_macos() {
+  if [ -f "$PLIST_PATH" ]; then
+    launchctl unload "$PLIST_PATH" 2>/dev/null || true
+    rm -f "$PLIST_PATH"
+    echo "Uninstalled: launchd service removed"
+  else
+    echo "Not installed (no plist found)"
+  fi
+}
+
+status_macos() {
+  if launchctl list | grep -q "$SERVICE_NAME"; then
+    echo "Running"
+    launchctl list | grep "$SERVICE_NAME"
+  else
+    echo "Not running"
+  fi
+}
+
+# ============================================================
+# Linux — systemd user service
+# ============================================================
+
+SYSTEMD_DIR="$HOME/.config/systemd/user"
+UNIT_PATH="$SYSTEMD_DIR/openclaw-memory-daemon.service"
+
+install_linux() {
+  mkdir -p "$SYSTEMD_DIR" "$SERVICES_DIR"
+
+  cat > "$UNIT_PATH" << UNITEOF
+[Unit]
+Description=OpenClaw Memory Daemon v2
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NODE_BIN} ${DAEMON_SCRIPT}
+Restart=always
+RestartSec=5
+Environment=HOME=${HOME}
+Environment=TZ=America/Montreal
+Environment=OPENCLAW_WORKSPACE=${WORKSPACE}
+Environment=PATH=${WORKSPACE}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+StandardOutput=append:${WORKSPACE}/.tmp/memory-daemon.log
+StandardError=append:${WORKSPACE}/.tmp/memory-daemon.err
+WorkingDirectory=${WORKSPACE}
+
+[Install]
+WantedBy=default.target
+UNITEOF
+
+  # Copy to services dir for reference
+  cp "$UNIT_PATH" "$SERVICES_DIR/"
+
+  systemctl --user daemon-reload
+  systemctl --user enable openclaw-memory-daemon
+  systemctl --user start openclaw-memory-daemon
+
+  echo "Installed: systemd user service at $UNIT_PATH"
+  echo ""
+  echo "Commands:"
+  echo "  systemctl --user status openclaw-memory-daemon"
+  echo "  systemctl --user stop openclaw-memory-daemon"
+  echo "  systemctl --user restart openclaw-memory-daemon"
+  echo "  journalctl --user -u openclaw-memory-daemon -f  # watch logs"
+  echo "  tail -f $WORKSPACE/.tmp/memory-daemon.log"
+}
+
+uninstall_linux() {
+  if [ -f "$UNIT_PATH" ]; then
+    systemctl --user stop openclaw-memory-daemon 2>/dev/null || true
+    systemctl --user disable openclaw-memory-daemon 2>/dev/null || true
+    rm -f "$UNIT_PATH"
+    systemctl --user daemon-reload
+    echo "Uninstalled: systemd service removed"
+  else
+    echo "Not installed (no unit file found)"
+  fi
+}
+
+status_linux() {
+  if systemctl --user is-active openclaw-memory-daemon >/dev/null 2>&1; then
+    systemctl --user status openclaw-memory-daemon --no-pager
+  else
+    echo "Not running"
+  fi
+}
+
+# ============================================================
+# Windows/Fallback — pm2
+# ============================================================
+
+install_pm2() {
+  if ! command -v pm2 >/dev/null 2>&1; then
+    echo "pm2 not found. Installing globally..."
+    npm install -g pm2
+  fi
+
+  # Stop if already running
+  pm2 stop openclaw-memory-daemon 2>/dev/null || true
+  pm2 delete openclaw-memory-daemon 2>/dev/null || true
+
+  pm2 start "$DAEMON_SCRIPT" \
+    --name openclaw-memory-daemon \
+    --cwd "$WORKSPACE" \
+    --log "$WORKSPACE/.tmp/memory-daemon.log" \
+    --error "$WORKSPACE/.tmp/memory-daemon.err" \
+    --env "OPENCLAW_WORKSPACE=$WORKSPACE" \
+    --env "TZ=America/Montreal"
+
+  pm2 save
+
+  echo "Installed: pm2 process 'openclaw-memory-daemon'"
+  echo ""
+  echo "Commands:"
+  echo "  pm2 status openclaw-memory-daemon"
+  echo "  pm2 stop openclaw-memory-daemon"
+  echo "  pm2 restart openclaw-memory-daemon"
+  echo "  pm2 logs openclaw-memory-daemon"
+  echo ""
+  echo "To persist across reboots: pm2 startup"
+}
+
+uninstall_pm2() {
+  if command -v pm2 >/dev/null 2>&1; then
+    pm2 stop openclaw-memory-daemon 2>/dev/null || true
+    pm2 delete openclaw-memory-daemon 2>/dev/null || true
+    pm2 save
+    echo "Uninstalled: pm2 process removed"
+  else
+    echo "pm2 not found"
+  fi
+}
+
+status_pm2() {
+  if command -v pm2 >/dev/null 2>&1; then
+    pm2 describe openclaw-memory-daemon 2>/dev/null || echo "Not running"
+  else
+    echo "pm2 not found"
+  fi
+}
+
+# ============================================================
+# MAIN
+# ============================================================
+
+ACTION="${1:-install}"
+
+echo "OpenClaw Memory Daemon Installer"
+echo "OS: $OS | Node: $NODE_BIN (v$NODE_VERSION)"
+echo "Workspace: $WORKSPACE"
+echo ""
+
+case "$ACTION" in
+  install|--install)
+    case "$OS" in
+      macos)   install_macos ;;
+      linux)   install_linux ;;
+      *)       install_pm2 ;;
+    esac
+    ;;
+  uninstall|--uninstall)
+    case "$OS" in
+      macos)   uninstall_macos ;;
+      linux)   uninstall_linux ;;
+      *)       uninstall_pm2 ;;
+    esac
+    ;;
+  status|--status)
+    case "$OS" in
+      macos)   status_macos ;;
+      linux)   status_linux ;;
+      *)       status_pm2 ;;
+    esac
+    ;;
+  *)
+    echo "Usage: install-daemon [install|uninstall|status]"
+    exit 1
+    ;;
+esac

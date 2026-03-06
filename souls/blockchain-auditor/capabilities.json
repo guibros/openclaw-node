@@ -1,0 +1,33 @@
+{
+  "skills": [
+    "arcane-dev-ops",
+    "solidity-audit",
+    "mythril-scanner",
+    "slither-analyzer"
+  ],
+  "tools": [
+    "Read",
+    "Bash",
+    "Grep",
+    "Glob",
+    "WebSearch"
+  ],
+  "mcpServers": [],
+  "permissions": {
+    "memory": {
+      "shared": "read",
+      "private": ["blockchain-auditor"],
+      "handoffs": "read"
+    },
+    "restrictedActions": [
+      "git push",
+      "npm publish",
+      "deployment commands"
+    ]
+  },
+  "evolutionConfig": {
+    "captureTypes": ["security_finding", "attack_pattern", "mitigation_strategy"],
+    "reviewRequired": true,
+    "autoApprove": false
+  }
+}

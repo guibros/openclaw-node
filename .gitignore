@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.tmp/
+*.db
+.env
+openclaw.env
+.DS_Store
+.npm-cache/
+*.log
+*.err
+tsconfig.tsbuildinfo
+mission-control/data/

@@ -1,0 +1,494 @@
+#!/usr/bin/env python3
+"""
+compile-boot — Compile AGENTS.md into lean, profile-aware boot artifacts.
+
+Reads the prose source files and .boot/manifest.yaml, outputs a compiled
+markdown file optimized for model ingestion.
+
+Usage:
+  bin/compile-boot --profile main              # full interactive session
+  bin/compile-boot --profile lite              # small-context model
+  bin/compile-boot --profile heartbeat         # heartbeat poll
+  bin/compile-boot --profile discord           # group chat bridge
+  bin/compile-boot --profile worker            # sub-agent
+  bin/compile-boot --profile main --model llama  # force structured for llama
+  bin/compile-boot --dry-run                   # show what would be included
+  bin/compile-boot --all                       # compile all profiles to .boot/
+
+Output goes to stdout by default, or to .boot/{profile}.compiled.md with --all.
+"""
+
+import argparse
+import os
+import re
+import sys
+import yaml
+from pathlib import Path
+from datetime import datetime
+
+WORKSPACE = Path(__file__).resolve().parent.parent
+AGENTS_MD = WORKSPACE / "AGENTS.md"
+MANIFEST = WORKSPACE / ".boot" / "manifest.yaml"
+BOOT_DIR = WORKSPACE / ".boot"
+
+# ────────────────────────────────────────────────────────────
+# Markdown parser — extract sections by header
+# ────────────────────────────────────────────────────────────
+
+def parse_sections(filepath):
+    """Parse markdown into sections keyed by header text (without # prefix).
+
+    Produces two views:
+    - flat: every header (H1-H4) is its own section (for precise matching)
+    - hierarchical: H2 sections include all nested H3/H4 content (for group loading)
+    """
+    flat = {}
+    hierarchical = {}
+    current_h2_key = None
+    current_h2_lines = []
+    current_h2_level = 0
+    current_key = None
+    current_lines = []
+    current_level = 0
+
+    def clean_header(raw):
+        clean = re.sub(r'^[\U0001F000-\U0001FFFF\u2600-\u27FF\uFE00-\uFEFF]+\s*', '', raw.strip())
+        clean = re.sub(r'\*\*|__', '', clean)
+        return clean.strip(' —-')
+
+    with open(filepath) as f:
+        for line in f:
+            header_match = re.match(r'^(#{1,4})\s+(.+)$', line)
+            if header_match:
+                level = len(header_match.group(1))
+                title = clean_header(header_match.group(2))
+
+                # Save previous flat section
+                if current_key:
+                    flat[current_key] = {
+                        "level": current_level,
+                        "content": "".join(current_lines).strip()
+                    }
+
+                # H2 boundary: save previous hierarchical section
+                if level <= 2:
+                    if current_h2_key:
+                        hierarchical[current_h2_key] = {
+                            "level": current_h2_level,
+                            "content": "".join(current_h2_lines).strip()
+                        }
+                    current_h2_key = title
+                    current_h2_level = level
+                    current_h2_lines = []
+                else:
+                    # H3/H4: include header line in parent H2's content
+                    current_h2_lines.append(line)
+
+                current_key = title
+                current_level = level
+                current_lines = []
+            else:
+                current_lines.append(line)
+                current_h2_lines.append(line)
+
+    # Save final sections
+    if current_key:
+        flat[current_key] = {
+            "level": current_level,
+            "content": "".join(current_lines).strip()
+        }
+    if current_h2_key:
+        hierarchical[current_h2_key] = {
+            "level": current_h2_level,
+            "content": "".join(current_h2_lines).strip()
+        }
+
+    return flat, hierarchical
+
+
+# ────────────────────────────────────────────────────────────
+# Compilers — transform prose into lean formats
+# ────────────────────────────────────────────────────────────
+
+def compile_verbatim(section_content):
+    """Keep as-is."""
+    return section_content
+
+def compile_prose_slim(section_content, keep_why=False):
+    """Strip explanations, analogies, and meta-commentary. Keep rules and examples."""
+    lines = section_content.split('\n')
+    output = []
+    skip_block = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Skip "Why this exists/works/matters" explanation blocks
+        if not keep_why and re.match(r'^\*\*Why (this|it)', stripped):
+            skip_block = True
+            continue
+        if not keep_why and re.match(r'^(Think of it like|The goal:|The point:|Rule of thumb:)', stripped):
+            continue
+
+        # Skip analogy lines
+        if re.match(r'^(It\'s like|Imagine|For example, if you were)', stripped):
+            continue
+
+        # End skip block on empty line or new section
+        if skip_block and (stripped == '' or stripped.startswith('#') or stripped.startswith('**') or stripped.startswith('-')):
+            skip_block = False
+
+        if not skip_block:
+            output.append(line)
+
+    return '\n'.join(output).strip()
+
+def compile_structured(section_name, section_content):
+    """Convert prose to structured rules. Uses hand-tuned transforms for known sections."""
+
+    # ── Boot Sequence ──
+    if section_name == "Every Session":
+        return """boot:
+  tier1: [SOUL.md, PRINCIPLES.md, AGENTS.md]
+  tier2:
+    - .companion-state.md (MANDATORY — if status:active + no session → crash recovery)
+    - memory/active-tasks.md
+    - .learnings/lessons.md
+    - memory/{today}.md
+    - MEMORY.md (main session only)
+  commands: [bin/clawvault-local wake, check localhost:3000/api/tasks]
+  lazy: [TOOLS.md, memory/task-backlog.md]"""
+
+    # ── Memory ──
+    if section_name == "Memory":
+        return """memory:
+  daily: memory/{date}.md (raw logs)
+  longterm: MEMORY.md (curated, main session only)
+  rule: write to files, never mental notes
+  secrets: skip unless explicitly asked"""
+
+    # ── Write Rules ──
+    if section_name == "Write Rules":
+        return """write_filter:
+  always: [decisions+reasoning, user_preferences, failure_lessons, milestones, commitments, people_context]
+  never: [routine_completions, debug_output, obvious_from_code, duplicates, unconfirmed_plans]
+  maybe: [reusable_patterns, time-saving_context, user_emotional_signals]
+  threshold: "would future-you waste >5min rediscovering this?"  """
+
+    # ── MEMORY.md rules ──
+    if section_name == "MEMORY.md - Your Long-Term Memory":
+        return """MEMORY.md:
+  load: main session only (NEVER in shared/group/discord contexts — security)
+  access: read, edit, update freely in main sessions
+  content: significant events, decisions, opinions, lessons (distilled, not raw)"""
+
+    # ── ClawVault ──
+    if section_name == "ClawVault Integration":
+        return """clawvault (on-demand only — lifecycle is automated):
+  save: bin/clawvault-local remember <type> "title" --content "..."
+  search: bin/clawvault-local search "query" (or vsearch)
+  guardrails: no networking commands without user approval, high-signal writes only"""
+
+    # ── Temporal Weighting ──
+    if section_name == "Temporal Weighting":
+        return """memory_structure:
+  sections: [Active Context (this week), Recent (this month), Stable (long-term), Archive Reference]
+  conflict_rule: newer wins unless older is marked core_preference
+  bootstrap: scan Active Context first, drill deeper only if task needs history"""
+
+    # ── Task Completion ──
+    if section_name == "Task Completion":
+        return """task_reporting (HARD RULE — interrupt priority):
+  on_finish: "✅ [name] done. [one-liner]"
+  on_fail: "❌ [name] failed — [reason]."
+  rules:
+    - report IMMEDIATELY — never batch, never silently absorb sub-agent results
+    - parallel agents: report each individually as they land
+    - applies to: file edits, agent tasks, searches, builds, tests, deploys, commits
+  self_check: "Did I flag the last task? If no → flag NOW, then proceed."  """
+
+    # ── Task Lifecycle ──
+    if section_name == "Task Lifecycle":
+        return """task_tracking (file-driven, NOT API):
+  file: memory/active-tasks.md (kanban reads every 3s)
+  start: add/update entry with status=running
+  finish: update entry to status=done
+  also_update: .companion-state.md (feeds Live Session banner)
+  backlog: memory/task-backlog.md (~46K tokens, read on-demand when activating a phase)"""
+
+    # ── Decision Stack ──
+    if section_name == "Decision Stack":
+        return """decision_priority:
+  1: SOUL.md (identity, voice)
+  2: PRINCIPLES.md (heuristics, conflict resolution)
+  3: AGENTS.md (operational rules, safety)
+  4: skills/*/SKILL.md (domain playbooks)
+  conflict: resolve with PRINCIPLES priority first, then AGENTS constraints"""
+
+    # ── Group Chats ──
+    if section_name == "Group Chats":
+        return """group_chat:
+  principle: participant, not proxy — don't share human's private stuff
+  speak_when: [mentioned, can add genuine value, funny fits naturally, correcting misinfo]
+  silent_when: [banter between humans, already answered, would just say "yeah", flow is fine]
+  reactions: one per message max — use 👍❤️😂🤔💡✅👀 naturally
+  rules:
+    - quality > quantity
+    - don't triple-tap (one response per message)
+    - if you wouldn't send it in a real group chat, don't send it"""
+
+    # ── Sub-Agent Value Injection (structured = handled by DELEGATION_BOOT_SUMMARY) ──
+    if section_name == "Sub-Agent Value Injection":
+        return ""  # delegation summary block covers this
+
+    # ── Fallback: slim the prose ──
+    return compile_prose_slim(section_content)
+
+
+# ────────────────────────────────────────────────────────────
+# Delegation boot summary (the minimal version for boot)
+# ────────────────────────────────────────────────────────────
+
+DELEGATION_BOOT_SUMMARY = """delegation:
+  complexity_floor: don't spawn for tasks <30s (reads, greps, one-line edits)
+  task_bound: 2-5 min per task. >5min = decompose. <2min = do inline.
+  contract_required: true
+  contract_fields: [deliverable, verification, boundaries, budget (default 15), escalation]
+  preamble: |
+    You are a specialist executing a bounded task. Core standards:
+    - Ship complete work. Verify before reporting done.
+    - Surface blockers immediately. Don't spiral or guess.
+    - No scope creep. Do the task, do it well, stop.
+    - Edit existing files over creating new ones.
+    - Security-first: no secrets in output, no destructive commands.
+  full_protocol: read DELEGATION.md when spawning souls or using trust tiers"""
+
+
+# ────────────────────────────────────────────────────────────
+# Main compiler
+# ────────────────────────────────────────────────────────────
+
+def compile_profile(profile, manifest, flat_sections, hier_sections, model=None):
+    """Compile a single profile's boot artifact.
+
+    flat_sections: each header gets its own content (no children)
+    hier_sections: H2 sections include all nested H3/H4 content
+    """
+    output_parts = []
+    model_cfg = manifest.get("model_overrides", {}).get(model, {}) if model else {}
+    keep_why = model_cfg.get("keep_why_blocks", False)
+    force_structured = model_cfg.get("force_structured", False)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    output_parts.append(f"# Compiled Boot — profile:{profile}" +
+                       (f" model:{model}" if model else "") +
+                       f"\n# Generated: {timestamp}\n# Source: AGENTS.md + .boot/manifest.yaml\n")
+
+    section_configs = manifest.get("sections", {})
+    included = 0
+    skipped = 0
+
+    for section_name, cfg in section_configs.items():
+        profiles = cfg.get("profile", [])
+        priority = cfg.get("priority", "boot")
+        compile_mode = cfg.get("compile", "verbatim")
+
+        # Model-specific compile override (e.g., claude_compile: prose_slim)
+        if model:
+            model_compile_key = f"{model}_compile"
+            if model_compile_key in cfg:
+                compile_mode = cfg[model_compile_key]
+
+        # Profile gate
+        if profile not in profiles:
+            skipped += 1
+            continue
+
+        # Priority gate — skip lazy sections (they get a pointer instead)
+        if priority == "lazy":
+            lazy_file = cfg.get("lazy_file", '')
+            if lazy_file:
+                output_parts.append(f"# [{section_name}] → lazy-load from {lazy_file}")
+            skipped += 1
+            continue
+
+        # Drop gate
+        if compile_mode == "drop":
+            skipped += 1
+            continue
+
+        # Find the section content in parsed markdown
+        # Use hierarchical sections for verbatim/prose_slim (captures sub-headers),
+        # flat sections for structured (avoids pulling child content into parent).
+        # EXCEPTION: when a model override switches to prose_slim, use FLAT to avoid
+        # pulling children that are managed as separate manifest entries.
+        model_override_active = model and f"{model}_compile" in cfg
+        if compile_mode in ("verbatim", "prose_slim") and not model_override_active:
+            search_sections = hier_sections
+        else:
+            search_sections = flat_sections
+
+        content = None
+        for parsed_name, parsed_data in search_sections.items():
+            if parsed_name == section_name or section_name in parsed_name or parsed_name in section_name:
+                content = parsed_data["content"]
+                break
+
+        # Fallback: try the other section dict if not found
+        if content is None:
+            fallback = flat_sections if search_sections is hier_sections else hier_sections
+            for parsed_name, parsed_data in fallback.items():
+                if parsed_name == section_name or section_name in parsed_name or parsed_name in section_name:
+                    content = parsed_data["content"]
+                    break
+
+        if content is None:
+            # Section might be a known compiled block (like delegation summary)
+            if "Delegation" in section_name or "Sub-Agent" in section_name:
+                continue  # handled separately below
+            output_parts.append(f"# [{section_name}] — not found in source")
+            continue
+
+        # Apply model override: force_structured overrides prose_slim
+        if force_structured and compile_mode == "prose_slim":
+            compile_mode = "structured"
+
+        # Compile
+        if compile_mode == "verbatim":
+            compiled = compile_verbatim(content)
+        elif compile_mode == "prose_slim":
+            compiled = compile_prose_slim(content, keep_why=keep_why)
+        elif compile_mode == "structured":
+            compiled = compile_structured(section_name, content)
+        else:
+            compiled = content
+
+        if compiled.strip():
+            output_parts.append(compiled)
+            included += 1
+
+    # Add delegation boot summary — but skip if the Sub-Agent section
+    # was already included as prose (which contains the preamble)
+    sub_agent_cfg = section_configs.get("Sub-Agent Value Injection", {})
+    sub_agent_is_prose = model and f"{model}_compile" in sub_agent_cfg and sub_agent_cfg[f"{model}_compile"] == "prose_slim"
+    if profile in ("main", "lite") and not sub_agent_is_prose:
+        output_parts.append(DELEGATION_BOOT_SUMMARY)
+        included += 1
+
+    # Footer
+    output_parts.append(f"\n# --- {included} sections loaded, {skipped} skipped ---")
+
+    return "\n\n".join(output_parts)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Compile AGENTS.md into lean boot artifacts")
+    parser.add_argument("--profile", default="main",
+                       choices=["main", "lite", "heartbeat", "discord", "worker"],
+                       help="Boot profile to compile")
+    parser.add_argument("--model", default=None,
+                       choices=["claude", "openai", "kimi", "minimax"],
+                       help="Target model (adjusts verbosity)")
+    parser.add_argument("--dry-run", action="store_true",
+                       help="Show what sections would be included")
+    parser.add_argument("--all", action="store_true",
+                       help="Compile all profiles to .boot/")
+    parser.add_argument("--stats", action="store_true",
+                       help="Show token estimates")
+    args = parser.parse_args()
+
+    # Load manifest
+    if not MANIFEST.exists():
+        print(f"ERROR: Manifest not found at {MANIFEST}", file=sys.stderr)
+        sys.exit(1)
+    with open(MANIFEST) as f:
+        manifest = yaml.safe_load(f)
+
+    # Parse source
+    if not AGENTS_MD.exists():
+        print(f"ERROR: AGENTS.md not found at {AGENTS_MD}", file=sys.stderr)
+        sys.exit(1)
+    flat_sections, hier_sections = parse_sections(AGENTS_MD)
+
+    if args.dry_run:
+        section_configs = manifest.get("sections", {})
+        print(f"Profile: {args.profile}\n")
+        for name, cfg in section_configs.items():
+            profiles = cfg.get("profile", [])
+            priority = cfg.get("priority", "boot")
+            compile_mode = cfg.get("compile", "verbatim")
+            included = args.profile in profiles and priority == "boot" and compile_mode != "drop"
+            status = "✅ INCLUDE" if included else "⏭️  skip"
+            reason = ""
+            if args.profile not in profiles:
+                reason = f"(not in {profiles})"
+            elif priority == "lazy":
+                reason = f"(lazy → {cfg.get('lazy_file', 'on-demand')})"
+            elif compile_mode == "drop":
+                reason = "(automated, drop)"
+            print(f"  {status} {name} [{compile_mode}] {reason}")
+        return
+
+    profiles_to_compile = ["main", "lite", "heartbeat", "discord", "worker"] if args.all else [args.profile]
+
+    # Fetch entity context block from MC (non-blocking, best-effort)
+    entity_block = ""
+    try:
+        import urllib.request
+        req = urllib.request.Request("http://localhost:3000/api/memory/graph?boot=true", method="GET")
+        req.add_header("Accept", "application/json")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            import json
+            data = json.loads(resp.read().decode())
+            entity_block = data.get("block", "")
+    except Exception:
+        pass  # MC not running or graph empty — skip silently
+
+    # Load shared lessons from vault (cross-soul propagation, non-blocking)
+    shared_lessons_block = ""
+    vault_lessons = WORKSPACE / "projects" / "arcane-vault" / "00-meta" / "shared-lessons.md"
+    if vault_lessons.exists():
+        try:
+            raw = vault_lessons.read_text()
+            # Strip frontmatter
+            import re as _re
+            body = _re.sub(r'^---\s*\n.*?\n---\s*\n', '', raw, flags=_re.DOTALL)
+            # Extract lesson lines (starting with "- [")
+            lesson_lines = [l.strip() for l in body.split('\n') if l.strip().startswith('- [')]
+            if lesson_lines:
+                # Cap at ~400 tokens (~20 lessons)
+                capped = lesson_lines[:20]
+                shared_lessons_block = "## Shared Lessons (cross-soul)\n" + "\n".join(capped)
+        except Exception:
+            pass
+
+    for profile in profiles_to_compile:
+        output = compile_profile(profile, manifest, flat_sections, hier_sections, model=args.model)
+
+        # Inject entity context for main and lite profiles (Option B: top 10)
+        if entity_block and profile in ("main", "lite"):
+            output += "\n\n" + entity_block
+
+        # Inject shared lessons for main and lite profiles
+        if shared_lessons_block and profile in ("main", "lite"):
+            output += "\n\n" + shared_lessons_block
+
+        if args.all:
+            out_path = BOOT_DIR / f"{profile}.compiled.md"
+            with open(out_path, "w") as f:
+                f.write(output)
+            # Token estimate (rough: words * 1.3)
+            words = len(output.split())
+            tokens = int(words * 1.3)
+            print(f"  {profile:12s} → {out_path.name} ({words} words, ~{tokens} tokens)")
+        else:
+            print(output)
+
+            if args.stats:
+                words = len(output.split())
+                tokens = int(words * 1.3)
+                print(f"\n# Stats: {words} words, ~{tokens} tokens", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

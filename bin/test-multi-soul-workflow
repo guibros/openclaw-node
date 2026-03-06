@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# Multi-Soul Workflow Test Script
+# Tests: soul registry, task handoff, evolution
+
+set -euo pipefail
+
+API_BASE="http://localhost:3000/api"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo "=== Multi-Soul Workflow Test ==="
+echo
+
+# Test 1: Soul Registry
+echo "Test 1: Soul Registry"
+SOUL_COUNT=$(curl -s ${API_BASE}/souls | jq '. | length')
+if [[ "$SOUL_COUNT" -ge 3 ]]; then
+  echo -e "${GREEN}✓ Soul registry has $SOUL_COUNT souls${NC}"
+else
+  echo -e "${RED}✗ Expected at least 3 souls, got $SOUL_COUNT${NC}"
+  exit 1
+fi
+
+# Test 2: Task Handoff
+echo
+echo "Test 2: Task Handoff"
+TASK_ID="TEST-$(date +%s)"
+curl -s -X POST ${API_BASE}/tasks -H "Content-Type: application/json" -d "{
+  \"id\": \"$TASK_ID\",
+  \"title\": \"Test handoff workflow\",
+  \"status\": \"running\",
+  \"kanbanColumn\": \"in_progress\",
+  \"owner\": \"daedalus\",
+  \"soulId\": \"daedalus\"
+}" > /dev/null
+
+HANDOFF_RESULT=$(curl -s -X POST ${API_BASE}/tasks/${TASK_ID}/handoff \
+  -H "Content-Type: application/json" \
+  -d '{"toSoul":"blockchain-auditor","reason":"Test handoff"}' | jq -r '.success')
+
+if [[ "$HANDOFF_RESULT" == "true" ]]; then
+  echo -e "${GREEN}✓ Task handoff successful${NC}"
+else
+  echo -e "${RED}✗ Task handoff failed${NC}"
+  exit 1
+fi
+
+# Verify handoff document created
+HANDOFF_DOC="${HOME}/.openclaw/workspace/memory-vault/handoffs/${TASK_ID}-handoff.md"
+if [[ -f "$HANDOFF_DOC" ]]; then
+  echo -e "${GREEN}✓ Handoff document created${NC}"
+else
+  echo -e "${RED}✗ Handoff document not found${NC}"
+  exit 1
+fi
+
+# Test 3: Evolution Event
+echo
+echo "Test 3: Evolution System"
+EVENT_ID="evt_test_$(date +%s)"
+curl -s -X POST ${API_BASE}/souls/blockchain-auditor/evolution \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"eventId\": \"$EVENT_ID\",
+    \"soulId\": \"blockchain-auditor\",
+    \"category\": \"test\",
+    \"trigger\": \"test\",
+    \"summary\": \"Test evolution event\",
+    \"proposedChange\": {
+      \"target\": \"genes.json\",
+      \"action\": \"add\",
+      \"content\": {
+        \"id\": \"gene_test\",
+        \"category\": \"test\"
+      }
+    },
+    \"reviewStatus\": \"pending\"
+  }" > /dev/null
+
+PENDING_COUNT=$(curl -s "${API_BASE}/souls/blockchain-auditor/evolution?status=pending" | jq '. | length')
+if [[ "$PENDING_COUNT" -ge 1 ]]; then
+  echo -e "${GREEN}✓ Evolution event created (${PENDING_COUNT} pending)${NC}"
+else
+  echo -e "${RED}✗ Evolution event not found${NC}"
+  exit 1
+fi
+
+# Test 4: Evolution Approval
+echo
+echo "Test 4: Evolution Approval"
+APPROVAL_RESULT=$(curl -s -X PATCH "${API_BASE}/souls/blockchain-auditor/evolution?eventId=${EVENT_ID}" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"approve","reviewedBy":"daedalus"}' | jq -r '.success')
+
+if [[ "$APPROVAL_RESULT" == "true" ]]; then
+  echo -e "${GREEN}✓ Evolution approved${NC}"
+else
+  echo -e "${RED}✗ Evolution approval failed${NC}"
+  exit 1
+fi
+
+# Verify git commit created
+cd ~/.openclaw/souls
+if git log --oneline | grep -q "$EVENT_ID"; then
+  echo -e "${GREEN}✓ Git commit created${NC}"
+else
+  echo -e "${RED}✗ Git commit not found${NC}"
+  exit 1
+fi
+
+# Test 5: Memory Isolation
+echo
+echo "Test 5: Memory Isolation"
+if ${HOME}/.openclaw/workspace/bin/clawvault-access-control blockchain-auditor "private/blockchain-auditor" read | grep -q "GRANTED"; then
+  echo -e "${GREEN}✓ Soul can access own private memory${NC}"
+else
+  echo -e "${RED}✗ Access control failed${NC}"
+  exit 1
+fi
+
+if ${HOME}/.openclaw/workspace/bin/clawvault-access-control blockchain-auditor "private/lore-writer" read | grep -q "DENIED"; then
+  echo -e "${GREEN}✓ Soul cannot access other's private memory${NC}"
+else
+  echo -e "${RED}✗ Access control failed (should deny)${NC}"
+  exit 1
+fi
+
+echo
+echo -e "${GREEN}=== All Tests Passed ===${NC}"

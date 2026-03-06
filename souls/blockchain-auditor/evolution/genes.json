@@ -1,0 +1,62 @@
+{
+  "version": "1.0.0",
+  "genes": [
+    {
+      "id": "gene_reentrancy_classic",
+      "category": "attack_pattern",
+      "scope": {
+        "domain": "security",
+        "applicableSouls": [],
+        "transferRule": "never"
+      },
+      "signal": "External call before state update",
+      "preconditions": [
+        "nonReentrant modifier missing",
+        "state change after external call"
+      ],
+      "strategy": [
+        "Check if function modifies state after external calls",
+        "Verify nonReentrant guard is applied",
+        "Write exploit test case",
+        "Propose CEI (Checks-Effects-Interactions) pattern"
+      ],
+      "constraints": {
+        "maxFiles": 1,
+        "forbiddenPaths": []
+      },
+      "validation": [
+        "Compile contract",
+        "Run exploit test",
+        "Verify mitigation blocks exploit"
+      ]
+    },
+    {
+      "id": "gene_reentrancy_crosscontract",
+      "category": "attack_pattern",
+      "scope": {
+        "domain": "security",
+        "applicableSouls": [],
+        "transferRule": "never"
+      },
+      "signal": "External call to untrusted contract before state update",
+      "preconditions": [
+        "Cross-contract interaction",
+        "State change after external call"
+      ],
+      "strategy": [
+        "Map all external calls",
+        "Identify state changes post-call",
+        "Write cross-contract exploit",
+        "Propose reentrancy guard + CEI pattern"
+      ],
+      "constraints": {
+        "maxFiles": 3
+      },
+      "validation": [
+        "Compile both contracts",
+        "Run cross-contract exploit test",
+        "Verify mitigation prevents attack"
+      ]
+    }
+  ]
+}

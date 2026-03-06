@@ -1,0 +1,465 @@
+#!/usr/bin/env python3
+"""
+bin/trust-registry — Per-soul trust scoring for intelligent delegation
+
+Tracks success/failure per specialist soul. Trust scores inform
+delegation decisions: which soul gets the task, how much autonomy,
+which model tier. Includes circuit breaker pattern to pause delegation
+to repeatedly-failing souls.
+
+Based on the Intelligent AI Delegation framework (DeepMind, 2026).
+
+Usage:
+  bin/trust-registry show                          # display all souls + trust
+  bin/trust-registry score <soul-id>               # show single soul score
+  bin/trust-registry update <soul-id> \\
+    --result success|failure \\
+    --turns N \\
+    [--verified true|false] \\
+    [--task "description"]                          # record a delegation outcome
+  bin/trust-registry recommend "task description"   # suggest best soul
+  bin/trust-registry reset <soul-id>               # reset a soul's record
+  bin/trust-registry check <soul-id>               # check if circuit allows delegation
+  bin/trust-registry status                        # show circuit breaker state for all souls
+
+Storage: .tmp/trust-registry.json
+"""
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+
+WORKSPACE = Path(__file__).parent.parent
+REGISTRY_FILE = WORKSPACE / ".tmp" / "trust-registry.json"
+SOULS_DIR = Path.home() / ".openclaw" / "souls"
+
+# ── Tier definitions ──────────────────────────────────────────────────────────
+# Tiers gate autonomy level and model assignment.
+
+TIERS = {
+    "new":        {"min_tasks": 0,  "max_autonomy": "atomic",     "default_model": "sonnet"},
+    "developing": {"min_tasks": 3,  "max_autonomy": "guided",     "default_model": "sonnet"},
+    "proven":     {"min_tasks": 10, "max_autonomy": "open-ended", "default_model": "sonnet"},
+    "expert":     {"min_tasks": 25, "max_autonomy": "full",       "default_model": "opus"},
+}
+
+TIER_ORDER = ["new", "developing", "proven", "expert"]
+
+# Autonomy levels:
+#   atomic     = strict input/output, no sub-decomposition
+#   guided     = can decompose, must report each step
+#   open-ended = can pursue sub-goals, report at completion
+#   full       = can delegate further, minimal oversight
+
+
+# ── Registry I/O ──────────────────────────────────────────────────────────────
+
+def load_registry():
+    if not REGISTRY_FILE.exists():
+        return {"souls": {}, "delegations": []}
+    try:
+        data = json.loads(REGISTRY_FILE.read_text(encoding="utf-8"))
+        if "souls" not in data:
+            data["souls"] = {}
+        if "delegations" not in data:
+            data["delegations"] = []
+        return data
+    except (json.JSONDecodeError, OSError):
+        return {"souls": {}, "delegations": []}
+
+
+def save_registry(data):
+    REGISTRY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    REGISTRY_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+# ── Trust computation ─────────────────────────────────────────────────────────
+
+def compute_trust(soul_data):
+    """
+    Trust score (0.0 - 1.0):
+      success_rate     × 0.50  (did it work?)
+      verification_rate × 0.30  (was the output verified?)
+      efficiency        × 0.20  (how many turns did it take?)
+    """
+    total = soul_data.get("tasks_total", 0)
+    if total == 0:
+        return 0.5  # neutral for new souls
+
+    succeeded = soul_data.get("tasks_succeeded", 0)
+    verified = soul_data.get("tasks_verified", 0)
+    avg_turns = soul_data.get("avg_turns", 10.0)
+
+    success_rate = succeeded / total
+    verification_rate = verified / max(1, succeeded)  # of successes, how many verified?
+    efficiency = max(0.0, 1.0 - min(1.0, avg_turns / 20.0))  # 20 turns = 0 efficiency
+
+    trust = (success_rate * 0.50) + (verification_rate * 0.30) + (efficiency * 0.20)
+    return round(min(1.0, max(0.0, trust)), 3)
+
+
+def compute_tier(soul_data, trust_score):
+    """Assign tier based on task count + trust score."""
+    total = soul_data.get("tasks_total", 0)
+
+    # Must meet both task count AND trust threshold
+    if total >= 25 and trust_score >= 0.80:
+        return "expert"
+    if total >= 10 and trust_score >= 0.65:
+        return "proven"
+    if total >= 3 and trust_score >= 0.50:
+        return "developing"
+    return "new"
+
+
+# ── Commands ──────────────────────────────────────────────────────────────────
+
+def cmd_show(args):
+    """Display all souls with trust scores."""
+    reg = load_registry()
+    souls = reg["souls"]
+
+    if not souls:
+        # Auto-discover from souls directory
+        if SOULS_DIR.exists():
+            discovered = [d.name for d in SOULS_DIR.iterdir() if d.is_dir() and (d / "SOUL.md").exists()]
+            if discovered:
+                print(f"  No delegation history. {len(discovered)} soul(s) available:")
+                for s in sorted(discovered):
+                    print(f"    {s}  [new]  trust=0.500")
+                return
+        print("  No souls registered. Run `bin/trust-registry update <soul> --result success` after a delegation.")
+        return
+
+    # Header
+    print(f"\n{'Soul':<25} {'Tier':<13} {'Trust':>6} {'Tasks':>6} {'Pass%':>6} {'Turns':>6} {'Last Used':<12}")
+    print("─" * 85)
+
+    for soul_id in sorted(souls.keys()):
+        s = souls[soul_id]
+        trust = compute_trust(s)
+        tier = compute_tier(s, trust)
+        total = s.get("tasks_total", 0)
+        succeeded = s.get("tasks_succeeded", 0)
+        pass_rate = f"{succeeded/total:.0%}" if total > 0 else "n/a"
+        avg_turns = f"{s.get('avg_turns', 0):.1f}" if total > 0 else "n/a"
+        last_used = s.get("last_used", "never")
+
+        tier_badge = {"new": "○", "developing": "◐", "proven": "●", "expert": "★"}.get(tier, "?")
+
+        print(f"  {soul_id:<23} {tier_badge} {tier:<11} {trust:>6.3f} {total:>6} {pass_rate:>6} {avg_turns:>6} {last_used:<12}")
+
+    total_delegations = len(reg.get("delegations", []))
+    print(f"\n  Total delegations recorded: {total_delegations}")
+    print()
+
+
+def cmd_score(args):
+    """Show detailed score for a single soul."""
+    reg = load_registry()
+    soul_id = args.soul_id
+    s = reg["souls"].get(soul_id)
+
+    if not s:
+        print(f"  No data for '{soul_id}'. Soul has no delegation history.")
+        return
+
+    trust = compute_trust(s)
+    tier = compute_tier(s, trust)
+    tier_info = TIERS[tier]
+
+    print(f"\n  Soul: {soul_id}")
+    print(f"  Trust Score: {trust:.3f}")
+    print(f"  Tier: {tier}")
+    print(f"    Max Autonomy: {tier_info['max_autonomy']}")
+    print(f"    Default Model: {tier_info['default_model']}")
+    print(f"\n  Stats:")
+    print(f"    Total tasks:    {s.get('tasks_total', 0)}")
+    print(f"    Succeeded:      {s.get('tasks_succeeded', 0)}")
+    print(f"    Failed:         {s.get('tasks_failed', 0)}")
+    print(f"    Verified:       {s.get('tasks_verified', 0)}")
+    print(f"    Avg turns:      {s.get('avg_turns', 0):.1f}")
+    print(f"    Last used:      {s.get('last_used', 'never')}")
+
+    # Recent delegations
+    delegations = [d for d in reg.get("delegations", []) if d.get("soul_id") == soul_id]
+    recent = delegations[-5:]
+    if recent:
+        print(f"\n  Recent delegations:")
+        for d in reversed(recent):
+            result = "✓" if d.get("result") == "success" else "✗"
+            print(f"    {result} {d.get('date', '?')}  turns={d.get('turns', '?')}  {d.get('task', '')[:50]}")
+    print()
+
+
+def cmd_update(args):
+    """Record a delegation outcome."""
+    reg = load_registry()
+    soul_id = args.soul_id
+    result = args.result
+    turns = args.turns or 1
+    verified = args.verified in ("true", "yes", "1", True) if args.verified else False
+    task_desc = args.task or ""
+
+    if soul_id not in reg["souls"]:
+        reg["souls"][soul_id] = {
+            "tasks_total": 0,
+            "tasks_succeeded": 0,
+            "tasks_failed": 0,
+            "tasks_verified": 0,
+            "avg_turns": 0.0,
+            "last_used": "",
+        }
+
+    s = reg["souls"][soul_id]
+    s["tasks_total"] += 1
+
+    if result == "success":
+        s["tasks_succeeded"] += 1
+        if verified:
+            s["tasks_verified"] += 1
+    else:
+        s["tasks_failed"] += 1
+
+    # Running average of turns
+    prev_total = s["tasks_total"] - 1
+    if prev_total > 0:
+        s["avg_turns"] = (s["avg_turns"] * prev_total + turns) / s["tasks_total"]
+    else:
+        s["avg_turns"] = float(turns)
+
+    s["last_used"] = datetime.now().strftime("%Y-%m-%d")
+
+    # Record delegation event
+    reg["delegations"].append({
+        "soul_id": soul_id,
+        "result": result,
+        "turns": turns,
+        "verified": verified,
+        "task": task_desc[:200],
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    })
+
+    # Keep delegation log bounded (last 500)
+    if len(reg["delegations"]) > 500:
+        reg["delegations"] = reg["delegations"][-500:]
+
+    # Circuit breaker state machine
+    cb_state = s.get("circuit_state", "closed")
+    if result == "failure":
+        s["consecutive_failures"] = s.get("consecutive_failures", 0) + 1
+        if s["consecutive_failures"] >= 3 and cb_state == "closed":
+            s["circuit_state"] = "open"
+            s["circuit_opened_at"] = datetime.now().isoformat()
+            print(f"  ⚡ CIRCUIT OPEN: {soul_id} — {s['consecutive_failures']} consecutive failures, cooldown {s.get('cooldown_minutes', 30)}min")
+        elif cb_state == "half_open":
+            s["circuit_state"] = "open"
+            s["circuit_opened_at"] = datetime.now().isoformat()
+            print(f"  ⚡ CIRCUIT RE-OPENED: {soul_id} — probe failed")
+    elif result == "success":
+        if s.get("consecutive_failures", 0) > 0 or cb_state != "closed":
+            s["consecutive_failures"] = 0
+            if cb_state in ("half_open", "open"):
+                s["circuit_state"] = "closed"
+                s["circuit_opened_at"] = None
+                print(f"  ✓ CIRCUIT CLOSED: {soul_id} — recovered")
+            else:
+                s["consecutive_failures"] = 0
+
+    save_registry(reg)
+
+    trust = compute_trust(s)
+    tier = compute_tier(s, trust)
+    icon = "✓" if result == "success" else "✗"
+    print(f"  {icon} Recorded: {soul_id}  result={result}  turns={turns}  verified={verified}")
+    print(f"    Trust: {trust:.3f}  Tier: {tier}  ({s['tasks_succeeded']}/{s['tasks_total']} succeeded)")
+    cb = s.get("circuit_state", "closed")
+    if cb != "closed":
+        print(f"    Circuit: {cb.upper()} (consecutive_failures={s.get('consecutive_failures', 0)})")
+
+
+def cmd_recommend(args):
+    """Recommend best soul for a task based on trust + capability match."""
+    reg = load_registry()
+    query = args.query
+
+    if not reg["souls"]:
+        print("  No delegation history. Cannot recommend. Use any available soul.")
+        return
+
+    # Score each soul: trust × recency bonus
+    candidates = []
+    for soul_id, s in reg["souls"].items():
+        trust = compute_trust(s)
+        tier = compute_tier(s, trust)
+
+        # Recency bonus: used in last 7 days = +0.05
+        last = s.get("last_used", "")
+        recency_bonus = 0.0
+        if last:
+            try:
+                days_ago = (datetime.now() - datetime.strptime(last, "%Y-%m-%d")).days
+                if days_ago <= 7:
+                    recency_bonus = 0.05
+            except ValueError:
+                pass
+
+        score = trust + recency_bonus
+        candidates.append((soul_id, score, trust, tier, s))
+
+    candidates.sort(key=lambda x: x[1], reverse=True)
+
+    print(f"\n  Recommendation for: \"{query[:80]}\"")
+    print(f"  (Ranked by trust score + recency)\n")
+
+    for i, (soul_id, score, trust, tier, s) in enumerate(candidates[:5], 1):
+        tier_info = TIERS[tier]
+        print(f"  {i}. {soul_id}  trust={trust:.3f}  tier={tier}  autonomy={tier_info['max_autonomy']}  model={tier_info['default_model']}")
+
+    print()
+
+
+def cmd_reset(args):
+    """Reset a soul's delegation history."""
+    reg = load_registry()
+    soul_id = args.soul_id
+
+    if soul_id in reg["souls"]:
+        del reg["souls"][soul_id]
+        reg["delegations"] = [d for d in reg["delegations"] if d.get("soul_id") != soul_id]
+        save_registry(reg)
+        print(f"  Reset: {soul_id}")
+    else:
+        print(f"  No data for '{soul_id}'. Nothing to reset.")
+
+
+# ── Circuit Breaker ──────────────────────────────────────────────────────────
+
+def cmd_check(args):
+    """Check if a soul's circuit allows delegation. Exit 0=available, 1=blocked."""
+    reg = load_registry()
+    soul_id = args.soul_id
+    s = reg["souls"].get(soul_id, {})
+
+    cb_state = s.get("circuit_state", "closed")
+
+    if cb_state == "closed":
+        print(f"  {soul_id}: CLOSED (available)")
+        sys.exit(0)
+
+    if cb_state == "open":
+        opened_at = s.get("circuit_opened_at")
+        cooldown = s.get("cooldown_minutes", 30)
+        if opened_at:
+            try:
+                elapsed = (datetime.now() - datetime.fromisoformat(opened_at)).total_seconds() / 60
+            except (ValueError, TypeError):
+                elapsed = 0
+            if elapsed >= cooldown:
+                s["circuit_state"] = "half_open"
+                s["last_probe_at"] = datetime.now().isoformat()
+                save_registry(reg)
+                print(f"  {soul_id}: HALF_OPEN (cooldown expired, probe allowed)")
+                sys.exit(0)
+            else:
+                remaining = cooldown - elapsed
+                print(f"  {soul_id}: OPEN ({remaining:.0f}min remaining)")
+                sys.exit(1)
+        else:
+            print(f"  {soul_id}: OPEN (no timestamp, resetting)")
+            s["circuit_state"] = "closed"
+            s["consecutive_failures"] = 0
+            save_registry(reg)
+            sys.exit(0)
+
+    if cb_state == "half_open":
+        print(f"  {soul_id}: HALF_OPEN (probe in progress)")
+        sys.exit(1)
+
+    # Unknown state — treat as available
+    print(f"  {soul_id}: {cb_state} (unknown state, treating as available)")
+    sys.exit(0)
+
+
+def cmd_cb_status(args):
+    """Show circuit breaker state for all souls."""
+    reg = load_registry()
+    souls = reg["souls"]
+
+    if not souls:
+        print("  No souls registered.")
+        return
+
+    print(f"\n{'Soul':<25} {'Circuit':<12} {'Consec Fails':>13} {'Opened At':<22}")
+    print("─" * 75)
+
+    for soul_id in sorted(souls.keys()):
+        s = souls[soul_id]
+        state = s.get("circuit_state", "closed")
+        fails = s.get("consecutive_failures", 0)
+        opened = s.get("circuit_opened_at", "—")
+        if opened and opened != "—":
+            opened = opened[:19]  # trim microseconds
+
+        icon = {"closed": "🟢", "open": "🔴", "half_open": "🟡"}.get(state, "⚪")
+        print(f"  {soul_id:<23} {icon} {state:<10} {fails:>13} {opened:<22}")
+
+    print()
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Per-soul trust scoring for intelligent delegation",
+    )
+    sub = ap.add_subparsers(dest="command")
+
+    sub.add_parser("show", help="Display all souls with trust scores")
+
+    p_score = sub.add_parser("score", help="Show detailed score for a soul")
+    p_score.add_argument("soul_id")
+
+    p_update = sub.add_parser("update", help="Record a delegation outcome")
+    p_update.add_argument("soul_id")
+    p_update.add_argument("--result", required=True, choices=["success", "failure"])
+    p_update.add_argument("--turns", type=int, default=1)
+    p_update.add_argument("--verified", default=None)
+    p_update.add_argument("--task", default="")
+
+    p_rec = sub.add_parser("recommend", help="Recommend best soul for a task")
+    p_rec.add_argument("query")
+
+    p_reset = sub.add_parser("reset", help="Reset a soul's record")
+    p_reset.add_argument("soul_id")
+
+    p_check = sub.add_parser("check", help="Check if circuit allows delegation (exit 0=yes, 1=no)")
+    p_check.add_argument("soul_id")
+
+    sub.add_parser("status", help="Show circuit breaker state for all souls")
+
+    args = ap.parse_args()
+
+    if args.command == "show":
+        cmd_show(args)
+    elif args.command == "score":
+        cmd_score(args)
+    elif args.command == "update":
+        cmd_update(args)
+    elif args.command == "recommend":
+        cmd_recommend(args)
+    elif args.command == "reset":
+        cmd_reset(args)
+    elif args.command == "check":
+        cmd_check(args)
+    elif args.command == "status":
+        cmd_cb_status(args)
+    else:
+        ap.print_help()
+
+
+if __name__ == "__main__":
+    main()
