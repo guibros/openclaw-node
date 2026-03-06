@@ -318,10 +318,30 @@ if [ -f "$WORKSPACE/bin/compile-boot" ]; then
 fi
 
 # ============================================================
-# Step 10: Mission Control
+# Step 10: Obsidian Vault Scaffold
 # ============================================================
 
-step "Step 10: Mission Control"
+step "Step 10: Obsidian Vault"
+
+VAULT_DIR="$WORKSPACE/projects/arcane-vault"
+if [ -d "$REPO_DIR/obsidian-vault" ]; then
+  if [ ! -d "$VAULT_DIR/.obsidian" ]; then
+    run mkdir -p "$VAULT_DIR"
+    run rsync -av "$REPO_DIR/obsidian-vault/" "$VAULT_DIR/"
+    # Remove .gitkeep files (only needed for git, not for runtime)
+    find "$VAULT_DIR" -name '.gitkeep' -delete 2>/dev/null || true
+    info "Obsidian vault scaffold installed (22 domain folders + plugins)"
+    warn "Obsidian Local REST API plugin included. Set API key in $VAULT_DIR/.obsidian-api-key"
+  else
+    info "Obsidian vault already exists, skipping"
+  fi
+fi
+
+# ============================================================
+# Step 11: Mission Control
+# ============================================================
+
+step "Step 11: Mission Control"
 
 MC_DIR="$WORKSPACE/projects/mission-control"
 if [ ! -d "$MC_DIR/src" ]; then
@@ -351,10 +371,10 @@ MCENV
 fi
 
 # ============================================================
-# Step 11: ClawVault
+# Step 12: ClawVault
 # ============================================================
 
-step "Step 11: ClawVault"
+step "Step 12: ClawVault"
 
 if command -v clawvault >/dev/null 2>&1; then
   info "ClawVault already installed: $(which clawvault)"
@@ -371,10 +391,10 @@ else
 fi
 
 # ============================================================
-# Step 12: Initialize Memory
+# Step 13: Initialize Memory
 # ============================================================
 
-step "Step 12: Initialize Memory"
+step "Step 13: Initialize Memory"
 
 TODAY=$(date +%Y-%m-%d)
 DAILY_FILE="$WORKSPACE/memory/$TODAY.md"
@@ -465,10 +485,10 @@ MEM
 fi
 
 # ============================================================
-# Step 13: Install Daemon Service
+# Step 14: Install Daemon Service
 # ============================================================
 
-step "Step 13: Memory Daemon Service"
+step "Step 14: Memory Daemon Service"
 
 if [ -f "$WORKSPACE/bin/install-daemon" ]; then
   info "Installing memory daemon as system service..."
