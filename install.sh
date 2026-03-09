@@ -274,8 +274,8 @@ info "Souls installed to $OPENCLAW_ROOT/souls/"
 
 step "Step 6: Skills"
 
-run rsync -av "$REPO_DIR/skills/" "$WORKSPACE/skills/"
-info "Skills installed to $WORKSPACE/skills/ ($(ls "$REPO_DIR/skills/" | wc -l | tr -d ' ') skills)"
+run rsync -av --exclude='dist/' --exclude='scripts/' "$REPO_DIR/skills/" "$WORKSPACE/skills/"
+info "Skills installed to $WORKSPACE/skills/ ($(ls -d "$REPO_DIR/skills"/*/ 2>/dev/null | grep -v dist | grep -v scripts | wc -l | tr -d ' ') skills)"
 
 # Install skill-specific dependencies (npm/pip where needed)
 info "Installing skill dependencies..."
@@ -351,6 +351,7 @@ generate_config() {
       -e "s|\${TELEGRAM_BOT_TOKEN}|${TELEGRAM_BOT_TOKEN:-}|g" \
       -e "s|\${WEB_SEARCH_API_KEY}|${WEB_SEARCH_API_KEY:-}|g" \
       -e "s|\${OBSIDIAN_API_KEY}|${OBSIDIAN_API_KEY:-}|g" \
+      -e "s|\${OPENCLAW_NATS}|${OPENCLAW_NATS:-}|g" \
       "$template" > "$output"
   fi
   info "Generated $basename"

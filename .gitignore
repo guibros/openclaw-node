@@ -10,3 +10,10 @@ openclaw.env
 *.err
 tsconfig.tsbuildinfo
 mission-control/data/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Skill build artifacts (not actual skills)
+skills/dist/

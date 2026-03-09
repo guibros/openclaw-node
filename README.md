@@ -137,6 +137,35 @@ The installer deploys the vault scaffold with 22 domain folders and the **Local 
 
 If not using Obsidian, the sync is disabled by default in `obsidian-sync.json` (set `"enabled": false`).
 
+## Mesh Network (Multi-Node)
+
+The installer detects Tailscale and optionally deploys a full mesh network across multiple machines. When enabled, nodes share files, execute remote commands, and broadcast session lifecycle events via NATS.
+
+### Setup
+
+1. Install [Tailscale](https://tailscale.com) on both machines and connect them
+2. Run `bash install.sh` — Step 15 auto-detects Tailscale and deploys the mesh
+3. Set `OPENCLAW_NATS=nats://<ubuntu-tailscale-ip>:4222` in `~/.openclaw/openclaw.env`
+4. Re-run `bash install.sh --update` to regenerate configs
+
+### Mesh commands
+
+```
+mesh status          # see online nodes
+mesh health --all    # check all nodes
+mesh repair --all    # fix broken services
+mesh exec "cmd"      # run command on remote node
+```
+
+### Architecture
+
+- **NATS** — message bus for commands, heartbeats, file sync (runs on Ubuntu)
+- **Agent v3** — polling-based shared folder sync over NATS (`~/openclaw/shared/`)
+- **Memory Bridge** — broadcasts session lifecycle events across nodes (`mesh-bridge.mjs`)
+- **Tailscale** — encrypted WireGuard tunnel between nodes
+
+The mesh is optional. Without Tailscale, everything runs as a standalone single node.
+
 ## Environment Variables
 
 See `openclaw.env.example` for all available configuration. Key variables:
@@ -152,3 +181,4 @@ See `openclaw.env.example` for all available configuration. Key variables:
 | `TELEGRAM_BOT_TOKEN` | Optional | For Telegram integration |
 | `WEB_SEARCH_API_KEY` | Optional | For web search capability |
 | `OBSIDIAN_API_KEY` | Optional | For Obsidian vault sync |
+| `OPENCLAW_NATS` | Optional | NATS server URL for mesh (e.g. `nats://100.91.131.61:4222`) |
