@@ -567,6 +567,136 @@ else
 fi
 
 # ============================================================
+# Step 15: Lane Watchdog Service (optional — if gateway installed)
+# ============================================================
+
+step "Step 15: Lane Watchdog"
+
+WATCHDOG_SCRIPT="$WORKSPACE/bin/lane-watchdog.js"
+if [ -f "$WATCHDOG_SCRIPT" ]; then
+  # Only install if the openclaw gateway is present (npm global package)
+  if command -v openclaw >/dev/null 2>&1 || [ -f "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" ] || [ -f "$HOME/.config/systemd/user/openclaw-gateway.service" ]; then
+    info "Gateway detected — installing lane watchdog service..."
+    WATCHDOG_SERVICE="ai.openclaw.lane-watchdog"
+
+    if [ "$OS" = "macos" ]; then
+      WATCHDOG_PLIST="$HOME/Library/LaunchAgents/${WATCHDOG_SERVICE}.plist"
+      cat > "$WATCHDOG_PLIST" << WDEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>${WATCHDOG_SERVICE}</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>${NODE_BIN}</string>
+      <string>${WATCHDOG_SCRIPT}</string>
+    </array>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${HOME}/.openclaw/logs/lane-watchdog.log</string>
+    <key>StandardErrorPath</key>
+    <string>${HOME}/.openclaw/logs/lane-watchdog.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key>
+      <string>${HOME}</string>
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+  </dict>
+</plist>
+WDEOF
+      launchctl unload "$WATCHDOG_PLIST" 2>/dev/null || true
+      launchctl load "$WATCHDOG_PLIST"
+      info "Lane watchdog installed: $WATCHDOG_PLIST"
+
+    elif [ "$OS" = "linux" ]; then
+      WATCHDOG_UNIT="$SYSTEMD_DIR/openclaw-lane-watchdog.service"
+      cat > "$WATCHDOG_UNIT" << WDEOF
+[Unit]
+Description=OpenClaw Lane Watchdog — Gateway deadlock recovery
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NODE_BIN} ${WATCHDOG_SCRIPT}
+Restart=always
+RestartSec=10
+Environment=HOME=${HOME}
+WorkingDirectory=${WORKSPACE}
+
+[Install]
+WantedBy=default.target
+WDEOF
+      systemctl --user daemon-reload
+      systemctl --user enable openclaw-lane-watchdog
+      systemctl --user start openclaw-lane-watchdog
+      info "Lane watchdog installed: $WATCHDOG_UNIT"
+    fi
+  else
+    info "Gateway not detected — skipping lane watchdog (not needed for standalone nodes)"
+  fi
+else
+  warn "lane-watchdog.js not found in bin/"
+fi
+
+# ============================================================
+# Step 16: Mesh Network (optional — if Tailscale detected)
+# ============================================================
+
+step "Step 16: Mesh Network"
+
+MESH_AVAILABLE=false
+if command -v tailscale >/dev/null 2>&1; then
+  TS_IP=$(tailscale ip -4 2>/dev/null || true)
+  if [ -n "$TS_IP" ]; then
+    info "Tailscale connected: $TS_IP"
+    MESH_AVAILABLE=true
+  else
+    warn "Tailscale installed but not connected — skipping mesh setup"
+    warn "Connect Tailscale and re-run with --update to enable mesh"
+  fi
+else
+  info "Tailscale not found — single-node mode (mesh features disabled)"
+  info "Install Tailscale + run again to enable multi-node mesh"
+fi
+
+if $MESH_AVAILABLE; then
+  # Check if mesh is already deployed
+  if [ -x "$HOME/openclaw/bin/mesh" ] || command -v mesh >/dev/null 2>&1; then
+    info "Mesh CLI already installed"
+    # Update the mesh skill in the managed skills dir
+    if [ -f "$REPO_DIR/skills/mesh/SKILL.md" ]; then
+      run mkdir -p "$HOME/.openclaw/skills/mesh"
+      run cp "$REPO_DIR/skills/mesh/SKILL.md" "$HOME/.openclaw/skills/mesh/SKILL.md"
+      info "Mesh skill updated in ~/.openclaw/skills/mesh/"
+    fi
+  else
+    info "Setting up mesh network (NATS, agent, shared folder, health/repair)..."
+    if command -v npx >/dev/null 2>&1; then
+      # npx openclaw-mesh handles sudo internally
+      run npx openclaw-mesh 2>&1 || warn "Mesh setup had issues — run 'npx openclaw-mesh' manually to debug"
+    else
+      warn "npx not found — install mesh manually: npx openclaw-mesh"
+    fi
+  fi
+
+  # Install mesh skill to managed location (tier 2: visible to all agents)
+  if [ -f "$REPO_DIR/skills/mesh/SKILL.md" ]; then
+    run mkdir -p "$HOME/.openclaw/skills/mesh"
+    run cp "$REPO_DIR/skills/mesh/SKILL.md" "$HOME/.openclaw/skills/mesh/SKILL.md"
+    info "Mesh skill installed to ~/.openclaw/skills/mesh/ (all agents)"
+  fi
+fi
+
+# ============================================================
 # Done!
 # ============================================================
 
@@ -587,6 +717,13 @@ if [ "$OS" = "linux" ]; then
   echo "  3. Check daemon status: systemctl --user status openclaw-memory-daemon"
   echo "  4. Start Mission Control: cd $MC_DIR && npm run dev"
   echo "  5. View MC dashboard:   http://localhost:3000"
+  if $MESH_AVAILABLE; then
+    echo ""
+    echo "  Mesh commands:"
+    echo "    mesh status          # online nodes"
+    echo "    mesh health --all    # check all nodes"
+    echo "    mesh repair --all    # fix broken services"
+  fi
 else
   echo "Next steps:"
   echo "  1. Edit your env file:  nano $ENV_FILE"

@@ -122,7 +122,8 @@
       "capabilities": {
         "skills": [
           "arcane-dev-ops",
-          "git-essentials"
+          "git-essentials",
+          "mesh"
         ],
         "tools": [
           "Read",
@@ -137,7 +138,9 @@
         "infrastructure",
         "ci-cd",
         "deployment",
-        "monitoring"
+        "monitoring",
+        "mesh-networking",
+        "multi-node"
       ],
       "evolutionEnabled": true,
       "parentSoul": "daedalus",

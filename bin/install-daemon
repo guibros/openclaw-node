@@ -88,6 +88,8 @@ install_macos() {
       <string>America/Montreal</string>
       <key>OPENCLAW_WORKSPACE</key>
       <string>${WORKSPACE}</string>
+      <key>OPENCLAW_NATS</key>
+      <string>${OPENCLAW_NATS:-}</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>10</integer>
@@ -156,6 +158,7 @@ RestartSec=5
 Environment=HOME=${HOME}
 Environment=TZ=America/Montreal
 Environment=OPENCLAW_WORKSPACE=${WORKSPACE}
+Environment=OPENCLAW_NATS=${OPENCLAW_NATS:-}
 Environment=PATH=${WORKSPACE}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 StandardOutput=append:${WORKSPACE}/.tmp/memory-daemon.log
 StandardError=append:${WORKSPACE}/.tmp/memory-daemon.err
