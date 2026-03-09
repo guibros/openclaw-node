@@ -20,15 +20,18 @@ WORKSPACE="$OPENCLAW_ROOT/workspace"
 ENV_FILE="$OPENCLAW_ROOT/openclaw.env"
 DRY_RUN=false
 UPDATE_ONLY=false
+SKIP_MESH=false
 
 for arg in "$@"; do
   case "$arg" in
-    --dry-run)  DRY_RUN=true ;;
-    --update)   UPDATE_ONLY=true ;;
+    --dry-run)    DRY_RUN=true ;;
+    --update)     UPDATE_ONLY=true ;;
+    --skip-mesh)  SKIP_MESH=true ;;
     --help|-h)
-      echo "Usage: bash install.sh [--dry-run] [--update]"
-      echo "  --dry-run   Show what would happen without making changes"
-      echo "  --update    Re-copy scripts/configs only (skip system deps)"
+      echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh]"
+      echo "  --dry-run    Show what would happen without making changes"
+      echo "  --update     Re-copy scripts/configs only (skip system deps)"
+      echo "  --skip-mesh  Skip mesh network setup (used by meta-installer)"
       exit 0
       ;;
   esac
@@ -654,6 +657,11 @@ fi
 
 step "Step 16: Mesh Network"
 
+if $SKIP_MESH; then
+  info "Skipped (--skip-mesh flag set by meta-installer)"
+  MESH_AVAILABLE=false
+else
+
 MESH_AVAILABLE=false
 if command -v tailscale >/dev/null 2>&1; then
   TS_IP=$(tailscale ip -4 2>/dev/null || true)
@@ -696,6 +704,8 @@ if $MESH_AVAILABLE; then
     info "Mesh skill installed to ~/.openclaw/skills/mesh/ (all agents)"
   fi
 fi
+
+fi  # end SKIP_MESH else block
 
 # ============================================================
 # Done!
