@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useProjects, useBurndown, type BurndownData } from "@/lib/hooks";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -18,9 +18,11 @@ export default function BurndownPage() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
   // Auto-select first project
-  if (!selectedProject && projects.length > 0) {
-    setSelectedProject(projects[0].id);
-  }
+  useEffect(() => {
+    if (!selectedProject && projects.length > 0) {
+      setSelectedProject(projects[0].id);
+    }
+  }, [projects, selectedProject]);
 
   const { burndown } = useBurndown(selectedProject);
 
