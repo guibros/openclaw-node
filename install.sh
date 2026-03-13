@@ -97,8 +97,11 @@ if ! $UPDATE_ONLY; then
     else
       warn "Node.js v$NODE_VERSION found but v18+ required"
       if [ "$OS" = "linux" ]; then
-        info "Installing Node.js 20 LTS..."
-        run curl -fsSL https://deb.nodesource.com/setup_20.x | run sudo -E bash -
+        info "Installing Node.js 22 LTS..."
+        run sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+        echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list
+        run sudo apt-get update
         run sudo apt-get install -y nodejs
       else
         error "Please install Node.js 18+ manually: https://nodejs.org"
@@ -108,8 +111,11 @@ if ! $UPDATE_ONLY; then
   else
     warn "Node.js not found"
     if [ "$OS" = "linux" ]; then
-      info "Installing Node.js 20 LTS..."
-      run curl -fsSL https://deb.nodesource.com/setup_20.x | run sudo -E bash -
+      info "Installing Node.js 22 LTS..."
+      run sudo mkdir -p /etc/apt/keyrings
+      curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+      echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list
+      run sudo apt-get update
       run sudo apt-get install -y nodejs
     else
       error "Please install Node.js 18+: https://nodejs.org"
@@ -307,8 +313,15 @@ step "Step 4: Identity Files"
 
 for f in CLAUDE.md SOUL.md PRINCIPLES.md AGENTS.md DELEGATION.md HEARTBEAT.md MEMORY_SPEC.md TOOLS.md; do
   if [ -f "$REPO_DIR/identity/$f" ]; then
-    run cp "$REPO_DIR/identity/$f" "$WORKSPACE/$f"
-    info "Installed $f"
+    if [ ! -f "$WORKSPACE/$f" ]; then
+      run cp "$REPO_DIR/identity/$f" "$WORKSPACE/$f"
+      info "Installed $f"
+    elif ! diff -q "$WORKSPACE/$f" "$REPO_DIR/identity/$f" >/dev/null 2>&1; then
+      run cp "$REPO_DIR/identity/$f" "$WORKSPACE/$f.repo"
+      warn "$f differs from repo — saved repo version as $f.repo (merge manually)"
+    else
+      info "$f up to date"
+    fi
   fi
 done
 
@@ -359,11 +372,17 @@ else
   info "Environment file already exists at $ENV_FILE"
 fi
 
-# Source env file for config generation
+# Source env file for config generation (safe key=value parsing — no shell execution)
 if [ -f "$ENV_FILE" ]; then
-  set -a
-  source "$ENV_FILE"
-  set +a
+  while IFS='=' read -r key value; do
+    # Skip comments and empty lines
+    [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+    # Trim whitespace
+    key="$(echo "$key" | xargs)"
+    value="$(echo "$value" | xargs)"
+    # Only export valid variable names
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && export "$key=$value"
+  done < "$ENV_FILE"
 fi
 
 # Set defaults for template substitution

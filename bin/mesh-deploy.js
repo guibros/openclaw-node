@@ -394,7 +394,7 @@ const MANIFEST = [
           for (const line of env.split('\n')) {
             const match = line.match(/^\s*([A-Z_]+)\s*=\s*(.+)/);
             if (match) {
-              template = template.replace(new RegExp(`\\{\\{${match[1]}\\}\\}`, 'g'), match[2].trim());
+              template = template.replace(new RegExp(`\\$\\{${match[1]}\\}`, 'g'), match[2].trim());
             }
           }
           const outPath = path.join(DIRS.OPENCLAW_HOME, 'openclaw.json');
