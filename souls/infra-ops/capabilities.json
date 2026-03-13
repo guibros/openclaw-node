@@ -15,7 +15,7 @@
     "memory": {
       "shared": "read",
       "private": ["infra-ops"],
-      "handoffs": "read"
+      "handoffs": "readwrite"
     },
     "restrictedActions": [
       "git push",

@@ -23,7 +23,11 @@
     "restrictedActions": [
       "git push",
       "deployment commands",
-      "key generation in production"
+      "key generation in production",
+      "write to SOUL.md",
+      "write to PRINCIPLES.md",
+      "write to AGENTS.md",
+      "write to MEMORY.md"
     ]
   },
   "evolutionConfig": {
