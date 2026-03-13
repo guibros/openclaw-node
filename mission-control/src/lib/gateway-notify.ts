@@ -65,7 +65,7 @@ export function gatewayNotify(text: string): Promise<boolean> {
               id: "gateway-client",
               displayName: "MC-Kanban",
               version: "1.0.0",
-              platform: "darwin",
+              platform: process.platform,
               mode: "backend",
             },
             auth: { token: config.token },

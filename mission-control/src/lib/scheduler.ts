@@ -1,4 +1,4 @@
-import { eq, and, ne, or, lte } from "drizzle-orm";
+import { eq, and, ne, or, lte, like, desc } from "drizzle-orm";
 import { CronExpressionParser } from "cron-parser";
 import { writeFileSync, mkdirSync } from "fs";
 import path from "path";
@@ -384,13 +384,17 @@ function generateNextId(
     date.getDate().toString().padStart(2, "0");
 
   const prefix = `T-${dateStr}-`;
-  const existing = db
+  const row = db
     .select({ id: tasks.id })
     .from(tasks)
-    .all()
-    .filter((t) => t.id.startsWith(prefix))
-    .map((t) => parseInt(t.id.slice(prefix.length), 10) || 0);
+    .where(like(tasks.id, `${prefix}%`))
+    .orderBy(desc(tasks.id))
+    .limit(1)
+    .get();
 
-  const nextSeq = existing.length > 0 ? Math.max(...existing) + 1 : 1;
+  let nextSeq = 1;
+  if (row) {
+    nextSeq = (parseInt(row.id.slice(prefix.length), 10) || 0) + 1;
+  }
   return `${prefix}${nextSeq.toString().padStart(3, "0")}`;
 }

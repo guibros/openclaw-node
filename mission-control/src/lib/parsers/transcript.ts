@@ -15,13 +15,24 @@ export interface TranscriptEvent {
 }
 
 /**
+ * Encode a workspace path to Claude's project directory format.
+ * Same algorithm as agent-activity.js: strip leading /, replace / and . with -
+ */
+function toClaudeProjectPath(workspacePath: string): string {
+  return workspacePath.replace(/\\/g, "/").replace(/:/g, "").replace(/[/.]/g, "-");
+}
+
+const HOME = process.env.HOME || require("os").homedir();
+const WORKSPACE = process.env.WORKSPACE_ROOT || path.join(HOME, ".openclaw/workspace");
+
+/**
  * Transcript source directories — scans ALL frontend transcript stores.
  */
 const TRANSCRIPT_DIRS = [
-  // Claude Code workspace sessions
-  path.join(process.env.HOME || "/Users/moltymac", ".claude/projects/-Users-moltymac--openclaw-workspace"),
+  // Claude Code workspace sessions (cross-platform path encoding)
+  path.join(HOME, ".claude/projects", toClaudeProjectPath(WORKSPACE)),
   // OpenClaw Gateway sessions (Discord, Telegram, etc.)
-  path.join(process.env.HOME || "/Users/moltymac", ".openclaw/agents/main/sessions"),
+  path.join(HOME, ".openclaw/agents/main/sessions"),
 ];
 
 /**
