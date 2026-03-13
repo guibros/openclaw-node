@@ -241,6 +241,14 @@ info "Node ID: $OPENCLAW_NODE_ID"
 export OPENCLAW_NATS="${OPENCLAW_NATS:-nats://127.0.0.1:4222}"
 export OPENCLAW_NATS_TOKEN="${OPENCLAW_NATS_TOKEN:-}"
 
+# ── Claude Code project path encoding (for transcript-sources.json) ──
+# Claude encodes workspace paths as: strip leading /, replace / and . with -
+claude_project_path() {
+  echo "$1" | sed 's|^/||; s|[/.]|-|g'
+}
+export CLAUDE_PROJECT_WORKSPACE="$(claude_project_path "$WORKSPACE")"
+export CLAUDE_PROJECT_HOME="$(claude_project_path "$HOME")"
+
 # ── Resolve paths for service templates ──
 export OPENCLAW_WORKSPACE="$WORKSPACE"
 export OPENCLAW_REPO_DIR="$REPO_DIR"
@@ -425,6 +433,8 @@ generate_config() {
       -e "s|\${WEB_SEARCH_API_KEY}|${WEB_SEARCH_API_KEY:-}|g" \
       -e "s|\${OBSIDIAN_API_KEY}|${OBSIDIAN_API_KEY:-}|g" \
       -e "s|\${OPENCLAW_NATS}|${OPENCLAW_NATS:-}|g" \
+      -e "s|\${CLAUDE_PROJECT_WORKSPACE}|${CLAUDE_PROJECT_WORKSPACE}|g" \
+      -e "s|\${CLAUDE_PROJECT_HOME}|${CLAUDE_PROJECT_HOME}|g" \
       "$template" > "$output"
   fi
   info "Generated $basename"
