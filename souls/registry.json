@@ -53,7 +53,7 @@
       "evolutionEnabled": true,
       "parentSoul": null,
       "createdAt": "2026-02-20T06:55:00.000Z",
-      "updatedAt": "2026-02-20T06:55:00.000Z"
+      "updatedAt": "2026-03-13T18:02:16.746Z"
     },
     {
       "id": "blockchain-auditor",
@@ -83,98 +83,7 @@
       "evolutionEnabled": true,
       "parentSoul": "daedalus",
       "createdAt": "2026-02-20T07:03:55.489Z",
-      "updatedAt": "2026-02-20T07:03:55.489Z"
-    },
-    {
-      "id": "lore-writer",
-      "type": "specialist",
-      "basePath": "~/.openclaw/souls/lore-writer",
-      "capabilities": {
-        "skills": [
-          "narrative-designer",
-          "world-builder",
-          "flavor-text-writer"
-        ],
-        "tools": [
-          "Read",
-          "Write",
-          "Edit",
-          "Grep",
-          "Glob",
-          "WebSearch"
-        ],
-        "mcpServers": []
-      },
-      "specializations": [
-        "narrative",
-        "world-building",
-        "game-lore"
-      ],
-      "evolutionEnabled": true,
-      "parentSoul": "daedalus",
-      "createdAt": "2026-02-20T07:04:02.006Z",
-      "updatedAt": "2026-02-20T07:04:02.006Z"
-    },
-    {
-      "id": "infra-ops",
-      "type": "specialist",
-      "basePath": "~/.openclaw/souls/infra-ops",
-      "capabilities": {
-        "skills": [
-          "arcane-dev-ops",
-          "git-essentials",
-          "mesh"
-        ],
-        "tools": [
-          "Read",
-          "Bash",
-          "Grep",
-          "Glob",
-          "WebSearch"
-        ],
-        "mcpServers": []
-      },
-      "specializations": [
-        "infrastructure",
-        "ci-cd",
-        "deployment",
-        "monitoring",
-        "mesh-networking",
-        "multi-node"
-      ],
-      "evolutionEnabled": true,
-      "parentSoul": "daedalus",
-      "createdAt": "2026-03-04T21:30:00.000Z",
-      "updatedAt": "2026-03-04T21:30:00.000Z"
-    },
-    {
-      "id": "qa-evidence",
-      "type": "specialist",
-      "basePath": "~/.openclaw/souls/qa-evidence",
-      "capabilities": {
-        "skills": [
-          "arcane-dev-ops"
-        ],
-        "tools": [
-          "Read",
-          "Bash",
-          "Grep",
-          "Glob",
-          "WebFetch",
-          "WebSearch"
-        ],
-        "mcpServers": []
-      },
-      "specializations": [
-        "quality-assurance",
-        "visual-verification",
-        "performance-testing",
-        "evidence-collection"
-      ],
-      "evolutionEnabled": true,
-      "parentSoul": "daedalus",
-      "createdAt": "2026-03-04T21:30:00.000Z",
-      "updatedAt": "2026-03-04T21:30:00.000Z"
+      "updatedAt": "2026-03-13T18:02:16.745Z"
     },
     {
       "id": "identity-architect",
@@ -206,7 +115,97 @@
       "evolutionEnabled": true,
       "parentSoul": "daedalus",
       "createdAt": "2026-03-04T21:30:00.000Z",
-      "updatedAt": "2026-03-04T21:30:00.000Z"
+      "updatedAt": "2026-03-13T18:02:16.746Z"
+    },
+    {
+      "id": "infra-ops",
+      "type": "specialist",
+      "basePath": "~/.openclaw/souls/infra-ops",
+      "capabilities": {
+        "skills": [
+          "arcane-dev-ops",
+          "git-essentials"
+        ],
+        "tools": [
+          "Read",
+          "Bash",
+          "Grep",
+          "Glob",
+          "WebSearch"
+        ],
+        "mcpServers": []
+      },
+      "specializations": [
+        "infrastructure",
+        "ci-cd",
+        "deployment",
+        "monitoring",
+        "mesh-networking",
+        "multi-node"
+      ],
+      "evolutionEnabled": true,
+      "parentSoul": "daedalus",
+      "createdAt": "2026-03-04T21:30:00.000Z",
+      "updatedAt": "2026-03-13T18:02:16.746Z"
+    },
+    {
+      "id": "lore-writer",
+      "type": "specialist",
+      "basePath": "~/.openclaw/souls/lore-writer",
+      "capabilities": {
+        "skills": [
+          "narrative-designer",
+          "world-builder",
+          "flavor-text-writer"
+        ],
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "WebSearch"
+        ],
+        "mcpServers": []
+      },
+      "specializations": [
+        "narrative",
+        "world-building",
+        "game-lore"
+      ],
+      "evolutionEnabled": true,
+      "parentSoul": "daedalus",
+      "createdAt": "2026-02-20T07:04:02.006Z",
+      "updatedAt": "2026-03-13T18:02:16.746Z"
+    },
+    {
+      "id": "qa-evidence",
+      "type": "specialist",
+      "basePath": "~/.openclaw/souls/qa-evidence",
+      "capabilities": {
+        "skills": [
+          "arcane-dev-ops"
+        ],
+        "tools": [
+          "Read",
+          "Bash",
+          "Grep",
+          "Glob",
+          "WebFetch",
+          "WebSearch"
+        ],
+        "mcpServers": []
+      },
+      "specializations": [
+        "quality-assurance",
+        "visual-verification",
+        "performance-testing",
+        "evidence-collection"
+      ],
+      "evolutionEnabled": true,
+      "parentSoul": "daedalus",
+      "createdAt": "2026-03-04T21:30:00.000Z",
+      "updatedAt": "2026-03-13T18:02:16.746Z"
     }
   ]
 }
