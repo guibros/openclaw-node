@@ -4,6 +4,37 @@ import { format } from "date-fns";
 import { FileText, BookOpen, Database } from "lucide-react";
 import type { MemoryResult } from "@/lib/hooks";
 
+/** Strip all HTML except <mark> tags, and escape content between them to prevent XSS */
+function sanitizeExcerpt(html: string): string {
+  // Parse into segments: text outside <mark> tags and text inside them
+  const parts: string[] = [];
+  let cursor = 0;
+  const tagRe = /<\/?mark\b[^>]*>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = tagRe.exec(html)) !== null) {
+    // Escape text before this tag
+    if (match.index > cursor) {
+      parts.push(escapeHtml(html.slice(cursor, match.index)));
+    }
+    // Keep only bare <mark> or </mark>
+    parts.push(match[0].startsWith("</") ? "</mark>" : "<mark>");
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < html.length) {
+    parts.push(escapeHtml(html.slice(cursor)));
+  }
+  return parts.join("");
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 const SOURCE_STYLES: Record<string, { color: string; icon: typeof FileText }> = {
   daily_log: { color: "bg-blue-500/20 text-blue-400", icon: FileText },
   long_term_memory: { color: "bg-purple-500/20 text-purple-400", icon: BookOpen },
@@ -106,7 +137,7 @@ export function SearchResults({
                 </div>
                 <p
                   className="mt-1.5 text-xs text-muted-foreground line-clamp-2 [&_mark]:bg-yellow-500/30 [&_mark]:text-foreground [&_mark]:rounded-sm [&_mark]:px-0.5"
-                  dangerouslySetInnerHTML={{ __html: result.excerpt.replace(/<(?!\/?mark\b)[^>]*>/gi, "") }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeExcerpt(result.excerpt) }}
                 />
               </div>
             </div>

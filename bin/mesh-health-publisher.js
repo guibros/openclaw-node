@@ -23,7 +23,7 @@ const path = require("path");
 // ── Config ───────────────────────────────────────────────────────────────
 
 const NODE_ID = process.env.OPENCLAW_NODE_ID || os.hostname();
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const PUBLISH_INTERVAL_MS = 15_000; // 15 seconds
 const HEALTH_BUCKET = "MESH_NODE_HEALTH";
 const KV_TTL_MS = 120_000; // entries expire after 2 minutes if node dies
@@ -206,13 +206,12 @@ async function main() {
   console.log(`[health-publisher] node=${NODE_ID} nats=${NATS_URL}`);
   console.log(`[health-publisher] publishing every ${PUBLISH_INTERVAL_MS / 1000}s`);
 
-  const nc = await connect({
-    servers: NATS_URL,
+  const nc = await connect(natsConnectOpts({
     name: `health-publisher-${NODE_ID}`,
     reconnect: true,
     maxReconnectAttempts: -1,
     reconnectTimeWait: 2000,
-  });
+  }));
 
   console.log("[health-publisher] NATS connected");
 

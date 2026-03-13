@@ -256,15 +256,18 @@ def apply_mutation(genome_path, mutation):
         return False, "Empty FIND block — skipping (addition mutations require manual application)"
 
     if find not in content:
-        # Try normalizing whitespace
-        normalized_content = re.sub(r"\s+", " ", content)
+        # Try normalizing whitespace for matching, but apply to original content
         normalized_find = re.sub(r"\s+", " ", find)
-        if normalized_find not in normalized_content:
+        # Build a regex that matches the find text with flexible whitespace
+        escaped = re.escape(normalized_find)
+        flex_pattern = escaped.replace(r"\ ", r"\s+")
+        match = re.search(flex_pattern, content)
+        if not match:
             return False, f"FIND text not found in genome (may have changed). Skipping."
 
-        # Apply with normalized approach — less precise, warn
-        print("  [warn] Applied with whitespace normalization — verify the result.")
-        new_content = normalized_content.replace(normalized_find, replace, 1)
+        # Replace only the matched span in the ORIGINAL content (preserves formatting)
+        print("  [warn] Applied with whitespace-flexible matching — verify the result.")
+        new_content = content[:match.start()] + replace + content[match.end():]
         genome_path.write_text(new_content, encoding="utf-8")
         return True, "Applied (normalized)"
 

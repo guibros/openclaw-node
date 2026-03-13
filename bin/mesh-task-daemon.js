@@ -36,7 +36,7 @@ const { createTask, TaskStore, TASK_STATUS, KV_BUCKET } = require('../lib/mesh-t
 const os = require('os');
 
 const sc = StringCodec();
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const BUDGET_CHECK_INTERVAL = 30000; // 30s
 const STALL_MINUTES = parseInt(process.env.MESH_STALL_MINUTES || '5'); // no heartbeat for this long → stalled
 const NODE_ID = os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
@@ -233,8 +233,8 @@ async function handleGet(msg) {
   if (!task_id) return respondError(msg, 'task_id is required');
 
   const task = await store.get(task_id);
-  if (!task) return respondError(msg, `Task ${task_id} not found`);
-
+  // Return null (not error) for missing tasks so callers can distinguish
+  // "not found" from actual errors (used by bridge reconciliation)
   respond(msg, task);
 }
 
@@ -279,13 +279,20 @@ async function handleCancel(msg) {
   const { task_id, reason } = parseRequest(msg);
   if (!task_id) return respondError(msg, 'task_id is required');
 
-  const task = await store.get(task_id);
-  if (!task) return respondError(msg, `Task ${task_id} not found`);
+  // Use CAS to prevent race between cancel and claim
+  const result = await store.get(task_id, { withRevision: true });
+  if (!result) return respondError(msg, `Task ${task_id} not found`);
 
+  const task = result.task;
   task.status = TASK_STATUS.CANCELLED;
   task.completed_at = new Date().toISOString();
   task.result = { success: false, summary: reason || 'cancelled' };
-  await store.put(task);
+
+  try {
+    await store.kv.update(task_id, sc.encode(JSON.stringify(task)), result.revision);
+  } catch (err) {
+    return respondError(msg, `Cancel conflict — task ${task_id} was modified concurrently. Retry.`);
+  }
 
   log(`CANCEL ${task_id}: ${reason || 'no reason'}`);
   publishEvent('cancelled', task);
@@ -371,7 +378,7 @@ async function enforceBudgets() {
 async function main() {
   log('Starting mesh task daemon...');
 
-  nc = await connect({ servers: NATS_URL, timeout: 5000 });
+  nc = await connect(natsConnectOpts({ timeout: 5000, reconnect: true, maxReconnectAttempts: -1, reconnectTimeWait: 5000 }));
   log(`Connected to NATS at ${NATS_URL}`);
 
   // Initialize task store

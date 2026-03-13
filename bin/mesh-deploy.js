@@ -851,8 +851,8 @@ async function main() {
       try {
         const { fleetDeploy } = require('./fleet-deploy');
         const { connect } = require('nats');
-        const natsUrl = require('../lib/nats-resolve').NATS_URL;
-        const nc = await connect({ servers: natsUrl, name: 'deploy-rollback', timeout: 10000 });
+        const { natsConnectOpts: natsOpts } = require('../lib/nats-resolve');
+        const nc = await connect(natsOpts({ name: 'deploy-rollback', timeout: 10000 }));
         try {
           // Trigger fleet deploy at the rollback SHA — nodes will git fetch + ff to it
           await fleetDeploy(nc, {
@@ -1006,9 +1006,9 @@ async function main() {
     try {
       const { fleetDeploy } = require('./fleet-deploy');
       const { connect } = require('nats');
-      const natsUrl = require('../lib/nats-resolve').NATS_URL;
+      const { natsConnectOpts: natsOpts2 } = require('../lib/nats-resolve');
 
-      const nc = await connect({ servers: natsUrl, name: 'deploy-cli', timeout: 10000 });
+      const nc = await connect(natsOpts2({ name: 'deploy-cli', timeout: 10000 }));
       try {
         await fleetDeploy(nc, {
           components: filterIds.length > 0 ? filterIds : null,

@@ -77,7 +77,10 @@ export async function getNats(): Promise<NatsConnection | null> {
     g.__nats_healthKv = null;
 
     g.__nats_nc.closed().then(() => {
-      console.log("[nats] connection closed");
+      console.log("[nats] connection closed — will reconnect on next request");
+      g.__nats_nc = null;
+      g.__nats_healthKv = null;
+    }).catch(() => {
       g.__nats_nc = null;
       g.__nats_healthKv = null;
     });

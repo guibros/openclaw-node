@@ -36,7 +36,7 @@ const fs = require('fs');
 const { getActivityState, getSessionInfo } = require('../lib/agent-activity');
 
 const sc = StringCodec();
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const NODE_ID = process.env.MESH_NODE_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const POLL_INTERVAL = parseInt(process.env.MESH_POLL_INTERVAL || '15000'); // 15s between polls
 const MAX_ATTEMPTS = parseInt(process.env.MESH_MAX_ATTEMPTS || '3');
@@ -272,9 +272,13 @@ function commitAndMergeWorktree(worktreePath, taskId, summary) {
     // Stage and commit all changes
     execSync('git add -A', { cwd: worktreePath, timeout: 10000, stdio: 'pipe' });
     const commitMsg = `mesh(${taskId}): ${(summary || 'task completed').slice(0, 72)}`;
-    execSync(`git commit -m "${commitMsg.replace(/"/g, '\\"')}"`, {
+    const { spawnSync } = require('child_process');
+    const commitResult = spawnSync('git', ['commit', '-m', commitMsg], {
       cwd: worktreePath, timeout: 10000, stdio: 'pipe',
     });
+    if (commitResult.status !== 0) {
+      throw new Error(`git commit failed: ${commitResult.stderr?.toString() || 'unknown error'}`);
+    }
 
     const sha = execSync('git rev-parse --short HEAD', {
       cwd: worktreePath, timeout: 5000, encoding: 'utf-8',
@@ -505,6 +509,8 @@ async function executeTask(task) {
 
     if (DRY_RUN) {
       log(`[DRY RUN] Prompt:\n${prompt}`);
+      // Release the task so it doesn't stay stuck in "running" state
+      await natsRequest('mesh.tasks.release', { task_id: task.task_id, node_id: NODE_ID }).catch(() => {});
       return;
     }
 
@@ -642,7 +648,7 @@ async function main() {
   log(`  Poll interval: ${POLL_INTERVAL / 1000}s`);
   log(`  Mode:        ${ONCE ? 'single task' : 'continuous'} ${DRY_RUN ? '(dry run)' : ''}`);
 
-  nc = await connect({ servers: NATS_URL, timeout: 5000 });
+  nc = await connect(natsConnectOpts({ timeout: 5000, reconnect: true, maxReconnectAttempts: -1, reconnectTimeWait: 5000 }));
   log(`Connected to NATS`);
 
   // Subscribe to alive-check requests from the daemon's stall detector

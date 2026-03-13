@@ -170,7 +170,7 @@ function tailLog(filePath, label) {
 
   log(`Tailing ${label}: ${filePath} (from byte ${fileSize})`);
 
-  const watcher = fs.watchFile(filePath, { interval: POLL_INTERVAL_MS }, () => {
+  const watcher = fs.watch(filePath, { persistent: true }, () => {
     try {
       const stat = fs.statSync(filePath);
       if (stat.size < fileSize) {

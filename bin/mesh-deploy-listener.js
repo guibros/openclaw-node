@@ -29,7 +29,7 @@ const REPO_DIR = process.env.OPENCLAW_REPO_DIR ||
   path.join(os.homedir(), 'openclaw-node');
 const DEPLOY_SCRIPT = path.join(REPO_DIR, 'bin', 'mesh-deploy.js');
 
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const sc = StringCodec();
 
 const RESULTS_BUCKET = 'MESH_DEPLOY_RESULTS';
@@ -220,14 +220,13 @@ async function main() {
   let nc;
   while (true) {
     try {
-      nc = await connect({
-        servers: NATS_URL,
+      nc = await connect(natsConnectOpts({
         name: `deploy-listener-${NODE_ID}`,
         reconnect: true,
         maxReconnectAttempts: -1,
         reconnectTimeWait: 5000,
         timeout: 10000,
-      });
+      }));
       break;
     } catch (err) {
       console.log(`[deploy-listener] NATS connect failed, retrying in 10s...`);

@@ -3,7 +3,7 @@
 # Outputs regressions if any, otherwise silent.
 # Used by heartbeat for periodic quality monitoring.
 
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE="${SCRIPT_DIR}/.."
@@ -14,8 +14,7 @@ EVENTS_FILE="${WORKSPACE}/skills/capability-evolver/assets/gep/events.jsonl"
 mkdir -p "$CACHE_DIR"
 
 # Run current audit
-CURRENT=$(python3 "${SCRIPT_DIR}/skill-audit" --json 2>/dev/null)
-if [ $? -ne 0 ]; then
+if ! CURRENT=$(python3 "${SCRIPT_DIR}/skill-audit" --json 2>/dev/null); then
   echo "ERROR: skill-audit failed"
   exit 1
 fi
@@ -30,14 +29,18 @@ print(' '.join(parts))
 
 # Compare against cache
 if [ -f "$CACHE_FILE" ]; then
-  PREV_AVG=$(python3 -c "import json; print(json.load(open('$CACHE_FILE'))['average_score'])" 2>/dev/null || echo "0")
+  PREV_AVG=$(python3 -c "import json,sys; print(json.load(sys.stdin)['average_score'])" < "$CACHE_FILE" 2>/dev/null || echo "0")
 
-  # Find regressions (skills that dropped grade)
+  # Find regressions (skills that dropped grade) — data passed via stdin, not string interpolation
   REGRESSIONS=$(python3 -c "
 import json, sys
 
-prev = {s['name']: s['grade'] for s in json.load(open('$CACHE_FILE')).get('skills', [])}
-curr = {s['name']: s['grade'] for s in json.loads('''$CURRENT''').get('skills', [])}
+data = json.load(sys.stdin)
+prev_data = data['prev']
+curr_data = data['curr']
+
+prev = {s['name']: s['grade'] for s in prev_data.get('skills', [])}
+curr = {s['name']: s['grade'] for s in curr_data.get('skills', [])}
 
 grade_rank = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'F': 4}
 regs = []
@@ -50,14 +53,22 @@ if regs:
     print('REGRESSIONS: ' + ', '.join(regs))
 else:
     print('OK')
-" 2>/dev/null || echo "OK")
+" < <(python3 -c "
+import json, sys
+prev = json.load(open(sys.argv[1]))
+curr = json.loads(sys.stdin.read())
+json.dump({'prev': prev, 'curr': curr}, sys.stdout)
+" "$CACHE_FILE" <<< "$CURRENT") 2>/dev/null || echo "OK")
 
   if [[ "$REGRESSIONS" == OK ]]; then
     # Find improvements
     IMPROVEMENTS=$(python3 -c "
-import json
-prev = {s['name']: s['grade'] for s in json.load(open('$CACHE_FILE')).get('skills', [])}
-curr = {s['name']: s['grade'] for s in json.loads('''$CURRENT''').get('skills', [])}
+import json, sys
+
+data = json.load(sys.stdin)
+prev = {s['name']: s['grade'] for s in data['prev'].get('skills', [])}
+curr = {s['name']: s['grade'] for s in data['curr'].get('skills', [])}
+
 grade_rank = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'F': 4}
 imps = []
 for name, grade in curr.items():
@@ -65,7 +76,12 @@ for name, grade in curr.items():
     if old and grade_rank.get(grade, 5) < grade_rank.get(old, 5):
         imps.append(f'{name}: {old}->{grade}')
 print(','.join(imps) if imps else 'none')
-" 2>/dev/null || echo "none")
+" < <(python3 -c "
+import json, sys
+prev = json.load(open(sys.argv[1]))
+curr = json.loads(sys.stdin.read())
+json.dump({'prev': prev, 'curr': curr}, sys.stdout)
+" "$CACHE_FILE" <<< "$CURRENT") 2>/dev/null || echo "none")
 
     # Silent if no changes
     if [[ "$IMPROVEMENTS" == "none" ]]; then
@@ -82,23 +98,33 @@ print(','.join(imps) if imps else 'none')
     echo "IMPROVEMENTS: $IMPROVEMENTS"
   fi
 
-  # Append GEP event
+  # Append GEP event — data passed safely via stdin
   if [ -d "$(dirname "$EVENTS_FILE")" ]; then
     TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     python3 -c "
 import json, sys
+
+data = json.load(sys.stdin)
 event = {
     'type': 'EvolutionEvent',
-    'timestamp': '$TIMESTAMP',
+    'timestamp': data['timestamp'],
     'category': 'quality_audit',
-    'summary': '${CURRENT_AVG}/100 (${CURRENT_DIST})',
+    'summary': data['summary'],
     'changes': {
-        'regressions': '${REGRESSIONS}'.split(', ') if '${REGRESSIONS}' != 'OK' else [],
-        'improvements': '${IMPROVEMENTS}'.split(',') if '${IMPROVEMENTS}' != 'none' else []
+        'regressions': data['regressions'].split(', ') if data['regressions'] != 'OK' else [],
+        'improvements': data['improvements'].split(',') if data['improvements'] != 'none' else []
     }
 }
 print(json.dumps(event))
-" >> "$EVENTS_FILE" 2>/dev/null || true
+" < <(python3 -c "
+import json, sys
+json.dump({
+    'timestamp': sys.argv[1],
+    'summary': sys.argv[2],
+    'regressions': sys.argv[3],
+    'improvements': sys.argv[4]
+}, sys.stdout)
+" "$TIMESTAMP" "${CURRENT_AVG}/100 (${CURRENT_DIST})" "${REGRESSIONS}" "${IMPROVEMENTS:-none}") >> "$EVENTS_FILE" 2>/dev/null || true
   fi
 else
   echo "First run — baseline captured: ${CURRENT_AVG}/100 (${CURRENT_DIST})"

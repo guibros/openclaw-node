@@ -10,12 +10,6 @@ import { logActivity } from "./activity";
 import { WORKSPACE_ROOT } from "./config";
 import { gatewayNotify } from "./gateway-notify";
 
-// Capacity weights kept for reference / future use but dispatch is now single-task
-const CAPACITY_WEIGHTS: Record<string, number> = {
-  light: 0.5,
-  normal: 1.0,
-  heavy: 2.0,
-};
 
 export interface Wave {
   index: number;

@@ -41,7 +41,7 @@ function loadBotToken() {
 
 // ── Discord REST API ────────────────────────────────
 
-function discordRequest(method, endpoint, token) {
+function discordRequest(method, endpoint, token, _retryDepth = 0) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: DISCORD_API,
@@ -60,10 +60,13 @@ function discordRequest(method, endpoint, token) {
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         if (res.statusCode === 429) {
+          if (_retryDepth >= 5) {
+            reject(new Error(`Discord API: rate limited ${_retryDepth} times on ${endpoint}`));
+            return;
+          }
           const retryAfter = JSON.parse(data).retry_after || 1;
-          // Wait and retry once
           setTimeout(() => {
-            discordRequest(method, endpoint, token).then(resolve).catch(reject);
+            discordRequest(method, endpoint, token, _retryDepth + 1).then(resolve).catch(reject);
           }, retryAfter * 1000);
           return;
         }

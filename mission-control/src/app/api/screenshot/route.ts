@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import path from "path";
 import { WORKSPACE_ROOT } from "@/lib/config";
@@ -27,11 +27,20 @@ export async function POST(request: NextRequest) {
       // No body is fine — use defaults
     }
 
+    // Validate inputs to prevent injection
+    if (display !== undefined && (!Number.isInteger(display) || display < 1 || display > 16)) {
+      return NextResponse.json({ error: "Invalid display number" }, { status: 400 });
+    }
+    if (delay !== undefined && (!Number.isInteger(delay) || delay < 0 || delay > 30)) {
+      return NextResponse.json({ error: "Invalid delay value" }, { status: 400 });
+    }
+
     const args: string[] = [];
     if (display) args.push("--display", String(display));
     if (delay) args.push("--delay", String(delay));
 
-    const result = execSync(`${SCREENSHOT_BIN} ${args.join(" ")}`, {
+    // Use execFileSync (no shell) instead of execSync to prevent injection
+    const result = execFileSync(SCREENSHOT_BIN, args, {
       encoding: "utf-8",
       timeout: 15000,
     }).trim();

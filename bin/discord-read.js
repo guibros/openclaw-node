@@ -16,11 +16,11 @@
 const { connect, StringCodec } = require('nats');
 
 const sc = StringCodec();
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 
 async function natsConnect() {
   try {
-    return await connect({ servers: NATS_URL, timeout: 5000 });
+    return await connect(natsConnectOpts({ timeout: 5000 }));
   } catch (err) {
     console.error(`Cannot connect to NATS at ${NATS_URL}`);
     process.exit(1);

@@ -144,11 +144,14 @@ export default function GraphPage() {
 
   // Node label (shown on hover)
   const nodeLabel = useCallback((node: any) => {
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const name = esc(String(node.name ?? ""));
+    const type = esc(String(node.type ?? ""));
     return `<div style="background:rgba(0,0,0,0.85);color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;max-width:280px;line-height:1.4">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
         <span style="width:8px;height:8px;border-radius:50%;background:${TYPE_COLORS[node.type] || "#6b7280"};display:inline-block"></span>
-        <strong>${node.name}</strong>
-        <span style="color:#9ca3af">(${node.type})</span>
+        <strong>${name}</strong>
+        <span style="color:#9ca3af">(${type})</span>
       </div>
       <div style="color:#9ca3af">
         Access count: ${node.accessCount || 0}<br/>
@@ -159,10 +162,12 @@ export default function GraphPage() {
 
   // Link label (shown on hover)
   const linkLabel = useCallback((link: any) => {
-    const srcName = typeof link.source === "object" ? link.source.name : link.source;
-    const tgtName = typeof link.target === "object" ? link.target.name : link.target;
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const srcName = esc(String(typeof link.source === "object" ? link.source.name : link.source));
+    const tgtName = esc(String(typeof link.target === "object" ? link.target.name : link.target));
+    const relType = esc(String(link.relationType ?? ""));
     return `<div style="background:rgba(0,0,0,0.85);color:#fff;padding:6px 10px;border-radius:6px;font-size:11px">
-      ${srcName} → <strong>${link.relationType}</strong> → ${tgtName}
+      ${srcName} → <strong>${relType}</strong> → ${tgtName}
     </div>`;
   }, []);
 

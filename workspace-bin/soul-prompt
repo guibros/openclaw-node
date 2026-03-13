@@ -124,10 +124,11 @@ if caps:
             out.append('')
 
 print('\n'.join(out))
-" 2>/tmp/soul-prompt-meta || true)
+" 2>"${TMPDIR:-/tmp}/soul-prompt-meta.$$" || true)
 
-# Extract subagent type from stderr output
-SUBAGENT_TYPE=$(grep -oP 'SUBAGENT_TYPE=\K.*' /tmp/soul-prompt-meta 2>/dev/null || echo "general-purpose")
+# Extract subagent type from stderr output (portable: no grep -P on macOS)
+SUBAGENT_TYPE=$(sed -n 's/^SUBAGENT_TYPE=//p' "${TMPDIR:-/tmp}/soul-prompt-meta.$$" 2>/dev/null || echo "general-purpose")
+rm -f "${TMPDIR:-/tmp}/soul-prompt-meta.$$"
 echo "$SUBAGENT_TYPE" >&2
 
 # --- Assemble preamble ---

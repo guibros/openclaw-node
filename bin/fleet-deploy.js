@@ -21,7 +21,7 @@ const os = require('os');
 
 // ── Config ───────────────────────────────────────────────────────────────
 
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const sc = StringCodec();
 const REPO_DIR = process.env.OPENCLAW_REPO_DIR || path.join(os.homedir(), 'openclaw-node');
 const NODE_ID = process.env.OPENCLAW_NODE_ID ||
@@ -335,7 +335,7 @@ async function main() {
   // Connect to NATS
   let nc;
   try {
-    nc = await connect({ servers: NATS_URL, name: `deploy-cli-${NODE_ID}`, timeout: 10000 });
+    nc = await connect(natsConnectOpts({ name: `deploy-cli-${NODE_ID}`, timeout: 10000 }));
   } catch {
     fail(`Cannot connect to NATS at ${NATS_URL}`);
     process.exit(1);

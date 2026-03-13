@@ -383,9 +383,12 @@ fi
 
 # Source env file for config generation (safe key=value parsing — no shell execution)
 if [ -f "$ENV_FILE" ]; then
-  while IFS='=' read -r key value; do
+  while IFS= read -r line; do
     # Skip comments and empty lines
-    [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    # Split only on the first '=' to preserve base64 padding etc.
+    key="${line%%=*}"
+    value="${line#*=}"
     # Trim whitespace
     key="$(echo "$key" | xargs)"
     value="$(echo "$value" | xargs)"
@@ -437,7 +440,8 @@ generate_config() {
       -e "s|\${CLAUDE_PROJECT_HOME}|${CLAUDE_PROJECT_HOME}|g" \
       "$template" > "$output"
   fi
-  info "Generated $basename"
+  chmod 600 "$output"
+  info "Generated $basename (mode 600)"
 }
 
 generate_config "$REPO_DIR/config/daemon.json.template" "$OPENCLAW_ROOT/config/daemon.json"

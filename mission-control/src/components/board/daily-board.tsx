@@ -108,7 +108,14 @@ export function DailyBoard() {
   const goPrev = () => setSelectedDate((d) => subDays(d, 1));
   const goNext = () => setSelectedDate((d) => addDays(d, 1));
   const goToday = () => setSelectedDate(startOfDay(new Date()));
-  const goStart = () => setSelectedDate(new Date(2026, 2, 2));
+  const goStart = () => {
+    // Navigate to the earliest task date, or today if no tasks
+    const earliest = tasks.reduce((min: Date, t: Task) => {
+      const d = t.createdAt ? startOfDay(parseISO(t.createdAt)) : new Date();
+      return d < min ? d : min;
+    }, new Date());
+    setSelectedDate(startOfDay(earliest));
+  };
 
   if (isLoading) {
     return (

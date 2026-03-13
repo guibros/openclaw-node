@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     const absPath = path.resolve(WORKSPACE_ROOT, relPath);
     // Security: ensure path is within workspace
-    if (!absPath.startsWith(WORKSPACE_ROOT)) {
+    if (!absPath.startsWith(WORKSPACE_ROOT + path.sep) && absPath !== WORKSPACE_ROOT) {
       return NextResponse.json({ error: "Path traversal denied" }, { status: 403 });
     }
 
