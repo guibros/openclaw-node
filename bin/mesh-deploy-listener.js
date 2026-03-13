@@ -51,15 +51,7 @@ function resolveNodeRole() {
 }
 const NODE_ROLE = resolveNodeRole();
 
-// Components this node can deploy, by role.
-// Must match nodeFilter values in the mesh-deploy manifest.
-const ROLE_COMPONENTS = {
-  lead: ['mesh-daemons', 'mesh-cli', 'shared-lib', 'mc', 'memory-daemon',
-         'memory-harness', 'souls', 'skills', 'boot', 'workspace-docs',
-         'gateway', 'companion-bridge', 'service-defs'],
-  worker: ['mesh-daemons', 'mesh-cli', 'shared-lib', 'souls', 'skills',
-           'workspace-docs', 'service-defs'],
-};
+const { ROLE_COMPONENTS } = require('../lib/mesh-roles');
 const NODE_COMPONENTS = new Set(ROLE_COMPONENTS[NODE_ROLE] || ROLE_COMPONENTS.worker);
 
 let deploying = false; // prevent concurrent deploys
@@ -104,11 +96,17 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
       throw new Error(`Repo not found at ${REPO_DIR}`);
     }
 
+    // Validate branch name to prevent command injection (trigger.branch comes from NATS)
+    const branch = (trigger.branch || 'main').replace(/[^a-zA-Z0-9._/-]/g, '');
+    if (!branch || branch !== (trigger.branch || 'main')) {
+      throw new Error(`Invalid branch name: ${trigger.branch}`);
+    }
+
     // Git fetch + ff merge
-    execSync(`git fetch origin ${trigger.branch || 'main'}`, {
+    execSync(`git fetch origin ${branch}`, {
       cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
     });
-    execSync(`git merge origin/${trigger.branch || 'main'} --ff-only`, {
+    execSync(`git merge origin/${branch} --ff-only`, {
       cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
     });
 

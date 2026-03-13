@@ -34,14 +34,7 @@ const REPO_DIR = process.env.OPENCLAW_REPO_DIR ||
 const sc = StringCodec();
 const IS_MAC = os.platform() === "darwin";
 
-// Components this node runs, by role (matches deploy manifest).
-const ROLE_COMPONENTS = {
-  lead: ['mesh-daemons', 'mesh-cli', 'shared-lib', 'mc', 'memory-daemon',
-         'memory-harness', 'souls', 'skills', 'boot', 'workspace-docs',
-         'gateway', 'companion-bridge', 'service-defs'],
-  worker: ['mesh-daemons', 'mesh-cli', 'shared-lib', 'souls', 'skills',
-           'workspace-docs', 'service-defs'],
-};
+const { ROLE_COMPONENTS } = require('../lib/mesh-roles');
 
 // ── Health Gathering ─────────────────────────────────────────────────────
 // All the expensive execSync calls happen here, on our own schedule.

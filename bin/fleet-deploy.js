@@ -188,7 +188,11 @@ async function fleetDeploy(nc, opts) {
 
   // Get the current SHA to deploy
   const sha = exec('git rev-parse --short HEAD', { cwd: REPO_DIR });
-  const branch = exec('git rev-parse --abbrev-ref HEAD', { cwd: REPO_DIR });
+  const rawBranch = exec('git rev-parse --abbrev-ref HEAD', { cwd: REPO_DIR });
+  const branch = rawBranch.replace(/[^a-zA-Z0-9._/-]/g, '');
+  if (!branch || branch !== rawBranch) {
+    throw new Error(`Unsafe branch name from local git: ${rawBranch}`);
+  }
 
   header(`Fleet Deploy: ${sha} → ${remoteNodes.length} node(s)`);
 

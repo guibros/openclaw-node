@@ -467,11 +467,13 @@ async function main() {
 
   // Dispatch loop (polls active-tasks.md)
   while (running) {
+    let lastAttemptedTask = null;
     try {
       // Only dispatch if no active tasks in the mesh from this bridge
       if (dispatched.size === 0) {
         const task = findDispatchable();
         if (task) {
+          lastAttemptedTask = task;
           await dispatchTask(task);
           consecutiveSubmitFailures = 0; // reset on success
         }
@@ -496,12 +498,11 @@ async function main() {
       log(`DISPATCH ERROR (${consecutiveSubmitFailures}/${MAX_SUBMIT_FAILURES}): ${err.message}`);
 
       if (consecutiveSubmitFailures >= MAX_SUBMIT_FAILURES) {
-        // Find the task we were trying to dispatch and mark it blocked
-        const failedTask = findDispatchable();
-        if (failedTask) {
-          log(`BLOCKING: ${failedTask.task_id} after ${MAX_SUBMIT_FAILURES} consecutive submit failures`);
+        // Use the captured task reference — don't re-query which could return a different task
+        if (lastAttemptedTask) {
+          log(`BLOCKING: ${lastAttemptedTask.task_id} after ${MAX_SUBMIT_FAILURES} consecutive submit failures`);
           try {
-            updateTaskInPlace(ACTIVE_TASKS_PATH, failedTask.task_id, {
+            updateTaskInPlace(ACTIVE_TASKS_PATH, lastAttemptedTask.task_id, {
               status: 'blocked',
               next_action: `Mesh submit failed ${MAX_SUBMIT_FAILURES}x — check NATS connectivity`,
               updated_at: isoTimestamp(),

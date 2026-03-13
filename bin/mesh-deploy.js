@@ -659,8 +659,17 @@ function installComponentFiles(comp, repoDir, dryRun) {
       const srcPath = path.join(repoDir, relFile);
       if (!fs.existsSync(srcPath)) continue;
 
-      // Strip top-level dir from path for destination
-      const subPath = relFile.replace(/^[^/]+\//, '');
+      // Strip matching repoPath prefix to determine destination subpath
+      let subPath = relFile;
+      for (const rp of comp.repoPaths) {
+        if (rp.endsWith('/') && relFile.startsWith(rp)) {
+          subPath = relFile.slice(rp.length);
+          break;
+        } else if (relFile === rp) {
+          subPath = path.basename(relFile);
+          break;
+        }
+      }
       const dstPath = path.join(target, subPath);
 
       if (dryRun) {
@@ -812,6 +821,11 @@ async function main() {
     }
 
     info(`Reverting to ${state.lastSha.slice(0, 8)}`);
+    const dirty = exec('git status --porcelain', { cwd: REPO_DIR, ignoreError: true });
+    if (dirty) {
+      warn('Working tree has uncommitted changes — stashing before rollback');
+      exec('git stash push -m "pre-rollback-stash"', { cwd: REPO_DIR });
+    }
     exec(`git reset --hard ${state.lastSha}`, { cwd: REPO_DIR });
 
     // Full reinstall from the reverted state

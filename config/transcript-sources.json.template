@@ -2,13 +2,13 @@
   "sources": [
     {
       "name": "claude-code-workspace",
-      "path": "~/.claude/projects/-Users-${USER}--openclaw-workspace/",
+      "path": "~/.claude/projects/${CLAUDE_PROJECT_WORKSPACE}/",
       "format": "claude-code",
       "enabled": true
     },
     {
       "name": "claude-code-home",
-      "path": "~/.claude/projects/-Users-${USER}/",
+      "path": "~/.claude/projects/${CLAUDE_PROJECT_HOME}/",
       "format": "claude-code",
       "enabled": true
     },

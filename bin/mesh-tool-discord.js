@@ -60,9 +60,11 @@ function discordRequest(method, endpoint, token) {
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         if (res.statusCode === 429) {
-          // Rate limited
           const retryAfter = JSON.parse(data).retry_after || 1;
-          reject(new Error(`Rate limited. Retry after ${retryAfter}s`));
+          // Wait and retry once
+          setTimeout(() => {
+            discordRequest(method, endpoint, token).then(resolve).catch(reject);
+          }, retryAfter * 1000);
           return;
         }
         if (res.statusCode >= 400) {

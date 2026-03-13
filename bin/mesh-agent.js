@@ -348,6 +348,11 @@ function runClaude(prompt, task, worktreePath) {
       '--output-format', 'text',
       '--model', MODEL,
       '--permission-mode', 'bypassPermissions',
+      // SECURITY NOTE: bypassPermissions is intentional for mesh agents.
+      // Tasks run in isolated worktrees with no interactive terminal.
+      // The agent needs autonomous execution without permission prompts.
+      // Safety is enforced at the mesh level: budget limits, scope restrictions,
+      // and human review of all results before merge to main.
       // Note: --no-session-persistence removed to enable JSONL activity tracking
       // Claude writes session files to ~/.claude/projects/{encoded-cwd}/
       // which agent-activity.js reads for cost, summary, and activity state
