@@ -6,11 +6,11 @@
     <string>ai.openclaw.mission-control</string>
 
     <key>WorkingDirectory</key>
-    <string>/Users/moltymac/.openclaw/workspace/projects/mission-control</string>
+    <string>${OPENCLAW_WORKSPACE}/projects/mission-control</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/moltymac/.openclaw/bin/npm</string>
+        <string>${HOME}/.openclaw/bin/npm</string>
         <string>run</string>
         <string>dev</string>
     </array>
@@ -30,10 +30,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Users/moltymac/.openclaw/workspace/.tmp/mission-control.log</string>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/mission-control.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/moltymac/.openclaw/workspace/.tmp/mission-control.err</string>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/mission-control.err</string>
 
     <key>ThrottleInterval</key>
     <integer>10</integer>

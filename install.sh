@@ -21,17 +21,23 @@ ENV_FILE="$OPENCLAW_ROOT/openclaw.env"
 DRY_RUN=false
 UPDATE_ONLY=false
 SKIP_MESH=false
+ENABLE_SERVICES=false
+NODE_ROLE=""
 
 for arg in "$@"; do
   case "$arg" in
-    --dry-run)    DRY_RUN=true ;;
-    --update)     UPDATE_ONLY=true ;;
-    --skip-mesh)  SKIP_MESH=true ;;
+    --dry-run)           DRY_RUN=true ;;
+    --update)            UPDATE_ONLY=true ;;
+    --skip-mesh)         SKIP_MESH=true ;;
+    --enable-services)   ENABLE_SERVICES=true ;;
+    --role=*)            NODE_ROLE="${arg#--role=}" ;;
     --help|-h)
-      echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh]"
-      echo "  --dry-run    Show what would happen without making changes"
-      echo "  --update     Re-copy scripts/configs only (skip system deps)"
-      echo "  --skip-mesh  Skip mesh network setup (used by meta-installer)"
+      echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--role=lead|worker] [--enable-services]"
+      echo "  --dry-run           Show what would happen without making changes"
+      echo "  --update            Re-copy scripts/configs only (skip system deps)"
+      echo "  --skip-mesh         Skip mesh network setup (used by meta-installer)"
+      echo "  --role=lead|worker  Set node role (default: macOS=lead, Linux=worker)"
+      echo "  --enable-services   Also enable and start services after installing"
       exit 0
       ;;
   esac
@@ -198,6 +204,40 @@ if ! $UPDATE_ONLY; then
     fi
   fi
 fi
+
+# ── Resolve NODE_BIN (used by service templates) ──
+NODE_BIN="$(command -v node 2>/dev/null || echo "")"
+if [ -z "$NODE_BIN" ]; then
+  error "Node.js not found after dependency install — cannot continue"
+  exit 1
+fi
+export NODE_BIN
+
+# ── Resolve node role ──
+if [ -z "$NODE_ROLE" ]; then
+  NODE_ROLE="${OPENCLAW_NODE_ROLE:-}"
+fi
+if [ -z "$NODE_ROLE" ]; then
+  if [ "$OS" = "macos" ]; then
+    NODE_ROLE="lead"
+  else
+    NODE_ROLE="worker"
+  fi
+fi
+export OPENCLAW_NODE_ROLE="$NODE_ROLE"
+info "Node role: $NODE_ROLE"
+
+# ── Resolve node ID ──
+export OPENCLAW_NODE_ID="${OPENCLAW_NODE_ID:-$(hostname -s | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-')}"
+info "Node ID: $OPENCLAW_NODE_ID"
+
+# ── Resolve NATS URL (for service templates) ──
+export OPENCLAW_NATS="${OPENCLAW_NATS:-nats://127.0.0.1:4222}"
+
+# ── Resolve paths for service templates ──
+export OPENCLAW_WORKSPACE="$WORKSPACE"
+export OPENCLAW_REPO_DIR="$REPO_DIR"
+export NPM_BIN="$(command -v npm 2>/dev/null || echo "$HOME/.openclaw/workspace/.npm-global/bin/npm")"
 
 # ============================================================
 # Step 2: Directory Structure
@@ -568,104 +608,163 @@ MEM
 fi
 
 # ============================================================
-# Step 14: Install Daemon Service
+# Step 14: Install Services (role-aware, template-based)
 # ============================================================
 
-step "Step 14: Memory Daemon Service"
+step "Step 14: Install Services (role=$NODE_ROLE)"
 
-if [ -f "$WORKSPACE/bin/install-daemon" ]; then
-  info "Installing memory daemon as system service..."
-  run bash "$WORKSPACE/bin/install-daemon"
+MANIFEST="$REPO_DIR/services/service-manifest.json"
+LAUNCHD_TEMPLATES="$REPO_DIR/services/launchd"
+SYSTEMD_TEMPLATES="$REPO_DIR/services/systemd"
+LAUNCHD_DEST="$HOME/Library/LaunchAgents"
+SYSTEMD_DEST="$HOME/.config/systemd/user"
+INSTALLED_COUNT=0
+SKIPPED_COUNT=0
+
+# Ensure log directories exist
+run mkdir -p "$HOME/.openclaw/logs" "$WORKSPACE/.tmp"
+
+if [ ! -f "$MANIFEST" ]; then
+  warn "Service manifest not found at $MANIFEST — skipping service installation"
 else
-  error "install-daemon script not found"
-fi
+  # Read manifest entries using node (jq may not be available yet)
+  SERVICES=$("$NODE_BIN" -e "
+    const m = require('$MANIFEST');
+    m.forEach(s => console.log([s.name, s.role, s.autostart, s.timer || false].join('|')));
+  ")
 
-# ============================================================
-# Step 15: Lane Watchdog Service (optional — if gateway installed)
-# ============================================================
-
-step "Step 15: Lane Watchdog"
-
-WATCHDOG_SCRIPT="$HOME/openclaw/bin/lane-watchdog.js"
-if [ -f "$WATCHDOG_SCRIPT" ]; then
-  # Only install if the openclaw gateway is present (npm global package)
-  if command -v openclaw >/dev/null 2>&1 || [ -f "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" ] || [ -f "$HOME/.config/systemd/user/openclaw-gateway.service" ]; then
-    info "Gateway detected — installing lane watchdog service..."
-    WATCHDOG_SERVICE="ai.openclaw.lane-watchdog"
+  while IFS='|' read -r SVC_NAME SVC_ROLE SVC_AUTO SVC_TIMER; do
+    # Role filtering: install if role matches or role=both
+    if [ "$SVC_ROLE" != "both" ] && [ "$SVC_ROLE" != "$NODE_ROLE" ]; then
+      SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+      continue
+    fi
 
     if [ "$OS" = "macos" ]; then
-      WATCHDOG_PLIST="$HOME/Library/LaunchAgents/${WATCHDOG_SERVICE}.plist"
-      cat > "$WATCHDOG_PLIST" << WDEOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-  <dict>
-    <key>Label</key>
-    <string>${WATCHDOG_SERVICE}</string>
-    <key>ProgramArguments</key>
-    <array>
-      <string>${NODE_BIN}</string>
-      <string>${WATCHDOG_SCRIPT}</string>
-    </array>
-    <key>KeepAlive</key>
-    <true/>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>${HOME}/.openclaw/logs/lane-watchdog.log</string>
-    <key>StandardErrorPath</key>
-    <string>${HOME}/.openclaw/logs/lane-watchdog.err</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-      <key>HOME</key>
-      <string>${HOME}</string>
-      <key>PATH</key>
-      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-    </dict>
-    <key>ThrottleInterval</key>
-    <integer>10</integer>
-  </dict>
-</plist>
-WDEOF
-      launchctl unload "$WATCHDOG_PLIST" 2>/dev/null || true
-      launchctl load "$WATCHDOG_PLIST"
-      info "Lane watchdog installed: $WATCHDOG_PLIST"
+      TEMPLATE="$LAUNCHD_TEMPLATES/ai.openclaw.${SVC_NAME}.plist"
+      DEST="$LAUNCHD_DEST/ai.openclaw.${SVC_NAME}.plist"
+
+      if [ ! -f "$TEMPLATE" ]; then
+        warn "  Template not found: $TEMPLATE"
+        continue
+      fi
+
+      run mkdir -p "$LAUNCHD_DEST"
+
+      if command -v envsubst >/dev/null 2>&1; then
+        envsubst < "$TEMPLATE" > "$DEST"
+      else
+        sed \
+          -e "s|\${HOME}|$HOME|g" \
+          -e "s|\${NODE_BIN}|$NODE_BIN|g" \
+          -e "s|\${OPENCLAW_WORKSPACE}|$OPENCLAW_WORKSPACE|g" \
+          -e "s|\${OPENCLAW_NATS}|$OPENCLAW_NATS|g" \
+          -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
+          -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
+          -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
+          -e "s|\${NPM_BIN}|$NPM_BIN|g" \
+          "$TEMPLATE" > "$DEST"
+      fi
+
+      # Unload if already loaded
+      launchctl unload "$DEST" 2>/dev/null || true
+
+      if [ "$SVC_AUTO" = "true" ] && $ENABLE_SERVICES; then
+        launchctl load "$DEST"
+        info "  Installed + loaded: $SVC_NAME"
+      else
+        info "  Installed: $SVC_NAME (load manually: launchctl load $DEST)"
+      fi
+      INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
 
     elif [ "$OS" = "linux" ]; then
-      WATCHDOG_UNIT="$SYSTEMD_DIR/openclaw-lane-watchdog.service"
-      cat > "$WATCHDOG_UNIT" << WDEOF
-[Unit]
-Description=OpenClaw Lane Watchdog — Gateway deadlock recovery
-After=network.target
+      run mkdir -p "$SYSTEMD_DEST"
 
-[Service]
-Type=simple
-ExecStart=${NODE_BIN} ${WATCHDOG_SCRIPT}
-Restart=always
-RestartSec=10
-Environment=HOME=${HOME}
-WorkingDirectory=${WORKSPACE}
-
-[Install]
-WantedBy=default.target
-WDEOF
-      systemctl --user daemon-reload
-      systemctl --user enable openclaw-lane-watchdog
-      systemctl --user start openclaw-lane-watchdog
-      info "Lane watchdog installed: $WATCHDOG_UNIT"
+      # Handle timer-based services (service + timer)
+      if [ "$SVC_TIMER" = "true" ]; then
+        for ext in service timer; do
+          TEMPLATE="$SYSTEMD_TEMPLATES/${SVC_NAME}.${ext}"
+          DEST="$SYSTEMD_DEST/${SVC_NAME}.${ext}"
+          if [ ! -f "$TEMPLATE" ]; then
+            warn "  Template not found: $TEMPLATE"
+            continue
+          fi
+          if command -v envsubst >/dev/null 2>&1; then
+            envsubst < "$TEMPLATE" > "$DEST"
+          else
+            sed \
+              -e "s|\${HOME}|$HOME|g" \
+              -e "s|\${NODE_BIN}|$NODE_BIN|g" \
+              -e "s|\${OPENCLAW_WORKSPACE}|$OPENCLAW_WORKSPACE|g" \
+              -e "s|\${OPENCLAW_NATS}|$OPENCLAW_NATS|g" \
+              -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
+              -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
+              -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
+              "$TEMPLATE" > "$DEST"
+          fi
+        done
+        if $ENABLE_SERVICES; then
+          systemctl --user enable "${SVC_NAME}.timer"
+          systemctl --user start "${SVC_NAME}.timer"
+          info "  Installed + enabled: $SVC_NAME (timer)"
+        else
+          info "  Installed: $SVC_NAME (timer — enable with: systemctl --user enable --now ${SVC_NAME}.timer)"
+        fi
+      else
+        TEMPLATE="$SYSTEMD_TEMPLATES/${SVC_NAME}.service"
+        DEST="$SYSTEMD_DEST/${SVC_NAME}.service"
+        if [ ! -f "$TEMPLATE" ]; then
+          warn "  Template not found: $TEMPLATE"
+          continue
+        fi
+        if command -v envsubst >/dev/null 2>&1; then
+          envsubst < "$TEMPLATE" > "$DEST"
+        else
+          sed \
+            -e "s|\${HOME}|$HOME|g" \
+            -e "s|\${NODE_BIN}|$NODE_BIN|g" \
+            -e "s|\${OPENCLAW_WORKSPACE}|$OPENCLAW_WORKSPACE|g" \
+            -e "s|\${OPENCLAW_NATS}|$OPENCLAW_NATS|g" \
+            -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
+            -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
+            -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
+            "$TEMPLATE" > "$DEST"
+        fi
+        if [ "$SVC_AUTO" = "true" ] && $ENABLE_SERVICES; then
+          systemctl --user enable "${SVC_NAME}.service"
+          systemctl --user start "${SVC_NAME}.service"
+          info "  Installed + started: $SVC_NAME"
+        else
+          info "  Installed: $SVC_NAME"
+        fi
+      fi
+      INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
     fi
-  else
-    info "Gateway not detected — skipping lane watchdog (not needed for standalone nodes)"
+  done <<< "$SERVICES"
+
+  # Reload systemd if any units were installed
+  if [ "$OS" = "linux" ] && [ "$INSTALLED_COUNT" -gt 0 ]; then
+    systemctl --user daemon-reload
+    # Enable linger so user services survive logout
+    loginctl enable-linger "$(whoami)" 2>/dev/null || warn "loginctl enable-linger failed — services may stop on logout"
   fi
-else
-  warn "lane-watchdog.js not found in bin/"
+
+  info "Services installed: $INSTALLED_COUNT (skipped $SKIPPED_COUNT — wrong role)"
+  if ! $ENABLE_SERVICES; then
+    info "Services installed but NOT started. Use --enable-services to also start them."
+    if [ "$OS" = "linux" ]; then
+      info "Or start individually: systemctl --user enable --now <service-name>"
+    else
+      info "Or load individually: launchctl load ~/Library/LaunchAgents/ai.openclaw.<name>.plist"
+    fi
+  fi
 fi
 
 # ============================================================
-# Step 16: Mesh Network (optional — if Tailscale detected)
+# Step 15: Mesh Network (optional — if Tailscale detected)
 # ============================================================
 
-step "Step 16: Mesh Network"
+step "Step 15: Mesh Network"
 
 if $SKIP_MESH; then
   info "Skipped (--skip-mesh flag set by meta-installer)"
@@ -731,13 +830,15 @@ info "Config:    $OPENCLAW_ROOT/config/"
 info "Env file:  $ENV_FILE"
 echo ""
 
+info "Role: $NODE_ROLE | Services installed: $INSTALLED_COUNT"
+echo ""
+
 if [ "$OS" = "linux" ]; then
   echo "Next steps:"
   echo "  1. Edit your env file:  nano $ENV_FILE"
-  echo "  2. Re-run config gen:   bash $0 --update"
-  echo "  3. Check daemon status: systemctl --user status openclaw-memory-daemon"
-  echo "  4. Start Mission Control: cd $MC_DIR && npm run dev"
-  echo "  5. View MC dashboard:   http://localhost:3000"
+  echo "  2. Enable services:     bash $0 --update --enable-services"
+  echo "  3. Check services:      systemctl --user list-units 'openclaw-*'"
+  echo "  4. View MC dashboard:   http://localhost:3000"
   if $MESH_AVAILABLE; then
     echo ""
     echo "  Mesh commands:"
@@ -748,8 +849,8 @@ if [ "$OS" = "linux" ]; then
 else
   echo "Next steps:"
   echo "  1. Edit your env file:  nano $ENV_FILE"
-  echo "  2. Re-run config gen:   bash $0 --update"
-  echo "  3. Check daemon status: bin/install-daemon --status"
-  echo "  4. Start Mission Control: cd $MC_DIR && npm run dev"
+  echo "  2. Load services:       bash $0 --update --enable-services"
+  echo "  3. Check services:      launchctl list | grep openclaw"
+  echo "  4. View MC dashboard:   http://localhost:3000"
 fi
 echo ""

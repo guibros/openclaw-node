@@ -1,0 +1,9 @@
+[Unit]
+Description=OpenClaw Log Rotate Timer — triggers log rotation weekly on Sunday at 4am
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

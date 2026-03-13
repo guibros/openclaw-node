@@ -1,0 +1,19 @@
+[Unit]
+Description=OpenClaw Mesh Agent — executes mesh tasks via Claude CLI (manually started)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NODE_BIN} ${HOME}/openclaw/bin/mesh-agent.js
+Restart=always
+RestartSec=30
+Environment=HOME=${HOME}
+Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
+Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
+Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=MESH_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=TZ=America/Montreal
+WorkingDirectory=${HOME}/openclaw
+StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-agent.log
+StandardError=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-agent.err

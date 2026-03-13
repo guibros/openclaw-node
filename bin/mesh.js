@@ -29,32 +29,23 @@ const path = require('path');
 const os = require('os');
 
 // ─── Config ──────────────────────────────────────────
-// ── NATS URL resolution: env var → ~/.openclaw/openclaw.env → fallback IP ──
-const NATS_FALLBACK = 'nats://100.91.131.61:4222';
-function resolveNatsUrl() {
-  if (process.env.OPENCLAW_NATS) return process.env.OPENCLAW_NATS;
-  try {
-    const envFile = path.join(os.homedir(), '.openclaw', 'openclaw.env');
-    if (fs.existsSync(envFile)) {
-      const content = fs.readFileSync(envFile, 'utf8');
-      const match = content.match(/^\s*OPENCLAW_NATS\s*=\s*(.+)/m);
-      if (match && match[1].trim()) return match[1].trim();
-    }
-  } catch {}
-  return NATS_FALLBACK;
-}
-const NATS_URL = resolveNatsUrl();
+// NATS URL resolved via shared lib (env var → openclaw.env → .mesh-config → localhost fallback)
+const { NATS_URL } = require('../lib/nats-resolve');
 const SHARED_DIR = path.join(os.homedir(), 'openclaw', 'shared');
 const LOCAL_NODE = os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const sc = StringCodec();
 
 // ─── Known nodes (for --node shortcuts) ──────────────
-const NODE_ALIASES = {
-  'ubuntu': 'calos-vmware-virtual-platform',
-  'linux': 'calos-vmware-virtual-platform',
-  'mac': 'moltymacs-virtual-machine-local',
-  'macos': 'moltymacs-virtual-machine-local',
-};
+// Load from ~/.openclaw/mesh-aliases.json if it exists, otherwise empty.
+let NODE_ALIASES = {};
+try {
+  const aliasFile = path.join(os.homedir(), '.openclaw', 'mesh-aliases.json');
+  if (fs.existsSync(aliasFile)) {
+    NODE_ALIASES = JSON.parse(fs.readFileSync(aliasFile, 'utf8'));
+  }
+} catch {
+  // File missing or malformed — proceed with no aliases
+}
 
 /**
  * Resolve a node name — accepts aliases, full IDs, or "self"/"local"

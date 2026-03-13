@@ -7,27 +7,27 @@
   <string>ai.openclaw.mesh-deploy-listener</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/moltymac/.openclaw/bin/node</string>
-    <string>/Users/moltymac/openclaw/bin/mesh-deploy-listener.js</string>
+    <string>${NODE_BIN}</string>
+    <string>${HOME}/openclaw/bin/mesh-deploy-listener.js</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
     <key>OPENCLAW_NODE_ID</key>
-    <string>moltymacs-virtual-machine-local</string>
+    <string>${OPENCLAW_NODE_ID}</string>
     <key>OPENCLAW_NATS</key>
-    <string>nats://100.91.131.61:4222</string>
+    <string>${OPENCLAW_NATS}</string>
     <key>OPENCLAW_NODE_ROLE</key>
-    <string>lead</string>
+    <string>${OPENCLAW_NODE_ROLE}</string>
     <key>OPENCLAW_REPO_DIR</key>
-    <string>/Users/moltymac/openclaw-node</string>
+    <string>${OPENCLAW_REPO_DIR}</string>
   </dict>
   <key>KeepAlive</key>
   <true/>
   <key>RunAtLoad</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/Users/moltymac/.openclaw/workspace/.tmp/mesh-deploy-listener.log</string>
+  <string>${OPENCLAW_WORKSPACE}/.tmp/mesh-deploy-listener.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/moltymac/.openclaw/workspace/.tmp/mesh-deploy-listener.err</string>
+  <string>${OPENCLAW_WORKSPACE}/.tmp/mesh-deploy-listener.err</string>
 </dict>
 </plist>

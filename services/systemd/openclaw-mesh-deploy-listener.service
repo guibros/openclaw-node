@@ -1,0 +1,23 @@
+[Unit]
+Description=OpenClaw Mesh Deploy Listener — listens for deploy commands and executes updates
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NODE_BIN} ${HOME}/openclaw/bin/mesh-deploy-listener.js
+Restart=always
+RestartSec=5
+Environment=HOME=${HOME}
+Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
+Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
+Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=OPENCLAW_NODE_ROLE=${OPENCLAW_NODE_ROLE}
+Environment=OPENCLAW_REPO_DIR=${HOME}/openclaw-node
+Environment=TZ=America/Montreal
+WorkingDirectory=${HOME}/openclaw
+StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-deploy-listener.log
+StandardError=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-deploy-listener.err
+
+[Install]
+WantedBy=default.target

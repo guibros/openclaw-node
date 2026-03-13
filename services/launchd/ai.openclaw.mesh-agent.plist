@@ -8,29 +8,29 @@
     <string>OpenClaw Mesh Agent Worker — claims and executes tasks via Claude Code CLI. NOT auto-loaded — load manually with: launchctl load ~/Library/LaunchAgents/ai.openclaw.mesh-agent.plist</string>
     <key>ProgramArguments</key>
     <array>
-      <string>/Users/moltymac/.openclaw/bin/node</string>
-      <string>/Users/moltymac/openclaw/bin/mesh-agent.js</string>
+      <string>${NODE_BIN}</string>
+      <string>${HOME}/openclaw/bin/mesh-agent.js</string>
     </array>
     <key>KeepAlive</key>
     <false/>
     <key>RunAtLoad</key>
     <false/>
     <key>StandardOutPath</key>
-    <string>/Users/moltymac/.openclaw/workspace/.tmp/mesh-agent.log</string>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/mesh-agent.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/moltymac/.openclaw/workspace/.tmp/mesh-agent.err</string>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/mesh-agent.err</string>
     <key>EnvironmentVariables</key>
     <dict>
       <key>HOME</key>
-      <string>/Users/moltymac</string>
+      <string>${HOME}</string>
       <key>PATH</key>
-      <string>/Users/moltymac/.openclaw/workspace/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+      <string>${OPENCLAW_WORKSPACE}/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
       <key>NODE_PATH</key>
-      <string>/Users/moltymac/openclaw/node_modules:/Users/moltymac/openclaw/lib</string>
+      <string>${HOME}/openclaw/node_modules:${HOME}/openclaw/lib</string>
       <key>OPENCLAW_NATS</key>
-      <string>nats://100.91.131.61:4222</string>
+      <string>${OPENCLAW_NATS}</string>
       <key>MESH_WORKSPACE</key>
-      <string>/Users/moltymac/.openclaw/workspace</string>
+      <string>${OPENCLAW_WORKSPACE}</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>30</integer>

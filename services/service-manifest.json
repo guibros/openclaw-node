@@ -1,0 +1,13 @@
+[
+  { "name": "openclaw-mesh-task-daemon", "role": "lead", "autostart": true },
+  { "name": "openclaw-mesh-bridge", "role": "lead", "autostart": true },
+  { "name": "openclaw-mesh-agent", "role": "both", "autostart": false },
+  { "name": "openclaw-mesh-health-publisher", "role": "both", "autostart": true },
+  { "name": "openclaw-mesh-deploy-listener", "role": "both", "autostart": true },
+  { "name": "openclaw-mesh-tool-discord", "role": "lead", "autostart": true },
+  { "name": "openclaw-mission-control", "role": "lead", "autostart": true },
+  { "name": "openclaw-gateway", "role": "both", "autostart": true },
+  { "name": "openclaw-lane-watchdog", "role": "both", "autostart": true },
+  { "name": "openclaw-memory-daemon", "role": "both", "autostart": true },
+  { "name": "openclaw-log-rotate", "role": "both", "autostart": true, "timer": true }
+]

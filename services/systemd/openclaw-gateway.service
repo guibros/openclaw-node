@@ -1,0 +1,21 @@
+[Unit]
+Description=OpenClaw Gateway — HTTP/WebSocket gateway for mesh API access
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NODE_BIN} /usr/local/lib/node_modules/openclaw/dist/index.js gateway --port 18789
+Restart=always
+RestartSec=5
+Environment=HOME=${HOME}
+Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:${HOME}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
+Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
+Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=TZ=America/Montreal
+WorkingDirectory=${HOME}/openclaw
+StandardOutput=append:${HOME}/.openclaw/logs/gateway.log
+StandardError=append:${HOME}/.openclaw/logs/gateway.err
+
+[Install]
+WantedBy=default.target

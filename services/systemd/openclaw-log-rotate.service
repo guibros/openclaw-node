@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenClaw Log Rotate — compresses and rotates service logs
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash ${HOME}/openclaw/bin/log-rotate
+Environment=HOME=${HOME}
+Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=TZ=America/Montreal
+WorkingDirectory=${HOME}/openclaw
+StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-log-rotate.log
+StandardError=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-log-rotate.err

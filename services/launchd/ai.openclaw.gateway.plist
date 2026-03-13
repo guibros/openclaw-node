@@ -17,7 +17,7 @@
     <integer>63</integer>
     <key>ProgramArguments</key>
     <array>
-      <string>/Users/moltymac/.openclaw/bin/node</string>
+      <string>${NODE_BIN}</string>
       <string>/usr/local/lib/node_modules/openclaw/dist/index.js</string>
       <string>gateway</string>
       <string>--port</string>
@@ -25,13 +25,13 @@
     </array>
     
     <key>StandardOutPath</key>
-    <string>/Users/moltymac/.openclaw/logs/gateway.log</string>
+    <string>${HOME}/.openclaw/logs/gateway.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/moltymac/.openclaw/logs/gateway.err.log</string>
+    <string>${HOME}/.openclaw/logs/gateway.err.log</string>
     <key>EnvironmentVariables</key>
     <dict>
     <key>HOME</key>
-    <string>/Users/moltymac</string>
+    <string>${HOME}</string>
     <key>TMPDIR</key>
     <string>/var/folders/52/24gckfjn2vd3yyz5smhmwhx00000gn/T/</string>
     <key>NODE_EXTRA_CA_CERTS</key>
@@ -39,7 +39,7 @@
     <key>NODE_USE_SYSTEM_CA</key>
     <string>1</string>
     <key>PATH</key>
-    <string>/Users/moltymac/.bun/bin:/Users/moltymac/.local/bin:/Users/moltymac/.npm-global/bin:/Users/moltymac/bin:/Users/moltymac/.volta/bin:/Users/moltymac/.asdf/shims:/Users/moltymac/Library/Application Support/fnm/aliases/default/bin:/Users/moltymac/.fnm/aliases/default/bin:/Users/moltymac/Library/pnpm:/Users/moltymac/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/.npm-global/bin:${HOME}/bin:${HOME}/.volta/bin:${HOME}/.asdf/shims:${HOME}/Library/Application Support/fnm/aliases/default/bin:${HOME}/.fnm/aliases/default/bin:${HOME}/Library/pnpm:${HOME}/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>OPENCLAW_GATEWAY_PORT</key>
     <string>18789</string>
     <key>OPENCLAW_LAUNCHD_LABEL</key>

@@ -7,23 +7,23 @@
   <string>ai.openclaw.mesh-health-publisher</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/moltymac/.openclaw/bin/node</string>
-    <string>/Users/moltymac/openclaw/bin/mesh-health-publisher.js</string>
+    <string>${NODE_BIN}</string>
+    <string>${HOME}/openclaw/bin/mesh-health-publisher.js</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
     <key>OPENCLAW_NODE_ID</key>
-    <string>moltymacs-virtual-machine-local</string>
+    <string>${OPENCLAW_NODE_ID}</string>
     <key>OPENCLAW_NATS</key>
-    <string>nats://100.91.131.61:4222</string>
+    <string>${OPENCLAW_NATS}</string>
   </dict>
   <key>KeepAlive</key>
   <true/>
   <key>RunAtLoad</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/Users/moltymac/.openclaw/workspace/.tmp/mesh-health-publisher.log</string>
+  <string>${OPENCLAW_WORKSPACE}/.tmp/mesh-health-publisher.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/moltymac/.openclaw/workspace/.tmp/mesh-health-publisher.err</string>
+  <string>${OPENCLAW_WORKSPACE}/.tmp/mesh-health-publisher.err</string>
 </dict>
 </plist>

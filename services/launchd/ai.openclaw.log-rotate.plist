@@ -9,7 +9,7 @@
     <key>ProgramArguments</key>
     <array>
       <string>/bin/bash</string>
-      <string>/Users/moltymac/openclaw/bin/log-rotate</string>
+      <string>${HOME}/openclaw/bin/log-rotate</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -21,8 +21,8 @@
       <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/moltymac/.openclaw/logs/log-rotate.log</string>
+    <string>${HOME}/.openclaw/logs/log-rotate.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/moltymac/.openclaw/logs/log-rotate.log</string>
+    <string>${HOME}/.openclaw/logs/log-rotate.log</string>
   </dict>
 </plist>

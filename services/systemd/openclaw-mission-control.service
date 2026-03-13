@@ -1,0 +1,22 @@
+[Unit]
+Description=OpenClaw Mission Control — web dashboard for mesh monitoring and task management
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NODE_BIN} ${HOME}/.openclaw/workspace/.npm-global/bin/npm run dev
+Restart=always
+RestartSec=5
+Environment=HOME=${HOME}
+Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
+Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
+Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=NODE_ENV=development
+Environment=TZ=America/Montreal
+WorkingDirectory=${OPENCLAW_WORKSPACE}/projects/mission-control
+StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mission-control.log
+StandardError=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mission-control.err
+
+[Install]
+WantedBy=default.target

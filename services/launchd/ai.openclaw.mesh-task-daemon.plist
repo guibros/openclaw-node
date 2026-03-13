@@ -8,27 +8,27 @@
     <string>OpenClaw Mesh Task Daemon — NATS task coordinator</string>
     <key>ProgramArguments</key>
     <array>
-      <string>/Users/moltymac/.openclaw/bin/node</string>
-      <string>/Users/moltymac/openclaw/bin/mesh-task-daemon.js</string>
+      <string>${NODE_BIN}</string>
+      <string>${HOME}/openclaw/bin/mesh-task-daemon.js</string>
     </array>
     <key>KeepAlive</key>
     <true/>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/Users/moltymac/.openclaw/workspace/.tmp/mesh-task-daemon.log</string>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/mesh-task-daemon.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/moltymac/.openclaw/workspace/.tmp/mesh-task-daemon.err</string>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/mesh-task-daemon.err</string>
     <key>EnvironmentVariables</key>
     <dict>
       <key>HOME</key>
-      <string>/Users/moltymac</string>
+      <string>${HOME}</string>
       <key>PATH</key>
-      <string>/Users/moltymac/.openclaw/workspace/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+      <string>${OPENCLAW_WORKSPACE}/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
       <key>NODE_PATH</key>
-      <string>/Users/moltymac/openclaw/node_modules:/Users/moltymac/openclaw/lib</string>
+      <string>${HOME}/openclaw/node_modules:${HOME}/openclaw/lib</string>
       <key>OPENCLAW_NATS</key>
-      <string>nats://100.91.131.61:4222</string>
+      <string>${OPENCLAW_NATS}</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>10</integer>

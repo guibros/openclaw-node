@@ -1,0 +1,21 @@
+[Unit]
+Description=OpenClaw Memory Daemon — automated session-recap, daily memory, and ClawVault maintenance
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NODE_BIN} ${OPENCLAW_WORKSPACE}/bin/memory-daemon.mjs
+Restart=always
+RestartSec=5
+Environment=HOME=${HOME}
+Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
+Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
+Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=TZ=America/Montreal
+WorkingDirectory=${OPENCLAW_WORKSPACE}
+StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-memory-daemon.log
+StandardError=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-memory-daemon.err
+
+[Install]
+WantedBy=default.target

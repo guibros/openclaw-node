@@ -14,17 +14,17 @@
     <integer>5</integer>
     <key>ProgramArguments</key>
     <array>
-      <string>/Users/moltymac/.openclaw/bin/node</string>
-      <string>/Users/moltymac/openclaw/bin/lane-watchdog.js</string>
+      <string>${NODE_BIN}</string>
+      <string>${HOME}/openclaw/bin/lane-watchdog.js</string>
     </array>
     <key>StandardOutPath</key>
-    <string>/Users/moltymac/.openclaw/logs/lane-watchdog.log</string>
+    <string>${HOME}/.openclaw/logs/lane-watchdog.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/moltymac/.openclaw/logs/lane-watchdog.err.log</string>
+    <string>${HOME}/.openclaw/logs/lane-watchdog.err.log</string>
     <key>EnvironmentVariables</key>
     <dict>
       <key>HOME</key>
-      <string>/Users/moltymac</string>
+      <string>${HOME}</string>
       <key>PATH</key>
       <string>/usr/local/bin:/usr/bin:/bin</string>
     </dict>

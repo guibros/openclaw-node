@@ -1,0 +1,21 @@
+[Unit]
+Description=OpenClaw Mesh Health Publisher — publishes node health metrics to NATS
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NODE_BIN} ${HOME}/openclaw/bin/mesh-health-publisher.js
+Restart=always
+RestartSec=5
+Environment=HOME=${HOME}
+Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
+Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
+Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=TZ=America/Montreal
+WorkingDirectory=${HOME}/openclaw
+StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-health-publisher.log
+StandardError=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-health-publisher.err
+
+[Install]
+WantedBy=default.target
