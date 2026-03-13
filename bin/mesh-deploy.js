@@ -820,6 +820,11 @@ async function main() {
       return;
     }
 
+    // Validate SHA format before shell interpolation (guards against corrupted state file)
+    if (!/^[0-9a-f]{7,40}$/i.test(state.lastSha)) {
+      fail(`Invalid SHA in deploy state: ${JSON.stringify(state.lastSha).slice(0, 50)}`);
+      return;
+    }
     info(`Reverting to ${state.lastSha.slice(0, 8)}`);
     const dirty = exec('git status --porcelain', { cwd: REPO_DIR, ignoreError: true });
     if (dirty) {
