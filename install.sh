@@ -241,13 +241,23 @@ info "Directory structure ready"
 # Step 3: Copy bin/ scripts
 # ============================================================
 
-step "Step 3: Install Scripts"
+step "Step 3: Install Workspace Scripts"
 
 run rsync -av --exclude='*.bak' --exclude='*.bak.*' --exclude='routing-eval-tests.json' \
-  "$REPO_DIR/bin/" "$WORKSPACE/bin/"
+  "$REPO_DIR/workspace-bin/" "$WORKSPACE/bin/"
 run chmod +x "$WORKSPACE/bin/"*
 run chmod +x "$WORKSPACE/bin/hooks/"* 2>/dev/null || true
-info "Scripts installed to $WORKSPACE/bin/"
+info "Workspace scripts installed to $WORKSPACE/bin/"
+
+# Mesh daemons and CLI tools → ~/openclaw/bin/
+MESH_BIN="$HOME/openclaw/bin"
+MESH_LIB="$HOME/openclaw/lib"
+run mkdir -p "$MESH_BIN" "$MESH_LIB"
+run rsync -av "$REPO_DIR/bin/" "$MESH_BIN/"
+run rsync -av "$REPO_DIR/lib/" "$MESH_LIB/"
+run chmod +x "$MESH_BIN/"*.sh 2>/dev/null || true
+info "Mesh daemons installed to $MESH_BIN/ ($(ls -1 "$REPO_DIR/bin/" | wc -l | tr -d ' ') files)"
+info "Shared libraries installed to $MESH_LIB/"
 
 # ============================================================
 # Step 4: Copy Identity Files
@@ -576,7 +586,7 @@ fi
 
 step "Step 15: Lane Watchdog"
 
-WATCHDOG_SCRIPT="$WORKSPACE/bin/lane-watchdog.js"
+WATCHDOG_SCRIPT="$HOME/openclaw/bin/lane-watchdog.js"
 if [ -f "$WATCHDOG_SCRIPT" ]; then
   # Only install if the openclaw gateway is present (npm global package)
   if command -v openclaw >/dev/null 2>&1 || [ -f "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" ] || [ -f "$HOME/.config/systemd/user/openclaw-gateway.service" ]; then

@@ -29,6 +29,13 @@ export const tasks = sqliteTable("tasks", {
   isRecurring: integer("is_recurring").default(0), // 1=auto-recreate after done
   capacityClass: text("capacity_class").default("normal"), // "light" | "normal" | "heavy"
   autoPriority: integer("auto_priority").default(0), // higher = dispatched first
+  // Mesh execution fields (synced from active-tasks.md)
+  execution: text("execution"), // "mesh" = dispatched via mesh bridge; null = manual/Daedalus
+  meshTaskId: text("mesh_task_id"), // NATS KV task ID (e.g. "MESH-TEST-003")
+  meshNode: text("mesh_node"), // node that claimed the task (e.g. "calos-ubuntu")
+  metric: text("metric"), // mechanical success check (e.g. "tests pass")
+  budgetMinutes: integer("budget_minutes").default(30), // agent time budget
+  scope: text("scope"), // JSON array of allowed file paths
   showInCalendar: integer("show_in_calendar").default(0), // 1=show meta-task in calendar view
   acknowledgedAt: text("acknowledged_at"), // ISO datetime — when Daedalus acknowledged auto-dispatch
   updatedAt: text("updated_at").notNull(),

@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { WORKSPACE_ROOT } from "@/lib/config";
 
-const HOME = process.env.HOME || "/home/" + (process.env.USER || "openclaw");
+const HOME = process.env.HOME || "/Users/moltymac";
 
 const SEARCH_DIRS = [
   WORKSPACE_ROOT,

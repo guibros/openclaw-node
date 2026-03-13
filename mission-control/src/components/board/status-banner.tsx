@@ -1,7 +1,7 @@
 "use client";
 
 import { useTasks } from "@/lib/hooks";
-import { Loader2, Coffee, Zap } from "lucide-react";
+import { Loader2, Coffee, Zap, Server } from "lucide-react";
 
 const CAP_WEIGHTS: Record<string, number> = { light: 0.5, normal: 1.0, heavy: 2.0 };
 const MAX_CAP = 2.0;
@@ -64,26 +64,50 @@ export function StatusBanner() {
         </div>
       )}
 
-      {regularActive.map((task) => (
-        <div
-          key={task.id}
-          className="flex items-center gap-3 rounded-lg border border-blue-500/30 bg-blue-500/5 px-4 py-3"
-        >
-          <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">
-              {task.title}
-            </p>
-            <div className="flex items-center gap-2 mt-0.5">
-              {task.owner && (
-                <span className="text-[10px] text-blue-400/80">
-                  {task.owner}
-                </span>
-              )}
+      {regularActive.map((task) => {
+        const isMesh = task.execution === "mesh";
+        const borderColor = isMesh ? "border-cyan-500/30 bg-cyan-500/5" : "border-blue-500/30 bg-blue-500/5";
+        const accentColor = isMesh ? "text-cyan-400" : "text-blue-400";
+        return (
+          <div
+            key={task.id}
+            className={`flex items-center gap-3 rounded-lg border ${borderColor} px-4 py-3`}
+          >
+            {isMesh ? (
+              <Server className={`h-4 w-4 ${accentColor}`} />
+            ) : (
+              <Loader2 className={`h-4 w-4 ${accentColor} animate-spin`} />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">
+                {task.title}
+              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                {task.owner && (
+                  <span className={`text-[10px] ${accentColor}/80`}>
+                    {task.owner}
+                  </span>
+                )}
+                {isMesh && task.meshNode && (
+                  <span className="text-[10px] text-cyan-400/80 font-mono">
+                    on {task.meshNode}
+                  </span>
+                )}
+                {isMesh && task.budgetMinutes && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {task.budgetMinutes}m budget
+                  </span>
+                )}
+                {task.meshTaskId && (
+                  <span className="text-[10px] text-muted-foreground/60 font-mono">
+                    {task.meshTaskId}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {(usedCap > 0 || readyCount > 0) && (
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground px-1 pt-1">

@@ -24,10 +24,6 @@ import os from 'os';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 
-// ── Optional mesh bridge (NATS cross-node events) ──
-// Initialized in main(). Null if mesh not configured.
-let meshBridge = null;
-
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -590,6 +586,20 @@ async function runPhase2ThrottledWork(config) {
     }
   }
 
+  // Daily log writer — clock-aligned hourly (runs after recap so recap is fresh)
+  const dailyLogWriter = path.join(WORKSPACE, 'bin/daily-log-writer.mjs');
+  if (fs.existsSync(dailyLogWriter)) {
+    const currentHour = new Date().getHours();
+    if (currentHour !== throttle.lastDailyLogHour) {
+      throttle.lastDailyLogHour = currentHour;
+      stage1.push(
+        runSubprocess('node', [dailyLogWriter], 15000)
+          .then(() => log('  Phase 2: daily-log-writer done'))
+          .catch(e => log(`  Phase 2: daily-log-writer failed: ${e.message}`))
+      );
+    }
+  }
+
   if (stage1.length > 0) {
     await Promise.allSettled(stage1);
   }
@@ -619,20 +629,6 @@ async function handleTransitions(transitions, config) {
   for (const t of transitions) {
     log(`State: ${t.from} → ${t.to} (session: ${t.sessionId?.slice(0, 8) || '?'})`);
 
-    // ── Mesh broadcast: notify other nodes of state changes ──
-    if (meshBridge) {
-      const eventMap = {
-        [`${STATES.ENDED}-${STATES.BOOT}`]: 'session.start',
-        [`${STATES.BOOT}-${STATES.ACTIVE}`]: 'session.active',
-        [`${STATES.ACTIVE}-${STATES.IDLE}`]: 'session.idle',
-        [`${STATES.IDLE}-${STATES.ENDED}`]: 'session.end',
-        [`${STATES.ACTIVE}-${STATES.ENDED}`]: 'session.end',
-      };
-      const eventType = eventMap[`${t.from}-${t.to}`];
-      if (eventType) {
-        meshBridge.publishEvent(eventType, { sessionId: t.sessionId });
-      }
-    }
     // ACTIVE → ENDED: Quick cleanup before session switch
     if (t.from === STATES.ACTIVE && t.to === STATES.ENDED) {
       log('Session switched while active — running quick cleanup');
@@ -805,20 +801,6 @@ async function main() {
   log(`Daemon starting (pid: ${process.pid}, workspace: ${WORKSPACE})`);
   log(`Transcript sources: ${sources.map(s => s.name).join(', ')}`);
 
-  // ── Mesh bridge: broadcast session events to other nodes via NATS ──
-  try {
-    const { createMeshBridge } = await import('./mesh-bridge.mjs');
-    meshBridge = await createMeshBridge();
-    if (meshBridge) {
-      log(`Mesh bridge connected (node: ${meshBridge.nodeId})`);
-      meshBridge.publishEvent('daemon.start', { pid: process.pid });
-    } else {
-      log('Mesh bridge: standalone mode (no NATS configured)');
-    }
-  } catch (err) {
-    log(`Mesh bridge: disabled (${err.message})`);
-  }
-
   const sm = new SessionStateMachine(config);
 
   // Restore state from previous run (crash recovery)
@@ -834,8 +816,6 @@ async function main() {
     log(`Received ${signal} — shutting down`);
     running = false;
     saveDaemonState(sm);
-    meshBridge?.publishEvent('daemon.stop', { signal });
-    meshBridge?.close();
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));

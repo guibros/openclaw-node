@@ -328,6 +328,15 @@ export function getEntityRelations(entityId: number, limit = 3): Array<{
 }> {
   const raw = getRawDb();
 
+  // Row shape returned by the raw SQL join queries below
+  interface RelationRow {
+    related_entity_id: number;
+    related_entity_name: string;
+    related_entity_type: string;
+    relation_type: string;
+    confidence: number;
+  }
+
   const outgoing = raw.prepare(`
     SELECT
       me.id AS related_entity_id, me.name AS related_entity_name, me.type AS related_entity_type,
@@ -337,7 +346,7 @@ export function getEntityRelations(entityId: number, limit = 3): Array<{
     WHERE mr.source_entity_id = ? AND mr.valid_to IS NULL
     ORDER BY mr.confidence DESC
     LIMIT ?
-  `).all(entityId, limit) as any[];
+  `).all(entityId, limit) as RelationRow[];
 
   const incoming = raw.prepare(`
     SELECT
@@ -348,11 +357,20 @@ export function getEntityRelations(entityId: number, limit = 3): Array<{
     WHERE mr.target_entity_id = ? AND mr.valid_to IS NULL
     ORDER BY mr.confidence DESC
     LIMIT ?
-  `).all(entityId, limit) as any[];
+  `).all(entityId, limit) as RelationRow[];
+
+  const mapRow = (r: RelationRow, direction: "outgoing" | "incoming") => ({
+    relatedEntityId: r.related_entity_id,
+    relatedEntityName: r.related_entity_name,
+    relatedEntityType: r.related_entity_type,
+    relationType: r.relation_type,
+    confidence: r.confidence,
+    direction,
+  });
 
   return [
-    ...outgoing.map((r: any) => ({ ...r, direction: "outgoing" as const })),
-    ...incoming.map((r: any) => ({ ...r, direction: "incoming" as const })),
+    ...outgoing.map((r) => mapRow(r, "outgoing")),
+    ...incoming.map((r) => mapRow(r, "incoming")),
   ];
 }
 

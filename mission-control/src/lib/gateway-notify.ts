@@ -7,7 +7,7 @@ import { randomUUID } from "crypto";
 import { readFileSync } from "fs";
 import path from "path";
 
-const OPENCLAW_HOME = process.env.OPENCLAW_HOME || path.join(process.env.HOME || "/home/" + (process.env.USER || "openclaw"), ".openclaw");
+const OPENCLAW_HOME = process.env.OPENCLAW_HOME || path.join(process.env.HOME || "/Users/moltymac", ".openclaw");
 const CONFIG_PATH = path.join(OPENCLAW_HOME, "openclaw.json");
 
 const SESSION_KEY = "agent:main:main";

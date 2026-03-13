@@ -5,10 +5,10 @@ import { eq, desc } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const SOULS_DIR = path.join(os.homedir(), ".openclaw/souls");
 
 interface EvolutionEvent {
@@ -20,7 +20,7 @@ interface EvolutionEvent {
   proposedChange: {
     target: string;
     action: string;
-    content?: any;
+    content?: Record<string, unknown>;
   };
   reviewStatus: string;
 }
@@ -185,27 +185,29 @@ export async function PATCH(
         await fs.writeFile(targetPath, JSON.stringify(existing, null, 2));
       }
 
-      // Git commit
-      const branchName = `evolution/${eventId}`;
-      const commitMessage = `evolution(${eventId}): ${event.summary}\n\nEvent-ID: ${eventId}\nSoul-ID: ${soulId}\nReviewer: ${reviewedBy}`;
+      // Git commit — use execFile with argument arrays to prevent command injection.
+      // Sanitize all user-derived inputs: eventId, soulId, reviewedBy, event.summary
+      // could all contain shell metacharacters if crafted maliciously.
+      const safeBranch = `evolution/${eventId.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const safeTarget = event.proposedChange.target.replace(/[^a-zA-Z0-9._/-]/g, "_");
+      const commitMessage = [
+        `evolution(${eventId}): ${event.summary}`,
+        "",
+        `Event-ID: ${eventId}`,
+        `Soul-ID: ${soulId}`,
+        `Reviewer: ${reviewedBy}`,
+      ].join("\n");
+      const gitOpts = { cwd: SOULS_DIR };
 
       try {
-        await execAsync(`git checkout -b ${branchName}`, {
-          cwd: SOULS_DIR,
-        });
-        await execAsync(`git add ${soulId}/evolution/${event.proposedChange.target}`, {
-          cwd: SOULS_DIR,
-        });
-        await execAsync(`git commit -m "${commitMessage}"`, {
-          cwd: SOULS_DIR,
-        });
-        await execAsync(`git checkout main && git merge ${branchName}`, {
-          cwd: SOULS_DIR,
-        });
+        await execFileAsync("git", ["checkout", "-b", safeBranch], gitOpts);
+        await execFileAsync("git", ["add", `${soulId}/evolution/${safeTarget}`], gitOpts);
+        await execFileAsync("git", ["commit", "-m", commitMessage], gitOpts);
+        // Merge back to main (two separate commands — execFile doesn't support &&)
+        await execFileAsync("git", ["checkout", "main"], gitOpts);
+        await execFileAsync("git", ["merge", safeBranch], gitOpts);
 
-        const { stdout } = await execAsync(`git rev-parse HEAD`, {
-          cwd: SOULS_DIR,
-        });
+        const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], gitOpts);
         const commitHash = stdout.trim();
 
         // Update DB

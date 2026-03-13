@@ -191,6 +191,33 @@ function runMigrations(sqlite: Database.Database) {
   if (!colNames.includes("show_in_calendar")) {
     sqlite.exec("ALTER TABLE tasks ADD COLUMN show_in_calendar INTEGER DEFAULT 0");
   }
+  // FIX: acknowledged_at was in schema.ts but missing from migrations —
+  // existing DBs would crash on any read/write touching this column.
+  if (!colNames.includes("acknowledged_at")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN acknowledged_at TEXT");
+  }
+
+  // Mesh execution columns (synced from active-tasks.md via kanban-io)
+  if (!colNames.includes("execution")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN execution TEXT");
+  }
+  if (!colNames.includes("metric")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN metric TEXT");
+  }
+  if (!colNames.includes("budget_minutes")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN budget_minutes INTEGER DEFAULT 30");
+  }
+  if (!colNames.includes("scope")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN scope TEXT");
+  }
+
+  // Mesh node tracking — links MC tasks to NATS KV tasks and claiming nodes
+  if (!colNames.includes("mesh_task_id")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN mesh_task_id TEXT");
+  }
+  if (!colNames.includes("mesh_node")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN mesh_node TEXT");
+  }
 
   // Data migration: convert old auto_start columns to new scheduling schema
   if (colNames.includes("auto_start")) {
@@ -358,6 +385,24 @@ function runMigrations(sqlite: Database.Database) {
   if (!evolColNames.includes("source_event_id")) {
     sqlite.exec("ALTER TABLE soul_evolution_log ADD COLUMN source_event_id TEXT");
   }
+
+  // --- Token usage tracking (mesh agent cost data) ---
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS token_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT,
+      node_id TEXT,
+      model TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL,
+      output_tokens INTEGER NOT NULL,
+      cost_usd REAL NOT NULL,
+      timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_token_usage_task ON token_usage(task_id);
+    CREATE INDEX IF NOT EXISTS idx_token_usage_node ON token_usage(node_id);
+    CREATE INDEX IF NOT EXISTS idx_token_usage_ts ON token_usage(timestamp);
+  `);
 }
 
 export function getDb() {

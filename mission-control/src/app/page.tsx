@@ -6,13 +6,14 @@ import { DailyBoard } from "@/components/board/daily-board";
 import { StatusBanner } from "@/components/board/status-banner";
 import { ActivityTimeline } from "@/components/board/activity-timeline";
 import { SkillHealthCard } from "@/components/board/skill-health-card";
-import { useSchedulerTick } from "@/lib/hooks";
+import { useSchedulerTick, useMeshSSE } from "@/lib/hooks";
 import { LayoutGrid, Calendar } from "lucide-react";
 
 type ViewMode = "status" | "daily";
 
 export default function TaskBoardPage() {
   useSchedulerTick();
+  useMeshSSE(); // Subscribe to mesh events and invalidate SWR caches on state changes
   const [view, setView] = useState<ViewMode>("status");
 
   return (

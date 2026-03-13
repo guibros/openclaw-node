@@ -42,12 +42,27 @@ export async function POST(
       "events.jsonl"
     );
 
-    let sourceEvent: any = null;
+    interface EvolutionEventEntry {
+      eventId: string;
+      soulId: string;
+      category: string;
+      trigger: string;
+      summary: string;
+      proposedChange: {
+        target: string;
+        action: string;
+        content?: Record<string, unknown>;
+      };
+      reviewStatus: string;
+      scope?: { transferRule?: string };
+    }
+
+    let sourceEvent: EvolutionEventEntry | null = null;
     try {
       const content = await fs.readFile(sourceEventsPath, "utf-8");
       const lines = content.trim().split("\n").filter(Boolean);
-      const events = lines.map((line) => JSON.parse(line));
-      sourceEvent = events.find((e: any) => e.eventId === sourceEventId);
+      const events: EvolutionEventEntry[] = lines.map((line) => JSON.parse(line));
+      sourceEvent = events.find((e) => e.eventId === sourceEventId) ?? null;
     } catch {
       return NextResponse.json(
         { error: "Source events file not found" },
@@ -63,8 +78,9 @@ export async function POST(
     }
 
     // Check gene's transferRule if scope exists
-    const geneContent = sourceEvent.proposedChange?.content;
-    if (geneContent?.scope?.transferRule === "never") {
+    const geneContent = sourceEvent.proposedChange?.content as Record<string, unknown> | undefined;
+    const geneScope = geneContent?.scope as Record<string, unknown> | undefined;
+    if (geneScope?.transferRule === "never") {
       return NextResponse.json(
         { error: "This gene is marked as non-transferable (transferRule: never)" },
         { status: 403 }

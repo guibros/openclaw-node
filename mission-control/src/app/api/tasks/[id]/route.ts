@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { tasks } from "@/lib/db/schema";
+import { tasks, dependencies } from "@/lib/db/schema";
 import { statusToKanban, kanbanToStatus } from "@/lib/parsers/task-markdown";
 import { syncTasksToMarkdown } from "@/lib/sync/tasks";
 import { logActivity } from "@/lib/activity";
@@ -42,9 +42,29 @@ export async function DELETE(
       );
     }
 
-    // Delete children first
-    db.delete(tasks).where(eq(tasks.parentId, id)).run();
-    db.delete(tasks).where(eq(tasks.id, id)).run();
+    // Recursively collect all descendant IDs (handles project → phase → task)
+    const idsToDelete: string[] = [];
+    function collectDescendants(parentId: string) {
+      const children = db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.parentId, parentId))
+        .all();
+      for (const child of children) {
+        collectDescendants(child.id); // depth-first: grandchildren first
+        idsToDelete.push(child.id);
+      }
+    }
+    collectDescendants(id);
+    idsToDelete.push(id); // add the root task last
+
+    // Delete all collected tasks + their dependency edges
+    for (const delId of idsToDelete) {
+      db.delete(dependencies)
+        .where(or(eq(dependencies.sourceId, delId), eq(dependencies.targetId, delId)))
+        .run();
+      db.delete(tasks).where(eq(tasks.id, delId)).run();
+    }
 
     syncTasksToMarkdown(db);
     logActivity("task_deleted", `Deleted: ${existing.title}`, id);

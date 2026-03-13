@@ -17,6 +17,12 @@ type DrizzleDb = ReturnType<typeof import("@/lib/db")["getDb"]>;
 
 let lastKnownMtime = 0;
 let lastWriteMtime = 0; // mtime right after WE wrote the file
+let lastImportTime = 0; // when we last ran a full import
+
+// Debounce: bridge writes every 10s, memory-daemon every 3s — each changes
+// mtime and triggers a full parse+upsert of every task. 5s cooldown prevents
+// redundant re-imports during active mesh operations.
+const MIN_REIMPORT_INTERVAL_MS = 5000;
 
 /**
  * Check if active-tasks.md was modified externally (by Daedalus/user)
@@ -24,14 +30,19 @@ let lastWriteMtime = 0; // mtime right after WE wrote the file
  */
 function markdownChangedExternally(): boolean {
   if (!fs.existsSync(ACTIVE_TASKS_MD)) return false;
+
+  // Debounce: don't re-import if we just imported less than 5s ago
+  if (Date.now() - lastImportTime < MIN_REIMPORT_INTERVAL_MS) return false;
+
   const stat = fs.statSync(ACTIVE_TASKS_MD);
   const mtime = stat.mtimeMs;
 
   // If the mtime matches what we set after our last write, skip.
   // This prevents re-importing our own writes.
-  if (mtime === lastWriteMtime) return false;
+  // Use tolerance window for cross-platform filesystem compatibility.
+  if (Math.abs(mtime - lastWriteMtime) < 50) return false;
 
-  if (mtime !== lastKnownMtime) {
+  if (Math.abs(mtime - lastKnownMtime) > 50) {
     lastKnownMtime = mtime;
     return true;
   }
@@ -45,6 +56,8 @@ function markdownChangedExternally(): boolean {
  */
 export function syncTasksFromMarkdown(db: DrizzleDb): void {
   if (!fs.existsSync(ACTIVE_TASKS_MD)) return;
+
+  lastImportTime = Date.now(); // stamp BEFORE work — prevents re-entry during long imports
 
   const raw = fs.readFileSync(ACTIVE_TASKS_MD, "utf-8");
   const parsed = parseTasksMarkdown(raw);
@@ -98,6 +111,13 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
         isRecurring: task.isRecurring ? 1 : 0,
         capacityClass: task.capacityClass || "normal",
         autoPriority: task.autoPriority || 0,
+        // Mesh execution fields
+        execution: task.execution || null,
+        meshTaskId: task.meshTaskId || null,
+        meshNode: task.meshNode || null,
+        metric: task.metric || null,
+        budgetMinutes: task.budgetMinutes || 30,
+        scope: task.scope?.length ? JSON.stringify(task.scope) : null,
         updatedAt: task.updatedAt || now,
       };
 
@@ -140,6 +160,13 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
           isRecurring: task.isRecurring ? 1 : 0,
           capacityClass: task.capacityClass || "normal",
           autoPriority: task.autoPriority || 0,
+          // Mesh execution fields
+          execution: task.execution || null,
+          meshTaskId: task.meshTaskId || null,
+          meshNode: task.meshNode || null,
+          metric: task.metric || null,
+          budgetMinutes: task.budgetMinutes || 30,
+          scope: task.scope?.length ? JSON.stringify(task.scope) : null,
           updatedAt: task.updatedAt || now,
           createdAt: now,
         })
@@ -216,6 +243,13 @@ export function syncTasksToMarkdown(db: DrizzleDb): void {
       isRecurring: !!t.isRecurring,
       capacityClass: t.capacityClass || "normal",
       autoPriority: t.autoPriority || 0,
+      // Mesh execution fields — MUST be preserved on DB→markdown round-trip
+      execution: t.execution || null,
+      meshTaskId: t.meshTaskId || null,
+      meshNode: t.meshNode || null,
+      metric: t.metric || null,
+      budgetMinutes: t.budgetMinutes || 30,
+      scope: t.scope ? JSON.parse(t.scope) : [],
       updatedAt: t.updatedAt,
     }));
 

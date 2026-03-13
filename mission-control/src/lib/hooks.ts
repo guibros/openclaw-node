@@ -1,4 +1,5 @@
 import useSWR, { mutate } from "swr";
+import { useEffect, useRef } from "react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -27,6 +28,13 @@ export interface Task {
   isRecurring: number | null;
   capacityClass: string | null;
   autoPriority: number | null;
+  // Mesh execution fields
+  execution: string | null;
+  meshTaskId: string | null;
+  meshNode: string | null;
+  metric: string | null;
+  budgetMinutes: number | null;
+  scope: string | null;
   showInCalendar: number | null;
   acknowledgedAt: string | null;
   updatedAt: string;
@@ -441,6 +449,76 @@ export function useBurndown(projectId: string | null) {
     { refreshInterval: 30000 }
   );
   return { burndown: data ?? null, error, isLoading };
+}
+
+// --- Mesh SSE integration ---
+
+/**
+ * Subscribe to mesh SSE events and invalidate SWR caches on state changes.
+ * Call once at the app level (e.g., in layout or task board).
+ */
+export function useMeshSSE() {
+  const esRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    const es = new EventSource("/api/mesh/events");
+    esRef.current = es;
+
+    const invalidate = () => {
+      mutate("/api/tasks");
+      mutate("/api/mesh/nodes");
+      mutate("/api/activity");
+    };
+
+    es.addEventListener("completed", invalidate);
+    es.addEventListener("claimed", invalidate);
+    es.addEventListener("started", invalidate);
+    es.addEventListener("failed", invalidate);
+    es.addEventListener("submitted", invalidate);
+    es.addEventListener("released", invalidate);
+    es.addEventListener("cancelled", invalidate);
+
+    es.onerror = () => {
+      // EventSource auto-reconnects
+    };
+
+    return () => {
+      es.close();
+      esRef.current = null;
+    };
+  }, []);
+}
+
+// --- Token usage ---
+
+export interface TokenUsageEntry {
+  id: number;
+  task_id: string | null;
+  node_id: string | null;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  timestamp: string;
+}
+
+export interface TokenSummary {
+  totalCost: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  taskCount: number;
+  byModel: Array<{ model: string; cost: number; count: number }>;
+  byNode: Array<{ node_id: string; cost: number; count: number }>;
+  recent: TokenUsageEntry[];
+}
+
+export function useTokenUsage(period: "today" | "week" | "month" = "today") {
+  const { data, error, isLoading } = useSWR<TokenSummary>(
+    `/api/mesh/tokens?period=${period}`,
+    fetcher,
+    { refreshInterval: 30000 }
+  );
+  return { tokenData: data ?? null, error, isLoading };
 }
 
 // --- Scheduler ---

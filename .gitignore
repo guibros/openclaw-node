@@ -10,6 +10,8 @@ openclaw.env
 *.err
 tsconfig.tsbuildinfo
 mission-control/data/
+mission-control/.npm-cache/
+.turbo/
 
 # Python cache
 __pycache__/

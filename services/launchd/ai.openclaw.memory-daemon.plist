@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>ai.openclaw.memory-daemon</string>
+    <key>Comment</key>
+    <string>OpenClaw Memory Daemon v2 — Node.js long-running process</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/moltymac/.openclaw/bin/node</string>
+      <string>/Users/moltymac/.openclaw/workspace/bin/memory-daemon.mjs</string>
+    </array>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/moltymac/.openclaw/workspace/.tmp/memory-daemon.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/moltymac/.openclaw/workspace/.tmp/memory-daemon.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key>
+      <string>/Users/moltymac</string>
+      <key>PATH</key>
+      <string>/Users/moltymac/.openclaw/workspace/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+      <key>TZ</key>
+      <string>America/Montreal</string>
+      <key>OPENCLAW_WORKSPACE</key>
+      <string>/Users/moltymac/.openclaw/workspace</string>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+  </dict>
+</plist>

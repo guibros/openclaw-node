@@ -46,6 +46,7 @@ function extractEstimate(description: string | null): string | null {
 
 const STATUS_COLORS: Record<string, string> = {
   ready: "bg-orange-500/20 text-orange-400",
+  submitted: "bg-cyan-500/20 text-cyan-400",
   running: "bg-green-500/20 text-green-400",
   blocked: "bg-red-500/20 text-red-400",
   "waiting-user": "bg-yellow-500/20 text-yellow-400",
@@ -229,6 +230,11 @@ export function TaskCard({
             >
               {task.status}
             </span>
+            {task.execution === "mesh" && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">
+                MESH{task.meshNode ? ` · ${task.meshNode}` : ""}
+              </span>
+            )}
             {task.owner && (
               task.status === "running" ? (
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-2 py-0.5 bg-purple-500/20 text-purple-400">

@@ -19,6 +19,7 @@
     "drizzle-orm": "^0.45.1",
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.575.0",
+    "nats": "^2.29.3",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",

@@ -29,6 +29,13 @@ export interface ParsedTask {
   capacityClass: string;
   autoPriority: number;
   updatedAt: string;
+  // Mesh execution fields
+  execution: string | null;
+  meshTaskId: string | null;
+  meshNode: string | null;
+  metric: string | null;
+  budgetMinutes: number;
+  scope: string[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -38,6 +45,7 @@ export interface ParsedTask {
 const STATUS_TO_KANBAN: Record<string, string> = {
   queued: "backlog",
   ready: "backlog",
+  submitted: "in_progress", // dispatched to mesh, awaiting agent claim
   running: "in_progress",
   blocked: "in_progress",
   "waiting-user": "review",
@@ -82,7 +90,7 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
   const lines = liveSection.split("\n");
 
   let current: Partial<ParsedTask> | null = null;
-  let currentArrayKey: "successCriteria" | "artifacts" | null = null;
+  let currentArrayKey: "successCriteria" | "artifacts" | "scope" | null = null;
 
   function flush() {
     if (current && current.id) {
@@ -111,6 +119,12 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
         capacityClass: current.capacityClass ?? "normal",
         autoPriority: current.autoPriority ?? 0,
         updatedAt: current.updatedAt ?? "",
+        execution: current.execution ?? null,
+        meshTaskId: current.meshTaskId ?? null,
+        meshNode: current.meshNode ?? null,
+        metric: current.metric ?? null,
+        budgetMinutes: current.budgetMinutes ?? 30,
+        scope: current.scope ?? [],
       });
     }
   }
@@ -120,7 +134,7 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
     const taskIdMatch = line.match(/^- task_id:\s*(.+)$/);
     if (taskIdMatch) {
       flush();
-      current = { id: taskIdMatch[1].trim(), successCriteria: [], artifacts: [] };
+      current = { id: taskIdMatch[1].trim(), successCriteria: [], artifacts: [], scope: [] };
       currentArrayKey = null;
       continue;
     }
@@ -245,6 +259,31 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
           break;
         case "auto_start_before":
           currentArrayKey = null;
+          break;
+        // Mesh execution fields
+        case "execution":
+          current.execution = value || null;
+          currentArrayKey = null;
+          break;
+        case "mesh_task_id":
+          current.meshTaskId = value || null;
+          currentArrayKey = null;
+          break;
+        case "mesh_node":
+          current.meshNode = value || null;
+          currentArrayKey = null;
+          break;
+        case "metric":
+          current.metric = value || null;
+          currentArrayKey = null;
+          break;
+        case "budget_minutes":
+          current.budgetMinutes = parseInt(value, 10) || 30;
+          currentArrayKey = null;
+          break;
+        case "scope":
+          current.scope = [];
+          currentArrayKey = "scope";
           break;
         case "updated_at":
           current.updatedAt = value;
@@ -388,6 +427,28 @@ export function serializeTasksMarkdown(tasks: ParsedTask[]): string {
     }
     if (t.autoPriority > 0) {
       lines.push(`  auto_priority: ${t.autoPriority}`);
+    }
+    // Mesh execution fields
+    if (t.execution) {
+      lines.push(`  execution: ${t.execution}`);
+    }
+    if (t.meshTaskId) {
+      lines.push(`  mesh_task_id: ${t.meshTaskId}`);
+    }
+    if (t.meshNode) {
+      lines.push(`  mesh_node: ${t.meshNode}`);
+    }
+    if (t.metric) {
+      lines.push(`  metric: ${t.metric}`);
+    }
+    if (t.budgetMinutes && t.budgetMinutes !== 30) {
+      lines.push(`  budget_minutes: ${t.budgetMinutes}`);
+    }
+    if (t.scope && t.scope.length > 0) {
+      lines.push("  scope:");
+      for (const s of t.scope) {
+        lines.push(`    - ${s}`);
+      }
     }
     lines.push(`  updated_at: ${t.updatedAt}`);
 

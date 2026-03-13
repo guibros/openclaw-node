@@ -75,7 +75,11 @@ export async function POST(
     }
 
     // 3. Learned genes (evolution/genes.json)
-    let capabilities: { tools: string[]; permissions?: any } = { tools: [] };
+    interface SoulPermissions {
+      memory?: Record<string, boolean | string>;
+      restrictedActions?: string[];
+    }
+    let capabilities: { tools: string[]; permissions?: SoulPermissions } = { tools: [] };
     try {
       const genesRaw = await fs.readFile(
         path.join(soulDir, "evolution", "genes.json"),
