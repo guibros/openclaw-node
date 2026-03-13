@@ -17,12 +17,16 @@
     "memory": {
       "shared": "read",
       "private": ["lore-writer"],
-      "handoffs": "read"
+      "handoffs": "readwrite"
     },
     "restrictedActions": [
       "git push",
       "deployment commands",
-      "contract modifications"
+      "contract modifications",
+      "write to SOUL.md",
+      "write to PRINCIPLES.md",
+      "write to AGENTS.md",
+      "write to MEMORY.md"
     ]
   },
   "evolutionConfig": {

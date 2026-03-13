@@ -15,7 +15,7 @@
     "memory": {
       "shared": "read",
       "private": ["qa-evidence"],
-      "handoffs": "read"
+      "handoffs": "readwrite"
     },
     "restrictedActions": [
       "git push",
