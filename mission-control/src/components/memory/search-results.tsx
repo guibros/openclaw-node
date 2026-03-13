@@ -106,7 +106,7 @@ export function SearchResults({
                 </div>
                 <p
                   className="mt-1.5 text-xs text-muted-foreground line-clamp-2 [&_mark]:bg-yellow-500/30 [&_mark]:text-foreground [&_mark]:rounded-sm [&_mark]:px-0.5"
-                  dangerouslySetInnerHTML={{ __html: result.excerpt }}
+                  dangerouslySetInnerHTML={{ __html: result.excerpt.replace(/<(?!\/?mark\b)[^>]*>/gi, "") }}
                 />
               </div>
             </div>

@@ -75,7 +75,7 @@ export function ObsidianGraph({
       if (hasLinks && !isSelected) {
         ctx.beginPath();
         ctx.arc(node.x, node.y, size + 2, 0, 2 * Math.PI);
-        ctx.fillStyle = color.replace(")", ", 0.15)").replace("rgb", "rgba");
+        ctx.fillStyle = color + "26"; // 26 hex = 15% opacity (works with hex color strings)
         ctx.fill();
       }
 
