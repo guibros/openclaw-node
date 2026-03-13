@@ -237,8 +237,9 @@ info "Node role: $NODE_ROLE"
 export OPENCLAW_NODE_ID="${OPENCLAW_NODE_ID:-$(hostname -s | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-')}"
 info "Node ID: $OPENCLAW_NODE_ID"
 
-# ── Resolve NATS URL (for service templates) ──
+# ── Resolve NATS URL + auth (for service templates) ──
 export OPENCLAW_NATS="${OPENCLAW_NATS:-nats://127.0.0.1:4222}"
+export OPENCLAW_NATS_TOKEN="${OPENCLAW_NATS_TOKEN:-}"
 
 # ── Resolve paths for service templates ──
 export OPENCLAW_WORKSPACE="$WORKSPACE"
@@ -505,6 +506,7 @@ DB_PATH=$MC_DIR/data/mission-control.db
 
 # NATS (mesh connectivity — resolved from openclaw.env if not set here)
 OPENCLAW_NATS=${OPENCLAW_NATS:-}
+OPENCLAW_NATS_TOKEN=${OPENCLAW_NATS_TOKEN:-}
 
 # TTS (optional — falls back to Edge TTS if missing)
 GEMINI_API_KEY=${GOOGLE_API_KEY:-}
@@ -681,6 +683,7 @@ else
           -e "s|\${NODE_BIN}|$NODE_BIN|g" \
           -e "s|\${OPENCLAW_WORKSPACE}|$OPENCLAW_WORKSPACE|g" \
           -e "s|\${OPENCLAW_NATS}|$OPENCLAW_NATS|g" \
+          -e "s|\${OPENCLAW_NATS_TOKEN}|$OPENCLAW_NATS_TOKEN|g" \
           -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
           -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
           -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
