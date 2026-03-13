@@ -70,6 +70,21 @@ function main() {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 
+  // Guard: verify MC runtime migrations have run
+  const cols = db.prepare("PRAGMA table_info(tasks)").all().map(c => c.name);
+  const required = ["type", "parent_id", "project", "start_date", "end_date", "color", "description", "needs_approval"];
+  const missing = required.filter(c => !cols.includes(c));
+  if (missing.length > 0) {
+    console.error(`DB schema missing columns: ${missing.join(", ")}`);
+    console.error("Start Mission Control first (npm run dev) to run migrations, then re-run this script.");
+    process.exit(1);
+  }
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='dependencies'").get();
+  if (!tables) {
+    console.error("DB missing 'dependencies' table. Start Mission Control first to run migrations.");
+    process.exit(1);
+  }
+
   // Wrap everything in a transaction
   const importAll = db.transaction(() => {
     // 1. Clean existing ARCANE pipeline entries (safe re-run)

@@ -253,6 +253,9 @@ function runMigrations(sqlite: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_deps_target ON dependencies(target_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_trigger_kind ON tasks(trigger_kind);
     CREATE INDEX IF NOT EXISTS idx_tasks_needs_approval ON tasks(needs_approval);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project);
+    CREATE INDEX IF NOT EXISTS idx_tasks_kanban_column ON tasks(kanban_column);
   `);
 
   // Memory items table (extracted atomic facts)

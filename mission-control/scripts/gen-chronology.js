@@ -2,8 +2,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = path.join(__dirname, '..', 'Users', 'moltymac', '.openclaw', 'workspace', 'projects', 'mission-control', 'data', 'mission-control.db');
-const db = new Database('/Users/moltymac/.openclaw/workspace/projects/mission-control/data/mission-control.db');
+const DB_PATH = path.join(__dirname, '..', 'data', 'mission-control.db');
+const db = new Database(DB_PATH);
 
 const rows = db.prepare(`
   SELECT id, title, type, scheduled_date, start_date, end_date, status, description, parent_id
@@ -96,7 +96,7 @@ lines.push('---');
 lines.push(`**Total: ${taskNum} tasks across ${sortedDates.length} days**`);
 
 const output = lines.join('\n');
-const outPath = '/Users/moltymac/.openclaw/workspace/projects/arcane/ARCANE_RAPTURE_TASK_CHRONOLOGY.md';
+const outPath = path.join(__dirname, '..', '..', 'arcane', 'ARCANE_RAPTURE_TASK_CHRONOLOGY.md');
 fs.writeFileSync(outPath, output);
 console.log(`Written to ${outPath}`);
 console.log(`${taskNum} tasks, ${sortedDates.length} dates`);
