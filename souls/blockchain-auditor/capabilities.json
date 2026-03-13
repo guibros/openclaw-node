@@ -17,7 +17,7 @@
     "memory": {
       "shared": "read",
       "private": ["blockchain-auditor"],
-      "handoffs": "read"
+      "handoffs": "readwrite"
     },
     "restrictedActions": [
       "git push",
