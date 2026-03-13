@@ -501,7 +501,10 @@ if [ ! -f "$MC_DIR/.env.local" ]; then
 # Mission Control Environment
 WORKSPACE_ROOT=$WORKSPACE
 OPENCLAW_HOME=$OPENCLAW_ROOT
-DB_PATH=./data/mission-control.db
+DB_PATH=$MC_DIR/data/mission-control.db
+
+# NATS (mesh connectivity — resolved from openclaw.env if not set here)
+OPENCLAW_NATS=${OPENCLAW_NATS:-}
 
 # TTS (optional — falls back to Edge TTS if missing)
 GEMINI_API_KEY=${GOOGLE_API_KEY:-}

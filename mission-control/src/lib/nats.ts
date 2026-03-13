@@ -18,7 +18,7 @@ const g = globalThis as unknown as NatsGlobals;
 const sc = StringCodec();
 
 const CONNECT_TIMEOUT_MS = 10_000;
-const NATS_FALLBACK = "nats://100.91.131.61:4222";
+const NATS_FALLBACK = "nats://127.0.0.1:4222";
 
 /**
  * Resolve NATS URL using the same 3-step chain as mesh.js and agent.js:

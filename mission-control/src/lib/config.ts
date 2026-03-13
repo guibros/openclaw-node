@@ -5,7 +5,7 @@ export const WORKSPACE_ROOT =
 
 export const DB_PATH =
   process.env.DB_PATH ||
-  path.join(process.cwd(), "data", "mission-control.db");
+  path.join(WORKSPACE_ROOT, "projects", "mission-control", "data", "mission-control.db");
 
 export const MEMORY_DIR = path.join(WORKSPACE_ROOT, "memory");
 export const MEMORY_MD = path.join(WORKSPACE_ROOT, "MEMORY.md");
