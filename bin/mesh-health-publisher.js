@@ -18,6 +18,7 @@
 const { connect, StringCodec } = require("nats");
 const { execSync } = require("child_process");
 const os = require("os");
+const path = require("path");
 
 // ── Config ───────────────────────────────────────────────────────────────
 
@@ -27,8 +28,20 @@ const PUBLISH_INTERVAL_MS = 15_000; // 15 seconds
 const HEALTH_BUCKET = "MESH_NODE_HEALTH";
 const KV_TTL_MS = 120_000; // entries expire after 2 minutes if node dies
 
+const REPO_DIR = process.env.OPENCLAW_REPO_DIR ||
+  path.join(os.homedir(), 'openclaw-node');
+
 const sc = StringCodec();
 const IS_MAC = os.platform() === "darwin";
+
+// Components this node runs, by role (matches deploy manifest).
+const ROLE_COMPONENTS = {
+  lead: ['mesh-daemons', 'mesh-cli', 'shared-lib', 'mc', 'memory-daemon',
+         'memory-harness', 'souls', 'skills', 'boot', 'workspace-docs',
+         'gateway', 'companion-bridge', 'service-defs'],
+  worker: ['mesh-daemons', 'mesh-cli', 'shared-lib', 'souls', 'skills',
+           'workspace-docs', 'service-defs'],
+};
 
 // ── Health Gathering ─────────────────────────────────────────────────────
 // All the expensive execSync calls happen here, on our own schedule.
@@ -75,6 +88,7 @@ function getServices() {
       "ai.openclaw.memory-daemon",
       "ai.openclaw.mission-control",
       "ai.openclaw.mesh-health-publisher",
+      "ai.openclaw.mesh-deploy-listener",
     ];
     for (const name of serviceNames) {
       const raw = execSafe(`launchctl list ${name} 2>/dev/null`);
@@ -104,6 +118,7 @@ function getServices() {
     const userServices = [
       "openclaw-gateway",
       "openclaw-mesh-health-publisher",
+      "openclaw-mesh-deploy-listener",
     ];
     for (const name of systemServices) {
       const raw = execSafe(`systemctl is-active ${name} 2>/dev/null`);
@@ -152,17 +167,30 @@ function getAgentStatus() {
   return status;
 }
 
+function getDeployVersion() {
+  try {
+    return execSync('git rev-parse --short HEAD', {
+      cwd: REPO_DIR, encoding: 'utf-8', timeout: 5000,
+    }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
 function gatherHealth() {
   // Gather services once — used for both role detection and health report
   const services = getServices();
   const hasDaemon = services.some(
     (s) => s.name === "mesh-task-daemon" && s.status === "active"
   );
+  const role = hasDaemon ? "lead" : "worker";
 
   return {
     nodeId: NODE_ID,
     platform: os.platform(),
-    role: hasDaemon ? "lead" : "worker",
+    role,
+    deployVersion: getDeployVersion(),
+    components: ROLE_COMPONENTS[role] || ROLE_COMPONENTS.worker,
     tailscaleIp: getTailscaleIp(),
     diskPercent: getDiskPercent(),
     mem: getMemory(),
