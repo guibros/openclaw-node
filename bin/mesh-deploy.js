@@ -32,7 +32,7 @@
  *
  * ENVIRONMENT:
  *   OPENCLAW_DEPLOY_BRANCH   — git branch (default: main)
- *   OPENCLAW_REPO_DIR        — repo location (default: ~/openclaw-node)
+ *   OPENCLAW_REPO_DIR        — repo location (default: ~/openclaw)
  *   OPENCLAW_NATS            — NATS server URL (from env or openclaw.env)
  */
 
@@ -47,7 +47,7 @@ const crypto = require('crypto');
 const IS_MAC = os.platform() === 'darwin';
 const HOME = os.homedir();
 const DEPLOY_BRANCH = process.env.OPENCLAW_DEPLOY_BRANCH || 'main';
-const REPO_DIR = process.env.OPENCLAW_REPO_DIR || path.join(HOME, 'openclaw-node');
+const REPO_DIR = process.env.OPENCLAW_REPO_DIR || path.join(HOME, 'openclaw');
 
 // Standard directory layout
 const DIRS = {
@@ -884,7 +884,7 @@ async function main() {
 
     if (!fs.existsSync(REPO_DIR)) {
       fail(`Repo not found at ${REPO_DIR}`);
-      console.log(`  Clone it: git clone https://github.com/moltyguibros-design/openclaw-node.git ${REPO_DIR}`);
+      console.log(`  Clone it: git clone https://github.com/moltyguibros-design/openclaw-node.git "${REPO_DIR}"`);
       process.exit(1);
     }
 

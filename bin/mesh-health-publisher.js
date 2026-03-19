@@ -29,7 +29,7 @@ const HEALTH_BUCKET = "MESH_NODE_HEALTH";
 const KV_TTL_MS = 120_000; // entries expire after 2 minutes if node dies
 
 const REPO_DIR = process.env.OPENCLAW_REPO_DIR ||
-  path.join(os.homedir(), 'openclaw-node');
+  path.join(os.homedir(), 'openclaw');
 
 const sc = StringCodec();
 const IS_MAC = os.platform() === "darwin";

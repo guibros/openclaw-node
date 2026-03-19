@@ -23,7 +23,7 @@ const os = require('os');
 
 const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const sc = StringCodec();
-const REPO_DIR = process.env.OPENCLAW_REPO_DIR || path.join(os.homedir(), 'openclaw-node');
+const REPO_DIR = process.env.OPENCLAW_REPO_DIR || path.join(os.homedir(), 'openclaw');
 const NODE_ID = process.env.OPENCLAW_NODE_ID ||
   os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 

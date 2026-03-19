@@ -598,11 +598,7 @@ async function cmdRepair(args) {
  */
 async function cmdDeploy(args) {
   const { execSync } = require('child_process');
-  // Prefer openclaw-node (git repo) over openclaw (runtime)
-  const defaultRepo = fs.existsSync(path.join(os.homedir(), 'openclaw-node', '.git'))
-    ? path.join(os.homedir(), 'openclaw-node')
-    : path.join(os.homedir(), 'openclaw');
-  const repoDir = process.env.OPENCLAW_REPO_DIR || defaultRepo;
+  const repoDir = process.env.OPENCLAW_REPO_DIR || path.join(os.homedir(), 'openclaw');
   const force = args.includes('--force');
 
   // Parse --component flags

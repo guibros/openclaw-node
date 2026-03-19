@@ -26,7 +26,7 @@ const os = require('os');
 const NODE_ID = process.env.OPENCLAW_NODE_ID ||
   os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const REPO_DIR = process.env.OPENCLAW_REPO_DIR ||
-  path.join(os.homedir(), 'openclaw-node');
+  path.join(os.homedir(), 'openclaw');
 const DEPLOY_SCRIPT = path.join(REPO_DIR, 'bin', 'mesh-deploy.js');
 
 const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
