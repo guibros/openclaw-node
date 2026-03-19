@@ -696,6 +696,9 @@ else
       if command -v envsubst >/dev/null 2>&1; then
         envsubst < "$TEMPLATE" > "$DEST"
       else
+        # NOTE: sed delimiter is |. If OPENCLAW_NATS_TOKEN ever contains |
+        # (unlikely — tokens are hex/base64), this substitution will break.
+        # Prefer envsubst (above) when available; it has no delimiter issue.
         sed \
           -e "s|\${HOME}|$HOME|g" \
           -e "s|\${NODE_BIN}|$NODE_BIN|g" \
