@@ -3,15 +3,21 @@
 /**
  * mesh-agent.js — Mesh worker agent for OpenClaw.
  *
- * Option A architecture: external wrapper around Claude Code CLI.
+ * LLM-agnostic architecture: external wrapper around any LLM CLI.
  * The outer loop is mechanical Node.js code. The inner loop is the LLM.
  * The LLM has no awareness of the mesh — it gets a clean task prompt.
+ *
+ * Supported LLM backends (via lib/llm-providers.js):
+ *   claude  — Anthropic Claude Code CLI
+ *   openai  — OpenAI Codex/GPT CLI
+ *   shell   — Raw shell execution (no LLM)
+ *   (custom providers can be registered at runtime)
  *
  * Flow:
  *   1. Connect to NATS
  *   2. Claim next available task from mesh-task-daemon
  *   3. Construct prompt from task schema
- *   4. Run `claude -p` (non-interactive)
+ *   4. Run LLM CLI (non-interactive)
  *   5. Evaluate metric (if defined)
  *   6. If metric fails → log attempt, retry with failure context
  *   7. If metric passes or no metric → report completion
@@ -22,10 +28,11 @@
  * The outer loop is deterministic. The LLM owns the problem-solving.
  *
  * Usage:
- *   node mesh-agent.js                    # run worker
- *   node mesh-agent.js --once             # claim one task, execute, exit
- *   node mesh-agent.js --model sonnet     # override model
- *   node mesh-agent.js --dry-run          # claim + build prompt, don't execute
+ *   node mesh-agent.js                        # run worker (default provider)
+ *   node mesh-agent.js --once                 # claim one task, execute, exit
+ *   node mesh-agent.js --model sonnet         # override model
+ *   node mesh-agent.js --provider openai      # use OpenAI backend
+ *   node mesh-agent.js --dry-run              # claim + build prompt, don't execute
  */
 
 const { connect, StringCodec } = require('nats');
@@ -36,12 +43,12 @@ const fs = require('fs');
 const { getActivityState, getSessionInfo } = require('../lib/agent-activity');
 
 const sc = StringCodec();
-const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
+const { NATS_URL } = require('../lib/nats-resolve');
+const { resolveProvider, resolveModel } = require('../lib/llm-providers');
 const NODE_ID = process.env.MESH_NODE_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const POLL_INTERVAL = parseInt(process.env.MESH_POLL_INTERVAL || '15000'); // 15s between polls
 const MAX_ATTEMPTS = parseInt(process.env.MESH_MAX_ATTEMPTS || '3');
 const HEARTBEAT_INTERVAL = parseInt(process.env.MESH_HEARTBEAT_INTERVAL || '60000'); // 60s heartbeat
-const CLAUDE_PATH = process.env.CLAUDE_PATH || '/usr/local/bin/claude';
 const WORKSPACE = process.env.MESH_WORKSPACE || path.join(process.env.HOME, '.openclaw', 'workspace');
 
 // ── CLI args ──────────────────────────────────────────
@@ -49,10 +56,15 @@ const WORKSPACE = process.env.MESH_WORKSPACE || path.join(process.env.HOME, '.op
 const args = process.argv.slice(2);
 const ONCE = args.includes('--once');
 const DRY_RUN = args.includes('--dry-run');
-const MODEL = (() => {
+const CLI_MODEL = (() => {
   const idx = args.indexOf('--model');
-  return idx >= 0 && args[idx + 1] ? args[idx + 1] : 'sonnet';
+  return idx >= 0 && args[idx + 1] ? args[idx + 1] : null;
 })();
+const CLI_PROVIDER = (() => {
+  const idx = args.indexOf('--provider');
+  return idx >= 0 && args[idx + 1] ? args[idx + 1] : null;
+})();
+const ENV_PROVIDER = process.env.MESH_LLM_PROVIDER || null;
 
 let nc;
 let running = true;
@@ -61,12 +73,12 @@ let currentTaskId = null; // tracks active task for alive-check responses
 // ── Agent State File (read by mesh-health-publisher) ──
 const AGENT_STATE_PATH = path.join(os.homedir(), '.openclaw', '.tmp', 'agent-state.json');
 
-function writeAgentState(status, taskId) {
+function writeAgentState(status, taskId, provider, model) {
   try {
     fs.writeFileSync(AGENT_STATE_PATH, JSON.stringify({
       status, taskId: taskId || null,
-      llm: status === 'working' ? 'claude' : null,
-      model: status === 'working' ? MODEL : null,
+      llm: status === 'working' ? (provider || 'unknown') : null,
+      model: status === 'working' ? (model || null) : null,
     }));
   } catch { /* best-effort */ }
 }
@@ -272,13 +284,9 @@ function commitAndMergeWorktree(worktreePath, taskId, summary) {
     // Stage and commit all changes
     execSync('git add -A', { cwd: worktreePath, timeout: 10000, stdio: 'pipe' });
     const commitMsg = `mesh(${taskId}): ${(summary || 'task completed').slice(0, 72)}`;
-    const { spawnSync } = require('child_process');
-    const commitResult = spawnSync('git', ['commit', '-m', commitMsg], {
+    execSync(`git commit -m "${commitMsg.replace(/"/g, '\\"')}"`, {
       cwd: worktreePath, timeout: 10000, stdio: 'pipe',
     });
-    if (commitResult.status !== 0) {
-      throw new Error(`git commit failed: ${commitResult.stderr?.toString() || 'unknown error'}`);
-    }
 
     const sha = execSync('git rev-parse --short HEAD', {
       cwd: worktreePath, timeout: 5000, encoding: 'utf-8',
@@ -335,94 +343,52 @@ function cleanupWorktree(worktreePath, keep = false) {
   }
 }
 
-// ── Claude Execution ──────────────────────────────────
+// ── LLM Execution ────────────────────────────────────
 
 /**
- * Run Claude Code CLI with a prompt. Returns { exitCode, stdout, stderr, cwd }.
+ * Run an LLM CLI with a prompt. Returns { exitCode, stdout, stderr, provider, model }.
+ * LLM-agnostic: provider is resolved per-task from task.llm_provider, env, or CLI flag.
  * Sends heartbeats to the daemon every HEARTBEAT_INTERVAL to prevent stall detection.
  *
  * @param {string} prompt
  * @param {object} task
- * @param {string|null} worktreePath - If set, Claude accesses this worktree instead of WORKSPACE
+ * @param {string|null} worktreePath - If set, LLM accesses this worktree instead of WORKSPACE
  */
-function runClaude(prompt, task, worktreePath) {
+function runLLM(prompt, task, worktreePath) {
   return new Promise((resolve) => {
-    const args = [
-      '-p', prompt,
-      '--output-format', 'text',
-      '--model', MODEL,
-      '--permission-mode', 'bypassPermissions',
-      // SECURITY NOTE: bypassPermissions is intentional for mesh agents.
-      // Tasks run in isolated worktrees with no interactive terminal.
-      // The agent needs autonomous execution without permission prompts.
-      // Safety is enforced at the mesh level: budget limits, scope restrictions,
-      // and human review of all results before merge to main.
-      // Note: --no-session-persistence removed to enable JSONL activity tracking
-      // Claude writes session files to ~/.claude/projects/{encoded-cwd}/
-      // which agent-activity.js reads for cost, summary, and activity state
-    ];
+    const provider = resolveProvider(task, CLI_PROVIDER, ENV_PROVIDER);
+    const model = resolveModel(task, CLI_MODEL, provider);
 
-    // Use worktree if available, otherwise fall back to workspace
     const targetDir = worktreePath || WORKSPACE;
-    args.push('--add-dir', targetDir);
+    const llmArgs = provider.buildArgs(prompt, model, task, targetDir, WORKSPACE);
 
-    // When using a worktree, also give read access to the workspace
-    // (scope files may be untracked and absent from worktree)
-    if (worktreePath) {
-      args.push('--add-dir', WORKSPACE);
-    }
+    log(`Spawning [${provider.name}]: ${provider.binary} ${llmArgs.slice(0, 6).join(' ')} ... (target: ${worktreePath ? 'worktree' : 'workspace'})`);
 
-    // Add scope directories if specified (with path traversal validation)
-    if (task.scope.length > 0) {
-      const addedDirs = new Set([targetDir, WORKSPACE]);
-      for (const s of task.scope) {
-        // Resolve against both workspace and worktree
-        for (const base of [targetDir, WORKSPACE]) {
-          const resolved = path.resolve(base, s);
-          const resolvedDir = path.dirname(resolved);
-          if (!resolved.startsWith(base) && !resolved.startsWith('/tmp/')) continue;
-          if (addedDirs.has(resolvedDir)) continue;
-          addedDirs.add(resolvedDir);
-          args.push('--add-dir', resolvedDir);
-        }
-      }
-    }
-
-    log(`Spawning: claude ${args.slice(0, 6).join(' ')} ... (target: ${worktreePath ? 'worktree' : 'workspace'})`);
-
-    // Use a clean temp directory as cwd to avoid loading workspace CLAUDE.md
-    // (which triggers the full Daedalus boot sequence and eats the entire budget)
+    // Use a clean temp directory as cwd to avoid loading workspace config files
     const cleanCwd = path.join(os.tmpdir(), 'mesh-agent-work');
     if (!fs.existsSync(cleanCwd)) fs.mkdirSync(cleanCwd, { recursive: true });
 
-    // Strip CLAUDECODE env var to allow nested sessions
-    const cleanEnv = { ...process.env };
-    delete cleanEnv.CLAUDECODE;
+    const cleanEnv = provider.cleanEnv(process.env);
 
-    const child = spawn(CLAUDE_PATH, args, {
+    const child = spawn(provider.binary, llmArgs, {
       cwd: cleanCwd,
       env: cleanEnv,
-      stdio: ['ignore', 'pipe', 'pipe'],  // stdin must be 'ignore' — 'pipe' causes Claude to block
+      stdio: ['ignore', 'pipe', 'pipe'],  // stdin must be 'ignore' — some CLIs block on piped stdin
       timeout: (task.budget_minutes || 30) * 60 * 1000, // kill if exceeds budget
     });
 
-    // Heartbeat: signal daemon with JSONL-enriched activity state
+    // Heartbeat: signal daemon with activity state
     const heartbeatTimer = setInterval(async () => {
       try {
-        // Read Claude's JSONL session file for real activity state (zero token cost)
-        // KNOWN LIMITATION: If Claude transitions working→ready→working within one
-        // heartbeat interval (60s), the ready state is missed. Acceptable for V1
-        // (used for visibility only, not triggering reactions). Revisit if reactions
-        // depend on seeing transient states.
         const activity = await getActivityState(cleanCwd);
         const payload = { task_id: task.task_id };
         if (activity) {
-          payload.activity_state = activity.state; // starting|active|ready|idle|waiting_input|blocked
+          payload.activity_state = activity.state;
           payload.activity_timestamp = activity.timestamp?.toISOString();
         }
         await natsRequest('mesh.tasks.heartbeat', payload);
       } catch {
-        // fire-and-forget, don't crash on NATS hiccup or JSONL read failure
+        // fire-and-forget
       }
     }, HEARTBEAT_INTERVAL);
 
@@ -434,12 +400,12 @@ function runClaude(prompt, task, worktreePath) {
 
     child.on('close', (code) => {
       clearInterval(heartbeatTimer);
-      resolve({ exitCode: code, stdout, stderr });
+      resolve({ exitCode: code, stdout, stderr, provider: provider.name, model });
     });
 
     child.on('error', (err) => {
       clearInterval(heartbeatTimer);
-      resolve({ exitCode: 1, stdout: '', stderr: err.message });
+      resolve({ exitCode: 1, stdout: '', stderr: err.message, provider: provider.name, model });
     });
   });
 }
@@ -470,6 +436,338 @@ function evaluateMetric(metric, cwd) {
       resolve({ passed: false, output: err.message });
     });
   });
+}
+
+// ── Collab Prompt Construction ────────────────────────
+
+/**
+ * Build a prompt for a collaborative round.
+ * Includes: task description, round number, shared intel from previous round, scope.
+ */
+function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole) {
+  const parts = [];
+
+  parts.push(`# Task: ${task.title} (Collaborative Round ${roundNumber})`);
+  parts.push('');
+  parts.push(`You are working on this task as part of a **${task.collaboration.mode}** collaboration with other nodes.`);
+  parts.push(`Your role: **${myRole}**`);
+  parts.push('');
+
+  if (task.description) {
+    parts.push(task.description);
+    parts.push('');
+  }
+
+  if (roundNumber > 1 && sharedIntel) {
+    parts.push('## Shared Intelligence from Previous Round');
+    parts.push('Other nodes shared the following reflections. Use this to inform your work:');
+    parts.push('');
+    parts.push(sharedIntel);
+    parts.push('');
+  }
+
+  if (myScope && myScope !== '*' && Array.isArray(myScope) && myScope[0] !== '*') {
+    const isReviewOnly = Array.isArray(myScope) && myScope.some(s => typeof s === 'string' && s.startsWith('[REVIEW-ONLY]'));
+    if (isReviewOnly) {
+      parts.push('## Your Scope (REVIEW ONLY)');
+      parts.push('You are a **reviewer**. Read and analyze these files but do NOT modify them:');
+      for (const s of myScope) {
+        parts.push(`- ${s.replace('[REVIEW-ONLY] ', '')}`);
+      }
+      parts.push('');
+      parts.push('Your job is to review the leader\'s changes, identify issues, and report findings in your reflection.');
+      parts.push('Do NOT write or edit any files. Focus on code review, correctness, and security analysis.');
+      parts.push('');
+    } else {
+      parts.push('## Your Scope');
+      parts.push('Only modify these files/paths:');
+      for (const s of myScope) {
+        parts.push(`- ${s}`);
+      }
+      parts.push('');
+    }
+  }
+
+  if (task.success_criteria && task.success_criteria.length > 0) {
+    parts.push('## Success Criteria');
+    for (const c of task.success_criteria) {
+      parts.push(`- ${c}`);
+    }
+    parts.push('');
+  }
+
+  parts.push('## Instructions');
+  parts.push('- Read the relevant files before making changes.');
+  parts.push('- Make minimal, focused changes within your scope.');
+  parts.push('- Focus on YOUR contribution — other nodes handle their parts.');
+  if (roundNumber > 1) {
+    parts.push('- Incorporate learnings from the shared intelligence above.');
+  }
+  parts.push('');
+
+  parts.push('## After You Finish');
+  parts.push('At the very end of your response, output ONLY a JSON reflection block.');
+  parts.push('This block MUST be the last thing in your output, wrapped in triple backticks with `json` language tag.');
+  parts.push('Do NOT add any text after this block.');
+  parts.push('');
+  parts.push('```json');
+  parts.push('{');
+  parts.push('  "reflection": {');
+  parts.push('    "summary": "1-2 sentences: what you did this round",');
+  parts.push('    "learnings": "what you discovered that other nodes should know",');
+  parts.push('    "confidence": 0.85,');
+  parts.push('    "vote": "continue"');
+  parts.push('  }');
+  parts.push('}');
+  parts.push('```');
+  parts.push('');
+  parts.push('Rules for the reflection block:');
+  parts.push('- `confidence`: a number between 0.0 and 1.0');
+  parts.push('- `vote`: exactly one of `"continue"`, `"converged"`, or `"blocked"`');
+  parts.push('- `summary` and `learnings`: plain strings, no nested objects');
+  parts.push('- The JSON must be valid. No trailing commas, no comments.');
+
+  return parts.join('\n');
+}
+
+/**
+ * Parse a JSON reflection block from Claude's output.
+ * Returns { summary, learnings, confidence, vote, parse_failed }.
+ *
+ * On parse failure: parse_failed=true, vote='parse_error' (never silent 'continue').
+ * The caller and convergence logic can distinguish real votes from parse failures.
+ */
+const VALID_VOTES = new Set(['continue', 'converged', 'blocked']);
+
+function parseReflection(output) {
+  // Strategy: find the last ```json ... ``` block in the output
+  const jsonBlocks = [...output.matchAll(/```json\s*\n([\s\S]*?)```/g)];
+
+  if (jsonBlocks.length > 0) {
+    const lastBlock = jsonBlocks[jsonBlocks.length - 1][1].trim();
+    try {
+      const parsed = JSON.parse(lastBlock);
+      const r = parsed.reflection || parsed;
+
+      const summary = typeof r.summary === 'string' ? r.summary : '';
+      const learnings = typeof r.learnings === 'string' ? r.learnings : '';
+      const confidence = typeof r.confidence === 'number' && r.confidence >= 0 && r.confidence <= 1
+        ? r.confidence : null;
+      const vote = typeof r.vote === 'string' && VALID_VOTES.has(r.vote.toLowerCase())
+        ? r.vote.toLowerCase() : null;
+
+      if (vote === null || confidence === null) {
+        log(`REFLECTION PARSE: JSON found but invalid fields (vote=${r.vote}, confidence=${r.confidence})`);
+        return {
+          summary: summary || output.slice(-300),
+          learnings,
+          confidence: confidence ?? 0.5,
+          vote: vote ?? 'parse_error',
+          parse_failed: true,
+        };
+      }
+
+      return { summary, learnings, confidence, vote, parse_failed: false };
+    } catch (err) {
+      log(`REFLECTION PARSE: JSON block found but invalid JSON: ${err.message}`);
+    }
+  }
+
+  // Fallback: try legacy REFLECTION_START format for backwards compat
+  const legacyMatch = output.match(/REFLECTION_START\n?([\s\S]*?)REFLECTION_END/);
+  if (legacyMatch) {
+    log(`REFLECTION PARSE: Using legacy REFLECTION_START format (deprecated)`);
+    const block = legacyMatch[1];
+    const summary = (block.match(/SUMMARY:\s*(.+)/)?.[1] || '').trim();
+    const learnings = (block.match(/LEARNINGS:\s*(.+)/)?.[1] || '').trim();
+    const confidence = parseFloat(block.match(/CONFIDENCE:\s*([\d.]+)/)?.[1] || 'NaN');
+    const voteRaw = (block.match(/VOTE:\s*(\w+)/)?.[1] || '').trim().toLowerCase();
+    const vote = VALID_VOTES.has(voteRaw) ? voteRaw : 'parse_error';
+
+    return {
+      summary, learnings,
+      confidence: isNaN(confidence) ? 0.5 : confidence,
+      vote,
+      parse_failed: vote === 'parse_error',
+    };
+  }
+
+  // No reflection block found at all
+  log(`REFLECTION PARSE FAILED: No JSON or legacy reflection block found in output`);
+  return {
+    summary: output.slice(-300),
+    learnings: '',
+    confidence: 0.5,
+    vote: 'parse_error',
+    parse_failed: true,
+  };
+}
+
+// ── Collaborative Task Execution ──────────────────────
+
+/**
+ * Execute a collaborative task: join session, work in rounds, submit reflections.
+ */
+async function executeCollabTask(task) {
+  const collabSpec = task.collaboration;
+  log(`COLLAB EXECUTING: ${task.task_id} "${task.title}" (mode: ${collabSpec.mode})`);
+
+  // Discover session ID — three strategies in priority order:
+  // 1. task.collab_session_id (set by daemon on auto-create)
+  // 2. mesh.collab.find RPC (lookup by task_id)
+  // 3. Brief wait + retry (race condition: task claimed before session created)
+  let sessionId = task.collab_session_id || null;
+
+  if (!sessionId) {
+    log(`COLLAB: No session_id in task. Discovering via mesh.collab.find...`);
+    try {
+      const found = await natsRequest('mesh.collab.find', { task_id: task.task_id }, 5000);
+      if (found) sessionId = found.session_id;
+    } catch { /* find RPC unavailable or no session yet */ }
+  }
+
+  if (!sessionId) {
+    // Brief wait — session may still be creating (race between claim and session auto-create)
+    log(`COLLAB: Session not found. Waiting 3s for daemon to create it...`);
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const found = await natsRequest('mesh.collab.find', { task_id: task.task_id }, 5000);
+      if (found) sessionId = found.session_id;
+    } catch { /* still nothing */ }
+  }
+
+  if (!sessionId) {
+    // EXPLICIT FAILURE — do NOT silently fall back to solo execution.
+    // A collab task running solo loses the multi-node quality guarantee
+    // with zero indication in the output. This must be a visible error.
+    log(`COLLAB FAILED: No session found for task ${task.task_id}. Refusing silent solo fallback.`);
+    await natsRequest('mesh.tasks.fail', {
+      task_id: task.task_id,
+      reason: `Collab session not found for task ${task.task_id}. Task requires collaborative execution (mode: ${collabSpec.mode}) but no session could be discovered. Solo fallback refused — collab tasks must run collaboratively.`,
+    }).catch(() => {});
+    writeAgentState('idle', null);
+    return;
+  }
+
+  // Join the session using the discovered session_id
+  let session;
+  try {
+    const joinResult = await natsRequest('mesh.collab.join', {
+      session_id: sessionId,
+      node_id: NODE_ID,
+    }, 10000);
+    session = joinResult;
+  } catch (err) {
+    log(`COLLAB JOIN FAILED: ${err.message} (session: ${sessionId})`);
+    await natsRequest('mesh.tasks.fail', {
+      task_id: task.task_id,
+      reason: `Failed to join collab session ${sessionId}: ${err.message}`,
+    }).catch(() => {});
+    writeAgentState('idle', null);
+    return;
+  }
+
+  if (!session) {
+    log(`COLLAB JOIN RETURNED NULL for session ${sessionId}`);
+    await natsRequest('mesh.tasks.fail', {
+      task_id: task.task_id,
+      reason: `Collab session ${sessionId} rejected join (full, closed, or duplicate node).`,
+    }).catch(() => {});
+    writeAgentState('idle', null);
+    return;
+  }
+
+  log(`COLLAB JOINED: ${sessionId} (${session.nodes.length} nodes)`);
+  writeAgentState('working', task.task_id);
+
+  // Create worktree for isolation
+  const worktreePath = createWorktree(`${task.task_id}-${NODE_ID}`);
+  const taskDir = worktreePath || WORKSPACE;
+
+  // Subscribe to round notifications for this session and this node
+  const roundSub = nc.subscribe(`mesh.collab.${sessionId}.node.${NODE_ID}.round`);
+  let roundsDone = false;
+
+  // Signal start
+  await natsRequest('mesh.tasks.start', { task_id: task.task_id }).catch(() => {});
+
+  for await (const roundMsg of roundSub) {
+    if (roundsDone) break;
+
+    const roundData = JSON.parse(sc.decode(roundMsg.data));
+    const { round_number, shared_intel, my_scope, my_role, mode, current_turn } = roundData;
+
+    // Sequential mode: skip if it's not our turn
+    if (mode === 'sequential' && current_turn && current_turn !== NODE_ID) {
+      log(`COLLAB R${round_number}: Not our turn (current: ${current_turn}). Waiting.`);
+      continue;
+    }
+
+    log(`COLLAB R${round_number}: Starting work (role: ${my_role}, scope: ${JSON.stringify(my_scope)})`);
+
+    // Build round-specific prompt
+    const prompt = buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role);
+
+    if (DRY_RUN) {
+      log(`[DRY RUN] Collab prompt:\n${prompt}`);
+      break;
+    }
+
+    // Execute Claude
+    const llmResult = await runLLM(prompt, task, worktreePath);
+    const output = llmResult.stdout || '';
+
+    // Parse reflection from output
+    const reflection = parseReflection(output);
+
+    // List modified files
+    let artifacts = [];
+    try {
+      if (worktreePath) {
+        const status = require('child_process').execSync('git status --porcelain', {
+          cwd: worktreePath, timeout: 5000, encoding: 'utf-8',
+        }).trim();
+        artifacts = status.split('\n').filter(Boolean).map(line => line.slice(3));
+      }
+    } catch { /* best effort */ }
+
+    // Submit reflection
+    try {
+      await natsRequest('mesh.collab.reflect', {
+        session_id: sessionId,
+        node_id: NODE_ID,
+        round: round_number,
+        summary: reflection.summary,
+        learnings: reflection.learnings,
+        artifacts,
+        confidence: reflection.confidence,
+        vote: reflection.vote,
+        parse_failed: reflection.parse_failed,
+      });
+      const parseTag = reflection.parse_failed ? ' [PARSE FAILED]' : '';
+      log(`COLLAB R${round_number}: Reflection submitted (vote: ${reflection.vote}, conf: ${reflection.confidence}${parseTag})`);
+    } catch (err) {
+      log(`COLLAB R${round_number}: Reflection submit failed: ${err.message}`);
+    }
+
+    // Check if session is done (converged/completed/aborted)
+    try {
+      const status = await natsRequest('mesh.collab.status', { session_id: sessionId });
+      if (['converged', 'completed', 'aborted'].includes(status.status)) {
+        log(`COLLAB: Session ${sessionId} is ${status.status}. Done.`);
+        roundsDone = true;
+      }
+    } catch { /* continue listening */ }
+  }
+
+  roundSub.unsubscribe();
+
+  // Commit and merge worktree
+  const mergeResult = commitAndMergeWorktree(worktreePath, `${task.task_id}-${NODE_ID}`, `collab contribution from ${NODE_ID}`);
+  cleanupWorktree(worktreePath, mergeResult && !mergeResult?.merged);
+
+  writeAgentState('idle', null);
+  log(`COLLAB DONE: ${task.task_id} (node: ${NODE_ID})`);
 }
 
 // ── Task Execution ────────────────────────────────────
@@ -509,16 +807,14 @@ async function executeTask(task) {
 
     if (DRY_RUN) {
       log(`[DRY RUN] Prompt:\n${prompt}`);
-      // Release the task so it doesn't stay stuck in "running" state
-      await natsRequest('mesh.tasks.release', { task_id: task.task_id, node_id: NODE_ID }).catch(() => {});
       return;
     }
 
-    // Run Claude (with worktree isolation if available)
-    const claudeResult = await runClaude(prompt, task, worktreePath);
-    const summary = claudeResult.stdout.slice(-500) || '(no output)';
+    // Run LLM (with worktree isolation if available)
+    const llmResult = await runLLM(prompt, task, worktreePath);
+    const summary = llmResult.stdout.slice(-500) || '(no output)';
 
-    log(`Claude exited with code ${claudeResult.exitCode}`);
+    log(`${llmResult.provider} exited with code ${llmResult.exitCode}`);
 
     // Extract cost + summary from JSONL session file (zero-cost observability)
     const cleanCwd = path.join(os.tmpdir(), 'mesh-agent-work');
@@ -527,10 +823,10 @@ async function executeTask(task) {
       log(`Cost: $${sessionInfo.cost.estimatedCostUsd.toFixed(4)} (${sessionInfo.cost.inputTokens} in / ${sessionInfo.cost.outputTokens} out)`);
     }
 
-    if (claudeResult.exitCode !== 0) {
+    if (llmResult.exitCode !== 0) {
       const attemptRecord = {
-        approach: `Attempt ${attempt}: Claude exited with error (code ${claudeResult.exitCode})`,
-        result: claudeResult.stderr.slice(-500) || 'unknown error',
+        approach: `Attempt ${attempt}: ${llmResult.provider} exited with error (code ${llmResult.exitCode})`,
+        result: llmResult.stderr.slice(-500) || 'unknown error',
         keep: false,
       };
       attempts.push(attemptRecord);
@@ -538,12 +834,12 @@ async function executeTask(task) {
 
       // Two-tier retry: abnormal exit → exponential backoff (agent crash, OOM, etc.)
       const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 30000); // 1s, 2s, 4s... max 30s
-      log(`Attempt ${attempt} failed (Claude error, code ${claudeResult.exitCode}). Backoff ${backoffMs}ms before retry.`);
+      log(`Attempt ${attempt} failed (${llmResult.provider} error, code ${llmResult.exitCode}). Backoff ${backoffMs}ms before retry.`);
       await new Promise(r => setTimeout(r, backoffMs));
       continue;
     }
 
-    // If no metric, trust Claude's output and complete
+    // If no metric, trust LLM output and complete
     if (!task.metric) {
       const attemptRecord = {
         approach: `Attempt ${attempt}: executed without metric`,
@@ -639,17 +935,40 @@ async function executeTask(task) {
 // ── Main Loop ─────────────────────────────────────────
 
 async function main() {
+  const defaultProvider = resolveProvider(null, CLI_PROVIDER, ENV_PROVIDER);
+  const defaultModel = resolveModel(null, CLI_MODEL, defaultProvider);
   log(`Starting mesh agent worker`);
   log(`  Node ID:     ${NODE_ID}`);
   log(`  NATS:        ${NATS_URL}`);
-  log(`  Model:       ${MODEL}`);
+  log(`  LLM:         ${defaultProvider.name} (${defaultProvider.binary})`);
+  log(`  Model:       ${defaultModel || '(per-task)'}`);
   log(`  Workspace:   ${WORKSPACE}`);
   log(`  Max attempts: ${MAX_ATTEMPTS}`);
   log(`  Poll interval: ${POLL_INTERVAL / 1000}s`);
   log(`  Mode:        ${ONCE ? 'single task' : 'continuous'} ${DRY_RUN ? '(dry run)' : ''}`);
 
-  nc = await connect(natsConnectOpts({ timeout: 5000, reconnect: true, maxReconnectAttempts: -1, reconnectTimeWait: 5000 }));
+  nc = await connect({
+    servers: NATS_URL,
+    timeout: 5000,
+    reconnect: true,
+    maxReconnectAttempts: 10,
+    reconnectTimeWait: 2000,
+  });
   log(`Connected to NATS`);
+
+  // Exit on permanent NATS disconnect so launchd restarts us
+  (async () => {
+    for await (const s of nc.status()) {
+      log(`NATS status: ${s.type}`);
+      if (s.type === 'disconnect') {
+        log('NATS disconnected — will attempt reconnect');
+      }
+    }
+  })();
+  nc.closed().then(() => {
+    log('NATS connection permanently closed — exiting for launchd restart');
+    process.exit(1);
+  });
 
   // Subscribe to alive-check requests from the daemon's stall detector
   const aliveSub = nc.subscribe(`mesh.agent.${NODE_ID}.alive`);
@@ -684,9 +1003,13 @@ async function main() {
 
       log(`CLAIMED: ${task.task_id} "${task.title}"`);
 
-      // Execute the task
+      // Execute the task (collab or solo)
       currentTaskId = task.task_id;
-      await executeTask(task);
+      if (task.collaboration) {
+        await executeCollabTask(task);
+      } else {
+        await executeTask(task);
+      }
       currentTaskId = null;
 
     } catch (err) {
