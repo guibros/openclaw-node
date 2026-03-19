@@ -13,6 +13,7 @@
  *   Bug 2: Sequential mode — full lifecycle (submit → join → turn-by-turn → converge)
  *   Bug 3: Plan subtask routing field inheritance
  *   Bug 4: collab.completed event carries session metadata
+ *   Bug 5: Stale reflections rejected after session convergence
  */
 
 const { describe, it, before, after } = require('node:test');
@@ -496,5 +497,86 @@ describe('Bug 4 regression: collab.completed event metadata', () => {
     assert.equal(status.data.status, 'completed');
     assert.ok(status.data.artifacts.length > 0, 'Completed session should have artifacts');
     assert.ok(status.data.total_reflections >= 2, 'Should have at least 2 reflections');
+  });
+});
+
+// ════════════════════════════════════════════════════
+// BUG 5: STALE REFLECTIONS REJECTED AFTER CONVERGENCE
+//
+// Before fix: submitReflection() accepted reflections on any session
+// regardless of status. A late reflection arriving after convergence
+// would pollute the completed session record.
+// ════════════════════════════════════════════════════
+
+describe('Bug 5 regression: Stale reflections rejected after convergence', () => {
+  const taskId = `${TEST_PREFIX}-b5stale`;
+  const nodeA = `${TEST_PREFIX}-b5A`;
+  const nodeB = `${TEST_PREFIX}-b5B`;
+  const nodeC = `${TEST_PREFIX}-b5C`;
+  let sessionId;
+
+  it('reflection on completed session is rejected', async () => {
+    // Submit parallel collab task
+    const submit = await rpc('mesh.tasks.submit', {
+      task_id: taskId,
+      title: 'Bug 5 regression: stale reflection rejection',
+      collaboration: {
+        mode: 'parallel',
+        min_nodes: 2,
+        max_nodes: 2,
+        join_window_s: 60,
+        max_rounds: 3,
+        convergence: { type: 'unanimous' },
+        scope_strategy: 'shared',
+      },
+    });
+    createdTaskIds.push(taskId);
+    sessionId = submit.data.collab_session_id;
+    createdSessionIds.push(sessionId);
+
+    // Two nodes join and converge
+    await rpc('mesh.collab.join', { session_id: sessionId, node_id: nodeA });
+    await rpc('mesh.collab.join', { session_id: sessionId, node_id: nodeB });
+    await pollUntil('mesh.collab.status', { session_id: sessionId },
+      r => r.ok && r.data.status === 'active');
+
+    await rpc('mesh.collab.reflect', {
+      session_id: sessionId, node_id: nodeA,
+      summary: 'Done', learnings: 'All good', artifacts: ['a.txt'],
+      confidence: 0.9, vote: 'converged',
+    });
+    await rpc('mesh.collab.reflect', {
+      session_id: sessionId, node_id: nodeB,
+      summary: 'Done', learnings: 'Confirmed', artifacts: ['b.txt'],
+      confidence: 0.9, vote: 'converged',
+    });
+
+    // Wait for completion
+    await pollUntil('mesh.collab.status', { session_id: sessionId },
+      r => r.ok && r.data.status === 'completed');
+
+    // Snapshot session state at completion
+    const before = await rpc('mesh.collab.status', { session_id: sessionId });
+    const reflectionsBefore = before.data.total_reflections;
+    const artifactsBefore = before.data.artifacts;
+
+    // Try to submit a stale reflection — should be rejected (returns error or null)
+    const stale = await rpc('mesh.collab.reflect', {
+      session_id: sessionId, node_id: nodeC,
+      summary: 'Late arrival', learnings: 'Too late', artifacts: ['stale.txt'],
+      confidence: 0.5, vote: 'converged',
+    });
+
+    // The RPC should return an error (ok: false) since session is not active
+    assert.equal(stale.ok, false, 'Stale reflection on completed session should be rejected');
+
+    // Verify session state is completely unchanged
+    const after = await rpc('mesh.collab.status', { session_id: sessionId });
+    assert.equal(after.data.total_reflections, reflectionsBefore,
+      'Reflection count should not change after stale reflection rejected');
+    assert.deepEqual(after.data.artifacts, artifactsBefore,
+      'Artifacts should be unchanged after stale reflection rejected');
+    assert.equal(after.data.status, 'completed',
+      'Session status should still be completed');
   });
 });

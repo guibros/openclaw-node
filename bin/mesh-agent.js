@@ -676,6 +676,7 @@ async function executeCollabTask(task) {
   // but the joining node hasn't subscribed yet and misses the notification.
   const roundSub = nc.subscribe(`mesh.collab.${sessionId}.node.${NODE_ID}.round`);
   let roundsDone = false;
+  let lastKnownSessionStatus = null; // tracks why rounds ended (completed/aborted/converged)
 
   // Join the session using the discovered session_id
   let session;
@@ -720,6 +721,7 @@ async function executeCollabTask(task) {
       const status = await natsRequest('mesh.collab.status', { session_id: sessionId }, 5000);
       if (['aborted', 'completed'].includes(status.status)) {
         log(`COLLAB HEARTBEAT: Session ${sessionId} is ${status.status}. Unsubscribing.`);
+        lastKnownSessionStatus = status.status;
         roundsDone = true;
         roundSub.unsubscribe();
       }
@@ -729,83 +731,98 @@ async function executeCollabTask(task) {
   // Signal start
   await natsRequest('mesh.tasks.start', { task_id: task.task_id }).catch(() => {});
 
-  for await (const roundMsg of roundSub) {
-    if (roundsDone) break;
+  try {
+    for await (const roundMsg of roundSub) {
+      if (roundsDone) break;
 
-    const roundData = JSON.parse(sc.decode(roundMsg.data));
-    const { round_number, shared_intel, my_scope, my_role, mode, current_turn } = roundData;
+      const roundData = JSON.parse(sc.decode(roundMsg.data));
+      const { round_number, shared_intel, my_scope, my_role, mode, current_turn } = roundData;
 
-    // Sequential mode safety guard: skip if it's not our turn.
-    // The daemon (notifySequentialTurn) only sends to the current-turn node,
-    // so this should not normally trigger. Kept as a defensive check.
-    if (mode === 'sequential' && current_turn && current_turn !== NODE_ID) {
-      log(`COLLAB R${round_number}: Not our turn (current: ${current_turn}). Waiting.`);
-      continue;
-    }
-
-    log(`COLLAB R${round_number}: Starting work (role: ${my_role}, scope: ${JSON.stringify(my_scope)})`);
-
-    // Build round-specific prompt
-    const prompt = buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role);
-
-    if (DRY_RUN) {
-      log(`[DRY RUN] Collab prompt:\n${prompt}`);
-      break;
-    }
-
-    // Execute Claude
-    const llmResult = await runLLM(prompt, task, worktreePath);
-    const output = llmResult.stdout || '';
-
-    // Parse reflection from output
-    const reflection = parseReflection(output);
-
-    // List modified files
-    let artifacts = [];
-    try {
-      if (worktreePath) {
-        const status = require('child_process').execSync('git status --porcelain', {
-          cwd: worktreePath, timeout: 5000, encoding: 'utf-8',
-        }).trim();
-        artifacts = status.split('\n').filter(Boolean).map(line => line.slice(3));
+      // Sequential mode safety guard: skip if it's not our turn.
+      // The daemon (notifySequentialTurn) only sends to the current-turn node,
+      // so this should not normally trigger. Kept as a defensive check.
+      if (mode === 'sequential' && current_turn && current_turn !== NODE_ID) {
+        log(`COLLAB R${round_number}: Not our turn (current: ${current_turn}). Waiting.`);
+        continue;
       }
-    } catch { /* best effort */ }
 
-    // Submit reflection
-    try {
-      await natsRequest('mesh.collab.reflect', {
-        session_id: sessionId,
-        node_id: NODE_ID,
-        round: round_number,
-        summary: reflection.summary,
-        learnings: reflection.learnings,
-        artifacts,
-        confidence: reflection.confidence,
-        vote: reflection.vote,
-        parse_failed: reflection.parse_failed,
-      });
-      const parseTag = reflection.parse_failed ? ' [PARSE FAILED]' : '';
-      log(`COLLAB R${round_number}: Reflection submitted (vote: ${reflection.vote}, conf: ${reflection.confidence}${parseTag})`);
-    } catch (err) {
-      log(`COLLAB R${round_number}: Reflection submit failed: ${err.message}`);
-    }
+      log(`COLLAB R${round_number}: Starting work (role: ${my_role}, scope: ${JSON.stringify(my_scope)})`);
 
-    // Check if session is done (converged/completed/aborted)
-    try {
-      const status = await natsRequest('mesh.collab.status', { session_id: sessionId });
-      if (['converged', 'completed', 'aborted'].includes(status.status)) {
-        log(`COLLAB: Session ${sessionId} is ${status.status}. Done.`);
-        roundsDone = true;
+      // Build round-specific prompt
+      const prompt = buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role);
+
+      if (DRY_RUN) {
+        log(`[DRY RUN] Collab prompt:\n${prompt}`);
+        break;
       }
-    } catch { /* continue listening */ }
+
+      // Execute Claude
+      const llmResult = await runLLM(prompt, task, worktreePath);
+      const output = llmResult.stdout || '';
+
+      // Parse reflection from output
+      const reflection = parseReflection(output);
+
+      // List modified files
+      let artifacts = [];
+      try {
+        if (worktreePath) {
+          const status = require('child_process').execSync('git status --porcelain', {
+            cwd: worktreePath, timeout: 5000, encoding: 'utf-8',
+          }).trim();
+          artifacts = status.split('\n').filter(Boolean).map(line => line.slice(3));
+        }
+      } catch { /* best effort */ }
+
+      // Submit reflection
+      try {
+        await natsRequest('mesh.collab.reflect', {
+          session_id: sessionId,
+          node_id: NODE_ID,
+          round: round_number,
+          summary: reflection.summary,
+          learnings: reflection.learnings,
+          artifacts,
+          confidence: reflection.confidence,
+          vote: reflection.vote,
+          parse_failed: reflection.parse_failed,
+        });
+        const parseTag = reflection.parse_failed ? ' [PARSE FAILED]' : '';
+        log(`COLLAB R${round_number}: Reflection submitted (vote: ${reflection.vote}, conf: ${reflection.confidence}${parseTag})`);
+      } catch (err) {
+        log(`COLLAB R${round_number}: Reflection submit failed: ${err.message}`);
+      }
+
+      // Check if session is done (converged/completed/aborted)
+      try {
+        const status = await natsRequest('mesh.collab.status', { session_id: sessionId });
+        if (['converged', 'completed', 'aborted'].includes(status.status)) {
+          log(`COLLAB: Session ${sessionId} is ${status.status}. Done.`);
+          lastKnownSessionStatus = status.status;
+          roundsDone = true;
+        }
+      } catch { /* continue listening */ }
+    }
+  } finally {
+    clearInterval(sessionHeartbeat);
+    roundSub.unsubscribe();
   }
 
-  clearInterval(sessionHeartbeat);
-  roundSub.unsubscribe();
-
-  // Commit and merge worktree
-  const mergeResult = commitAndMergeWorktree(worktreePath, `${task.task_id}-${NODE_ID}`, `collab contribution from ${NODE_ID}`);
-  cleanupWorktree(worktreePath, mergeResult && !mergeResult?.merged);
+  // Commit and merge only on successful convergence — don't merge partial
+  // work from aborted/failed sessions into main.
+  // Uses lastKnownSessionStatus (set during round loop or heartbeat) instead of
+  // a fresh network read, which could see stale state due to NATS latency.
+  try {
+    if (['completed', 'converged'].includes(lastKnownSessionStatus)) {
+      const mergeResult = commitAndMergeWorktree(worktreePath, `${task.task_id}-${NODE_ID}`, `collab contribution from ${NODE_ID}`);
+      cleanupWorktree(worktreePath, mergeResult && !mergeResult?.merged);
+    } else {
+      log(`COLLAB: Session ${sessionId} ended as ${lastKnownSessionStatus || 'unknown'} — discarding worktree`);
+      cleanupWorktree(worktreePath, false);
+    }
+  } catch (err) {
+    log(`COLLAB WORKTREE CLEANUP FAILED: ${err.message}`);
+  }
 
   writeAgentState('idle', null);
   log(`COLLAB DONE: ${task.task_id} (node: ${NODE_ID})`);

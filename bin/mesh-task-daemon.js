@@ -132,6 +132,36 @@ async function handleSubmit(msg) {
 }
 
 /**
+ * Abort any collab session tied to a task that is being terminated.
+ * Shared by handleFail, handleRelease, handleCancel.
+ *
+ * NOT called from handleComplete — that path goes through evaluateRound
+ * which already calls collabStore.markCompleted() on the session.
+ *
+ * markAborted() is idempotent: no-op if session is already completed/aborted.
+ * This makes double-abort safe (e.g. stall detection → release race).
+ */
+async function cleanupTaskCollabSession(task, reason) {
+  if (!task.collab_session_id || !collabStore) return;
+  try {
+    // markAborted returns null if session doesn't exist or is already completed/aborted.
+    // Non-null means we actually transitioned the session to aborted.
+    const session = await collabStore.markAborted(task.collab_session_id, reason);
+    if (session) {
+      await collabStore.appendAudit(task.collab_session_id, 'session_aborted', { reason });
+      publishCollabEvent('aborted', session);
+      log(`COLLAB ABORTED ${task.collab_session_id}: ${reason}`);
+    }
+    // Clean up audit error rate-limit counter
+    // NOTE: sessions expiring via KV TTL bypass this — residual Map entry is negligible
+    // for a homelab mesh but worth noting.
+    collabStore.clearAuditErrorCount(task.collab_session_id);
+  } catch (err) {
+    log(`COLLAB CLEANUP WARN: could not abort session ${task.collab_session_id}: ${err.message}`);
+  }
+}
+
+/**
  * mesh.tasks.claim — Agent requests the next available task.
  * Expects: { node_id }
  * Returns: the claimed task, or null if nothing available.
@@ -203,6 +233,14 @@ async function handleComplete(msg) {
   log(`COMPLETE ${task_id} in ${elapsed}m: ${result?.summary || 'no summary'}`);
   publishEvent('completed', task);
 
+  // NOTE: no cleanupTaskCollabSession here — collab tasks complete via
+  // evaluateRound → markCompleted on the session, then store.markCompleted
+  // on the parent task. Calling cleanupTaskCollabSession would markAborted
+  // on an already-completed session. Clean up audit counter only.
+  if (task.collab_session_id && collabStore) {
+    collabStore.clearAuditErrorCount(task.collab_session_id);
+  }
+
   // Check if this task belongs to a plan
   await checkPlanProgress(task_id, 'completed');
 
@@ -222,6 +260,7 @@ async function handleFail(msg) {
 
   log(`FAIL ${task_id}: ${reason}`);
   publishEvent('failed', task);
+  await cleanupTaskCollabSession(task, `Parent task ${task_id} failed: ${reason}`);
 
   // Check if this task belongs to a plan
   await checkPlanProgress(task_id, 'failed');
@@ -302,6 +341,7 @@ async function handleRelease(msg) {
 
   log(`RELEASED ${task_id}: ${reason || 'no reason'} (needs human triage)`);
   publishEvent('released', task);
+  await cleanupTaskCollabSession(task, `Parent task ${task_id} released: ${reason || 'human triage'}`);
   respond(msg, task);
 }
 
@@ -323,6 +363,7 @@ async function handleCancel(msg) {
 
   log(`CANCEL ${task_id}: ${reason || 'no reason'}`);
   publishEvent('cancelled', task);
+  await cleanupTaskCollabSession(task, `Parent task ${task_id} cancelled: ${reason || 'no reason'}`);
   respond(msg, task);
 }
 
@@ -597,6 +638,8 @@ async function handleCollabReflect(msg) {
 
   // Sequential mode: advance turn, notify next node or evaluate round
   // Parallel mode: check if all reflections are in → evaluate convergence
+  // NOTE: Node.js single-threaded event loop prevents concurrent execution of this
+  // handler — no mutex needed. advanceTurn() is safe without CAS here.
   if (session.mode === 'sequential') {
     const nextNodeId = await collabStore.advanceTurn(session_id);
     if (nextNodeId) {
@@ -818,10 +861,11 @@ async function evaluateRound(sessionId) {
     await collabStore.markConverged(sessionId);
     publishCollabEvent('converged', session);
 
-    // Collect artifacts from all reflections
+    // Re-fetch after markConverged to ensure fresh state
+    const freshSession = await collabStore.get(sessionId);
     const allArtifacts = [];
     const contributions = {};
-    for (const round of session.rounds) {
+    for (const round of freshSession.rounds) {
       for (const r of round.reflections) {
         allArtifacts.push(...r.artifacts);
         contributions[r.node_id] = r.summary;
@@ -830,20 +874,20 @@ async function evaluateRound(sessionId) {
 
     await collabStore.markCompleted(sessionId, {
       artifacts: [...new Set(allArtifacts)],
-      summary: `Converged after ${session.current_round} rounds with ${session.nodes.length} nodes`,
+      summary: `Converged after ${freshSession.current_round} rounds with ${freshSession.nodes.length} nodes`,
       node_contributions: contributions,
     });
     await collabStore.appendAudit(sessionId, 'session_completed', {
-      outcome: 'converged', rounds: session.current_round,
+      outcome: 'converged', rounds: freshSession.current_round,
       artifacts: [...new Set(allArtifacts)].length,
-      node_count: session.nodes.length, recruited_count: session.recruited_count,
+      node_count: freshSession.nodes.length, recruited_count: freshSession.recruited_count,
     });
 
     // Complete the parent task
-    const updatedSession = await collabStore.get(sessionId);
-    await store.markCompleted(session.task_id, updatedSession.result);
-    publishEvent('completed', await store.get(session.task_id));
-    publishCollabEvent('completed', updatedSession);
+    const completedSession = await collabStore.get(sessionId);
+    await store.markCompleted(freshSession.task_id, completedSession.result);
+    publishEvent('completed', await store.get(freshSession.task_id));
+    publishCollabEvent('completed', completedSession);
 
   } else if (maxReached) {
     log(`COLLAB MAX ROUNDS ${sessionId}: ${session.current_round}/${session.max_rounds}. Completing with current artifacts.`);
