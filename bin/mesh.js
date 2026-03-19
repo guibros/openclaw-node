@@ -662,7 +662,7 @@ async function cmdDeploy(args) {
   await nc.flush();
   console.log('Deploy trigger sent.\n');
 
-  // Poll for results (10s timeout)
+  // Poll for results (15s timeout)
   console.log('Waiting for node responses...');
   const deadline = Date.now() + 15000;
   const seen = new Set();
@@ -672,7 +672,6 @@ async function cmdDeploy(args) {
     const resultsKv = await js.views.kv('MESH_DEPLOY_RESULTS');
 
     while (Date.now() < deadline) {
-      // Check all nodes
       const allAliasNodes = [...new Set(Object.values(NODE_ALIASES))];
       const checkNodes = targetNodes.length > 0 ? targetNodes : allAliasNodes;
 
@@ -736,9 +735,9 @@ function cmdHelp() {
     '  mesh repair                             Self-repair this node',
     '  mesh repair --all                       Self-repair ALL nodes',
     '  mesh deploy                             Deploy to all nodes',
-    '  mesh deploy --force                     Force deploy (skip cache)',
-    '  mesh deploy --node ubuntu               Deploy to specific node',
-    '  mesh deploy --component mesh-daemons    Deploy specific component',
+    '  mesh deploy --force                     Force deploy (even if up to date)',
+    '  mesh deploy --component <name>          Deploy specific component',
+    '  mesh deploy --node <name>               Deploy to specific node',
     '',
     'NODE ALIASES:',
     '  ubuntu, linux   = Ubuntu VM (calos-vmware-virtual-platform)',

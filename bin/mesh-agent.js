@@ -117,7 +117,7 @@ function buildInitialPrompt(task) {
     parts.push('');
   }
 
-  if (task.success_criteria.length > 0) {
+  if (task.success_criteria && task.success_criteria.length > 0) {
     parts.push('## Success Criteria');
     for (const c of task.success_criteria) {
       parts.push(`- ${c}`);
@@ -132,7 +132,7 @@ function buildInitialPrompt(task) {
     parts.push('');
   }
 
-  if (task.scope.length > 0) {
+  if (task.scope && task.scope.length > 0) {
     parts.push('## Scope');
     parts.push('Only modify these files/paths:');
     for (const s of task.scope) {
@@ -192,7 +192,7 @@ function buildRetryPrompt(task, previousAttempts, attemptNumber) {
     parts.push('');
   }
 
-  if (task.scope.length > 0) {
+  if (task.scope && task.scope.length > 0) {
     parts.push('## Scope');
     for (const s of task.scope) {
       parts.push(`- ${s}`);
