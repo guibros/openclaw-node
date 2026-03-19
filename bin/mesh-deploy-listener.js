@@ -91,27 +91,42 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
   };
 
   try {
-    // Verify repo exists
-    if (!fs.existsSync(path.join(REPO_DIR, '.git'))) {
-      throw new Error(`Repo not found at ${REPO_DIR}`);
-    }
-
     // Validate branch name to prevent command injection (trigger.branch comes from NATS)
     const branch = (trigger.branch || 'main').replace(/[^a-zA-Z0-9._/-]/g, '');
     if (!branch || branch !== (trigger.branch || 'main')) {
       throw new Error(`Invalid branch name: ${trigger.branch}`);
     }
 
-    // Git fetch + ff merge
-    execSync(`git fetch origin ${branch}`, {
-      cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
-    });
-    execSync(`git merge origin/${branch} --ff-only`, {
-      cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
-    });
+    // Bootstrap git repo if directory exists but .git doesn't
+    // (provisioner may have copied files without git clone)
+    if (!fs.existsSync(path.join(REPO_DIR, '.git'))) {
+      if (!fs.existsSync(REPO_DIR)) {
+        throw new Error(`Repo dir not found at ${REPO_DIR}`);
+      }
+      console.log(`[deploy-listener] No .git found — bootstrapping git repo`);
+      execSync('git init', { cwd: REPO_DIR, encoding: 'utf8', timeout: 10000 });
+      execSync(`git remote add origin https://github.com/moltyguibros-design/openclaw-node.git`, {
+        cwd: REPO_DIR, encoding: 'utf8', timeout: 10000,
+      });
+      execSync(`git fetch origin ${branch}`, {
+        cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
+      });
+      execSync(`git reset --hard origin/${branch}`, {
+        cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
+      });
+      console.log(`[deploy-listener] Git bootstrapped from origin/${branch}`);
+    } else {
+      // Normal path: fetch + ff merge
+      execSync(`git fetch origin ${branch}`, {
+        cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
+      });
+      execSync(`git merge origin/${branch} --ff-only`, {
+        cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
+      });
+    }
 
     // Build deploy command — filter requested components against what this node runs
-    let cmd = `node "${DEPLOY_SCRIPT}" --local`;
+    let cmd = `"${process.execPath}" "${DEPLOY_SCRIPT}" --local`;
     if (trigger.components && !trigger.components.includes('all')) {
       const applicable = trigger.components.filter(c => NODE_COMPONENTS.has(c));
       if (applicable.length === 0) {
