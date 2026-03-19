@@ -649,6 +649,12 @@ async function executeCollabTask(task) {
     return;
   }
 
+  // Subscribe to round notifications BEFORE joining — prevents race condition
+  // where the daemon starts round 1 immediately upon last node joining,
+  // but the joining node hasn't subscribed yet and misses the notification.
+  const roundSub = nc.subscribe(`mesh.collab.${sessionId}.node.${NODE_ID}.round`);
+  let roundsDone = false;
+
   // Join the session using the discovered session_id
   let session;
   try {
@@ -659,6 +665,7 @@ async function executeCollabTask(task) {
     session = joinResult;
   } catch (err) {
     log(`COLLAB JOIN FAILED: ${err.message} (session: ${sessionId})`);
+    roundSub.unsubscribe();
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       reason: `Failed to join collab session ${sessionId}: ${err.message}`,
@@ -669,6 +676,7 @@ async function executeCollabTask(task) {
 
   if (!session) {
     log(`COLLAB JOIN RETURNED NULL for session ${sessionId}`);
+    roundSub.unsubscribe();
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       reason: `Collab session ${sessionId} rejected join (full, closed, or duplicate node).`,
@@ -683,10 +691,6 @@ async function executeCollabTask(task) {
   // Create worktree for isolation
   const worktreePath = createWorktree(`${task.task_id}-${NODE_ID}`);
   const taskDir = worktreePath || WORKSPACE;
-
-  // Subscribe to round notifications for this session and this node
-  const roundSub = nc.subscribe(`mesh.collab.${sessionId}.node.${NODE_ID}.round`);
-  let roundsDone = false;
 
   // Periodic session heartbeat — detects abort/completion while waiting for rounds
   const sessionHeartbeat = setInterval(async () => {
