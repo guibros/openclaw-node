@@ -756,12 +756,20 @@ async function executeCollabTask(task) {
         break;
       }
 
-      // Execute Claude
+      // Execute provider (LLM or shell)
       const llmResult = await runLLM(prompt, task, worktreePath);
       const output = llmResult.stdout || '';
 
-      // Parse reflection from output
-      const reflection = parseReflection(output);
+      // Parse reflection — shell provider auto-wraps (can't produce JSON)
+      const reflection = llmResult.provider === 'shell'
+        ? {
+            summary: output.trim().slice(-500) || '(no output)',
+            learnings: '',
+            confidence: llmResult.exitCode === 0 ? 1.0 : 0.0,
+            vote: llmResult.exitCode === 0 ? 'converged' : 'continue',
+            parse_failed: false,
+          }
+        : parseReflection(output);
 
       // List modified files
       let artifacts = [];
