@@ -230,6 +230,10 @@ if [ -z "$NODE_ROLE" ]; then
     NODE_ROLE="worker"
   fi
 fi
+if [ "$NODE_ROLE" != "lead" ] && [ "$NODE_ROLE" != "worker" ]; then
+  error "Invalid role: $NODE_ROLE (must be 'lead' or 'worker')"
+  exit 1
+fi
 export OPENCLAW_NODE_ROLE="$NODE_ROLE"
 info "Node role: $NODE_ROLE"
 
