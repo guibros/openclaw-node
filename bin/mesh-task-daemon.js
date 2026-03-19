@@ -527,6 +527,26 @@ async function handleCollabFind(msg) {
 }
 
 /**
+ * mesh.collab.recruiting — List all sessions currently recruiting nodes.
+ * Used by agents to discover collab sessions they should join.
+ * Returns: array of { session_id, task_id, mode, min_nodes, max_nodes, current_nodes, recruiting_deadline }
+ */
+async function handleCollabRecruiting(msg) {
+  const recruiting = await collabStore.list({ status: COLLAB_STATUS.RECRUITING });
+  const summaries = recruiting.map(s => ({
+    session_id: s.session_id,
+    task_id: s.task_id,
+    mode: s.mode,
+    min_nodes: s.min_nodes,
+    max_nodes: s.max_nodes,
+    current_nodes: s.nodes.length,
+    node_ids: s.nodes.map(n => n.node_id || n.id),
+    recruiting_deadline: s.recruiting_deadline,
+  }));
+  respond(msg, summaries);
+}
+
+/**
  * mesh.collab.reflect — Node submits a reflection for the current round.
  * Expects: { session_id, node_id, summary, learnings, artifacts, confidence, vote }
  */
@@ -1098,6 +1118,7 @@ async function main() {
     'mesh.collab.status':   handleCollabStatus,
     'mesh.collab.find':     handleCollabFind,
     'mesh.collab.reflect':  handleCollabReflect,
+    'mesh.collab.recruiting': handleCollabRecruiting,
     // Plan handlers
     'mesh.plans.create':          handlePlanCreate,
     'mesh.plans.get':             handlePlanGet,
@@ -1116,7 +1137,7 @@ async function main() {
         try {
           await handler(msg);
         } catch (err) {
-          log(`ERROR handling ${subject}: ${err.message}`);
+          log(`ERROR handling ${subject}: ${err.message}\n${err.stack}`);
           try { respondError(msg, err.message); } catch {}
         }
       }

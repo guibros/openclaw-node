@@ -688,6 +688,18 @@ async function executeCollabTask(task) {
   const roundSub = nc.subscribe(`mesh.collab.${sessionId}.node.${NODE_ID}.round`);
   let roundsDone = false;
 
+  // Periodic session heartbeat — detects abort/completion while waiting for rounds
+  const sessionHeartbeat = setInterval(async () => {
+    try {
+      const status = await natsRequest('mesh.collab.status', { session_id: sessionId }, 5000);
+      if (['aborted', 'completed'].includes(status.status)) {
+        log(`COLLAB HEARTBEAT: Session ${sessionId} is ${status.status}. Unsubscribing.`);
+        roundsDone = true;
+        roundSub.unsubscribe();
+      }
+    } catch { /* best effort */ }
+  }, 10000);
+
   // Signal start
   await natsRequest('mesh.tasks.start', { task_id: task.task_id }).catch(() => {});
 
@@ -760,6 +772,7 @@ async function executeCollabTask(task) {
     } catch { /* continue listening */ }
   }
 
+  clearInterval(sessionHeartbeat);
   roundSub.unsubscribe();
 
   // Commit and merge worktree
@@ -986,8 +999,82 @@ async function main() {
   })();
   log(`  Listening: mesh.agent.${NODE_ID}.alive`);
 
+  // Subscribe to collab recruit broadcasts — allows this node to join
+  // collab sessions without being the claiming node
+  const recruitSub = nc.subscribe('mesh.collab.*.recruit');
+  (async () => {
+    for await (const msg of recruitSub) {
+      try {
+        const recruit = JSON.parse(sc.decode(msg.data));
+        if (currentTaskId) continue; // busy
+
+        // Fetch task to check preferences and get collab spec
+        const task = await natsRequest('mesh.tasks.get', { task_id: recruit.task_id }, 5000);
+        if (!task || !task.collaboration) continue;
+        if (task.owner === NODE_ID) continue; // we claimed it, already handling
+
+        // Check preferred_nodes
+        if (task.preferred_nodes && task.preferred_nodes.length > 0) {
+          if (!task.preferred_nodes.includes(NODE_ID)) continue;
+        }
+        // Check exclude_nodes
+        if (task.exclude_nodes && task.exclude_nodes.length > 0) {
+          if (task.exclude_nodes.includes(NODE_ID)) continue;
+        }
+
+        log(`RECRUIT: Joining collab session ${recruit.session_id} for task ${recruit.task_id}`);
+        currentTaskId = task.task_id;
+        await executeCollabTask(task);
+        currentTaskId = null;
+      } catch (err) {
+        log(`RECRUIT ERROR: ${err.message}`);
+        currentTaskId = null;
+      }
+    }
+  })();
+  log(`  Listening: mesh.collab.*.recruit (collab recruiting)`);
+
+  // Also poll for recruiting sessions on idle — catches recruits we missed
+  async function checkRecruitingSessions() {
+    if (currentTaskId) return; // busy
+    try {
+      const sessions = await natsRequest('mesh.collab.recruiting', {}, 5000);
+      if (!sessions || !Array.isArray(sessions) || sessions.length === 0) return;
+
+      for (const s of sessions) {
+        if (currentTaskId) break; // became busy
+        // Skip if we already joined this session
+        if (s.node_ids && s.node_ids.includes(NODE_ID)) continue;
+        // Skip if session is full
+        if (s.max_nodes && s.current_nodes >= s.max_nodes) continue;
+
+        // Fetch task to check preferences
+        const task = await natsRequest('mesh.tasks.get', { task_id: s.task_id }, 5000);
+        if (!task || !task.collaboration) continue;
+        if (task.preferred_nodes && task.preferred_nodes.length > 0) {
+          if (!task.preferred_nodes.includes(NODE_ID)) continue;
+        }
+        if (task.exclude_nodes && task.exclude_nodes.length > 0) {
+          if (task.exclude_nodes.includes(NODE_ID)) continue;
+        }
+
+        log(`RECRUIT POLL: Joining collab session ${s.session_id} for task ${s.task_id}`);
+        currentTaskId = task.task_id;
+        await executeCollabTask(task);
+        currentTaskId = null;
+      }
+    } catch { /* silent — recruiting poll is best-effort */ }
+  }
+
   while (running) {
     try {
+      // Check for recruiting collab sessions before trying to claim
+      await checkRecruitingSessions();
+      if (currentTaskId) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL));
+        continue;
+      }
+
       // Claim next available task (longer timeout — KV operations on remote NATS can be slow)
       const task = await natsRequest('mesh.tasks.claim', { node_id: NODE_ID }, 60000);
 

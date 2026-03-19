@@ -401,6 +401,7 @@ async function cmdSubmit(args) {
       llm_model: task.model || task.llm_model || null,
       preferred_nodes: task.preferred_nodes || [],
       exclude_nodes: task.exclude_nodes || [],
+      collaboration: task.collaboration || undefined,
     });
     console.log(`Submitted: ${result.data.task_id} [${result.data.status}]`);
     // Mark as 'submitted' — NOT 'running'. The card reflects actual mesh state.
@@ -459,6 +460,7 @@ async function cmdSubmit(args) {
     llm_model: task.model || task.llm_model || null,
     preferred_nodes: task.preferred_nodes || [],
     exclude_nodes: task.exclude_nodes || [],
+    collaboration: task.collaboration || undefined,
   });
 
   console.log(`Submitted: ${result.data.task_id} "${result.data.title}"`);
