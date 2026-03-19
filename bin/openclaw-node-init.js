@@ -630,6 +630,71 @@ async function verifyNatsHealth(natsUrl, nodeId) {
   }
 }
 
+// ── Mesh Topology Discovery ──────────────────────────
+
+async function discoverTopology(natsUrl, localNodeId) {
+  log('Discovering mesh topology...');
+
+  if (DRY_RUN) {
+    warn('[DRY RUN] Would query MESH_NODE_HEALTH and write mesh-aliases.json');
+    return;
+  }
+
+  try {
+    const nats = require('nats');
+    const nc = await nats.connect({ servers: natsUrl, timeout: 10000 });
+    const sc = nats.StringCodec();
+    const js = nc.jetstream();
+
+    const aliases = {};
+
+    // Query MESH_NODE_HEALTH for all known nodes
+    try {
+      const kv = await js.views.kv('MESH_NODE_HEALTH');
+      const keys = await kv.keys();
+      for await (const key of keys) {
+        const entry = await kv.get(key);
+        if (entry && entry.value) {
+          const health = JSON.parse(sc.decode(entry.value));
+          const nodeId = health.nodeId || key;
+          // Create short alias from node ID (strip common suffixes)
+          const short = nodeId
+            .replace(/-virtual-machine.*$/i, '')
+            .replace(/-vmware.*$/i, '')
+            .replace(/-local$/, '');
+          aliases[short] = nodeId;
+          if (health.role === 'lead') aliases['lead'] = nodeId;
+          ok(`Peer: ${nodeId} (${health.role || 'worker'}, ${health.tailscaleIp || 'unknown'})`);
+        }
+      }
+    } catch {
+      warn('MESH_NODE_HEALTH bucket not available — skipping topology');
+    }
+
+    // Also add self
+    const selfShort = localNodeId
+      .replace(/-virtual-machine.*$/i, '')
+      .replace(/-vmware.*$/i, '')
+      .replace(/-local$/, '');
+    aliases[selfShort] = localNodeId;
+    aliases['self'] = localNodeId;
+
+    await nc.drain();
+
+    if (Object.keys(aliases).length > 1) {
+      const aliasPath = path.join(os.homedir(), '.openclaw', 'mesh-aliases.json');
+      fs.writeFileSync(aliasPath, JSON.stringify(aliases, null, 2) + '\n', { mode: 0o644 });
+      ok(`Mesh aliases written: ${aliasPath} (${Object.keys(aliases).length} entries)`);
+    } else {
+      warn('No peers found in MESH_NODE_HEALTH — mesh-aliases.json will only have self');
+      const aliasPath = path.join(os.homedir(), '.openclaw', 'mesh-aliases.json');
+      fs.writeFileSync(aliasPath, JSON.stringify(aliases, null, 2) + '\n', { mode: 0o644 });
+    }
+  } catch (e) {
+    warn(`Topology discovery failed: ${e.message} (non-fatal)`);
+  }
+}
+
 // ── Main ──────────────────────────────────────────────
 
 async function main() {
@@ -698,6 +763,10 @@ async function main() {
   const serviceAlive = verifyServiceRunning(osInfo);
   const natsHealthy = await verifyNatsHealth(config.nats, nodeId);
   const healthy = serviceAlive && natsHealthy;
+
+  // ── Step 9: Discover mesh topology ──
+  step(9, 'Discovering mesh topology...');
+  await discoverTopology(config.nats, nodeId);
 
   // ── Done ──
   console.log(`\n${BOLD}${GREEN}═══════════════════════════════════════${RESET}`);
