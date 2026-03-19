@@ -168,6 +168,8 @@ describe('Bug 2 regression: Sequential mode full lifecycle', () => {
       })();
     });
 
+    await nc.flush(); // ensure subscription registered before reflect triggers turn advance
+
     // Node A submits reflection
     const res = await rpc('mesh.collab.reflect', {
       session_id: sessionId,
