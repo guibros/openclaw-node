@@ -460,14 +460,60 @@ function installLaunchdService(meshDir, nodeBin, nodeId, provider, natsUrl) {
     return;
   }
 
+  // Deploy listener plist
+  const deployPlistPath = path.join(plistDir, 'ai.openclaw.deploy-listener.plist');
+  const deployPlist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.openclaw.deploy-listener</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${nodeBin}</string>
+    <string>${meshDir}/bin/mesh-deploy-listener.js</string>
+  </array>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${os.homedir()}/.openclaw/workspace/.tmp/mesh-deploy-listener.log</string>
+  <key>StandardErrorPath</key>
+  <string>${os.homedir()}/.openclaw/workspace/.tmp/mesh-deploy-listener.err</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>OPENCLAW_NATS</key>
+    <string>${natsUrl}</string>
+    <key>OPENCLAW_NODE_ID</key>
+    <string>${nodeId}</string>
+    <key>OPENCLAW_NODE_ROLE</key>
+    <string>worker</string>
+    <key>OPENCLAW_REPO_DIR</key>
+    <string>${meshDir}</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:${os.homedir()}/.npm-global/bin</string>
+    <key>NODE_PATH</key>
+    <string>${meshDir}/node_modules:${meshDir}/lib</string>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+</dict>
+</plist>`;
+
   fs.mkdirSync(plistDir, { recursive: true });
   fs.writeFileSync(plistPath, plist);
-  ok(`Launchd service written: ${plistPath}`);
+  ok(`Mesh agent service written: ${plistPath}`);
+  fs.writeFileSync(deployPlistPath, deployPlist);
+  ok(`Deploy listener service written: ${deployPlistPath}`);
 
   try {
     execSync(`launchctl unload "${plistPath}" 2>/dev/null || true`, { stdio: 'pipe' });
     execSync(`launchctl load "${plistPath}"`, { stdio: 'pipe' });
-    ok('Service loaded and started');
+    ok('Mesh agent loaded and started');
+    execSync(`launchctl unload "${deployPlistPath}" 2>/dev/null || true`, { stdio: 'pipe' });
+    execSync(`launchctl load "${deployPlistPath}"`, { stdio: 'pipe' });
+    ok('Deploy listener loaded and started');
   } catch (e) {
     warn(`Service load warning: ${e.message}`);
   }
@@ -508,11 +554,40 @@ WantedBy=default.target
   fs.writeFileSync(servicePath, service);
   ok(`Systemd service written: ${servicePath}`);
 
+  // Deploy listener service
+  const deployServicePath = path.join(serviceDir, 'openclaw-deploy-listener.service');
+  const deployService = `[Unit]
+Description=OpenClaw Deploy Listener
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=${nodeBin} ${meshDir}/bin/mesh-deploy-listener.js
+Restart=always
+RestartSec=30
+Environment=OPENCLAW_NATS=${natsUrl}
+Environment=OPENCLAW_NODE_ID=${nodeId}
+Environment=OPENCLAW_NODE_ROLE=worker
+Environment=OPENCLAW_REPO_DIR=${meshDir}
+Environment=NODE_PATH=${meshDir}/node_modules:${meshDir}/lib
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:${os.homedir()}/.local/bin:${os.homedir()}/.npm-global/bin
+WorkingDirectory=${meshDir}
+
+[Install]
+WantedBy=default.target
+`;
+  fs.writeFileSync(deployServicePath, deployService);
+  ok(`Deploy listener service written: ${deployServicePath}`);
+
   try {
     execSync('systemctl --user daemon-reload', { stdio: 'pipe' });
     execSync('systemctl --user enable openclaw-mesh-agent', { stdio: 'pipe' });
     execSync('systemctl --user start openclaw-mesh-agent', { stdio: 'pipe' });
-    ok('Service enabled and started');
+    ok('Mesh agent enabled and started');
+    execSync('systemctl --user enable openclaw-deploy-listener', { stdio: 'pipe' });
+    execSync('systemctl --user start openclaw-deploy-listener', { stdio: 'pipe' });
+    ok('Deploy listener enabled and started');
   } catch (e) {
     warn(`Service start warning: ${e.message}`);
     warn('Try manually: systemctl --user start openclaw-mesh-agent');

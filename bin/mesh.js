@@ -29,23 +29,44 @@ const path = require('path');
 const os = require('os');
 
 // ─── Config ──────────────────────────────────────────
-// NATS URL resolved via shared lib (env var → openclaw.env → .mesh-config → localhost fallback)
-const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
+// ── NATS URL resolution: env var → ~/.openclaw/openclaw.env → fallback IP ──
+const NATS_FALLBACK = 'nats://100.91.131.61:4222';
+function resolveNatsUrl() {
+  if (process.env.OPENCLAW_NATS) return process.env.OPENCLAW_NATS;
+  try {
+    const envFile = path.join(os.homedir(), '.openclaw', 'openclaw.env');
+    if (fs.existsSync(envFile)) {
+      const content = fs.readFileSync(envFile, 'utf8');
+      const match = content.match(/^\s*OPENCLAW_NATS\s*=\s*(.+)/m);
+      if (match && match[1].trim()) return match[1].trim();
+    }
+  } catch {}
+  return NATS_FALLBACK;
+}
+const NATS_URL = resolveNatsUrl();
 const SHARED_DIR = path.join(os.homedir(), 'openclaw', 'shared');
 const LOCAL_NODE = os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const sc = StringCodec();
 
 // ─── Known nodes (for --node shortcuts) ──────────────
-// Load from ~/.openclaw/mesh-aliases.json if it exists, otherwise empty.
-let NODE_ALIASES = {};
-try {
-  const aliasFile = path.join(os.homedir(), '.openclaw', 'mesh-aliases.json');
-  if (fs.existsSync(aliasFile)) {
-    NODE_ALIASES = JSON.parse(fs.readFileSync(aliasFile, 'utf8'));
-  }
-} catch {
-  // File missing or malformed — proceed with no aliases
+const NODE_ALIASES_DEFAULTS = {
+  'ubuntu': 'calos-vmware-virtual-platform',
+  'linux': 'calos-vmware-virtual-platform',
+  'mac': 'moltymacs-virtual-machine-local',
+  'macos': 'moltymacs-virtual-machine-local',
+};
+
+function loadNodeAliases() {
+  const aliasPath = path.join(os.homedir(), '.openclaw', 'mesh-aliases.json');
+  try {
+    if (fs.existsSync(aliasPath)) {
+      const custom = JSON.parse(fs.readFileSync(aliasPath, 'utf8'));
+      return { ...NODE_ALIASES_DEFAULTS, ...custom };
+    }
+  } catch {}
+  return NODE_ALIASES_DEFAULTS;
 }
+const NODE_ALIASES = loadNodeAliases();
 
 /**
  * Resolve a node name — accepts aliases, full IDs, or "self"/"local"
@@ -98,7 +119,7 @@ function checkExecSafety(command) {
  */
 async function natsConnect() {
   try {
-    return await connect(natsConnectOpts({ timeout: 5000 }));
+    return await connect({ servers: NATS_URL, timeout: 5000 });
   } catch (err) {
     console.error(`Error: Cannot connect to NATS at ${NATS_URL}`);
     console.error(`Is the NATS server running? Is Tailscale connected?`);
@@ -140,21 +161,15 @@ async function collectHeartbeats(nc, waitMs = 3000) {
     uptime: os.uptime(),
   };
 
-  // Force-unsubscribe after deadline to prevent hanging if no messages arrive
-  const timer = setTimeout(() => sub.unsubscribe(), waitMs);
-
   // Listen for heartbeats for a few seconds
   const deadline = Date.now() + waitMs;
   for await (const msg of sub) {
-    try {
-      const s = JSON.parse(sc.decode(msg.data));
-      if (s.node !== LOCAL_NODE) {
-        nodes[s.node] = s;
-      }
-    } catch {}
+    const s = JSON.parse(sc.decode(msg.data));
+    if (s.node !== LOCAL_NODE) {
+      nodes[s.node] = s;
+    }
     if (Date.now() >= deadline) break;
   }
-  clearTimeout(timer);
   sub.unsubscribe();
   return nodes;
 }
@@ -576,6 +591,124 @@ async function cmdRepair(args) {
 }
 
 /**
+ * mesh deploy [--force] [--component <name>] [--node <name>] — trigger fleet deploy.
+ *
+ * Publishes mesh.deploy.trigger to NATS. All nodes with mesh-deploy-listener
+ * will pull from git and self-deploy. Polls MESH_DEPLOY_RESULTS for status.
+ */
+async function cmdDeploy(args) {
+  const { execSync } = require('child_process');
+  // Prefer openclaw-node (git repo) over openclaw (runtime)
+  const defaultRepo = fs.existsSync(path.join(os.homedir(), 'openclaw-node', '.git'))
+    ? path.join(os.homedir(), 'openclaw-node')
+    : path.join(os.homedir(), 'openclaw');
+  const repoDir = process.env.OPENCLAW_REPO_DIR || defaultRepo;
+  const force = args.includes('--force');
+
+  // Parse --component flags
+  const components = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--component' && args[i + 1]) {
+      components.push(args[i + 1]);
+      i++;
+    }
+  }
+
+  // Parse --node flags (target specific nodes, default: all)
+  const targetNodes = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--node' && args[i + 1]) {
+      targetNodes.push(resolveNode(args[i + 1]));
+      i++;
+    }
+  }
+
+  // Get current SHA and branch
+  let sha, branch;
+  try {
+    sha = execSync('git rev-parse --short HEAD', { cwd: repoDir, encoding: 'utf8' }).trim();
+    branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoDir, encoding: 'utf8' }).trim();
+  } catch {
+    console.error(`Error: Cannot read git state from ${repoDir}`);
+    process.exit(1);
+  }
+
+  console.log(`Deploying ${sha} (${branch})${force ? ' [FORCE]' : ''}`);
+  if (components.length > 0) console.log(`  Components: ${components.join(', ')}`);
+  if (targetNodes.length > 0) console.log(`  Targets: ${targetNodes.join(', ')}`);
+  else console.log('  Targets: all nodes');
+
+  const nc = await natsConnect();
+
+  const trigger = {
+    sha,
+    branch,
+    components: components.length > 0 ? components : ['all'],
+    nodes: targetNodes.length > 0 ? targetNodes : ['all'],
+    force,
+    initiator: LOCAL_NODE,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Write "latest" marker so offline nodes can catch up
+  try {
+    const js = nc.jetstream();
+    const resultsKv = await js.views.kv('MESH_DEPLOY_RESULTS', { history: 5, ttl: 7 * 24 * 60 * 60 * 1000 });
+    await resultsKv.put('latest', sc.encode(JSON.stringify({ sha, branch })));
+  } catch {}
+
+  // Publish trigger
+  nc.publish('mesh.deploy.trigger', sc.encode(JSON.stringify(trigger)));
+  await nc.flush();
+  console.log('Deploy trigger sent.\n');
+
+  // Poll for results (10s timeout)
+  console.log('Waiting for node responses...');
+  const deadline = Date.now() + 15000;
+  const seen = new Set();
+
+  try {
+    const js = nc.jetstream();
+    const resultsKv = await js.views.kv('MESH_DEPLOY_RESULTS');
+
+    while (Date.now() < deadline) {
+      // Check all nodes
+      const allAliasNodes = [...new Set(Object.values(NODE_ALIASES))];
+      const checkNodes = targetNodes.length > 0 ? targetNodes : allAliasNodes;
+
+      for (const nodeId of checkNodes) {
+        if (seen.has(nodeId)) continue;
+        const key = `${sha}-${nodeId}`;
+        try {
+          const entry = await resultsKv.get(key);
+          if (entry && entry.value) {
+            const result = JSON.parse(sc.decode(entry.value));
+            if (result.status === 'success' || result.status === 'failed' || result.status === 'skipped') {
+              const icon = result.status === 'success' ? '\x1b[32m✓\x1b[0m' : result.status === 'skipped' ? '\x1b[33m-\x1b[0m' : '\x1b[31m✗\x1b[0m';
+              console.log(`  ${icon} ${nodeId}: ${result.status} (${result.durationSeconds || 0}s)`);
+              if (result.errors && result.errors.length > 0) {
+                for (const e of result.errors) console.log(`    Error: ${e}`);
+              }
+              seen.add(nodeId);
+            }
+          }
+        } catch {}
+      }
+
+      if (seen.size >= checkNodes.length) break;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  } catch {}
+
+  if (seen.size === 0) {
+    console.log('  (no responses yet — nodes may still be deploying)');
+  }
+
+  console.log('');
+  await nc.close();
+}
+
+/**
  * mesh help — show usage.
  */
 function cmdHelp() {
@@ -602,6 +735,10 @@ function cmdHelp() {
     '  mesh health --json                      Health check (JSON output)',
     '  mesh repair                             Self-repair this node',
     '  mesh repair --all                       Self-repair ALL nodes',
+    '  mesh deploy                             Deploy to all nodes',
+    '  mesh deploy --force                     Force deploy (skip cache)',
+    '  mesh deploy --node ubuntu               Deploy to specific node',
+    '  mesh deploy --component mesh-daemons    Deploy specific component',
     '',
     'NODE ALIASES:',
     '  ubuntu, linux   = Ubuntu VM (calos-vmware-virtual-platform)',
@@ -632,6 +769,7 @@ async function main() {
     case 'tasks':     return cmdTasks(args);
     case 'health':    return cmdHealth(args);
     case 'repair':    return cmdRepair(args);
+    case 'deploy':    return cmdDeploy(args);
     case 'help':
     case '--help':
     case '-h':        return cmdHelp();
