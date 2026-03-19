@@ -21,7 +21,7 @@ const path = require('path');
 const { readTasks, updateTaskInPlace, isoTimestamp, ACTIVE_TASKS_PATH } = require('../lib/kanban-io');
 
 const sc = StringCodec();
-const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
+const { NATS_URL } = require('../lib/nats-resolve');
 const DISPATCH_INTERVAL = parseInt(process.env.BRIDGE_DISPATCH_INTERVAL || '10000'); // 10s
 const LOG_DIR = path.join(process.env.HOME, '.openclaw', 'workspace', 'memory', 'mesh-logs');
 const WORKSPACE = path.join(process.env.HOME, '.openclaw', 'workspace');
@@ -186,6 +186,11 @@ async function dispatchTask(task) {
     success_criteria: task.success_criteria || [],
     scope: task.scope || [],
     priority: task.auto_priority || 0,
+    llm_provider: task.llm_provider || null,
+    llm_model: task.llm_model || null,
+    preferred_nodes: task.preferred_nodes || [],
+    exclude_nodes: task.exclude_nodes || [],
+    collaboration: task.collaboration || undefined,
   });
 
   log(`SUBMITTED: ${meshTask.task_id} to mesh (budget: ${meshTask.budget_minutes}m)`);
@@ -201,6 +206,232 @@ async function dispatchTask(task) {
   dispatched.add(task.task_id);
   lastHeartbeat.set(task.task_id, Date.now()); // start heartbeat tracking (#7)
   log(`UPDATED: ${task.task_id} → submitted`);
+}
+
+// ── Collab Events → Kanban ───────────────────────────
+
+/**
+ * Handle collab-specific events. Updates kanban with collaboration progress.
+ */
+function handleCollabEvent(eventType, taskId, data) {
+  // Only process events for tasks we dispatched
+  if (!dispatched.has(taskId)) return;
+
+  const session = data; // collab events include the session object
+
+  switch (eventType) {
+    case 'collab.created':
+      log(`COLLAB CREATED: session ${session.session_id} for task ${taskId} (mode: ${session.mode})`);
+      updateTaskInPlace(ACTIVE_TASKS_PATH, taskId, {
+        next_action: `Collab session created (mode: ${session.mode}). Recruiting ${session.min_nodes}+ nodes...`,
+        updated_at: isoTimestamp(),
+      });
+      break;
+
+    case 'collab.joined':
+      log(`COLLAB JOINED: ${session.nodes?.length || '?'} nodes in session for ${taskId}`);
+      updateTaskInPlace(ACTIVE_TASKS_PATH, taskId, {
+        next_action: `${session.nodes?.length || '?'} nodes joined. ${session.status === 'recruiting' ? 'Recruiting...' : 'Working...'}`,
+        updated_at: isoTimestamp(),
+      });
+      break;
+
+    case 'collab.round_started':
+      log(`COLLAB ROUND ${session.current_round}: started for ${taskId}`);
+      updateTaskInPlace(ACTIVE_TASKS_PATH, taskId, {
+        next_action: `Round ${session.current_round}/${session.max_rounds} in progress (${session.nodes?.length || '?'} nodes)`,
+        updated_at: isoTimestamp(),
+      });
+      break;
+
+    case 'collab.reflection_received': {
+      const totalReflections = session.rounds?.[session.rounds.length - 1]?.reflections?.length || 0;
+      const totalNodes = session.nodes?.length || '?';
+      log(`COLLAB REFLECT: ${totalReflections}/${totalNodes} for R${session.current_round} of ${taskId}`);
+      updateTaskInPlace(ACTIVE_TASKS_PATH, taskId, {
+        next_action: `R${session.current_round}: ${totalReflections}/${totalNodes} reflections received`,
+        updated_at: isoTimestamp(),
+      });
+      break;
+    }
+
+    case 'collab.converged':
+      log(`COLLAB CONVERGED: ${taskId} after ${session.current_round} rounds`);
+      updateTaskInPlace(ACTIVE_TASKS_PATH, taskId, {
+        next_action: `Converged after ${session.current_round} rounds. Collecting artifacts...`,
+        updated_at: isoTimestamp(),
+      });
+      break;
+
+    case 'collab.completed':
+      log(`COLLAB COMPLETED: ${taskId}`);
+      // The parent task completion is handled by the normal 'completed' event
+      break;
+
+    case 'collab.aborted':
+      log(`COLLAB ABORTED: ${taskId} — ${session.result?.summary || 'unknown reason'}`);
+      break;
+
+    default:
+      log(`COLLAB EVENT: ${eventType} for ${taskId}`);
+  }
+}
+
+// ── Plan Events → Kanban ────────────────────────────
+
+/**
+ * Handle plan-specific events. Materializes subtasks in kanban and tracks progress.
+ */
+function handlePlanEvent(eventType, data) {
+  const plan = data;
+  const parentTaskId = plan?.parent_task_id;
+
+  switch (eventType) {
+    case 'plan.created':
+      log(`PLAN CREATED: ${plan.plan_id} for task ${parentTaskId} (${plan.subtasks?.length || 0} subtasks, ${plan.estimated_waves || 0} waves)`);
+      if (parentTaskId) {
+        updateTaskInPlace(ACTIVE_TASKS_PATH, parentTaskId, {
+          next_action: `Plan created: ${plan.subtasks?.length || 0} subtasks in ${plan.estimated_waves || 0} waves. ${plan.requires_approval ? 'Awaiting approval.' : 'Auto-executing.'}`,
+          updated_at: isoTimestamp(),
+        });
+      }
+      break;
+
+    case 'plan.approved':
+      log(`PLAN APPROVED: ${plan.plan_id}`);
+      if (parentTaskId) {
+        updateTaskInPlace(ACTIVE_TASKS_PATH, parentTaskId, {
+          status: 'running',
+          next_action: `Plan approved. Dispatching wave 0...`,
+          updated_at: isoTimestamp(),
+        });
+      }
+      break;
+
+    case 'plan.wave_started': {
+      // Materialize new subtasks into kanban as child tasks
+      const readySubtasks = (plan.subtasks || []).filter(st => st.status === 'queued' || st.status === 'blocked');
+      log(`PLAN WAVE: ${plan.plan_id} — materializing ${readySubtasks.length} subtasks in kanban`);
+
+      for (const st of readySubtasks) {
+        // Only materialize local/soul/human subtasks — mesh subtasks are tracked via mesh events
+        if (st.delegation?.mode === 'local' || st.delegation?.mode === 'soul' || st.delegation?.mode === 'human') {
+          materializeSubtask(plan, st);
+        }
+      }
+
+      if (parentTaskId) {
+        const completed = (plan.subtasks || []).filter(s => s.status === 'completed').length;
+        const total = (plan.subtasks || []).length;
+        updateTaskInPlace(ACTIVE_TASKS_PATH, parentTaskId, {
+          next_action: `Plan executing: ${completed}/${total} subtasks done`,
+          updated_at: isoTimestamp(),
+        });
+      }
+      break;
+    }
+
+    case 'plan.subtask_completed': {
+      const completed = (plan.subtasks || []).filter(s => s.status === 'completed').length;
+      const total = (plan.subtasks || []).length;
+      log(`PLAN PROGRESS: ${plan.plan_id} — ${completed}/${total} subtasks done`);
+      if (parentTaskId) {
+        updateTaskInPlace(ACTIVE_TASKS_PATH, parentTaskId, {
+          next_action: `Plan: ${completed}/${total} subtasks complete`,
+          updated_at: isoTimestamp(),
+        });
+      }
+      break;
+    }
+
+    case 'plan.completed':
+      log(`PLAN COMPLETED: ${plan.plan_id}`);
+      // Parent task completion handled by the daemon (marks waiting-user)
+      break;
+
+    case 'plan.aborted':
+      log(`PLAN ABORTED: ${plan.plan_id}`);
+      if (parentTaskId) {
+        updateTaskInPlace(ACTIVE_TASKS_PATH, parentTaskId, {
+          status: 'blocked',
+          next_action: `Plan aborted — needs triage`,
+          updated_at: isoTimestamp(),
+        });
+      }
+      break;
+
+    default:
+      log(`PLAN EVENT: ${eventType} for plan ${plan?.plan_id || 'unknown'}`);
+  }
+}
+
+/**
+ * Materialize a plan subtask as a child task in active-tasks.md.
+ * For local/soul/human delegation modes only — mesh subtasks use the existing mesh dispatch.
+ */
+function materializeSubtask(plan, subtask) {
+  try {
+    const tasks = readTasks(ACTIVE_TASKS_PATH);
+
+    // Check if already materialized
+    if (tasks.find(t => t.task_id === subtask.subtask_id)) {
+      log(`  SKIP: ${subtask.subtask_id} already in kanban`);
+      return;
+    }
+
+    const mode = subtask.delegation?.mode || 'local';
+    const soulId = subtask.delegation?.soul_id || null;
+
+    const taskEntry = {
+      task_id: subtask.subtask_id,
+      title: subtask.title,
+      status: mode === 'human' ? 'blocked' : 'queued',
+      owner: mode === 'soul' ? 'Daedalus' : null,
+      soul_id: soulId,
+      success_criteria: subtask.success_criteria || [],
+      artifacts: [],
+      next_action: mode === 'human'
+        ? 'Needs Gui input'
+        : `Plan subtask (${mode}${soulId ? `: ${soulId}` : ''})`,
+      parent_id: plan.parent_task_id,
+      project: null, // inherited from parent via MC
+      description: `${subtask.description || ''}\n\n_Delegation: ${mode}${soulId ? ` → ${soulId}` : ''} | Plan: ${plan.plan_id} | Budget: ${subtask.budget_minutes}m_`,
+      updated_at: isoTimestamp(),
+    };
+
+    // Append to active-tasks.md
+    const content = fs.readFileSync(ACTIVE_TASKS_PATH, 'utf-8');
+    const yamlEntry = formatTaskYaml(taskEntry);
+    fs.writeFileSync(ACTIVE_TASKS_PATH, content + '\n' + yamlEntry);
+
+    log(`  MATERIALIZED: ${subtask.subtask_id} → kanban (${mode})`);
+  } catch (err) {
+    log(`  ERROR materializing ${subtask.subtask_id}: ${err.message}`);
+  }
+}
+
+/**
+ * Format a task entry as YAML for active-tasks.md.
+ */
+function formatTaskYaml(task) {
+  const lines = [];
+  lines.push(`- task_id: ${task.task_id}`);
+  lines.push(`  title: ${task.title}`);
+  lines.push(`  status: ${task.status}`);
+  if (task.owner) lines.push(`  owner: ${task.owner}`);
+  if (task.soul_id) lines.push(`  soul_id: ${task.soul_id}`);
+  if (task.success_criteria?.length > 0) {
+    lines.push('  success_criteria:');
+    for (const sc of task.success_criteria) {
+      lines.push(`    - ${sc}`);
+    }
+  }
+  lines.push(`  artifacts:`);
+  if (task.next_action) lines.push(`  next_action: "${task.next_action.replace(/"/g, '\\"')}"`);
+  if (task.parent_id) lines.push(`  parent_id: ${task.parent_id}`);
+  if (task.description) lines.push(`  description: "${task.description.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`);
+  lines.push(`  updated_at: ${task.updated_at}`);
+  return lines.join('\n');
 }
 
 // ── Results: Mesh → Kanban (event-driven) ───────────
@@ -247,6 +478,11 @@ function handleEvent(eventType, taskId, meshTask) {
         lastHeartbeat.set(taskId, Date.now());
         return;
       default:
+        // Handle collab events
+        if (eventType.startsWith('collab.')) {
+          handleCollabEvent(eventType, taskId, meshTask);
+          return;
+        }
         // submitted, started — informational only
         log(`EVENT: ${eventType} ${taskId}`);
         return;
@@ -428,19 +664,30 @@ async function main() {
   log(`  Dispatch interval: ${DISPATCH_INTERVAL / 1000}s`);
   log(`  Mode:             ${DRY_RUN ? 'dry run' : 'live'}`);
 
-  nc = await connect(natsConnectOpts({ timeout: 5000, reconnect: true, maxReconnectAttempts: -1, reconnectTimeWait: 5000 }));
+  nc = await connect({
+    servers: NATS_URL,
+    timeout: 5000,
+    reconnect: true,
+    maxReconnectAttempts: 10,
+    reconnectTimeWait: 2000,
+  });
   log('Connected to NATS');
 
   // Re-reconcile on reconnect — catches events missed during NATS blip (#2)
-  // NATS.js uses async status() iterator, not EventEmitter .on()
+  // Exit on permanent disconnect so launchd restarts us
   (async () => {
     for await (const s of nc.status()) {
+      log(`NATS status: ${s.type}`);
       if (s.type === 'reconnect') {
         log('NATS reconnected — running reconciliation');
         reconcile().catch(err => log(`RECONCILE on reconnect failed: ${err.message}`));
       }
     }
   })();
+  nc.closed().then(() => {
+    log('NATS connection permanently closed — exiting for launchd restart');
+    process.exit(1);
+  });
 
   // Reconcile any orphaned tasks from a previous crash (#2, #10)
   await reconcile();
@@ -454,7 +701,12 @@ async function main() {
     for await (const msg of sub) {
       try {
         const payload = JSON.parse(sc.decode(msg.data));
-        handleEvent(payload.event, payload.task_id, payload.task);
+        // Route plan events separately (they use plan_id, not task_id)
+        if (payload.event && payload.event.startsWith('plan.')) {
+          handlePlanEvent(payload.event, payload.plan || payload);
+        } else {
+          handleEvent(payload.event, payload.task_id, payload.task);
+        }
       } catch (err) {
         log(`ERROR parsing event: ${err.message}`);
       }
@@ -467,13 +719,11 @@ async function main() {
 
   // Dispatch loop (polls active-tasks.md)
   while (running) {
-    let lastAttemptedTask = null;
     try {
       // Only dispatch if no active tasks in the mesh from this bridge
       if (dispatched.size === 0) {
         const task = findDispatchable();
         if (task) {
-          lastAttemptedTask = task;
           await dispatchTask(task);
           consecutiveSubmitFailures = 0; // reset on success
         }
@@ -498,11 +748,12 @@ async function main() {
       log(`DISPATCH ERROR (${consecutiveSubmitFailures}/${MAX_SUBMIT_FAILURES}): ${err.message}`);
 
       if (consecutiveSubmitFailures >= MAX_SUBMIT_FAILURES) {
-        // Use the captured task reference — don't re-query which could return a different task
-        if (lastAttemptedTask) {
-          log(`BLOCKING: ${lastAttemptedTask.task_id} after ${MAX_SUBMIT_FAILURES} consecutive submit failures`);
+        // Find the task we were trying to dispatch and mark it blocked
+        const failedTask = findDispatchable();
+        if (failedTask) {
+          log(`BLOCKING: ${failedTask.task_id} after ${MAX_SUBMIT_FAILURES} consecutive submit failures`);
           try {
-            updateTaskInPlace(ACTIVE_TASKS_PATH, lastAttemptedTask.task_id, {
+            updateTaskInPlace(ACTIVE_TASKS_PATH, failedTask.task_id, {
               status: 'blocked',
               next_action: `Mesh submit failed ${MAX_SUBMIT_FAILURES}x — check NATS connectivity`,
               updated_at: isoTimestamp(),
