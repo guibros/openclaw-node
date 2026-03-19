@@ -49,6 +49,14 @@ const HOME = os.homedir();
 const DEPLOY_BRANCH = process.env.OPENCLAW_DEPLOY_BRANCH || 'main';
 const REPO_DIR = process.env.OPENCLAW_REPO_DIR || path.join(HOME, 'openclaw');
 
+// KNOWN ISSUE: Two-directory problem
+// ~/openclaw-node is the git repo (source of truth). mesh-deploy pulls into it,
+// then copies files to ~/openclaw (the runtime location). These can drift if
+// files are edited directly in ~/openclaw without back-porting to the repo.
+// Resolution path: unify to a single directory. Either symlink ~/openclaw →
+// ~/openclaw-node, or change REPO_DIR default + DIRS to point at the same tree.
+// Until then, mesh-deploy.js is the only sanctioned way to propagate changes.
+
 // Standard directory layout
 const DIRS = {
   OPENCLAW_HOME:    path.join(HOME, '.openclaw'),

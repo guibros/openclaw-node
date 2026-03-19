@@ -263,10 +263,23 @@ function handleCollabEvent(eventType, taskId, data) {
       });
       break;
 
-    case 'collab.completed':
-      log(`COLLAB COMPLETED: ${taskId}`);
-      // The parent task completion is handled by the normal 'completed' event
+    case 'collab.completed': {
+      const result = session.result || {};
+      const nodeNames = Object.keys(result.node_contributions || {});
+      const artifactCount = (result.artifacts || []).length;
+      log(`COLLAB COMPLETED: ${taskId} — ${result.rounds_taken} rounds, ${nodeNames.length} nodes, ${artifactCount} artifacts`);
+      updateTaskInPlace(ACTIVE_TASKS_PATH, taskId, {
+        next_action: `Collab completed: ${result.rounds_taken || '?'} rounds, ${nodeNames.length} nodes. ${artifactCount} artifact(s). ${result.summary || ''}`.trim(),
+        collab_result: {
+          rounds_taken: result.rounds_taken,
+          node_contributions: result.node_contributions,
+          artifacts: result.artifacts,
+          summary: result.summary,
+        },
+        updated_at: isoTimestamp(),
+      });
       break;
+    }
 
     case 'collab.aborted':
       log(`COLLAB ABORTED: ${taskId} — ${session.result?.summary || 'unknown reason'}`);

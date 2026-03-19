@@ -1154,3 +1154,249 @@ describe('Event stream (live NATS)', () => {
     assert.ok(events.includes('completed'), `Expected 'completed' event, got: ${events}`);
   });
 });
+
+// ════════════════════════════════════════════════════
+// 15. SEQUENTIAL MODE — FULL ROUND FLOW
+// ════════════════════════════════════════════════════
+
+describe('Sequential mode — full round flow (live NATS)', { timeout: 30000 }, () => {
+  const collabTaskId = `${TEST_PREFIX}-seq-full`;
+  const nodeA = `${TEST_PREFIX}-seqA`;
+  const nodeB = `${TEST_PREFIX}-seqB`;
+  const nodeC = `${TEST_PREFIX}-seqC`;
+  let sessionId;
+
+  it('submits a sequential collab task', async () => {
+    const res = await rpc('mesh.tasks.submit', {
+      task_id: collabTaskId,
+      title: 'Integration test: sequential full flow',
+      description: 'Tests turn-by-turn sequential mode end-to-end',
+      budget_minutes: 10,
+      scope: ['test/'],
+      collaboration: {
+        mode: 'sequential',
+        min_nodes: 3,
+        max_nodes: 3,
+        join_window_s: 60,
+        max_rounds: 2,
+        convergence: { type: 'unanimous' },
+        scope_strategy: 'shared',
+      },
+    });
+    createdTaskIds.push(collabTaskId);
+
+    assert.equal(res.ok, true);
+    sessionId = res.data.collab_session_id;
+    createdSessionIds.push(sessionId);
+    assert.ok(sessionId);
+  });
+
+  it('all three nodes join', async () => {
+    await rpc('mesh.collab.join', { session_id: sessionId, node_id: nodeA });
+    await rpc('mesh.collab.join', { session_id: sessionId, node_id: nodeB });
+
+    // Subscribe to node A's round notification before the final join triggers round start
+    const roundPromise = new Promise((resolve, reject) => {
+      const sub = nc.subscribe(`mesh.collab.${sessionId}.node.${nodeA}.round`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new Error('Timeout waiting for round 1 notification to nodeA'));
+      }, 15000);
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(JSON.parse(sc.decode(msg.data)));
+        }
+      })();
+    });
+
+    const res = await rpc('mesh.collab.join', { session_id: sessionId, node_id: nodeC });
+    assert.equal(res.ok, true);
+    assert.equal(res.data.nodes.length, 3);
+
+    // In sequential mode, only the first-turn node should be notified
+    const notif = await roundPromise;
+    assert.equal(notif.round_number, 1);
+    assert.equal(notif.mode, 'sequential');
+    assert.equal(notif.current_turn, nodeA);
+  });
+
+  it('verifies session is active, round 1, sequential mode', async () => {
+    const res = await rpc('mesh.collab.status', { session_id: sessionId });
+    assert.equal(res.ok, true);
+    assert.equal(res.data.status, 'active');
+    assert.equal(res.data.current_round, 1);
+    assert.equal(res.data.mode, 'sequential');
+  });
+
+  it('node A reflects → daemon publishes turn notification to node B', async () => {
+    // Subscribe to node B's round notification BEFORE A reflects
+    const nodeBNotifPromise = new Promise((resolve, reject) => {
+      const sub = nc.subscribe(`mesh.collab.${sessionId}.node.${nodeB}.round`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new Error('Timeout waiting for sequential turn notification to nodeB'));
+      }, 15000);
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(JSON.parse(sc.decode(msg.data)));
+        }
+      })();
+    });
+
+    // Node A submits its reflection
+    const res = await rpc('mesh.collab.reflect', {
+      session_id: sessionId,
+      node_id: nodeA,
+      summary: 'Node A analyzed test/ directory',
+      learnings: 'Found 3 test files',
+      artifacts: ['test/analysis-A.md'],
+      confidence: 0.7,
+      vote: 'continue',
+    });
+    assert.equal(res.ok, true);
+
+    // Node B should receive a sequential turn notification with intra-round intel
+    const notifB = await nodeBNotifPromise;
+    assert.equal(notifB.round_number, 1);
+    assert.equal(notifB.mode, 'sequential');
+    assert.equal(notifB.current_turn, nodeB);
+    // Intra-round intel should include node A's reflection
+    assert.ok(notifB.shared_intel.includes('Node A analyzed test/ directory'),
+      'Node B should see node A\'s summary in shared intel');
+    assert.ok(notifB.shared_intel.includes('INTRA-ROUND'),
+      'Should include intra-round intel header');
+  });
+
+  it('node B reflects → daemon publishes turn notification to node C', async () => {
+    const nodeCNotifPromise = new Promise((resolve, reject) => {
+      const sub = nc.subscribe(`mesh.collab.${sessionId}.node.${nodeC}.round`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new Error('Timeout waiting for sequential turn notification to nodeC'));
+      }, 15000);
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(JSON.parse(sc.decode(msg.data)));
+        }
+      })();
+    });
+
+    const res = await rpc('mesh.collab.reflect', {
+      session_id: sessionId,
+      node_id: nodeB,
+      summary: 'Node B reviewed A\'s output',
+      learnings: 'Confirmed findings, added edge cases',
+      artifacts: ['test/review-B.md'],
+      confidence: 0.8,
+      vote: 'continue',
+    });
+    assert.equal(res.ok, true);
+
+    // Node C should see both A's and B's reflections in intra-round intel
+    const notifC = await nodeCNotifPromise;
+    assert.equal(notifC.current_turn, nodeC);
+    assert.ok(notifC.shared_intel.includes('Node A analyzed'),
+      'Node C should see node A\'s summary');
+    assert.ok(notifC.shared_intel.includes('Node B reviewed'),
+      'Node C should see node B\'s summary');
+  });
+
+  it('node C reflects (last turn) → round evaluates → no convergence → round 2 starts', async () => {
+    // Subscribe to node A's round 2 notification (first turn of new round)
+    const round2Promise = new Promise((resolve, reject) => {
+      const sub = nc.subscribe(`mesh.collab.${sessionId}.node.${nodeA}.round`);
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new Error('Timeout waiting for round 2 notification to nodeA'));
+      }, 15000);
+      (async () => {
+        for await (const msg of sub) {
+          const data = JSON.parse(sc.decode(msg.data));
+          if (data.round_number === 2) {
+            clearTimeout(timer);
+            sub.unsubscribe();
+            resolve(data);
+            return;
+          }
+        }
+      })();
+    });
+
+    const res = await rpc('mesh.collab.reflect', {
+      session_id: sessionId,
+      node_id: nodeC,
+      summary: 'Node C synthesized A+B findings',
+      learnings: 'Full picture assembled',
+      artifacts: ['test/synthesis-C.md'],
+      confidence: 0.75,
+      vote: 'continue',
+    });
+    assert.equal(res.ok, true);
+
+    // All 3 voted continue → no convergence → round 2 starts
+    const round2 = await round2Promise;
+    assert.equal(round2.round_number, 2);
+    assert.equal(round2.current_turn, nodeA, 'Node A should be first turn again in round 2');
+    // Round 2 shared intel should include round 1 summaries
+    assert.ok(round2.shared_intel.includes('ROUND 1'),
+      'Round 2 should include round 1 intel');
+  });
+
+  it('round 2: all nodes vote converged sequentially → session completes', async () => {
+    // Subscribe to BOTH B and C channels upfront before any round 2 reflections.
+    // This avoids a race where the daemon publishes a turn notification before
+    // the subscription is server-registered.
+    const nodeBR2Promise = new Promise((resolve, reject) => {
+      const sub = nc.subscribe(`mesh.collab.${sessionId}.node.${nodeB}.round`, { max: 1 });
+      const timer = setTimeout(() => { sub.unsubscribe(); reject(new Error('Timeout waiting for B round 2')); }, 15000);
+      (async () => { for await (const msg of sub) { clearTimeout(timer); resolve(JSON.parse(sc.decode(msg.data))); } })();
+    });
+
+    const nodeCR2Promise = new Promise((resolve, reject) => {
+      const sub = nc.subscribe(`mesh.collab.${sessionId}.node.${nodeC}.round`, { max: 1 });
+      const timer = setTimeout(() => { sub.unsubscribe(); reject(new Error('Timeout waiting for C round 2')); }, 15000);
+      (async () => { for await (const msg of sub) { clearTimeout(timer); resolve(JSON.parse(sc.decode(msg.data))); } })();
+    });
+
+    // Ensure subscriptions are registered on the server before proceeding
+    await nc.flush();
+
+    // Node A reflects → daemon advances turn → B gets notified
+    await rpc('mesh.collab.reflect', {
+      session_id: sessionId, node_id: nodeA,
+      summary: 'Final pass complete', learnings: 'All issues resolved',
+      artifacts: [], confidence: 0.95, vote: 'converged',
+    });
+    await nodeBR2Promise; // wait for B's turn
+
+    // Node B reflects → daemon advances turn → C gets notified
+    await rpc('mesh.collab.reflect', {
+      session_id: sessionId, node_id: nodeB,
+      summary: 'Confirmed', learnings: 'Cross-checked',
+      artifacts: [], confidence: 0.9, vote: 'converged',
+    });
+    await nodeCR2Promise; // wait for C's turn
+
+    // Node C reflects (last turn → round evaluates → unanimous convergence)
+    await rpc('mesh.collab.reflect', {
+      session_id: sessionId, node_id: nodeC,
+      summary: 'Agreed', learnings: 'All aligned',
+      artifacts: [], confidence: 0.92, vote: 'converged',
+    });
+
+    // Session should complete
+    const status = await pollUntil('mesh.collab.status', { session_id: sessionId },
+      r => r.ok && r.data.status === 'completed');
+    assert.equal(status.data.status, 'completed');
+    assert.ok(status.data.total_reflections >= 6, 'Should have 6 reflections (3 per round x 2 rounds)');
+  });
+
+  it('parent task is marked completed', async () => {
+    const res = await pollUntil('mesh.tasks.get', { task_id: collabTaskId },
+      r => r.ok && r.data.status === 'completed');
+    assert.equal(res.data.status, 'completed');
+  });
+});

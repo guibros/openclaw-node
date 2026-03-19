@@ -294,18 +294,31 @@ function commitAndMergeWorktree(worktreePath, taskId, summary) {
 
     log(`Committed ${sha} on ${branch}: ${commitMsg}`);
 
-    // Merge into main (from workspace)
-    try {
-      execSync(`git merge --no-ff "${branch}" -m "Merge ${branch}: ${taskId}"`, {
-        cwd: WORKSPACE, timeout: 30000, stdio: 'pipe',
-      });
-      log(`Merged ${branch} into main`);
-      return { committed: true, merged: true, sha };
-    } catch (mergeErr) {
-      // Merge conflict — abort and keep branch for human resolution
-      execSync('git merge --abort', { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' });
-      log(`MERGE CONFLICT on ${branch} — branch kept for manual resolution`);
-      return { committed: true, merged: false, sha };
+    // Merge into main (from workspace).
+    // Parallel collab: multiple nodes may merge concurrently. If the first attempt
+    // fails (e.g., another node merged first), retry once after pulling.
+    const mergeMsg = `Merge ${branch}: ${taskId}`;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        execSync(`git merge --no-ff "${branch}" -m "${mergeMsg.replace(/"/g, '\\"')}"`, {
+          cwd: WORKSPACE, timeout: 30000, stdio: 'pipe',
+        });
+        log(`Merged ${branch} into main${attempt > 0 ? ' (retry succeeded)' : ''}`);
+        return { committed: true, merged: true, sha };
+      } catch (mergeErr) {
+        execSync('git merge --abort', { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' });
+        if (attempt === 0) {
+          // First failure: pull and retry (handles race with parallel merge)
+          try {
+            log(`Merge attempt 1 failed for ${branch} — fast-forward pulling and retrying`);
+            execSync('git pull --ff-only', { cwd: WORKSPACE, timeout: 15000, stdio: 'pipe' });
+          } catch { /* best effort pull */ }
+        } else {
+          // Second failure: real conflict — keep branch for human resolution
+          log(`MERGE CONFLICT on ${branch} — branch kept for manual resolution`);
+          return { committed: true, merged: false, sha, conflict: true };
+        }
+      }
     }
   } catch (err) {
     log(`Commit/merge warning: ${err.message}`);
@@ -377,14 +390,23 @@ function runLLM(prompt, task, worktreePath) {
       timeout: (task.budget_minutes || 30) * 60 * 1000, // kill if exceeds budget
     });
 
-    // Heartbeat: signal daemon with activity state
+    // Heartbeat: signal daemon with activity state.
+    // getActivityState reads Claude JSONL files — only useful for Claude provider.
+    // For other providers, send a basic heartbeat (process alive = active).
+    const isClaude = provider.name === 'claude';
     const heartbeatTimer = setInterval(async () => {
       try {
-        const activity = await getActivityState(cleanCwd);
         const payload = { task_id: task.task_id };
-        if (activity) {
-          payload.activity_state = activity.state;
-          payload.activity_timestamp = activity.timestamp?.toISOString();
+        if (isClaude) {
+          const activity = await getActivityState(cleanCwd);
+          if (activity) {
+            payload.activity_state = activity.state;
+            payload.activity_timestamp = activity.timestamp?.toISOString();
+          }
+        } else {
+          // Non-Claude: process is running → active
+          payload.activity_state = 'active';
+          payload.activity_timestamp = new Date().toISOString();
         }
         await natsRequest('mesh.tasks.heartbeat', payload);
       } catch {
@@ -713,7 +735,9 @@ async function executeCollabTask(task) {
     const roundData = JSON.parse(sc.decode(roundMsg.data));
     const { round_number, shared_intel, my_scope, my_role, mode, current_turn } = roundData;
 
-    // Sequential mode: skip if it's not our turn
+    // Sequential mode safety guard: skip if it's not our turn.
+    // The daemon (notifySequentialTurn) only sends to the current-turn node,
+    // so this should not normally trigger. Kept as a defensive check.
     if (mode === 'sequential' && current_turn && current_turn !== NODE_ID) {
       log(`COLLAB R${round_number}: Not our turn (current: ${current_turn}). Waiting.`);
       continue;

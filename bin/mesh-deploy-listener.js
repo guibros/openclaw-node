@@ -25,8 +25,12 @@ const os = require('os');
 
 const NODE_ID = process.env.OPENCLAW_NODE_ID ||
   os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+// NOTE: REPO_DIR defaults to ~/openclaw (runtime). The git repo lives at
+// ~/openclaw-node. See mesh-deploy.js "Two-directory problem" comment.
 const REPO_DIR = process.env.OPENCLAW_REPO_DIR ||
   path.join(os.homedir(), 'openclaw');
+const REPO_REMOTE_URL = process.env.OPENCLAW_REPO_URL ||
+  'https://github.com/moltyguibros-design/openclaw-node.git';
 const DEPLOY_SCRIPT = path.join(REPO_DIR, 'bin', 'mesh-deploy.js');
 
 const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
@@ -60,137 +64,140 @@ let deploying = false; // prevent concurrent deploys
 
 async function executeDeploy(trigger, resultsKv, nodesKv) {
   if (deploying) {
-    console.log(`[deploy-listener] Already deploying — ignoring trigger for ${trigger.sha}`);
+    console.log(`[deploy-listener] Already deploying — ignoring trigger for ${trigger.sha} (from ${trigger.initiator || 'unknown'})`);
     return;
   }
 
   deploying = true;
   const startedAt = new Date().toISOString();
-  const resultKey = `${trigger.sha}-${NODE_ID}`;
-
-  console.log(`[deploy-listener] ═══ Deploy triggered: ${trigger.sha} by ${trigger.initiator} ═══`);
-
-  // Write "deploying" status so lead sees we're working
-  try {
-    await resultsKv.put(resultKey, sc.encode(JSON.stringify({
-      nodeId: NODE_ID, sha: trigger.sha, status: 'deploying', startedAt,
-    })));
-  } catch {}
-
-  const result = {
-    nodeId: NODE_ID,
-    sha: trigger.sha,
-    status: 'success',
-    startedAt,
-    completedAt: null,
-    durationSeconds: 0,
-    componentsDeployed: [],
-    warnings: [],
-    errors: [],
-    log: '',
-  };
+  // Sanitize sha for NATS KV key safety (KV rejects whitespace, path seps, etc.)
+  const safeSha = (trigger.sha || 'unknown').replace(/[^a-fA-F0-9.-]/g, '');
+  const resultKey = `${safeSha}-${NODE_ID}`;
 
   try {
-    // Validate branch name to prevent command injection (trigger.branch comes from NATS)
-    const branch = (trigger.branch || 'main').replace(/[^a-zA-Z0-9._/-]/g, '');
-    if (!branch || branch !== (trigger.branch || 'main')) {
-      throw new Error(`Invalid branch name: ${trigger.branch}`);
-    }
+    console.log(`[deploy-listener] ═══ Deploy triggered: ${trigger.sha} by ${trigger.initiator} ═══`);
 
-    // Bootstrap git repo if directory exists but .git doesn't
-    // (provisioner may have copied files without git clone)
-    if (!fs.existsSync(path.join(REPO_DIR, '.git'))) {
-      if (!fs.existsSync(REPO_DIR)) {
-        throw new Error(`Repo dir not found at ${REPO_DIR}`);
-      }
-      console.log(`[deploy-listener] No .git found — bootstrapping git repo`);
-      execSync('git init', { cwd: REPO_DIR, encoding: 'utf8', timeout: 10000 });
-      execSync(`git remote add origin https://github.com/moltyguibros-design/openclaw-node.git`, {
-        cwd: REPO_DIR, encoding: 'utf8', timeout: 10000,
-      });
-      execSync(`git fetch origin ${branch}`, {
-        cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
-      });
-      execSync(`git reset --hard origin/${branch}`, {
-        cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
-      });
-      console.log(`[deploy-listener] Git bootstrapped from origin/${branch}`);
-    } else {
-      // Normal path: fetch + ff merge
-      execSync(`git fetch origin ${branch}`, {
-        cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
-      });
-      execSync(`git merge origin/${branch} --ff-only`, {
-        cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
-      });
-    }
-
-    // Build deploy command — filter requested components against what this node runs
-    let cmd = `"${process.execPath}" "${DEPLOY_SCRIPT}" --local`;
-    if (trigger.components && !trigger.components.includes('all')) {
-      const applicable = trigger.components.filter(c => NODE_COMPONENTS.has(c));
-      if (applicable.length === 0) {
-        console.log(`[deploy-listener] No applicable components for role=${NODE_ROLE} — skipping`);
-        result.status = 'skipped';
-        result.log = `No matching components for role ${NODE_ROLE}`;
-        deploying = false;
-        result.completedAt = new Date().toISOString();
-        try { await resultsKv.put(resultKey, sc.encode(JSON.stringify(result))); } catch {}
-        return;
-      }
-      for (const c of applicable) cmd += ` --component ${c}`;
-    }
-    if (trigger.force) cmd += ' --force';
-
-    console.log(`[deploy-listener] Running: ${cmd}`);
-    const output = execSync(cmd, {
-      cwd: REPO_DIR,
-      encoding: 'utf8',
-      timeout: 300000, // 5 min max (npm install can be slow)
-      env: { ...process.env, OPENCLAW_REPO_DIR: REPO_DIR },
-    });
-
-    result.log = output.slice(-5000);
-    result.status = 'success';
-    result.sha = execSync('git rev-parse --short HEAD', {
-      cwd: REPO_DIR, encoding: 'utf8',
-    }).trim();
-
-    console.log(`[deploy-listener] Success — now at ${result.sha}`);
-
-  } catch (err) {
-    result.status = 'failed';
-    result.errors.push(err.message);
-    result.log = (err.stdout || err.stderr || err.message).slice(-5000);
-    console.error(`[deploy-listener] Deploy FAILED: ${err.message}`);
-  }
-
-  result.completedAt = new Date().toISOString();
-  result.durationSeconds = Math.round(
-    (new Date(result.completedAt) - new Date(result.startedAt)) / 1000
-  );
-
-  // Write final result to KV
-  try {
-    await resultsKv.put(resultKey, sc.encode(JSON.stringify(result)));
-  } catch (err) {
-    console.error(`[deploy-listener] Failed to write result: ${err.message}`);
-  }
-
-  // Update our deployVersion in the nodes registry
-  if (result.status === 'success' && nodesKv) {
+    // Write "deploying" status so lead sees we're working
     try {
-      const existing = await nodesKv.get(NODE_ID);
-      if (existing && existing.value) {
-        const node = JSON.parse(sc.decode(existing.value));
-        node.deployVersion = result.sha;
-        node.lastDeploy = result.completedAt;
-        await nodesKv.put(NODE_ID, sc.encode(JSON.stringify(node)));
-      }
+      await resultsKv.put(resultKey, sc.encode(JSON.stringify({
+        nodeId: NODE_ID, sha: trigger.sha, status: 'deploying', startedAt,
+      })));
     } catch {}
-  }
 
-  deploying = false;
+    const result = {
+      nodeId: NODE_ID,
+      sha: trigger.sha,
+      status: 'success',
+      startedAt,
+      completedAt: null,
+      durationSeconds: 0,
+      componentsDeployed: [],
+      warnings: [],
+      errors: [],
+      log: '',
+    };
+
+    try {
+      // Validate branch name to prevent command injection (trigger.branch comes from NATS)
+      const branch = (trigger.branch || 'main').replace(/[^a-zA-Z0-9._/-]/g, '');
+      if (!branch || branch !== (trigger.branch || 'main')) {
+        throw new Error(`Invalid branch name: ${trigger.branch}`);
+      }
+
+      // Bootstrap git repo if directory exists but .git doesn't
+      // (provisioner may have copied files without git clone)
+      if (!fs.existsSync(path.join(REPO_DIR, '.git'))) {
+        if (!fs.existsSync(REPO_DIR)) {
+          throw new Error(`Repo dir not found at ${REPO_DIR}`);
+        }
+        console.log(`[deploy-listener] No .git found — bootstrapping git repo`);
+        execSync('git init', { cwd: REPO_DIR, encoding: 'utf8', timeout: 10000 });
+        execSync(`git remote add origin ${REPO_REMOTE_URL}`, {
+          cwd: REPO_DIR, encoding: 'utf8', timeout: 10000,
+        });
+        execSync(`git fetch origin ${branch}`, {
+          cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
+        });
+        execSync(`git reset --hard origin/${branch}`, {
+          cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
+        });
+        console.log(`[deploy-listener] Git bootstrapped from origin/${branch}`);
+      } else {
+        // Normal path: fetch + ff merge
+        execSync(`git fetch origin ${branch}`, {
+          cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
+        });
+        execSync(`git merge origin/${branch} --ff-only`, {
+          cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
+        });
+      }
+
+      // Build deploy command — filter requested components against what this node runs
+      let cmd = `"${process.execPath}" "${DEPLOY_SCRIPT}" --local`;
+      if (trigger.components && !trigger.components.includes('all')) {
+        const applicable = trigger.components.filter(c => NODE_COMPONENTS.has(c));
+        if (applicable.length === 0) {
+          console.log(`[deploy-listener] No applicable components for role=${NODE_ROLE} — skipping`);
+          result.status = 'skipped';
+          result.log = `No matching components for role ${NODE_ROLE}`;
+          result.completedAt = new Date().toISOString();
+          try { await resultsKv.put(resultKey, sc.encode(JSON.stringify(result))); } catch {}
+          return;
+        }
+        for (const c of applicable) cmd += ` --component ${c}`;
+      }
+      if (trigger.force) cmd += ' --force';
+
+      console.log(`[deploy-listener] Running: ${cmd}`);
+      const output = execSync(cmd, {
+        cwd: REPO_DIR,
+        encoding: 'utf8',
+        timeout: 300000, // 5 min max (npm install can be slow)
+        env: { ...process.env, OPENCLAW_REPO_DIR: REPO_DIR },
+      });
+
+      result.log = output.slice(-5000);
+      result.status = 'success';
+      result.sha = execSync('git rev-parse --short HEAD', {
+        cwd: REPO_DIR, encoding: 'utf8',
+      }).trim();
+
+      console.log(`[deploy-listener] Success — now at ${result.sha}`);
+
+    } catch (err) {
+      result.status = 'failed';
+      result.errors.push(err.message);
+      result.log = (err.stdout || err.stderr || err.message).slice(-5000);
+      console.error(`[deploy-listener] Deploy FAILED: ${err.message}`);
+    }
+
+    result.completedAt = new Date().toISOString();
+    result.durationSeconds = Math.round(
+      (new Date(result.completedAt) - new Date(result.startedAt)) / 1000
+    );
+
+    // Write final result to KV
+    try {
+      await resultsKv.put(resultKey, sc.encode(JSON.stringify(result)));
+    } catch (err) {
+      console.error(`[deploy-listener] Failed to write result: ${err.message}`);
+    }
+
+    // Update our deployVersion in the nodes registry
+    if (result.status === 'success' && nodesKv) {
+      try {
+        const existing = await nodesKv.get(NODE_ID);
+        if (existing && existing.value) {
+          const node = JSON.parse(sc.decode(existing.value));
+          node.deployVersion = result.sha;
+          node.lastDeploy = result.completedAt;
+          await nodesKv.put(NODE_ID, sc.encode(JSON.stringify(node)));
+        }
+      } catch {}
+    }
+  } finally {
+    deploying = false;
+  }
 }
 
 // ── Auto-Catch-Up ────────────────────────────────────────────────────────

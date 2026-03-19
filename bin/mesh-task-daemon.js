@@ -358,6 +358,35 @@ async function detectStalls() {
       }
     }
 
+    // Mark stalled node as dead in any collab sessions it belongs to.
+    // This unblocks isRoundComplete() which otherwise waits forever for
+    // a reflection from a crashed node.
+    // Uses findActiveSessionsByNode() — O(sessions) single pass instead of
+    // the previous O(sessions × nodes) list-then-find pattern.
+    if (task.owner && collabStore) {
+      try {
+        const sessions = await collabStore.findActiveSessionsByNode(task.owner);
+        for (const session of sessions) {
+          const node = session.nodes.find(n => n.node_id === task.owner);
+          if (node && node.status !== 'dead') {
+            await collabStore.setNodeStatus(session.session_id, task.owner, 'dead');
+            log(`STALL → COLLAB: marked ${task.owner} as dead in session ${session.session_id}`);
+            await collabStore.appendAudit(session.session_id, 'node_marked_dead', {
+              node_id: task.owner, reason: `Stall detected: no heartbeat for ${silentMin}m`,
+            });
+
+            // Re-check if the round is now complete (dead nodes excluded)
+            const updated = await collabStore.get(session.session_id);
+            if (updated && collabStore.isRoundComplete(updated)) {
+              await evaluateRound(session.session_id);
+            }
+          }
+        }
+      } catch (err) {
+        log(`STALL → COLLAB ERROR: ${err.message}`);
+      }
+    }
+
     const releasedTask = await store.markReleased(
       task.task_id,
       `Stall detected: no agent heartbeat for ${silentMin}m, alive check failed`,
@@ -566,8 +595,18 @@ async function handleCollabReflect(msg) {
   });
   publishCollabEvent('reflection_received', session);
 
-  // Check if all reflections are in → evaluate convergence
-  if (collabStore.isRoundComplete(session)) {
+  // Sequential mode: advance turn, notify next node or evaluate round
+  // Parallel mode: check if all reflections are in → evaluate convergence
+  if (session.mode === 'sequential') {
+    const nextNodeId = await collabStore.advanceTurn(session_id);
+    if (nextNodeId) {
+      // Notify only the next-turn node with accumulated intra-round intel
+      await notifySequentialTurn(session_id, nextNodeId);
+    } else {
+      // All turns done → evaluate round
+      await evaluateRound(session_id);
+    }
+  } else if (collabStore.isRoundComplete(session)) {
     await evaluateRound(session_id);
   }
 
@@ -677,8 +716,14 @@ async function startCollabRound(sessionId) {
   const scopeStrategy = session.scope_strategy || 'shared';
   const nodeScopes = computeNodeScopes(session.nodes, taskScope, scopeStrategy);
 
-  // Notify each node with their enforced scope
-  for (const node of session.nodes) {
+  // Sequential mode: only notify the current_turn node.
+  // Other nodes get notified via notifySequentialTurn() as turns advance.
+  // Parallel mode: notify all nodes at once.
+  const nodesToNotify = session.mode === 'sequential' && session.current_turn
+    ? session.nodes.filter(n => n.node_id === session.current_turn)
+    : session.nodes;
+
+  for (const node of nodesToNotify) {
     const effectiveScope = nodeScopes[node.node_id] || node.scope;
     nc.publish(`mesh.collab.${sessionId}.node.${node.node_id}.round`, sc.encode(JSON.stringify({
       session_id: sessionId,
@@ -692,6 +737,57 @@ async function startCollabRound(sessionId) {
       scope_strategy: scopeStrategy,
     })));
   }
+}
+
+/**
+ * Notify the next node in a sequential turn.
+ * Includes intra-round reflections so far as additional shared intel.
+ */
+async function notifySequentialTurn(sessionId, nextNodeId) {
+  const session = await collabStore.get(sessionId);
+  if (!session) return;
+
+  const currentRound = session.rounds[session.rounds.length - 1];
+  if (!currentRound) return;
+
+  // Compile intra-round intel from reflections already submitted this round
+  const intraLines = [`=== INTRA-ROUND ${currentRound.round_number} (turns so far) ===\n`];
+  for (const r of currentRound.reflections) {
+    intraLines.push(`## Turn: ${r.node_id}${r.parse_failed ? ' [PARSE FAILED]' : ''}`);
+    if (r.summary) intraLines.push(`Summary: ${r.summary}`);
+    if (r.learnings) intraLines.push(`Learnings: ${r.learnings}`);
+    if (r.artifacts.length > 0) intraLines.push(`Artifacts: ${r.artifacts.join(', ')}`);
+    intraLines.push(`Confidence: ${r.confidence} | Vote: ${r.vote}`);
+    intraLines.push('');
+  }
+  const intraRoundIntel = intraLines.join('\n');
+  const combinedIntel = currentRound.shared_intel
+    ? currentRound.shared_intel + '\n\n' + intraRoundIntel
+    : intraRoundIntel;
+
+  const parentTask = await store.get(session.task_id);
+  const taskScope = parentTask?.scope || [];
+  const scopeStrategy = session.scope_strategy || 'shared';
+  const nodeScopes = computeNodeScopes(session.nodes, taskScope, scopeStrategy);
+  const nextNode = session.nodes.find(n => n.node_id === nextNodeId);
+
+  nc.publish(`mesh.collab.${sessionId}.node.${nextNodeId}.round`, sc.encode(JSON.stringify({
+    session_id: sessionId,
+    task_id: session.task_id,
+    round_number: currentRound.round_number,
+    shared_intel: combinedIntel,
+    my_scope: nodeScopes[nextNodeId] || nextNode?.scope || ['*'],
+    my_role: nextNode?.role || 'worker',
+    mode: 'sequential',
+    current_turn: nextNodeId,
+    scope_strategy: scopeStrategy,
+  })));
+
+  log(`COLLAB SEQ ${sessionId} R${currentRound.round_number}: Turn advanced to ${nextNodeId}`);
+  await collabStore.appendAudit(sessionId, 'turn_advanced', {
+    round: currentRound.round_number, next_node: nextNodeId,
+    reflections_so_far: currentRound.reflections.length,
+  });
 }
 
 /**
@@ -975,6 +1071,19 @@ async function advancePlanWave(planId) {
   const waveNum = ready[0].wave;
   log(`PLAN WAVE ${planId} W${waveNum}: dispatching ${ready.length} subtasks`);
 
+  // Inherit routing fields from parent task so subtasks use the same LLM/node preferences.
+  // CONSTRAINT: Subtasks cannot override routing independently — they always inherit from the
+  // parent task. If per-subtask routing is needed, extend the subtask schema in mesh-plans.js
+  // (e.g. subtask.llm_provider) and merge here with subtask fields taking priority.
+  const parentTask = await store.get(plan.parent_task_id);
+  const inheritedRouting = {};
+  if (parentTask) {
+    if (parentTask.llm_provider) inheritedRouting.llm_provider = parentTask.llm_provider;
+    if (parentTask.llm_model) inheritedRouting.llm_model = parentTask.llm_model;
+    if (parentTask.preferred_nodes) inheritedRouting.preferred_nodes = parentTask.preferred_nodes;
+    if (parentTask.exclude_nodes) inheritedRouting.exclude_nodes = parentTask.exclude_nodes;
+  }
+
   for (const st of ready) {
     st.status = SUBTASK_STATUS.QUEUED;
 
@@ -982,7 +1091,7 @@ async function advancePlanWave(planId) {
     switch (st.delegation.mode) {
       case 'solo_mesh':
       case 'collab_mesh': {
-        // Submit as mesh task
+        // Submit as mesh task — inherit routing fields from parent task
         const meshTask = createTask({
           task_id: st.subtask_id,
           title: st.title,
@@ -993,6 +1102,7 @@ async function advancePlanWave(planId) {
           success_criteria: st.success_criteria,
           tags: ['plan', planId],
           collaboration: st.delegation.collaboration || undefined,
+          ...inheritedRouting,
         });
         await store.put(meshTask);
         st.mesh_task_id = meshTask.task_id;
