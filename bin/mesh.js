@@ -397,6 +397,10 @@ async function cmdSubmit(args) {
       success_criteria: task.success_criteria || [],
       scope: task.scope || [],
       priority: task.auto_priority || 0,
+      llm_provider: task.provider || task.llm_provider || null,
+      llm_model: task.model || task.llm_model || null,
+      preferred_nodes: task.preferred_nodes || [],
+      exclude_nodes: task.exclude_nodes || [],
     });
     console.log(`Submitted: ${result.data.task_id} [${result.data.status}]`);
     // Mark as 'submitted' — NOT 'running'. The card reflects actual mesh state.
@@ -451,12 +455,17 @@ async function cmdSubmit(args) {
     scope: task.scope || [],
     priority: task.priority || 0,
     tags: task.tags || [],
+    llm_provider: task.provider || task.llm_provider || null,
+    llm_model: task.model || task.llm_model || null,
+    preferred_nodes: task.preferred_nodes || [],
+    exclude_nodes: task.exclude_nodes || [],
   });
 
   console.log(`Submitted: ${result.data.task_id} "${result.data.title}"`);
   console.log(`  Status:  ${result.data.status}`);
   console.log(`  Budget:  ${result.data.budget_minutes}m`);
   console.log(`  Metric:  ${result.data.metric || 'none'}`);
+  if (result.data.llm_provider) console.log(`  Provider: ${result.data.llm_provider}`);
   await nc.close();
 }
 
