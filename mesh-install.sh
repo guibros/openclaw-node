@@ -32,20 +32,22 @@ die()  { fail "$1"; exit 1; }
 # ── Token ──────────────────────────────────────────────
 
 TOKEN="${MESH_JOIN_TOKEN:-}"
+REPAIR=0
 
 # Parse --token from args
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --token) TOKEN="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --repair) REPAIR=1; shift ;;
     *) shift ;;
   esac
 done
 
 DRY_RUN="${DRY_RUN:-0}"
 
-if [ -z "$TOKEN" ]; then
-  die "No join token. Set MESH_JOIN_TOKEN or use --token <token>"
+if [ "$REPAIR" = "0" ] && [ -z "$TOKEN" ]; then
+  die "No join token. Set MESH_JOIN_TOKEN or use --token <token>. For repair: --repair"
 fi
 
 # ── OS Detection ──────────────────────────────────────
@@ -198,6 +200,9 @@ echo ""
 EXTRA_ARGS=""
 if [ "$DRY_RUN" = "1" ]; then
   EXTRA_ARGS="--dry-run"
+fi
+if [ "$REPAIR" = "1" ]; then
+  EXTRA_ARGS="$EXTRA_ARGS --repair"
 fi
 
 cd "$MESH_DIR"

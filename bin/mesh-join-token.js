@@ -43,6 +43,21 @@ const PROVIDER = getArg('--provider', 'claude');
 const EXPIRES = getArg('--expires', '48h');
 const REPO = getArg('--repo', 'https://github.com/moltyguibros-design/openclaw-node.git');
 const ONE_LINER = args.includes('--one-liner');
+const NO_SSH = args.includes('--no-ssh');
+
+// Read lead node's SSH public key (auto-discover from ~/.ssh/)
+function getLeadSSHPubkey() {
+  if (NO_SSH) return null;
+  const sshDir = path.join(os.homedir(), '.ssh');
+  const candidates = ['id_ed25519_openclaw.pub', 'id_ed25519.pub', 'id_rsa.pub', 'id_ecdsa.pub'];
+  for (const f of candidates) {
+    const p = path.join(sshDir, f);
+    if (fs.existsSync(p)) {
+      return fs.readFileSync(p, 'utf8').trim();
+    }
+  }
+  return null;
+}
 
 // ── Token secret ──────────────────────────────────────
 // Stored at ~/.openclaw/.mesh-secret. Created on first use.
@@ -81,8 +96,10 @@ function generateToken() {
   const secret = getOrCreateSecret();
   const expiresAt = parseExpiry(EXPIRES);
 
+  const sshPubkey = getLeadSSHPubkey();
+
   const payload = {
-    v: 2,                           // token version (v2: added repo field)
+    v: 3,                           // token version (v3: added ssh_pubkey)
     nats: NATS_URL,                 // NATS server URL
     role: ROLE,                     // node role
     provider: PROVIDER,             // default LLM provider
@@ -90,6 +107,7 @@ function generateToken() {
     lead: os.hostname(),            // lead node hostname (for reference)
     issued: Date.now(),             // issued timestamp
     expires: expiresAt,             // expiry timestamp
+    ...(sshPubkey && { ssh_pubkey: sshPubkey }), // lead node's SSH public key
   };
 
   // HMAC-SHA256 signature for integrity

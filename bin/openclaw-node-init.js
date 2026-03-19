@@ -34,6 +34,7 @@ const path = require('path');
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
+const REPAIR_MODE = args.includes('--repair');
 
 function getArg(flag, defaultVal) {
   const idx = args.indexOf(flag);
@@ -42,6 +43,7 @@ function getArg(flag, defaultVal) {
 
 const TOKEN_RAW = getArg('--token', null) || process.env.MESH_JOIN_TOKEN;
 const PROVIDER_OVERRIDE = getArg('--provider', null);
+const SSH_PUBKEY = getArg('--ssh-key', null);
 
 // Default repo URL — used when token is v1 (no repo field)
 const DEFAULT_REPO = 'https://github.com/moltyguibros-design/openclaw-node.git';
@@ -80,9 +82,9 @@ function parseToken(raw) {
 }
 
 function validateToken(payload) {
-  // Accept v1 (no repo) and v2 (with repo)
-  if (payload.v !== 1 && payload.v !== 2) {
-    fail(`Unsupported token version: ${payload.v}. This provisioner supports v1 and v2.`);
+  // Accept v1 (no repo), v2 (with repo), v3 (with ssh_pubkey)
+  if (payload.v !== 1 && payload.v !== 2 && payload.v !== 3) {
+    fail(`Unsupported token version: ${payload.v}. This provisioner supports v1, v2, and v3.`);
     process.exit(1);
   }
   if (payload.expires && Date.now() > payload.expires) {
@@ -241,6 +243,52 @@ function setupDirectories() {
       ok(`Exists: ${dir}`);
     }
   }
+}
+
+// ── SSH Key Provisioning ─────────────────────────────
+
+function provisionSSHKey(pubkey) {
+  if (!pubkey) return;
+
+  const sshDir = path.join(os.homedir(), '.ssh');
+  const authKeysPath = path.join(sshDir, 'authorized_keys');
+
+  if (DRY_RUN) {
+    warn(`[DRY RUN] Would add SSH key to ${authKeysPath}`);
+    return;
+  }
+
+  // Ensure .ssh dir exists with correct permissions
+  if (!fs.existsSync(sshDir)) {
+    fs.mkdirSync(sshDir, { mode: 0o700 });
+    ok(`Created ${sshDir}`);
+  } else {
+    try { fs.chmodSync(sshDir, 0o700); } catch { /* best effort */ }
+  }
+
+  // Check if key already present
+  let existing = '';
+  if (fs.existsSync(authKeysPath)) {
+    existing = fs.readFileSync(authKeysPath, 'utf8');
+    // Extract the key portion (type + base64) for comparison, ignore comment
+    const keyParts = pubkey.trim().split(/\s+/);
+    const keyFingerprint = keyParts.length >= 2 ? `${keyParts[0]} ${keyParts[1]}` : pubkey.trim();
+    if (existing.includes(keyFingerprint)) {
+      ok('Lead node SSH key already authorized');
+      return;
+    }
+  }
+
+  // Append key
+  const entry = existing.endsWith('\n') || existing === ''
+    ? `${pubkey.trim()}\n`
+    : `\n${pubkey.trim()}\n`;
+  fs.appendFileSync(authKeysPath, entry, { mode: 0o600 });
+
+  // Fix permissions
+  try { fs.chmodSync(authKeysPath, 0o600); } catch { /* best effort */ }
+
+  ok('Lead node SSH key added to authorized_keys');
 }
 
 // ── NATS Configuration ───────────────────────────────
@@ -562,33 +610,75 @@ async function verifyNatsHealth(natsUrl, nodeId) {
 
 // ── Main ──────────────────────────────────────────────
 
+// ── Repair Mode ──────────────────────────────────────
+
+function loadExistingConfig() {
+  const envPath = path.join(os.homedir(), '.openclaw', 'openclaw.env');
+  const config = { nats: null, role: 'worker', provider: 'claude', repo: DEFAULT_REPO };
+
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    const natsMatch = content.match(/^\s*OPENCLAW_NATS\s*=\s*(.+)/m);
+    if (natsMatch) config.nats = natsMatch[1].trim();
+    const providerMatch = content.match(/^\s*MESH_LLM_PROVIDER\s*=\s*(.+)/m);
+    if (providerMatch) config.provider = providerMatch[1].trim();
+  }
+
+  return config;
+}
+
+// ── Main ──────────────────────────────────────────────
+
 async function main() {
+  const title = REPAIR_MODE ? 'OpenClaw Mesh — Repair Mode' : 'OpenClaw Mesh Node Provisioner';
   console.log(`\n${BOLD}${CYAN}╔══════════════════════════════════════╗${RESET}`);
-  console.log(`${BOLD}${CYAN}║   OpenClaw Mesh Node Provisioner     ║${RESET}`);
+  console.log(`${BOLD}${CYAN}║   ${title.padEnd(35)}║${RESET}`);
   console.log(`${BOLD}${CYAN}╚══════════════════════════════════════╝${RESET}\n`);
 
   if (DRY_RUN) warn('DRY RUN MODE — no changes will be made\n');
 
-  // ── Step 1: Parse and validate token ──
-  step(1, 'Validating join token...');
-  const { payload } = parseToken(TOKEN_RAW);
-  validateToken(payload);
-  ok(`Token valid (v${payload.v}, role: ${payload.role}, provider: ${payload.provider}, lead: ${payload.lead})`);
-  ok(`Expires: ${new Date(payload.expires).toISOString()}`);
+  let payload, config;
 
-  // Extract config from token (with defaults for v1 tokens)
-  const repoUrl = payload.repo || DEFAULT_REPO;
-  const config = {
-    nats: payload.nats,
-    role: payload.role,
-    provider: PROVIDER_OVERRIDE || payload.provider,
-    repo: repoUrl,
-  };
+  if (REPAIR_MODE) {
+    // ── Repair mode: skip token, use existing config ──
+    step(1, 'Loading existing configuration...');
+    config = loadExistingConfig();
+    if (!config.nats) {
+      fail('No NATS URL found in ~/.openclaw/openclaw.env');
+      fail('Cannot repair without existing config. Use a join token instead.');
+      process.exit(1);
+    }
+    ok(`NATS: ${config.nats}`);
+    ok(`Provider: ${config.provider}`);
+    payload = { ssh_pubkey: null };
 
-  if (payload.repo) {
-    ok(`Repo: ${repoUrl}`);
+    // Accept SSH key from CLI in repair mode
+    if (SSH_PUBKEY) {
+      payload.ssh_pubkey = SSH_PUBKEY;
+    }
   } else {
-    warn(`Token v1 (no repo field) — using default: ${DEFAULT_REPO}`);
+    // ── Normal mode: parse and validate token ──
+    step(1, 'Validating join token...');
+    const parsed = parseToken(TOKEN_RAW);
+    payload = parsed.payload;
+    validateToken(payload);
+    ok(`Token valid (v${payload.v}, role: ${payload.role}, provider: ${payload.provider}, lead: ${payload.lead})`);
+    ok(`Expires: ${new Date(payload.expires).toISOString()}`);
+
+    // Extract config from token (with defaults for v1 tokens)
+    const repoUrl = payload.repo || DEFAULT_REPO;
+    config = {
+      nats: payload.nats,
+      role: payload.role,
+      provider: PROVIDER_OVERRIDE || payload.provider,
+      repo: repoUrl,
+    };
+
+    if (payload.repo) {
+      ok(`Repo: ${repoUrl}`);
+    } else {
+      warn(`Token v1 (no repo field) — using default: ${DEFAULT_REPO}`);
+    }
   }
 
   // ── Step 2: Detect OS ──
@@ -616,6 +706,13 @@ async function main() {
   // ── Step 4: Create directory structure ──
   step(4, 'Setting up directories...');
   setupDirectories();
+
+  // ── Step 4b: Provision SSH key (if provided in token or CLI) ──
+  const sshKey = SSH_PUBKEY || payload.ssh_pubkey || null;
+  if (sshKey) {
+    step('4b', 'Provisioning lead node SSH key...');
+    provisionSSHKey(sshKey);
+  }
 
   // ── Step 5: Configure NATS ──
   step(5, 'Configuring NATS connection...');
