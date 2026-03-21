@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Zap, Paperclip, Trash2, ArrowLeftFromLine, ArrowRightFromLine, Clock, User } from "lucide-react";
+import { X, Zap, Paperclip, Trash2, ArrowLeftFromLine, ArrowRightFromLine, Clock, User, Cpu } from "lucide-react";
 import { createTask, updateTask, createProject, type Task } from "@/lib/hooks";
+import { ExecutionConfig, type ExecutionFields } from "./execution-config";
 
 const TYPES = ["project", "pipeline", "phase"] as const;
 type HierarchyType = (typeof TYPES)[number];
@@ -90,6 +91,17 @@ export function UnifiedTaskDialog({
   const [showInCalendar, setShowInCalendar] = useState(false);
   const [acknowledgedAt, setAcknowledgedAt] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<string[]>([]);
+  const [execFields, setExecFields] = useState<ExecutionFields>({
+    execution: "local",
+    collaboration: null,
+    preferred_nodes: [],
+    exclude_nodes: [],
+    cluster_id: null,
+    metric: null,
+    budget_minutes: 30,
+    scope: [],
+    needs_approval: true,
+  });
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
   const initializedForOpen = useRef(false);
@@ -147,6 +159,24 @@ export function UnifiedTaskDialog({
       setShowInCalendar(!!item.showInCalendar);
       setAcknowledgedAt(item.acknowledgedAt ?? null);
       setArtifacts(item.artifacts ?? []);
+      // Execution config
+      const collabParsed = item.collaboration
+        ? (typeof item.collaboration === "string" ? (() => { try { return JSON.parse(item.collaboration as string); } catch { return null; } })() : item.collaboration)
+        : null;
+      const prefNodes = item.preferredNodes
+        ? (typeof item.preferredNodes === "string" ? (() => { try { return JSON.parse(item.preferredNodes as string); } catch { return []; } })() : item.preferredNodes)
+        : [];
+      setExecFields({
+        execution: item.execution || "local",
+        collaboration: collabParsed,
+        preferred_nodes: prefNodes,
+        exclude_nodes: [],
+        cluster_id: item.clusterId || null,
+        metric: item.metric || null,
+        budget_minutes: item.budgetMinutes || 30,
+        scope: item.scope ? (typeof item.scope === "string" ? (() => { try { return JSON.parse(item.scope as string); } catch { return []; } })() : item.scope) : [],
+        needs_approval: item.needsApproval !== 0,
+      });
     } else {
       setId("");
       setTitle("");
@@ -172,6 +202,17 @@ export function UnifiedTaskDialog({
       setCapacityClass("normal");
       setAutoPriority(0);
       setArtifacts([]);
+      setExecFields({
+        execution: "local",
+        collaboration: null,
+        preferred_nodes: [],
+        exclude_nodes: [],
+        cluster_id: null,
+        metric: null,
+        budget_minutes: 30,
+        scope: [],
+        needs_approval: true,
+      });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, item, defaultType, defaultParentId, defaultScheduledDate]);
@@ -306,7 +347,7 @@ export function UnifiedTaskDialog({
           start_date: isHierarchyMode ? (startDate || null) : undefined,
           end_date: isHierarchyMode ? (endDate || null) : undefined,
           color: isHierarchyMode ? (color || null) : undefined,
-          needs_approval: needsApproval,
+          needs_approval: !isHierarchyMode && execFields.execution === "mesh" ? false : needsApproval,
           trigger_kind: triggerKind,
           trigger_at: triggerAt || null,
           trigger_cron: triggerCron || null,
@@ -316,6 +357,17 @@ export function UnifiedTaskDialog({
           auto_priority: autoPriority,
           show_in_calendar: showInCalendar,
           artifacts: artifacts.length > 0 ? artifacts : null,
+          // Execution fields (non-hierarchy only)
+          ...(!isHierarchyMode ? {
+            execution: execFields.execution,
+            collaboration: execFields.collaboration,
+            preferred_nodes: execFields.preferred_nodes,
+            exclude_nodes: execFields.exclude_nodes,
+            cluster_id: execFields.cluster_id,
+            metric: execFields.metric,
+            budget_minutes: execFields.budget_minutes,
+            scope: execFields.scope,
+          } : {}),
         } as Record<string, unknown>);
         if (result?.error) {
           alert(`Update failed: ${result.error}`);
@@ -377,7 +429,7 @@ export function UnifiedTaskDialog({
           scheduled_date: scheduledDate || undefined,
           project: project || undefined,
           parent_id: parentId || undefined,
-          needs_approval: needsApproval,
+          needs_approval: execFields.execution === "mesh" ? false : needsApproval,
           trigger_kind: triggerKind,
           trigger_at: triggerAt || undefined,
           trigger_cron: triggerCron || undefined,
@@ -386,6 +438,15 @@ export function UnifiedTaskDialog({
           capacity_class: capacityClass,
           auto_priority: autoPriority || undefined,
           artifacts: artifacts.length > 0 ? artifacts : undefined,
+          // Execution fields
+          execution: execFields.execution || undefined,
+          collaboration: execFields.collaboration || undefined,
+          preferred_nodes: execFields.preferred_nodes.length ? execFields.preferred_nodes : undefined,
+          exclude_nodes: execFields.exclude_nodes.length ? execFields.exclude_nodes : undefined,
+          cluster_id: execFields.cluster_id || undefined,
+          metric: execFields.metric || undefined,
+          budget_minutes: execFields.budget_minutes || undefined,
+          scope: execFields.scope.length ? execFields.scope : undefined,
         });
       }
       onClose();
@@ -883,6 +944,21 @@ export function UnifiedTaskDialog({
               </div>
             </div>
           </div>
+
+          {/* Execution section */}
+          {!isHierarchyMode && (
+            <div className="border border-border/50 rounded-lg p-3 space-y-3">
+              <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Cpu className="h-3.5 w-3.5 text-cyan-400" />
+                Execution
+              </p>
+              <ExecutionConfig
+                value={execFields}
+                onChange={setExecFields}
+                disabled={!!item?.meshTaskId}
+              />
+            </div>
+          )}
 
           {/* Next Action */}
           <div>

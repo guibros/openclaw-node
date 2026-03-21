@@ -1,4 +1,4 @@
-import { eq, and, ne, or, lte, like, desc } from "drizzle-orm";
+import { eq, and, ne, or, lte, like, desc, isNull } from "drizzle-orm";
 import { CronExpressionParser } from "cron-parser";
 import { writeFileSync, mkdirSync } from "fs";
 import path from "path";
@@ -263,6 +263,7 @@ export function schedulerTick(): TickResult {
     .where(
       and(
         eq(tasks.needsApproval, 0),
+        or(isNull(tasks.execution), ne(tasks.execution, "mesh")),
         or(
           eq(tasks.status, "ready"),
           and(eq(tasks.status, "queued"), eq(tasks.triggerKind, "none"))

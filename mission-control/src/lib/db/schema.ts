@@ -36,6 +36,10 @@ export const tasks = sqliteTable("tasks", {
   metric: text("metric"), // mechanical success check (e.g. "tests pass")
   budgetMinutes: integer("budget_minutes").default(30), // agent time budget
   scope: text("scope"), // JSON array of allowed file paths
+  collaboration: text("collaboration"), // JSON: { mode, min_nodes, max_nodes, convergence, ... }
+  preferredNodes: text("preferred_nodes"), // JSON array of node IDs for mesh routing
+  excludeNodes: text("exclude_nodes"), // JSON array of node IDs to avoid
+  clusterId: text("cluster_id"), // FK to clusters.id for collab dispatch
   showInCalendar: integer("show_in_calendar").default(0), // 1=show meta-task in calendar view
   acknowledgedAt: text("acknowledged_at"), // ISO datetime — when Daedalus acknowledged auto-dispatch
   updatedAt: text("updated_at").notNull(),
@@ -216,3 +220,36 @@ export type SoulEvolution = typeof soulEvolutionLog.$inferSelect;
 export type NewSoulEvolution = typeof soulEvolutionLog.$inferInsert;
 export type SoulSpawn = typeof soulSpawns.$inferSelect;
 export type NewSoulSpawn = typeof soulSpawns.$inferInsert;
+
+// --- Cowork: Clusters ---
+
+export const clusters = sqliteTable("clusters", {
+  id: text("id").primaryKey(), // slug: "security-team"
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color"), // hex: "#6366f1"
+  defaultMode: text("default_mode").default("parallel"), // parallel | sequential | review
+  defaultConvergence: text("default_convergence").default("unanimous"), // unanimous | majority | coordinator
+  convergenceThreshold: integer("convergence_threshold").default(66), // 0-100 (for majority)
+  maxRounds: integer("max_rounds").default(5),
+  status: text("status").default("active"), // active | archived
+  updatedAt: text("updated_at").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+export const clusterMembers = sqliteTable("cluster_members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clusterId: text("cluster_id").notNull(),
+  nodeId: text("node_id").notNull(),
+  role: text("role").notNull().default("worker"), // lead | implementer | reviewer | auditor | worker | custom
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+export type Cluster = typeof clusters.$inferSelect;
+export type NewCluster = typeof clusters.$inferInsert;
+export type ClusterMember = typeof clusterMembers.$inferSelect;
+export type NewClusterMember = typeof clusterMembers.$inferInsert;

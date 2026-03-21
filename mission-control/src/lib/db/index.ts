@@ -406,6 +406,54 @@ function runMigrations(sqlite: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_token_usage_node ON token_usage(node_id);
     CREATE INDEX IF NOT EXISTS idx_token_usage_ts ON token_usage(timestamp);
   `);
+
+  // --- Cowork: Clusters ---
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS clusters (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      color TEXT,
+      default_mode TEXT DEFAULT 'parallel',
+      default_convergence TEXT DEFAULT 'unanimous',
+      convergence_threshold INTEGER DEFAULT 66,
+      max_rounds INTEGER DEFAULT 5,
+      status TEXT DEFAULT 'active',
+      updated_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS cluster_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cluster_id TEXT NOT NULL,
+      node_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'worker',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(cluster_id, node_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_cluster_members_cluster ON cluster_members(cluster_id);
+    CREATE INDEX IF NOT EXISTS idx_cluster_members_node ON cluster_members(node_id);
+  `);
+
+  // Normalize: set execution='local' for pre-existing rows where it's NULL
+  sqlite.exec("UPDATE tasks SET execution = 'local' WHERE execution IS NULL");
+
+  // Add cluster_id to tasks if missing
+  if (!colNames.includes("cluster_id")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN cluster_id TEXT");
+  }
+
+  // Collab routing columns — bridge reads these from markdown to build NATS payload
+  if (!colNames.includes("collaboration")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN collaboration TEXT");
+  }
+  if (!colNames.includes("preferred_nodes")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN preferred_nodes TEXT");
+  }
+  if (!colNames.includes("exclude_nodes")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN exclude_nodes TEXT");
+  }
 }
 
 export function getDb() {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   User,
@@ -84,6 +84,17 @@ export function TaskCard({
   const [addingItem, setAddingItem] = useState(false);
   const [newItemTitle, setNewItemTitle] = useState("");
   const [saving, setSaving] = useState(false);
+  const collabData = useMemo(() => {
+    try {
+      return task.collaboration
+        ? typeof task.collaboration === "string"
+          ? JSON.parse(task.collaboration)
+          : task.collaboration
+        : null;
+    } catch {
+      return null;
+    }
+  }, [task.collaboration]);
   const statusColor = STATUS_COLORS[task.status] ?? STATUS_COLORS.queued;
   const colIdx = COLUMNS_ORDER.indexOf(currentColumn);
   const isLive = task.id === "__LIVE_SESSION__";
@@ -233,6 +244,11 @@ export function TaskCard({
             {task.execution === "mesh" && (
               <span className="inline-flex items-center gap-0.5 text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">
                 MESH{task.meshNode ? ` · ${task.meshNode}` : ""}
+              </span>
+            )}
+            {collabData && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
+                {collabData.mode}{collabData.max_rounds ? ` · ${collabData.max_rounds}R` : ""}
               </span>
             )}
             {task.owner && (

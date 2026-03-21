@@ -118,6 +118,11 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
         metric: task.metric || null,
         budgetMinutes: task.budgetMinutes || 30,
         scope: task.scope?.length ? JSON.stringify(task.scope) : null,
+        // Collab routing fields
+        collaboration: task.collaboration ? JSON.stringify(task.collaboration) : null,
+        preferredNodes: task.preferredNodes?.length ? JSON.stringify(task.preferredNodes) : null,
+        excludeNodes: task.excludeNodes?.length ? JSON.stringify(task.excludeNodes) : null,
+        clusterId: task.clusterId || null,
         updatedAt: task.updatedAt || now,
       };
 
@@ -167,6 +172,11 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
           metric: task.metric || null,
           budgetMinutes: task.budgetMinutes || 30,
           scope: task.scope?.length ? JSON.stringify(task.scope) : null,
+          // Collab routing fields
+          collaboration: task.collaboration ? JSON.stringify(task.collaboration) : null,
+          preferredNodes: task.preferredNodes?.length ? JSON.stringify(task.preferredNodes) : null,
+          excludeNodes: task.excludeNodes?.length ? JSON.stringify(task.excludeNodes) : null,
+          clusterId: task.clusterId || null,
           updatedAt: task.updatedAt || now,
           createdAt: now,
         })
@@ -178,7 +188,7 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
   // but PRESERVE roadmap/pipeline tasks (project, phase, pipeline types)
   // and any tasks tagged with a project (they live in the DB, not markdown).
   const allDbTasks = db
-    .select({ id: tasks.id, type: tasks.type, project: tasks.project })
+    .select({ id: tasks.id, type: tasks.type, project: tasks.project, execution: tasks.execution, status: tasks.status })
     .from(tasks)
     .all();
   for (const row of allDbTasks) {
@@ -187,6 +197,8 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
     if (row.type === "project" || row.type === "phase" || row.type === "pipeline") continue;
     // Preserve tasks owned by a project (imported via pipeline, not markdown-managed)
     if (row.project) continue;
+    // Preserve in-flight mesh tasks (only clean up terminal ones)
+    if (row.execution === "mesh" && row.status !== "done" && row.status !== "cancelled") continue;
     if (!incomingIds.has(row.id)) {
       db.delete(tasks).where(eq(tasks.id, row.id)).run();
     }
@@ -250,6 +262,11 @@ export function syncTasksToMarkdown(db: DrizzleDb): void {
       metric: t.metric || null,
       budgetMinutes: t.budgetMinutes || 30,
       scope: t.scope ? JSON.parse(t.scope) : [],
+      // Collab routing fields
+      collaboration: t.collaboration ? JSON.parse(t.collaboration) : null,
+      preferredNodes: t.preferredNodes ? JSON.parse(t.preferredNodes) : [],
+      excludeNodes: t.excludeNodes ? JSON.parse(t.excludeNodes) : [],
+      clusterId: t.clusterId || null,
       updatedAt: t.updatedAt,
     }));
 

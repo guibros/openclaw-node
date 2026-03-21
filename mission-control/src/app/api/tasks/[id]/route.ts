@@ -6,6 +6,7 @@ import { statusToKanban, kanbanToStatus } from "@/lib/parsers/task-markdown";
 import { syncTasksToMarkdown } from "@/lib/sync/tasks";
 import { logActivity } from "@/lib/activity";
 import { gatewayNotify } from "@/lib/gateway-notify";
+import { getNats, sc } from "@/lib/nats";
 
 /**
  * Push a notification message to the OpenClaw TUI via gateway chat.send + abort.
@@ -15,6 +16,22 @@ function notifyAgent(text: string) {
   gatewayNotify(text).catch((err) => {
     console.error("MC gateway notify failed:", err);
   });
+}
+
+/**
+ * Cancel a running mesh task via NATS. Best-effort — ignores failures.
+ */
+async function cancelMeshTask(taskId: string, execution: string | null, status: string) {
+  if (execution === "mesh" && status !== "done" && status !== "cancelled") {
+    const nc = await getNats();
+    if (nc) {
+      nc.request(
+        "mesh.tasks.cancel",
+        sc.encode(JSON.stringify({ task_id: taskId })),
+        { timeout: 5000 }
+      ).catch(() => {});
+    }
+  }
 }
 
 /**
@@ -57,6 +74,9 @@ export async function DELETE(
     }
     collectDescendants(id);
     idsToDelete.push(id); // add the root task last
+
+    // Cancel mesh task if running
+    await cancelMeshTask(id, existing.execution, existing.status);
 
     // Delete all collected tasks + their dependency edges
     for (const delId of idsToDelete) {
@@ -108,6 +128,22 @@ export async function PATCH(
 
     const body = await request.json();
     const now = new Date().toISOString();
+
+    // Transition guard: block execution mode changes on in-flight mesh tasks
+    if (body.execution !== undefined && body.execution !== existing.execution) {
+      if (existing.meshTaskId) {
+        return NextResponse.json(
+          { error: "Cannot change execution mode after task has been submitted to mesh" },
+          { status: 400 }
+        );
+      }
+      if (existing.status !== "queued" && existing.status !== "ready") {
+        return NextResponse.json(
+          { error: `Cannot change execution mode while task is ${existing.status}` },
+          { status: 400 }
+        );
+      }
+    }
 
     // Build the update set from provided fields
     const update: Record<string, unknown> = { updatedAt: now };
@@ -203,6 +239,31 @@ export async function PATCH(
     if (body.acknowledged_at !== undefined) {
       update.acknowledgedAt = body.acknowledged_at || null;
     }
+    // Mesh execution fields
+    if (body.execution !== undefined) {
+      update.execution = body.execution || null;
+    }
+    if (body.collaboration !== undefined) {
+      update.collaboration = body.collaboration ? JSON.stringify(body.collaboration) : null;
+    }
+    if (body.preferred_nodes !== undefined) {
+      update.preferredNodes = body.preferred_nodes?.length ? JSON.stringify(body.preferred_nodes) : null;
+    }
+    if (body.exclude_nodes !== undefined) {
+      update.excludeNodes = body.exclude_nodes?.length ? JSON.stringify(body.exclude_nodes) : null;
+    }
+    if (body.cluster_id !== undefined) {
+      update.clusterId = body.cluster_id || null;
+    }
+    if (body.metric !== undefined) {
+      update.metric = body.metric || null;
+    }
+    if (body.budget_minutes !== undefined) {
+      update.budgetMinutes = body.budget_minutes;
+    }
+    if (body.scope !== undefined) {
+      update.scope = body.scope?.length ? JSON.stringify(body.scope) : null;
+    }
 
     // Auto-set owner when task moves to running manually (no explicit owner change)
     const effectiveStatus = (update.status as string) ?? existing.status;
@@ -212,8 +273,21 @@ export async function PATCH(
 
     db.update(tasks).set(update).where(eq(tasks.id, id)).run();
 
+    // Cancel mesh task if status changed to cancelled
+    if (update.status === "cancelled") {
+      await cancelMeshTask(id, existing.execution, existing.status);
+    }
+
     // Sync back to markdown
     syncTasksToMarkdown(db);
+
+    // Wake bridge when execution is set to mesh (for immediate pickup)
+    const effectiveExecution = (update.execution as string) ?? existing.execution;
+    const effectiveApprovalNum = (update.needsApproval as number) ?? existing.needsApproval;
+    if (effectiveExecution === "mesh" && effectiveApprovalNum === 0) {
+      const nc = await getNats();
+      if (nc) nc.publish("mesh.bridge.wake", sc.encode(""));
+    }
 
     // Log activity
     const movedTo = body.kanban_column || body.kanbanColumn;

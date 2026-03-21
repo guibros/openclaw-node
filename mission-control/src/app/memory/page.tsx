@@ -30,7 +30,7 @@ export default function MemoryPage() {
   const isSearching = debouncedQuery.length >= 2;
 
   // Debounce search input
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<NodeJS.Timeout>(undefined);
   const handleInputChange = useCallback(
     (value: string) => {
       setQuery(value);

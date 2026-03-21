@@ -35,6 +35,11 @@ export interface Task {
   metric: string | null;
   budgetMinutes: number | null;
   scope: string | null;
+  // Collab routing fields
+  collaboration: string | null;
+  preferredNodes: string | null;
+  excludeNodes: string | null;
+  clusterId: string | null;
   showInCalendar: number | null;
   acknowledgedAt: string | null;
   updatedAt: string;
@@ -451,6 +456,213 @@ export function useBurndown(projectId: string | null) {
   return { burndown: data ?? null, error, isLoading };
 }
 
+// --- Cowork: Clusters & Collab Sessions ---
+
+export interface ClusterMemberView {
+  id: number;
+  nodeId: string;
+  role: string;
+  nodeStatus: string;
+  createdAt: string;
+}
+
+export interface ClusterView {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  defaultMode: string;
+  defaultConvergence: string;
+  convergenceThreshold: number;
+  maxRounds: number;
+  status: string;
+  members: ClusterMemberView[];
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface CollabNode {
+  node_id: string;
+  role: string;
+  scope: string[];
+  joined_at: string;
+  status: string;
+}
+
+export interface CollabReflection {
+  node_id: string;
+  summary: string;
+  learnings: string;
+  artifacts: string[];
+  confidence: number;
+  vote: string;
+  parse_failed?: boolean;
+  synthetic?: boolean;
+  submitted_at: string;
+}
+
+export interface CollabRound {
+  round_number: number;
+  started_at: string;
+  completed_at: string | null;
+  shared_intel: string;
+  reflections: CollabReflection[];
+}
+
+export interface CollabSession {
+  session_id: string;
+  task_id: string;
+  mode: string;
+  status: string;
+  min_nodes: number;
+  max_nodes: number | null;
+  nodes: CollabNode[];
+  current_round: number;
+  max_rounds: number;
+  rounds: CollabRound[];
+  convergence: {
+    type: string;
+    threshold: number;
+    metric: string | null;
+    min_quorum: number;
+  };
+  scope_strategy: string;
+  result: Record<string, unknown> | null;
+  audit_log: Array<{ ts: string; event: string; [k: string]: unknown }>;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export function useClusters() {
+  const { data, error, isLoading } = useSWR<{ clusters: ClusterView[] }>(
+    "/api/cowork/clusters",
+    fetcher,
+    { refreshInterval: 10000 }
+  );
+  return { clusters: data?.clusters ?? [], error, isLoading };
+}
+
+export function useCollabSessions(status?: string, refreshInterval = 5000) {
+  const params = status ? `?status=${status}` : "";
+  const { data, error, isLoading } = useSWR<{
+    sessions: CollabSession[];
+    natsAvailable: boolean;
+  }>(`/api/cowork/sessions${params}`, fetcher, { refreshInterval });
+  return {
+    sessions: data?.sessions ?? [],
+    natsAvailable: data?.natsAvailable ?? true,
+    error,
+    isLoading,
+  };
+}
+
+export async function createCluster(params: {
+  name: string;
+  description?: string;
+  color?: string;
+  defaultMode?: string;
+  defaultConvergence?: string;
+  convergenceThreshold?: number;
+  maxRounds?: number;
+  members?: Array<{ nodeId: string; role: string }>;
+}) {
+  const res = await fetch("/api/cowork/clusters", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  await mutate("/api/cowork/clusters");
+  return data;
+}
+
+export async function updateCluster(id: string, updates: Record<string, unknown>) {
+  const res = await fetch(`/api/cowork/clusters/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  const data = await res.json();
+  await mutate("/api/cowork/clusters");
+  return data;
+}
+
+export async function deleteCluster(id: string) {
+  await fetch(`/api/cowork/clusters/${id}`, { method: "DELETE" });
+  await mutate("/api/cowork/clusters");
+}
+
+export async function addClusterMember(clusterId: string, nodeId: string, role: string) {
+  const res = await fetch(`/api/cowork/clusters/${clusterId}/members`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nodeId, role }),
+  });
+  const data = await res.json();
+  await mutate("/api/cowork/clusters");
+  return data;
+}
+
+export async function updateClusterMember(clusterId: string, nodeId: string, role: string) {
+  const res = await fetch(`/api/cowork/clusters/${clusterId}/members`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nodeId, role }),
+  });
+  const data = await res.json();
+  await mutate("/api/cowork/clusters");
+  return data;
+}
+
+export async function removeClusterMember(clusterId: string, nodeId: string) {
+  await fetch(
+    `/api/cowork/clusters/${clusterId}/members?nodeId=${encodeURIComponent(nodeId)}`,
+    { method: "DELETE" }
+  );
+  await mutate("/api/cowork/clusters");
+}
+
+export async function dispatchCollabTask(params: {
+  title: string;
+  description?: string;
+  clusterId?: string;
+  nodes?: Array<{ nodeId: string; role: string }>;
+  mode?: string;
+  convergence?: { type: string; threshold?: number; metric?: string };
+  scopeStrategy?: string;
+  budgetMinutes?: number;
+  maxRounds?: number;
+  metric?: string;
+  scope?: string[];
+}) {
+  const res = await fetch("/api/cowork/dispatch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  await mutate("/api/cowork/sessions");
+  await mutate("/api/cowork/clusters");
+  await mutate("/api/tasks");
+  return data;
+}
+
+export async function interveneSession(params: {
+  action: "abort" | "force_converge" | "remove_node";
+  sessionId: string;
+  nodeId?: string;
+}) {
+  const res = await fetch("/api/cowork/intervene", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  await mutate("/api/cowork/sessions");
+  await mutate("/api/tasks");
+  return data;
+}
+
 // --- Mesh SSE integration ---
 
 /**
@@ -470,6 +682,14 @@ export function useMeshSSE() {
       mutate("/api/activity");
     };
 
+    const invalidateCollab = () => {
+      mutate("/api/cowork/sessions");
+      mutate("/api/cowork/clusters");
+      mutate("/api/tasks");
+      mutate("/api/activity");
+    };
+
+    // Task events
     es.addEventListener("completed", invalidate);
     es.addEventListener("claimed", invalidate);
     es.addEventListener("started", invalidate);
@@ -477,6 +697,16 @@ export function useMeshSSE() {
     es.addEventListener("submitted", invalidate);
     es.addEventListener("released", invalidate);
     es.addEventListener("cancelled", invalidate);
+
+    // Collab events (mesh.events.collab.* → event type is "collab.{action}")
+    es.addEventListener("collab.created", invalidateCollab);
+    es.addEventListener("collab.joined", invalidateCollab);
+    es.addEventListener("collab.round_started", invalidateCollab);
+    es.addEventListener("collab.reflection_received", invalidateCollab);
+    es.addEventListener("collab.converged", invalidateCollab);
+    es.addEventListener("collab.completed", invalidateCollab);
+    es.addEventListener("collab.aborted", invalidateCollab);
+    es.addEventListener("collab.node_removed", invalidateCollab);
 
     es.onerror = () => {
       // EventSource auto-reconnects

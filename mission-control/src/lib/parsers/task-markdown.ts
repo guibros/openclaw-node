@@ -36,6 +36,11 @@ export interface ParsedTask {
   metric: string | null;
   budgetMinutes: number;
   scope: string[];
+  // Collab routing fields
+  collaboration: Record<string, unknown> | null;
+  preferredNodes: string[];
+  excludeNodes: string[];
+  clusterId: string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -90,7 +95,7 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
   const lines = liveSection.split("\n");
 
   let current: Partial<ParsedTask> | null = null;
-  let currentArrayKey: "successCriteria" | "artifacts" | "scope" | null = null;
+  let currentArrayKey: "successCriteria" | "artifacts" | "scope" | "preferredNodes" | "excludeNodes" | null = null;
 
   function flush() {
     if (current && current.id) {
@@ -125,6 +130,10 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
         metric: current.metric ?? null,
         budgetMinutes: current.budgetMinutes ?? 30,
         scope: current.scope ?? [],
+        collaboration: current.collaboration ?? null,
+        preferredNodes: current.preferredNodes ?? [],
+        excludeNodes: current.excludeNodes ?? [],
+        clusterId: current.clusterId ?? null,
       });
     }
   }
@@ -134,7 +143,7 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
     const taskIdMatch = line.match(/^- task_id:\s*(.+)$/);
     if (taskIdMatch) {
       flush();
-      current = { id: taskIdMatch[1].trim(), successCriteria: [], artifacts: [], scope: [] };
+      current = { id: taskIdMatch[1].trim(), successCriteria: [], artifacts: [], scope: [], preferredNodes: [], excludeNodes: [] };
       currentArrayKey = null;
       continue;
     }
@@ -284,6 +293,27 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
         case "scope":
           current.scope = [];
           currentArrayKey = "scope";
+          break;
+        // Collab routing fields
+        case "collaboration":
+          try {
+            current.collaboration = value ? JSON.parse(value) : null;
+          } catch {
+            current.collaboration = null;
+          }
+          currentArrayKey = null;
+          break;
+        case "preferred_nodes":
+          current.preferredNodes = [];
+          currentArrayKey = "preferredNodes";
+          break;
+        case "exclude_nodes":
+          current.excludeNodes = [];
+          currentArrayKey = "excludeNodes";
+          break;
+        case "cluster_id":
+          current.clusterId = value || null;
+          currentArrayKey = null;
           break;
         case "updated_at":
           current.updatedAt = value;
@@ -449,6 +479,25 @@ export function serializeTasksMarkdown(tasks: ParsedTask[]): string {
       for (const s of t.scope) {
         lines.push(`    - ${s}`);
       }
+    }
+    // Collab routing fields
+    if (t.collaboration) {
+      lines.push(`  collaboration: ${JSON.stringify(t.collaboration)}`);
+    }
+    if (t.preferredNodes && t.preferredNodes.length > 0) {
+      lines.push("  preferred_nodes:");
+      for (const n of t.preferredNodes) {
+        lines.push(`    - ${n}`);
+      }
+    }
+    if (t.excludeNodes && t.excludeNodes.length > 0) {
+      lines.push("  exclude_nodes:");
+      for (const n of t.excludeNodes) {
+        lines.push(`    - ${n}`);
+      }
+    }
+    if (t.clusterId) {
+      lines.push(`  cluster_id: ${t.clusterId}`);
     }
     lines.push(`  updated_at: ${t.updatedAt}`);
 

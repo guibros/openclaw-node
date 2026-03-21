@@ -11,6 +11,7 @@ interface NatsGlobals {
   __nats_nc?: NatsConnection | null;
   __nats_connectingSince?: number | null;
   __nats_healthKv?: KV | null;
+  __nats_collabKv?: KV | null;
 }
 
 const g = globalThis as unknown as NatsGlobals;
@@ -73,16 +74,19 @@ export async function getNats(): Promise<NatsConnection | null> {
     });
     console.log("[nats] connected to", NATS_URL);
 
-    // Reset KV handle on reconnect so it's re-fetched fresh
+    // Reset KV handles on reconnect so they're re-fetched fresh
     g.__nats_healthKv = null;
+    g.__nats_collabKv = null;
 
     g.__nats_nc.closed().then(() => {
       console.log("[nats] connection closed — will reconnect on next request");
       g.__nats_nc = null;
       g.__nats_healthKv = null;
+      g.__nats_collabKv = null;
     }).catch(() => {
       g.__nats_nc = null;
       g.__nats_healthKv = null;
+      g.__nats_collabKv = null;
     });
 
     return g.__nats_nc;
@@ -119,6 +123,34 @@ export async function getHealthKv(): Promise<KV | null> {
     return g.__nats_healthKv;
   } catch (err) {
     console.error("[nats] KV bucket error:", (err as Error).message);
+    return null;
+  }
+}
+
+// KV bucket for collab sessions — daemon writes, MC reads
+const COLLAB_BUCKET = "MESH_COLLAB";
+
+/**
+ * Get the MESH_COLLAB KV bucket (JetStream).
+ *
+ * Collab sessions are written by mesh-collab-daemon, MC reads only.
+ * No TTL — sessions are managed by daemon lifecycle, not expiry.
+ * Returns null if NATS is unavailable.
+ */
+export async function getCollabKv(): Promise<KV | null> {
+  if (g.__nats_collabKv) return g.__nats_collabKv;
+
+  const conn = await getNats();
+  if (!conn) return null;
+
+  try {
+    const js = conn.jetstream();
+    g.__nats_collabKv = await js.views.kv(COLLAB_BUCKET, {
+      history: 1,
+    });
+    return g.__nats_collabKv;
+  } catch (err) {
+    console.error("[nats] Collab KV bucket error:", (err as Error).message);
     return null;
   }
 }
