@@ -8,6 +8,7 @@ import { syncTasksFromMarkdownIfChanged, syncTasksToMarkdown } from "@/lib/sync/
 import { logActivity } from "@/lib/activity";
 import { schedulerTick } from "@/lib/scheduler";
 import { generateTaskId } from "@/lib/task-id";
+import { getNats, sc } from "@/lib/nats";
 import { WORKSPACE_ROOT } from "@/lib/config";
 import path from "path";
 
@@ -187,6 +188,15 @@ export async function POST(request: NextRequest) {
         isRecurring: body.is_recurring ? 1 : 0,
         capacityClass: body.capacity_class || "normal",
         autoPriority: body.auto_priority || 0,
+        // Execution fields
+        execution: body.execution || null,
+        collaboration: body.collaboration ? JSON.stringify(body.collaboration) : null,
+        preferredNodes: body.preferred_nodes?.length ? JSON.stringify(body.preferred_nodes) : null,
+        excludeNodes: body.exclude_nodes?.length ? JSON.stringify(body.exclude_nodes) : null,
+        clusterId: body.cluster_id || null,
+        metric: body.metric || null,
+        budgetMinutes: body.budget_minutes || 30,
+        scope: body.scope?.length ? JSON.stringify(body.scope) : null,
         updatedAt: now.toISOString(),
         createdAt: now.toISOString(),
       })
@@ -200,6 +210,13 @@ export async function POST(request: NextRequest) {
 
     // Immediately run scheduler tick so auto-start tasks dispatch without waiting for poll
     schedulerTick();
+
+    // Wake bridge for mesh tasks
+    if (body.execution === "mesh") {
+      getNats().then((nc) => {
+        if (nc) nc.publish("mesh.bridge.wake", sc.encode(""));
+      }).catch(() => {});
+    }
 
     const created = db
       .select()

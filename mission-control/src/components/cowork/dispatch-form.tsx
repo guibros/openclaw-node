@@ -46,6 +46,7 @@ export function DispatchForm() {
   const [result, setResult] = useState<{
     ok: boolean;
     message: string;
+    taskId: string | null;
   } | null>(null);
 
   const selectedCluster = clusters.find((c) => c.id === selectedClusterId);
@@ -88,11 +89,12 @@ export function DispatchForm() {
       });
 
       if (data.error) {
-        setResult({ ok: false, message: data.error });
+        setResult({ ok: false, message: data.error, taskId: null });
       } else {
         setResult({
           ok: true,
           message: `Task ${data.taskId} dispatched to ${data.nodesAssigned?.length ?? 0} nodes`,
+          taskId: data.taskId,
         });
         // Reset form
         setTitle("");
@@ -101,7 +103,7 @@ export function DispatchForm() {
         setScopeText("");
       }
     } catch (err) {
-      setResult({ ok: false, message: (err as Error).message });
+      setResult({ ok: false, message: (err as Error).message, taskId: null });
     } finally {
       setSubmitting(false);
     }
@@ -397,6 +399,14 @@ export function DispatchForm() {
           }`}
         >
           {result.message}
+          {result.ok && result.taskId && (
+            <a
+              href={`/?task=${result.taskId}`}
+              className="ml-2 underline underline-offset-2 decoration-dotted hover:text-green-300"
+            >
+              View on Kanban
+            </a>
+          )}
         </div>
       )}
 
