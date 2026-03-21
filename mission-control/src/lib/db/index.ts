@@ -436,6 +436,16 @@ function runMigrations(sqlite: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_cluster_members_node ON cluster_members(node_id);
   `);
 
+  // Migrate cluster_members: add created_at if missing (old table had joined_at)
+  const cmCols = sqlite.prepare("PRAGMA table_info(cluster_members)").all() as Array<{ name: string }>;
+  const cmColNames = cmCols.map((c) => c.name);
+  if (!cmColNames.includes("created_at")) {
+    sqlite.exec("ALTER TABLE cluster_members ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))");
+    if (cmColNames.includes("joined_at")) {
+      sqlite.exec("UPDATE cluster_members SET created_at = joined_at WHERE joined_at IS NOT NULL");
+    }
+  }
+
   // Normalize: set execution='local' for pre-existing rows where it's NULL
   sqlite.exec("UPDATE tasks SET execution = 'local' WHERE execution IS NULL");
 

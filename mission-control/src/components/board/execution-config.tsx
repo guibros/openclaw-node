@@ -66,7 +66,7 @@ export function ExecutionConfig({ value, onChange, disabled }: ExecutionConfigPr
   const [clusterId, setClusterId] = useState(value.cluster_id || "");
 
   // Available nodes
-  const { data: nodesData } = useSWR<{ nodes: Array<{ node_id: string; status: string }> }>(
+  const { data: nodesData } = useSWR<{ nodes: Array<{ nodeId: string; status: string }> }>(
     mode !== "local" ? "/api/mesh/nodes" : null,
     fetcher,
     { refreshInterval: 10000 }
@@ -408,17 +408,17 @@ export function ExecutionConfig({ value, onChange, disabled }: ExecutionConfigPr
               <div className="flex flex-wrap gap-1.5">
                 {nodes.map((n) => (
                   <button
-                    key={n.node_id}
+                    key={n.nodeId}
                     type="button"
-                    onClick={() => toggleNode(n.node_id)}
+                    onClick={() => toggleNode(n.nodeId)}
                     className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
-                      selectedNodes.has(n.node_id)
+                      selectedNodes.has(n.nodeId)
                         ? "border-cyan-500 bg-cyan-500/15 text-cyan-400"
                         : "border-border text-muted-foreground hover:text-foreground"
-                    } ${n.status !== "idle" ? "opacity-50" : ""}`}
+                    } ${n.status !== "online" ? "opacity-50" : ""}`}
                   >
-                    {n.node_id.slice(0, 12)}
-                    {n.status !== "idle" && ` (${n.status})`}
+                    {n.nodeId.slice(0, 12)}
+                    {n.status !== "online" && ` (${n.status})`}
                   </button>
                 ))}
               </div>
