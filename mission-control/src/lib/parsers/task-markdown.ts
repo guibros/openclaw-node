@@ -56,6 +56,7 @@ const STATUS_TO_KANBAN: Record<string, string> = {
   "waiting-user": "review",
   done: "done",
   cancelled: "done",
+  archived: "done", // hidden from view but still in done column if shown
 };
 
 const KANBAN_TO_STATUS: Record<string, string> = {

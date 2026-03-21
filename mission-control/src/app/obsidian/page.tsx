@@ -17,6 +17,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Filter,
+  RefreshCw,
 } from "lucide-react";
 
 const SOURCE_FILTERS = [
@@ -35,6 +36,18 @@ export default function ObsidianPage() {
   const [showFileTree, setShowFileTree] = useState(true);
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [showOrphans, setShowOrphans] = useState(true);
+  const [indexing, setIndexing] = useState(false);
+
+  const handleIndexWorkspace = async () => {
+    setIndexing(true);
+    try {
+      await fetch("/api/memory/flush", { method: "POST" });
+      // Force SWR to revalidate the graph
+      window.location.reload();
+    } catch {
+      setIndexing(false);
+    }
+  };
 
   // Try indexed doc first (has metadata), fall back to raw workspace file
   const { doc: indexedDoc, isLoading: idxLoading } = useMemoryDoc(selectedPath);
@@ -213,12 +226,29 @@ export default function ObsidianPage() {
 
         {/* Center: Graph */}
         <div className="flex-1 overflow-hidden">
-          <ObsidianGraph
-            graph={filteredGraph}
-            isLoading={graphLoading}
-            selectedNode={selectedPath}
-            onNodeClick={handleNodeClick}
-          />
+          {!graphLoading && filteredGraph && filteredGraph.nodes.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-3">
+              <p className="text-sm">No documents indexed yet</p>
+              <p className="text-xs text-muted-foreground/60 max-w-xs text-center">
+                Index your workspace to build the wikilink graph from your markdown files.
+              </p>
+              <button
+                onClick={handleIndexWorkspace}
+                disabled={indexing}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${indexing ? "animate-spin" : ""}`} />
+                {indexing ? "Indexing..." : "Index Workspace"}
+              </button>
+            </div>
+          ) : (
+            <ObsidianGraph
+              graph={filteredGraph}
+              isLoading={graphLoading}
+              selectedNode={selectedPath}
+              onNodeClick={handleNodeClick}
+            />
+          )}
         </div>
 
         {/* Right: Reader panel */}

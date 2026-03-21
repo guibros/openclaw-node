@@ -38,6 +38,7 @@ import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
   Clock,
+  Send,
 } from "lucide-react";
 import {
   useProjects,
@@ -1298,6 +1299,29 @@ export default function RoadmapPage() {
                 >
                   <GitBranch className="h-3 w-3" />
                 </button>
+
+                {/* Send to Kanban — only for leaf task nodes */}
+                {node.type === "task" && (
+                  node.status === "queued" || node.status === "not started" ? (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        await updateTask(node.id, {
+                          kanbanColumn: "backlog",
+                          status: "queued",
+                        } as Record<string, unknown>);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary p-0.5 mr-1 transition-colors"
+                      title="Send to Kanban backlog"
+                    >
+                      <Send className="h-3 w-3" />
+                    </button>
+                  ) : (
+                    <span className="text-[9px] text-green-400 shrink-0 px-1">
+                      In Kanban
+                    </span>
+                  )
+                )}
               </div>
             );
           })}

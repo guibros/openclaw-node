@@ -166,6 +166,17 @@ export async function PATCH(
         update.status = kanbanToStatus(body.kanbanColumn);
       }
     }
+
+    // Done-gate: only Gui can mark tasks as done (via force_done flag).
+    // Without force_done, redirect done→review so tasks land in waiting-user.
+    const targetStatus = update.status as string | undefined;
+    const targetColumn = update.kanbanColumn as string | undefined;
+    if (!body.force_done) {
+      if (targetStatus === "done" || targetColumn === "done") {
+        update.status = "waiting-user";
+        update.kanbanColumn = "review";
+      }
+    }
     if (body.owner !== undefined) {
       update.owner = body.owner || null;
     }

@@ -468,3 +468,38 @@ export function TaskCard({
     </div>
   );
 }
+
+/* ─── Signet Card ─── compact pill for done column */
+
+interface SignetCardProps {
+  task: Task;
+  onClick: () => void;
+  onExpand: () => void;
+}
+
+export function SignetCard({ task, onClick, onExpand }: SignetCardProps) {
+  const statusColor = STATUS_COLORS[task.status] ?? STATUS_COLORS.queued;
+  const ownerInitial = task.owner ? task.owner.charAt(0).toUpperCase() : "";
+
+  return (
+    <div
+      className="group flex items-center gap-1.5 rounded-md border border-border/50 bg-card px-2 py-1 cursor-pointer hover:bg-accent/30 hover:border-border transition-colors"
+      onClick={onExpand}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      title={`${task.title} — ${task.status}${task.owner ? ` (${task.owner})` : ""}\nClick to expand, double-click to edit`}
+    >
+      <span className={`inline-block h-1.5 w-1.5 rounded-full shrink-0 ${statusColor.split(" ")[0].replace("/20", "/60").replace("/10", "/50")}`} />
+      <span className="text-[11px] text-foreground truncate flex-1 min-w-0">
+        {task.title}
+      </span>
+      {ownerInitial && (
+        <span className="text-[9px] text-muted-foreground shrink-0 font-medium">
+          {ownerInitial}
+        </span>
+      )}
+    </div>
+  );
+}

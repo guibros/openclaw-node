@@ -211,6 +211,32 @@ export default function GraphPage() {
     );
   }
 
+  // Empty state: no entities seeded
+  if (!loading && graphData && graphData.nodes.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-3">
+        <p className="text-sm">No entities in the knowledge graph</p>
+        <p className="text-xs text-muted-foreground/60 max-w-xs text-center">
+          Seed known entities to populate the graph with people, projects, tools, and their relationships.
+        </p>
+        <button
+          onClick={async () => {
+            setLoading(true);
+            try {
+              await fetch("/api/memory/graph", { method: "POST" });
+              window.location.reload();
+            } catch {
+              setLoading(false);
+            }
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors"
+        >
+          Seed Known Entities
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col">
       <header className="border-b border-border px-6 py-3 flex items-center justify-between shrink-0">

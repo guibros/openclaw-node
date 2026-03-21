@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AlertTriangle, Plus, Users2 } from "lucide-react";
 import {
   useCollabSessions,
   useClusters,
+  useTasks,
   addClusterMember,
 } from "@/lib/hooks";
 import { SessionCard } from "@/components/cowork/session-card";
@@ -32,6 +33,14 @@ export default function CoworkPage() {
     30000
   );
   const { clusters } = useClusters();
+  const { tasks } = useTasks();
+
+  // Build a map from task_id to Task for cross-referencing sessions
+  const taskMap = useMemo(() => {
+    const map = new Map<string, typeof tasks[0]>();
+    for (const t of tasks) map.set(t.id, t);
+    return map;
+  }, [tasks]);
 
   const handleDispatchFromCluster = (clusterId: string) => {
     setTab("dispatch");
@@ -91,7 +100,7 @@ export default function CoworkPage() {
                 </h2>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {activeSessions.map((s) => (
-                    <SessionCard key={s.session_id} session={s} />
+                    <SessionCard key={s.session_id} session={s} linkedTask={taskMap.get(s.task_id)} />
                   ))}
                 </div>
               </section>
@@ -104,7 +113,7 @@ export default function CoworkPage() {
                 </h2>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {recentSessions.slice(0, 8).map((s) => (
-                    <SessionCard key={s.session_id} session={s} />
+                    <SessionCard key={s.session_id} session={s} linkedTask={taskMap.get(s.task_id)} />
                   ))}
                 </div>
               </section>

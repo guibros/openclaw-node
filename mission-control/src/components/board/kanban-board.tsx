@@ -67,17 +67,26 @@ export function KanbanBoard() {
   );
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Filter tasks by search query
+  // Filter tasks: exclude archived + roadmap hierarchy types, then apply search
   const filteredTasks = useMemo(() => {
-    if (!searchQuery.trim()) return tasks;
-    const q = searchQuery.toLowerCase();
-    return tasks.filter(
+    let filtered = tasks.filter(
       (t) =>
-        t.id.toLowerCase().includes(q) ||
-        t.title.toLowerCase().includes(q) ||
-        (t.description || "").toLowerCase().includes(q) ||
-        (t.owner || "").toLowerCase().includes(q)
+        t.status !== "archived" &&
+        t.type !== "project" &&
+        t.type !== "phase" &&
+        t.type !== "pipeline"
     );
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (t) =>
+          t.id.toLowerCase().includes(q) ||
+          t.title.toLowerCase().includes(q) ||
+          (t.description || "").toLowerCase().includes(q) ||
+          (t.owner || "").toLowerCase().includes(q)
+      );
+    }
+    return filtered;
   }, [tasks, searchQuery]);
 
   // Build parent→children map and separate top-level vs child tasks
@@ -200,8 +209,27 @@ export function KanbanBoard() {
     []
   );
 
+  // Done-gate state
+  const [doneConfirmTaskId, setDoneConfirmTaskId] = useState<string | null>(null);
+
   const handleMoveTask = (taskId: string, targetColumn: string) => {
+    if (targetColumn === "done") {
+      // Prompt Gui to confirm — only they can mark tasks done
+      setDoneConfirmTaskId(taskId);
+      return;
+    }
     updateTask(taskId, { kanbanColumn: targetColumn });
+  };
+
+  const confirmDone = () => {
+    if (doneConfirmTaskId) {
+      updateTask(doneConfirmTaskId, { kanbanColumn: "done", force_done: true } as Record<string, unknown>);
+      setDoneConfirmTaskId(null);
+    }
+  };
+
+  const cancelDone = () => {
+    setDoneConfirmTaskId(null);
   };
 
   const handleTaskClick = (task: Task) => {
@@ -303,6 +331,12 @@ export function KanbanBoard() {
                 highlight={bulkMode}
                 bulkMode={bulkMode}
                 bulkSelection={bulkSelection}
+                onClearDone={col === "done" ? async () => {
+                  // Archive all visible done tasks
+                  for (const t of columns.done) {
+                    await updateTask(t.id, { status: "archived" } as Record<string, unknown>);
+                  }
+                } : undefined}
               />
             </div>
             {i < NUM_COLS - 1 && (
@@ -331,7 +365,13 @@ export function KanbanBoard() {
           ))}
           <div className="w-px h-6 bg-border" />
           <button
-            onClick={() => handleBulkStatus("done")}
+            onClick={() => {
+              for (const id of bulkSelection) {
+                updateTask(id, { status: "done", force_done: true } as Record<string, unknown>);
+              }
+              setBulkSelection(new Set());
+              setBulkAction(null);
+            }}
             className="px-2.5 py-1 text-xs rounded-md bg-green-500/15 text-green-400 border border-green-500/20 hover:bg-green-500/25 transition-colors"
           >
             Mark Done
@@ -359,6 +399,32 @@ export function KanbanBoard() {
       >
         <Plus className="h-5 w-5" />
       </button>
+
+      {/* Done-gate confirmation dialog */}
+      {doneConfirmTaskId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-card shadow-xl p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Mark as Done?</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Only you can mark tasks as done. Agents and nodes land in Review for your approval.
+            </p>
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={cancelDone}
+                className="px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDone}
+                className="px-3 py-1.5 text-xs rounded-md bg-green-500/15 text-green-400 border border-green-500/20 hover:bg-green-500/25 transition-colors"
+              >
+                Confirm Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

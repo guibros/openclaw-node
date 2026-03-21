@@ -8,7 +8,7 @@ import {
   XCircle,
   UserMinus,
 } from "lucide-react";
-import type { CollabSession } from "@/lib/hooks";
+import type { CollabSession, Task } from "@/lib/hooks";
 import { interveneSession } from "@/lib/hooks";
 import { RoleBadge } from "./role-picker";
 
@@ -73,7 +73,14 @@ function NodeChip({
   );
 }
 
-export function SessionCard({ session }: { session: CollabSession }) {
+const KANBAN_STATUS_CHIP: Record<string, string> = {
+  backlog: "bg-blue-500/15 text-blue-400",
+  in_progress: "bg-green-500/15 text-green-400",
+  review: "bg-yellow-500/15 text-yellow-400",
+  done: "bg-zinc-500/15 text-zinc-400",
+};
+
+export function SessionCard({ session, linkedTask }: { session: CollabSession; linkedTask?: Task | null }) {
   const [expanded, setExpanded] = useState(false);
   const isActive = ["recruiting", "active"].includes(session.status);
 
@@ -133,6 +140,11 @@ export function SessionCard({ session }: { session: CollabSession }) {
           <span className="text-[10px] text-muted-foreground uppercase">
             {session.status}
           </span>
+          {linkedTask && (
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${KANBAN_STATUS_CHIP[linkedTask.kanbanColumn] ?? "bg-zinc-700 text-zinc-300"}`}>
+              {linkedTask.kanbanColumn === "in_progress" ? "In Progress" : linkedTask.kanbanColumn}
+            </span>
+          )}
         </div>
       </div>
 

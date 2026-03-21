@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server } from "lucide-react";
+import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity } from "lucide-react";
 import { useState } from "react";
 import { LiveStream } from "@/components/board/live-stream";
 
@@ -19,6 +19,7 @@ const NAV = [
   { href: "/mesh", label: "Mesh Nodes", icon: Server },
   { href: "/cowork", label: "Cowork", icon: Users2 },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/diagnostics", label: "Diagnostics", icon: Activity },
 ];
 
 export function Sidebar() {
