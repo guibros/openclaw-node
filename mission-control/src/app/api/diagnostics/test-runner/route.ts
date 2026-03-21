@@ -417,7 +417,7 @@ export async function POST() {
       title: "Test Mesh Task",
       status: "queued",
       kanbanColumn: "backlog",
-      needsApproval: 0,
+      needsApproval: 1, // Gui must approve completion
       execution: "mesh",
       metric: "tests pass",
       budgetMinutes: 15,
@@ -871,7 +871,9 @@ export async function POST() {
     const row = db.select().from(tasks).where(eq(tasks.id, triggerAtId)).get();
 
     const triggered = tick.triggered.includes(triggerAtId);
-    const ok = triggered && row?.status === "ready";
+    // After trigger fires, scheduler may also dispatch it (ready -> running). Both are valid.
+    const statusOk = row?.status === "ready" || row?.status === "running";
+    const ok = triggered && statusOk;
     return { ok, detail: `triggered=${triggered}, status=${row?.status}` };
   }));
 
