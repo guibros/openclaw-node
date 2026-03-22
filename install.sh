@@ -536,10 +536,24 @@ fi
 run mkdir -p "$MC_DIR/data"
 
 # ============================================================
-# Step 12: ClawVault
+# Step 12: Playwright (web-fetch fallback)
 # ============================================================
 
-step "Step 12: ClawVault"
+step "Step 12: Playwright Browser"
+
+if [ -f "$WORKSPACE/node_modules/.package-lock.json" ] && grep -q '"playwright"' "$WORKSPACE/node_modules/.package-lock.json" 2>/dev/null; then
+  info "Playwright already installed in workspace"
+else
+  info "Installing Playwright + Chromium (web-fetch fallback for anti-bot sites)..."
+  (cd "$WORKSPACE" && run npm install --save playwright 2>/dev/null) || warn "Playwright npm install failed"
+  (cd "$WORKSPACE" && run npx playwright install chromium 2>/dev/null) || warn "Chromium browser install failed"
+fi
+
+# ============================================================
+# Step 13: ClawVault
+# ============================================================
+
+step "Step 13: ClawVault"
 
 if command -v clawvault >/dev/null 2>&1; then
   info "ClawVault already installed: $(which clawvault)"
@@ -556,10 +570,10 @@ else
 fi
 
 # ============================================================
-# Step 13: Initialize Memory
+# Step 14: Initialize Memory
 # ============================================================
 
-step "Step 13: Initialize Memory"
+step "Step 14: Initialize Memory"
 
 TODAY=$(date +%Y-%m-%d)
 DAILY_FILE="$WORKSPACE/memory/$TODAY.md"
@@ -650,10 +664,10 @@ MEM
 fi
 
 # ============================================================
-# Step 14: Install Services (role-aware, template-based)
+# Step 15: Install Services (role-aware, template-based)
 # ============================================================
 
-step "Step 14: Install Services (role=$NODE_ROLE)"
+step "Step 15: Install Services (role=$NODE_ROLE)"
 
 MANIFEST="$REPO_DIR/services/service-manifest.json"
 LAUNCHD_TEMPLATES="$REPO_DIR/services/launchd"
@@ -807,10 +821,10 @@ else
 fi
 
 # ============================================================
-# Step 15: Mesh Network (optional — if Tailscale detected)
+# Step 16: Mesh Network (optional — if Tailscale detected)
 # ============================================================
 
-step "Step 15: Mesh Network"
+step "Step 16: Mesh Network"
 
 if $SKIP_MESH; then
   info "Skipped (--skip-mesh flag set by meta-installer)"
