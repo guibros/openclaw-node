@@ -7,7 +7,7 @@ import { tasks, dependencies } from "./db/schema";
 import { statusToKanban } from "./parsers/task-markdown";
 import { syncTasksToMarkdown } from "./sync/tasks";
 import { logActivity } from "./activity";
-import { WORKSPACE_ROOT } from "./config";
+import { WORKSPACE_ROOT, AGENT_NAME, DISPATCH_SIGNAL_FILE } from "./config";
 import { gatewayNotify } from "./gateway-notify";
 
 
@@ -238,23 +238,23 @@ export function schedulerTick(): TickResult {
   }
 
   // --- Phase 2: Single-task dispatch ---
-  // Rule: ONE auto-start task at a time. Daedalus owns it and works autonomously.
+  // Rule: ONE auto-start task at a time. The agent owns it and works autonomously.
   // Next task only dispatched when current is done, blocked, or waiting-user.
 
-  // Check if Daedalus already has an active auto-dispatched task
-  const daedalusRunning = db
+  // Check if the agent already has an active auto-dispatched task
+  const agentRunning = db
     .select()
     .from(tasks)
     .where(
       and(
         eq(tasks.status, "running"),
-        eq(tasks.owner, "Daedalus"),
+        eq(tasks.owner, AGENT_NAME),
         ne(tasks.id, "__LIVE_SESSION__")
       )
     )
     .all();
 
-  const hasActiveTask = daedalusRunning.length > 0;
+  const hasActiveTask = agentRunning.length > 0;
 
   // Dispatchable: needs_approval=0 AND (status="ready" OR (status="queued" AND trigger_kind="none"))
   const dispatchable = db
@@ -309,7 +309,7 @@ export function schedulerTick(): TickResult {
       .set({
         status: "running",
         kanbanColumn: statusToKanban("running"),
-        owner: "Daedalus",
+        owner: AGENT_NAME,
         updatedAt: now.toISOString(),
       })
       .where(eq(tasks.id, next.id))
@@ -323,7 +323,7 @@ export function schedulerTick(): TickResult {
     );
 
     // Notify via gateway message (TUI chat)
-    const notifyText = `MC-Kanban: NEW AUTOTASK FOR DAEDALUS READY: "${next.title}"`;
+    const notifyText = `MC-Kanban: NEW AUTOTASK FOR ${AGENT_NAME.toUpperCase()} READY: "${next.title}"`;
     gatewayNotify(notifyText).catch((err) => {
       console.error("MC gateway notify failed:", err);
     });
@@ -333,7 +333,7 @@ export function schedulerTick(): TickResult {
       const signalDir = path.join(WORKSPACE_ROOT, ".tmp");
       mkdirSync(signalDir, { recursive: true });
       writeFileSync(
-        path.join(signalDir, "daedalus-dispatch.json"),
+        path.join(signalDir, DISPATCH_SIGNAL_FILE),
         JSON.stringify({
           taskId: next.id,
           title: next.title,
@@ -351,7 +351,7 @@ export function schedulerTick(): TickResult {
       result.skipped.push(t.id);
     }
   } else {
-    // All eligible tasks stay in backlog (Daedalus busy or nothing to dispatch)
+    // All eligible tasks stay in backlog (agent busy or nothing to dispatch)
     for (const t of eligible) {
       result.skipped.push(t.id);
     }

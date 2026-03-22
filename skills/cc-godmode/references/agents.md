@@ -50,7 +50,7 @@ Knowledge Discovery Specialist - expert in web research, documentation lookup, a
 - If timeout reached: STOP → Report partial results → Indicate what's incomplete
 - Uses graceful degradation: Full → Partial → Search Results Only → Failure Report
 
-**Model:** haiku (fast & cost-effective)
+**Model:** fast tier (e.g. haiku, gpt-4o-mini, gemini-flash)
 
 </details>
 
@@ -101,7 +101,7 @@ System Architect - strategic planner for React/Node.js/TypeScript enterprise app
 - Props Drilling Max 2 Levels (then Context)
 - Server State Separation (React Query/SWR)
 
-**Model:** opus (complex reasoning, high-impact decisions)
+**Model:** reasoning tier (e.g. opus, o1, deepseek-r1)
 
 </details>
 
@@ -148,7 +148,7 @@ API Lifecycle Expert - specialist for REST/GraphQL APIs, TypeScript type systems
 - [ ] Run `npm run typecheck`
 ```
 
-**Model:** sonnet (balanced analysis + documentation)
+**Model:** standard tier (e.g. sonnet, gpt-4o, gemini-pro)
 
 </details>
 
@@ -207,7 +207,7 @@ Senior Full-Stack Developer - specialist for React/Node.js/TypeScript implementa
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-**Model:** sonnet (optimal for implementation)
+**Model:** standard tier (e.g. sonnet, gpt-4o, gemini-pro)
 
 </details>
 
@@ -260,7 +260,7 @@ Code Quality Engineer - specialist for verification and quality assurance.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-**Model:** sonnet (balanced verification)
+**Model:** standard tier (e.g. sonnet, gpt-4o, gemini-pro)
 
 </details>
 
@@ -320,7 +320,7 @@ UX Quality Engineer - specialist for E2E testing, visual regression, accessibili
 **BLOCKING:** Console errors, E2E failures, LCP > 4s, CLS > 0.25
 **NON-BLOCKING:** Minor A11y issues, "needs improvement" performance
 
-**Model:** sonnet (MCP coordination + analysis)
+**Model:** standard tier (e.g. sonnet, gpt-4o, gemini-pro)
 
 </details>
 
@@ -380,7 +380,7 @@ Technical Writer - specialist for developer documentation.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-**Model:** sonnet (reading + writing capability)
+**Model:** standard tier (e.g. sonnet, gpt-4o, gemini-pro)
 
 </details>
 
@@ -428,6 +428,6 @@ gh run view [run-id] --log-failed
 Types: feat, fix, docs, style, refactor, test, chore
 ```
 
-**Model:** haiku (simple operations, cost-optimized)
+**Model:** fast tier (e.g. haiku, gpt-4o-mini, gemini-flash)
 
 </details>

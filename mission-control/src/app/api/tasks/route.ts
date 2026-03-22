@@ -9,7 +9,7 @@ import { logActivity } from "@/lib/activity";
 import { schedulerTick } from "@/lib/scheduler";
 import { generateTaskId } from "@/lib/task-id";
 import { getNats, sc } from "@/lib/nats";
-import { WORKSPACE_ROOT } from "@/lib/config";
+import { WORKSPACE_ROOT, AGENT_NAME } from "@/lib/config";
 import path from "path";
 
 /**
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
           title: liveWork.title,
           status: "running",
           kanbanColumn: "in_progress",
-          owner: "daedalus",
+          owner: AGENT_NAME.toLowerCase(),
           nextAction: liveWork.nextAction || null,
           updatedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),

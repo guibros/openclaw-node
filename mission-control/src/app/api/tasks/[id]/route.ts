@@ -6,6 +6,7 @@ import { statusToKanban, kanbanToStatus } from "@/lib/parsers/task-markdown";
 import { syncTasksToMarkdown } from "@/lib/sync/tasks";
 import { logActivity } from "@/lib/activity";
 import { gatewayNotify } from "@/lib/gateway-notify";
+import { AGENT_NAME, HUMAN_NAME } from "@/lib/config";
 import { getNats, sc } from "@/lib/nats";
 
 /**
@@ -167,7 +168,7 @@ export async function PATCH(
       }
     }
 
-    // Done-gate: only Gui can mark tasks as done (via force_done flag).
+    // Done-gate: only the human operator can mark tasks as done (via force_done flag).
     // Without force_done, redirect done→review so tasks land in waiting-user.
     const targetStatus = update.status as string | undefined;
     const targetColumn = update.kanbanColumn as string | undefined;
@@ -279,7 +280,7 @@ export async function PATCH(
     // Auto-set owner when task moves to running manually (no explicit owner change)
     const effectiveStatus = (update.status as string) ?? existing.status;
     if (effectiveStatus === "running" && body.owner === undefined && !existing.owner) {
-      update.owner = "Gui";
+      update.owner = HUMAN_NAME;
     }
 
     db.update(tasks).set(update).where(eq(tasks.id, id)).run();
@@ -314,14 +315,14 @@ export async function PATCH(
       id
     );
 
-    // Push notification to TUI only for Daedalus autostart tasks
+    // Push notification to TUI only for agent autostart tasks
     if (movedTo || body.status) {
       const effectiveOwner = (update.owner as string) ?? existing.owner;
       const effectiveApproval = (update.needsApproval as number) ?? existing.needsApproval;
-      const isDaedalus = effectiveOwner === "Daedalus";
+      const isAgent = effectiveOwner === AGENT_NAME;
       const isAutostart = effectiveApproval === 0;
 
-      if (isDaedalus && isAutostart) {
+      if (isAgent && isAutostart) {
         const fromCol = existing.kanbanColumn || existing.status;
         const toCol = movedTo || body.status;
         notifyAgent(`MC-Kanban: "${existing.title}" has been moved from ${fromCol} to ${toCol}`);

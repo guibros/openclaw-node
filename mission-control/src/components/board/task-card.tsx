@@ -1,5 +1,7 @@
 "use client";
 
+const AGENT_NAME = process.env.NEXT_PUBLIC_AGENT_NAME || "Daedalus";
+
 import { useState, useMemo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -99,7 +101,7 @@ export function TaskCard({
   const colIdx = COLUMNS_ORDER.indexOf(currentColumn);
   const isLive = task.id === "__LIVE_SESSION__";
   const isActive = !isLive && task.status === "running";
-  const isDaedalusWorking = isActive && task.owner?.toLowerCase() === "daedalus" && !!task.acknowledgedAt;
+  const isDaedalusWorking = isActive && task.owner?.toLowerCase() === AGENT_NAME.toLowerCase() && !!task.acknowledgedAt;
   const isMeta = isMetaTask(task);
   const metaColor = task.color || '#7c3aed';
   const MetaIcon = isMeta ? TYPE_ICONS[task.type || ''] || null : null;

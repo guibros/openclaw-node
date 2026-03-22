@@ -21,7 +21,7 @@ export const tasks = sqliteTable("tasks", {
   endDate: text("end_date"), // ISO date: "2026-04-15" (range end)
   color: text("color"), // hex color for Gantt bars
   description: text("description"), // markdown body for projects/phases
-  needsApproval: integer("needs_approval").default(1), // 0=Daedalus can start, 1=wait for Gui
+  needsApproval: integer("needs_approval").default(1), // 0=agent can auto-start, 1=wait for human approval
   triggerKind: text("trigger_kind").default("none"), // "none" | "at" | "cron"
   triggerAt: text("trigger_at"), // ISO datetime for one-shot trigger
   triggerCron: text("trigger_cron"), // cron expression (e.g. "0 10 * * 1")
@@ -30,7 +30,7 @@ export const tasks = sqliteTable("tasks", {
   capacityClass: text("capacity_class").default("normal"), // "light" | "normal" | "heavy"
   autoPriority: integer("auto_priority").default(0), // higher = dispatched first
   // Mesh execution fields (synced from active-tasks.md)
-  execution: text("execution"), // "mesh" = dispatched via mesh bridge; null = manual/Daedalus
+  execution: text("execution"), // "mesh" = dispatched via mesh bridge; "local" = agent executes locally
   meshTaskId: text("mesh_task_id"), // NATS KV task ID (e.g. "MESH-TEST-003")
   meshNode: text("mesh_node"), // node that claimed the task (e.g. "calos-ubuntu")
   metric: text("metric"), // mechanical success check (e.g. "tests pass")
@@ -41,7 +41,7 @@ export const tasks = sqliteTable("tasks", {
   excludeNodes: text("exclude_nodes"), // JSON array of node IDs to avoid
   clusterId: text("cluster_id"), // FK to clusters.id for collab dispatch
   showInCalendar: integer("show_in_calendar").default(0), // 1=show meta-task in calendar view
-  acknowledgedAt: text("acknowledged_at"), // ISO datetime — when Daedalus acknowledged auto-dispatch
+  acknowledgedAt: text("acknowledged_at"), // ISO datetime — when the agent acknowledged auto-dispatch
   updatedAt: text("updated_at").notNull(),
   createdAt: text("created_at")
     .notNull()

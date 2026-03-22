@@ -39,7 +39,7 @@ export async function POST(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    const fromSoul = task.soulId || "daedalus";
+    const fromSoul = task.soulId || "main-agent";
 
     // Create handoff document in ClawVault
     await fs.mkdir(HANDOFFS_DIR, { recursive: true });

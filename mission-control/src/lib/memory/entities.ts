@@ -12,6 +12,7 @@
  */
 
 import { getRawDb } from "../db";
+import { AGENT_NAME, HUMAN_NAME } from "../config";
 
 // ── Types ──
 
@@ -32,8 +33,8 @@ export interface RelationMatch {
 // Bootstrap the graph with known entities. The extraction loop will discover new ones.
 
 const KNOWN_ENTITIES: EntityMatch[] = [
-  { name: "Gui", type: "person" },
-  { name: "Daedalus", type: "person" },
+  { name: HUMAN_NAME, type: "person" },
+  { name: AGENT_NAME, type: "person" },
   { name: "Arcane", type: "project", aliases: ["Arcane Rapture", "arcane-rapture"] },
   { name: "Mission Control", type: "project", aliases: ["MC", "mission-control"] },
   { name: "OpenClaw", type: "project", aliases: ["openclaw"] },

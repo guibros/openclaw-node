@@ -48,12 +48,12 @@ Subjective outputs (lore, design) require a verification proxy: word count, form
 
 Check `bin/trust-registry` before delegating to a specialist soul.
 
-| Tier | Min Tasks | Trust >= | Autonomy | Model |
+| Tier | Min Tasks | Trust >= | Autonomy | Capability |
 |---|---|---|---|---|
-| new | 0 | — | atomic (strict I/O) | sonnet |
-| developing | 3 | 0.50 | guided (can decompose, must report steps) | sonnet |
-| proven | 10 | 0.65 | open-ended (pursue sub-goals, report at end) | sonnet |
-| expert | 25 | 0.80 | full (can sub-delegate, minimal oversight) | opus |
+| new | 0 | — | atomic (strict I/O) | fast |
+| developing | 3 | 0.50 | guided (can decompose, must report steps) | standard |
+| proven | 10 | 0.65 | open-ended (pursue sub-goals, report at end) | standard |
+| expert | 25 | 0.80 | full (can sub-delegate, minimal oversight) | reasoning |
 
 After every delegation: `bin/trust-registry update <soul-id> --result success|failure --turns N --verified true|false --task "description"`
 
@@ -81,7 +81,7 @@ Every delegated task: completable in **2-5 minutes**.
 On sub-agent failure:
 1. Retry once with enriched context (add the error + background)
 2. Re-delegate to different soul if capability mismatch
-3. Escalate model (sonnet → opus)
+3. Escalate capability tier (standard → reasoning)
 4. Escalate to Gui if 1-3 fail or task is high-criticality
 
 Never retry same prompt unchanged. Each retry must add information.
