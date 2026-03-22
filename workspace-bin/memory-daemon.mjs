@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * memory-daemon.mjs — OpenClaw platform-level memory lifecycle daemon (v2)
+ * memory-daemon.mjs — OpenClaw platform-level memory lifecycle daemon (v3)
  *
  * Long-running Node.js process that detects activity from ANY frontend
  * by polling JSONL transcript mtimes. No touchfiles. No hooks required.
@@ -9,9 +9,16 @@
  *
  * Phases:
  *   0. Session-start bootstrap (once per new session)
+ *      - Freezes MEMORY.md snapshot (memory-budget)
+ *      - Imports sessions into SQLite archive (session-store)
  *   1. Status sync (every tick when active, ~5ms)
  *   2. Throttled background work (recap 10min, maintenance 30min,
- *      obsidian-sync 30min, trust-health 30min)
+ *      obsidian-sync 30min, trust-health 30min, session-import 10min)
+ *
+ * v3 additions (Hermes-inspired):
+ *   - Pre-compression memory flush (durable fact extraction before context loss)
+ *   - MEMORY.md character budget with frozen session snapshots
+ *   - SQLite session archive with FTS5 for episodic recall
  *
  * Install: bin/install-daemon (detects OS, sets up launchd/systemd/pm2)
  * Manual:  node bin/memory-daemon.mjs [--test] [--verbose]
@@ -23,6 +30,24 @@ import path from 'path';
 import os from 'os';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
+
+// --- Hermes-inspired modules ---
+import { shouldFlush, runFlush } from '../lib/pre-compression-flush.mjs';
+import { createBudget } from '../lib/memory-budget.mjs';
+
+// Session store loaded lazily (requires better-sqlite3)
+let _sessionStore = null;
+async function getSessionStore() {
+  if (_sessionStore) return _sessionStore;
+  try {
+    const { SessionStore } = await import('../lib/session-store.mjs');
+    _sessionStore = new SessionStore();
+    return _sessionStore;
+  } catch (err) {
+    log(`session-store unavailable: ${err.message}`);
+    return null;
+  }
+}
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -51,6 +76,8 @@ function loadConfig() {
       maintenanceMs: 1800000,     // 30 min
       obsidianSyncMs: 1800000,    // 30 min
     },
+    contextWindowTokens: 200000,     // active model's context window (override per LLM)
+    memoryCharBudget: 2200,           // MEMORY.md character cap
     clawvaultBin: 'bin/clawvault-local',
     obsidianVault: 'projects/arcane-vault',
   };
@@ -141,6 +168,7 @@ function detectActivity(sources, activityWindowMs) {
   let newestSession = null;
   let newestMtime = 0;
   let newestSource = null;
+  let newestFormat = null;
 
   for (const source of sources) {
     if (!fs.existsSync(source.path)) continue;
@@ -160,12 +188,13 @@ function detectActivity(sources, activityWindowMs) {
           newestMtime = mtime;
           newestSession = path.basename(f, '.jsonl');
           newestSource = source.name;
+          newestFormat = source.format || null;
         }
       } catch { continue; }
     }
   }
 
-  return { active, newestSession, newestMtime, newestSource };
+  return { active, newestSession, newestMtime, newestSource, newestFormat };
 }
 
 // ============================================================
@@ -276,6 +305,31 @@ class SessionStateMachine {
 }
 
 // ============================================================
+// MEMORY BUDGET (Hermes-inspired frozen snapshot)
+// ============================================================
+
+let memoryBudget = null;
+
+function initMemoryBudget(config) {
+  if (memoryBudget) return memoryBudget;
+  memoryBudget = createBudget(config.workspace || WORKSPACE, {
+    charBudget: config.memoryCharBudget || 2200,
+  });
+
+  memoryBudget.on('add', ({ entry, pctUsed, charsRemaining }) => {
+    log(`  [memory] +added (${pctUsed}% used, ${charsRemaining} chars free)`);
+  });
+  memoryBudget.on('warning', ({ pctUsed, message }) => {
+    log(`  [memory] WARNING: ${message}`);
+  });
+  memoryBudget.on('trim', ({ removed }) => {
+    log(`  [memory] trimmed: ${removed.slice(0, 60)}...`);
+  });
+
+  return memoryBudget;
+}
+
+// ============================================================
 // PHASE 0: SESSION-START BOOTSTRAP
 // ============================================================
 
@@ -360,6 +414,29 @@ async function runPhase0Bootstrap(sessionId, config) {
       log('  clawvault doctor done');
     } catch (e) { log(`  clawvault doctor failed: ${e.message}`); }
   }
+
+  // 9. Freeze MEMORY.md snapshot for deterministic prompt content
+  try {
+    const budget = initMemoryBudget(config);
+    budget.startSession();
+    const stats = budget.getStats();
+    log(`  memory-budget frozen ${stats.meterDisplay}`);
+  } catch (e) { log(`  memory-budget freeze failed: ${e.message}`); }
+
+  // 10. Import recent sessions into SQLite archive
+  try {
+    const store = await getSessionStore();
+    if (store) {
+      const sources = loadTranscriptSources();
+      let totalImported = 0;
+      for (const source of sources) {
+        if (!fs.existsSync(source.path)) continue;
+        const result = await store.importDirectory(source.path, { source: source.name, format: source.format });
+        totalImported += result.imported;
+      }
+      if (totalImported > 0) log(`  session-store: imported ${totalImported} sessions`);
+    }
+  } catch (e) { log(`  session-store import failed: ${e.message}`); }
 
   log('Phase 0: Bootstrap complete');
 }
@@ -499,6 +576,7 @@ function loadThrottleState() {
   return {
     lastRecap: 0, lastMaintenance: 0, lastObsidianSync: 0, lastTrustHealth: 0,
     lastClawvaultReflect: 0, lastClawvaultArchive: 0, lastClawvaultObserve: 0,
+    lastSessionImport: 0,
   };
 }
 
@@ -551,6 +629,27 @@ async function runPhase2ThrottledWork(config) {
           .catch(e => log(`  Phase 2: trust-health failed: ${e.message}`))
       );
     }
+  }
+
+  // Session archive import — incremental (every 10min, aligned with recap)
+  if (now - throttle.lastSessionImport >= config.intervals.sessionRecapMs) {
+    throttle.lastSessionImport = now;
+    stage1.push(
+      (async () => {
+        try {
+          const store = await getSessionStore();
+          if (!store) return;
+          const sources = loadTranscriptSources();
+          let totalImported = 0;
+          for (const source of sources) {
+            if (!fs.existsSync(source.path)) continue;
+            const result = await store.importDirectory(source.path, { source: source.name, format: source.format });
+            totalImported += result.imported;
+          }
+          if (totalImported > 0) log(`  Phase 2: session-store imported ${totalImported} sessions`);
+        } catch (e) { log(`  Phase 2: session-import failed: ${e.message}`); }
+      })()
+    );
   }
 
   const clawvault = path.join(WORKSPACE, config.clawvaultBin);
@@ -650,11 +749,31 @@ async function handleTransitions(transitions, config) {
       return STATES.ACTIVE; // signal to complete boot
     }
 
-    // ACTIVE → IDLE: Observe + recap + checkpoint
+    // ACTIVE → IDLE: Observe + recap + checkpoint + pre-compression flush
     if (t.from === STATES.ACTIVE && t.to === STATES.IDLE) {
-      log('Entering idle — running observe + recap + checkpoint');
+      log('Entering idle — running observe + recap + checkpoint + flush');
       const recap = path.join(WORKSPACE, 'bin/session-recap');
       const clawvault = path.join(WORKSPACE, config.clawvaultBin);
+
+      // Pre-compression flush: extract durable facts before context may be lost
+      const sources = loadTranscriptSources();
+      const currentJsonl = findCurrentJsonl(sources);
+      if (currentJsonl) {
+        try {
+          const flushCheck = await shouldFlush(currentJsonl, {
+            contextWindowTokens: config.contextWindowTokens || 200000,
+          });
+          if (flushCheck.shouldFlush) {
+            log(`  pre-compression flush triggered (${flushCheck.pctUsed}% of ${flushCheck.threshold} token threshold)`);
+            const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
+            const budget = initMemoryBudget(config);
+            const result = await runFlush(currentJsonl, memoryMd, {
+              charBudget: budget.charBudget,
+            });
+            log(`  flush: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped`);
+          }
+        } catch (e) { log(`  pre-compression flush failed: ${e.message}`); }
+      }
 
       const tasks = [];
       if (fs.existsSync(recap)) {
@@ -673,6 +792,46 @@ async function handleTransitions(transitions, config) {
       const clawvault = path.join(WORKSPACE, config.clawvaultBin);
       const obsSync = path.join(WORKSPACE, 'bin/obsidian-sync.mjs');
       const subagentAudit = path.join(WORKSPACE, 'bin/subagent-audit.mjs');
+
+      // 0. Pre-compression flush (final chance to capture facts)
+      const sources = loadTranscriptSources();
+      const currentJsonl = findCurrentJsonl(sources);
+      if (currentJsonl) {
+        try {
+          const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
+          const budget = initMemoryBudget(config);
+          const result = await runFlush(currentJsonl, memoryMd, {
+            charBudget: budget.charBudget,
+          });
+          if (result.added > 0 || result.merged > 0) {
+            log(`  end-of-session flush: ${result.added} added, ${result.merged} merged`);
+          }
+        } catch (e) { log(`  end-of-session flush failed: ${e.message}`); }
+      }
+
+      // 0b. Archive current session to SQLite
+      if (currentJsonl) {
+        try {
+          const store = await getSessionStore();
+          if (store) {
+            // Detect which transcript source this JSONL came from
+            const activity = detectActivity(loadTranscriptSources(), config.intervals.activityWindowMs);
+            const result = await store.importSession(currentJsonl, {
+              source: activity.newestSource || 'unknown',
+              format: activity.newestFormat,
+            });
+            if (result.imported) {
+              log(`  session-store: archived ${result.sessionId.slice(0, 8)} (${result.messageCount} msgs)`);
+            }
+          }
+        } catch (e) { log(`  session-store archive failed: ${e.message}`); }
+      }
+
+      // 0c. Release frozen MEMORY.md snapshot
+      if (memoryBudget) {
+        memoryBudget.endSession();
+        log('  memory-budget: snapshot released');
+      }
 
       // 1. ClawVault: final observe + reflect + archive → persist all learnings
       if (fs.existsSync(clawvault)) {

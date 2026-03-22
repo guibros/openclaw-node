@@ -561,6 +561,12 @@ async function handleCollabLeave(msg) {
   if (session.status === COLLAB_STATUS.ACTIVE && session.nodes.length < session.min_nodes) {
     await collabStore.markAborted(session_id, `Below min_nodes: ${session.nodes.length} < ${session.min_nodes}`);
     publishCollabEvent('aborted', session);
+  } else if (session.status === COLLAB_STATUS.ACTIVE) {
+    // Re-check if the round is now complete (removed node excluded from quorum)
+    const updated = await collabStore.get(session_id);
+    if (updated && collabStore.isRoundComplete(updated)) {
+      await evaluateRound(session_id);
+    }
   }
 
   respond(msg, session);

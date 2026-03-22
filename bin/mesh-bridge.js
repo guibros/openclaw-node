@@ -730,6 +730,16 @@ async function main() {
   const stalenessTimer = setInterval(checkStaleness, HEARTBEAT_CHECK_INTERVAL);
   log(`Heartbeat staleness check: every ${HEARTBEAT_CHECK_INTERVAL / 1000}s (warn at ${STALE_WARNING_MS / 60000}m)`);
 
+  // Wake signal — MC publishes mesh.bridge.wake after creating a mesh task
+  // so the bridge picks it up in ~1s instead of waiting for the next poll cycle
+  let wakeResolve = null;
+  const wakeSub = nc.subscribe('mesh.bridge.wake', {
+    callback: () => {
+      log('WAKE: received wake signal, triggering immediate poll');
+      if (wakeResolve) { wakeResolve(); wakeResolve = null; }
+    },
+  });
+
   // Dispatch loop (polls active-tasks.md)
   while (running) {
     try {
@@ -779,10 +789,16 @@ async function main() {
       }
     }
 
-    await new Promise(r => setTimeout(r, DISPATCH_INTERVAL));
+    // Sleep until next poll OR wake signal, whichever comes first
+    await Promise.race([
+      new Promise(r => setTimeout(r, DISPATCH_INTERVAL)),
+      new Promise(r => { wakeResolve = r; }),
+    ]);
+    wakeResolve = null;
   }
 
   clearInterval(stalenessTimer);
+  wakeSub.unsubscribe();
   sub.unsubscribe();
   await nc.drain();
   log('Bridge stopped.');
