@@ -550,10 +550,27 @@ else
 fi
 
 # ============================================================
-# Step 13: ClawVault
+# Step 13: Companion Bridge (OpenAI-compatible Claude adapter)
 # ============================================================
 
-step "Step 13: ClawVault"
+step "Step 13: Companion Bridge"
+
+if command -v companion-bridge >/dev/null 2>&1; then
+  info "companion-bridge already installed: $(companion-bridge --version 2>/dev/null || echo 'found')"
+else
+  info "Installing companion-bridge (OpenAI-compatible adapter for Claude Code)..."
+  if [ "$OS" = "linux" ]; then
+    run sudo npm install -g companion-bridge || warn "companion-bridge install failed"
+  else
+    run npm install -g companion-bridge || warn "companion-bridge install failed"
+  fi
+fi
+
+# ============================================================
+# Step 14: ClawVault
+# ============================================================
+
+step "Step 14: ClawVault"
 
 if command -v clawvault >/dev/null 2>&1; then
   info "ClawVault already installed: $(which clawvault)"
@@ -570,10 +587,10 @@ else
 fi
 
 # ============================================================
-# Step 14: Initialize Memory
+# Step 15: Initialize Memory
 # ============================================================
 
-step "Step 14: Initialize Memory"
+step "Step 15: Initialize Memory"
 
 TODAY=$(date +%Y-%m-%d)
 DAILY_FILE="$WORKSPACE/memory/$TODAY.md"
@@ -664,10 +681,10 @@ MEM
 fi
 
 # ============================================================
-# Step 15: Install Services (role-aware, template-based)
+# Step 16: Install Services (role-aware, template-based)
 # ============================================================
 
-step "Step 15: Install Services (role=$NODE_ROLE)"
+step "Step 16: Install Services (role=$NODE_ROLE)"
 
 MANIFEST="$REPO_DIR/services/service-manifest.json"
 LAUNCHD_TEMPLATES="$REPO_DIR/services/launchd"
@@ -821,10 +838,10 @@ else
 fi
 
 # ============================================================
-# Step 16: Mesh Network (optional — if Tailscale detected)
+# Step 17: Mesh Network (optional — if Tailscale detected)
 # ============================================================
 
-step "Step 16: Mesh Network"
+step "Step 17: Mesh Network"
 
 if $SKIP_MESH; then
   info "Skipped (--skip-mesh flag set by meta-installer)"
