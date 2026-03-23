@@ -566,6 +566,19 @@ else
   fi
 fi
 
+# Deploy harness rules (user-level override for companion-bridge)
+HARNESS_SRC="${SCRIPT_DIR}/config/harness-rules.json"
+HARNESS_DST="${HOME}/.openclaw/harness-rules.json"
+if [ -f "$HARNESS_SRC" ]; then
+  if [ ! -f "$HARNESS_DST" ]; then
+    info "Deploying default harness rules to $HARNESS_DST"
+    mkdir -p "$(dirname "$HARNESS_DST")"
+    cp "$HARNESS_SRC" "$HARNESS_DST"
+  else
+    info "Harness rules already exist at $HARNESS_DST (skipping — user-owned)"
+  fi
+fi
+
 # ============================================================
 # Step 14: ClawVault
 # ============================================================
