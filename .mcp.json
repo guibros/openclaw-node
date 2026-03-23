@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "knowledge": {
+      "command": "node",
+      "args": ["/Users/moltymac/.openclaw/workspace/lib/mcp-knowledge/server.mjs"],
+      "env": {
+        "KNOWLEDGE_ROOT": "/Users/moltymac/.openclaw/workspace",
+        "KNOWLEDGE_DB": "/Users/moltymac/.openclaw/workspace/.knowledge.db",
+        "KNOWLEDGE_POLL_MS": "300000"
+      }
+    }
+  }
+}

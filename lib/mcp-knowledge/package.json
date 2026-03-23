@@ -1,0 +1,25 @@
+{
+  "name": "@openclaw/mcp-knowledge",
+  "version": "0.1.0",
+  "description": "LLM-agnostic MCP server for semantic search over markdown knowledge bases",
+  "type": "module",
+  "main": "server.mjs",
+  "bin": {
+    "mcp-knowledge": "./server.mjs"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "start:http": "KNOWLEDGE_PORT=3100 node server.mjs",
+    "test": "node test.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.0.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^11.0.0",
+    "sqlite-vec": "^0.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT"
+}
