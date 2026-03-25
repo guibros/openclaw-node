@@ -253,3 +253,24 @@ export type Cluster = typeof clusters.$inferSelect;
 export type NewCluster = typeof clusters.$inferInsert;
 export type ClusterMember = typeof clusterMembers.$inferSelect;
 export type NewClusterMember = typeof clusterMembers.$inferInsert;
+
+// ── HyperAgent Protocol (stub — dashboard views deferred) ──────────
+
+export const hyperagentProposals = sqliteTable("hyperagent_proposals", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  externalId: integer("external_id"),
+  title: text("title").notNull(),
+  proposalType: text("proposal_type").notNull(),
+  status: text("status").notNull().default("pending"),
+  description: text("description"),
+  soulId: text("soul_id"),
+  nodeId: text("node_id"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: text("reviewed_at"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+export type HyperagentProposal = typeof hyperagentProposals.$inferSelect;
+export type NewHyperagentProposal = typeof hyperagentProposals.$inferInsert;

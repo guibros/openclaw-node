@@ -9,7 +9,8 @@
     "idleThresholdMs": 900000,
     "sessionRecapMs": 600000,
     "maintenanceMs": 1800000,
-    "obsidianSyncMs": 1800000
+    "obsidianSyncMs": 1800000,
+    "hyperagentReflectMs": 1800000
   },
   "clawvaultBin": "bin/clawvault-local",
   "obsidianVault": "projects/arcane-vault"
