@@ -3,6 +3,7 @@
 Installable package for deploying an OpenClaw node. Includes the full infrastructure stack:
 
 - **Memory Daemon** — persistent background service managing session lifecycle, memory maintenance, and Obsidian sync
+- **HyperAgent Protocol** — self-improving agent loop: telemetry, structured reflection, strategy archive, and self-modifying proposals with human-gated approval
 - **Mission Control** — Next.js web dashboard (kanban, timeline, graph visualization, memory browser)
 - **Soul System** — multi-soul orchestration with trust registry and evolution
 - **Skill Library** — 100+ skills for AI agent capabilities
@@ -136,6 +137,74 @@ The installer deploys the vault scaffold with 22 domain folders and the **Local 
 4. The memory daemon will sync workspace files to the vault every 30 minutes
 
 If not using Obsidian, the sync is disabled by default in `obsidian-sync.json` (set `"enabled": false`).
+
+## HyperAgent Protocol
+
+A self-improving loop that makes any agent on any node better over time. Based on the DGM-Hyperagents framework (Zhang et al., 2026): the mechanism that generates improvements is itself subject to improvement.
+
+### How It Works
+
+```
+Task completes → Telemetry logged (auto-detected pattern flags)
+                      ↓
+              5 tasks accumulate
+                      ↓
+        Daemon triggers reflection (raw stats)
+                      ↓
+     Agent synthesizes hypotheses + proposals (autonomous)
+                      ↓
+          Human reviews proposals (safety gate)
+                      ↓
+     Approved proposals update strategy archive
+                      ↓
+        Next task consults strategies at start
+```
+
+The loop is fully autonomous except proposal approval. Telemetry, reflection, synthesis, and strategy consultation all happen without human intervention.
+
+### Components
+
+| Component | Location | Purpose |
+|---|---|---|
+| `lib/hyperagent-store.mjs` | SQLite in `state.db` | 5 tables: telemetry, strategies, reflections, proposals, junction |
+| `bin/hyperagent.mjs` | CLI | `status`, `log`, `reflect`, `strategies`, `approve`, `reject` |
+| Harness rules (3) | `config/harness-rules.json` | Injected into any agent: task-close telemetry, task-start strategy lookup, reflection synthesis |
+| Daemon phase | `memory-daemon.mjs` | Triggers reflection every 30min when 5+ unreflected tasks exist |
+
+### Agent-Agnostic
+
+Works for any soul (daedalus, infra-ops, blockchain-auditor, etc.) on any node. Telemetry is tagged with `node_id` and `soul_id`. Strategies are queryable by domain. The harness rules inject into any agent session via companion-bridge.
+
+### Pattern Flags
+
+Pathology detection is automatic. The store detects these flags at telemetry write time:
+
+- `repeated-approach` — same strategy on last 3+ tasks in same domain
+- `multiple-iterations` — more than 3 attempts to complete
+- `always-escalated` — failed with only 1 iteration (didn't try)
+- `no-meta-notes` — missing or insufficient observations
+
+### CLI
+
+```bash
+hyperagent status                          # overview
+hyperagent log '<json>'                    # log telemetry
+hyperagent strategies [--domain X]         # list strategies
+hyperagent reflect [--force]               # trigger reflection
+hyperagent reflect --pending               # get pending synthesis (JSON)
+hyperagent reflect --write-synthesis '<json>'  # write agent synthesis
+hyperagent proposals                       # list proposals
+hyperagent approve <id>                    # approve (human gate)
+hyperagent reject <id> [reason]            # reject
+hyperagent shadow <id> [--window 60]       # start shadow eval
+hyperagent seed-strategy '<json>'          # import strategy manually
+```
+
+### Tests
+
+```bash
+node test/hyperagent-store.test.js   # 28 tests, no external deps
+```
 
 ## Mesh Network (Multi-Node)
 
