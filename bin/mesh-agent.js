@@ -721,6 +721,207 @@ function parseReflection(output) {
   };
 }
 
+// ── Circling Strategy: Prompt Builder + Parser ───────
+
+/**
+ * Build a prompt for a circling strategy step.
+ * Role-specific: Worker gets different instructions than Reviewers at each step.
+ */
+function buildCirclingPrompt(task, circlingData) {
+  const { circling_phase, circling_step, circling_subround, directed_input, my_role } = circlingData;
+  const isWorker = my_role === 'worker';
+  const parts = [];
+
+  parts.push(`# Task: ${task.title}`);
+  parts.push('');
+
+  switch (circling_phase) {
+    case 'init':
+      if (isWorker) {
+        parts.push('## Your Role: WORKER (Central Authority)');
+        parts.push('');
+        parts.push('You are the Worker in a Circling Strategy collaboration. You OWN the deliverable.');
+        parts.push('Produce your initial work artifact (v0) — your first draft/implementation based on the task plan below.');
+        parts.push('');
+      } else {
+        parts.push('## Your Role: REVIEWER');
+        parts.push('');
+        parts.push('You are a Reviewer in a Circling Strategy collaboration.');
+        parts.push('Produce your **reviewStrategy** — your methodology and focus areas for reviewing this type of work.');
+        parts.push('Define: what you will look for, what frameworks you will apply, what your evaluation criteria are.');
+        parts.push('');
+      }
+      break;
+
+    case 'circling':
+      if (circling_step === 1) {
+        // Step 1 — Review Pass
+        parts.push(`## Sub-Round ${circling_subround}, Step 1: Review Pass`);
+        parts.push('');
+        if (isWorker) {
+          parts.push('## Your Role: WORKER — Analyze Review Strategies');
+          parts.push('');
+          parts.push('Below are the review STRATEGIES from both reviewers (NOT their review findings).');
+          parts.push('Analyze each strategy: what they focus on well, what they miss, how they could improve.');
+          parts.push('Your feedback will help reviewers sharpen their approaches.');
+          parts.push('Do NOT touch the work artifact in this step.');
+          parts.push('');
+        } else {
+          parts.push('## Your Role: REVIEWER — Review the Work Artifact');
+          parts.push('');
+          parts.push('Below is the work artifact. Review it using your review strategy.');
+          parts.push('Produce concrete, actionable findings. For each finding, specify:');
+          parts.push('- What you found (the issue or observation)');
+          parts.push('- Where in the artifact (location/line/section)');
+          parts.push('- Why it matters (impact)');
+          parts.push('- What you recommend (suggested fix or improvement)');
+          parts.push('');
+        }
+      } else if (circling_step === 2) {
+        // Step 2 — Integration + Refinement
+        parts.push(`## Sub-Round ${circling_subround}, Step 2: Integration & Refinement`);
+        parts.push('');
+        if (isWorker) {
+          parts.push('## Your Role: WORKER — Judge Reviews & Update Artifact');
+          parts.push('');
+          parts.push('Below are the review artifacts from both reviewers.');
+          parts.push('For EACH review finding, judge it:');
+          parts.push('- **ACCEPTED**: implement the suggestion and note where');
+          parts.push('- **REJECTED**: explain why with reasoning');
+          parts.push('- **MODIFIED**: implement differently and explain why');
+          parts.push('');
+          parts.push('Then produce your UPDATED work artifact incorporating accepted changes.');
+          parts.push('Also produce a reconciliationDoc summarizing all judgments.');
+          parts.push('');
+          parts.push('You must output TWO artifacts using the multi-artifact format below.');
+          parts.push('');
+        } else {
+          parts.push('## Your Role: REVIEWER — Refine Your Strategy');
+          parts.push('');
+          parts.push("Below is the Worker's analysis of your review strategy (and the other reviewer's).");
+          parts.push("Evaluate the Worker's feedback honestly:");
+          parts.push("- If the feedback is valid, adjust your strategy accordingly");
+          parts.push("- If you disagree, explain why and keep your approach");
+          parts.push('Produce your REFINED reviewStrategy.');
+          parts.push('');
+        }
+      }
+      break;
+
+    case 'finalization':
+      parts.push('## FINALIZATION');
+      parts.push('');
+      if (isWorker) {
+        parts.push('## Your Role: WORKER — Final Delivery');
+        parts.push('');
+        parts.push('Produce your FINAL formatted work artifact.');
+        parts.push('Also produce a completionDiff — a checklist comparing original plan items vs what was delivered:');
+        parts.push('  [x] Item implemented');
+        parts.push('  [ ] Item NOT implemented — reason / deferred to follow-up');
+        parts.push('');
+        parts.push('You must output TWO artifacts using the multi-artifact format below.');
+        parts.push('');
+      } else {
+        parts.push('## Your Role: REVIEWER — Final Sign-Off');
+        parts.push('');
+        parts.push('Review the final work artifact against the original task plan.');
+        parts.push('Either:');
+        parts.push('- **APPROVE**: vote "converged" — the work meets quality standards');
+        parts.push('- **FLAG CONCERN**: vote "blocked" — describe remaining critical concerns');
+        parts.push('');
+      }
+      break;
+  }
+
+  // Add directed input
+  if (directed_input) {
+    parts.push('---');
+    parts.push('');
+    parts.push(directed_input);
+    parts.push('');
+  }
+
+  // Add artifact output instructions
+  const isMultiArtifact = isWorker && (circling_step === 2 || circling_phase === 'finalization');
+  parts.push('---');
+  parts.push('');
+
+  if (isMultiArtifact) {
+    // Multi-artifact output format (Worker Step 2 and Finalization)
+    const art1Type = circling_phase === 'finalization' ? 'workArtifact' : 'workArtifact';
+    const art2Type = circling_phase === 'finalization' ? 'completionDiff' : 'reconciliationDoc';
+
+    parts.push('## Output Format (TWO artifacts required)');
+    parts.push('');
+    parts.push('Produce your first artifact, then wrap it:');
+    parts.push('');
+    parts.push('===CIRCLING_ARTIFACT===');
+    parts.push(`type: ${art1Type}`);
+    parts.push('===END_ARTIFACT===');
+    parts.push('');
+    parts.push('Then produce your second artifact:');
+    parts.push('');
+    parts.push('===CIRCLING_ARTIFACT===');
+    parts.push(`type: ${art2Type}`);
+    parts.push('===END_ARTIFACT===');
+    parts.push('');
+    parts.push('Then end with:');
+  } else {
+    parts.push('## Output Format');
+    parts.push('');
+    parts.push('Produce your work above, then end with:');
+  }
+
+  // Determine the correct type for single-artifact output
+  let artifactType = 'workArtifact'; // default
+  if (!isWorker) {
+    if (circling_phase === 'init' || circling_step === 2) artifactType = 'reviewStrategy';
+    else if (circling_step === 1) artifactType = 'reviewArtifact';
+    else if (circling_phase === 'finalization') artifactType = 'reviewSignOff';
+  } else {
+    if (circling_step === 1) artifactType = 'workerReviewsAnalysis';
+  }
+
+  parts.push('');
+  parts.push('===CIRCLING_REFLECTION===');
+  parts.push(`type: ${artifactType}`);
+  parts.push('summary: [1-2 sentences about what you did]');
+  parts.push('confidence: [0.0 to 1.0]');
+  if (circling_phase === 'finalization') {
+    parts.push('vote: [converged|blocked]');
+  } else {
+    parts.push('vote: [continue|converged|blocked]');
+  }
+  parts.push('===END_REFLECTION===');
+  parts.push('');
+  parts.push('Rules:');
+  parts.push('- Begin your output with the artifact content DIRECTLY. Do NOT include any preamble, explanation, or commentary before the artifact. Any text before the artifact delimiters (or before the reflection block for single-artifact output) is treated as part of the artifact.');
+  parts.push('- confidence: a number between 0.0 and 1.0');
+  if (circling_phase === 'finalization') {
+    parts.push('- vote: "converged" (work meets quality standards) or "blocked" (critical issue remains)');
+  } else {
+    parts.push('- vote: "continue" (more work needed), "converged" (satisfied), or "blocked" (critical issue)');
+  }
+  parts.push('- The reflection block MUST be the last thing in your response');
+
+  return parts.join('\n');
+}
+
+// Parser extracted to lib/circling-parser.js — single source of truth for both
+// production code and tests. Zero external dependencies.
+const { parseCirclingReflection: _parseCircling } = require('../lib/circling-parser');
+
+/**
+ * Parse a circling strategy output. Delegates to lib/circling-parser.js
+ * with agent-specific options (logger, legacy fallback).
+ */
+function parseCirclingReflection(output) {
+  return _parseCircling(output, {
+    log: (msg) => log(msg),
+    legacyParser: parseReflection,
+  });
+}
+
 // ── Collaborative Task Execution ──────────────────────
 
 /**
@@ -832,20 +1033,25 @@ async function executeCollabTask(task) {
       if (roundsDone) break;
 
       const roundData = JSON.parse(sc.decode(roundMsg.data));
-      const { round_number, shared_intel, my_scope, my_role, mode, current_turn } = roundData;
+      const { round_number, shared_intel, directed_input, my_scope, my_role, mode, current_turn,
+              circling_phase, circling_step, circling_subround } = roundData;
 
       // Sequential mode safety guard: skip if it's not our turn.
-      // The daemon (notifySequentialTurn) only sends to the current-turn node,
-      // so this should not normally trigger. Kept as a defensive check.
       if (mode === 'sequential' && current_turn && current_turn !== NODE_ID) {
         log(`COLLAB R${round_number}: Not our turn (current: ${current_turn}). Waiting.`);
         continue;
       }
 
-      log(`COLLAB R${round_number}: Starting work (role: ${my_role}, scope: ${JSON.stringify(my_scope)})`);
+      const isCircling = mode === 'circling_strategy';
+      const stepLabel = isCircling
+        ? `${circling_phase === 'init' ? 'Init' : circling_phase === 'finalization' ? 'Final' : `SR${circling_subround}/S${circling_step}`}`
+        : `R${round_number}`;
+      log(`COLLAB ${stepLabel}: Starting work (role: ${my_role}, scope: ${JSON.stringify(my_scope)})`);
 
-      // Build round-specific prompt
-      const prompt = buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role);
+      // Build prompt — circling uses directed inputs, other modes use shared intel
+      const prompt = isCircling
+        ? buildCirclingPrompt(task, roundData)
+        : buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role);
 
       if (DRY_RUN) {
         log(`[DRY RUN] Collab prompt:\n${prompt}`);
@@ -856,16 +1062,31 @@ async function executeCollabTask(task) {
       const llmResult = await runLLM(prompt, task, worktreePath);
       const output = llmResult.stdout || '';
 
-      // Parse reflection — shell provider auto-wraps (can't produce JSON)
-      const reflection = llmResult.provider === 'shell'
-        ? {
-            summary: output.trim().slice(-500) || '(no output)',
-            learnings: '',
-            confidence: llmResult.exitCode === 0 ? 1.0 : 0.0,
-            vote: llmResult.exitCode === 0 ? 'converged' : 'continue',
-            parse_failed: false,
-          }
-        : parseReflection(output);
+      // Parse reflection — circling uses delimiter-based parser, others use JSON-block parser
+      let reflection;
+      let circlingArtifacts = [];
+
+      if (llmResult.provider === 'shell') {
+        reflection = {
+          summary: output.trim().slice(-500) || '(no output)',
+          learnings: '',
+          confidence: llmResult.exitCode === 0 ? 1.0 : 0.0,
+          vote: llmResult.exitCode === 0 ? 'converged' : 'continue',
+          parse_failed: false,
+        };
+      } else if (isCircling) {
+        const circResult = parseCirclingReflection(output);
+        reflection = {
+          summary: circResult.summary,
+          learnings: '',
+          confidence: circResult.confidence,
+          vote: circResult.vote,
+          parse_failed: circResult.parse_failed,
+        };
+        circlingArtifacts = circResult.circling_artifacts;
+      } else {
+        reflection = parseReflection(output);
+      }
 
       // List modified files
       let artifacts = [];
@@ -885,16 +1106,20 @@ async function executeCollabTask(task) {
           node_id: NODE_ID,
           round: round_number,
           summary: reflection.summary,
-          learnings: reflection.learnings,
+          learnings: reflection.learnings || '',
           artifacts,
           confidence: reflection.confidence,
           vote: reflection.vote,
           parse_failed: reflection.parse_failed,
+          // Circling extensions
+          circling_step: isCircling ? circling_step : null,
+          circling_artifacts: circlingArtifacts,
         });
         const parseTag = reflection.parse_failed ? ' [PARSE FAILED]' : '';
-        log(`COLLAB R${round_number}: Reflection submitted (vote: ${reflection.vote}, conf: ${reflection.confidence}${parseTag})`);
+        const artCount = circlingArtifacts.length > 0 ? `, ${circlingArtifacts.length} artifact(s)` : '';
+        log(`COLLAB ${stepLabel}: Reflection submitted (vote: ${reflection.vote}, conf: ${reflection.confidence}${parseTag}${artCount})`);
       } catch (err) {
-        log(`COLLAB R${round_number}: Reflection submit failed: ${err.message}`);
+        log(`COLLAB ${stepLabel}: Reflection submit failed: ${err.message}`);
       }
 
       // Check if session is done (converged/completed/aborted)

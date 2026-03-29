@@ -285,6 +285,55 @@ function handleCollabEvent(eventType, taskId, data) {
       log(`COLLAB ABORTED: ${taskId} — ${session.result?.summary || 'unknown reason'}`);
       break;
 
+    // Circling Strategy events
+    case 'collab.circling_step_started': {
+      if (!dispatched.has(taskId)) {
+        // Auto-track CLI-submitted circling tasks
+        try {
+          const tasks = readTasks(ACTIVE_TASKS_PATH);
+          if (tasks.find(t => t.task_id === taskId && t.execution === 'mesh')) {
+            dispatched.add(taskId);
+            lastHeartbeat.set(taskId, Date.now());
+            log(`CIRCLING AUTO-TRACK: ${taskId} (CLI-submitted)`);
+          } else { break; }
+        } catch { break; }
+      }
+      const c = session.circling || {};
+      const stepName = c.phase === 'init' ? 'Init'
+        : c.phase === 'finalization' ? 'Finalization'
+        : `SR${c.current_subround}/${c.max_subrounds} Step${c.current_step}`;
+      log(`CIRCLING ${stepName}: started for ${taskId}`);
+      updateTaskInPlace(ACTIVE_TASKS_PATH, taskId, {
+        circling_phase: c.phase || null,
+        circling_subround: c.current_subround || 0,
+        circling_step: c.current_step || 0,
+        next_action: `${stepName} in progress (${session.nodes?.length || '?'} nodes)`,
+        updated_at: isoTimestamp(),
+      });
+      break;
+    }
+
+    case 'collab.circling_gate': {
+      const cg = session.circling || {};
+      // Extract blocked reviewer summaries from the last round (if any)
+      const lastRound = session.rounds?.[session.rounds.length - 1];
+      const blockedVotes = lastRound?.reflections?.filter(r => r.vote === 'blocked') || [];
+      let gateMsg;
+      if (blockedVotes.length > 0) {
+        const reason = blockedVotes.map(r => r.summary).filter(Boolean).join('; ').slice(0, 150);
+        gateMsg = `[GATE] SR${cg.current_subround} blocked — ${reason || 'reviewer flagged concern'}`;
+      } else {
+        gateMsg = `[GATE] SR${cg.current_subround} complete — review reconciliationDoc and approve/reject`;
+      }
+      log(`CIRCLING GATE: ${taskId} — SR${cg.current_subround} waiting for approval`);
+      updateTaskInPlace(ACTIVE_TASKS_PATH, taskId, {
+        status: 'waiting-user',
+        next_action: gateMsg,
+        updated_at: isoTimestamp(),
+      });
+      break;
+    }
+
     default:
       log(`COLLAB EVENT: ${eventType} for ${taskId}`);
   }

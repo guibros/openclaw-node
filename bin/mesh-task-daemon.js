@@ -49,9 +49,14 @@ const sc = StringCodec();
 const { NATS_URL } = require('../lib/nats-resolve');
 const BUDGET_CHECK_INTERVAL = 30000; // 30s
 const STALL_MINUTES = parseInt(process.env.MESH_STALL_MINUTES || '5'); // no heartbeat for this long → stalled
+const CIRCLING_STEP_TIMEOUT_MS = parseInt(process.env.MESH_CIRCLING_STEP_TIMEOUT_MS || String(10 * 60 * 1000)); // 10 min default
 const NODE_ID = os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
 let nc, store, collabStore, planStore;
+
+// Active step timers for circling sessions — keyed by sessionId.
+// Cleared when the step completes normally; fires degrade logic if step hangs.
+const circlingStepTimers = new Map();
 
 // ── Logging ─────────────────────────────────────────
 
@@ -743,7 +748,23 @@ async function handleCollabJoin(msg) {
 
   // Check if recruiting should close → start first round
   if (collabStore.isRecruitingDone(session)) {
-    await startCollabRound(session.session_id);
+    // Circling Strategy: assign worker_node_id before starting
+    if (session.mode === 'circling_strategy' && session.circling) {
+      const freshSession = await collabStore.get(session.session_id);
+      if (freshSession.circling && !freshSession.circling.worker_node_id) {
+        // Assign all role IDs at recruiting close — stable for the session lifetime.
+        const workerNode = freshSession.nodes.find(n => n.role === 'worker') || freshSession.nodes[0];
+        freshSession.circling.worker_node_id = workerNode.node_id;
+        const reviewers = freshSession.nodes.filter(n => n.node_id !== workerNode.node_id);
+        freshSession.circling.reviewerA_node_id = reviewers[0]?.node_id || null;
+        freshSession.circling.reviewerB_node_id = reviewers[1]?.node_id || null;
+        await collabStore.put(freshSession);
+        log(`CIRCLING: Roles assigned → Worker: ${workerNode.node_id}, RevA: ${reviewers[0]?.node_id}, RevB: ${reviewers[1]?.node_id}`);
+      }
+      await startCirclingStep(session.session_id);
+    } else {
+      await startCollabRound(session.session_id);
+    }
   }
 
   respond(msg, session);
@@ -848,11 +869,74 @@ async function handleCollabReflect(msg) {
   });
   publishCollabEvent('reflection_received', session);
 
+  // Circling Strategy: handle two-step barrier, artifact storage, directed handoffs
+  if (session.mode === 'circling_strategy' && session.circling) {
+    // Store circling artifacts
+    if (reflection.circling_artifacts && reflection.circling_artifacts.length > 0) {
+      const { current_subround, current_step } = session.circling;
+      const isWorker = reflection.node_id === session.circling.worker_node_id;
+      // Use stored reviewer IDs for stable identity (falls back to array-index if not set)
+      let nodeRole;
+      if (isWorker) {
+        nodeRole = 'worker';
+      } else if (session.circling.reviewerA_node_id && session.circling.reviewerB_node_id) {
+        nodeRole = reflection.node_id === session.circling.reviewerA_node_id ? 'reviewerA' : 'reviewerB';
+      } else {
+        const reviewerNodes = session.nodes.filter(n => n.node_id !== session.circling.worker_node_id);
+        nodeRole = reviewerNodes[0]?.node_id === reflection.node_id ? 'reviewerA' : 'reviewerB';
+      }
+
+      for (const art of reflection.circling_artifacts) {
+        const key = `sr${current_subround}_step${current_step}_${nodeRole}_${art.type}`;
+        await collabStore.storeArtifact(session_id, key, art.content);
+        log(`CIRCLING ARTIFACT: ${key} stored (${(art.content || '').length} chars)`);
+      }
+    } else if (reflection.parse_failed) {
+      // Parse failure: record and check retry threshold.
+      // If a node consistently fails, the barrier still advances (the reflection counts)
+      // but downstream nodes get [UNAVAILABLE] placeholders. After 3 failures for the
+      // same node+step, log a critical warning — the only full recovery is the daemon's
+      // global stall timeout. See: mesh-collab.js recordArtifactFailure / getArtifactFailureCount
+      const failCount = await collabStore.recordArtifactFailure(session_id, reflection.node_id);
+      log(`CIRCLING PARSE FAILURE: ${reflection.node_id} in ${session_id} (attempt ${failCount})`);
+      await collabStore.appendAudit(session_id, 'artifact_parse_failed', {
+        node_id: reflection.node_id,
+        step: session.circling.current_step,
+        subround: session.circling.current_subround,
+        failure_count: failCount,
+      });
+      if (failCount >= 3) {
+        log(`CIRCLING CRITICAL: ${reflection.node_id} failed ${failCount}x at SR${session.circling.current_subround}/Step${session.circling.current_step} — no artifacts will be available for downstream nodes`);
+      }
+    } else {
+      // No artifacts but not a parse failure — unexpected
+      log(`CIRCLING WARNING: ${reflection.node_id} submitted reflection without artifacts in ${session_id}`);
+    }
+
+    // Check if current circling step is complete (all 3 nodes submitted)
+    const freshSession = await collabStore.get(session_id);
+    if (collabStore.isCirclingStepComplete(freshSession)) {
+      clearCirclingStepTimer(session_id);
+      const nextState = await collabStore.advanceCirclingStep(session_id);
+      if (!nextState) {
+        log(`CIRCLING ERROR: advanceCirclingStep returned null for ${session_id}`);
+      } else if (nextState.phase === 'complete') {
+        // Finalization done — complete the session
+        await completeCirclingSession(session_id);
+      } else if (nextState.needsGate) {
+        // Automation tier gate — wait for human approval
+        log(`CIRCLING GATE: ${session_id} SR${nextState.subround} — waiting for human approval (tier ${freshSession.circling.automation_tier})`);
+        publishCollabEvent('circling_gate', freshSession);
+      } else {
+        // Auto-advance to next step
+        await startCirclingStep(session_id);
+      }
+    }
   // Sequential mode: advance turn, notify next node or evaluate round
   // Parallel mode: check if all reflections are in → evaluate convergence
   // NOTE: Node.js single-threaded event loop prevents concurrent execution of this
   // handler — no mutex needed. advanceTurn() is safe without CAS here.
-  if (session.mode === 'sequential') {
+  } else if (session.mode === 'sequential') {
     const nextNodeId = await collabStore.advanceTurn(session_id);
     if (nextNodeId) {
       // Notify only the next-turn node with accumulated intra-round intel
@@ -1140,6 +1224,275 @@ async function evaluateRound(sessionId) {
   }
 }
 
+// ── Circling Strategy Functions ──────────────────────
+
+/**
+ * Start a circling step: compile directed inputs and notify each node.
+ * Called after advanceCirclingStep transitions the state machine.
+ * Also creates a new round in the session (for reflection storage).
+ */
+async function startCirclingStep(sessionId) {
+  const session = await collabStore.get(sessionId);
+  if (!session || !session.circling) return;
+
+  const { phase, current_subround, current_step } = session.circling;
+
+  // Record step start time for timeout rehydration after daemon restart
+  session.circling.step_started_at = new Date().toISOString();
+  await collabStore.put(session);
+
+  // Start a new round in the session for reflection storage
+  // (each step gets its own round to keep reflections organized)
+  const round = await collabStore.startRound(sessionId);
+  if (!round) {
+    log(`CIRCLING ERROR: startRound failed for ${sessionId} (aborted?)`);
+    return;
+  }
+
+  const freshSession = await collabStore.get(sessionId);
+  const parentTask = await store.get(freshSession.task_id);
+  const taskDescription = parentTask?.description || '';
+
+  const stepLabel = phase === 'init' ? 'Init'
+    : phase === 'finalization' ? 'Finalization'
+    : `SR${current_subround} Step${current_step}`;
+  log(`CIRCLING ${sessionId} ${stepLabel} START (${freshSession.nodes.length} nodes)`);
+
+  await collabStore.appendAudit(sessionId, 'circling_step_started', {
+    phase, subround: current_subround, step: current_step,
+    nodes: freshSession.nodes.map(n => n.node_id),
+  });
+  publishCollabEvent('circling_step_started', freshSession);
+
+  // Notify each node with their directed input
+  for (const node of freshSession.nodes) {
+    const directedInput = collabStore.compileDirectedInput(freshSession, node.node_id, taskDescription);
+
+    nc.publish(`mesh.collab.${sessionId}.node.${node.node_id}.round`, sc.encode(JSON.stringify({
+      session_id: sessionId,
+      task_id: freshSession.task_id,
+      round_number: freshSession.current_round,
+      directed_input: directedInput,
+      shared_intel: '',  // empty for circling — uses directed_input instead
+      my_scope: node.scope,
+      my_role: node.role,
+      mode: 'circling_strategy',
+      circling_phase: phase,
+      circling_step: current_step,
+      circling_subround: current_subround,
+    })));
+  }
+
+  // Set step-level timeout. If the barrier isn't met within CIRCLING_STEP_TIMEOUT_MS,
+  // mark unresponsive nodes as dead and force-advance with degraded input.
+  clearCirclingStepTimer(sessionId);
+  const stepSnapshot = { phase, subround: current_subround, step: current_step };
+  const timer = setTimeout(() => handleCirclingStepTimeout(sessionId, stepSnapshot), CIRCLING_STEP_TIMEOUT_MS);
+  circlingStepTimers.set(sessionId, timer);
+}
+
+/**
+ * Handle a circling step timeout. If the step hasn't advanced since the timer was set,
+ * mark nodes that haven't submitted as dead and force-advance.
+ */
+async function handleCirclingStepTimeout(sessionId, stepSnapshot) {
+  circlingStepTimers.delete(sessionId);
+
+  const session = await collabStore.get(sessionId);
+  if (!session || !session.circling) return;
+
+  const { phase, current_subround, current_step } = session.circling;
+
+  // Check if the step already advanced (timer is stale)
+  if (phase !== stepSnapshot.phase ||
+      current_subround !== stepSnapshot.subround ||
+      current_step !== stepSnapshot.step) {
+    return; // Step already moved on — nothing to do
+  }
+
+  log(`CIRCLING STEP TIMEOUT: ${sessionId} ${phase}/SR${current_subround}/Step${current_step} — forcing advance`);
+
+  const currentRound = session.rounds[session.rounds.length - 1];
+  if (!currentRound) return;
+
+  const submittedNodeIds = new Set(
+    currentRound.reflections
+      .filter(r => r.circling_step === current_step)
+      .map(r => r.node_id)
+  );
+
+  // Mark nodes that haven't submitted as dead
+  for (const node of session.nodes) {
+    if (node.status !== 'dead' && !submittedNodeIds.has(node.node_id)) {
+      await collabStore.setNodeStatus(sessionId, node.node_id, 'dead');
+      log(`CIRCLING STEP TIMEOUT: marked ${node.node_id} as dead (no submission within ${CIRCLING_STEP_TIMEOUT_MS / 60000}m)`);
+      await collabStore.appendAudit(sessionId, 'node_marked_dead', {
+        node_id: node.node_id,
+        reason: `Circling step timeout: no reflection for ${phase}/SR${current_subround}/Step${current_step}`,
+      });
+    }
+  }
+
+  // Re-check barrier with dead nodes excluded
+  const freshSession = await collabStore.get(sessionId);
+  if (collabStore.isCirclingStepComplete(freshSession)) {
+    const nextState = await collabStore.advanceCirclingStep(sessionId);
+    if (!nextState) {
+      log(`CIRCLING STEP TIMEOUT ERROR: advanceCirclingStep returned null for ${sessionId}`);
+    } else if (nextState.phase === 'complete') {
+      await completeCirclingSession(sessionId);
+    } else if (nextState.needsGate) {
+      log(`CIRCLING GATE: ${sessionId} SR${nextState.subround} — waiting for human approval (timeout-forced)`);
+      publishCollabEvent('circling_gate', freshSession);
+    } else {
+      await startCirclingStep(sessionId);
+    }
+  } else {
+    // Still not enough submissions even after marking dead nodes.
+    // All active nodes are dead — abort the session.
+    log(`CIRCLING STEP TIMEOUT: ${sessionId} — no active nodes remain. Aborting.`);
+    await collabStore.markAborted(sessionId, `All nodes timed out at ${phase}/SR${current_subround}/Step${current_step}`);
+    publishCollabEvent('aborted', await collabStore.get(sessionId));
+    await store.markReleased(session.task_id, `Circling session aborted: all nodes timed out`);
+  }
+}
+
+function clearCirclingStepTimer(sessionId) {
+  const existing = circlingStepTimers.get(sessionId);
+  if (existing) {
+    clearTimeout(existing);
+    circlingStepTimers.delete(sessionId);
+  }
+}
+
+/**
+ * Complete a circling session after finalization.
+ * Checks finalization votes: Worker converged + both Reviewers converged → COMPLETE.
+ * Any blocked vote → escalation gate (all tiers gate on finalization).
+ */
+async function completeCirclingSession(sessionId) {
+  clearCirclingStepTimer(sessionId);
+  const session = await collabStore.get(sessionId);
+  if (!session || !session.circling) return;
+
+  const lastRound = session.rounds[session.rounds.length - 1];
+  if (!lastRound) return;
+
+  // Check finalization votes
+  const blockedVotes = lastRound.reflections.filter(r => r.vote === 'blocked');
+
+  if (blockedVotes.length > 0) {
+    // Escalation: reviewer flagged critical concern
+    log(`CIRCLING ESCALATION ${sessionId}: ${blockedVotes.length} blocked vote(s) in finalization`);
+    await collabStore.appendAudit(sessionId, 'circling_escalation', {
+      blocked_nodes: blockedVotes.map(r => r.node_id),
+      summaries: blockedVotes.map(r => r.summary),
+    });
+    // Gate on finalization (all tiers)
+    publishCollabEvent('circling_gate', session);
+    return;
+  }
+
+  // All converged → complete
+  const finalArtifact = collabStore.getLatestArtifact(session, 'worker', 'workArtifact');
+  const completionDiff = collabStore.getLatestArtifact(session, 'worker', 'completionDiff');
+
+  log(`CIRCLING COMPLETED ${sessionId}: ${session.circling.current_subround} sub-rounds`);
+  await collabStore.markConverged(sessionId);
+
+  await collabStore.markCompleted(sessionId, {
+    artifacts: finalArtifact ? ['workArtifact'] : [],
+    summary: `Circling Strategy completed: ${session.circling.current_subround} sub-rounds, ${session.nodes.length} nodes. ${completionDiff ? 'CompletionDiff available.' : ''}`,
+    node_contributions: Object.fromEntries(
+      lastRound.reflections.map(r => [r.node_id, r.summary])
+    ),
+    circling_final_artifact: finalArtifact,
+    circling_completion_diff: completionDiff,
+  });
+  await collabStore.appendAudit(sessionId, 'session_completed', {
+    outcome: 'circling_finalized',
+    subrounds: session.circling.current_subround,
+    node_count: session.nodes.length,
+  });
+
+  // Complete parent task
+  const completedSession = await collabStore.get(sessionId);
+  await store.markCompleted(session.task_id, completedSession.result);
+  publishEvent('completed', await store.get(session.task_id));
+  publishCollabEvent('completed', completedSession);
+}
+
+/**
+ * mesh.collab.gate.approve — Human approves a circling tier gate.
+ * Resumes the circling protocol after a gate point.
+ */
+async function handleCirclingGateApprove(msg) {
+  const { session_id } = parseRequest(msg);
+  if (!session_id) return respondError(msg, 'session_id required');
+
+  const session = await collabStore.get(session_id);
+  if (!session || !session.circling) return respondError(msg, 'Not a circling session');
+
+  log(`CIRCLING GATE APPROVED: ${session_id} — resuming`);
+  await collabStore.appendAudit(session_id, 'gate_approved', {
+    phase: session.circling.phase,
+    subround: session.circling.current_subround,
+  });
+
+  // If finalization phase with blocked votes, the gate approve means "accept anyway"
+  if (session.circling.phase === 'complete' || session.circling.phase === 'finalization') {
+    // Force complete
+    const lastRound = session.rounds[session.rounds.length - 1];
+    const finalArtifact = collabStore.getLatestArtifact(session, 'worker', 'workArtifact');
+    await collabStore.markConverged(session_id);
+    await collabStore.markCompleted(session_id, {
+      artifacts: finalArtifact ? ['workArtifact'] : [],
+      summary: `Circling completed via gate approval after ${session.circling.current_subround} sub-rounds`,
+      node_contributions: Object.fromEntries(
+        (lastRound?.reflections || []).map(r => [r.node_id, r.summary])
+      ),
+      circling_final_artifact: finalArtifact,
+    });
+    const completedSession = await collabStore.get(session_id);
+    await store.markCompleted(session.task_id, completedSession.result);
+    publishEvent('completed', await store.get(session.task_id));
+    publishCollabEvent('completed', completedSession);
+  } else {
+    // Mid-protocol gate (tier 3) — resume next step
+    await startCirclingStep(session_id);
+  }
+
+  respond(msg, { approved: true });
+}
+
+/**
+ * mesh.collab.gate.reject — Human rejects a circling tier gate.
+ * Forces another sub-round.
+ */
+async function handleCirclingGateReject(msg) {
+  const { session_id } = parseRequest(msg);
+  if (!session_id) return respondError(msg, 'session_id required');
+
+  const session = await collabStore.get(session_id);
+  if (!session || !session.circling) return respondError(msg, 'Not a circling session');
+
+  log(`CIRCLING GATE REJECTED: ${session_id} — forcing another sub-round`);
+  await collabStore.appendAudit(session_id, 'gate_rejected', {
+    phase: session.circling.phase,
+    subround: session.circling.current_subround,
+  });
+
+  // Reset to circling phase, increment subround, step 1
+  session.circling.phase = 'circling';
+  session.circling.max_subrounds++; // allow one more
+  session.circling.current_step = 1;
+  session.circling.current_subround++;
+  await collabStore.put(session);
+
+  await startCirclingStep(session_id);
+  respond(msg, { rejected: true, new_subround: session.circling.current_subround });
+}
+
 // ── Collab Recruiting Timer ─────────────────────────
 
 /**
@@ -1153,7 +1506,31 @@ async function checkRecruitingDeadlines() {
 
     if (session.nodes.length >= session.min_nodes) {
       log(`COLLAB RECRUIT DONE ${session.session_id}: ${session.nodes.length} nodes joined. Starting round 1.`);
-      await startCollabRound(session.session_id);
+      if (session.mode === 'circling_strategy' && session.circling) {
+        // Circling requires exactly 3 nodes (1 worker + 2 reviewers).
+        // Even if min_nodes was misconfigured, refuse to start with <3.
+        const hasWorker = session.nodes.some(n => n.role === 'worker');
+        const reviewerCount = session.nodes.filter(n => n.role === 'reviewer').length;
+        if (session.nodes.length < 3 || !hasWorker || reviewerCount < 2) {
+          log(`COLLAB RECRUIT FAILED ${session.session_id}: circling requires 1 worker + 2 reviewers, got ${session.nodes.length} nodes (worker: ${hasWorker}, reviewers: ${reviewerCount}). Aborting.`);
+          await collabStore.markAborted(session.session_id, `Circling requires 1 worker + 2 reviewers; got ${session.nodes.length} nodes`);
+          publishCollabEvent('aborted', await collabStore.get(session.session_id));
+          await store.markReleased(session.task_id, `Circling session failed: insufficient role distribution`);
+          continue;
+        }
+        // Assign all role IDs if not yet assigned
+        if (!session.circling.worker_node_id) {
+          const workerNode = session.nodes.find(n => n.role === 'worker') || session.nodes[0];
+          session.circling.worker_node_id = workerNode.node_id;
+          const reviewers = session.nodes.filter(n => n.node_id !== workerNode.node_id);
+          session.circling.reviewerA_node_id = reviewers[0]?.node_id || null;
+          session.circling.reviewerB_node_id = reviewers[1]?.node_id || null;
+          await collabStore.put(session);
+        }
+        await startCirclingStep(session.session_id);
+      } else {
+        await startCollabRound(session.session_id);
+      }
     } else {
       log(`COLLAB RECRUIT FAILED ${session.session_id}: only ${session.nodes.length}/${session.min_nodes} nodes. Aborting.`);
       await collabStore.markAborted(session.session_id, `Not enough nodes: ${session.nodes.length} < ${session.min_nodes}`);
@@ -1161,6 +1538,46 @@ async function checkRecruitingDeadlines() {
       // Release the parent task
       await store.markReleased(session.task_id, `Collab session failed to recruit: ${session.nodes.length}/${session.min_nodes} nodes`);
     }
+  }
+}
+
+// ── Circling Step Timeout Sweep ──────────────────────
+
+/**
+ * Periodic sweep for stale circling steps. Handles timer rehydration after
+ * daemon restart — in-memory timers are lost on crash, but step_started_at
+ * in the session survives in JetStream KV.
+ *
+ * Runs every 60s. For each active circling session, checks if the current
+ * step has been running longer than CIRCLING_STEP_TIMEOUT_MS. If so, fires
+ * the timeout handler (which marks dead nodes and force-advances).
+ *
+ * Also serves as a safety net for timer drift or missed clearTimeout calls.
+ */
+async function sweepCirclingStepTimeouts() {
+  try {
+    const active = await collabStore.list({ status: COLLAB_STATUS.ACTIVE });
+    for (const session of active) {
+      if (session.mode !== 'circling_strategy' || !session.circling) continue;
+      if (session.circling.phase === 'complete') continue;
+      if (!session.circling.step_started_at) continue;
+
+      // Skip if an in-memory timer is already tracking this session
+      if (circlingStepTimers.has(session.session_id)) continue;
+
+      const elapsed = Date.now() - new Date(session.circling.step_started_at).getTime();
+      if (elapsed > CIRCLING_STEP_TIMEOUT_MS) {
+        log(`CIRCLING SWEEP: ${session.session_id} step stale (${(elapsed / 60000).toFixed(1)}m elapsed). Firing timeout handler.`);
+        const stepSnapshot = {
+          phase: session.circling.phase,
+          subround: session.circling.current_subround,
+          step: session.circling.current_step,
+        };
+        await handleCirclingStepTimeout(session.session_id, stepSnapshot);
+      }
+    }
+  } catch (err) {
+    log(`CIRCLING SWEEP ERROR: ${err.message}`);
   }
 }
 
@@ -1638,6 +2055,9 @@ async function main() {
     'mesh.collab.find':     handleCollabFind,
     'mesh.collab.reflect':  handleCollabReflect,
     'mesh.collab.recruiting': handleCollabRecruiting,
+    // Circling Strategy gate handlers
+    'mesh.collab.gate.approve': handleCirclingGateApprove,
+    'mesh.collab.gate.reject':  handleCirclingGateReject,
     // Plan handlers
     'mesh.plans.create':          handlePlanCreate,
     'mesh.plans.get':             handlePlanGet,
@@ -1669,10 +2089,12 @@ async function main() {
   const budgetTimer = setInterval(enforceBudgets, BUDGET_CHECK_INTERVAL);
   const stallTimer = setInterval(detectStalls, BUDGET_CHECK_INTERVAL);
   const recruitTimer = setInterval(checkRecruitingDeadlines, 5000); // check every 5s
+  const circlingStepSweepTimer = setInterval(sweepCirclingStepTimeouts, 60000); // every 60s
   log(`Proposal processing: every ${BUDGET_CHECK_INTERVAL / 1000}s`);
   log(`Budget enforcement: every ${BUDGET_CHECK_INTERVAL / 1000}s`);
   log(`Stall detection: every ${BUDGET_CHECK_INTERVAL / 1000}s (threshold: ${STALL_MINUTES}m)`);
   log(`Collab recruiting check: every 5s`);
+  log(`Circling step timeout sweep: every 60s (threshold: ${CIRCLING_STEP_TIMEOUT_MS / 60000}m)`);
 
 
   log('Task daemon ready.');
