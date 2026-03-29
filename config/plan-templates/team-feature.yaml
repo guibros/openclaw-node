@@ -1,0 +1,71 @@
+id: team-feature
+name: "Feature: {{context}}"
+description: "End-to-end feature pipeline — Design → Architecture → Implement → Test → Review"
+failure_policy: abort_on_critical_fail
+
+phases:
+  - wave: 0
+    subtasks:
+      - id: design
+        title: "Design: {{context}}"
+        description: "Create or update design documentation. Define requirements, acceptance criteria, edge cases, and dependencies."
+        delegation:
+          mode: local
+        budget_minutes: 15
+        critical: true
+        scope:
+          - "docs/"
+          - "design/"
+
+  - wave: 1
+    subtasks:
+      - id: architecture
+        title: "Architecture review: {{context}}"
+        description: "Review the design, define code architecture, interfaces, file structure, and integration points. Identify risks."
+        delegation:
+          mode: collab_mesh
+          collaboration:
+            mode: review
+            min_nodes: 2
+            max_nodes: 3
+            max_rounds: 2
+            convergence:
+              type: unanimous
+        budget_minutes: 20
+        critical: true
+        depends_on:
+          - design
+
+  - wave: 2
+    subtasks:
+      - id: implement
+        title: "Implement: {{context}}"
+        description: "Write the implementation following the approved architecture. Stay within scope. Write clean, tested code."
+        delegation:
+          mode: auto
+        budget_minutes: 45
+        depends_on:
+          - architecture
+
+  - wave: 3
+    subtasks:
+      - id: test
+        title: "Test: {{context}}"
+        description: "Write and run tests. Verify all acceptance criteria. Check edge cases. Measure performance impact."
+        delegation:
+          mode: solo_mesh
+        budget_minutes: 20
+        metric: "npm test"
+        depends_on:
+          - implement
+
+  - wave: 4
+    subtasks:
+      - id: review
+        title: "Code review: {{context}}"
+        description: "Final code review. Check for security issues, style compliance, test coverage, documentation completeness."
+        delegation:
+          mode: human
+        budget_minutes: 10
+        depends_on:
+          - test

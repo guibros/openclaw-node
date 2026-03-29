@@ -474,6 +474,62 @@ async function cmdSubmit(args) {
  * mesh tasks [--status <filter>] — list mesh tasks.
  */
 async function cmdTasks(args) {
+  const subCmd = args[0];
+
+  // Subcommands: approve, reject
+  if (subCmd === 'approve') {
+    const taskId = args[1];
+    if (!taskId) { console.error('Usage: mesh tasks approve <task-id>'); process.exit(1); }
+    const nc = await natsConnect();
+    try {
+      const result = await natsRequest(nc, 'mesh.tasks.approve', { task_id: taskId });
+      console.log(`Task approved: ${result.task_id} → ${result.status}`);
+    } finally { await nc.close(); }
+    return;
+  }
+
+  if (subCmd === 'reject') {
+    const taskId = args[1];
+    if (!taskId) { console.error('Usage: mesh tasks reject <task-id> [--reason "..."]'); process.exit(1); }
+    let reason = 'Rejected by reviewer';
+    for (let i = 2; i < args.length; i++) {
+      if (args[i] === '--reason' && args[i + 1]) { reason = args[++i]; }
+    }
+    const nc = await natsConnect();
+    try {
+      const result = await natsRequest(nc, 'mesh.tasks.reject', { task_id: taskId, reason });
+      console.log(`Task rejected: ${result.task_id} → re-queued`);
+      console.log(`  Reason: ${reason}`);
+    } finally { await nc.close(); }
+    return;
+  }
+
+  if (subCmd === 'review') {
+    // List only pending_review tasks
+    const nc = await natsConnect();
+    const result = await natsRequest(nc, 'mesh.tasks.list', { status: 'pending_review' });
+    const tasks = result.data || [];
+    if (tasks.length === 0) {
+      console.log('No tasks pending review.');
+      await nc.close();
+      return;
+    }
+    console.log(`Tasks pending review (${tasks.length}):\n`);
+    for (const t of tasks) {
+      console.log(`  ${t.task_id}  "${t.title}"`);
+      if (t.result?.summary) console.log(`    Result: ${t.result.summary.slice(0, 200)}`);
+      if (t.result?.harness?.warnings?.length) {
+        console.log(`    Harness warnings: ${t.result.harness.warnings.length}`);
+      }
+      console.log(`    Approve: mesh tasks approve ${t.task_id}`);
+      console.log(`    Reject:  mesh tasks reject ${t.task_id} --reason "..."`);
+      console.log('');
+    }
+    await nc.close();
+    return;
+  }
+
+  // Default: list all tasks
   const nc = await natsConnect();
   const filter = {};
   const statusIdx = args.indexOf('--status');
@@ -494,7 +550,8 @@ async function cmdTasks(args) {
       : t.started_at
         ? ((Date.now() - new Date(t.started_at)) / 1000).toFixed(0) + 's (running)'
         : '-';
-    console.log(`  ${t.task_id}  [${t.status}]  "${t.title}"`);
+    const reviewTag = t.status === 'pending_review' ? ' ⏳' : '';
+    console.log(`  ${t.task_id}  [${t.status}]${reviewTag}  "${t.title}"`);
     console.log(`    Owner: ${t.owner || '-'}  Elapsed: ${elapsed}  Attempts: ${t.attempts.length}`);
     if (t.metric) console.log(`    Metric: ${t.metric}`);
     if (t.result?.summary) console.log(`    Result: ${t.result.summary.slice(0, 120)}`);
@@ -721,6 +778,345 @@ async function cmdDeploy(args) {
 /**
  * mesh help — show usage.
  */
+// ── Plan Commands ──────────────────────────────────
+
+async function cmdPlan(args) {
+  const { loadTemplate, listTemplates, validateTemplate, instantiateTemplate } = require('../lib/plan-templates');
+  const TEMPLATES_DIR = process.env.OPENCLAW_TEMPLATES_DIR || path.join(process.env.HOME, '.openclaw', 'plan-templates');
+  const FALLBACK_DIR = path.join(__dirname, '..', 'config', 'plan-templates');
+
+  const sub = args[0];
+
+  switch (sub) {
+    case 'templates': {
+      // List available templates
+      const templates = [
+        ...listTemplates(TEMPLATES_DIR),
+        ...listTemplates(FALLBACK_DIR),
+      ];
+      // Deduplicate by id
+      const seen = new Set();
+      const unique = templates.filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+
+      if (unique.length === 0) {
+        console.log('No plan templates found.');
+        console.log(`Checked: ${TEMPLATES_DIR}`);
+        return;
+      }
+
+      console.log('Available plan templates:\n');
+      for (const t of unique) {
+        console.log(`  ${t.id.padEnd(20)} ${t.description}`);
+      }
+      return;
+    }
+
+    case 'create': {
+      // Parse --template, --context, --parent-task, and --set flags
+      let templateId = null;
+      let context = '';
+      let parentTaskId = null;
+      const overrides = []; // [{path: 'implement.delegation.mode', value: 'collab_mesh'}, ...]
+
+      for (let i = 1; i < args.length; i++) {
+        if (args[i] === '--template' && args[i + 1]) { templateId = args[++i]; continue; }
+        if (args[i] === '--context' && args[i + 1]) { context = args[++i]; continue; }
+        if (args[i] === '--parent-task' && args[i + 1]) { parentTaskId = args[++i]; continue; }
+        if (args[i] === '--set' && args[i + 1]) {
+          // Format: subtask_id.field.path=value
+          const raw = args[++i];
+          const eqIdx = raw.indexOf('=');
+          if (eqIdx === -1) {
+            console.error(`Invalid --set format: "${raw}" (expected subtask_id.field=value)`);
+            process.exit(1);
+          }
+          overrides.push({ path: raw.slice(0, eqIdx), value: raw.slice(eqIdx + 1) });
+          continue;
+        }
+      }
+
+      if (!templateId) {
+        console.error('Usage: mesh plan create --template <id> --context "<description>" [--parent-task <task-id>] [--set subtask.field=value]');
+        process.exit(1);
+      }
+
+      // Find template file
+      let templatePath = null;
+      for (const dir of [TEMPLATES_DIR, FALLBACK_DIR]) {
+        const candidate = path.join(dir, `${templateId}.yaml`);
+        if (fs.existsSync(candidate)) { templatePath = candidate; break; }
+        const candidateYml = path.join(dir, `${templateId}.yml`);
+        if (fs.existsSync(candidateYml)) { templatePath = candidateYml; break; }
+      }
+
+      if (!templatePath) {
+        console.error(`Template not found: ${templateId}`);
+        console.error(`Run "mesh plan templates" to see available templates.`);
+        process.exit(1);
+      }
+
+      const template = loadTemplate(templatePath);
+      const validation = validateTemplate(template);
+      if (!validation.valid) {
+        console.error('Template validation failed:');
+        validation.errors.forEach(e => console.error(`  - ${e}`));
+        process.exit(1);
+      }
+
+      const plan = instantiateTemplate(template, context, { parent_task_id: parentTaskId });
+
+      // Apply --set overrides to instantiated plan subtasks
+      // Format: subtask_id.field.nested=value (e.g., implement.delegation.mode=collab_mesh)
+      for (const { path: setPath, value } of overrides) {
+        const parts = setPath.split('.');
+        const subtaskId = parts[0];
+        const st = plan.subtasks.find(s => s.subtask_id === subtaskId);
+        if (!st) {
+          console.error(`--set: unknown subtask "${subtaskId}". Available: ${plan.subtasks.map(s => s.subtask_id).join(', ')}`);
+          process.exit(1);
+        }
+        // Walk the nested path and set the value
+        let target = st;
+        for (let j = 1; j < parts.length - 1; j++) {
+          if (target[parts[j]] === undefined || target[parts[j]] === null) target[parts[j]] = {};
+          target = target[parts[j]];
+        }
+        const finalKey = parts[parts.length - 1];
+        // Auto-coerce numbers and booleans
+        let coerced = value;
+        if (value === 'true') coerced = true;
+        else if (value === 'false') coerced = false;
+        else if (/^\d+$/.test(value)) coerced = parseInt(value, 10);
+        target[finalKey] = coerced;
+      }
+
+      // Submit to mesh via NATS
+      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      try {
+        const reply = await nc.request(
+          'mesh.plans.create',
+          sc.encode(JSON.stringify(plan)),
+          { timeout: 10000 }
+        );
+        const result = JSON.parse(sc.decode(reply.data));
+        console.log(`Plan created: ${result.plan_id}`);
+        console.log(`  Subtasks: ${result.subtasks.length}`);
+        console.log(`  Waves: ${result.estimated_waves}`);
+        console.log(`  Budget: ${result.total_budget_minutes}min`);
+        console.log(`  Status: ${result.status}`);
+        if (result.requires_approval) {
+          console.log(`\n  Approve with: mesh plan approve ${result.plan_id}`);
+        }
+      } finally {
+        await nc.close();
+      }
+      return;
+    }
+
+    case 'list': {
+      let statusFilter = null;
+      for (let i = 1; i < args.length; i++) {
+        if (args[i] === '--status' && args[i + 1]) { statusFilter = args[++i]; }
+      }
+
+      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      try {
+        const payload = statusFilter ? { status: statusFilter } : {};
+        const reply = await nc.request(
+          'mesh.plans.list',
+          sc.encode(JSON.stringify(payload)),
+          { timeout: 10000 }
+        );
+        const plans = JSON.parse(sc.decode(reply.data));
+        if (plans.length === 0) {
+          console.log('No plans found.');
+          return;
+        }
+
+        console.log(`Plans (${plans.length}):\n`);
+        for (const p of plans) {
+          const status = p.status.padEnd(12);
+          const subtasks = `${p.total_subtasks} subtasks`;
+          console.log(`  ${p.plan_id}  ${status}  ${subtasks}  "${p.title}"`);
+        }
+      } finally {
+        await nc.close();
+      }
+      return;
+    }
+
+    case 'show': {
+      const planId = args[1];
+      if (!planId) {
+        console.error('Usage: mesh plan show <plan-id>');
+        process.exit(1);
+      }
+
+      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      try {
+        const reply = await nc.request(
+          'mesh.plans.get',
+          sc.encode(JSON.stringify({ plan_id: planId })),
+          { timeout: 10000 }
+        );
+        const plan = JSON.parse(sc.decode(reply.data));
+        if (!plan || plan.error) {
+          console.error(plan?.error || `Plan not found: ${planId}`);
+          process.exit(1);
+        }
+
+        // Header
+        console.log(`\nPlan: ${plan.plan_id}`);
+        console.log(`  Title:    ${plan.title}`);
+        console.log(`  Status:   ${plan.status}`);
+        console.log(`  Policy:   ${plan.failure_policy || 'continue_best_effort'}`);
+        console.log(`  Approval: ${plan.requires_approval ? 'required' : 'auto'}`);
+        if (plan.created_at) console.log(`  Created:  ${plan.created_at}`);
+        if (plan.parent_task_id) console.log(`  Parent:   ${plan.parent_task_id}`);
+
+        // Compute waves from subtask dependencies
+        const subtasks = plan.subtasks || [];
+        const waves = new Map();
+        for (const st of subtasks) {
+          const wave = st.wave ?? 0;
+          if (!waves.has(wave)) waves.set(wave, []);
+          waves.get(wave).push(st);
+        }
+
+        // If no wave field, group by dependency depth
+        if (waves.size <= 1 && subtasks.length > 1) {
+          waves.clear();
+          const idToSt = new Map(subtasks.map(s => [s.subtask_id, s]));
+          const depths = new Map();
+          function getDepth(id) {
+            if (depths.has(id)) return depths.get(id);
+            const st = idToSt.get(id);
+            if (!st || !st.depends_on || st.depends_on.length === 0) { depths.set(id, 0); return 0; }
+            const d = 1 + Math.max(...st.depends_on.map(dep => getDepth(dep)));
+            depths.set(id, d);
+            return d;
+          }
+          for (const st of subtasks) getDepth(st.subtask_id);
+          for (const st of subtasks) {
+            const w = depths.get(st.subtask_id) || 0;
+            if (!waves.has(w)) waves.set(w, []);
+            waves.get(w).push(st);
+          }
+        }
+
+        // Render subtask tree
+        const sortedWaves = [...waves.keys()].sort((a, b) => a - b);
+        for (const w of sortedWaves) {
+          console.log(`\n  ── Wave ${w} ${'─'.repeat(50)}`);
+          for (const st of waves.get(w)) {
+            const status = (st.status || 'pending').toUpperCase();
+            const critical = st.critical ? ' [CRITICAL]' : '';
+            const mode = st.delegation?.mode || 'auto';
+            const reason = st.delegation?.reason ? ` (${st.delegation.reason})` : '';
+            const budget = st.budget_minutes ? ` ${st.budget_minutes}min` : '';
+            const metric = st.metric ? ` metric:"${st.metric}"` : '';
+            const deps = st.depends_on?.length ? ` deps:[${st.depends_on.join(',')}]` : '';
+
+            console.log(`    ${status.padEnd(10)} ${st.subtask_id}${critical}`);
+            console.log(`               "${st.title}"`);
+            console.log(`               route:${mode}${reason}${budget}${metric}${deps}`);
+
+            if (st.result) {
+              const success = st.result.success ? '✓' : '✗';
+              const summary = st.result.summary || '';
+              console.log(`               result: ${success} ${summary}`);
+            }
+          }
+        }
+
+        // Summary
+        const completed = subtasks.filter(s => s.status === 'completed').length;
+        const failed = subtasks.filter(s => s.status === 'failed').length;
+        const blocked = subtasks.filter(s => s.status === 'blocked').length;
+        const pending = subtasks.filter(s => s.status === 'pending' || s.status === 'queued').length;
+        const running = subtasks.filter(s => s.status === 'running').length;
+        console.log(`\n  Summary: ${subtasks.length} subtasks — ${completed} done, ${running} running, ${pending} pending, ${failed} failed, ${blocked} blocked`);
+
+      } finally {
+        await nc.close();
+      }
+      return;
+    }
+
+    case 'approve': {
+      const planId = args[1];
+      if (!planId) {
+        console.error('Usage: mesh plan approve <plan-id>');
+        process.exit(1);
+      }
+
+      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      try {
+        const reply = await nc.request(
+          'mesh.plans.approve',
+          sc.encode(JSON.stringify({ plan_id: planId })),
+          { timeout: 10000 }
+        );
+        const result = JSON.parse(sc.decode(reply.data));
+        console.log(`Plan approved: ${result.plan_id}`);
+        console.log(`  Status: ${result.status}`);
+        console.log(`  Wave 0 dispatched with ${result.subtasks.filter(s => s.status !== 'pending').length} subtasks`);
+      } finally {
+        await nc.close();
+      }
+      return;
+    }
+
+    case 'abort': {
+      const planId = args[1];
+      let reason = 'Manual abort';
+      for (let i = 2; i < args.length; i++) {
+        if (args[i] === '--reason' && args[i + 1]) { reason = args[++i]; }
+      }
+
+      if (!planId) {
+        console.error('Usage: mesh plan abort <plan-id> [--reason "..."]');
+        process.exit(1);
+      }
+
+      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      try {
+        const reply = await nc.request(
+          'mesh.plans.abort',
+          sc.encode(JSON.stringify({ plan_id: planId, reason })),
+          { timeout: 10000 }
+        );
+        const result = JSON.parse(sc.decode(reply.data));
+        console.log(`Plan aborted: ${result.plan_id}`);
+      } finally {
+        await nc.close();
+      }
+      return;
+    }
+
+    default:
+      console.log([
+        '',
+        'mesh plan -- Plan management commands',
+        '',
+        '  mesh plan templates                     List available templates',
+        '  mesh plan create --template <id>        Create plan from template',
+        '    --context "<description>"              Context for template variables',
+        '    --parent-task <task-id>                Link to parent task',
+        '    --set subtask.field=value              Override subtask fields post-instantiation',
+        '                                           e.g., --set implement.delegation.mode=collab_mesh',
+        '                                                 --set test.budget_minutes=30',
+        '  mesh plan list                          List all plans',
+        '    --status <status>                      Filter by status',
+        '  mesh plan show <plan-id>                Show full plan with subtask tree',
+        '  mesh plan approve <plan-id>             Approve and start executing',
+        '  mesh plan abort <plan-id>               Abort a plan',
+        '    --reason "..."                         Reason for abort',
+        '',
+      ].join('\n'));
+  }
+}
+
 function cmdHelp() {
   console.log([
     '',
@@ -740,6 +1136,11 @@ function cmdHelp() {
     '  cat task.yaml | mesh submit             Submit from stdin',
     '  mesh tasks                              List all mesh tasks',
     '  mesh tasks --status running             Filter mesh tasks by status',
+    '  mesh tasks review                       List tasks pending human review',
+    '  mesh tasks approve <task-id>            Approve a pending_review task',
+    '  mesh tasks reject <task-id>             Reject and re-queue a task',
+    '    --reason "..."                         Reason for rejection',
+    '  mesh plan <subcommand>                  Plan management (templates, create, approve)',
     '  mesh health                             Health check this node',
     '  mesh health --all                       Health check ALL nodes',
     '  mesh health --json                      Health check (JSON output)',
@@ -780,6 +1181,7 @@ async function main() {
     case 'health':    return cmdHealth(args);
     case 'repair':    return cmdRepair(args);
     case 'deploy':    return cmdDeploy(args);
+    case 'plan':      return cmdPlan(args);
     case 'help':
     case '--help':
     case '-h':        return cmdHelp();

@@ -1,0 +1,50 @@
+id: team-deploy
+name: "Deploy: {{context}}"
+description: "Deployment pipeline — Pre-flight → Deploy → Smoke Test → Monitor"
+failure_policy: abort_on_first_fail
+
+phases:
+  - wave: 0
+    subtasks:
+      - id: preflight
+        title: "Pre-flight checks: {{context}}"
+        description: "Run full test suite, check build, verify config, validate environment variables, check dependency versions."
+        delegation:
+          mode: solo_mesh
+        budget_minutes: 15
+        critical: true
+        metric: "npm test && npm run build"
+
+  - wave: 1
+    subtasks:
+      - id: deploy
+        title: "Deploy: {{context}}"
+        description: "Execute deployment. Follow the deployment runbook. Record deployed version and SHA."
+        delegation:
+          mode: human
+        budget_minutes: 30
+        critical: true
+        depends_on:
+          - preflight
+
+  - wave: 2
+    subtasks:
+      - id: smoke-test
+        title: "Smoke test: {{context}}"
+        description: "Run smoke tests against the deployed environment. Verify core functionality. Check health endpoints."
+        delegation:
+          mode: solo_mesh
+        budget_minutes: 15
+        depends_on:
+          - deploy
+
+  - wave: 3
+    subtasks:
+      - id: monitor
+        title: "Post-deploy monitoring: {{context}}"
+        description: "Monitor error rates, latency, and resource usage for 15 minutes post-deploy. Flag any anomalies."
+        delegation:
+          mode: local
+        budget_minutes: 20
+        depends_on:
+          - smoke-test

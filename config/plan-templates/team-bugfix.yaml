@@ -1,0 +1,52 @@
+id: team-bugfix
+name: "Bugfix: {{context}}"
+description: "Bug fix pipeline — Reproduce → Diagnose → Fix → Regression Test"
+failure_policy: abort_on_first_fail
+
+phases:
+  - wave: 0
+    subtasks:
+      - id: reproduce
+        title: "Reproduce: {{context}}"
+        description: "Write a minimal reproduction of the bug. Create a failing test that demonstrates the issue. Document exact steps."
+        delegation:
+          mode: solo_mesh
+        budget_minutes: 15
+        critical: true
+        metric: "npm test -- --grep 'regression'"
+
+  - wave: 1
+    subtasks:
+      - id: diagnose
+        title: "Diagnose root cause: {{context}}"
+        description: "Analyze the reproduction to identify the root cause. Trace the execution path. Document the failure mechanism."
+        delegation:
+          mode: local
+        budget_minutes: 15
+        critical: true
+        depends_on:
+          - reproduce
+
+  - wave: 2
+    subtasks:
+      - id: fix
+        title: "Fix: {{context}}"
+        description: "Implement the minimal fix for the root cause. Do not refactor surrounding code. Ensure the regression test passes."
+        delegation:
+          mode: auto
+        budget_minutes: 30
+        metric: "npm test"
+        depends_on:
+          - diagnose
+
+  - wave: 3
+    subtasks:
+      - id: regression-test
+        title: "Verify fix: {{context}}"
+        description: "Run full test suite. Verify the regression test passes. Check that no existing tests broke. Document the fix."
+        delegation:
+          mode: solo_mesh
+        budget_minutes: 15
+        metric: "npm test"
+        depends_on:
+          - fix
