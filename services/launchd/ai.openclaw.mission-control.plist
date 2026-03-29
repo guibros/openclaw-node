@@ -20,7 +20,7 @@
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin</string>
         <key>NODE_ENV</key>
-        <string>development</string>
+        <string>production</string>
     </dict>
 
     <key>RunAtLoad</key>

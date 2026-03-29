@@ -2106,6 +2106,11 @@ async function main() {
     clearInterval(budgetTimer);
     clearInterval(stallTimer);
     clearInterval(recruitTimer);
+    if (circlingStepSweepTimer) clearInterval(circlingStepSweepTimer);
+    if (circlingStepTimers) {
+      for (const timer of circlingStepTimers.values()) clearTimeout(timer);
+      circlingStepTimers.clear();
+    }
     for (const sub of subs) sub.unsubscribe();
     await nc.drain();
     process.exit(0);

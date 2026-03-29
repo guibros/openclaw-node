@@ -29,14 +29,17 @@ function applyScoreDecay(
  * Daedalus does deeper semantic rewriting inline during his own searches.
  */
 function expandQuery(query: string): string {
+  // Escape double quotes and strip FTS5 operators to prevent query injection
+  const safeQuery = query.replace(/"/g, '""').replace(/[*(){}^]/g, '').trim();
+  if (!safeQuery) return '""';
   // Split into terms and add OR variants for common patterns
-  const terms = query.trim().split(/\s+/);
+  const terms = safeQuery.split(/\s+/);
   if (terms.length === 1) {
     // Single term: use prefix matching
-    return `"${query.replace(/"/g, '""')}"*`;
+    return `"${safeQuery}"*`;
   }
   // Multi-term: quote as phrase + add individual terms with OR for broader recall
-  const phrase = `"${query.replace(/"/g, '""')}"`;
+  const phrase = `"${safeQuery}"`;
   const individual = terms.map((t) => `"${t.replace(/"/g, '""')}"*`).join(" OR ");
   return `(${phrase}) OR (${individual})`;
 }

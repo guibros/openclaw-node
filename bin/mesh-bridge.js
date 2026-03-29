@@ -21,7 +21,7 @@ const path = require('path');
 const { readTasks, updateTaskInPlace, isoTimestamp, ACTIVE_TASKS_PATH } = require('../lib/kanban-io');
 
 const sc = StringCodec();
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const DISPATCH_INTERVAL = parseInt(process.env.BRIDGE_DISPATCH_INTERVAL || '10000'); // 10s
 const LOG_DIR = path.join(process.env.HOME, '.openclaw', 'workspace', 'memory', 'mesh-logs');
 const WORKSPACE = path.join(process.env.HOME, '.openclaw', 'workspace');
@@ -726,8 +726,9 @@ async function main() {
   log(`  Dispatch interval: ${DISPATCH_INTERVAL / 1000}s`);
   log(`  Mode:             ${DRY_RUN ? 'dry run' : 'live'}`);
 
+  const natsOpts = natsConnectOpts();
   nc = await connect({
-    servers: NATS_URL,
+    ...natsOpts,
     timeout: 5000,
     reconnect: true,
     maxReconnectAttempts: 10,

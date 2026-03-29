@@ -121,12 +121,12 @@ describe('updateTaskInPlace — object serialization', () => {
   const os = require('os');
   const { updateTaskInPlace } = require('../lib/kanban-io');
 
-  it('serializes object field values as JSON, not [object Object]', () => {
+  it('serializes object field values as JSON, not [object Object]', async () => {
     const tmpFile = path.join(os.tmpdir(), `kanban-test-${process.pid}.md`);
     const content = `## Live Tasks\n- task_id: ser1\n  title: Serialize test\n  status: running\n  updated_at: 2026-01-01\n`;
     fs.writeFileSync(tmpFile, content);
     try {
-      updateTaskInPlace(tmpFile, 'ser1', {
+      await updateTaskInPlace(tmpFile, 'ser1', {
         collab_result: { rounds_taken: 2, summary: 'ok' },
       });
       const updated = fs.readFileSync(tmpFile, 'utf8');

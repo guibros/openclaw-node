@@ -12,6 +12,10 @@
   </array>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>HOME</key>
+    <string>${HOME}</string>
+    <key>PATH</key>
+    <string>${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/.npm-global/bin:${HOME}/bin:${HOME}/.volta/bin:${HOME}/.asdf/shims:${HOME}/Library/Application Support/fnm/aliases/default/bin:${HOME}/.fnm/aliases/default/bin:${HOME}/Library/pnpm:${HOME}/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>OPENCLAW_NODE_ID</key>
     <string>${OPENCLAW_NODE_ID}</string>
     <key>OPENCLAW_NATS</key>

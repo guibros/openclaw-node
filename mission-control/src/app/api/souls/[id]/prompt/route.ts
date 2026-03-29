@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { validatePathParam } from "@/lib/config";
 import { soulSpawns } from "@/lib/db/schema";
 import fs from "fs/promises";
 import path from "path";
@@ -38,7 +39,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: soulId } = await params;
+    let soulId: string;
+    try {
+      soulId = validatePathParam((await params).id);
+    } catch {
+      return NextResponse.json({ error: "Invalid soul ID" }, { status: 400 });
+    }
     const body: PromptRequest = await request.json();
 
     const soulDir = path.join(SOULS_DIR, soulId);

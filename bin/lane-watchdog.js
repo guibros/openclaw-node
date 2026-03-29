@@ -37,6 +37,11 @@ let lastInterventionAt = 0;
 let logWatcher = null;
 let errWatcher = null;
 
+// Incident log dedup: suppress identical messages within 60s
+let lastIncidentMsg = '';
+let lastIncidentAt = 0;
+let suppressedCount = 0;
+
 // Track detected events
 const events = {
   agentTimeout: null,    // timestamp of last "embedded run timeout"
@@ -45,6 +50,22 @@ const events = {
 
 // --- Helpers ---
 function log(msg) {
+  const now = Date.now();
+  // Dedup: suppress identical messages within 60s
+  if (msg === lastIncidentMsg && (now - lastIncidentAt) < 60_000) {
+    suppressedCount++;
+    return;
+  }
+  // If we suppressed duplicates, emit a summary before the new message
+  if (suppressedCount > 0) {
+    const summaryLine = `${new Date().toISOString()} [lane-watchdog] (suppressed ${suppressedCount} duplicate message(s))`;
+    console.log(summaryLine);
+    try { fs.appendFileSync(INCIDENT_LOG, summaryLine + '\n'); } catch { /* best effort */ }
+  }
+  lastIncidentMsg = msg;
+  lastIncidentAt = now;
+  suppressedCount = 0;
+
   const ts = new Date().toISOString();
   const line = `${ts} [lane-watchdog] ${msg}`;
   console.log(line);
@@ -220,8 +241,8 @@ function main() {
   for (const sig of ['SIGTERM', 'SIGINT']) {
     process.on(sig, () => {
       log(`Received ${sig}, shutting down`);
-      if (logWatcher) fs.unwatchFile(GATEWAY_LOG);
-      if (errWatcher) fs.unwatchFile(GATEWAY_ERR_LOG);
+      if (logWatcher) logWatcher.close();
+      if (errWatcher) errWatcher.close();
       process.exit(0);
     });
   }

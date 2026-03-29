@@ -770,8 +770,9 @@ else
     fi
 
     if [ "$OS" = "macos" ]; then
-      TEMPLATE="$LAUNCHD_TEMPLATES/ai.openclaw.${SVC_NAME}.plist"
-      DEST="$LAUNCHD_DEST/ai.openclaw.${SVC_NAME}.plist"
+      LAUNCHD_SVC_NAME="${SVC_NAME#openclaw-}"
+      TEMPLATE="$LAUNCHD_TEMPLATES/ai.openclaw.${LAUNCHD_SVC_NAME}.plist"
+      DEST="$LAUNCHD_DEST/ai.openclaw.${LAUNCHD_SVC_NAME}.plist"
 
       if [ ! -f "$TEMPLATE" ]; then
         warn "  Template not found: $TEMPLATE"

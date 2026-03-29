@@ -65,6 +65,15 @@ export function getProviderModels(provider?: string): Record<CapabilityTier, str
 /** All registered provider names */
 export const AVAILABLE_PROVIDERS = Object.keys(MODEL_MAP);
 
+/** Validates that a URL path parameter is safe for use in file paths. */
+export function validatePathParam(param: string): string {
+  const cleaned = param.trim();
+  if (!cleaned || !/^[\w][\w.-]{0,127}$/.test(cleaned)) {
+    throw new Error(`Invalid path parameter: "${param.slice(0, 40)}"`);
+  }
+  return cleaned;
+}
+
 // ── Node Identity (Distributed MC) ──
 import { hostname } from "os";
 

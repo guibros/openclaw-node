@@ -36,7 +36,7 @@
  */
 
 const { connect, StringCodec } = require('nats');
-const { spawn, execSync } = require('child_process');
+const { spawn, execSync, execFileSync } = require('child_process');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
@@ -46,7 +46,7 @@ const { loadHarnessRules, runMeshHarness, runPostCommitValidation, formatHarness
 const { findRole, formatRoleForPrompt } = require('../lib/role-loader');
 
 const sc = StringCodec();
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const { resolveProvider, resolveModel } = require('../lib/llm-providers');
 const NODE_ID = process.env.MESH_NODE_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const POLL_INTERVAL = parseInt(process.env.MESH_POLL_INTERVAL || '15000'); // 15s between polls
@@ -198,8 +198,9 @@ function buildInitialPrompt(task) {
   }
 
   if (task.metric) {
+    const safeMetric = isAllowedMetric(task.metric) ? task.metric : '[metric command filtered for security]';
     parts.push(`## Verification`);
-    parts.push(`Run this command to check your work: \`${task.metric}\``);
+    parts.push(`Run this command to check your work: \`${safeMetric}\``);
     parts.push(`Your changes are only accepted if this command exits with code 0.`);
     parts.push('');
   }
@@ -224,7 +225,8 @@ function buildInitialPrompt(task) {
   parts.push('- Make minimal, focused changes. Do not add scope beyond what is asked.');
   parts.push('- If you hit a blocker you cannot resolve, explain what is blocking you clearly.');
   if (task.metric) {
-    parts.push(`- After making changes, run \`${task.metric}\` to verify.`);
+    const safeMetric = isAllowedMetric(task.metric) ? task.metric : '[metric command filtered for security]';
+    parts.push(`- After making changes, run \`${safeMetric}\` to verify.`);
     parts.push('- If verification fails, analyze the failure and iterate on your approach.');
   }
 
@@ -264,8 +266,9 @@ function buildRetryPrompt(task, previousAttempts, attemptNumber) {
   }
 
   if (task.metric) {
+    const safeMetric = isAllowedMetric(task.metric) ? task.metric : '[metric command filtered for security]';
     parts.push(`## Verification`);
-    parts.push(`Run: \`${task.metric}\``);
+    parts.push(`Run: \`${safeMetric}\``);
     parts.push(`Must exit code 0.`);
     parts.push('');
   }
@@ -289,7 +292,8 @@ function buildRetryPrompt(task, previousAttempts, attemptNumber) {
   parts.push('- Read the relevant files before making changes.');
   parts.push('- Make minimal, focused changes.');
   if (task.metric) {
-    parts.push(`- Run \`${task.metric}\` to verify before finishing.`);
+    const safeMetric = isAllowedMetric(task.metric) ? task.metric : '[metric command filtered for security]';
+    parts.push(`- Run \`${safeMetric}\` to verify before finishing.`);
   }
 
   return parts.join('\n');
@@ -305,6 +309,9 @@ const WORKTREE_BASE = process.env.MESH_WORKTREE_BASE || path.join(process.env.HO
  * On failure, returns null (falls back to shared workspace).
  */
 function createWorktree(taskId) {
+  if (!/^[\w][\w.-]{0,127}$/.test(taskId)) {
+    throw new Error(`Invalid taskId: contains unsafe characters`);
+  }
   const worktreePath = path.join(WORKTREE_BASE, taskId);
   const branch = `mesh/${taskId}`;
 
@@ -315,19 +322,19 @@ function createWorktree(taskId) {
     if (fs.existsSync(worktreePath)) {
       log(`Cleaning stale worktree: ${worktreePath}`);
       try {
-        execSync(`git worktree remove --force "${worktreePath}"`, { cwd: WORKSPACE, timeout: 10000 });
+        execFileSync('git', ['worktree', 'remove', '--force', worktreePath], { cwd: WORKSPACE, timeout: 10000 });
       } catch {
         // If git worktree remove fails, manually clean up
         fs.rmSync(worktreePath, { recursive: true, force: true });
       }
       // Also clean up the branch if it exists
       try {
-        execSync(`git branch -D "${branch}"`, { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' });
+        execFileSync('git', ['branch', '-D', branch], { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' });
       } catch { /* branch may not exist */ }
     }
 
     // Create new worktree branched off HEAD
-    execSync(`git worktree add -b "${branch}" "${worktreePath}" HEAD`, {
+    execFileSync('git', ['worktree', 'add', '-b', branch, worktreePath, 'HEAD'], {
       cwd: WORKSPACE,
       timeout: 30000,
       stdio: 'pipe',
@@ -375,7 +382,7 @@ function commitAndMergeWorktree(worktreePath, taskId, summary) {
       log(`WARNING: commit message doesn't follow conventional format: "${commitMsg}"`);
     }
 
-    execSync(`git commit -m "${commitMsg.replace(/"/g, '\\"')}"`, {
+    execFileSync('git', ['commit', '-m', commitMsg], {
       cwd: worktreePath, timeout: 10000, stdio: 'pipe',
     });
 
@@ -391,7 +398,7 @@ function commitAndMergeWorktree(worktreePath, taskId, summary) {
     const mergeMsg = `Merge ${branch}: ${taskId}`;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        execSync(`git merge --no-ff "${branch}" -m "${mergeMsg.replace(/"/g, '\\"')}"`, {
+        execFileSync('git', ['merge', '--no-ff', branch, '-m', mergeMsg], {
           cwd: WORKSPACE, timeout: 30000, stdio: 'pipe',
         });
         log(`Merged ${branch} into main${attempt > 0 ? ' (retry succeeded)' : ''}`);
@@ -429,13 +436,13 @@ function cleanupWorktree(worktreePath, keep = false) {
   const branch = `mesh/${taskId}`;
 
   try {
-    execSync(`git worktree remove --force "${worktreePath}"`, {
+    execFileSync('git', ['worktree', 'remove', '--force', worktreePath], {
       cwd: WORKSPACE,
       timeout: 10000,
       stdio: 'pipe',
     });
     if (!keep) {
-      execSync(`git branch -D "${branch}"`, {
+      execFileSync('git', ['branch', '-D', branch], {
         cwd: WORKSPACE,
         timeout: 5000,
         stdio: 'ignore',
@@ -507,9 +514,10 @@ function runLLM(prompt, task, worktreePath) {
 
     let stdout = '';
     let stderr = '';
+    const MAX_OUTPUT = 1024 * 1024; // 1MB cap
 
-    child.stdout.on('data', (d) => { stdout += d.toString(); });
-    child.stderr.on('data', (d) => { stderr += d.toString(); });
+    child.stdout.on('data', (d) => { if (stdout.length < MAX_OUTPUT) stdout += d.toString().slice(0, MAX_OUTPUT - stdout.length); });
+    child.stderr.on('data', (d) => { if (stderr.length < MAX_OUTPUT) stderr += d.toString().slice(0, MAX_OUTPUT - stderr.length); });
 
     child.on('close', (code) => {
       clearInterval(heartbeatTimer);
@@ -525,10 +533,23 @@ function runLLM(prompt, task, worktreePath) {
 
 // ── Metric Evaluation ─────────────────────────────────
 
+const ALLOWED_METRIC_PREFIXES = [
+  'npm test', 'npm run', 'node ', 'pytest', 'cargo test',
+  'go test', 'make test', 'jest', 'vitest', 'mocha',
+];
+
+function isAllowedMetric(cmd) {
+  return ALLOWED_METRIC_PREFIXES.some(prefix => cmd.startsWith(prefix));
+}
+
 /**
  * Run the task's metric command. Returns { passed, output }.
  */
 function evaluateMetric(metric, cwd) {
+  if (!isAllowedMetric(metric)) {
+    log(`WARNING: Metric command blocked by security filter: ${metric}`);
+    return Promise.resolve({ passed: false, output: 'Metric command blocked by security filter' });
+  }
   return new Promise((resolve) => {
     const child = spawn('bash', ['-c', metric], {
       cwd: cwd || WORKSPACE,
@@ -1394,8 +1415,9 @@ async function main() {
   log(`  Poll interval: ${POLL_INTERVAL / 1000}s`);
   log(`  Mode:        ${ONCE ? 'single task' : 'continuous'} ${DRY_RUN ? '(dry run)' : ''}`);
 
+  const natsOpts = natsConnectOpts();
   nc = await connect({
-    servers: NATS_URL,
+    ...natsOpts,
     timeout: 5000,
     reconnect: true,
     maxReconnectAttempts: 10,

@@ -36,6 +36,12 @@ const IS_MAC = os.platform() === "darwin";
 
 const { ROLE_COMPONENTS } = require('../lib/mesh-roles');
 
+// ── Circuit Breaker State ───────────────────────────────────────────────
+let consecutiveFailures = 0;
+let skipTicksRemaining = 0;
+let lastErrorMsg = '';
+let lastErrorRepeatCount = 0;
+
 // ── Health Gathering ─────────────────────────────────────────────────────
 // All the expensive execSync calls happen here, on our own schedule.
 // No request timeout to race against.
@@ -226,11 +232,45 @@ async function main() {
 
   // Publish immediately, then every interval
   async function publish() {
+    // Circuit breaker: skip ticks during backoff
+    if (skipTicksRemaining > 0) {
+      skipTicksRemaining--;
+      return;
+    }
+
     try {
       const health = gatherHealth();
       await kv.put(NODE_ID, sc.encode(JSON.stringify(health)));
+      // Reset on success
+      if (consecutiveFailures > 0) {
+        console.log(`[health-publisher] recovered after ${consecutiveFailures} consecutive failures`);
+      }
+      consecutiveFailures = 0;
+      lastErrorMsg = '';
+      lastErrorRepeatCount = 0;
     } catch (err) {
-      console.error("[health-publisher] publish failed:", err.message);
+      consecutiveFailures++;
+      const msg = err.message;
+
+      // Log dedup: after 3 identical consecutive errors, log every 10th
+      if (msg === lastErrorMsg) {
+        lastErrorRepeatCount++;
+        if (lastErrorRepeatCount === 3) {
+          console.error(`[health-publisher] suppressing repeated errors (${lastErrorRepeatCount} occurrences): ${msg}`);
+        } else if (lastErrorRepeatCount > 3 && lastErrorRepeatCount % 10 === 0) {
+          console.error(`[health-publisher] suppressing repeated errors (${lastErrorRepeatCount} occurrences): ${msg}`);
+        }
+        // Silently skip logs between dedup thresholds
+      } else {
+        lastErrorMsg = msg;
+        lastErrorRepeatCount = 1;
+        console.error("[health-publisher] publish failed:", msg);
+      }
+
+      // Exponential backoff: skip 2^min(N,6) ticks (max ~64 ticks / ~16 min at 15s)
+      const backoffTicks = Math.pow(2, Math.min(consecutiveFailures, 6));
+      skipTicksRemaining = backoffTicks;
+      console.error(`[health-publisher] backoff: skipping next ${backoffTicks} ticks (failures=${consecutiveFailures})`);
     }
   }
 

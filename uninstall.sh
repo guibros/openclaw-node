@@ -35,24 +35,52 @@ if [ -f "$WORKSPACE/bin/install-daemon" ]; then
   bash "$WORKSPACE/bin/install-daemon" --uninstall 2>/dev/null || true
 fi
 
-# Stop and remove mesh agent service (if installed)
+# Stop and remove services
 OS="$(uname -s)"
 if [ "$OS" = "Linux" ]; then
+  # --- Current services: openclaw-*.service under user systemd ---
+  SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
+  if [ -d "$SYSTEMD_USER_DIR" ]; then
+    for unit in "$SYSTEMD_USER_DIR"/openclaw-*.service "$SYSTEMD_USER_DIR"/openclaw-*.timer; do
+      [ -f "$unit" ] || continue
+      UNIT_NAME="$(basename "$unit")"
+      info "Stopping $UNIT_NAME..."
+      systemctl --user stop "$UNIT_NAME" 2>/dev/null || true
+      systemctl --user disable "$UNIT_NAME" 2>/dev/null || true
+      rm -f "$unit"
+      info "Removed $UNIT_NAME"
+    done
+    systemctl --user daemon-reload 2>/dev/null || true
+  fi
+  # --- Legacy fallback: old system-level openclaw-agent ---
   if systemctl is-active --quiet openclaw-agent 2>/dev/null; then
-    info "Stopping mesh agent..."
+    info "Stopping legacy mesh agent (openclaw-agent)..."
     sudo systemctl stop openclaw-agent 2>/dev/null || true
     sudo systemctl disable openclaw-agent 2>/dev/null || true
     sudo rm -f /etc/systemd/system/openclaw-agent.service
     sudo systemctl daemon-reload 2>/dev/null || true
-    info "Mesh agent service removed"
+    info "Legacy mesh agent service removed"
   fi
 elif [ "$OS" = "Darwin" ]; then
-  MESH_PLIST="/Library/LaunchDaemons/com.openclaw.agent.plist"
-  if [ -f "$MESH_PLIST" ]; then
-    info "Stopping mesh agent..."
-    sudo launchctl unload "$MESH_PLIST" 2>/dev/null || true
-    sudo rm -f "$MESH_PLIST"
-    info "Mesh agent LaunchDaemon removed"
+  # --- Current services: ai.openclaw.*.plist under ~/Library/LaunchAgents ---
+  LAUNCHD_AGENTS_DIR="$HOME/Library/LaunchAgents"
+  if [ -d "$LAUNCHD_AGENTS_DIR" ]; then
+    for plist in "$LAUNCHD_AGENTS_DIR"/ai.openclaw.*.plist; do
+      [ -f "$plist" ] || continue
+      PLIST_NAME="$(basename "$plist")"
+      info "Unloading $PLIST_NAME..."
+      launchctl unload "$plist" 2>/dev/null || true
+      rm -f "$plist"
+      info "Removed $PLIST_NAME"
+    done
+  fi
+  # --- Legacy fallback: old system-level com.openclaw.agent ---
+  LEGACY_PLIST="/Library/LaunchDaemons/com.openclaw.agent.plist"
+  if [ -f "$LEGACY_PLIST" ]; then
+    info "Stopping legacy mesh agent (com.openclaw.agent)..."
+    sudo launchctl unload "$LEGACY_PLIST" 2>/dev/null || true
+    sudo rm -f "$LEGACY_PLIST"
+    info "Legacy mesh agent LaunchDaemon removed"
   fi
 fi
 # Remove mesh symlinks

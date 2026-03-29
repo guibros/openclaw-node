@@ -35,8 +35,9 @@ function decay(relevance: number, daysOld: number, rate = 0.01): number {
  * Multi-word  → ("word1 word2") OR ("word1"* OR "word2"*)
  */
 function buildFtsQuery(query: string): string {
-  const safe = query.replace(/"/g, '""');
-  const terms = safe.trim().split(/\s+/).filter((t) => t.length >= 2);
+  const safe = query.replace(/"/g, '""').replace(/[*(){}^]/g, '').trim();
+  if (!safe) return '""';
+  const terms = safe.split(/\s+/).filter((t) => t.length >= 2);
   if (terms.length <= 1) return `"${safe}"*`;
   const phrase = `"${safe}"`;
   const individual = terms.map((t) => `"${t}"*`).join(" OR ");

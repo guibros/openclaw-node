@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { validatePathParam } from "@/lib/config";
 import { soulEvolutionLog } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import fs from "fs/promises";
@@ -31,7 +32,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: soulId } = await params;
+    let soulId: string;
+    try {
+      soulId = validatePathParam((await params).id);
+    } catch {
+      return NextResponse.json({ error: "Invalid soul ID" }, { status: 400 });
+    }
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") || "pending";
 
@@ -93,7 +99,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: soulId } = await params;
+    let soulId: string;
+    try {
+      soulId = validatePathParam((await params).id);
+    } catch {
+      return NextResponse.json({ error: "Invalid soul ID" }, { status: 400 });
+    }
     const event: EvolutionEvent = await request.json();
 
     const db = getDb();
@@ -133,7 +144,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: soulId } = await params;
+    let soulId: string;
+    try {
+      soulId = validatePathParam((await params).id);
+    } catch {
+      return NextResponse.json({ error: "Invalid soul ID" }, { status: 400 });
+    }
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
 
@@ -170,11 +186,12 @@ export async function PATCH(
       }
 
       // Apply change (e.g., update genes.json)
+      const safeTarget = validatePathParam(event.proposedChange.target);
       const targetPath = path.join(
         SOULS_DIR,
         soulId,
         "evolution",
-        event.proposedChange.target
+        safeTarget
       );
 
       if (event.proposedChange.action === "add") {
@@ -189,7 +206,6 @@ export async function PATCH(
       // Sanitize all user-derived inputs: eventId, soulId, reviewedBy, event.summary
       // could all contain shell metacharacters if crafted maliciously.
       const safeBranch = `evolution/${eventId.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      const safeTarget = event.proposedChange.target.replace(/[^a-zA-Z0-9._/-]/g, "_");
       const commitMessage = [
         `evolution(${eventId}): ${event.summary}`,
         "",

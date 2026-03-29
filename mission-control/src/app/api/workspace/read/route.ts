@@ -25,6 +25,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
+    // Defeat symlink traversal: resolve the real path and re-check prefix
+    const realPath = fs.realpathSync(absPath);
+    const realRoot = fs.realpathSync(WORKSPACE_ROOT);
+    if (!realPath.startsWith(realRoot + path.sep) && realPath !== realRoot) {
+      return NextResponse.json({ error: "Path traversal denied" }, { status: 403 });
+    }
+
+    if (!fs.existsSync(realPath)) {
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+
     const stat = fs.statSync(absPath);
     if (stat.isDirectory()) {
       return NextResponse.json({ error: "Path is a directory" }, { status: 400 });

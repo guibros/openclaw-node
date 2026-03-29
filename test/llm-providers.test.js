@@ -90,14 +90,23 @@ describe('resolveModel', () => {
 describe('shell provider buildArgs', () => {
   it('uses task.description as command, not prompt', () => {
     const provider = PROVIDERS.shell;
-    const task = { description: 'uname -a' };
+    const task = { description: 'node --version' };
     const args = provider.buildArgs('some prompt', null, task);
-    assert.deepEqual(args, ['-c', 'uname -a']);
+    assert.deepEqual(args, ['-c', 'node --version']);
   });
 
   it('falls back to prompt when task.description is empty', () => {
     const provider = PROVIDERS.shell;
     const args = provider.buildArgs('echo hello', null, {});
     assert.deepEqual(args, ['-c', 'echo hello']);
+  });
+
+  it('blocks commands not in the allowlist', () => {
+    const provider = PROVIDERS.shell;
+    const task = { description: 'uname -a' };
+    assert.throws(
+      () => provider.buildArgs('some prompt', null, task),
+      /blocked by security filter/
+    );
   });
 });

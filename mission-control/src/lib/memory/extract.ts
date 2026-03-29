@@ -263,7 +263,8 @@ export function getItemsWithSource(limit = 50, offset = 0) {
  */
 export function searchItems(query: string, category?: string, limit = 20) {
   const raw = getRawDb();
-  const safeQuery = query.replace(/"/g, '""');
+  const safeQuery = query.replace(/"/g, '""').replace(/[*(){}^]/g, '').trim();
+  if (!safeQuery) return [];
 
   if (category) {
     return raw

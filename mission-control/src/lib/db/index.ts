@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import { DB_PATH } from "../config";
-import fs from "fs";
+import fs, { chmodSync, existsSync } from "fs";
 import path from "path";
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
@@ -487,6 +487,21 @@ export function getDb() {
   _sqlite.pragma("foreign_keys = ON");
 
   runMigrations(_sqlite);
+
+  // Lock down DB file permissions — owner read/write only
+  try {
+    if (existsSync(DB_PATH)) {
+      chmodSync(DB_PATH, 0o600);
+    }
+    const walPath = DB_PATH + "-wal";
+    if (existsSync(walPath)) {
+      chmodSync(walPath, 0o600);
+    }
+    const journalPath = DB_PATH + "-journal";
+    if (existsSync(journalPath)) {
+      chmodSync(journalPath, 0o600);
+    }
+  } catch {}
 
   _db = drizzle(_sqlite, { schema });
   return _db;

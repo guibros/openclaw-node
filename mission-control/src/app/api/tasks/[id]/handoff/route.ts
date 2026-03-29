@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { validatePathParam } from "@/lib/config";
 import { tasks, soulHandoffs } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import fs from "fs/promises";
@@ -27,7 +28,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: taskId } = await params;
+    let taskId: string;
+    try {
+      taskId = validatePathParam((await params).id);
+    } catch {
+      return NextResponse.json({ error: "Invalid task ID" }, { status: 400 });
+    }
     const body: HandoffRequest = await request.json();
 
     const db = getDb();

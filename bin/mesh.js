@@ -88,27 +88,16 @@ function remoteNode() {
 
 // ─── Exec safety ─────────────────────────────────────
 
-const DESTRUCTIVE_PATTERNS = [
-  /\brm\s+(-[a-zA-Z]*)?r[a-zA-Z]*f/,      // rm -rf, rm -fr, rm --recursive --force
-  /\brm\s+(-[a-zA-Z]*)?f[a-zA-Z]*r/,       // rm -fr variants
-  /\bmkfs\b/,                                // format filesystem
-  /\bdd\s+.*of=/,                            // raw disk write
-  /\b>\s*\/dev\/[sh]d/,                      // write to raw device
-  /\bcurl\b.*\|\s*(ba)?sh/,                  // curl pipe to shell
-  /\bwget\b.*\|\s*(ba)?sh/,                  // wget pipe to shell
-  /\bchmod\s+(-[a-zA-Z]*\s+)?777\s+\//,     // chmod 777 on root paths
-  /\b:(){ :\|:& };:/,                        // fork bomb
-];
+const { checkDestructivePatterns } = require('../lib/exec-safety');
 
 function checkExecSafety(command) {
-  for (const pattern of DESTRUCTIVE_PATTERNS) {
-    if (pattern.test(command)) {
-      console.error(`BLOCKED: Command matches destructive pattern.`);
-      console.error(`  Command: ${command}`);
-      console.error(`  Pattern: ${pattern}`);
-      console.error(`\nIf this is intentional, SSH into the node and run it directly.`);
-      process.exit(1);
-    }
+  const result = checkDestructivePatterns(command);
+  if (result.blocked) {
+    console.error(`BLOCKED: Command matches destructive pattern.`);
+    console.error(`  Command: ${command}`);
+    console.error(`  Pattern: ${result.pattern}`);
+    console.error(`\nIf this is intentional, SSH into the node and run it directly.`);
+    process.exit(1);
   }
 }
 

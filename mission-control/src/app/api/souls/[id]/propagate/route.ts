@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { validatePathParam } from "@/lib/config";
 import { soulEvolutionLog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import fs from "fs/promises";
@@ -19,9 +20,20 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: sourceSoulId } = await params;
+    let sourceSoulId: string;
+    try {
+      sourceSoulId = validatePathParam((await params).id);
+    } catch {
+      return NextResponse.json({ error: "Invalid source soul ID" }, { status: 400 });
+    }
     const body: PropagateRequest = await request.json();
-    const { sourceEventId, targetSoulId } = body;
+    let targetSoulId: string;
+    try {
+      targetSoulId = validatePathParam(body.targetSoulId);
+    } catch {
+      return NextResponse.json({ error: "Invalid target soul ID" }, { status: 400 });
+    }
+    const { sourceEventId } = body;
 
     // Validate target soul exists
     const targetSoulDir = path.join(SOULS_DIR, targetSoulId);

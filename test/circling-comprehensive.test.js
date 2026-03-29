@@ -185,16 +185,17 @@ describe('storeArtifact: KV write failure recovery', () => {
     const s1 = await store.get(session.session_id);
     assert.ok(store.getArtifactByKey(s1, 'sr0_step0_worker_workArtifact'));
 
-    // Now make KV fail on next put
-    let putCount = 0;
+    // Now make KV fail on ALL puts (simulates persistent blob-too-large)
+    let putFailCount = 0;
     const origPut = kv.put.bind(kv);
-    kv.put = async (key, value) => {
-      putCount++;
-      if (putCount === 1) throw new Error('max value size exceeded');
-      return origPut(key, value);
+    kv.put = async (key, value, opts) => {
+      putFailCount++;
+      if (putFailCount <= 3) throw new Error('max value size exceeded');
+      // After 3 failures, allow the recovery write (artifact removed)
+      return origPut(key, value, opts);
     };
 
-    // This should catch the error, remove the artifact, and re-persist
+    // This should exhaust retries, remove the artifact, and re-persist
     const result = await store.storeArtifact(session.session_id, 'sr1_huge_artifact', 'x'.repeat(100));
     assert.equal(result, null, 'should return null on write failure');
 
