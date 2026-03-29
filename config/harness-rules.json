@@ -138,6 +138,7 @@
     "tier": 2,
     "type": "inject",
     "scope": ["local", "mesh"],
+
     "content": "RULE: After completing any task, log telemetry via: OPENCLAW_NODE_ID=<node> OPENCLAW_SOUL_ID=<soul> node $OPENCLAW_HOME/bin/hyperagent.mjs log '{\"domain\":\"...\",\"subdomain\":\"...\",\"outcome\":\"success|partial|failure\",\"iterations\":N,\"duration_minutes\":N,\"meta_notes\":\"what approach, why, key moment, one hypothesis\"}'. Pattern flags are auto-detected. $OPENCLAW_HOME defaults to ~/.openclaw.",
     "pattern": null,
     "activateOn": ["task complete", "waiting-user", "status: waiting"],
@@ -150,6 +151,7 @@
     "tier": 2,
     "type": "inject",
     "scope": ["local", "mesh"],
+
     "content": "RULE: Before starting any non-trivial task, check strategies: node $OPENCLAW_HOME/bin/hyperagent.mjs strategies --domain <domain>. If a strategy exists, use it as starting approach.",
     "pattern": null,
     "activateOn": ["task start", "claimed", "begin task", "status: running"],
@@ -162,6 +164,7 @@
     "tier": 2,
     "type": "inject",
     "scope": ["local"],
+
     "content": "RULE: At session start, run: node $OPENCLAW_HOME/bin/hyperagent.mjs reflect --pending. If output is non-empty JSON, it contains performance stats from recent tasks awaiting synthesis. Analyze the data: identify what worked (with causal hypotheses), what didn't (with root causes), and 1-2 forward proposals (specific changes to strategies or workflows). Then call: node $OPENCLAW_HOME/bin/hyperagent.mjs reflect --write-synthesis '<json>' where json = {reflection_id, hypotheses: [...], proposals: [{title, description, proposal_type, target_ref, diff_content}]}. If output is empty, do nothing.",
     "pattern": null,
     "activateOn": ["session start"],
