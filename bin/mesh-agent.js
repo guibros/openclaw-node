@@ -539,6 +539,7 @@ const ALLOWED_METRIC_PREFIXES = [
 ];
 
 function isAllowedMetric(cmd) {
+  if (/[;`]|\$\(|\|\||&&|\|/.test(cmd)) return false;
   return ALLOWED_METRIC_PREFIXES.some(prefix => cmd.startsWith(prefix));
 }
 

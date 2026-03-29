@@ -46,7 +46,7 @@ const ROLE_DIRS = [
 ];
 
 const sc = StringCodec();
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const BUDGET_CHECK_INTERVAL = 30000; // 30s
 const STALL_MINUTES = parseInt(process.env.MESH_STALL_MINUTES || '5'); // no heartbeat for this long → stalled
 const CIRCLING_STEP_TIMEOUT_MS = parseInt(process.env.MESH_CIRCLING_STEP_TIMEOUT_MS || String(10 * 60 * 1000)); // 10 min default
@@ -2013,7 +2013,8 @@ function cascadeFailure(plan, failedSubtaskId) {
 async function main() {
   log('Starting mesh task daemon...');
 
-  nc = await connect({ servers: NATS_URL, timeout: 5000 });
+  const natsOpts = natsConnectOpts();
+  nc = await connect({ ...natsOpts, timeout: 5000 });
   log(`Connected to NATS at ${NATS_URL}`);
 
   // Initialize task store
@@ -2085,8 +2086,12 @@ async function main() {
   }
 
   // Start enforcement loops
-  const proposalTimer = setInterval(processProposals, BUDGET_CHECK_INTERVAL);
-  const budgetTimer = setInterval(enforceBudgets, BUDGET_CHECK_INTERVAL);
+  const proposalTimer = setInterval(async () => {
+    try { await processProposals(); } catch (err) { log(`processProposals error: ${err.message}`); }
+  }, BUDGET_CHECK_INTERVAL);
+  const budgetTimer = setInterval(async () => {
+    try { await enforceBudgets(); } catch (err) { log(`enforceBudgets error: ${err.message}`); }
+  }, BUDGET_CHECK_INTERVAL);
   const stallTimer = setInterval(detectStalls, BUDGET_CHECK_INTERVAL);
   const recruitTimer = setInterval(checkRecruitingDeadlines, 5000); // check every 5s
   const circlingStepSweepTimer = setInterval(sweepCirclingStepTimeouts, 60000); // every 60s

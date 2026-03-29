@@ -31,6 +31,10 @@
       <string>${OPENCLAW_NATS}</string>
       <key>MESH_WORKSPACE</key>
       <string>${OPENCLAW_WORKSPACE}</string>
+      <key>OPENCLAW_NODE_ID</key>
+      <string>${OPENCLAW_NODE_ID}</string>
+      <key>OPENCLAW_NODE_ROLE</key>
+      <string>${OPENCLAW_NODE_ROLE}</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>30</integer>

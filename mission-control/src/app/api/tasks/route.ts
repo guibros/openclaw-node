@@ -12,6 +12,12 @@ import { getNats, sc } from "@/lib/nats";
 import { WORKSPACE_ROOT, AGENT_NAME } from "@/lib/config";
 import path from "path";
 
+/** Safely parse a JSON string from a DB field, returning fallback on failure. */
+function safeParse(json: string | null, fallback: unknown = []): unknown {
+  if (!json) return fallback;
+  try { return JSON.parse(json); } catch { return fallback; }
+}
+
 /**
  * Parse .companion-state.md to extract current active task.
  * Returns a synthetic task object if there's active work, null otherwise.
@@ -121,11 +127,11 @@ export async function GET(request: NextRequest) {
         .all();
     }
 
-    // Parse JSON fields for the response
+    // Parse JSON fields for the response (per-row guard against corrupt data)
     const result = rows.map((t) => ({
       ...t,
-      successCriteria: t.successCriteria ? JSON.parse(t.successCriteria) : [],
-      artifacts: t.artifacts ? JSON.parse(t.artifacts) : [],
+      successCriteria: safeParse(t.successCriteria),
+      artifacts: safeParse(t.artifacts),
     }));
 
     return NextResponse.json(result);
@@ -281,10 +287,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         ...created,
-        successCriteria: created?.successCriteria
-          ? JSON.parse(created.successCriteria)
-          : [],
-        artifacts: created?.artifacts ? JSON.parse(created.artifacts) : [],
+        successCriteria: safeParse(created?.successCriteria ?? null),
+        artifacts: safeParse(created?.artifacts ?? null),
       },
       { status: 201 }
     );

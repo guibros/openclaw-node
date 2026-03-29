@@ -11,14 +11,15 @@
     <key>ProgramArguments</key>
     <array>
         <string>${HOME}/.openclaw/bin/npm</string>
-        <string>run</string>
-        <string>dev</string>
+        <string>start</string>
     </array>
 
     <key>EnvironmentVariables</key>
     <dict>
+        <key>HOME</key>
+        <string>${HOME}</string>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin</string>
+        <string>${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/.npm-global/bin:${HOME}/bin:${HOME}/.volta/bin:${HOME}/.asdf/shims:${HOME}/Library/Application Support/fnm/aliases/default/bin:${HOME}/.fnm/aliases/default/bin:${HOME}/Library/pnpm:${HOME}/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>NODE_ENV</key>
         <string>production</string>
     </dict>

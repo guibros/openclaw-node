@@ -49,6 +49,20 @@ before(async () => {
     console.log('⏭ Skipping: NATS server not available');
     process.exit(0);
   }
+
+  // Verify mesh-task-daemon is responding — NATS may be up but daemon down
+  try {
+    const msg = await nc.request(
+      'mesh.tasks.list',
+      sc.encode(JSON.stringify({ status: 'queued', limit: 1 })),
+      { timeout: 3000 }
+    );
+    JSON.parse(sc.decode(msg.data));
+  } catch {
+    console.log('⏭ Skipping: NATS connected but mesh-task-daemon not responding');
+    await nc.close();
+    process.exit(0);
+  }
 });
 
 after(async () => {

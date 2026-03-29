@@ -47,6 +47,10 @@ const crypto = require('crypto');
 const IS_MAC = os.platform() === 'darwin';
 const HOME = os.homedir();
 const DEPLOY_BRANCH = process.env.OPENCLAW_DEPLOY_BRANCH || 'main';
+if (!/^[a-zA-Z0-9._\/-]+$/.test(DEPLOY_BRANCH)) {
+  console.error(`Invalid DEPLOY_BRANCH: ${DEPLOY_BRANCH}`);
+  process.exit(1);
+}
 const REPO_DIR = process.env.OPENCLAW_REPO_DIR || path.join(HOME, 'openclaw');
 
 // KNOWN ISSUE: Two-directory problem

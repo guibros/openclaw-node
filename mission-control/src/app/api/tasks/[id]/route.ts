@@ -9,6 +9,12 @@ import { gatewayNotify } from "@/lib/gateway-notify";
 import { AGENT_NAME, HUMAN_NAME } from "@/lib/config";
 import { getNats, sc } from "@/lib/nats";
 
+/** Safely parse a JSON string from a DB field, returning fallback on failure. */
+function safeParse(json: string | null, fallback: unknown = []): unknown {
+  if (!json) return fallback;
+  try { return JSON.parse(json); } catch { return fallback; }
+}
+
 /**
  * Push a notification message to the OpenClaw TUI via gateway chat.send + abort.
  * Fire-and-forget — does not block the API response.
@@ -129,6 +135,18 @@ export async function PATCH(
 
     const body = await request.json();
     const now = new Date().toISOString();
+
+    // Status validation
+    const VALID_STATUSES = new Set([
+      "not started", "queued", "ready", "submitted", "running",
+      "blocked", "waiting-user", "done", "cancelled", "archived",
+    ]);
+    if (body.status && !VALID_STATUSES.has(body.status)) {
+      return NextResponse.json(
+        { error: `Invalid status: ${body.status}` },
+        { status: 400 }
+      );
+    }
 
     // Transition guard: block execution mode changes on in-flight mesh tasks
     if (body.execution !== undefined && body.execution !== existing.execution) {
@@ -337,10 +355,8 @@ export async function PATCH(
 
     return NextResponse.json({
       ...updated,
-      successCriteria: updated?.successCriteria
-        ? JSON.parse(updated.successCriteria)
-        : [],
-      artifacts: updated?.artifacts ? JSON.parse(updated.artifacts) : [],
+      successCriteria: safeParse(updated?.successCriteria ?? null),
+      artifacts: safeParse(updated?.artifacts ?? null),
     });
   } catch (err) {
     console.error("PATCH /api/tasks/[id] error:", err);
