@@ -614,6 +614,31 @@ async function detectStalls() {
   }
 }
 
+/**
+ * Process proposed tasks — worker nodes write tasks with status "proposed"
+ * directly to KV. The lead daemon validates and transitions them.
+ */
+async function processProposals() {
+  const proposed = await store.list({ status: TASK_STATUS.PROPOSED });
+  for (const task of proposed) {
+    // Basic validation: must have title and origin
+    if (!task.title || !task.origin) {
+      task.status = TASK_STATUS.REJECTED;
+      task.result = { success: false, summary: 'Missing required fields (title, origin)' };
+      await store.put(task);
+      log(`REJECTED ${task.task_id}: missing required fields`);
+      publishEvent('rejected', task);
+      continue;
+    }
+
+    // Accept: transition to queued
+    task.status = TASK_STATUS.QUEUED;
+    await store.put(task);
+    log(`ACCEPTED proposal ${task.task_id} from ${task.origin}: "${task.title}"`);
+    publishEvent('submitted', task);
+  }
+}
+
 async function enforceBudgets() {
   const overBudget = await store.findOverBudget();
 
@@ -1640,9 +1665,11 @@ async function main() {
   }
 
   // Start enforcement loops
+  const proposalTimer = setInterval(processProposals, BUDGET_CHECK_INTERVAL);
   const budgetTimer = setInterval(enforceBudgets, BUDGET_CHECK_INTERVAL);
   const stallTimer = setInterval(detectStalls, BUDGET_CHECK_INTERVAL);
   const recruitTimer = setInterval(checkRecruitingDeadlines, 5000); // check every 5s
+  log(`Proposal processing: every ${BUDGET_CHECK_INTERVAL / 1000}s`);
   log(`Budget enforcement: every ${BUDGET_CHECK_INTERVAL / 1000}s`);
   log(`Stall detection: every ${BUDGET_CHECK_INTERVAL / 1000}s (threshold: ${STALL_MINUTES}m)`);
   log(`Collab recruiting check: every 5s`);
@@ -1653,6 +1680,7 @@ async function main() {
   // Shutdown handler
   const shutdown = async () => {
     log('Shutting down...');
+    clearInterval(proposalTimer);
     clearInterval(budgetTimer);
     clearInterval(stallTimer);
     clearInterval(recruitTimer);

@@ -3,6 +3,7 @@ import path from "path";
 import { eq } from "drizzle-orm";
 import { tasks } from "@/lib/db/schema";
 import { ACTIVE_TASKS_MD } from "@/lib/config";
+import { NODE_ROLE } from "@/lib/config";
 import {
   parseTasksMarkdown,
   serializeTasksMarkdown,
@@ -222,6 +223,10 @@ export function syncTasksFromMarkdownIfChanged(db: DrizzleDb): void {
  * Tracks the mtime after write to avoid re-importing our own changes.
  */
 export function syncTasksToMarkdown(db: DrizzleDb): void {
+  // Workers must NOT write to active-tasks.md — the lead owns this file.
+  // Writing from workers would cause conflict loops in the mesh sync.
+  if (NODE_ROLE === "worker") return;
+
   const allTasks = db
     .select()
     .from(tasks)

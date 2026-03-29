@@ -480,6 +480,179 @@ Both souls produce reflections. The shared intel compilation includes both persp
 
 Git hooks (`pre-commit`, `pre-push`) delegate to the same scripts — enforcement works regardless of IDE or AI tool.
 
+---
+
+## Distributed Mission Control
+
+Mission Control runs on **every node** in the mesh. Each instance operates independently against its own local SQLite database, while staying in sync through NATS JetStream KV buckets. This means any node can view all mesh tasks, and worker nodes get their own full MC dashboard instead of being headless executors.
+
+### How It Works
+
+The system has two layers:
+
+**Layer 1 — KV Mirror (read visibility):** Every MC instance watches NATS KV bucket `MESH_TASKS` in real-time. When the lead creates, updates, or completes a task, all connected MC instances see the change within milliseconds. Worker nodes display these tasks as read-only cards in the Kanban.
+
+**Layer 2 — Sync Engine (write participation):** Worker nodes can *propose* new tasks to the mesh. Proposals land in the KV bucket with `status: proposed`. The lead's task daemon validates proposals within its 30-second enforcement loop and transitions them to `queued` (accepted) or `rejected`. Once queued, any node with the `claim` capability can execute the task.
+
+```
+                     NATS KV: MESH_TASKS
+                    ┌─────────────────────┐
+                    │  T-001: running     │
+                    │  T-002: queued      │
+                    │  T-003: proposed    │
+                    └────────┬────────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+        ┌─────┴─────┐ ┌─────┴─────┐ ┌─────┴─────┐
+        │  Lead MC  │ │ Worker MC │ │ Worker MC │
+        │           │ │           │ │           │
+        │ SQLite    │ │ SQLite    │ │ SQLite    │
+        │ (primary) │ │ (mirror)  │ │ (mirror)  │
+        │           │ │           │ │           │
+        │ Read/Write│ │ Read +    │ │ Read +    │
+        │ + Approve │ │ Propose   │ │ Propose   │
+        └───────────┘ └───────────┘ └───────────┘
+```
+
+### Data Flow
+
+1. **Lead creates a task** via MC UI or agent dispatch
+   - Task saved to local SQLite (primary)
+   - Task written to `MESH_TASKS` KV bucket
+   - SSE event broadcast to UI
+   - All other MC instances receive the KV watch event and update their local mirrors
+
+2. **Worker proposes a task** via `POST /api/mesh/tasks`
+   - Task written to KV with `status: proposed`, `origin: <worker-node-id>`
+   - Lead's `mesh-task-daemon` picks it up in the next enforcement loop (< 30s)
+   - Daemon validates and transitions: `proposed` → `queued` (or `rejected`)
+   - Worker's MC sees the status change via KV watch
+
+3. **Worker reads mesh state** via `GET /api/mesh/tasks`
+   - Returns all tasks from NATS KV (not local SQLite)
+   - UI merges KV tasks with local SQLite tasks (dedup by task ID)
+   - On workers: KV version preferred (more current for mesh tasks)
+   - On lead: SQLite version preferred (has richer fields like `kanbanColumn`, `sortOrder`)
+
+4. **Anyone updates a task** via `PATCH /api/mesh/tasks/:id`
+   - Authority check: only `lead` can transition most states
+   - Workers can update tasks they own (`origin` matches)
+   - Uses CAS (Compare-And-Swap) to prevent stale writes — the `revision` field must match
+   - On revision mismatch: HTTP 409 with the current state, so the client can retry
+
+### Authority Model
+
+The system enforces explicit authority boundaries:
+
+| Action | Who Can Do It | Mechanism |
+|--------|--------------|-----------|
+| Create local task | Lead only | Direct SQLite + KV write |
+| Propose mesh task | Any node | KV write with `status: proposed` |
+| Accept/reject proposal | Lead only | Daemon enforcement loop |
+| Claim a queued task | Any node | CAS on KV (first writer wins) |
+| Complete a task | Task owner only | CAS with `origin` check |
+| Approve (mark done) | Human's node only | `approve` capability gate |
+| View all tasks | Any node | KV watch + local mirror |
+
+### Key Files
+
+```
+mission-control/
+├── src/
+│   ├── app/api/mesh/
+│   │   ├── tasks/
+│   │   │   ├── route.ts          # GET (list from KV) + POST (propose)
+│   │   │   └── [id]/route.ts     # GET (single) + PATCH (CAS update)
+│   │   ├── identity/route.ts     # Node role/ID for sidebar badge
+│   │   └── events/route.ts       # SSE: dual-iterator (NATS sub + KV watch)
+│   ├── lib/
+│   │   └── sync/
+│   │       └── mesh-kv.ts        # Sync engine (KV watch → SQLite, CAS push)
+│   └── components/layout/
+│       └── sidebar.tsx            # Node badge (⬢ Lead / ◇ Worker)
+├── src/lib/__tests__/
+│   ├── mesh-kv-sync.test.ts      # 30 unit tests (CAS, authority, merge, proposals)
+│   └── mocks/mock-kv.ts          # Shared MockKV for all KV tests
+bin/
+└── mesh-task-daemon.js            # Proposal processing (30s enforcement loop)
+lib/
+└── mesh-tasks.js                  # PROPOSED + REJECTED task statuses
+test/
+├── mesh-tasks-status.test.js      # 7 unit tests (status enum, defaults)
+└── distributed-mc.test.js         # 12 integration tests (needs NATS + daemon)
+```
+
+### CAS (Compare-And-Swap) Explained
+
+Every task in the KV bucket has a `revision` number that increments on each write. To update a task, you must provide the current revision. If another node wrote between your read and your write, the revision won't match and the update fails with a 409.
+
+This eliminates race conditions without locks or a central coordinator:
+
+```
+Node A reads T-001 (revision 5)
+Node B reads T-001 (revision 5)
+Node A writes T-001 with revision 5 → succeeds (now revision 6)
+Node B writes T-001 with revision 5 → FAILS (expected 5, got 6)
+Node B re-reads T-001 (revision 6), retries → succeeds
+```
+
+### SSE Dual-Iterator
+
+The `/api/mesh/events` endpoint runs two async iterators in parallel:
+
+1. **NATS subscription** on `mesh.events.>` — receives all mesh event broadcasts
+2. **KV watcher** on `MESH_TASKS` — receives real-time task state changes
+
+Both feed into a single SSE stream. When the client disconnects, both iterators are cleaned up (subscription unsubscribed, watcher stopped). This prevents zombie NATS connections.
+
+### Node Badge
+
+The sidebar shows the node's identity:
+
+- **⬢ Lead** (green) — full read/write/approve authority
+- **◇ Worker** (blue) — read + propose, no direct task management
+- **◇ Offline** (gray) — NATS unreachable, operating in standalone mode
+
+### Configuration
+
+Two environment variables control behavior:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENCLAW_NODE_ROLE` | Auto-detected | `lead` or `worker`. Auto-detected from `service-manifest.json` if unset |
+| `OPENCLAW_NODE_ID` | `os.hostname()` | Unique identifier for this node in the mesh |
+
+No configuration needed on the lead — it works exactly as before. Workers just need `OPENCLAW_NATS` pointed at the lead's NATS server.
+
+### Testing
+
+```bash
+# Unit tests (no dependencies — run anywhere)
+cd mission-control && npm run test:unit    # 30 tests: CAS, authority, merge, proposals
+cd .. && npm run test:unit                 # 7 tests: status enum, task creation
+
+# Integration tests (needs live NATS + mesh-task-daemon)
+npm run test:integration                   # 12 tests: proposal lifecycle, RPC, events
+                                           # Skips gracefully if daemon not running
+
+# Everything
+npm run test:all
+```
+
+### Migration Path
+
+This is Phase 1+2 of a 4-phase rollout:
+
+| Phase | What Changes | Status |
+|-------|-------------|--------|
+| **1: KV Mirror** | Workers get read-only MC dashboards via KV watch | Done |
+| **2: Sync Engine** | Workers can propose tasks, lead validates | Done |
+| 3: Distributed Claiming | Any node can claim and execute queued tasks via CAS | Planned |
+| 4: Full Sovereignty | No central daemon, each node schedules independently | Planned |
+
+Phase 1+2 is **non-breaking** — the lead's existing task daemon, kanban sync, and agent dispatch all work exactly as before. The new code paths only activate when `OPENCLAW_NATS` is configured and reachable.
+
 ## Environment Variables
 
 See `openclaw.env.example` for all available configuration. Key variables:

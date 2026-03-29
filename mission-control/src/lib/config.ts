@@ -64,3 +64,16 @@ export function getProviderModels(provider?: string): Record<CapabilityTier, str
 
 /** All registered provider names */
 export const AVAILABLE_PROVIDERS = Object.keys(MODEL_MAP);
+
+// ── Node Identity (Distributed MC) ──
+import { hostname } from "os";
+
+/** This node's unique identifier in the mesh */
+export const NODE_ID = process.env.OPENCLAW_NODE_ID || hostname();
+
+/** This node's role: "lead" (full authority) or "worker" (read + propose) */
+export const NODE_ROLE: "lead" | "worker" =
+  (process.env.OPENCLAW_NODE_ROLE as "lead" | "worker") || "lead";
+
+/** Platform identifier for display */
+export const NODE_PLATFORM = process.platform === "darwin" ? "macOS" : "Linux";

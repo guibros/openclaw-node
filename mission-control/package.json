@@ -10,8 +10,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run src/lib/__tests__/",
+    "test:unit": "vitest run src/lib/__tests__/",
+    "test:watch": "vitest src/lib/__tests__/"
   },
   "dependencies": {
     "@andresaya/edge-tts": "^1.8.0",

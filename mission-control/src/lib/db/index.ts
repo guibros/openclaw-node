@@ -454,6 +454,17 @@ function runMigrations(sqlite: Database.Database) {
     sqlite.exec("ALTER TABLE tasks ADD COLUMN cluster_id TEXT");
   }
 
+  // --- Distributed MC: mesh sync tracking columns ---
+  if (!colNames.includes("mesh_revision")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN mesh_revision INTEGER");
+  }
+  if (!colNames.includes("mesh_synced_at")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN mesh_synced_at TEXT");
+  }
+  if (!colNames.includes("mesh_origin")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN mesh_origin TEXT");
+  }
+
   // Collab routing columns — bridge reads these from markdown to build NATS payload
   if (!colNames.includes("collaboration")) {
     sqlite.exec("ALTER TABLE tasks ADD COLUMN collaboration TEXT");

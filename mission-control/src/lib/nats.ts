@@ -12,6 +12,7 @@ interface NatsGlobals {
   __nats_connectingSince?: number | null;
   __nats_healthKv?: KV | null;
   __nats_collabKv?: KV | null;
+  __nats_tasksKv?: KV | null;
 }
 
 const g = globalThis as unknown as NatsGlobals;
@@ -46,6 +47,7 @@ const NATS_URL = resolveNatsUrl();
 
 // KV bucket name — nodes write here, MC reads
 const HEALTH_BUCKET = "MESH_NODE_HEALTH";
+const TASKS_BUCKET = "MESH_TASKS";
 
 /**
  * Get or create a singleton NATS connection.
@@ -77,16 +79,19 @@ export async function getNats(): Promise<NatsConnection | null> {
     // Reset KV handles on reconnect so they're re-fetched fresh
     g.__nats_healthKv = null;
     g.__nats_collabKv = null;
+    g.__nats_tasksKv = null;
 
     g.__nats_nc.closed().then(() => {
       console.log("[nats] connection closed — will reconnect on next request");
       g.__nats_nc = null;
       g.__nats_healthKv = null;
       g.__nats_collabKv = null;
+      g.__nats_tasksKv = null;
     }).catch(() => {
       g.__nats_nc = null;
       g.__nats_healthKv = null;
       g.__nats_collabKv = null;
+      g.__nats_tasksKv = null;
     });
 
     return g.__nats_nc;
@@ -151,6 +156,34 @@ export async function getCollabKv(): Promise<KV | null> {
     return g.__nats_collabKv;
   } catch (err) {
     console.error("[nats] Collab KV bucket error:", (err as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Get the MESH_TASKS KV bucket (JetStream).
+ *
+ * Tasks are coordinated through this bucket — the lead writes,
+ * workers read via watch. On worker nodes, this enables the
+ * Kanban to display mesh tasks in real-time.
+ *
+ * Creates the bucket on first call if it doesn't exist (idempotent).
+ * Returns null if NATS is unavailable.
+ */
+export async function getTasksKv(): Promise<KV | null> {
+  if (g.__nats_tasksKv) return g.__nats_tasksKv;
+
+  const conn = await getNats();
+  if (!conn) return null;
+
+  try {
+    const js = conn.jetstream();
+    g.__nats_tasksKv = await js.views.kv(TASKS_BUCKET, {
+      history: 1,
+    });
+    return g.__nats_tasksKv;
+  } catch (err) {
+    console.error("[nats] Tasks KV bucket error:", (err as Error).message);
     return null;
   }
 }

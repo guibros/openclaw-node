@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LiveStream } from "@/components/board/live-stream";
 
 const NAV = [
@@ -21,6 +21,38 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/diagnostics", label: "Diagnostics", icon: Activity },
 ];
+
+function NodeBadge() {
+  const [identity, setIdentity] = useState<{
+    nodeId: string;
+    role: "lead" | "worker";
+    platform: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/mesh/identity")
+      .then((r) => r.json())
+      .then(setIdentity)
+      .catch(() => setIdentity(null));
+  }, []);
+
+  if (!identity) return null;
+
+  const isLead = identity.role === "lead";
+  return (
+    <div
+      className={`flex items-center gap-1.5 rounded px-2 py-0.5 text-[10px] font-medium tracking-wider uppercase ${
+        isLead
+          ? "bg-green-500/10 text-green-400"
+          : "bg-blue-500/10 text-blue-400"
+      }`}
+      title={`${identity.nodeId} (${identity.platform})`}
+    >
+      <span>{isLead ? "⬢" : "◇"}</span>
+      <span>{identity.role}</span>
+    </div>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -42,6 +74,9 @@ export function Sidebar() {
         <span className="text-sm font-semibold tracking-tight">
           Mission Control
         </span>
+        <div className="ml-auto">
+          <NodeBadge />
+        </div>
       </div>
 
       <nav className="px-2 py-3 space-y-1">
