@@ -30,10 +30,10 @@ The installer will:
 5. Install Mission Control and its dependencies
 6. Set up the memory daemon as a systemd user service
 7. Initialize the memory system
-8. Deploy path-scoped coding rules (auto-detects project frameworks)
-9. Install plan templates for multi-phase workflows
-10. Set up Claude Code hooks + LLM-agnostic git hooks
-11. Merge enforcement settings (preserves existing user permissions)
+8. Deploy path-scoped coding rules — installs universal rules (security, test-standards, design-docs, git-hygiene), auto-detects frameworks (Hardhat → Solidity rules, tsconfig → TypeScript rules, ProjectSettings → Unity rules), version-aware upgrades preserve user modifications
+9. Install plan templates — deploys `team-feature`, `team-bugfix`, `team-deploy` YAML pipeline templates (skips if already present)
+10. Set up Claude Code hooks + LLM-agnostic git hooks — deploys 6 lifecycle hooks (session-start, validate-commit, validate-push, pre-compact, session-stop, log-agent), symlinks `.claude/rules` → `~/.openclaw/rules/`, installs pre-commit/pre-push git hooks that delegate to the same scripts
+11. Merge enforcement settings — `jq`-based merge of `settings.json` that appends new hooks and permissions without overwriting existing user configuration
 
 ## Post-Install
 
@@ -360,6 +360,38 @@ priority: 80
 
 Three tiers with precedence: `project > framework > universal`. Framework rules auto-activate when the installer detects matching config files. Version-aware upgrades preserve user modifications.
 
+### Rule Loader (`lib/rule-loader.js`)
+
+The rule loader is a zero-dependency engine that:
+
+1. **Parses YAML frontmatter** from markdown rule files (custom parser, no `js-yaml` required)
+2. **Matches rules to file paths** using glob patterns (`*`, `**`, `?`, `{a,b}` brace expansion)
+3. **Sorts by tier + priority** — project rules (weight 20) override framework (10) override universal (0)
+4. **Auto-detects frameworks** — scans for `hardhat.config.js` → activates Solidity rules, `tsconfig.json` → TypeScript rules, `ProjectSettings/` → Unity rules
+5. **Caps prompt injection** at 4,000 characters to avoid context budget blowout
+
+**Shipped rules:**
+
+| Tier | Rule | Auto-detects |
+|------|------|-------------|
+| Universal | `security.md` | Always active |
+| Universal | `test-standards.md` | Always active |
+| Universal | `design-docs.md` | Always active |
+| Universal | `git-hygiene.md` | Always active |
+| Framework | `solidity.md` | `hardhat.config.js`, `foundry.toml` |
+| Framework | `typescript.md` | `tsconfig.json` |
+| Framework | `unity.md` | `ProjectSettings/`, `Assets/` |
+
+### Rule Injection into Agents
+
+When `mesh-agent.js` builds a prompt for any task, it calls `findRulesByScope(task.scope)` and injects matching rules into all three prompt paths:
+
+- `buildInitialPrompt()` — first attempt
+- `buildRetryPrompt()` — retry after failure
+- `buildCollabPrompt()` — collaborative session
+
+Rules are injected between the task description and the metric/success criteria, so the agent sees them as constraints on how to approach the work.
+
 ### Role Profiles
 
 Roles define domain-specific agent behavior with mechanical validation:
@@ -429,6 +461,16 @@ mesh plan show PLAN-xxx
 | `team-bugfix` | Reproduce → Diagnose → Fix → Regression Test | `abort_on_first_fail` |
 | `team-deploy` | Pre-flight → Deploy → Smoke Test → Monitor | `abort_on_first_fail` |
 
+### Plan Templates (`lib/plan-templates.js`)
+
+Templates are YAML files in `~/.openclaw/plan-templates/` that define reusable multi-phase workflows. The template engine:
+
+1. **Loads and validates** template structure (phases, subtasks, dependency IDs)
+2. **Detects circular dependencies** via DFS — rejects templates with cycles
+3. **Substitutes variables** — `{{context}}` gets the user's task description, `{{vars.key}}` for custom variables
+4. **Validates delegation modes** — only `solo_mesh`, `collab_mesh`, `local`, `soul`, `human`, `auto` allowed
+5. **Instantiates into executable plans** via `lib/mesh-plans.js` with wave computation and auto-routing
+
 ### Approval Gate
 
 Tasks auto-compute whether human review is required:
@@ -443,13 +485,29 @@ Tasks auto-compute whether human review is required:
 
 Tasks in `pending_review` block wave advancement — downstream subtasks don't dispatch until the review is completed via `mesh task approve <id>`.
 
+### Failure Policies
+
+Each plan declares a `failure_policy` that controls what happens when a subtask fails:
+
+| Policy | Behavior |
+|--------|----------|
+| `continue_best_effort` | Skip failed subtask, continue with non-dependent waves |
+| `abort_on_first_fail` | Abort entire plan on any failure |
+| `abort_on_critical_fail` | Abort only if the failed subtask has `critical: true` |
+
+Subtasks can be marked `critical: true` to indicate their failure should trigger plan abort under the `abort_on_critical_fail` policy.
+
 ### Failure Cascade and Escalation
 
 When a subtask fails:
-1. **Cascade**: BFS blocks all transitive dependents
-2. **Blocked-critical check**: if any blocked subtask is critical, abort the plan
+1. **Cascade**: BFS blocks all transitive dependents (follows `depends_on` graph)
+2. **Blocked-critical check**: if any blocked subtask is `critical: true`, abort the plan
 3. **Escalation**: if the role defines an escalation target, create a recovery task
 4. **Recovery**: if the escalation task succeeds, override FAILED → COMPLETED and unblock dependents
+
+### Plan-Task Back-References
+
+Each mesh task carries `plan_id` and `subtask_id` fields that link back to the parent plan. This enables O(1) plan progress checks — when a task completes, stalls, or exceeds budget, the daemon looks up the plan directly instead of scanning all plans. The daemon's enforcement loop (`checkPlanProgress`, `detectStalls`, `enforceBudgets`) all use these back-references to trigger cascade and wave advancement efficiently.
 
 ### Heterogeneous Collaboration
 
