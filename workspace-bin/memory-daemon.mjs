@@ -49,6 +49,20 @@ async function getSessionStore() {
   }
 }
 
+// HyperAgent store loaded lazily (requires better-sqlite3)
+let _haStore = null;
+async function getHyperAgentStore() {
+  if (_haStore) return _haStore;
+  try {
+    const { createHyperAgentStore } = await import('../lib/hyperagent-store.mjs');
+    _haStore = createHyperAgentStore();
+    return _haStore;
+  } catch (err) {
+    log(`hyperagent-store unavailable: ${err.message}`);
+    return null;
+  }
+}
+
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -576,7 +590,7 @@ function loadThrottleState() {
   return {
     lastRecap: 0, lastMaintenance: 0, lastObsidianSync: 0, lastTrustHealth: 0,
     lastClawvaultReflect: 0, lastClawvaultArchive: 0, lastClawvaultObserve: 0,
-    lastSessionImport: 0,
+    lastSessionImport: 0, lastHyperagentReflect: 0,
   };
 }
 
@@ -648,6 +662,27 @@ async function runPhase2ThrottledWork(config) {
           }
           if (totalImported > 0) log(`  Phase 2: session-store imported ${totalImported} sessions`);
         } catch (e) { log(`  Phase 2: session-import failed: ${e.message}`); }
+      })()
+    );
+  }
+
+  // HyperAgent: reflection check + shadow window expiry (every 30min)
+  if (now - throttle.lastHyperagentReflect >= (config.intervals.hyperagentReflectMs || 1800000)) {
+    throttle.lastHyperagentReflect = now;
+    stage1.push(
+      (async () => {
+        try {
+          const ha = await getHyperAgentStore();
+          if (!ha) return;
+          const unreflected = ha.getUnreflectedCount(); // sync — better-sqlite3
+          if (unreflected >= 5) {
+            await runSubprocess('node', [
+              path.join(HOME, '.openclaw/bin/hyperagent.mjs'), 'reflect'
+            ], 30000);
+            log(`  Phase 2: hyperagent reflect (${unreflected} entries)`);
+          }
+          ha.checkShadowWindows(); // sync
+        } catch (e) { log(`  Phase 2: hyperagent failed: ${e.message}`); }
       })()
     );
   }

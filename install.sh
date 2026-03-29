@@ -720,6 +720,23 @@ MEM
 fi
 
 # ============================================================
+# Step 15.5: HyperAgent Protocol
+# ============================================================
+
+step "Step 15.5: HyperAgent Protocol"
+
+if [ -f "$MESH_BIN/hyperagent.mjs" ]; then
+  mkdir -p "$HOME/.openclaw/state"
+  if node "$MESH_BIN/hyperagent.mjs" status 2>/dev/null; then
+    info "HyperAgent store initialized"
+  else
+    warn "HyperAgent init deferred (will init on first use)"
+  fi
+else
+  warn "hyperagent.mjs not found in $MESH_BIN — skipping"
+fi
+
+# ============================================================
 # Step 16: Install Services (role-aware, template-based)
 # ============================================================
 

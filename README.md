@@ -3,6 +3,7 @@
 Installable package for deploying an OpenClaw node. Includes the full infrastructure stack:
 
 - **Memory Daemon** — persistent background service managing session lifecycle, memory maintenance, and Obsidian sync
+- **HyperAgent Protocol** — self-improving agent loop: telemetry, structured reflection, strategy archive, and self-modifying proposals with human-gated approval
 - **Mission Control** — Next.js web dashboard (kanban, timeline, graph visualization, memory browser)
 - **Soul System** — multi-soul orchestration with trust registry and evolution
 - **Skill Library** — 100+ skills for AI agent capabilities
@@ -11,6 +12,7 @@ Installable package for deploying an OpenClaw node. Includes the full infrastruc
 - **Mesh Task Engine** — distributed task execution with Karpathy iteration (try → measure → keep/discard → retry)
 - **Mechanical Enforcement** — path-scoped coding rules, dual-layer harness, role profiles with structural validation
 - **Plan Pipelines** — YAML-based multi-phase workflows with dependency waves, failure cascade, and escalation recovery
+- **Knowledge Server** — LLM-agnostic MCP server for semantic search over markdown (local embeddings, sqlite-vec, NATS mesh)
 
 ## Quick Start (Ubuntu)
 
@@ -93,6 +95,7 @@ bash uninstall.sh --purge  # Remove everything including all data
 │   ├── memory/               # Daily logs, active tasks, archive
 │   ├── memory-vault/         # ClawVault structured knowledge
 │   ├── .boot/                # Compiled boot profiles
+│   ├── .knowledge.db         # Semantic search index (auto-generated)
 │   ├── .learnings/           # Corrections and lessons
 │   ├── .tmp/                 # Runtime state (logs, sessions)
 │   ├── .claude/
@@ -151,6 +154,133 @@ The installer deploys the vault scaffold with 22 domain folders and the **Local 
 
 If not using Obsidian, the sync is disabled by default in `obsidian-sync.json` (set `"enabled": false`).
 
+## HyperAgent Protocol
+
+A self-improving loop that makes any agent on any node better over time. Based on the DGM-Hyperagents framework (Zhang et al., 2026): the mechanism that generates improvements is itself subject to improvement.
+
+### How It Works
+
+```
+Task completes → Telemetry logged (auto-detected pattern flags)
+                      ↓
+              5 tasks accumulate
+                      ↓
+        Daemon triggers reflection (raw stats)
+                      ↓
+     Agent synthesizes hypotheses + proposals (autonomous)
+                      ↓
+          Human reviews proposals (safety gate)
+                      ↓
+     Approved proposals update strategy archive
+                      ↓
+        Next task consults strategies at start
+```
+
+The loop is fully autonomous except proposal approval. Telemetry, reflection, synthesis, and strategy consultation all happen without human intervention.
+
+### Components
+
+| Component | Location | Purpose |
+|---|---|---|
+| `lib/hyperagent-store.mjs` | SQLite in `state.db` | 5 tables: telemetry, strategies, reflections, proposals, junction |
+| `bin/hyperagent.mjs` | CLI | `status`, `log`, `reflect`, `strategies`, `approve`, `reject` |
+| Harness rules (3) | `config/harness-rules.json` | Injected into any agent: task-close telemetry, task-start strategy lookup, reflection synthesis |
+| Daemon phase | `memory-daemon.mjs` | Triggers reflection every 30min when 5+ unreflected tasks exist |
+
+### Agent-Agnostic
+
+Works for any soul (daedalus, infra-ops, blockchain-auditor, etc.) on any node. Telemetry is tagged with `node_id` and `soul_id`. Strategies are queryable by domain. The harness rules inject into any agent session via companion-bridge.
+
+### Pattern Flags
+
+Pathology detection is automatic. The store detects these flags at telemetry write time:
+
+- `repeated-approach` — same strategy on last 3+ tasks in same domain
+- `multiple-iterations` — more than 3 attempts to complete
+- `always-escalated` — failed with only 1 iteration (didn't try)
+- `no-meta-notes` — missing or insufficient observations
+
+### CLI
+
+```bash
+hyperagent status                          # overview
+hyperagent log '<json>'                    # log telemetry
+hyperagent strategies [--domain X]         # list strategies
+hyperagent reflect [--force]               # trigger reflection
+hyperagent reflect --pending               # get pending synthesis (JSON)
+hyperagent reflect --write-synthesis '<json>'  # write agent synthesis
+hyperagent proposals                       # list proposals
+hyperagent approve <id>                    # approve (human gate)
+hyperagent reject <id> [reason]            # reject
+hyperagent shadow <id> [--window 60]       # start shadow eval
+hyperagent seed-strategy '<json>'          # import strategy manually
+```
+
+### Tests
+
+```bash
+node test/hyperagent-store.test.js   # 28 tests, no external deps
+```
+
+## Semantic Knowledge Search (MCP)
+
+Local, LLM-agnostic semantic search over your markdown knowledge base. Uses vector embeddings to find documents by meaning, not just keywords.
+
+### How it works
+
+The knowledge server scans markdown files in your workspace, splits them into chunks at heading boundaries, embeds each chunk with a local ONNX model (all-MiniLM-L6-v2, 384-dim), and stores the vectors in a sqlite-vec index. Queries return the most semantically similar chunks with file path, section name, relevance score, and a snippet.
+
+### Tools exposed
+
+| Tool | Description |
+|------|-------------|
+| `semantic_search(query, limit)` | Find documents by meaning (e.g. "oracle threat model GPS spoofing") |
+| `find_related(doc_path, limit)` | Find documents similar to a given file |
+| `reindex(force)` | Re-scan and re-embed changed files |
+| `knowledge_stats()` | Index statistics (doc count, chunk count, model info) |
+
+### Access paths
+
+Any MCP-compatible client can use these tools. The server supports three transports:
+
+| Transport | How | Use case |
+|-----------|-----|----------|
+| **stdio MCP** | Auto-starts via `.mcp.json` | Claude Code, Cursor, VS Code |
+| **HTTP MCP** | `KNOWLEDGE_PORT=3100 node lib/mcp-knowledge/server.mjs` | Remote MCP clients, web UIs |
+| **NATS mesh** | `mesh.tool.{nodeId}.knowledge.{method}` | Any mesh worker node |
+
+The NATS transport means worker nodes get semantic search without needing the embedding model, database, or knowledge files locally. One index on the lead node, queried from anywhere on the mesh.
+
+### Configuration
+
+Environment variables (set in `.mcp.json` env block or shell):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KNOWLEDGE_ROOT` | `~/.openclaw/workspace` | Directory to scan for markdown files |
+| `KNOWLEDGE_DB` | `{KNOWLEDGE_ROOT}/.knowledge.db` | SQLite database path |
+| `KNOWLEDGE_POLL_MS` | `300000` (5 min) | Background re-index interval |
+| `KNOWLEDGE_PORT` | *(unset)* | Set to enable HTTP transport (e.g. `3100`) |
+| `KNOWLEDGE_HOST` | `127.0.0.1` | HTTP bind address |
+| `INCLUDE_DIRS` | `memory/,projects/,...` | Comma-separated directories to scan |
+
+### Performance
+
+Benchmarked on a ~250-file workspace:
+
+- **First index:** ~90s (one-time, downloads 23MB ONNX model on first run)
+- **Incremental reindex:** <1s (SHA-256 content hashing, only re-embeds changed files)
+- **Query latency:** 3-14ms
+- **Database size:** ~22MB for 6,500 chunks
+
+### Running tests
+
+```bash
+cd lib/mcp-knowledge
+node test.mjs
+# 98 assertions across 12 test groups
+```
+
 ## Mesh Network (Multi-Node)
 
 The installer detects Tailscale and optionally deploys a full mesh network across multiple machines. When enabled, nodes share files, execute remote commands, and broadcast session lifecycle events via NATS.
@@ -176,6 +306,7 @@ mesh exec "cmd"      # run command on remote node
 - **NATS** — message bus for commands, heartbeats, file sync (runs on Ubuntu)
 - **Agent v3** — polling-based shared folder sync over NATS (`~/openclaw/shared/`)
 - **Memory Bridge** — broadcasts session lifecycle events across nodes (`mesh-bridge.mjs`)
+- **Knowledge Server** — semantic search via NATS (`mesh.tool.{nodeId}.knowledge.*`), workers query lead's index
 - **Tailscale** — encrypted WireGuard tunnel between nodes
 
 The mesh is optional. Without Tailscale, everything runs as a standalone single node.
