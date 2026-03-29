@@ -85,6 +85,7 @@ const KNOWN_NODES = [
  *   No synchronous round-trips to nodes. No timeout races. No flickering.
  */
 export async function GET() {
+  try {
   const kv = await getHealthKv();
   const db = getDb();
   const now = Date.now();
@@ -218,4 +219,11 @@ export async function GET() {
   }
 
   return NextResponse.json({ nodes, tokenStats });
+  } catch (err) {
+    console.error("[mesh/nodes] error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: err instanceof SyntaxError ? 400 : 500 }
+    );
+  }
 }

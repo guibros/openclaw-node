@@ -8,6 +8,7 @@ import { parseTasksMarkdown, serializeTasksMarkdown } from "@/lib/parsers/task-m
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  try {
   const raw = getRawDb();
 
   // Task stats
@@ -94,4 +95,11 @@ export async function GET() {
     nats: natsStatus,
     workspace: workspaceExists,
   });
+  } catch (err) {
+    console.error("[diagnostics] error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: err instanceof SyntaxError ? 400 : 500 }
+    );
+  }
 }

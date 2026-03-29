@@ -41,6 +41,7 @@ async function runTest(suite: string, name: string, fn: TestFn): Promise<TestRes
  * All test tasks use the prefix __TEST__ so they can be safely cleaned up.
  */
 export async function POST() {
+  try {
   const results: TestResult[] = [];
   const db = getDb();
   const raw = getRawDb();
@@ -987,4 +988,11 @@ export async function POST() {
     results,
     timestamp: new Date().toISOString(),
   });
+  } catch (err) {
+    console.error("[diagnostics/test-runner] error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: err instanceof SyntaxError ? 400 : 500 }
+    );
+  }
 }

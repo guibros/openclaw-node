@@ -18,31 +18,47 @@ import {
 import { getRawDb } from "@/lib/db";
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const boot = url.searchParams.get("boot");
-  const format = url.searchParams.get("format");
+  try {
+    const url = new URL(request.url);
+    const boot = url.searchParams.get("boot");
+    const format = url.searchParams.get("format");
 
-  if (boot === "true") {
-    const block = formatEntityContextBlock();
-    return NextResponse.json({ block });
+    if (boot === "true") {
+      const block = formatEntityContextBlock();
+      return NextResponse.json({ block });
+    }
+
+    if (format === "viz") {
+      return getVizData();
+    }
+
+    const stats = getGraphStats();
+    const topEntities = getTopEntities(10).map((entity) => {
+      const relations = getEntityRelations(entity.id, 3);
+      return { ...entity, relations };
+    });
+
+    return NextResponse.json({ stats, topEntities });
+  } catch (err) {
+    console.error("[memory/graph] GET error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: err instanceof SyntaxError ? 400 : 500 }
+    );
   }
-
-  if (format === "viz") {
-    return getVizData();
-  }
-
-  const stats = getGraphStats();
-  const topEntities = getTopEntities(10).map((entity) => {
-    const relations = getEntityRelations(entity.id, 3);
-    return { ...entity, relations };
-  });
-
-  return NextResponse.json({ stats, topEntities });
 }
 
 export async function POST() {
-  const seeded = seedKnownEntities();
-  return NextResponse.json({ seeded, message: `${seeded} entities seeded` });
+  try {
+    const seeded = seedKnownEntities();
+    return NextResponse.json({ seeded, message: `${seeded} entities seeded` });
+  } catch (err) {
+    console.error("[memory/graph] POST error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: err instanceof SyntaxError ? 400 : 500 }
+    );
+  }
 }
 
 /**
