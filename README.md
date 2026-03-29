@@ -145,7 +145,7 @@ The installer auto-detects and installs these:
 
 ## Obsidian Setup
 
-The installer deploys the vault scaffold with 22 domain folders and the **Local REST API** plugin pre-installed. On first Obsidian launch:
+The installer deploys the vault scaffold with 23 domain folders and the **Local REST API** plugin pre-installed. On first Obsidian launch:
 
 1. Obsidian will auto-download 5 missing community plugins (dataview, templater, kanban, git, graph-analysis) — requires internet
 2. Generate an API key in the Local REST API plugin settings
@@ -305,9 +305,12 @@ mesh exec "cmd"      # run command on remote node
 
 - **NATS** — message bus for commands, heartbeats, file sync (runs on Ubuntu)
 - **Agent v3** — polling-based shared folder sync over NATS (`~/openclaw/shared/`)
-- **Memory Bridge** — broadcasts session lifecycle events across nodes (`mesh-bridge.mjs`)
+- **Memory Bridge** — broadcasts session lifecycle events across nodes (`mesh-bridge.js`)
 - **Knowledge Server** — semantic search via NATS (`mesh.tool.{nodeId}.knowledge.*`), workers query lead's index
 - **Tailscale** — encrypted WireGuard tunnel between nodes
+- **Agent Activity Monitor** (`lib/agent-activity.js`) — zero-cost agent state detection via Claude Code JSONL session files (active, ready, idle, blocked)
+- **Memory Budget** (`lib/memory-budget.mjs`) — character budget enforcement for MEMORY.md with freeze/thaw semantics per session
+- **Mesh Registry** (`lib/mesh-registry.js`) — NATS KV-backed tool registry for discovering and calling remote tools across nodes
 
 The mesh is optional. Without Tailscale, everything runs as a standalone single node.
 
