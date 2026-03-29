@@ -708,6 +708,12 @@ export function useMeshSSE() {
     es.addEventListener("collab.aborted", invalidateCollab);
     es.addEventListener("collab.node_removed", invalidateCollab);
 
+    // KV task state changes (from dual-iterator watcher)
+    es.addEventListener("kv.task.updated", () => {
+      mutate("/api/mesh/tasks");
+      mutate("/api/tasks");
+    });
+
     es.onerror = () => {
       // EventSource auto-reconnects
     };
@@ -749,6 +755,79 @@ export function useTokenUsage(period: "today" | "week" | "month" = "today") {
     { refreshInterval: 30000 }
   );
   return { tokenData: data ?? null, error, isLoading };
+}
+
+// --- Mesh Tasks (Distributed MC) ---
+
+export interface MeshTask {
+  task_id: string;
+  title: string;
+  description: string;
+  status: string;
+  origin: string;
+  owner: string | null;
+  priority: number;
+  budget_minutes: number;
+  metric: string | null;
+  created_at: string;
+  [key: string]: unknown;
+}
+
+export function useMeshTasks() {
+  const { data, error, isLoading } = useSWR<{
+    tasks: MeshTask[];
+    natsAvailable: boolean;
+  }>("/api/mesh/tasks", fetcher, {
+    refreshInterval: 5000,
+  });
+  return {
+    meshTasks: data?.tasks ?? [],
+    natsAvailable: data?.natsAvailable ?? false,
+    error,
+    isLoading,
+  };
+}
+
+export function useNodeIdentity() {
+  const { data, error, isLoading } = useSWR<{
+    nodeId: string;
+    role: "lead" | "worker";
+    platform: string;
+  }>("/api/mesh/identity", fetcher);
+  return { identity: data ?? null, error, isLoading };
+}
+
+export async function createMeshTask(task: {
+  title: string;
+  description?: string;
+  priority?: number;
+  budget_minutes?: number;
+  metric?: string;
+  [key: string]: unknown;
+}) {
+  const res = await fetch("/api/mesh/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(task),
+  });
+  const data = await res.json();
+  await mutate("/api/mesh/tasks");
+  return data;
+}
+
+export async function updateMeshTask(
+  id: string,
+  updates: Record<string, unknown>,
+  revision: number
+) {
+  const res = await fetch(`/api/mesh/tasks/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...updates, revision }),
+  });
+  const data = await res.json();
+  await mutate("/api/mesh/tasks");
+  return data;
 }
 
 // --- Scheduler ---
