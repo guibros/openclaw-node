@@ -46,6 +46,7 @@
     "@huggingface/transformers": "^3.0.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "better-sqlite3": "^11.7.0",
+    "js-yaml": "^4.1.1",
     "nats": "^2.28.2",
     "playwright": "^1.51.0",
     "sqlite-vec": "^0.1.0"

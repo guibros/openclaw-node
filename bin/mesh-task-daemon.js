@@ -35,7 +35,15 @@ const { connect, StringCodec } = require('nats');
 const { createTask, TaskStore, TASK_STATUS, KV_BUCKET } = require('../lib/mesh-tasks');
 const { createSession, CollabStore, COLLAB_STATUS, COLLAB_KV_BUCKET } = require('../lib/mesh-collab');
 const { createPlan, autoRoutePlan, PlanStore, PLAN_STATUS, SUBTASK_STATUS, PLANS_KV_BUCKET } = require('../lib/mesh-plans');
+const { findRole, findRoleByScope, validateRequiredOutputs, checkForbiddenPatterns } = require('../lib/role-loader');
 const os = require('os');
+const path = require('path');
+
+// Role search directories
+const ROLE_DIRS = [
+  path.join(process.env.HOME || '/root', '.openclaw', 'roles'),
+  path.join(__dirname, '..', 'config', 'roles'),
+];
 
 const sc = StringCodec();
 const { NATS_URL } = require('../lib/nats-resolve');
@@ -223,15 +231,90 @@ async function handleComplete(msg) {
   const { task_id, result } = parseRequest(msg);
   if (!task_id) return respondError(msg, 'task_id is required');
 
-  const task = await store.markCompleted(task_id, result || { success: true });
-  if (!task) return respondError(msg, `Task ${task_id} not found`);
+  // Determine if this task requires human review before completing.
+  // requires_review logic:
+  //   - explicit true/false on task → honor it
+  //   - null (default) → auto-compute:
+  //     * mode: human → always (by definition)
+  //     * mode: soul → always (creative/strategic work, no mechanical verification)
+  //     * collab_mesh without metric → yes (peer review without mechanical check)
+  //     * solo_mesh WITH metric → no (metric IS the verification)
+  //     * solo_mesh WITHOUT metric → yes (no mechanical check = human must validate)
+  //     * local → no (Daedalus/companion handles these interactively)
+  const existingTask = await store.get(task_id);
+  if (!existingTask) return respondError(msg, `Task ${task_id} not found`);
 
-  const elapsed = task.started_at
-    ? ((new Date(task.completed_at) - new Date(task.started_at)) / 60000).toFixed(1)
-    : '?';
+  let needsReview = existingTask.requires_review;
+  if (needsReview === null || needsReview === undefined) {
+    const mode = existingTask.collaboration ? 'collab_mesh' : (existingTask.tags?.includes('soul') ? 'soul' : 'solo_mesh');
+    const hasMetric = !!existingTask.metric;
 
-  log(`COMPLETE ${task_id} in ${elapsed}m: ${result?.summary || 'no summary'}`);
-  publishEvent('completed', task);
+    if (mode === 'soul' || existingTask.tags?.includes('human')) {
+      needsReview = true;
+    } else if (mode === 'collab_mesh' && !hasMetric) {
+      needsReview = true;
+    } else if (mode === 'solo_mesh' && !hasMetric) {
+      needsReview = true;
+    } else {
+      needsReview = false;
+    }
+  }
+
+  // Role-based post-completion validation — runs UNCONDITIONALLY on all tasks
+  // with a role, regardless of review status. Validation results are included
+  // in the pending_review metadata so human reviewers see structured checks.
+  let roleValidation = { passed: true, issues: [] };
+  if (existingTask.role) {
+    const role = findRole(existingTask.role, ROLE_DIRS);
+    if (role) {
+      const outputFiles = result?.artifacts || [];
+      const harnessFiles = (result?.harness?.violations || []).flatMap(v => v.files || []);
+      const allFiles = [...new Set([...outputFiles, ...harnessFiles])];
+
+      if (allFiles.length > 0) {
+        const reqResult = validateRequiredOutputs(role, allFiles, null);
+        if (!reqResult.passed) {
+          roleValidation.passed = false;
+          roleValidation.issues.push(...reqResult.failures.map(f => `[required_output] ${f.description}: ${f.detail}`));
+        }
+      }
+
+      if (!roleValidation.passed) {
+        log(`ROLE VALIDATION FAILED for ${task_id} (role: ${role.id}): ${roleValidation.issues.length} issue(s)`);
+        for (const issue of roleValidation.issues) log(`  - ${issue}`);
+        needsReview = true; // force review if validation failed on auto-complete path
+      } else {
+        log(`ROLE VALIDATION PASSED for ${task_id} (role: ${role.id})`);
+      }
+    }
+  }
+
+  let task;
+  if (needsReview) {
+    // Gate: task goes to pending_review instead of completed
+    // Include role validation results in the review metadata
+    const enrichedResult = {
+      ...(result || { success: true }),
+      role_validation: roleValidation,
+    };
+    task = await store.markPendingReview(task_id, enrichedResult);
+    const elapsed = task.started_at
+      ? ((new Date(task.review_requested_at) - new Date(task.started_at)) / 60000).toFixed(1)
+      : '?';
+    log(`PENDING REVIEW ${task_id} in ${elapsed}m: ${result?.summary || 'no summary'}`);
+    log(`  Approve: mesh task approve ${task_id}  |  Reject: mesh task reject ${task_id} --reason "..."`);
+    publishEvent('pending_review', task);
+    // Update plan subtask status so `mesh plan show` reflects pending_review
+    await updatePlanSubtaskStatus(task_id, 'pending_review');
+    // Do NOT advance plan wave — task is not yet "completed" for dependency purposes
+  } else {
+    task = await store.markCompleted(task_id, result || { success: true });
+    const elapsed = task.started_at
+      ? ((new Date(task.completed_at) - new Date(task.started_at)) / 60000).toFixed(1)
+      : '?';
+    log(`COMPLETE ${task_id} in ${elapsed}m: ${result?.summary || 'no summary'}`);
+    publishEvent('completed', task);
+  }
 
   // NOTE: no cleanupTaskCollabSession here — collab tasks complete via
   // evaluateRound → markCompleted on the session, then store.markCompleted
@@ -241,8 +324,10 @@ async function handleComplete(msg) {
     collabStore.clearAuditErrorCount(task.collab_session_id);
   }
 
-  // Check if this task belongs to a plan
-  await checkPlanProgress(task_id, 'completed');
+  // Only advance plan if actually completed (not pending_review)
+  if (task.status === TASK_STATUS.COMPLETED) {
+    await checkPlanProgress(task_id, 'completed');
+  }
 
   respond(msg, task);
 }
@@ -262,10 +347,52 @@ async function handleFail(msg) {
   publishEvent('failed', task);
   await cleanupTaskCollabSession(task, `Parent task ${task_id} failed: ${reason}`);
 
-  // Check if this task belongs to a plan
+  // Phase F: Escalation — if the task has a role with escalation mapping,
+  // create an escalation task before cascading failure through the plan.
+  let escalated = false;
+  if (task.role) {
+    const role = findRole(task.role, ROLE_DIRS);
+    if (role && role.escalation) {
+      // Determine failure type for escalation routing
+      let failureType = 'on_metric_failure';
+      if (reason && reason.includes('Budget exceeded')) failureType = 'on_budget_exceeded';
+      if (reason && reason.includes('scope')) failureType = 'on_scope_violation';
+
+      const escalationTarget = role.escalation[failureType];
+      if (escalationTarget) {
+        const escalationTask = createTask({
+          task_id: `ESC-${task_id}-${Date.now()}`,
+          title: `[Escalation] ${task.title}`,
+          description: [
+            `Escalated from ${task_id} (role: ${task.role}, failure: ${failureType}).`,
+            `Original reason: ${reason}`,
+            '',
+            `Original description: ${task.description}`,
+          ].join('\n'),
+          budget_minutes: Math.ceil(task.budget_minutes * 1.5), // 50% more budget
+          metric: task.metric,
+          scope: task.scope,
+          success_criteria: task.success_criteria,
+          role: escalationTarget === 'human' ? null : escalationTarget,
+          requires_review: escalationTarget === 'human' ? true : null,
+          tags: [...(task.tags || []), 'escalation', `escalated_from:${task_id}`],
+          plan_id: task.plan_id,
+          subtask_id: task.subtask_id, // Wire back to original plan subtask for recovery
+        });
+        await store.put(escalationTask);
+        publishEvent('submitted', escalationTask);
+        log(`ESCALATED ${task_id} → ${escalationTask.task_id} (target role: ${escalationTarget})`);
+        escalated = true;
+      }
+    }
+  }
+
+  // Check if this task belongs to a plan (escalation doesn't block cascade —
+  // the escalation task is independent. If the plan has abort_on_critical_fail
+  // and this was critical, it still aborts. The escalation is a parallel attempt.)
   await checkPlanProgress(task_id, 'failed');
 
-  respond(msg, task);
+  respond(msg, { ...task, escalated, escalation_task_id: escalated ? `ESC-${task_id}-${Date.now()}` : null });
 }
 
 /**
@@ -367,6 +494,44 @@ async function handleCancel(msg) {
   respond(msg, task);
 }
 
+// ── Task Review (Approval Gate) ─────────────────────
+
+/**
+ * mesh.tasks.approve — Human approves a pending_review task.
+ * Transitions to completed and advances plan wave if applicable.
+ */
+async function handleTaskApprove(msg) {
+  const { task_id } = parseRequest(msg);
+  if (!task_id) return respondError(msg, 'task_id is required');
+
+  const task = await store.markApproved(task_id);
+  if (!task) return respondError(msg, `Task ${task_id} not found or not in pending_review status`);
+
+  log(`APPROVED ${task_id}: human review passed`);
+  publishEvent('completed', task);
+
+  // Now advance plan wave (this was blocked while in pending_review)
+  await checkPlanProgress(task_id, 'completed');
+
+  respond(msg, task);
+}
+
+/**
+ * mesh.tasks.reject — Human rejects a pending_review task.
+ * Re-queues the task with rejection reason injected for next attempt.
+ */
+async function handleTaskReject(msg) {
+  const { task_id, reason } = parseRequest(msg);
+  if (!task_id) return respondError(msg, 'task_id is required');
+
+  const task = await store.markRejected(task_id, reason || 'Rejected by reviewer');
+  if (!task) return respondError(msg, `Task ${task_id} not found or not in pending_review status`);
+
+  log(`REJECTED ${task_id}: ${reason || 'no reason'} — re-queued for retry`);
+  publishEvent('rejected', task);
+  respond(msg, task);
+}
+
 // ── Budget Enforcement + Stall Detection ────────────
 
 async function detectStalls() {
@@ -435,6 +600,9 @@ async function detectStalls() {
     );
     if (releasedTask) publishEvent('released', releasedTask);
 
+    // Update plan progress if this task belongs to a plan
+    await checkPlanProgress(task.task_id, 'failed');
+
     // Notify the agent's node (fire-and-forget)
     if (task.owner) {
       nc.publish(`mesh.agent.${task.owner}.stall`, sc.encode(JSON.stringify({
@@ -460,6 +628,19 @@ async function enforceBudgets() {
       task.attempts
     );
     if (failedTask) publishEvent('failed', failedTask);
+
+    // Clean up any collab session for this task
+    if (collabStore && task.collab_session_id) {
+      try {
+        await collabStore.markAborted(task.collab_session_id, `Budget exceeded for task ${task.task_id}`);
+        log(`BUDGET → COLLAB: aborted session ${task.collab_session_id}`);
+      } catch (err) {
+        log(`BUDGET → COLLAB ERROR: ${err.message}`);
+      }
+    }
+
+    // Update plan progress if this task belongs to a plan
+    await checkPlanProgress(task.task_id, 'failed');
 
     // Publish notification so the agent knows
     nc.publish(`mesh.agent.${task.owner}.budget_exceeded`, sc.encode(JSON.stringify({
@@ -1142,6 +1323,11 @@ async function advancePlanWave(planId) {
       case 'solo_mesh':
       case 'collab_mesh': {
         // Submit as mesh task — inherit routing fields from parent task
+        // Auto-assign role from scope if subtask doesn't specify one
+        const subtaskRole = st.role || (st.scope && st.scope.length > 0
+          ? (findRoleByScope(st.scope, ROLE_DIRS)?.id || null)
+          : null);
+
         const meshTask = createTask({
           task_id: st.subtask_id,
           title: st.title,
@@ -1152,8 +1338,12 @@ async function advancePlanWave(planId) {
           success_criteria: st.success_criteria,
           tags: ['plan', planId],
           collaboration: st.delegation.collaboration || undefined,
+          plan_id: planId,
+          subtask_id: st.subtask_id,
+          role: subtaskRole,
           ...inheritedRouting,
         });
+        if (subtaskRole) log(`  → AUTO-ROLE ${st.subtask_id}: ${subtaskRole} (matched from scope)`);
         await store.put(meshTask);
         st.mesh_task_id = meshTask.task_id;
         publishEvent('submitted', meshTask);
@@ -1207,31 +1397,173 @@ async function advancePlanWave(planId) {
   publishPlanEvent('wave_started', plan);
 }
 
+/**
+ * Update a plan subtask's status without triggering wave advancement.
+ * Used for intermediate states like pending_review.
+ */
+async function updatePlanSubtaskStatus(taskId, newStatus) {
+  const task = await store.get(taskId);
+  if (!task || !task.plan_id) return;
+  const plan = await planStore.get(task.plan_id);
+  if (!plan) return;
+  const st = plan.subtasks.find(s => s.mesh_task_id === taskId || s.subtask_id === taskId);
+  if (!st) return;
+  st.status = newStatus;
+  await planStore.put(plan);
+  log(`PLAN SUBTASK ${st.subtask_id} → ${newStatus} (no wave advance)`);
+}
+
 // ── Plan Progress on Task Completion ────────────────
 
 /**
  * When a mesh task completes, check if it belongs to a plan and update accordingly.
- * Called after handleComplete/handleFail.
+ * Called after handleComplete/handleFail and from detectStalls/enforceBudgets.
  */
 async function checkPlanProgress(taskId, status) {
-  // Look for plans that reference this task
-  const allPlans = await planStore.list({ status: PLAN_STATUS.EXECUTING });
-  for (const plan of allPlans) {
-    const st = plan.subtasks.find(s => s.mesh_task_id === taskId || s.subtask_id === taskId);
-    if (!st) continue;
+  let plan = null;
+  let st = null;
 
-    st.status = status === 'completed' ? SUBTASK_STATUS.COMPLETED : SUBTASK_STATUS.FAILED;
+  // Fast path: O(1) lookup via plan_id back-reference on the task
+  const task = await store.get(taskId);
+  if (task && task.plan_id) {
+    plan = await planStore.get(task.plan_id);
+    if (plan) {
+      // Match by mesh_task_id, subtask_id, OR the task's subtask_id field
+      // (escalation tasks carry the original subtask_id for plan recovery)
+      st = plan.subtasks.find(s =>
+        s.mesh_task_id === taskId ||
+        s.subtask_id === taskId ||
+        (task.subtask_id && s.subtask_id === task.subtask_id)
+      );
+    }
+  }
+
+  // LEGACY: Remove after 2026-06-01. O(n*m) fallback for tasks created before
+  // plan_id back-reference was added. Track invocations to know when safe to delete.
+  if (!st) {
+    const allPlans = await planStore.list({ status: PLAN_STATUS.EXECUTING });
+    for (const p of allPlans) {
+      const found = p.subtasks.find(s => s.mesh_task_id === taskId || s.subtask_id === taskId);
+      if (found) {
+        plan = p;
+        st = found;
+        break;
+      }
+    }
+  }
+
+  if (!plan || !st) return;
+
+  // Escalation recovery: if a subtask was FAILED/BLOCKED but an escalation task
+  // completes successfully for it, override status to COMPLETED and unblock dependents.
+  const isEscalationRecovery = (
+    status === 'completed' &&
+    (st.status === SUBTASK_STATUS.FAILED || st.status === SUBTASK_STATUS.BLOCKED) &&
+    task && task.tags && task.tags.includes('escalation')
+  );
+
+  if (isEscalationRecovery) {
+    log(`ESCALATION RECOVERY ${plan.plan_id}: subtask ${st.subtask_id} recovered by ${taskId}`);
+    st.status = SUBTASK_STATUS.COMPLETED;
+    st.result = { success: true, summary: `Recovered by escalation task ${taskId}` };
+    // Unblock any dependents that were blocked by the original failure
+    for (const dep of plan.subtasks) {
+      if (dep.status === SUBTASK_STATUS.BLOCKED && dep.depends_on.includes(st.subtask_id)) {
+        dep.status = SUBTASK_STATUS.PENDING;
+        dep.result = null;
+        log(`  UNBLOCKED: ${dep.subtask_id} (dependency ${st.subtask_id} recovered)`);
+      }
+    }
+    await planStore.put(plan);
+    publishPlanEvent('subtask_recovered', plan);
+    await advancePlanWave(plan.plan_id);
+    return;
+  }
+
+  st.status = status === 'completed' ? SUBTASK_STATUS.COMPLETED : SUBTASK_STATUS.FAILED;
+  await planStore.put(plan);
+
+  log(`PLAN PROGRESS ${plan.plan_id}: subtask ${st.subtask_id} → ${st.status}`);
+
+  if (st.status === SUBTASK_STATUS.COMPLETED) {
+    publishPlanEvent('subtask_completed', plan);
+    await advancePlanWave(plan.plan_id);
+    return;
+  }
+
+  // Subtask failed — apply failure policy
+  if (st.status === SUBTASK_STATUS.FAILED) {
+    publishPlanEvent('subtask_failed', plan);
+
+    // Cascade: block all transitive dependents
+    const blockedIds = cascadeFailure(plan, st.subtask_id);
     await planStore.put(plan);
 
-    log(`PLAN PROGRESS ${plan.plan_id}: subtask ${st.subtask_id} → ${st.status}`);
+    const policy = plan.failure_policy || 'continue_best_effort';
 
-    if (st.status === SUBTASK_STATUS.COMPLETED) {
-      publishPlanEvent('subtask_completed', plan);
-      await advancePlanWave(plan.plan_id);
+    if (policy === 'abort_on_first_fail') {
+      await planStore.markAborted(plan.plan_id, `Subtask ${st.subtask_id} failed (abort_on_first_fail)`);
+      publishPlanEvent('aborted', await planStore.get(plan.plan_id));
+      log(`PLAN ABORTED ${plan.plan_id}: ${st.subtask_id} failed (abort_on_first_fail policy)`);
+      return;
     }
 
-    break;
+    if (policy === 'abort_on_critical_fail') {
+      // Check direct failure
+      if (st.critical) {
+        await planStore.markAborted(plan.plan_id, `Critical subtask ${st.subtask_id} failed (abort_on_critical_fail)`);
+        publishPlanEvent('aborted', await planStore.get(plan.plan_id));
+        log(`PLAN ABORTED ${plan.plan_id}: critical subtask ${st.subtask_id} failed`);
+        return;
+      }
+
+      // Check if cascade blocked any critical subtasks — a blocked critical is
+      // functionally equivalent to a failed critical (the plan can't achieve its goal)
+      const blockedCritical = plan.subtasks.filter(
+        s => blockedIds.has(s.subtask_id) && s.critical
+      );
+      if (blockedCritical.length > 0) {
+        const ids = blockedCritical.map(s => s.subtask_id).join(', ');
+        await planStore.markAborted(
+          plan.plan_id,
+          `Critical subtask(s) ${ids} blocked by failed dependency ${st.subtask_id} (abort_on_critical_fail)`
+        );
+        publishPlanEvent('aborted', await planStore.get(plan.plan_id));
+        log(`PLAN ABORTED ${plan.plan_id}: critical subtask(s) [${ids}] blocked by ${st.subtask_id}`);
+        return;
+      }
+    }
+
+    // continue_best_effort: try to advance independent branches
+    await advancePlanWave(plan.plan_id);
   }
+}
+
+/**
+ * Cascade failure: BFS from failed subtask, mark all transitive dependents as BLOCKED.
+ * Mutates plan.subtasks in place.
+ * @returns {Set<string>} IDs of all newly-blocked subtasks
+ */
+function cascadeFailure(plan, failedSubtaskId) {
+  const blocked = new Set();
+  const queue = [failedSubtaskId];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    for (const st of plan.subtasks) {
+      if (st.depends_on.includes(current) && !blocked.has(st.subtask_id)) {
+        if (st.status === SUBTASK_STATUS.PENDING || st.status === SUBTASK_STATUS.QUEUED) {
+          st.status = SUBTASK_STATUS.BLOCKED;
+          st.result = { success: false, summary: `Blocked by failed dependency: ${failedSubtaskId}` };
+          blocked.add(st.subtask_id);
+          queue.push(st.subtask_id);
+          log(`  CASCADE: ${st.subtask_id} blocked by ${failedSubtaskId}`);
+        }
+      }
+    }
+  }
+
+  return blocked;
 }
 
 // ── Main ────────────────────────────────────────────
@@ -1271,6 +1603,8 @@ async function main() {
     'mesh.tasks.list':      handleList,
     'mesh.tasks.get':       handleGet,
     'mesh.tasks.cancel':    handleCancel,
+    'mesh.tasks.approve':   handleTaskApprove,
+    'mesh.tasks.reject':    handleTaskReject,
     // Collab handlers
     'mesh.collab.create':   handleCollabCreate,
     'mesh.collab.join':     handleCollabJoin,

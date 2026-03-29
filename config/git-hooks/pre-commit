@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Git pre-commit hook — delegates to Claude Code hook for consistent validation.
+# Installed by openclaw-node installer. LLM-agnostic: works regardless of AI tool.
+
+HOOK_DIR="$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks"
+
+if [ -x "${HOOK_DIR}/validate-commit.sh" ]; then
+  # Simulate the input format the hook expects (git commit context)
+  echo '{"tool_input":{"command":"git commit"}}' | bash "${HOOK_DIR}/validate-commit.sh"
+  exit $?
+fi
+
+exit 0

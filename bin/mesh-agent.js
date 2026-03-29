@@ -41,6 +41,9 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const { getActivityState, getSessionInfo } = require('../lib/agent-activity');
+const { loadAllRules, matchRules, formatRulesForPrompt, detectFrameworks, activateFrameworkRules } = require('../lib/rule-loader');
+const { loadHarnessRules, runMeshHarness, runPostCommitValidation, formatHarnessForPrompt } = require('../lib/mesh-harness');
+const { findRole, formatRoleForPrompt } = require('../lib/role-loader');
 
 const sc = StringCodec();
 const { NATS_URL } = require('../lib/nats-resolve');
@@ -50,6 +53,75 @@ const POLL_INTERVAL = parseInt(process.env.MESH_POLL_INTERVAL || '15000'); // 15
 const MAX_ATTEMPTS = parseInt(process.env.MESH_MAX_ATTEMPTS || '3');
 const HEARTBEAT_INTERVAL = parseInt(process.env.MESH_HEARTBEAT_INTERVAL || '60000'); // 60s heartbeat
 const WORKSPACE = process.env.MESH_WORKSPACE || path.join(process.env.HOME, '.openclaw', 'workspace');
+
+// ── Rule loading (cached at startup, framework-filtered) ─────────────────
+const RULES_DIR = process.env.OPENCLAW_RULES_DIR || path.join(process.env.HOME, '.openclaw', 'rules');
+const HARNESS_PATH = process.env.OPENCLAW_HARNESS_RULES || path.join(process.env.HOME, '.openclaw', 'harness-rules.json');
+let cachedRules = null;
+let cachedHarnessRules = null;
+
+function getRules() {
+  if (!cachedRules) {
+    const allRules = loadAllRules(RULES_DIR);
+    const detected = detectFrameworks(WORKSPACE);
+    cachedRules = activateFrameworkRules(allRules, detected);
+  }
+  return cachedRules;
+}
+
+function getHarnessRules() {
+  if (!cachedHarnessRules) {
+    cachedHarnessRules = loadHarnessRules(HARNESS_PATH, 'mesh');
+  }
+  return cachedHarnessRules;
+}
+
+/**
+ * Inject matching coding rules into a prompt parts array based on task scope.
+ */
+function injectRules(parts, scope) {
+  // Path-scoped coding standards
+  const matched = matchRules(getRules(), scope || []);
+  if (matched.length > 0) {
+    parts.push(formatRulesForPrompt(matched));
+    parts.push('');
+  }
+
+  // Harness behavioral rules (soft enforcement — LLM-agnostic prompt injection)
+  const harnessText = formatHarnessForPrompt(getHarnessRules());
+  if (harnessText) {
+    parts.push(harnessText);
+    parts.push('');
+  }
+}
+
+// ── Role loading (cached per role ID) ─────────────────
+const ROLE_DIRS = [
+  path.join(process.env.HOME, '.openclaw', 'roles'),
+  path.join(__dirname, '..', 'config', 'roles'),
+];
+const roleCache = new Map();
+
+function getRole(roleId) {
+  if (!roleId) return null;
+  if (roleCache.has(roleId)) return roleCache.get(roleId);
+  const role = findRole(roleId, ROLE_DIRS);
+  if (role) roleCache.set(roleId, role);
+  return role;
+}
+
+/**
+ * Inject role profile into prompt parts array.
+ */
+function injectRole(parts, roleId) {
+  const role = getRole(roleId);
+  if (!role) return;
+  const roleText = formatRoleForPrompt(role);
+  if (roleText) {
+    parts.push(roleText);
+    parts.push('');
+  }
+}
 
 // ── CLI args ──────────────────────────────────────────
 
@@ -141,6 +213,12 @@ function buildInitialPrompt(task) {
     parts.push('');
   }
 
+  // Inject path-scoped coding rules matching task scope
+  injectRules(parts, task.scope);
+
+  // Inject role profile (responsibilities, boundaries, framework)
+  injectRole(parts, task.role);
+
   parts.push('## Instructions');
   parts.push('- Read the relevant files before making changes.');
   parts.push('- Make minimal, focused changes. Do not add scope beyond what is asked.');
@@ -199,6 +277,12 @@ function buildRetryPrompt(task, previousAttempts, attemptNumber) {
     }
     parts.push('');
   }
+
+  // Inject path-scoped coding rules matching task scope
+  injectRules(parts, task.scope);
+
+  // Inject role profile (responsibilities, boundaries, framework)
+  injectRole(parts, task.role);
 
   parts.push('## Instructions');
   parts.push('- Do NOT repeat a failed approach. Try something different.');
@@ -284,6 +368,13 @@ function commitAndMergeWorktree(worktreePath, taskId, summary) {
     // Stage and commit all changes
     execSync('git add -A', { cwd: worktreePath, timeout: 10000, stdio: 'pipe' });
     const commitMsg = `mesh(${taskId}): ${(summary || 'task completed').slice(0, 72)}`;
+
+    // Pre-commit validation: check conventional commit format before committing
+    const conventionalPattern = /^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert|mesh)(\(.+\))?: .+/;
+    if (!conventionalPattern.test(commitMsg)) {
+      log(`WARNING: commit message doesn't follow conventional format: "${commitMsg}"`);
+    }
+
     execSync(`git commit -m "${commitMsg.replace(/"/g, '\\"')}"`, {
       cwd: worktreePath, timeout: 10000, stdio: 'pipe',
     });
@@ -509,6 +600,11 @@ function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole) {
       parts.push('');
     }
   }
+
+  // Inject path-scoped coding rules matching task scope
+  const collabScope = Array.isArray(myScope) ? myScope.map(s => s.replace('[REVIEW-ONLY] ', '')) : task.scope;
+  injectRules(parts, collabScope);
+  injectRole(parts, task.role);
 
   if (task.success_criteria && task.success_criteria.length > 0) {
     parts.push('## Success Criteria');
@@ -905,6 +1001,48 @@ async function executeTask(task) {
       continue;
     }
 
+    // ── Mesh Harness: Mechanical Enforcement (LLM-agnostic) ──
+    // Runs AFTER LLM exits successfully, BEFORE commit. This is the hard
+    // enforcement layer — it doesn't depend on the LLM obeying prompt rules.
+    const harnessResult = runMeshHarness({
+      rules: getHarnessRules(),
+      worktreePath,
+      taskScope: task.scope,
+      llmOutput: llmResult.stdout,
+      hasMetric: !!task.metric,
+      log,
+      role: getRole(task.role),
+    });
+
+    if (!harnessResult.pass) {
+      log(`HARNESS BLOCKED: ${harnessResult.violations.length} violation(s)`);
+      for (const v of harnessResult.violations) {
+        log(`  - [${v.rule}] ${v.message}`);
+      }
+      // Scope violations were already reverted by enforceScopeCheck.
+      // Secret violations block the commit entirely.
+      const hasSecrets = harnessResult.violations.some(v => v.rule === 'no-hardcoded-secrets');
+      if (hasSecrets) {
+        const attemptRecord = {
+          approach: `Attempt ${attempt}: harness blocked — secrets detected`,
+          result: harnessResult.violations.map(v => v.message).join('; '),
+          keep: false,
+        };
+        attempts.push(attemptRecord);
+        await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+        log(`Attempt ${attempt}: harness blocked commit (secrets). Retrying.`);
+        continue;
+      }
+      // Non-secret violations (scope reverts, output blocks): proceed with warnings
+    }
+
+    if (harnessResult.warnings.length > 0) {
+      log(`HARNESS WARNINGS: ${harnessResult.warnings.length}`);
+      for (const w of harnessResult.warnings) {
+        log(`  - [${w.rule}] ${w.message}`);
+      }
+    }
+
     // If no metric, trust LLM output and complete
     if (!task.metric) {
       const attemptRecord = {
@@ -919,11 +1057,20 @@ async function executeTask(task) {
       const mergeResult = commitAndMergeWorktree(worktreePath, task.task_id, summary);
       const keepBranch = mergeResult && !mergeResult.merged; // keep on merge conflict
 
+      // Post-commit validation (conventional commits, etc.)
+      if (mergeResult?.committed) {
+        runPostCommitValidation(getHarnessRules(), worktreePath, log);
+      }
+
       await natsRequest('mesh.tasks.complete', {
         task_id: task.task_id,
         result: {
           success: true, summary, artifacts: [],
           cost: sessionInfo?.cost || null,
+          harness: {
+            violations: harnessResult.violations,
+            warnings: harnessResult.warnings,
+          },
           sha: mergeResult?.sha || null,
           merged: mergeResult?.merged ?? null,
         },
@@ -951,6 +1098,11 @@ async function executeTask(task) {
       const mergeResult = commitAndMergeWorktree(worktreePath, task.task_id, summary);
       const keepBranch = mergeResult && !mergeResult.merged;
 
+      // Post-commit validation (conventional commits, etc.)
+      if (mergeResult?.committed) {
+        runPostCommitValidation(getHarnessRules(), worktreePath, log);
+      }
+
       await natsRequest('mesh.tasks.complete', {
         task_id: task.task_id,
         result: {
@@ -960,6 +1112,10 @@ async function executeTask(task) {
           cost: sessionInfo?.cost || null,
           sha: mergeResult?.sha || null,
           merged: mergeResult?.merged ?? null,
+          harness: {
+            violations: harnessResult.violations,
+            warnings: harnessResult.warnings,
+          },
         },
       });
       cleanupWorktree(worktreePath, keepBranch);

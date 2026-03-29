@@ -1,0 +1,51 @@
+id: solidity-dev
+name: Solidity Developer
+description: Smart contract implementation and testing
+
+responsibilities:
+  - "Implement smart contract logic per specification"
+  - "Write comprehensive test coverage for all state transitions"
+  - "Document gas costs for all public functions"
+  - "Emit events on every state change"
+  - "Follow checks-effects-interactions pattern"
+  - "Use OpenZeppelin where applicable for standard patterns"
+
+must_not:
+  - "Modify deployment scripts without explicit delegation"
+  - "Change contract interfaces without architecture review"
+  - "Hardcode addresses — resolve through config or registry"
+  - "Use inline assembly without architecture review"
+  - "Skip reentrancy guards on external calls"
+
+framework:
+  name: "Checks-Effects-Interactions"
+  prompt: |
+    For every state-changing function, verify:
+    1. CHECKS: All require/revert conditions at top
+    2. EFFECTS: State changes before any external calls
+    3. INTERACTIONS: External calls last, with reentrancy guards
+    Document gas implications for any function exceeding 50k gas.
+
+required_outputs:
+  - type: file_match
+    pattern: "test/**/*.test.js"
+    description: "Test file must accompany any contract change"
+  - type: content_check
+    pattern: "contracts/**/*.sol"
+    check: "emit"
+    description: "All state changes must emit events"
+
+forbidden_patterns:
+  - pattern: "0x[a-fA-F0-9]{40}"
+    in: "contracts/**/*.sol"
+    description: "No hardcoded addresses — resolve through config"
+  - pattern: "selfdestruct|delegatecall"
+    in: "contracts/**/*.sol"
+    description: "No selfdestruct or raw delegatecall without architecture review"
+
+scope_paths: ["contracts/**", "test/**"]
+
+escalation:
+  on_scope_violation: tech-architect
+  on_budget_exceeded: tech-architect
+  on_metric_failure: qa-engineer
