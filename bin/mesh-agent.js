@@ -1032,6 +1032,9 @@ async function executeCollabTask(task) {
   // Create worktree for isolation
   const worktreePath = createWorktree(`${task.task_id}-${NODE_ID}`);
   const taskDir = worktreePath || WORKSPACE;
+  if (!worktreePath) {
+    log(`WARNING: Collab task ${task.task_id} running in shared workspace — isolation not achieved`);
+  }
 
   // Periodic session heartbeat — detects abort/completion while waiting for rounds
   const sessionHeartbeat = setInterval(async () => {
@@ -1190,9 +1193,13 @@ async function executeTask(task) {
   // Create isolated worktree for this task (falls back to shared workspace on failure)
   const worktreePath = createWorktree(task.task_id);
   const taskDir = worktreePath || WORKSPACE;
+  const workspaceIsolated = !!worktreePath;
+  if (!workspaceIsolated) {
+    log(`WARNING: Task ${task.task_id} running in shared workspace — isolation not achieved`);
+  }
 
-  // Signal start
-  await natsRequest('mesh.tasks.start', { task_id: task.task_id });
+  // Signal start (include isolation status so daemon knows)
+  await natsRequest('mesh.tasks.start', { task_id: task.task_id, workspace_isolated: workspaceIsolated });
   writeAgentState('working', task.task_id);
   log(`Started: ${task.task_id} (dir: ${worktreePath ? 'worktree' : 'workspace'})`);
 

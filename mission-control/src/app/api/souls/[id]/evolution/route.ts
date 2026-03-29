@@ -69,7 +69,10 @@ export async function GET(
       const lines = content.trim().split("\n").filter(Boolean);
       fullEvents = lines.map((line) => JSON.parse(line));
     } catch (error) {
-      // events.jsonl might be empty or not exist yet
+      // events.jsonl might be empty, not exist yet, or contain malformed lines
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        console.warn("Failed to parse events.jsonl:", error);
+      }
     }
 
     // Merge DB records with full event details
@@ -174,11 +177,20 @@ export async function PATCH(
         "events.jsonl"
       );
       const content = await fs.readFile(eventsPath, "utf-8");
-      const events = content
-        .trim()
-        .split("\n")
-        .filter(Boolean)
-        .map((line) => JSON.parse(line));
+      let events: EvolutionEvent[];
+      try {
+        events = content
+          .trim()
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => JSON.parse(line));
+      } catch (parseErr) {
+        console.error("Malformed JSONL in events.jsonl:", parseErr);
+        return NextResponse.json(
+          { error: "Failed to parse evolution events file (malformed JSONL)" },
+          { status: 500 }
+        );
+      }
       const event = events.find((e: EvolutionEvent) => e.eventId === eventId);
 
       if (!event) {
@@ -195,7 +207,16 @@ export async function PATCH(
       );
 
       if (event.proposedChange.action === "add") {
-        const existing = JSON.parse(await fs.readFile(targetPath, "utf-8"));
+        let existing;
+        try {
+          existing = JSON.parse(await fs.readFile(targetPath, "utf-8"));
+        } catch (parseErr) {
+          console.error(`Malformed JSON in ${targetPath}:`, parseErr);
+          return NextResponse.json(
+            { error: `Failed to parse ${event.proposedChange.target} (malformed JSON)` },
+            { status: 500 }
+          );
+        }
         if (event.proposedChange.target === "genes.json") {
           existing.genes.push(event.proposedChange.content);
         }

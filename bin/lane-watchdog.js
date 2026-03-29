@@ -193,29 +193,39 @@ function tailLog(filePath, label) {
 
   const watcher = fs.watch(filePath, { persistent: true }, () => {
     try {
-      const stat = fs.statSync(filePath);
-      if (stat.size < fileSize) {
-        // Log was rotated
-        fileSize = 0;
-      }
-      if (stat.size > fileSize) {
-        const stream = fs.createReadStream(filePath, {
-          start: fileSize,
-          end: stat.size,
-          encoding: 'utf8'
-        });
-        let buffer = '';
-        stream.on('data', chunk => { buffer += chunk; });
-        stream.on('end', () => {
-          const lines = buffer.split('\n').filter(Boolean);
-          for (const line of lines) {
-            parseLine(line);
-          }
-          fileSize = stat.size;
-        });
-      }
+      // Read from current fileSize to EOF — avoid TOCTOU race by not
+      // pre-checking stat.size. createReadStream with just `start` reads
+      // to the end of the file atomically, then we update fileSize from
+      // the bytes actually read.
+      const stream = fs.createReadStream(filePath, {
+        start: fileSize,
+        encoding: 'utf8'
+      });
+      let buffer = '';
+      let bytesRead = 0;
+      stream.on('data', chunk => { buffer += chunk; bytesRead += Buffer.byteLength(chunk, 'utf8'); });
+      stream.on('end', () => {
+        if (bytesRead === 0) return; // no new data
+        const lines = buffer.split('\n').filter(Boolean);
+        for (const line of lines) {
+          parseLine(line);
+        }
+        fileSize += bytesRead;
+      });
+      stream.on('error', (err) => {
+        if (err.code === 'ENOENT') {
+          // File was deleted/rotated — reset position
+          fileSize = 0;
+        } else {
+          log(`ERROR: reading ${label}: ${err.message}`);
+        }
+      });
     } catch (err) {
-      log(`ERROR: reading ${label}: ${err.message}`);
+      if (err.code === 'ENOENT') {
+        fileSize = 0;
+      } else {
+        log(`ERROR: reading ${label}: ${err.message}`);
+      }
     }
   });
 

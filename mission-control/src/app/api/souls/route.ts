@@ -94,9 +94,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(newSoul, { status: 201 });
   } catch (error) {
     console.error("Failed to register soul:", error);
+    const status = error instanceof SyntaxError ? 400 : 500;
     return NextResponse.json(
-      { error: "Failed to register soul" },
-      { status: 500 }
+      { error: status === 400 ? String(error) : "Failed to register soul" },
+      { status }
     );
   }
 }
@@ -133,9 +134,10 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(registry.souls[soulIndex]);
   } catch (error) {
     console.error("Failed to update soul:", error);
+    const status = error instanceof SyntaxError ? 400 : 500;
     return NextResponse.json(
-      { error: "Failed to update soul" },
-      { status: 500 }
+      { error: status === 400 ? String(error) : "Failed to update soul" },
+      { status }
     );
   }
 }

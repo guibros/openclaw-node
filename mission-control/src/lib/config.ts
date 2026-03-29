@@ -1,7 +1,8 @@
 import path from "path";
+import { hostname, homedir } from "os";
 
 export const WORKSPACE_ROOT =
-  process.env.WORKSPACE_ROOT || "/Users/moltymac/.openclaw/workspace";
+  process.env.WORKSPACE_ROOT || path.join(homedir(), ".openclaw", "workspace");
 
 export const DB_PATH =
   process.env.DB_PATH ||
@@ -75,7 +76,6 @@ export function validatePathParam(param: string): string {
 }
 
 // ── Node Identity (Distributed MC) ──
-import { hostname } from "os";
 
 /** This node's unique identifier in the mesh */
 export const NODE_ID = process.env.OPENCLAW_NODE_ID || hostname();

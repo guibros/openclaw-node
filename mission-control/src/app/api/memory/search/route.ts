@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     const source = searchParams.get("source");
     const category = searchParams.get("category");
     const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 100);
-    const offset = parseInt(searchParams.get("offset") || "0", 10);
+    const offset = Math.max(0, Math.min(parseInt(searchParams.get("offset") || "0", 10) || 0, 10000));
     const useDecay = searchParams.get("decay") !== "false"; // default: true
     const decayRate = parseFloat(searchParams.get("decay_rate") || "0.01");
 
@@ -141,6 +141,7 @@ export async function GET(request: NextRequest) {
     console.error("GET /api/memory/search error:", err);
     const message =
       err instanceof Error ? err.message : "Failed to search memory";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = err instanceof SyntaxError || err instanceof RangeError ? 400 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

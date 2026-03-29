@@ -75,10 +75,17 @@ export async function POST(
       const lines = content.trim().split("\n").filter(Boolean);
       const events: EvolutionEventEntry[] = lines.map((line) => JSON.parse(line));
       sourceEvent = events.find((e) => e.eventId === sourceEventId) ?? null;
-    } catch {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return NextResponse.json(
+          { error: "Source events file not found" },
+          { status: 404 }
+        );
+      }
+      console.error("Failed to parse source events.jsonl:", error);
       return NextResponse.json(
-        { error: "Source events file not found" },
-        { status: 404 }
+        { error: "Failed to parse source events file (malformed JSONL)" },
+        { status: 500 }
       );
     }
 

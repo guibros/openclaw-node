@@ -37,6 +37,7 @@ describe("TASK_STATUS enum", () => {
       "queued",
       "claimed",
       "running",
+      "pending_review",
       "completed",
       "failed",
       "released",

@@ -155,6 +155,60 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (body.title.length > 500) {
+      return NextResponse.json(
+        { error: "title must be 500 characters or fewer" },
+        { status: 400 }
+      );
+    }
+
+    if (body.success_criteria !== undefined) {
+      if (!Array.isArray(body.success_criteria)) {
+        if (typeof body.success_criteria === "string") {
+          try {
+            const parsed = JSON.parse(body.success_criteria);
+            if (!Array.isArray(parsed)) {
+              return NextResponse.json(
+                { error: "success_criteria must be a JSON array" },
+                { status: 400 }
+              );
+            }
+          } catch {
+            return NextResponse.json(
+              { error: "success_criteria must be a valid JSON array string" },
+              { status: 400 }
+            );
+          }
+        } else {
+          return NextResponse.json(
+            { error: "success_criteria must be an array or JSON array string" },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    const VALID_STATUSES = [
+      "not started", "queued", "ready", "submitted", "running",
+      "blocked", "waiting-user", "done", "cancelled", "archived",
+    ];
+    if (body.status && !VALID_STATUSES.includes(body.status)) {
+      return NextResponse.json(
+        { error: `status must be one of: ${VALID_STATUSES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    if (body.scheduled_date) {
+      const d = new Date(body.scheduled_date);
+      if (isNaN(d.getTime())) {
+        return NextResponse.json(
+          { error: "scheduled_date must be a valid ISO date string" },
+          { status: 400 }
+        );
+      }
+    }
+
     const status = body.status || "not started";
     const now = new Date();
     // Allow custom IDs for projects/pipelines/phases; auto-generate for tasks
@@ -236,9 +290,10 @@ export async function POST(request: NextRequest) {
     );
   } catch (err) {
     console.error("POST /api/tasks error:", err);
+    const status = err instanceof SyntaxError ? 400 : 500;
     return NextResponse.json(
-      { error: "Failed to create task" },
-      { status: 500 }
+      { error: status === 400 ? String(err) : "Failed to create task" },
+      { status }
     );
   }
 }
