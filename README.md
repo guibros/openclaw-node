@@ -526,6 +526,101 @@ delegation:
 
 Both souls produce reflections. The shared intel compilation includes both perspectives.
 
+### Circling Strategy (Asymmetric Multi-Agent Review)
+
+A directed collaboration mode where 3 agents — 1 Worker and 2 Reviewers — iterate through structured sub-rounds of work, review, and integration. Each agent sees only what the protocol decides it should see at each step, creating cognitive separation that prevents groupthink.
+
+**Architecture:** Four layers with zero coupling:
+
+```
+lib/circling-parser.js   (parsing)       Delimiter-based LLM output parser
+bin/mesh-agent.js        (execution)     Prompt construction, LLM calls
+bin/mesh-task-daemon.js  (orchestration) NATS handlers, step lifecycle, timeouts
+lib/mesh-collab.js       (state)         Session schema, artifact store, state machine
+bin/mesh-bridge.js       (human UI)      Kanban materialization, gate messages
+```
+
+**Workflow:**
+
+```
+Task → RECRUITING (3 nodes join, roles assigned)
+     → INIT (Worker: workArtifact v0, Reviewers: reviewStrategy)
+     → SUB-ROUND LOOP (SR1..SRN):
+         Step 1 — Review Pass:
+           Worker analyzes review strategies (+ review findings in SR2+)
+           Reviewers review workArtifact using their strategy
+         Step 2 — Integration:
+           Worker judges each finding (ACCEPT/REJECT/MODIFY), updates artifact
+           Reviewers refine strategy using Worker feedback + cross-review
+     → FINALIZATION (Worker: final artifact + completionDiff, Reviewers: vote)
+     → COMPLETE (or gate → human approve/reject → loop)
+```
+
+**Key features:**
+- **Directed handoffs** — each node sees only its role-specific inputs per step (information flow matrix enforced by `compileDirectedInput`)
+- **Cross-review** — in Step 2, Reviewer A sees Reviewer B's findings and vice versa, enabling inter-reviewer learning
+- **Adaptive convergence** — if all nodes vote `converged` after step 2, skips remaining sub-rounds and goes directly to finalization
+- **Stored role identities** — `worker_node_id`, `reviewerA_node_id`, `reviewerB_node_id` assigned once at recruiting close, stable for session lifetime
+- **Dual-layer timeouts** — in-memory timers (fast, per-step) + periodic cron sweep every 60s (survives daemon restart via `step_started_at` in JetStream KV)
+- **Tiered human gates** — Tier 1: fully autonomous. Tier 2: gate on finalization. Tier 3: gate every sub-round. Blocked votes always gate.
+- **Delimiter-based parsing** — `===CIRCLING_ARTIFACT===` / `===END_ARTIFACT===` delimiters instead of JSON (LLMs produce reliable delimiter-separated output). Parser extracted to standalone `lib/circling-parser.js` (zero deps, shared by agent and tests).
+- **Anti-preamble prompt hardening** — explicit instruction prevents LLM prose from contaminating code artifacts
+- **Session blob monitoring** — warns at 800KB, critical at 950KB (JetStream KV max 1MB). KV write failures caught and recovered (artifact removed, session re-persisted).
+- **Recruiting guard** — validates 1 worker + 2 reviewers before starting. `min_nodes` defaults to 3 for circling mode.
+
+**Information flow matrix — what each node receives:**
+
+| Phase | Worker Receives | Reviewers Receive |
+|-------|----------------|-------------------|
+| Init | Task plan | Task plan |
+| Step 1 (SR1) | Both reviewStrategies | workArtifact |
+| Step 1 (SR2+) | Both strategies + review findings* | workArtifact + reconciliationDoc |
+| Step 2 | Both reviewArtifacts | workerReviewsAnalysis + other reviewer's cross-review* |
+| Finalization | Task plan + final workArtifact | Task plan + final workArtifact |
+
+`*` = optional (silently skipped if null)
+
+**State machine:**
+
+```
+[init] → [circling/SR1/step1] → [step2] → [SR2/step1] → ... → [finalization] → [complete]
+                                                                      ↑                |
+                                        gate reject: max_subrounds++ ─┘    (all converged)
+```
+
+**Gate behavior:**
+- Tier 2+: gates on finalization entry
+- Tier 3: also gates after every sub-round
+- Blocked votes in finalization: always gate, reviewer reason shown on kanban (`[GATE] SR2 blocked — reentrancy guard missing on withdraw function`)
+
+**Usage:**
+
+```yaml
+delegation:
+  mode: collab_mesh
+  collaboration:
+    mode: circling_strategy
+    min_nodes: 3
+    max_subrounds: 3
+    automation_tier: 2
+    node_roles:
+      - role: worker
+        soul: solidity-dev
+      - role: reviewer
+        soul: blockchain-auditor
+      - role: reviewer
+        soul: qa-engineer
+```
+
+**Tests:**
+
+```bash
+# All circling tests (93 tests, no external deps)
+node --test test/collab-circling.test.js test/daemon-circling-handlers.test.js test/circling-comprehensive.test.js
+```
+
+Full implementation reference: `docs/circling-strategy-implementationV3.md`
+
 ## Lifecycle Hooks
 
 6 hooks wired into Claude Code lifecycle events, plus dual-wired git hooks for LLM-agnostic enforcement:
