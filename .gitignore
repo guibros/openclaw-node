@@ -17,5 +17,11 @@ mission-control/.npm-cache/
 __pycache__/
 *.pyc
 
+# Secrets & databases
+*.pem
+*.key
+*.sqlite
+*.sqlite3
+
 # Skill build artifacts (not actual skills)
 skills/dist/

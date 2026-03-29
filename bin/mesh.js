@@ -27,23 +27,7 @@ const { connect, StringCodec, createInbox } = require('nats');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-
-// ─── Config ──────────────────────────────────────────
-// ── NATS URL resolution: env var → ~/.openclaw/openclaw.env → fallback IP ──
-const NATS_FALLBACK = 'nats://100.91.131.61:4222';
-function resolveNatsUrl() {
-  if (process.env.OPENCLAW_NATS) return process.env.OPENCLAW_NATS;
-  try {
-    const envFile = path.join(os.homedir(), '.openclaw', 'openclaw.env');
-    if (fs.existsSync(envFile)) {
-      const content = fs.readFileSync(envFile, 'utf8');
-      const match = content.match(/^\s*OPENCLAW_NATS\s*=\s*(.+)/m);
-      if (match && match[1].trim()) return match[1].trim();
-    }
-  } catch {}
-  return NATS_FALLBACK;
-}
-const NATS_URL = resolveNatsUrl();
+const { natsConnectOpts } = require('../lib/nats-resolve');
 const SHARED_DIR = path.join(os.homedir(), 'openclaw', 'shared');
 const LOCAL_NODE = os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const sc = StringCodec();
@@ -107,10 +91,11 @@ function checkExecSafety(command) {
  * Connect to NATS with a short timeout (this is a CLI tool, not a daemon).
  */
 async function natsConnect() {
+  const opts = natsConnectOpts();
   try {
-    return await connect({ servers: NATS_URL, timeout: 5000 });
+    return await connect({ ...opts, timeout: 5000 });
   } catch (err) {
-    console.error(`Error: Cannot connect to NATS at ${NATS_URL}`);
+    console.error(`Error: Cannot connect to NATS at ${opts.servers}`);
     console.error(`Is the NATS server running? Is Tailscale connected?`);
     process.exit(1);
   }
@@ -880,7 +865,7 @@ async function cmdPlan(args) {
       }
 
       // Submit to mesh via NATS
-      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      const nc = await connect({ ...natsConnectOpts(), timeout: 5000 });
       try {
         const reply = await nc.request(
           'mesh.plans.create',
@@ -908,7 +893,7 @@ async function cmdPlan(args) {
         if (args[i] === '--status' && args[i + 1]) { statusFilter = args[++i]; }
       }
 
-      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      const nc = await connect({ ...natsConnectOpts(), timeout: 5000 });
       try {
         const payload = statusFilter ? { status: statusFilter } : {};
         const reply = await nc.request(
@@ -941,7 +926,7 @@ async function cmdPlan(args) {
         process.exit(1);
       }
 
-      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      const nc = await connect({ ...natsConnectOpts(), timeout: 5000 });
       try {
         const reply = await nc.request(
           'mesh.plans.get',
@@ -1039,7 +1024,7 @@ async function cmdPlan(args) {
         process.exit(1);
       }
 
-      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      const nc = await connect({ ...natsConnectOpts(), timeout: 5000 });
       try {
         const reply = await nc.request(
           'mesh.plans.approve',
@@ -1068,7 +1053,7 @@ async function cmdPlan(args) {
         process.exit(1);
       }
 
-      const nc = await connect({ servers: NATS_URL, timeout: 5000 });
+      const nc = await connect({ ...natsConnectOpts(), timeout: 5000 });
       try {
         const reply = await nc.request(
           'mesh.plans.abort',
