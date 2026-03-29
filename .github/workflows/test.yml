@@ -1,0 +1,32 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - name: Root unit tests
+        run: node --test test/*.test.js test/*.test.mjs
+
+  mission-control-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cd mission-control && npm ci
+      - name: Mission Control unit tests
+        run: cd mission-control && npx vitest run src/lib/__tests__/
