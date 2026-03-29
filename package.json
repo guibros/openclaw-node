@@ -40,10 +40,11 @@
     "url": "https://github.com/moltyguibros-design/openclaw-node.git"
   },
   "scripts": {
-    "test": "node test/mesh-tasks-status.test.js",
-    "test:unit": "node test/mesh-tasks-status.test.js",
+    "test": "node --test test/*.test.js test/*.test.mjs",
+    "test:unit": "node --test test/*.test.js test/*.test.mjs",
+    "test:mc": "cd mission-control && npx vitest run src/lib/__tests__/",
     "test:integration": "node test/distributed-mc.test.js",
-    "test:all": "npm run test:unit && cd mission-control && npm run test:unit && cd .. && npm run test:integration"
+    "test:all": "npm run test:unit && npm run test:mc && npm run test:integration"
   },
   "engines": {
     "node": ">=18"
