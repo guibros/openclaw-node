@@ -283,7 +283,10 @@ export function syncTasksToMarkdown(db: DrizzleDb): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(tmpPath, markdown, "utf-8");
+  const fd = fs.openSync(tmpPath, "w");
+  fs.writeSync(fd, markdown, 0, "utf-8");
+  fs.fsyncSync(fd);
+  fs.closeSync(fd);
   fs.renameSync(tmpPath, ACTIVE_TASKS_MD);
 
   // Record mtime of our own write so we don't re-import it
