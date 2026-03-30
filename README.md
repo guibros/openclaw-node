@@ -14,7 +14,21 @@ Installable package for deploying an OpenClaw node. Includes the full infrastruc
 - **Plan Pipelines** — YAML-based multi-phase workflows with dependency waves, failure cascade, and escalation recovery
 - **Knowledge Server** — LLM-agnostic MCP server for semantic search over markdown (local embeddings, sqlite-vec, NATS mesh)
 
-## Quick Start (Ubuntu)
+## Quick Start
+
+### Option 1: npx (recommended)
+
+```bash
+npx openclaw-node-harness
+```
+
+This downloads and runs the installer interactively. It will clone the repo, install dependencies, and set up the full stack. Pass `--update` to refresh an existing installation:
+
+```bash
+npx openclaw-node-harness --update
+```
+
+### Option 2: Git clone
 
 ```bash
 git clone https://github.com/moltyguibros-design/openclaw-node.git
