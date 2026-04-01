@@ -19,6 +19,8 @@ const { connect, StringCodec } = require("nats");
 const { execSync } = require("child_process");
 const os = require("os");
 const path = require("path");
+const { createTracer, setNatsConnection } = require('../lib/tracer');
+const tracer = createTracer('mesh-health-publisher');
 
 // ── Config ───────────────────────────────────────────────────────────────
 
@@ -206,6 +208,9 @@ function gatherHealth() {
   };
 }
 
+// ── Tracer Instrumentation ───────────────────────────────────────────────
+gatherHealth = tracer.wrap('gatherHealth', gatherHealth, { tier: 3 });
+
 // ── Main Loop ────────────────────────────────────────────────────────────
 
 async function main() {
@@ -220,6 +225,7 @@ async function main() {
   }));
 
   console.log("[health-publisher] NATS connected");
+  setNatsConnection(nc, sc);
 
   // Get or create the KV bucket
   const js = nc.jetstream();
@@ -274,6 +280,7 @@ async function main() {
     }
   }
 
+  publish = tracer.wrapAsync('publish', publish, { tier: 3 });
   await publish();
   setInterval(publish, PUBLISH_INTERVAL_MS);
 

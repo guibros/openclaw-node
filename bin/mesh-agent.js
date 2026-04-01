@@ -36,6 +36,8 @@
  */
 
 const { connect, StringCodec } = require('nats');
+const { createTracer, setNatsConnection } = require('../lib/tracer');
+const tracer = createTracer('mesh-agent');
 const { spawn, execSync, execFileSync } = require('child_process');
 const os = require('os');
 const path = require('path');
@@ -1409,6 +1411,17 @@ async function executeTask(task) {
   log(`RELEASED: ${task.task_id} — ${reason}`);
 }
 
+// ── Tracer wrapping ──────────────────────────────────
+executeTask = tracer.wrapAsync('executeTask', executeTask, { tier: 1, category: 'state_transition' });
+executeCollabTask = tracer.wrapAsync('executeCollabTask', executeCollabTask, { tier: 1, category: 'state_transition' });
+evaluateMetric = tracer.wrap('evaluateMetric', evaluateMetric, { tier: 2, category: 'compute' });
+runLLM = tracer.wrap('runLLM', runLLM, { tier: 2, category: 'compute' });
+createWorktree = tracer.wrap('createWorktree', createWorktree, { tier: 2, category: 'compute' });
+commitAndMergeWorktree = tracer.wrap('commitAndMergeWorktree', commitAndMergeWorktree, { tier: 2, category: 'compute' });
+cleanupWorktree = tracer.wrap('cleanupWorktree', cleanupWorktree, { tier: 2, category: 'compute' });
+buildInitialPrompt = tracer.wrap('buildInitialPrompt', buildInitialPrompt, { tier: 2, category: 'compute' });
+buildRetryPrompt = tracer.wrap('buildRetryPrompt', buildRetryPrompt, { tier: 2, category: 'compute' });
+
 // ── Main Loop ─────────────────────────────────────────
 
 async function main() {
@@ -1432,6 +1445,7 @@ async function main() {
     maxReconnectAttempts: 10,
     reconnectTimeWait: 2000,
   });
+  setNatsConnection(nc, sc);
   log(`Connected to NATS`);
 
   // Exit on permanent NATS disconnect so launchd restarts us

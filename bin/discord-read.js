@@ -17,10 +17,14 @@ const { connect, StringCodec } = require('nats');
 
 const sc = StringCodec();
 const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
+const { createTracer, setNatsConnection } = require('../lib/tracer');
+const tracer = createTracer('discord-read');
 
 async function natsConnect() {
   try {
-    return await connect(natsConnectOpts({ timeout: 5000 }));
+    const nc = await connect(natsConnectOpts({ timeout: 5000 }));
+    setNatsConnection(nc, sc);
+    return nc;
   } catch (err) {
     console.error(`Cannot connect to NATS at ${NATS_URL}`);
     process.exit(1);
@@ -103,6 +107,8 @@ function formatMessages(messages) {
     if (reply) process.stdout.write(reply);
   }
 }
+
+callTool = tracer.wrapAsync('callTool', callTool, { tier: 3 });
 
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);

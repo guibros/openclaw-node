@@ -334,6 +334,24 @@ run chmod +x "$WORKSPACE/bin/"*
 run chmod +x "$WORKSPACE/bin/hooks/"* 2>/dev/null || true
 info "Workspace scripts installed to $WORKSPACE/bin/"
 
+# Shared libs → ~/.openclaw/workspace/lib/  (workspace daemons import from ../lib/)
+run mkdir -p "$WORKSPACE/lib"
+run rsync -av --exclude='node_modules' --exclude='mcp-knowledge' \
+  "$REPO_DIR/lib/" "$WORKSPACE/lib/"
+info "Shared libraries installed to $WORKSPACE/lib/"
+
+# Symlink native deps from mesh node_modules → workspace node_modules
+# (ESM static imports don't resolve via NODE_PATH alone)
+MESH_NM="$HOME/openclaw/node_modules"
+WS_NM="$WORKSPACE/node_modules"
+run mkdir -p "$WS_NM"
+for pkg in better-sqlite3 bindings file-uri-to-path prebuild-install; do
+  if [ -d "$MESH_NM/$pkg" ] && [ ! -e "$WS_NM/$pkg" ]; then
+    run ln -sf "$MESH_NM/$pkg" "$WS_NM/$pkg"
+  fi
+done
+info "Native dependencies symlinked to $WS_NM/"
+
 # Mesh daemons and CLI tools → ~/openclaw/bin/
 MESH_BIN="$HOME/openclaw/bin"
 MESH_LIB="$HOME/openclaw/lib"

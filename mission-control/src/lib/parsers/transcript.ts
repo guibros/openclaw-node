@@ -196,9 +196,10 @@ export function getRecentTranscriptActivity(limit: number = 50): TranscriptEvent
  * Shorten a file path for display by removing the workspace prefix.
  */
 function shortenPath(fp: string): string {
+  const home = process.env.HOME || require("os").homedir();
   const prefixes = [
-    "/Users/moltymac/.openclaw/workspace/",
-    "/Users/moltymac/",
+    `${home}/.openclaw/workspace/`,
+    `${home}/`,
   ];
   for (const prefix of prefixes) {
     if (fp.startsWith(prefix)) {

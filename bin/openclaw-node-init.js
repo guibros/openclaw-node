@@ -28,6 +28,8 @@ const fs = require('fs');
 const net = require('net');
 const os = require('os');
 const path = require('path');
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('openclaw-node-init');
 
 // ── CLI args ──────────────────────────────────────────
 
@@ -769,6 +771,14 @@ async function discoverTopology(natsUrl, localNodeId) {
     warn(`Topology discovery failed: ${e.message} (non-fatal)`);
   }
 }
+
+// ── Tracer Instrumentation ───────────────────────────
+discoverNats = tracer.wrapAsync('discoverNats', discoverNats, { tier: 2, category: 'lifecycle' });
+setupDirectories = tracer.wrap('setupDirectories', setupDirectories, { tier: 2, category: 'lifecycle' });
+installMeshCode = tracer.wrap('installMeshCode', installMeshCode, { tier: 2, category: 'lifecycle' });
+installService = tracer.wrap('installService', installService, { tier: 2, category: 'lifecycle' });
+verifyServiceRunning = tracer.wrap('verifyServiceRunning', verifyServiceRunning, { tier: 2, category: 'lifecycle' });
+verifyNatsHealth = tracer.wrapAsync('verifyNatsHealth', verifyNatsHealth, { tier: 2, category: 'lifecycle' });
 
 // ── Main ──────────────────────────────────────────────
 

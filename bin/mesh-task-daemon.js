@@ -32,6 +32,8 @@
  */
 
 const { connect, StringCodec } = require('nats');
+const { createTracer, setNatsConnection } = require('../lib/tracer');
+const tracer = createTracer('mesh-task-daemon');
 const { createTask, TaskStore, TASK_STATUS, KV_BUCKET } = require('../lib/mesh-tasks');
 const { createSession, CollabStore, COLLAB_STATUS, COLLAB_KV_BUCKET } = require('../lib/mesh-collab');
 const { createPlan, autoRoutePlan, PlanStore, PLAN_STATUS, SUBTASK_STATUS, PLANS_KV_BUCKET } = require('../lib/mesh-plans');
@@ -2008,6 +2010,29 @@ function cascadeFailure(plan, failedSubtaskId) {
   return blocked;
 }
 
+// ── Tracer wrapping (Tier 1 handlers) ──────────────
+// Wrap handler functions with tracer after all declarations (hoisted).
+// Uses reassignment of function-scoped vars (non-strict mode).
+
+handleSubmit = tracer.wrapAsync('handleSubmit', handleSubmit, { tier: 1, category: 'state_transition' });
+handleClaim = tracer.wrapAsync('handleClaim', handleClaim, { tier: 1, category: 'state_transition' });
+handleStart = tracer.wrapAsync('handleStart', handleStart, { tier: 1, category: 'state_transition' });
+handleComplete = tracer.wrapAsync('handleComplete', handleComplete, { tier: 1, category: 'state_transition' });
+handleFail = tracer.wrapAsync('handleFail', handleFail, { tier: 1, category: 'state_transition' });
+handleList = tracer.wrapAsync('handleList', handleList, { tier: 1, category: 'state_transition' });
+handleGet = tracer.wrapAsync('handleGet', handleGet, { tier: 1, category: 'state_transition' });
+handleHeartbeat = tracer.wrapAsync('handleHeartbeat', handleHeartbeat, { tier: 1, category: 'state_transition' });
+handleRelease = tracer.wrapAsync('handleRelease', handleRelease, { tier: 1, category: 'state_transition' });
+handleCancel = tracer.wrapAsync('handleCancel', handleCancel, { tier: 1, category: 'state_transition' });
+handleTaskApprove = tracer.wrapAsync('handleTaskApprove', handleTaskApprove, { tier: 1, category: 'state_transition' });
+handleTaskReject = tracer.wrapAsync('handleTaskReject', handleTaskReject, { tier: 1, category: 'state_transition' });
+handleCollabCreate = tracer.wrapAsync('handleCollabCreate', handleCollabCreate, { tier: 1, category: 'state_transition' });
+handleCollabJoin = tracer.wrapAsync('handleCollabJoin', handleCollabJoin, { tier: 1, category: 'state_transition' });
+handleCollabReflect = tracer.wrapAsync('handleCollabReflect', handleCollabReflect, { tier: 1, category: 'state_transition' });
+detectStalls = tracer.wrapAsync('detectStalls', detectStalls, { tier: 1, category: 'state_transition' });
+enforceBudgets = tracer.wrapAsync('enforceBudgets', enforceBudgets, { tier: 1, category: 'state_transition' });
+processProposals = tracer.wrapAsync('processProposals', processProposals, { tier: 1, category: 'state_transition' });
+
 // ── Main ────────────────────────────────────────────
 
 async function main() {
@@ -2015,6 +2040,7 @@ async function main() {
 
   const natsOpts = natsConnectOpts();
   nc = await connect({ ...natsOpts, timeout: 5000 });
+  setNatsConnection(nc, sc);
   log(`Connected to NATS at ${NATS_URL}`);
 
   // Initialize task store

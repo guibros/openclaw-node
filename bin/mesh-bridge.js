@@ -16,6 +16,8 @@
  */
 
 const { connect, StringCodec } = require('nats');
+const { createTracer, setNatsConnection } = require('../lib/tracer');
+const tracer = createTracer('mesh-bridge');
 const fs = require('fs');
 const path = require('path');
 const { readTasks, updateTaskInPlace, isoTimestamp, ACTIVE_TASKS_PATH } = require('../lib/kanban-io');
@@ -716,6 +718,14 @@ function writeLog(taskId, meshTask, finalStatus) {
   return logPath;
 }
 
+// ── Tracer wrapping ──────────────────────────────────
+findDispatchable = tracer.wrap('findDispatchable', findDispatchable, { tier: 1, category: 'state_transition' });
+dispatchTask = tracer.wrapAsync('dispatchTask', dispatchTask, { tier: 1, category: 'state_transition' });
+reconcile = tracer.wrapAsync('reconcile', reconcile, { tier: 2, category: 'compute' });
+handleEvent = tracer.wrap('handleEvent', handleEvent, { tier: 1, category: 'state_transition' });
+handleCompleted = tracer.wrap('handleCompleted', handleCompleted, { tier: 1, category: 'state_transition' });
+handleFailed = tracer.wrap('handleFailed', handleFailed, { tier: 1, category: 'state_transition' });
+
 // ── Main ────────────────────────────────────────────
 
 async function main() {
@@ -734,6 +744,7 @@ async function main() {
     maxReconnectAttempts: 10,
     reconnectTimeWait: 2000,
   });
+  setNatsConnection(nc, sc);
   log('Connected to NATS');
 
   // Re-reconcile on reconnect — catches events missed during NATS blip (#2)

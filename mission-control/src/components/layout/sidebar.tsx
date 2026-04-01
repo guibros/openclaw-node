@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity } from "lucide-react";
+import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity, Radar } from "lucide-react";
 import { useState, useEffect } from "react";
 import { LiveStream } from "@/components/board/live-stream";
 
@@ -17,6 +17,7 @@ const NAV = [
   { href: "/graph", label: "Knowledge Graph", icon: Network },
   { href: "/obsidian", label: "Obsidian View", icon: Waypoints },
   { href: "/mesh", label: "Mesh Nodes", icon: Server },
+  { href: "/observability", label: "Observability", icon: Radar },
   { href: "/cowork", label: "Cowork", icon: Users2 },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/diagnostics", label: "Diagnostics", icon: Activity },

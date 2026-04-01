@@ -20,6 +20,8 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { createTracer, setNatsConnection } = require('../lib/tracer');
+const tracer = createTracer('mesh-deploy-listener');
 
 // ── Config ───────────────────────────────────────────────────────────────
 
@@ -231,6 +233,10 @@ async function checkAndCatchUp(resultsKv, nodesKv) {
   }
 }
 
+// ── Tracer Instrumentation ───────────────────────────────────────────────
+executeDeploy = tracer.wrapAsync('executeDeploy', executeDeploy, { tier: 2, category: 'lifecycle' });
+checkAndCatchUp = tracer.wrapAsync('checkAndCatchUp', checkAndCatchUp, { tier: 2, category: 'lifecycle' });
+
 // ── Main ─────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -256,6 +262,7 @@ async function main() {
     }
   }
   console.log(`[deploy-listener] NATS connected`);
+  setNatsConnection(nc, sc);
 
   // Get KV buckets
   const js = nc.jetstream();

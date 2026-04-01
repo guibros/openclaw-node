@@ -22,6 +22,8 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { createRegistry } = require('../lib/mesh-registry');
+const { createTracer, setNatsConnection } = require('../lib/tracer');
+const tracer = createTracer('mesh-tool-discord');
 
 // ── Config ──────────────────────────────────────────
 
@@ -256,10 +258,17 @@ async function main() {
   console.log('[discord-tool] Bot token loaded.');
 
   const handlers = createHandlers(token);
+  tracer.wrapClass(handlers, ['readMessages', 'searchMessages', 'listChannels', 'channelInfo'], { tier: 3 });
 
   // Create registry and register tool
   const { nc, registry } = await createRegistry();
   console.log(`[discord-tool] Connected to NATS. Node: ${registry.nodeId}`);
+
+  // Set NATS connection for tracer (registry uses StringCodec internally)
+  try {
+    const { StringCodec } = require('nats');
+    setNatsConnection(nc, StringCodec());
+  } catch { /* best effort */ }
 
   await registry.register(TOOL_MANIFEST, handlers);
   console.log('[discord-tool] Tool registered in MESH_TOOLS KV.');

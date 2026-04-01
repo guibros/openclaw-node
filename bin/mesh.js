@@ -28,6 +28,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { natsConnectOpts } = require('../lib/nats-resolve');
+const { createTracer, setNatsConnection } = require('../lib/tracer');
+const tracer = createTracer('mesh-cli');
 const SHARED_DIR = path.join(os.homedir(), 'openclaw', 'shared');
 const LOCAL_NODE = os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const sc = StringCodec();
@@ -93,7 +95,9 @@ function checkExecSafety(command) {
 async function natsConnect() {
   const opts = natsConnectOpts();
   try {
-    return await connect({ ...opts, timeout: 5000 });
+    const nc = await connect({ ...opts, timeout: 5000 });
+    setNatsConnection(nc, sc);
+    return nc;
   } catch (err) {
     console.error(`Error: Cannot connect to NATS at ${opts.servers}`);
     console.error(`Is the NATS server running? Is Tailscale connected?`);
@@ -1137,6 +1141,17 @@ function cmdHelp() {
     '',
   ].join('\n'));
 }
+
+// --- Tracer Instrumentation -------------------------------------------
+cmdStatus = tracer.wrapAsync('cmdStatus', cmdStatus, { tier: 2 });
+cmdExec = tracer.wrapAsync('cmdExec', cmdExec, { tier: 2 });
+cmdCapture = tracer.wrapAsync('cmdCapture', cmdCapture, { tier: 2 });
+cmdSubmit = tracer.wrapAsync('cmdSubmit', cmdSubmit, { tier: 2 });
+cmdTasks = tracer.wrapAsync('cmdTasks', cmdTasks, { tier: 2 });
+cmdHealth = tracer.wrapAsync('cmdHealth', cmdHealth, { tier: 2 });
+cmdRepair = tracer.wrapAsync('cmdRepair', cmdRepair, { tier: 2 });
+cmdDeploy = tracer.wrapAsync('cmdDeploy', cmdDeploy, { tier: 2 });
+cmdPlan = tracer.wrapAsync('cmdPlan', cmdPlan, { tier: 2 });
 
 // --- Main dispatch ---------------------------------------------------
 

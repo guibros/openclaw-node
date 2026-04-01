@@ -475,6 +475,35 @@ function runMigrations(sqlite: Database.Database) {
   if (!colNames.includes("exclude_nodes")) {
     sqlite.exec("ALTER TABLE tasks ADD COLUMN exclude_nodes TEXT");
   }
+
+  // Observability events table
+  const obsColumns = sqlite.prepare("PRAGMA table_info(observability_events)").all();
+  if (obsColumns.length === 0) {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS observability_events (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER NOT NULL,
+        node_id TEXT NOT NULL,
+        module TEXT NOT NULL,
+        function TEXT NOT NULL,
+        tier INTEGER NOT NULL DEFAULT 2,
+        category TEXT NOT NULL,
+        args_summary TEXT,
+        result_summary TEXT,
+        duration_ms INTEGER,
+        error TEXT,
+        meta TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_obs_timestamp ON observability_events(timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_obs_module ON observability_events(module);
+      CREATE INDEX IF NOT EXISTS idx_obs_node ON observability_events(node_id);
+      CREATE INDEX IF NOT EXISTS idx_obs_category ON observability_events(category);
+    `);
+  }
+
+  // Cleanup: delete observability events older than 24h
+  sqlite.exec(`DELETE FROM observability_events WHERE timestamp < ${Date.now() - 86400000}`);
 }
 
 export function getDb() {

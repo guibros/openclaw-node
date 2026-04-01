@@ -18,6 +18,8 @@ const { connect, StringCodec } = require('nats');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { createTracer, setNatsConnection } = require('../lib/tracer');
+const tracer = createTracer('fleet-deploy');
 
 // ── Config ───────────────────────────────────────────────────────────────
 
@@ -301,6 +303,11 @@ async function fleetDeploy(nc, opts) {
   console.log('');
 }
 
+// ── Tracer Instrumentation ───────────────────────────────────────────────
+discoverNodes = tracer.wrapAsync('discoverNodes', discoverNodes, { tier: 2, category: 'lifecycle' });
+showStatus = tracer.wrapAsync('showStatus', showStatus, { tier: 2, category: 'lifecycle' });
+fleetDeploy = tracer.wrapAsync('fleetDeploy', fleetDeploy, { tier: 2, category: 'lifecycle' });
+
 // ── Standalone CLI ───────────────────────────────────────────────────────
 
 async function main() {
@@ -336,6 +343,7 @@ async function main() {
   let nc;
   try {
     nc = await connect(natsConnectOpts({ name: `deploy-cli-${NODE_ID}`, timeout: 10000 }));
+    setNatsConnection(nc, sc);
   } catch {
     fail(`Cannot connect to NATS at ${NATS_URL}`);
     process.exit(1);

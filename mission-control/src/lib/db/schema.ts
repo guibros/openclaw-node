@@ -274,3 +274,24 @@ export const hyperagentProposals = sqliteTable("hyperagent_proposals", {
 
 export type HyperagentProposal = typeof hyperagentProposals.$inferSelect;
 export type NewHyperagentProposal = typeof hyperagentProposals.$inferInsert;
+
+// ── Observability Events ─────────────────────────────────────────────────
+
+export const observabilityEvents = sqliteTable("observability_events", {
+  id: text("id").primaryKey(),
+  timestamp: integer("timestamp").notNull(),
+  nodeId: text("node_id").notNull(),
+  module: text("module").notNull(),
+  fn: text("function").notNull(),
+  tier: integer("tier").notNull().default(2),
+  category: text("category").notNull(),
+  argsSummary: text("args_summary"),
+  resultSummary: text("result_summary"),
+  durationMs: integer("duration_ms"),
+  error: text("error"),
+  meta: text("meta"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export type ObservabilityEvent = typeof observabilityEvents.$inferSelect;
+export type NewObservabilityEvent = typeof observabilityEvents.$inferInsert;

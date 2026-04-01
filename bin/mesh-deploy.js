@@ -41,6 +41,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('mesh-deploy');
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -735,6 +737,13 @@ function restartComponentServices(comp, dryRun) {
     exec('sleep 1', { ignoreError: true });
   }
 }
+
+// ── Tracer Instrumentation ───────────────────────────────────────────────
+gitFetchAndDiff = tracer.wrap('gitFetchAndDiff', gitFetchAndDiff, { tier: 2, category: 'lifecycle' });
+gitMerge = tracer.wrap('gitMerge', gitMerge, { tier: 2, category: 'lifecycle' });
+getAffectedComponents = tracer.wrap('getAffectedComponents', getAffectedComponents, { tier: 2, category: 'lifecycle' });
+installComponentFiles = tracer.wrap('installComponentFiles', installComponentFiles, { tier: 2, category: 'lifecycle' });
+restartComponentServices = tracer.wrap('restartComponentServices', restartComponentServices, { tier: 2, category: 'lifecycle' });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN

@@ -24,7 +24,12 @@
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
+import { createRequire } from 'module';
 import { createHyperAgentStore } from '../lib/hyperagent-store.mjs';
+
+const require = createRequire(import.meta.url);
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('hyperagent');
 
 const OPENCLAW_HOME = process.env.OPENCLAW_HOME || path.join(os.homedir(), '.openclaw');
 
@@ -398,6 +403,19 @@ try {
 } catch (err) {
   die(`failed to open store: ${err.message}`);
 }
+
+// ── Tracer Instrumentation ────────────────────
+cmdStatus = tracer.wrap('cmdStatus', cmdStatus, { tier: 3 });
+cmdLog = tracer.wrap('cmdLog', cmdLog, { tier: 3 });
+cmdTelemetry = tracer.wrap('cmdTelemetry', cmdTelemetry, { tier: 3 });
+cmdStrategies = tracer.wrap('cmdStrategies', cmdStrategies, { tier: 3 });
+cmdStrategy = tracer.wrap('cmdStrategy', cmdStrategy, { tier: 3 });
+cmdSeedStrategy = tracer.wrap('cmdSeedStrategy', cmdSeedStrategy, { tier: 3 });
+cmdReflect = tracer.wrap('cmdReflect', cmdReflect, { tier: 3 });
+cmdProposals = tracer.wrap('cmdProposals', cmdProposals, { tier: 3 });
+cmdApprove = tracer.wrap('cmdApprove', cmdApprove, { tier: 3 });
+cmdReject = tracer.wrap('cmdReject', cmdReject, { tier: 3 });
+cmdShadow = tracer.wrap('cmdShadow', cmdShadow, { tier: 3 });
 
 try {
   switch (command) {
