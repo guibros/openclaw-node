@@ -13,7 +13,13 @@
  *   node bin/web-fetch.mjs <url> --screenshot out.png  # save screenshot
  */
 
+import { createRequire } from 'module';
 import { chromium } from 'playwright';
+
+// --- Tracer ---
+const require = createRequire(import.meta.url);
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('web-fetch');
 
 const args = process.argv.slice(2);
 const url = args.find(a => !a.startsWith('--'));

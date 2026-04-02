@@ -2033,6 +2033,42 @@ detectStalls = tracer.wrapAsync('detectStalls', detectStalls, { tier: 1, categor
 enforceBudgets = tracer.wrapAsync('enforceBudgets', enforceBudgets, { tier: 1, category: 'state_transition' });
 processProposals = tracer.wrapAsync('processProposals', processProposals, { tier: 1, category: 'state_transition' });
 
+// Tier 1 — state_transition (handlers)
+handleAttempt = tracer.wrapAsync('handleAttempt', handleAttempt, { tier: 1, category: 'state_transition' });
+handleCollabLeave = tracer.wrapAsync('handleCollabLeave', handleCollabLeave, { tier: 1, category: 'state_transition' });
+handleCollabStatus = tracer.wrapAsync('handleCollabStatus', handleCollabStatus, { tier: 1, category: 'state_transition' });
+handleCollabFind = tracer.wrapAsync('handleCollabFind', handleCollabFind, { tier: 1, category: 'state_transition' });
+handleCollabRecruiting = tracer.wrapAsync('handleCollabRecruiting', handleCollabRecruiting, { tier: 1, category: 'state_transition' });
+handlePlanCreate = tracer.wrapAsync('handlePlanCreate', handlePlanCreate, { tier: 1, category: 'state_transition' });
+handlePlanGet = tracer.wrapAsync('handlePlanGet', handlePlanGet, { tier: 1, category: 'state_transition' });
+handlePlanList = tracer.wrapAsync('handlePlanList', handlePlanList, { tier: 1, category: 'state_transition' });
+handlePlanApprove = tracer.wrapAsync('handlePlanApprove', handlePlanApprove, { tier: 1, category: 'state_transition' });
+handlePlanAbort = tracer.wrapAsync('handlePlanAbort', handlePlanAbort, { tier: 1, category: 'state_transition' });
+handlePlanSubtaskUpdate = tracer.wrapAsync('handlePlanSubtaskUpdate', handlePlanSubtaskUpdate, { tier: 1, category: 'state_transition' });
+checkRecruitingDeadlines = tracer.wrapAsync('checkRecruitingDeadlines', checkRecruitingDeadlines, { tier: 1, category: 'state_transition' });
+
+// Tier 1 — state_transition (circling)
+startCirclingStep = tracer.wrapAsync('startCirclingStep', startCirclingStep, { tier: 1, category: 'state_transition' });
+handleCirclingStepTimeout = tracer.wrapAsync('handleCirclingStepTimeout', handleCirclingStepTimeout, { tier: 1, category: 'state_transition' });
+completeCirclingSession = tracer.wrapAsync('completeCirclingSession', completeCirclingSession, { tier: 1, category: 'state_transition' });
+handleCirclingGateApprove = tracer.wrapAsync('handleCirclingGateApprove', handleCirclingGateApprove, { tier: 1, category: 'state_transition' });
+handleCirclingGateReject = tracer.wrapAsync('handleCirclingGateReject', handleCirclingGateReject, { tier: 1, category: 'state_transition' });
+sweepCirclingStepTimeouts = tracer.wrapAsync('sweepCirclingStepTimeouts', sweepCirclingStepTimeouts, { tier: 1, category: 'state_transition' });
+
+// Tier 2 — compute
+publishEvent = tracer.wrap('publishEvent', publishEvent, { tier: 2, category: 'compute' });
+publishCollabEvent = tracer.wrap('publishCollabEvent', publishCollabEvent, { tier: 2, category: 'compute' });
+publishPlanEvent = tracer.wrap('publishPlanEvent', publishPlanEvent, { tier: 2, category: 'compute' });
+computeNodeScopes = tracer.wrap('computeNodeScopes', computeNodeScopes, { tier: 2, category: 'compute' });
+startCollabRound = tracer.wrapAsync('startCollabRound', startCollabRound, { tier: 2, category: 'compute' });
+notifySequentialTurn = tracer.wrapAsync('notifySequentialTurn', notifySequentialTurn, { tier: 2, category: 'compute' });
+evaluateRound = tracer.wrapAsync('evaluateRound', evaluateRound, { tier: 2, category: 'compute' });
+cleanupTaskCollabSession = tracer.wrapAsync('cleanupTaskCollabSession', cleanupTaskCollabSession, { tier: 2, category: 'compute' });
+advancePlanWave = tracer.wrapAsync('advancePlanWave', advancePlanWave, { tier: 2, category: 'compute' });
+updatePlanSubtaskStatus = tracer.wrapAsync('updatePlanSubtaskStatus', updatePlanSubtaskStatus, { tier: 2, category: 'compute' });
+checkPlanProgress = tracer.wrapAsync('checkPlanProgress', checkPlanProgress, { tier: 2, category: 'compute' });
+cascadeFailure = tracer.wrap('cascadeFailure', cascadeFailure, { tier: 2, category: 'compute' });
+
 // ── Main ────────────────────────────────────────────
 
 async function main() {

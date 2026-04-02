@@ -12,11 +12,17 @@
  */
 
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import http from 'http';
+
+// --- Tracer ---
+const require = createRequire(import.meta.url);
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('memory-maintenance');
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);

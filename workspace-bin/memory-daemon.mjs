@@ -25,11 +25,17 @@
  */
 
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
+
+// --- Tracer ---
+const require = createRequire(import.meta.url);
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('memory-daemon');
 
 // --- Hermes-inspired modules ---
 import { shouldFlush, runFlush } from '../lib/pre-compression-flush.mjs';
@@ -175,7 +181,7 @@ function loadTranscriptSources() {
 // No touchfiles. No hooks. The JSONL write IS the heartbeat.
 // ============================================================
 
-function detectActivity(sources, activityWindowMs) {
+function _detectActivity(sources, activityWindowMs) {
   const now = Date.now();
   const cutoff = now - activityWindowMs;
   let active = false;
@@ -210,6 +216,7 @@ function detectActivity(sources, activityWindowMs) {
 
   return { active, newestSession, newestMtime, newestSource, newestFormat };
 }
+const detectActivity = tracer.wrap('detectActivity', _detectActivity, { tier: 1 });
 
 // ============================================================
 // SESSION STATE MACHINE

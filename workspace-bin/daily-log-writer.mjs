@@ -21,9 +21,15 @@
  */
 
 import fs from 'fs';
+import { createRequire } from 'module';
 import path from 'path';
 import { execSync } from 'child_process';
 import { createHash } from 'crypto';
+
+// --- Tracer ---
+const require = createRequire(import.meta.url);
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('daily-log-writer');
 
 const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.dirname(new URL('.', import.meta.url).pathname);
 const MEMORY_DIR = path.join(WORKSPACE, 'memory');

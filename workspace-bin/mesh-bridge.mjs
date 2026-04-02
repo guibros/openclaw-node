@@ -26,9 +26,15 @@
  *   bridge?.close();
  */
 
+import { createRequire } from 'module';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
+
+// --- Tracer ---
+const require = createRequire(import.meta.url);
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('mesh-bridge');
 
 // ── NATS connection URL from environment (set by agent service) ──
 const NATS_URL = process.env.OPENCLAW_NATS || '';

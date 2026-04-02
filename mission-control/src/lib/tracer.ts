@@ -69,6 +69,32 @@ async function publishEvent(event: any) {
   }
 }
 
+/** Trace a plain function call (non-route-handler). Fire-and-forget. */
+export function traceCall(
+  module: string,
+  fn: string,
+  start: number,
+  result?: any,
+  error?: any
+) {
+  const event = {
+    id: crypto.randomUUID(),
+    timestamp: start,
+    nodeId: NODE_ID,
+    module,
+    fn,
+    tier: 2,
+    category: error ? "error" : "compute",
+    argsSummary: "",
+    resultSummary: result != null ? String(result).slice(0, 80) : null,
+    durationMs: Date.now() - start,
+    error: error ? (error instanceof Error ? error.message : String(error)) : null,
+    meta: null,
+  };
+  insertEvent(event);
+  publishEvent(event);
+}
+
 /** Batch insert events (for NATS ingestion) */
 export function batchInsertEvents(events: any[]) {
   try {

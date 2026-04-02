@@ -9,6 +9,7 @@ import { syncTasksToMarkdown } from "./sync/tasks";
 import { logActivity } from "./activity";
 import { WORKSPACE_ROOT, AGENT_NAME, DISPATCH_SIGNAL_FILE } from "./config";
 import { gatewayNotify } from "./gateway-notify";
+import { traceCall } from "./tracer";
 
 
 export interface Wave {
@@ -34,6 +35,8 @@ export function computeWaves(
   depTargetMap: Map<string, string[]>,
   taskStatusLookup: Map<string, string>
 ): Wave[] {
+  const _start = Date.now();
+  try {
   const taskSet = new Set(taskIds);
 
   // Build in-degree map (only count active edges within dispatchable set)

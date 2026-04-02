@@ -15,11 +15,17 @@
  */
 
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createInterface } from 'readline';
+
+// --- Tracer ---
+const require = createRequire(import.meta.url);
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('subagent-audit');
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
