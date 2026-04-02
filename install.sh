@@ -342,7 +342,20 @@ info "Shared libraries installed to $WORKSPACE/lib/"
 
 # Symlink native deps from mesh node_modules → workspace node_modules
 # (ESM static imports don't resolve via NODE_PATH alone)
+# Check ~/openclaw/node_modules first, fall back to REPO_DIR/node_modules (npx)
 MESH_NM="$HOME/openclaw/node_modules"
+if [ ! -d "$MESH_NM/better-sqlite3" ]; then
+  MESH_NM="$REPO_DIR/node_modules"
+fi
+
+# If native deps still missing, install them at ~/openclaw/
+if [ ! -d "$MESH_NM/better-sqlite3" ]; then
+  info "Installing native dependencies at $HOME/openclaw/..."
+  run mkdir -p "$HOME/openclaw"
+  (cd "$HOME/openclaw" && [ ! -f package.json ] && npm init -y >/dev/null 2>&1; npm install --no-save better-sqlite3 bindings 2>/dev/null) || warn "Native dep install failed — SQLite features may not work"
+  MESH_NM="$HOME/openclaw/node_modules"
+fi
+
 WS_NM="$WORKSPACE/node_modules"
 run mkdir -p "$WS_NM"
 for pkg in better-sqlite3 bindings file-uri-to-path prebuild-install; do
@@ -361,6 +374,12 @@ run rsync -av "$REPO_DIR/lib/" "$MESH_LIB/"
 run chmod +x "$MESH_BIN/"*.sh 2>/dev/null || true
 info "Mesh daemons installed to $MESH_BIN/ ($(ls -1 "$REPO_DIR/bin/" | wc -l | tr -d ' ') files)"
 info "Shared libraries installed to $MESH_LIB/"
+
+# Install mcp-knowledge dependencies if it has its own package.json
+if [ -f "$MESH_LIB/mcp-knowledge/package.json" ] && [ ! -d "$MESH_LIB/mcp-knowledge/node_modules" ]; then
+  info "Installing MCP knowledge server dependencies..."
+  (cd "$MESH_LIB/mcp-knowledge" && npm install --production 2>/dev/null) || warn "mcp-knowledge deps failed — semantic search may not work"
+fi
 
 # ============================================================
 # Step 4: Copy Identity Files
@@ -554,6 +573,9 @@ fi
 if [ ! -d "$MC_DIR/node_modules" ]; then
   info "Installing Mission Control dependencies (this may take a minute)..."
   (cd "$MC_DIR" && run npm install)
+elif $UPDATE_ONLY; then
+  info "Updating Mission Control dependencies..."
+  (cd "$MC_DIR" && run npm install)
 else
   info "Mission Control dependencies already installed"
 fi
@@ -619,7 +641,8 @@ if [ -f "$HARNESS_SRC" ]; then
     mkdir -p "$(dirname "$HARNESS_DST")"
     cp "$HARNESS_SRC" "$HARNESS_DST"
   else
-    info "Harness rules already exist at $HARNESS_DST (skipping — user-owned)"
+    info "Syncing harness rules (smart merge — user edits preserved)..."
+    node "${REPO_DIR}/bin/harness-sync.js" apply
   fi
 fi
 
