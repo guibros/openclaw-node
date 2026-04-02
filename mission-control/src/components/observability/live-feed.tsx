@@ -21,6 +21,7 @@ const MODULE_COLORS: Record<string, string> = {
 };
 
 function getModuleColor(mod: string): string {
+  if (!mod) return "bg-gray-500/20 text-gray-400";
   if (MODULE_COLORS[mod]) return MODULE_COLORS[mod];
   // Deterministic fallback based on hash
   const hash = mod.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -35,7 +36,7 @@ function getModuleColor(mod: string): string {
   return palette[hash % palette.length];
 }
 
-function formatTimestamp(iso: string): string {
+function formatTimestamp(iso: string | number): string {
   try {
     const d = new Date(iso);
     const h = d.getHours().toString().padStart(2, "0");
@@ -49,14 +50,9 @@ function formatTimestamp(iso: string): string {
 }
 
 function getRowColor(event: TraceEvent): string {
-  if (event.status === "error") return "border-l-red-500";
-  if (event.status === "slow" || event.duration_ms > 500)
-    return "border-l-yellow-500";
-  // State transitions (module contains 'state' or function contains 'transition')
-  if (
-    event.module.includes("state") ||
-    event.function.includes("transition")
-  )
+  if (event.error || event.category === "error") return "border-l-red-500";
+  if (event.duration_ms > 500) return "border-l-yellow-500";
+  if (event.category === "state_transition" || event.category === "lifecycle")
     return "border-l-blue-500";
   return "border-l-green-500/50";
 }
@@ -111,9 +107,9 @@ function EventRow({ event, mode }: { event: TraceEvent; mode: "dev" | "smart" })
 
         {/* Status indicator */}
         <span className="shrink-0">
-          {event.status === "error" ? (
+          {event.error || event.category === "error" ? (
             <span className="text-[9px] font-bold text-red-400">ERR</span>
-          ) : event.status === "slow" || event.duration_ms > 500 ? (
+          ) : event.duration_ms > 500 ? (
             <span className="text-[9px] font-bold text-yellow-400">SLOW</span>
           ) : (
             <span className="text-[9px] text-green-400/60">OK</span>
@@ -146,15 +142,15 @@ function EventRow({ event, mode }: { event: TraceEvent; mode: "dev" | "smart" })
               </span>
             </div>
           )}
-          {event.error_message && (
+          {(event.error || event.error_message) && (
             <div className="flex gap-2 text-[10px]">
               <span className="text-red-400/70 w-16 shrink-0">error</span>
               <span className="text-red-400/80 font-mono break-all">
-                {event.error_message}
+                {event.error || event.error_message}
               </span>
             </div>
           )}
-          {event.meta && Object.keys(event.meta).length > 0 && (
+          {event.meta && typeof event.meta === "object" && Object.keys(event.meta).length > 0 && (
             <div className="flex gap-2 text-[10px]">
               <span className="text-muted-foreground/50 w-16 shrink-0">meta</span>
               <span className="text-foreground/40 font-mono break-all">
@@ -202,7 +198,7 @@ export function LiveFeed({ events, mode }: LiveFeedProps) {
   const displayEvents =
     mode === "smart"
       ? events.filter(
-          (e) => e.status === "error" || e.status === "slow" || e.duration_ms > 500
+          (e) => e.error || e.category === "error" || e.duration_ms > 500
         )
       : events;
 

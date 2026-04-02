@@ -13,17 +13,18 @@ type Mode = "dev" | "smart";
 
 export interface TraceEvent {
   id: string;
-  timestamp: string;
+  timestamp: string | number;
   node_id: string;
   module: string;
   function: string;
   duration_ms: number;
-  status: "ok" | "error" | "slow";
+  tier?: number;
+  category?: string;
   args_summary?: string;
   result_summary?: string;
+  error?: string | null;
   error_message?: string;
-  meta?: Record<string, string>;
-  category?: string;
+  meta?: Record<string, string> | string | null;
 }
 
 export default function ObservabilityPage() {

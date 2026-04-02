@@ -73,12 +73,13 @@ export function EventTimeline({
           existing.firstTimestamp = ev.timestamp;
         if (ev.timestamp > existing.lastTimestamp)
           existing.lastTimestamp = ev.timestamp;
-        if (ev.status === "error") existing.errorCount++;
-        // Latest status: error takes priority
-        if (ev.status === "error") existing.latestStatus = "error";
-        else if (ev.status === "slow" && existing.latestStatus !== "error")
+        const isError = !!(ev.error || ev.category === "error");
+        if (isError) existing.errorCount++;
+        if (isError) existing.latestStatus = "error";
+        else if (ev.duration_ms > 500 && existing.latestStatus !== "error")
           existing.latestStatus = "slow";
       } else {
+        const isError = !!(ev.error || ev.category === "error");
         map.set(key, {
           key,
           label,
@@ -86,8 +87,8 @@ export function EventTimeline({
           events: [ev],
           firstTimestamp: ev.timestamp,
           lastTimestamp: ev.timestamp,
-          errorCount: ev.status === "error" ? 1 : 0,
-          latestStatus: ev.status,
+          errorCount: isError ? 1 : 0,
+          latestStatus: isError ? "error" : ev.duration_ms > 500 ? "slow" : "ok",
         });
       }
     }

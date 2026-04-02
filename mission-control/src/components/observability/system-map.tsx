@@ -50,7 +50,7 @@ function useDaemonActivity(events: TraceEvent[]) {
         (e) =>
           e.node_id === nodeId &&
           e.module === daemonName &&
-          e.status === "error" &&
+          (e.error || e.category === "error") &&
           (now - new Date(e.timestamp).getTime()) / 1000 < 60
       );
       if (recentErrors) return "error";
@@ -127,14 +127,14 @@ function NodeCard({
 
       {/* Daemon pills */}
       <div className="flex flex-wrap gap-1">
-        {node.daemons.map((d) => (
+        {(node.daemons || []).map((d) => (
           <DaemonPill
             key={d.name}
             name={d.name}
             status={getDaemonStatus(node.nodeId, d.name)}
           />
         ))}
-        {node.daemons.length === 0 && (
+        {(!node.daemons || node.daemons.length === 0) && (
           <span className="text-[10px] text-muted-foreground/50 italic">
             No daemons reported
           </span>
