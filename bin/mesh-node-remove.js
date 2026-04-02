@@ -29,6 +29,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const readline = require('readline');
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('mesh-node-remove');
 
 // ── CLI args ──────────────────────────────────────────
 
@@ -75,7 +77,7 @@ async function confirm(msg) {
 
 // ── NATS Operations ──────────────────────────────────
 
-async function cleanNatsState(nodeId) {
+const cleanNatsState = tracer.wrapAsync('cleanNatsState', async function cleanNatsState(nodeId) {
   let natsUrl;
   try {
     const { NATS_URL } = require('../lib/nats-resolve');
@@ -161,11 +163,11 @@ async function cleanNatsState(nodeId) {
     warn(`NATS cleanup failed: ${e.message}`);
     warn('The node may still appear in mesh state until TTL expires');
   }
-}
+}, { tier: 2, category: 'lifecycle' });
 
 // ── Local Service Removal ────────────────────────────
 
-function removeLocalService() {
+const removeLocalService = tracer.wrap('removeLocalService', function removeLocalService() {
   const platform = os.platform();
 
   if (platform === 'darwin') {
@@ -197,11 +199,11 @@ function removeLocalService() {
       warn(`Service removal warning: ${e.message}`);
     }
   }
-}
+}, { tier: 2, category: 'lifecycle' });
 
 // ── Purge Local Files ────────────────────────────────
 
-function purgeLocalFiles() {
+const purgeLocalFiles = tracer.wrap('purgeLocalFiles', function purgeLocalFiles() {
   const dirs = [
     path.join(os.homedir(), '.openclaw'),
     path.join(os.homedir(), 'openclaw'),
@@ -217,7 +219,7 @@ function purgeLocalFiles() {
       }
     }
   }
-}
+}, { tier: 2, category: 'lifecycle' });
 
 // ── Main ──────────────────────────────────────────────
 

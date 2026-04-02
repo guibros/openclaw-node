@@ -26,6 +26,8 @@ const crypto = require('crypto');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('mesh-join-token');
 
 const { NATS_URL } = require('../lib/nats-resolve');
 
@@ -64,7 +66,7 @@ function getLeadSSHPubkey() {
 
 const SECRET_PATH = path.join(os.homedir(), '.openclaw', '.mesh-secret');
 
-function getOrCreateSecret() {
+const getOrCreateSecret = tracer.wrap('getOrCreateSecret', function getOrCreateSecret() {
   try {
     if (fs.existsSync(SECRET_PATH)) {
       return fs.readFileSync(SECRET_PATH, 'utf8').trim();
@@ -75,7 +77,7 @@ function getOrCreateSecret() {
   fs.mkdirSync(path.dirname(SECRET_PATH), { recursive: true });
   fs.writeFileSync(SECRET_PATH, secret, { mode: 0o600 });
   return secret;
-}
+}, { tier: 2, category: 'lifecycle' });
 
 // ── Expiry parsing ────────────────────────────────────
 
@@ -92,7 +94,7 @@ function parseExpiry(str) {
 
 // ── Generate token ────────────────────────────────────
 
-function generateToken() {
+const generateToken = tracer.wrap('generateToken', function generateToken() {
   const secret = getOrCreateSecret();
   const expiresAt = parseExpiry(EXPIRES);
 
@@ -119,7 +121,7 @@ function generateToken() {
     .toString('base64url');
 
   return { token, payload, hmac };
-}
+}, { tier: 2, category: 'lifecycle' });
 
 // ── Main ──────────────────────────────────────────────
 

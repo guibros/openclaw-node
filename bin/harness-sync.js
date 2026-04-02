@@ -18,6 +18,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const { createTracer } = require('../lib/tracer');
+const tracer = createTracer('harness-sync');
 
 // ── Paths ────────────────────────────────────────────
 
@@ -79,7 +81,7 @@ function deepEqual(a, b) {
 /**
  * Diff two rule sets. Returns a structured report.
  */
-function diffRules(srcRules, dstRules) {
+const diffRules = tracer.wrap('diffRules', function diffRules(srcRules, dstRules) {
   const srcMap = indexById(srcRules);
   const dstMap = indexById(dstRules);
   const report = { newRules: [], fieldUpdates: [], userEdits: [], userOnly: [] };
@@ -137,12 +139,12 @@ function diffRules(srcRules, dstRules) {
   }
 
   return report;
-}
+}, { tier: 3, category: 'compute' });
 
 /**
  * Merge source into deployed, respecting field ownership.
  */
-function mergeRules(srcRules, dstRules, force) {
+const mergeRules = tracer.wrap('mergeRules', function mergeRules(srcRules, dstRules, force) {
   const srcMap = indexById(srcRules);
   const dstMap = indexById(dstRules);
   const merged = [];
@@ -188,7 +190,7 @@ function mergeRules(srcRules, dstRules, force) {
   }
 
   return merged;
-}
+}, { tier: 3, category: 'compute' });
 
 // ── Display ──────────────────────────────────────────
 
