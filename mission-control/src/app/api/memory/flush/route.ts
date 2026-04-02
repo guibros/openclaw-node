@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { memoryItems, memoryAudit } from "@/lib/db/schema";
 import { storeExtractedFacts, getDocIdByPath, type GatedFact } from "@/lib/memory/extract";
 import { logActivity } from "@/lib/activity";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * POST /api/memory/flush
@@ -20,7 +21,7 @@ import { logActivity } from "@/lib/activity";
  * The actual extraction + gating is done by Daedalus inline.
  * This endpoint just stores the results and marks the flush.
  */
-export async function POST(request: NextRequest) {
+export const POST = withTrace("memory", "POST /api/memory/flush", async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { facts, source, sessionId } = body as {
@@ -79,13 +80,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * GET /api/memory/flush
  * Returns last flush info (when, how many facts, etc.)
  */
-export async function GET() {
+export const GET = withTrace("memory", "GET /api/memory/flush", async () => {
   try {
     const db = getDb();
     const raw = db
@@ -126,4 +127,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

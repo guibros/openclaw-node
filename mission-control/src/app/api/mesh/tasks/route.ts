@@ -1,5 +1,7 @@
+import { NextRequest } from "next/server";
 import { getTasksKv, sc } from "@/lib/nats";
 import { NODE_ID, NODE_ROLE } from "@/lib/config";
+import { withTrace } from "@/lib/tracer";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +10,7 @@ export const dynamic = "force-dynamic";
  * GET /api/mesh/tasks — List all tasks from NATS KV.
  * Available on all nodes (read from shared KV).
  */
-export async function GET() {
+export const GET = withTrace("mesh", "GET /api/mesh/tasks", async () => {
   const kv = await getTasksKv();
   if (!kv) {
     return Response.json({ tasks: [], natsAvailable: false });
@@ -32,7 +34,7 @@ export async function GET() {
   });
 
   return Response.json({ tasks, natsAvailable: true });
-}
+});
 
 /**
  * POST /api/mesh/tasks — Propose a new task.
@@ -40,7 +42,7 @@ export async function GET() {
  * On lead: creates directly with status "queued".
  * On worker: creates with status "proposed" — daemon validates within 30s.
  */
-export async function POST(req: Request) {
+export const POST = withTrace("mesh", "POST /api/mesh/tasks", async (req: NextRequest) => {
   const kv = await getTasksKv();
   if (!kv) {
     return Response.json({ error: "NATS unavailable" }, { status: 503 });
@@ -88,4 +90,4 @@ export async function POST(req: Request) {
   await kv.put(taskId, sc.encode(JSON.stringify(task)));
 
   return Response.json({ ok: true, task }, { status: 201 });
-}
+});

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { clusterMembers } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +11,10 @@ export const dynamic = "force-dynamic";
  *
  * Add a member to a cluster. 409 if already exists.
  */
-export async function POST(
+export const POST = withTrace("cowork", "POST /api/cowork/clusters/[id]/members", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id: clusterId } = await params;
   const { nodeId, role } = await request.json();
 
@@ -47,17 +48,17 @@ export async function POST(
     .run();
 
   return NextResponse.json({ ok: true });
-}
+});
 
 /**
  * PATCH /api/cowork/clusters/[id]/members
  *
  * Update role for a member. Body: { nodeId, role }
  */
-export async function PATCH(
+export const PATCH = withTrace("cowork", "PATCH /api/cowork/clusters/[id]/members", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id: clusterId } = await params;
   const { nodeId, role } = await request.json();
 
@@ -81,17 +82,17 @@ export async function PATCH(
     .run();
 
   return NextResponse.json({ ok: true });
-}
+});
 
 /**
  * DELETE /api/cowork/clusters/[id]/members?nodeId=X
  *
  * Remove a member from a cluster.
  */
-export async function DELETE(
+export const DELETE = withTrace("cowork", "DELETE /api/cowork/clusters/[id]/members", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id: clusterId } = await params;
   const nodeId = request.nextUrl.searchParams.get("nodeId");
 
@@ -114,4 +115,4 @@ export async function DELETE(
     .run();
 
   return NextResponse.json({ ok: true });
-}
+});

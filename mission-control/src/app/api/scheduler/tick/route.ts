@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { schedulerTick } from "@/lib/scheduler";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * POST /api/scheduler/tick
@@ -7,7 +8,7 @@ import { schedulerTick } from "@/lib/scheduler";
  * Called by: SWR polling, heartbeat system, or manual trigger.
  * Idempotent — safe to call frequently.
  */
-export async function POST() {
+export const POST = withTrace("scheduler", "POST /api/scheduler/tick", async () => {
   try {
     const result = schedulerTick();
     return NextResponse.json(result);
@@ -18,13 +19,13 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * GET /api/scheduler/tick
  * Same as POST — allows easy triggering from browser or curl.
  */
-export async function GET() {
+export const GET = withTrace("scheduler", "GET /api/scheduler/tick", async () => {
   try {
     const result = schedulerTick();
     return NextResponse.json(result);
@@ -35,4 +36,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

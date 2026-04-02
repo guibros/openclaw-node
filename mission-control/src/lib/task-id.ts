@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
+import { traceCall } from "@/lib/tracer";
 
 /**
  * Generate a task ID in the format T-YYYYMMDD-NNN.
@@ -9,6 +10,7 @@ export function generateTaskId(
   db: ReturnType<typeof getDb>,
   date: Date
 ): string {
+  const _start = Date.now();
   const dateStr =
     date.getFullYear().toString() +
     (date.getMonth() + 1).toString().padStart(2, "0") +
@@ -28,5 +30,7 @@ export function generateTaskId(
     });
 
   const nextSeq = existing.length > 0 ? Math.max(...existing) + 1 : 1;
-  return `${prefix}${nextSeq.toString().padStart(3, "0")}`;
+  const id = `${prefix}${nextSeq.toString().padStart(3, "0")}`;
+  traceCall("task-id", "generateTaskId", _start, id);
+  return id;
 }

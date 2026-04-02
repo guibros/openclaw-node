@@ -4,12 +4,13 @@ import { getDb, getRawDb } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { syncTasksToMarkdown } from "@/lib/sync/tasks";
 import { logActivity } from "@/lib/activity";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/projects
  * List all project-type tasks with child counts.
  */
-export async function GET() {
+export const GET = withTrace("projects", "GET /api/projects", async () => {
   try {
     const db = getDb();
     const raw = getRawDb();
@@ -45,13 +46,13 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * POST /api/projects
  * Create a new project. Body: { id, title, description?, color?, start_date?, end_date? }
  */
-export async function POST(request: NextRequest) {
+export const POST = withTrace("projects", "POST /api/projects", async (request: NextRequest) => {
   try {
     const db = getDb();
     const body = await request.json();
@@ -99,4 +100,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

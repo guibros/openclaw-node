@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRawDb } from "@/lib/db";
+import { withTrace } from "@/lib/tracer";
 
 interface TreeRow {
   id: string;
@@ -26,10 +27,10 @@ interface TreeRow {
  * Returns the full recursive subtree for a project/pipeline/phase.
  * Uses SQLite recursive CTE for efficient traversal.
  */
-export async function GET(
+export const GET = withTrace("tasks", "GET /api/tasks/:id/tree", async (
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id } = await params;
     const raw = getRawDb();
@@ -91,4 +92,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

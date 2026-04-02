@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { memoryDocs } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/memory/list?source=daily_log
  * List all indexed memory documents (without full content).
  * Sorted by date desc, then modified_at desc.
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("memory", "GET /api/memory/list", async (request: NextRequest) => {
   try {
     const db = getDb();
     const source = request.nextUrl.searchParams.get("source");
@@ -45,4 +46,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

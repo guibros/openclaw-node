@@ -13,6 +13,7 @@
 
 import { getRawDb } from "../db";
 import { AGENT_NAME, HUMAN_NAME } from "../config";
+import { traceCall } from "../tracer";
 
 // ── Types ──
 
@@ -77,6 +78,7 @@ const RELATION_PATTERNS: Array<{
  * Uses case-insensitive matching + alias lookup.
  */
 export function findOrCreateEntity(name: string, type: string, aliases?: string[]): number {
+  const _start = Date.now();
   const raw = getRawDb();
   const nameLower = name.toLowerCase().trim();
 
@@ -90,6 +92,7 @@ export function findOrCreateEntity(name: string, type: string, aliases?: string[
     raw.prepare(
       "UPDATE memory_entities SET last_seen = datetime('now'), access_count = ? WHERE id = ?"
     ).run(existing.access_count + 1, existing.id);
+    traceCall("memory/entities", "findOrCreateEntity", _start, name);
     return existing.id;
   }
 
@@ -105,6 +108,7 @@ export function findOrCreateEntity(name: string, type: string, aliases?: string[
         raw.prepare(
           "UPDATE memory_entities SET last_seen = datetime('now'), access_count = ? WHERE id = ?"
         ).run(ent.access_count + 1, ent.id);
+        traceCall("memory/entities", "findOrCreateEntity", _start, name);
         return ent.id;
       }
     } catch { /* invalid JSON, skip */ }
@@ -116,6 +120,7 @@ export function findOrCreateEntity(name: string, type: string, aliases?: string[
     "INSERT INTO memory_entities (name, type, aliases) VALUES (?, ?, ?)"
   ).run(name.trim(), type, aliasJson);
 
+  traceCall("memory/entities", "findOrCreateEntity", _start, name);
   return Number(result.lastInsertRowid);
 }
 
@@ -268,6 +273,7 @@ export function processFactEntities(itemId: number, factText: string, category?:
   entities: number;
   relations: number;
 } {
+  const _start = Date.now();
   // Extract entities
   const entityMatches = extractEntitiesFromFact(factText);
   const entityIds: Map<string, number> = new Map();
@@ -290,7 +296,9 @@ export function processFactEntities(itemId: number, factText: string, category?:
     }
   }
 
-  return { entities: entityMatches.length, relations: relationMatches.length };
+  const pfeResult = { entities: entityMatches.length, relations: relationMatches.length };
+  traceCall("memory/entities", "processFactEntities", _start, `e:${pfeResult.entities} r:${pfeResult.relations}`);
+  return pfeResult;
 }
 
 // ── Query Functions (for retrieval + boot injection) ──
@@ -437,6 +445,7 @@ export function formatEntityContextBlock(): string {
  * Seed the graph with known entities on first run.
  */
 export function seedKnownEntities(): number {
+  const _start = Date.now();
   let created = 0;
   for (const known of KNOWN_ENTITIES) {
     const raw = getRawDb();
@@ -449,6 +458,7 @@ export function seedKnownEntities(): number {
       created++;
     }
   }
+  traceCall("memory/entities", "seedKnownEntities", _start, `${created} created`);
   return created;
 }
 
@@ -461,6 +471,7 @@ export function getGraphStats(): {
   activeRelations: number;
   topTypes: Array<{ type: string; count: number }>;
 } {
+  const _start = Date.now();
   const raw = getRawDb();
 
   const entityCount = (raw.prepare(
@@ -479,5 +490,6 @@ export function getGraphStats(): {
     "SELECT type, COUNT(*) as count FROM memory_entities GROUP BY type ORDER BY count DESC"
   ).all() as Array<{ type: string; count: number }>;
 
+  traceCall("memory/entities", "getGraphStats", _start, `${entityCount} entities`);
   return { entityCount, relationCount, activeRelations, topTypes };
 }

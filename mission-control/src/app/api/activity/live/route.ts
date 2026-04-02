@@ -5,8 +5,10 @@ import { getRecentTranscriptActivity } from "@/lib/parsers/transcript";
  * GET /api/activity/live
  * Returns recent activity extracted from the Claude JSONL transcript.
  * This is a read-only, pull-based endpoint — no database writes.
+ * (SSE-like polling endpoint — withTrace skipped, manual log instead)
  */
 export async function GET(request: NextRequest) {
+  console.log("[trace] GET /api/activity/live");
   try {
     const { searchParams } = request.nextUrl;
     const limit = parseInt(searchParams.get("limit") || "30", 10);

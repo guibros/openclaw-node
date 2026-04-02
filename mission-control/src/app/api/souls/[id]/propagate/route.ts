@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { validatePathParam } from "@/lib/config";
 import { soulEvolutionLog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { withTrace } from "@/lib/tracer";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -15,10 +16,10 @@ interface PropagateRequest {
 }
 
 // POST /api/souls/:id/propagate — Propagate an approved gene to another soul
-export async function POST(
+export const POST = withTrace("souls", "POST /api/souls/:id/propagate", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     let sourceSoulId: string;
     try {
@@ -162,4 +163,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

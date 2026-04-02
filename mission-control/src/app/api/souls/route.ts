@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { withTrace } from "@/lib/tracer";
 
 const SOULS_DIR = path.join(os.homedir(), ".openclaw/souls");
 const REGISTRY_PATH = path.join(SOULS_DIR, "registry.json");
@@ -44,7 +45,7 @@ async function saveRegistry(registry: SoulRegistry): Promise<void> {
 
 // GET /api/souls - List all souls
 // GET /api/souls?id=soul-id - Get specific soul
-export async function GET(request: NextRequest) {
+export const GET = withTrace("souls", "GET /api/souls", async (request: NextRequest) => {
   try {
     const registry = await loadRegistry();
     const { searchParams } = new URL(request.url);
@@ -66,10 +67,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/souls - Register new soul
-export async function POST(request: NextRequest) {
+export const POST = withTrace("souls", "POST /api/souls", async (request: NextRequest) => {
   try {
     const body = await request.json();
     const registry = await loadRegistry();
@@ -100,10 +101,10 @@ export async function POST(request: NextRequest) {
       { status }
     );
   }
-}
+});
 
 // PATCH /api/souls?id=soul-id - Update soul
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTrace("souls", "PATCH /api/souls", async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const soulId = searchParams.get("id");
@@ -140,10 +141,10 @@ export async function PATCH(request: NextRequest) {
       { status }
     );
   }
-}
+});
 
 // DELETE /api/souls?id=soul-id - Delete soul
-export async function DELETE(request: NextRequest) {
+export const DELETE = withTrace("souls", "DELETE /api/souls", async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const soulId = searchParams.get("id");
@@ -173,4 +174,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

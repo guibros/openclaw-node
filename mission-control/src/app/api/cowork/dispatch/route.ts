@@ -7,6 +7,7 @@ import { generateTaskId } from "@/lib/task-id";
 import { statusToKanban } from "@/lib/parsers/task-markdown";
 import { syncTasksToMarkdown } from "@/lib/sync/tasks";
 import { logActivity } from "@/lib/activity";
+import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export const dynamic = "force-dynamic";
  *
  * A wake signal is published to reduce bridge poll latency to ~1s.
  */
-export async function POST(request: NextRequest) {
+export const POST = withTrace("cowork", "POST /api/cowork/dispatch", async (request: NextRequest) => {
   const body = await request.json();
   const {
     title,
@@ -125,4 +126,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

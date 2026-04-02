@@ -10,6 +10,7 @@ import { schedulerTick } from "@/lib/scheduler";
 import { generateTaskId } from "@/lib/task-id";
 import { getNats, sc } from "@/lib/nats";
 import { WORKSPACE_ROOT, AGENT_NAME } from "@/lib/config";
+import { withTrace } from "@/lib/tracer";
 import path from "path";
 
 /** Safely parse a JSON string from a DB field, returning fallback on failure. */
@@ -57,7 +58,7 @@ function readCompanionState(): { title: string; nextAction: string } | null {
  * Also injects a live "current session" task from .companion-state.md.
  * Optional query params: ?status=X&column=X
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("tasks", "GET /api/tasks", async (request: NextRequest) => {
   try {
     const db = getDb();
 
@@ -142,14 +143,14 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * POST /api/tasks
  * Create a new task. Body: { title, status?, owner?, success_criteria?, artifacts?, next_action? }
  * Auto-generates task_id as T-YYYYMMDD-NNN, writes to DB, then syncs to markdown.
  */
-export async function POST(request: NextRequest) {
+export const POST = withTrace("tasks", "POST /api/tasks", async (request: NextRequest) => {
   try {
     const db = getDb();
     const body = await request.json();
@@ -300,4 +301,4 @@ export async function POST(request: NextRequest) {
       { status }
     );
   }
-}
+});

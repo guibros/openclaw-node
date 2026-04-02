@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getHealthKv, sc } from "@/lib/nats";
+import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
  * Includes which daemons/services are running per node.
  * Follows the same KV read pattern as /api/mesh/nodes.
  */
-export async function GET() {
+export const GET = withTrace("observability", "GET /api/observability/nodes", async () => {
   try {
     const kv = await getHealthKv();
 
@@ -85,4 +86,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

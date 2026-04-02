@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCollabKv, sc } from "@/lib/nats";
+import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -8,10 +9,10 @@ export const dynamic = "force-dynamic";
  *
  * Single session detail from NATS MESH_COLLAB KV.
  */
-export async function GET(
+export const GET = withTrace("cowork", "GET /api/cowork/sessions/[id]", async (
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
   const kv = await getCollabKv();
   if (!kv) {
@@ -34,4 +35,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

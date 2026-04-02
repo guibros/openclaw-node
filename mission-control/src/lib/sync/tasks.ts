@@ -9,6 +9,7 @@ import {
   serializeTasksMarkdown,
   statusToKanban,
 } from "@/lib/parsers/task-markdown";
+import { traceCall } from "@/lib/tracer";
 
 type DrizzleDb = ReturnType<typeof import("@/lib/db")["getDb"]>;
 
@@ -56,6 +57,8 @@ function markdownChangedExternally(): boolean {
  * Merges markdown state into DB without blindly overwriting DB-only fields.
  */
 export function syncTasksFromMarkdown(db: DrizzleDb): void {
+  const _start = Date.now();
+  try {
   if (!fs.existsSync(ACTIVE_TASKS_MD)) return;
 
   lastImportTime = Date.now(); // stamp BEFORE work — prevents re-entry during long imports
@@ -204,6 +207,11 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
       db.delete(tasks).where(eq(tasks.id, row.id)).run();
     }
   }
+  traceCall("sync/tasks", "syncTasksFromMarkdown", _start);
+  } catch (err: any) {
+    traceCall("sync/tasks", "syncTasksFromMarkdown", _start, undefined, err);
+    throw err;
+  }
 }
 
 /**
@@ -211,8 +219,15 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
  * This is what GET /api/tasks should call instead of unconditional sync.
  */
 export function syncTasksFromMarkdownIfChanged(db: DrizzleDb): void {
-  if (markdownChangedExternally()) {
-    syncTasksFromMarkdown(db);
+  const _start = Date.now();
+  try {
+    if (markdownChangedExternally()) {
+      syncTasksFromMarkdown(db);
+    }
+    traceCall("sync/tasks", "syncTasksFromMarkdownIfChanged", _start);
+  } catch (err: any) {
+    traceCall("sync/tasks", "syncTasksFromMarkdownIfChanged", _start, undefined, err);
+    throw err;
   }
 }
 
@@ -223,6 +238,8 @@ export function syncTasksFromMarkdownIfChanged(db: DrizzleDb): void {
  * Tracks the mtime after write to avoid re-importing our own changes.
  */
 export function syncTasksToMarkdown(db: DrizzleDb): void {
+  const _start = Date.now();
+  try {
   // Workers must NOT write to active-tasks.md — the lead owns this file.
   // Writing from workers would cause conflict loops in the mesh sync.
   if (NODE_ROLE === "worker") return;
@@ -293,4 +310,9 @@ export function syncTasksToMarkdown(db: DrizzleDb): void {
   const stat = fs.statSync(ACTIVE_TASKS_MD);
   lastWriteMtime = stat.mtimeMs;
   lastKnownMtime = stat.mtimeMs;
+  traceCall("sync/tasks", "syncTasksToMarkdown", _start);
+  } catch (err: any) {
+    traceCall("sync/tasks", "syncTasksToMarkdown", _start, undefined, err);
+    throw err;
+  }
 }

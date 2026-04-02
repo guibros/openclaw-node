@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { WORKSPACE_ROOT } from "@/lib/config";
+import { withTrace } from "@/lib/tracer";
 import fs from "fs";
 import path from "path";
 
@@ -8,7 +9,7 @@ import path from "path";
  * Read any file from the workspace (relative path).
  * Returns raw content + metadata. Only allows files under WORKSPACE_ROOT.
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("workspace", "GET /api/workspace/read", async (request: NextRequest) => {
   try {
     const relPath = request.nextUrl.searchParams.get("path");
     if (!relPath) {
@@ -81,4 +82,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { tieredSearch, formatInjectionBlock, getMemoryInjection } from "@/lib/memory/retrieval";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/memory/retrieve?q=query&limit=10&format=block
- *
- * Tiered memory retrieval:
- * - Tier 1: Category summaries
- * - Tier 2: Memory items (FTS5)
- * - Tier 3: Full docs (FTS5)
- *
- * Add &format=block to get the formatted injection block (for agent context).
- * Default returns raw results array.
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("memory", "GET /api/memory/retrieve", async (request: NextRequest) => {
   try {
     const { searchParams } = request.nextUrl;
     const query = searchParams.get("q");
@@ -48,4 +41,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

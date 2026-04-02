@@ -8,6 +8,7 @@ import path from "path";
 import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { withTrace } from "@/lib/tracer";
 
 const execFileAsync = promisify(execFile);
 const SOULS_DIR = path.join(os.homedir(), ".openclaw/souls");
@@ -27,10 +28,10 @@ interface EvolutionEvent {
 }
 
 // GET /api/souls/:id/evolution - Get evolution events for a soul
-export async function GET(
+export const GET = withTrace("souls", "GET /api/souls/:id/evolution", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     let soulId: string;
     try {
@@ -94,13 +95,13 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/souls/:id/evolution - Create new evolution event (used by souls)
-export async function POST(
+export const POST = withTrace("souls", "POST /api/souls/:id/evolution", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     let soulId: string;
     try {
@@ -139,13 +140,13 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH /api/souls/:id/evolution/:eventId - Approve/reject evolution
-export async function PATCH(
+export const PATCH = withTrace("souls", "PATCH /api/souls/:id/evolution", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     let soulId: string;
     try {
@@ -287,4 +288,4 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+});

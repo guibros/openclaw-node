@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { validatePathParam } from "@/lib/config";
 import { soulSpawns } from "@/lib/db/schema";
+import { withTrace } from "@/lib/tracer";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -34,10 +35,10 @@ function determineSubagentType(tools: string[]): string {
 }
 
 // POST /api/souls/:id/prompt — Generate soul-enriched preamble for Task tool
-export async function POST(
+export const POST = withTrace("souls", "POST /api/souls/:id/prompt", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     let soulId: string;
     try {
@@ -208,4 +209,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

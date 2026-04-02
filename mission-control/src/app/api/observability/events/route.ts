@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRawDb } from "@/lib/db";
+import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  *
  * Returns JSON array ordered by timestamp DESC.
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("observability", "GET /api/observability/events", async (request: NextRequest) => {
   try {
     const url = request.nextUrl;
     const since = url.searchParams.get("since");
@@ -83,4 +84,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

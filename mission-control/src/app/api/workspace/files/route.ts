@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { WORKSPACE_ROOT } from "@/lib/config";
+import { withTrace } from "@/lib/tracer";
 import fs from "fs";
 import path from "path";
 
@@ -74,7 +75,7 @@ function scanDir(absPath: string, relPath: string, depth: number): FileNode[] {
  * GET /api/workspace/files
  * Returns the full workspace file tree.
  */
-export async function GET(_request: NextRequest) {
+export const GET = withTrace("workspace", "GET /api/workspace/files", async (_request: NextRequest) => {
   try {
     const tree = scanDir(WORKSPACE_ROOT, "", 0);
     return NextResponse.json({ root: WORKSPACE_ROOT, tree });
@@ -85,4 +86,4 @@ export async function GET(_request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

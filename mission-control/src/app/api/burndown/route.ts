@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRawDb } from "@/lib/db";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/burndown?projectId=X
  * Returns task status counts and a done-over-time timeline for burndown charts.
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("burndown", "GET /api/burndown", async (request: NextRequest) => {
   try {
     const { searchParams } = request.nextUrl;
     const projectId = searchParams.get("projectId");
@@ -109,4 +110,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

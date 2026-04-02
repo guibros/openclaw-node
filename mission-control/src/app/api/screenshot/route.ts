@@ -3,6 +3,7 @@ import { execFileSync } from "child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import path from "path";
 import { WORKSPACE_ROOT } from "@/lib/config";
+import { withTrace } from "@/lib/tracer";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ const SCREENSHOT_BIN = path.join(WORKSPACE_ROOT, "bin", "screenshot");
  * Body (optional): { display?: number, delay?: number }
  * Returns: { path, filename, timestamp }
  */
-export async function POST(request: NextRequest) {
+export const POST = withTrace("screenshot", "POST /api/screenshot", async (request: NextRequest) => {
   try {
     let display: number | undefined;
     let delay: number | undefined;
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * GET /api/screenshot — List recent screenshots or serve one
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
  * Query: ?file=<filename> — serve the image binary
  * Query: (none) — list last 20 screenshots
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("screenshot", "GET /api/screenshot", async (request: NextRequest) => {
   try {
     const { searchParams } = request.nextUrl;
     const latest = searchParams.get("latest");
@@ -124,4 +125,4 @@ export async function GET(request: NextRequest) {
     console.error("GET /api/screenshot error:", err);
     return NextResponse.json({ error: "Failed to list screenshots" }, { status: 500 });
   }
-}
+});

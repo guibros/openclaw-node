@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { memoryDocs } from "@/lib/db/schema";
+import { withTrace } from "@/lib/tracer";
 import {
   extractAllReferences,
   buildResolutionMaps,
@@ -11,7 +12,7 @@ import {
  * Compute the document-level cross-reference graph from all indexed memory_docs.
  * Auto-detects: [[wikilinks]], task IDs (ARCANE-M01, T-xxx), file path mentions.
  */
-export async function GET() {
+export const GET = withTrace("memory", "GET /api/memory/wikilinks", async () => {
   try {
     const db = getDb();
 
@@ -72,4 +73,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

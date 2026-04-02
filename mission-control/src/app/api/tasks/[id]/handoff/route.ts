@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { validatePathParam } from "@/lib/config";
 import { tasks, soulHandoffs } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { withTrace } from "@/lib/tracer";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -23,10 +24,10 @@ interface HandoffRequest {
 }
 
 // POST /api/tasks/:id/handoff - Hand off task to another soul
-export async function POST(
+export const POST = withTrace("tasks", "POST /api/tasks/:id/handoff", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     let taskId: string;
     try {
@@ -118,4 +119,4 @@ ${task.nextAction || "Begin work on this task"}
       { status: 500 }
     );
   }
-}
+});

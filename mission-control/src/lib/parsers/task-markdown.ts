@@ -1,4 +1,5 @@
 import fs from "fs";
+import { traceCall } from "@/lib/tracer";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -86,6 +87,7 @@ export function kanbanToStatus(column: string): string {
  * 4-space-indented `- ` lines.
  */
 export function parseTasksMarkdown(content: string): ParsedTask[] {
+  const _start = Date.now();
   const tasks: ParsedTask[] = [];
 
   // Extract only the "## Live Tasks" section
@@ -334,6 +336,7 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
   }
 
   flush();
+  traceCall("parsers/task-markdown", "parseTasksMarkdown", _start, `${tasks.length} tasks`);
   return tasks;
 }
 
@@ -382,6 +385,7 @@ function formatTimestamp(): string {
 }
 
 export function serializeTasksMarkdown(tasks: ParsedTask[]): string {
+  const _start = Date.now();
   const header = HEADER.replace("{{TIMESTAMP}}", formatTimestamp());
 
   const blocks = tasks.map((t) => {
@@ -505,5 +509,7 @@ export function serializeTasksMarkdown(tasks: ParsedTask[]): string {
     return lines.join("\n");
   });
 
-  return header + "\n" + blocks.join("\n\n") + "\n";
+  const result = header + "\n" + blocks.join("\n\n") + "\n";
+  traceCall("parsers/task-markdown", "serializeTasksMarkdown", _start, `${tasks.length} tasks`);
+  return result;
 }

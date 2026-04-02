@@ -8,6 +8,7 @@ import { schedulerTick, computeWaves } from "@/lib/scheduler";
 import { getNats } from "@/lib/nats";
 import fs from "fs";
 import { ACTIVE_TASKS_MD, WORKSPACE_ROOT } from "@/lib/config";
+import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -40,7 +41,7 @@ async function runTest(suite: string, name: string, fn: TestFn): Promise<TestRes
  *
  * All test tasks use the prefix __TEST__ so they can be safely cleaned up.
  */
-export async function POST() {
+export const POST = withTrace("diagnostics", "POST /api/diagnostics/test-runner", async () => {
   try {
   const results: TestResult[] = [];
   const db = getDb();
@@ -995,4 +996,4 @@ export async function POST() {
       { status: err instanceof SyntaxError ? 400 : 500 }
     );
   }
-}
+});

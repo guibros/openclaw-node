@@ -11,6 +11,7 @@
 import { getRawDb } from "../db";
 import { readCategorySummary, VALID_CATEGORIES } from "./categories";
 import { expandQueryWithGraph } from "./entities";
+import { traceCall } from "../tracer";
 
 export interface RetrievalResult {
   factText: string;
@@ -190,6 +191,7 @@ export function tieredSearch(
   query: string,
   limit = 10
 ): RetrievalResult[] {
+  const _start = Date.now();
   // Graph expansion: find related entities and add to search
   let graphExpansions: string[] = [];
   try {
@@ -210,7 +212,9 @@ export function tieredSearch(
       tier2Results.push(...searchItems(q, Math.ceil(limit / queries.length)));
     }
     const merged = [...tier1, ...tier2Results];
-    return dedup(merged).slice(0, limit);
+    const earlyResult = dedup(merged).slice(0, limit);
+    traceCall("memory/retrieval", "tieredSearch", _start, `${earlyResult.length} results (early)`);
+    return earlyResult;
   }
 
   // Tier 2: memory items (expanded queries)
@@ -224,7 +228,9 @@ export function tieredSearch(
 
   // Merge all tiers, sort by decayed score
   const merged = [...tier1, ...tier2Results, ...tier3];
-  return dedup(merged).slice(0, limit);
+  const result = dedup(merged).slice(0, limit);
+  traceCall("memory/retrieval", "tieredSearch", _start, `${result.length} results`);
+  return result;
 }
 
 /**
@@ -276,7 +282,9 @@ export function getMemoryInjection(
   query: string,
   maxItems = 10
 ): { block: string; results: RetrievalResult[] } {
+  const _start = Date.now();
   const results = tieredSearch(query, maxItems);
   const block = formatInjectionBlock(results, maxItems);
+  traceCall("memory/retrieval", "getMemoryInjection", _start, `${results.length} results`);
   return { block, results };
 }

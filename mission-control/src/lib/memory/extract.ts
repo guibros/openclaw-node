@@ -13,6 +13,7 @@ import { eq, and } from "drizzle-orm";
 import { getDb, getRawDb } from "../db";
 import { memoryItems, memoryAudit, memoryDocs } from "../db/schema";
 import { processFactEntities, extractEntitiesFromFact } from "./entities";
+import { traceCall } from "../tracer";
 
 export interface ExtractedFact {
   factText: string;
@@ -124,6 +125,7 @@ export function storeExtractedFacts(
   sourceDocId?: number,
   extractionSource?: string
 ): { accepted: number; rejected: number } {
+  const _start = Date.now();
   const db = getDb();
   const now = new Date().toISOString();
   let accepted = 0;
@@ -210,6 +212,7 @@ export function storeExtractedFacts(
     })
     .run();
 
+  traceCall("memory/extract", "storeExtractedFacts", _start, `a:${accepted} r:${rejected}`);
   return { accepted, rejected };
 }
 
@@ -217,9 +220,11 @@ export function storeExtractedFacts(
  * Get all active memory items, optionally filtered by category.
  */
 export function getActiveItems(category?: string) {
+  const _start = Date.now();
   const db = getDb();
+  let result;
   if (category) {
-    return db
+    result = db
       .select()
       .from(memoryItems)
       .where(
@@ -229,12 +234,15 @@ export function getActiveItems(category?: string) {
         )
       )
       .all();
+  } else {
+    result = db
+      .select()
+      .from(memoryItems)
+      .where(eq(memoryItems.status, "active"))
+      .all();
   }
-  return db
-    .select()
-    .from(memoryItems)
-    .where(eq(memoryItems.status, "active"))
-    .all();
+  traceCall("memory/extract", "getActiveItems", _start, `${result.length} items`);
+  return result;
 }
 
 /**
@@ -262,12 +270,14 @@ export function getItemsWithSource(limit = 50, offset = 0) {
  * Search items using FTS5.
  */
 export function searchItems(query: string, category?: string, limit = 20) {
+  const _start = Date.now();
   const raw = getRawDb();
   const safeQuery = query.replace(/"/g, '""').replace(/[*(){}^]/g, '').trim();
   if (!safeQuery) return [];
 
+  let result;
   if (category) {
-    return raw
+    result = raw
       .prepare(
         `SELECT mi.*, rank
         FROM memory_items_fts
@@ -277,18 +287,20 @@ export function searchItems(query: string, category?: string, limit = 20) {
         LIMIT ?`
       )
       .all(`"${safeQuery}"*`, category, limit);
+  } else {
+    result = raw
+      .prepare(
+        `SELECT mi.*, rank
+        FROM memory_items_fts
+        JOIN memory_items mi ON mi.id = memory_items_fts.rowid
+        WHERE memory_items_fts MATCH ? AND mi.status = 'active'
+        ORDER BY rank
+        LIMIT ?`
+      )
+      .all(`"${safeQuery}"*`, limit);
   }
-
-  return raw
-    .prepare(
-      `SELECT mi.*, rank
-      FROM memory_items_fts
-      JOIN memory_items mi ON mi.id = memory_items_fts.rowid
-      WHERE memory_items_fts MATCH ? AND mi.status = 'active'
-      ORDER BY rank
-      LIMIT ?`
-    )
-    .all(`"${safeQuery}"*`, limit);
+  traceCall("memory/extract", "searchItems", _start, `${result.length} results`);
+  return result;
 }
 
 /**

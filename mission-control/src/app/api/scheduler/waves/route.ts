@@ -3,13 +3,14 @@ import { eq, and, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { tasks, dependencies } from "@/lib/db/schema";
 import { computeWaves } from "@/lib/scheduler";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/scheduler/waves
  * Returns the current wave structure without dispatching.
  * Useful for visualization and debugging.
  */
-export async function GET() {
+export const GET = withTrace("scheduler", "GET /api/scheduler/waves", async () => {
   const db = getDb();
 
   const dispatchable = db
@@ -51,4 +52,4 @@ export async function GET() {
     waves,
     totalDispatchable: dispatchable.length,
   });
-}
+});

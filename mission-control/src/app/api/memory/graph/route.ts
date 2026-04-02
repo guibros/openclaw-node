@@ -7,7 +7,7 @@
  * POST /api/memory/graph             — seed known entities
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   getTopEntities,
   getEntityRelations,
@@ -16,8 +16,9 @@ import {
   seedKnownEntities,
 } from "@/lib/memory/entities";
 import { getRawDb } from "@/lib/db";
+import { withTrace } from "@/lib/tracer";
 
-export async function GET(request: Request) {
+export const GET = withTrace("memory", "GET /api/memory/graph", async (request: NextRequest) => {
   try {
     const url = new URL(request.url);
     const boot = url.searchParams.get("boot");
@@ -46,9 +47,9 @@ export async function GET(request: Request) {
       { status: err instanceof SyntaxError ? 400 : 500 }
     );
   }
-}
+});
 
-export async function POST() {
+export const POST = withTrace("memory", "POST /api/memory/graph", async () => {
   try {
     const seeded = seedKnownEntities();
     return NextResponse.json({ seeded, message: `${seeded} entities seeded` });
@@ -59,7 +60,7 @@ export async function POST() {
       { status: err instanceof SyntaxError ? 400 : 500 }
     );
   }
-}
+});
 
 /**
  * Returns flat nodes + edges for force-directed graph visualization.

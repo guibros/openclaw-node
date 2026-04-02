@@ -1,6 +1,7 @@
 import type { TtsProvider, TtsRequest, TtsResponse } from "./types";
 import { createGoogleTtsProvider } from "./google";
 import { createEdgeTtsProvider } from "./edge";
+import { traceCall } from "@/lib/tracer";
 
 export type { TtsRequest, TtsResponse, TtsProvider } from "./types";
 
@@ -38,8 +39,10 @@ export async function synthesizeWithFallback(
   req: TtsRequest,
   preferred: string = "google"
 ): Promise<SynthesisResult> {
+  const _start = Date.now();
   try {
     const result = await getProvider(preferred).synthesize(req);
+    traceCall("tts", "synthesizeWithFallback", _start, preferred);
     return { ...result, actualProvider: preferred };
   } catch (err) {
     // Find first available fallback that isn't the preferred provider
@@ -58,6 +61,7 @@ export async function synthesizeWithFallback(
       }
     }
 
+    traceCall("tts", "synthesizeWithFallback", _start, undefined, new Error(reason));
     throw new Error(`All TTS providers failed. Last error: ${reason}`);
   }
 }

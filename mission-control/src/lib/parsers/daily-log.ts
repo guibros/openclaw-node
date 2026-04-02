@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { traceCall } from "@/lib/tracer";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -23,6 +24,7 @@ export interface DailyLogEntry {
  * Throws if the file does not exist.
  */
 export function parseDailyLog(filePath: string): DailyLogEntry {
+  const _start = Date.now();
   if (!fs.existsSync(filePath)) {
     throw new Error(`Daily log not found: ${filePath}`);
   }
@@ -39,13 +41,15 @@ export function parseDailyLog(filePath: string): DailyLogEntry {
   const headingMatch = content.match(/^#\s+(.+)$/m);
   const title = headingMatch ? headingMatch[1].trim() : date;
 
-  return {
+  const result = {
     filePath,
     date,
     title,
     content,
     modifiedAt: stat.mtime.toISOString(),
   };
+  traceCall("parsers/daily-log", "parseDailyLog", _start, date);
+  return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -59,15 +63,18 @@ export function parseDailyLog(filePath: string): DailyLogEntry {
  * Returns absolute file paths matching the `YYYY-MM-DD.md` pattern.
  */
 export function listDailyLogs(memoryDir: string): string[] {
+  const _start = Date.now();
   if (!fs.existsSync(memoryDir)) {
     return [];
   }
 
   const DATE_RE = /^\d{4}-\d{2}-\d{2}\.md$/;
 
-  return fs
+  const result = fs
     .readdirSync(memoryDir)
     .filter((f) => DATE_RE.test(f))
     .sort()
     .map((f) => path.join(memoryDir, f));
+  traceCall("parsers/daily-log", "listDailyLogs", _start, `${result.length} logs`);
+  return result;
 }

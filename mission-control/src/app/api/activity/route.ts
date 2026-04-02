@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logActivity, getRecentActivity } from "@/lib/activity";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/activity?limit=50
  * Returns recent activity log entries, newest first.
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("activity", "GET /api/activity", async (request: NextRequest) => {
   try {
     const limit = parseInt(
       request.nextUrl.searchParams.get("limit") || "50",
@@ -20,13 +21,13 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * POST /api/activity
  * Log a custom activity event. Body: { event_type, description, task_id? }
  */
-export async function POST(request: NextRequest) {
+export const POST = withTrace("activity", "POST /api/activity", async (request: NextRequest) => {
   try {
     const body = await request.json();
     if (!body.event_type || !body.description) {
@@ -44,4 +45,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

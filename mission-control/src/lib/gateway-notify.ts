@@ -6,6 +6,7 @@
 import { randomUUID } from "crypto";
 import { readFileSync } from "fs";
 import path from "path";
+import { traceCall } from "./tracer";
 
 const OPENCLAW_HOME = process.env.OPENCLAW_HOME || path.join(process.env.HOME || "/Users/moltymac", ".openclaw");
 const CONFIG_PATH = path.join(OPENCLAW_HOME, "openclaw.json");
@@ -36,6 +37,7 @@ function loadGatewayConfig(): GatewayConfig {
  * Uses chat.send — message persists in TUI chat stream.
  */
 export function gatewayNotify(text: string): Promise<boolean> {
+  const _start = Date.now();
   const config = loadGatewayConfig();
   if (!config.token) {
     console.error("gateway-notify: no gateway token configured");
@@ -93,6 +95,7 @@ export function gatewayNotify(text: string): Promise<boolean> {
       if (d.type === "res" && d.ok === true && d.payload?.runId) {
         clearTimeout(timeout);
         try { ws.close(); } catch {}
+        traceCall("gateway-notify", "gatewayNotify", _start, "ok");
         resolve(true);
       }
 
@@ -103,6 +106,7 @@ export function gatewayNotify(text: string): Promise<boolean> {
 
     ws.onerror = () => {
       clearTimeout(timeout);
+      traceCall("gateway-notify", "gatewayNotify", _start, undefined, "ws error");
       resolve(false);
     };
 

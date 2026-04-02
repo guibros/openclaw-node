@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRawDb } from "@/lib/db";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * Score decay: time-weighted relevance scoring.
@@ -50,7 +51,7 @@ function expandQuery(query: string): string {
  * Supports score decay (time-weighted relevance) via &decay=true (default: true).
  * Uses raw SQLite for FTS5 MATCH + snippet() since Drizzle doesn't support FTS5.
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("memory", "GET /api/memory/search", async (request: NextRequest) => {
   try {
     const { searchParams } = request.nextUrl;
     const query = searchParams.get("q");
@@ -144,4 +145,4 @@ export async function GET(request: NextRequest) {
     const status = err instanceof SyntaxError || err instanceof RangeError ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
-}
+});

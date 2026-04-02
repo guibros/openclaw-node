@@ -6,13 +6,14 @@ import {
   getExtractionStats,
   type GatedFact,
 } from "@/lib/memory/extract";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/memory/items?category=work&limit=50&offset=0&q=search
  * List active memory items, optionally filtered by category or search query.
  * Add ?stats=true for extraction statistics.
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("memory", "GET /api/memory/items", async (request: NextRequest) => {
   try {
     const { searchParams } = request.nextUrl;
 
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * POST /api/memory/items
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
  * Called by Daedalus after inline extraction + gating,
  * or by a sub-agent doing batch extraction.
  */
-export async function POST(request: NextRequest) {
+export const POST = withTrace("memory", "POST /api/memory/items", async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { facts, sourceDocId, extractionSource } = body as {
@@ -83,4 +84,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

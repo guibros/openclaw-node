@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { WORKSPACE_ROOT } from "@/lib/config";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/memory/doc?path=memory/2026-02-18.md
@@ -9,7 +10,7 @@ import { WORKSPACE_ROOT } from "@/lib/config";
  * Path is relative to the workspace root.
  * Validates the resolved path stays within WORKSPACE_ROOT (path traversal protection).
  */
-export async function GET(request: NextRequest) {
+export const GET = withTrace("memory", "GET /api/memory/doc", async (request: NextRequest) => {
   try {
     const { searchParams } = request.nextUrl;
     const relPath = searchParams.get("path");
@@ -86,4 +87,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

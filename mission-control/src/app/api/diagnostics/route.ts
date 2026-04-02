@@ -4,10 +4,11 @@ import { getNats } from "@/lib/nats";
 import fs from "fs";
 import { ACTIVE_TASKS_MD, WORKSPACE_ROOT } from "@/lib/config";
 import { parseTasksMarkdown, serializeTasksMarkdown } from "@/lib/parsers/task-markdown";
+import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export const GET = withTrace("diagnostics", "GET /api/diagnostics", async () => {
   try {
   const raw = getRawDb();
 
@@ -102,4 +103,4 @@ export async function GET() {
       { status: err instanceof SyntaxError ? 400 : 500 }
     );
   }
-}
+});

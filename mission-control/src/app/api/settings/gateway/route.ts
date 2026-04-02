@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { withTrace } from "@/lib/tracer";
 
 const CONFIG_PATH = path.join(
   process.env.OPENCLAW_HOME || path.join(os.homedir(), ".openclaw"),
@@ -21,7 +22,7 @@ async function saveConfig(config: Record<string, any>): Promise<void> {
  * GET /api/settings/gateway
  * Returns the gateway + agent defaults config (heartbeat, fallbacks, etc.)
  */
-export async function GET() {
+export const GET = withTrace("settings", "GET /api/settings/gateway", async () => {
   try {
     const config = await loadConfig();
     const defaults = config.agents?.defaults || {};
@@ -45,7 +46,7 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * PATCH /api/settings/gateway
@@ -59,7 +60,7 @@ const ALLOWED_GATEWAY_KEYS = new Set(["port", "mode", "bind"]);
 const VALID_MODES = new Set(["local", "remote", "hybrid"]);
 const VALID_BINDS = new Set(["loopback", "tailscale", "any"]);
 
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTrace("settings", "PATCH /api/settings/gateway", async (request: NextRequest) => {
   try {
     const body = await request.json();
 
@@ -151,4 +152,4 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

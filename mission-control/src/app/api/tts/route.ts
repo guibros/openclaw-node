@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { synthesizeWithFallback } from "@/lib/tts";
+import { withTrace } from "@/lib/tracer";
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
+export const POST = withTrace("tts", "POST /api/tts", async (request: NextRequest) => {
   try {
     const body = await request.json();
 
@@ -44,4 +45,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

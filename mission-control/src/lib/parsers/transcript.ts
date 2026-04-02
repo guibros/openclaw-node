@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { traceCall } from "@/lib/tracer";
 
 /**
  * Represents a single activity event extracted from the JSONL transcript.
@@ -101,6 +102,7 @@ function tailJsonl(filePath: string, bytes: number = 200_000): object[] {
  * Returns the last `limit` events, most recent first.
  */
 export function getRecentTranscriptActivity(limit: number = 50): TranscriptEvent[] {
+  const _start = Date.now();
   const transcriptPath = findLatestTranscript();
   if (!transcriptPath) return [];
 
@@ -189,7 +191,9 @@ export function getRecentTranscriptActivity(limit: number = 50): TranscriptEvent
   }
 
   // Return most recent first, limited
-  return events.slice(-limit).reverse();
+  const result = events.slice(-limit).reverse();
+  traceCall("parsers/transcript", "getRecentTranscriptActivity", _start, `${result.length} events`);
+  return result;
 }
 
 /**

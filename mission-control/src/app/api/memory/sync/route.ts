@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { indexAllMemory } from "@/lib/sync/memory";
+import { withTrace } from "@/lib/tracer";
 
 /**
  * POST /api/memory/sync
  * Force re-index all memory sources from disk into SQLite + FTS5.
  * Returns { indexed, updated, removed }.
  */
-export async function POST() {
+export const POST = withTrace("memory", "POST /api/memory/sync", async () => {
   try {
     const db = getDb();
     const stats = indexAllMemory(db);
@@ -20,4 +21,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
+});

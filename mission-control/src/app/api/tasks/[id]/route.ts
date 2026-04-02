@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity";
 import { gatewayNotify } from "@/lib/gateway-notify";
 import { AGENT_NAME, HUMAN_NAME } from "@/lib/config";
 import { getNats, sc } from "@/lib/nats";
+import { withTrace } from "@/lib/tracer";
 
 /** Safely parse a JSON string from a DB field, returning fallback on failure. */
 function safeParse(json: string | null, fallback: unknown = []): unknown {
@@ -45,10 +46,10 @@ async function cancelMeshTask(taskId: string, execution: string | null, status: 
  * DELETE /api/tasks/[id]
  * Delete a task (and its children) by ID.
  */
-export async function DELETE(
+export const DELETE = withTrace("tasks", "DELETE /api/tasks/:id", async (
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id } = await params;
     const db = getDb();
@@ -104,17 +105,17 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * PATCH /api/tasks/[id]
  * Update a task by ID. Body: partial task fields.
  * Updates in DB, then syncs to markdown.
  */
-export async function PATCH(
+export const PATCH = withTrace("tasks", "PATCH /api/tasks/:id", async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id } = await params;
     const db = getDb();
@@ -365,4 +366,4 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+});

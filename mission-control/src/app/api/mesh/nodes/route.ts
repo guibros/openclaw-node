@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getHealthKv, sc } from "@/lib/nats";
 import { getDb, getRawDb } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +85,7 @@ const KNOWN_NODES = [
  *
  *   No synchronous round-trips to nodes. No timeout races. No flickering.
  */
-export async function GET() {
+export const GET = withTrace("mesh", "GET /api/mesh/nodes", async () => {
   try {
   const kv = await getHealthKv();
   const db = getDb();
@@ -226,4 +227,4 @@ export async function GET() {
       { status: err instanceof SyntaxError ? 400 : 500 }
     );
   }
-}
+});
