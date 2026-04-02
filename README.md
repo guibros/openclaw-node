@@ -19,13 +19,9 @@ Installable package for deploying an OpenClaw node. Includes the full infrastruc
 ### Option 1: npx (recommended)
 
 ```bash
-npx openclaw-node-harness
-```
-
-This downloads and runs the installer interactively. It will clone the repo, install dependencies, and set up the full stack. Pass `--update` to refresh an existing installation:
-
-```bash
-npx openclaw-node-harness --update
+npx openclaw-node-harness            # Full install — identity, skills, MC, services, everything
+npx openclaw-node-harness --update   # Update existing install (skip system deps)
+npx openclaw-node-harness --mesh-only  # Worker nodes — mesh agent + NATS only, no full stack
 ```
 
 ### Option 2: Git clone
@@ -33,7 +29,8 @@ npx openclaw-node-harness --update
 ```bash
 git clone https://github.com/moltyguibros-design/openclaw-node.git
 cd openclaw-node
-bash install.sh
+bash install.sh                       # Full install
+bash install.sh --update              # Update existing
 ```
 
 The installer will:
