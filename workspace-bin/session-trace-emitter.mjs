@@ -99,27 +99,32 @@ function extractCost(entry) {
 }
 
 export function createSessionTraceEmitter(tracer) {
-  // Track file position so we only read new entries each tick
-  let _lastPath = null;
-  let _lastSize = 0;
-  let _lastProcessedLine = 0;
+  // Track file positions per path so multiple JSONL files can be watched simultaneously
+  const _fileState = new Map(); // path → { lastSize }
 
   return {
     /**
-     * Read new entries from the active JSONL file and emit trace events.
-     * Call this every tick when a session is active.
+     * Read new entries from a JSONL file and emit trace events.
+     * Supports being called with different paths each tick (multi-source).
      *
-     * @param {string} jsonlPath — path to the active session's .jsonl file
+     * @param {string} jsonlPath — path to a session's .jsonl file
      */
     processNewEntries(jsonlPath) {
       if (!jsonlPath || !fs.existsSync(jsonlPath)) return;
 
-      // If path changed (new session), reset tracking
-      if (jsonlPath !== _lastPath) {
-        _lastPath = jsonlPath;
-        _lastSize = 0;
-        _lastProcessedLine = 0;
+      // Get or create tracking state for this file
+      if (!_fileState.has(jsonlPath)) {
+        // New file — initialize. Set lastSize to current size minus 64KB
+        // so we process recent history on first encounter.
+        try {
+          const initStat = fs.statSync(jsonlPath);
+          const initSize = Math.max(0, initStat.size - 65536);
+          _fileState.set(jsonlPath, { lastSize: initSize });
+          console.log(`[session-trace] Tracking: ${jsonlPath} (from offset ${initSize})`);
+        } catch { return; }
       }
+
+      const state = _fileState.get(jsonlPath);
 
       // Check if file has grown
       let stat;
@@ -127,12 +132,12 @@ export function createSessionTraceEmitter(tracer) {
         stat = fs.statSync(jsonlPath);
       } catch { return; }
 
-      if (stat.size <= _lastSize) return; // No new data
+      if (stat.size <= state.lastSize) return; // No new data
 
       // Read only the new portion
       const fd = fs.openSync(jsonlPath, 'r');
       try {
-        const newBytes = stat.size - _lastSize;
+        const newBytes = stat.size - state.lastSize;
         // Cap at 64KB per tick to avoid blocking
         const readSize = Math.min(newBytes, 65536);
         const offset = stat.size - readSize;
@@ -148,7 +153,7 @@ export function createSessionTraceEmitter(tracer) {
           try {
             entry = JSON.parse(line);
           } catch {
-            continue; // Skip malformed lines
+            continue; // Skip malformed lines (including partial first line)
           }
 
           const mapping = ENTRY_MAP[entry.type];
@@ -170,10 +175,10 @@ export function createSessionTraceEmitter(tracer) {
           emitted++;
         }
 
-        _lastSize = stat.size;
+        state.lastSize = stat.size;
 
-        if (emitted > 0 && process.env.OPENCLAW_LOG_LEVEL === 'debug') {
-          console.log(`[session-trace] Emitted ${emitted} events from ${jsonlPath}`);
+        if (emitted > 0) {
+          console.log(`[session-trace] Emitted ${emitted} events from ${jsonlPath.split('/').pop()}`);
         }
       } finally {
         fs.closeSync(fd);
@@ -184,9 +189,7 @@ export function createSessionTraceEmitter(tracer) {
      * Reset tracking state (call on session end).
      */
     reset() {
-      _lastPath = null;
-      _lastSize = 0;
-      _lastProcessedLine = 0;
+      _fileState.clear();
     },
   };
 }

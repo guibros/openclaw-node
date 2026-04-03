@@ -101,8 +101,8 @@ function insertEvent(event: any) {
   try {
     const db = getDb();
     db.insert(observabilityEvents).values(event).run();
-  } catch {
-    // Intentional: best-effort DB insert, event may be published via NATS
+  } catch (err) {
+    console.error(`[tracer] insertEvent failed: ${(err as Error).message}`);
   }
 }
 

@@ -1072,11 +1072,24 @@ async function main() {
       }
 
       // 4.5. Phase 1.5: Session trace emission (real-time JSONL → observability feed)
-      if (sm.state === STATES.ACTIVE && activity.newestSession && activity.newestSource) {
-        const source = sources.find(s => s.name === activity.newestSource);
-        if (source) {
-          const jsonlPath = path.join(source.path, activity.newestSession + '.jsonl');
-          traceEmitter.processNewEntries(jsonlPath);
+      // Scan ALL transcript sources for recently-modified JSONL files.
+      // Multiple agents may be active simultaneously (Claude Code + gateway + etc.)
+      if (sm.state === STATES.ACTIVE) {
+        const recentCutoff = Date.now() - (config.intervals?.activityWindowMs || 900000);
+        for (const source of sources) {
+          if (!fs.existsSync(source.path)) continue;
+          try {
+            const files = fs.readdirSync(source.path).filter(f => f.endsWith('.jsonl'));
+            for (const f of files) {
+              const full = path.join(source.path, f);
+              try {
+                const fstat = fs.statSync(full);
+                if (fstat.mtimeMs > recentCutoff) {
+                  traceEmitter.processNewEntries(full);
+                }
+              } catch { /* skip unreadable files */ }
+            }
+          } catch { /* skip unreadable dirs */ }
         }
       }
 
