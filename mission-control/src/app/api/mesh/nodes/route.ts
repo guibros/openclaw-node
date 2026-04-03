@@ -274,10 +274,12 @@ export const GET = withTrace("mesh", "GET /api/mesh/nodes", async () => {
     }
 
     // ── Fall back to local system data for THIS node ──────────────────
-    // When NATS is completely down, at least show real data for the local node
+    // When NATS is completely down, at least show real data for the local node.
+    // Always regenerate for local node if data is stale (>30s) or missing.
     const nn = normalizeNodeId(nodeId);
     const isLocal = nn === localNormalized || nn.startsWith(localNormalized) || localNormalized.startsWith(nn);
-    if (!health && isLocal) {
+    const localCacheAge = nodeCache.has(nodeId) ? (now - nodeCache.get(nodeId)!.fetchedAt) / 1000 : Infinity;
+    if (isLocal && (!health || localCacheAge > 30)) {
       health = gatherLocalHealth();
       nodeCache.set(nodeId, { health, fetchedAt: now });
     }
