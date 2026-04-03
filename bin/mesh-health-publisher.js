@@ -18,6 +18,7 @@
 const { connect, StringCodec } = require("nats");
 const { execSync } = require("child_process");
 const os = require("os");
+const fs = require("fs");
 const path = require("path");
 const { createTracer, setNatsConnection } = require('../lib/tracer');
 const tracer = createTracer('mesh-health-publisher');
@@ -178,7 +179,100 @@ function getDeployVersion() {
   }
 }
 
-function gatherHealth() {
+function getTailscalePeers() {
+  try {
+    const raw = execSafe('tailscale status --json');
+    if (!raw) return { peers: [], selfIp: 'unknown', natType: 'unknown' };
+    const status = JSON.parse(raw);
+
+    const selfIps = status.Self?.TailscaleIPs || [];
+    const selfIp = selfIps.find(ip => !ip.includes(':')) || selfIps[0] || 'unknown';
+
+    const peers = [];
+    if (status.Peer) {
+      for (const [key, peer] of Object.entries(status.Peer)) {
+        const peerIp = (peer.TailscaleIPs || []).find(ip => !ip.includes(':')) || '';
+        peers.push({
+          hostname: peer.HostName || key,
+          ip: peerIp,
+          online: peer.Online || false,
+          os: peer.OS || 'unknown',
+          lastSeen: peer.LastSeen || null,
+          curAddr: peer.CurAddr || null,
+          relay: peer.Relay || null,
+          direct: !!peer.CurAddr && !peer.Relay,
+        });
+      }
+    }
+
+    return { peers, selfIp, natType: status.Self?.CapMap?.['natType'] || 'unknown' };
+  } catch { return { peers: [], selfIp: 'unknown', natType: 'unknown' }; }
+}
+
+function getTailscaleLatency(peerIp) {
+  try {
+    const raw = execSafe(`tailscale ping -c 1 --timeout 3s ${peerIp}`);
+    if (!raw) return null;
+    const match = raw.match(/in (\d+(?:\.\d+)?)ms/);
+    const viaMatch = raw.match(/via (DERP\([^)]+\)|[\d.]+:\d+)/);
+    return {
+      latencyMs: match ? parseFloat(match[1]) : null,
+      via: viaMatch ? viaMatch[1] : 'unknown',
+      isDirect: viaMatch ? !viaMatch[1].startsWith('DERP') : null,
+    };
+  } catch { return null; }
+}
+
+function getCpuLoad() {
+  const load1m = os.loadavg()[0];
+  const cpuCount = os.cpus().length;
+  return Math.round((load1m / cpuCount) * 100);
+}
+
+function getNatsInfo(nc, natsUrl) {
+  try {
+    const info = nc.info;
+    return {
+      serverUrl: natsUrl || 'unknown',
+      connected: !nc.isClosed(),
+      serverVersion: info?.version || 'unknown',
+      isHost: false,
+    };
+  } catch { return { serverUrl: 'unknown', connected: false, serverVersion: 'unknown', isHost: false }; }
+}
+
+function getNodeStats() {
+  try {
+    const perfPath = path.join(os.homedir(), '.openclaw', 'workspace', 'memory', 'performance.jsonl');
+    if (!fs.existsSync(perfPath)) return { tasksToday: 0, successRate: 1.0, tokenSpendTodayUsd: 0 };
+
+    const today = new Date().toISOString().slice(0, 10);
+    const lines = fs.readFileSync(perfPath, 'utf-8').split('\n').filter(Boolean);
+
+    let completed = 0, failed = 0, tokens = 0;
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        if (!entry.completed_at || !entry.completed_at.startsWith(today)) continue;
+        if (entry.node_id && entry.node_id !== NODE_ID) continue;
+        if (entry.outcome === 'completed' || entry.outcome === 'success') completed++;
+        else if (entry.outcome === 'failed' || entry.outcome === 'error') failed++;
+        if (entry.token_cost_usd) tokens += entry.token_cost_usd;
+      } catch { continue; }
+    }
+
+    const total = completed + failed;
+    return {
+      tasksToday: total,
+      successRate: total > 0 ? completed / total : 1.0,
+      tokenSpendTodayUsd: Math.round(tokens * 100) / 100,
+    };
+  } catch { return { tasksToday: 0, successRate: 1.0, tokenSpendTodayUsd: 0 }; }
+}
+
+let publishCount = 0;
+
+function gatherHealth(nc) {
   // Gather services once — used for both role detection and health report
   const services = getServices();
   const hasDaemon = services.some(
@@ -186,24 +280,39 @@ function gatherHealth() {
   );
   const role = hasDaemon ? "lead" : "worker";
 
+  publishCount++;
+  const tsData = getTailscalePeers();
+
+  // Only ping peers every 5th cycle (every 75 seconds)
+  if (publishCount % 5 === 0) {
+    for (const peer of tsData.peers) {
+      if (peer.ip && peer.online) {
+        peer.latency = getTailscaleLatency(peer.ip);
+      }
+    }
+  }
+
+  const natsInfo = getNatsInfo(nc, NATS_URL);
+  const natsHost = new URL(NATS_URL).hostname;
+  natsInfo.isHost = (natsHost === tsData.selfIp || natsHost === '127.0.0.1' || natsHost === 'localhost');
+
   return {
     nodeId: NODE_ID,
     platform: os.platform(),
     role,
     deployVersion: getDeployVersion(),
     components: ROLE_COMPONENTS[role] || ROLE_COMPONENTS.worker,
-    tailscaleIp: getTailscaleIp(),
+    tailscaleIp: tsData.selfIp,
     diskPercent: getDiskPercent(),
     mem: getMemory(),
     uptimeSeconds: Math.round(os.uptime()),
     services,
     agent: getAgentStatus(),
     capabilities: [],
-    stats: {
-      tasksToday: 0,
-      successRate: 1.0,
-      tokenSpendTodayUsd: 0,
-    },
+    tailscale: tsData,
+    nats: natsInfo,
+    cpuLoadPercent: getCpuLoad(),
+    stats: getNodeStats(),
     reportedAt: new Date().toISOString(),
   };
 }
@@ -245,7 +354,7 @@ async function main() {
     }
 
     try {
-      const health = gatherHealth();
+      const health = gatherHealth(nc);
       await kv.put(NODE_ID, sc.encode(JSON.stringify(health)));
       // Reset on success
       if (consecutiveFailures > 0) {

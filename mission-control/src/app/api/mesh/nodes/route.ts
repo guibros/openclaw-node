@@ -9,6 +9,14 @@ export const dynamic = "force-dynamic";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
+interface TailscalePeer {
+  nodeId: string;
+  ip: string;
+  online: boolean;
+  latencyMs: number | null;
+  relay: boolean;
+}
+
 interface NodeHealth {
   nodeId: string;
   platform: string;
@@ -17,6 +25,7 @@ interface NodeHealth {
   diskPercent: number;
   mem: { total: number; free: number };
   uptimeSeconds: number;
+  cpuLoadPercent?: number;
   services: Array<{ name: string; status: string; pid?: number }>;
   agent: {
     status: string;
@@ -31,6 +40,18 @@ interface NodeHealth {
     successRate: number;
     tokenSpendTodayUsd: number;
   };
+  tailscale?: {
+    peers: TailscalePeer[];
+    selfIp: string;
+    natType: string;
+  };
+  nats?: {
+    serverUrl: string;
+    connected: boolean;
+    serverVersion: string;
+    isHost: boolean;
+  };
+  deployVersion?: string;
   // Timestamp set by the node when it wrote this health blob
   reportedAt?: string;
 }
@@ -47,6 +68,12 @@ interface MeshNode {
   }>;
   lastSeen: string | null;
   staleSeconds: number | null;
+  // New enriched fields (derived from health data)
+  tailscale: NodeHealth["tailscale"] | null;
+  nats: NodeHealth["nats"] | null;
+  cpuLoadPercent: number | null;
+  isNatsHost: boolean;
+  peerConnectivity: "all_direct" | "some_relay" | "degraded" | "unknown";
 }
 
 // ── Local Cache ──────────────────────────────────────────────────────────
@@ -63,6 +90,20 @@ const nodeCache = new Map<string, CachedNode>();
 // Thresholds for staleness (in seconds)
 const STALE_DEGRADED = 45; // >45s since last health report → degraded
 const STALE_OFFLINE = 120; // >120s → offline (matches KV TTL)
+
+/** Derive peer connectivity summary from tailscale peer data */
+function derivePeerConnectivity(
+  health: NodeHealth | null
+): "all_direct" | "some_relay" | "degraded" | "unknown" {
+  const peers = health?.tailscale?.peers;
+  if (!peers || peers.length === 0) return "unknown";
+  const onlinePeers = peers.filter((p) => p.online);
+  if (onlinePeers.length === 0) return "degraded";
+  const relayCount = onlinePeers.filter((p) => p.relay).length;
+  if (relayCount === 0) return "all_direct";
+  if (relayCount < onlinePeers.length) return "some_relay";
+  return "degraded";
+}
 
 // Known nodes — extend this list or discover from KV keys
 const KNOWN_NODES = [
@@ -182,6 +223,11 @@ export const GET = withTrace("mesh", "GET /api/mesh/nodes", async () => {
       activeTasks,
       lastSeen,
       staleSeconds,
+      tailscale: health?.tailscale ?? null,
+      nats: health?.nats ?? null,
+      cpuLoadPercent: health?.cpuLoadPercent ?? null,
+      isNatsHost: health?.nats?.isHost ?? false,
+      peerConnectivity: derivePeerConnectivity(health),
     });
   }
 
