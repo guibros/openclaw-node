@@ -7,6 +7,8 @@ import { withTrace } from "@/lib/tracer";
 import { NODE_ID, NODE_PLATFORM, NODE_ROLE } from "@/lib/config";
 import { execSync } from "child_process";
 import os from "os";
+import path from "path";
+import fs from "fs";
 
 export const dynamic = "force-dynamic";
 
@@ -108,32 +110,101 @@ function derivePeerConnectivity(
   return "degraded";
 }
 
-// Known nodes — extend this list or discover from KV keys
-const BASE_KNOWN_NODES = [
-  "moltymacs-virtual-machine-local",
-  "calos-vmware-virtual-platform",
-];
+// ── Dynamic Node Discovery ──────────────────────────────────────────────
+// Nodes are discovered from 3 sources (no hardcoded list):
+//   1. NATS KV keys — any node that has published health
+//   2. Tailscale peers — all machines on the VPN
+//   3. Local node — always include self
+// Plus mesh-aliases.json as a fallback for known names.
 
-// Normalize node ID for comparison (lowercase, strip .local, replace dots with dashes)
 function normalizeNodeId(id: string): string {
-  return id.toLowerCase().replace(/\.local$/, "").replace(/\./g, "-");
+  return id
+    .toLowerCase()
+    .replace(/\.local$/, "")     // strip .local DNS suffix
+    .replace(/['''`\u2018\u2019\u201B]/g, "")  // strip all apostrophe variants
+    .replace(/[\s.]+/g, "-")     // spaces and dots → dashes
+    .replace(/-local$/, "")      // strip trailing -local (mesh-agent convention)
+    .replace(/-+/g, "-")         // collapse multiple dashes
+    .replace(/^-|-$/g, "");      // trim leading/trailing dashes
 }
 
-// Check if NODE_ID already matches a known node (despite naming differences)
 const localNormalized = normalizeNodeId(NODE_ID);
-const localAlreadyKnown = BASE_KNOWN_NODES.some(n => {
-  const nn = normalizeNodeId(n);
-  return nn === localNormalized || nn.startsWith(localNormalized) || localNormalized.startsWith(nn);
-});
-const localMatchedNode = BASE_KNOWN_NODES.find(n => {
-  const nn = normalizeNodeId(n);
-  return nn === localNormalized || nn.startsWith(localNormalized) || localNormalized.startsWith(nn);
-});
-const KNOWN_NODES = localAlreadyKnown ? BASE_KNOWN_NODES : [...BASE_KNOWN_NODES, NODE_ID];
 
-// Map of normalized → canonical name (for local fallback matching)
-const NORMALIZED_MAP = new Map<string, string>();
-for (const n of KNOWN_NODES) NORMALIZED_MAP.set(normalizeNodeId(n), n);
+/** Discover all node IDs from available sources */
+async function discoverNodes(kv: any): Promise<string[]> {
+  const discovered = new Set<string>();
+
+  // Source 1: NATS KV keys — most authoritative
+  if (kv) {
+    try {
+      const keys = await kv.keys();
+      for await (const key of keys) {
+        discovered.add(key);
+      }
+    } catch {
+      // KV not available
+    }
+  }
+
+  // Source 2: Tailscale peers
+  try {
+    const raw = execSafe("tailscale status --json");
+    if (raw) {
+      const status = JSON.parse(raw);
+      // Add self
+      if (status.Self?.HostName) discovered.add(status.Self.HostName);
+      // Add peers
+      if (status.Peer) {
+        for (const peer of Object.values(status.Peer) as any[]) {
+          if (peer.HostName) discovered.add(peer.HostName);
+        }
+      }
+    }
+  } catch {}
+
+  // Source 3: mesh-aliases.json (maps shortnames → full IDs)
+  try {
+    const aliasPath = path.join(os.homedir(), ".openclaw", "mesh-aliases.json");
+    if (fs.existsSync(aliasPath)) {
+      const aliases = JSON.parse(fs.readFileSync(aliasPath, "utf-8"));
+      for (const fullId of Object.values(aliases) as string[]) {
+        if (fullId && fullId !== "self") discovered.add(fullId);
+      }
+    }
+  } catch {}
+
+  // Source 4: Local node always included
+  discovered.add(NODE_ID);
+
+  // Source 5: Nodes we've seen before (from cache)
+  for (const cachedId of nodeCache.keys()) {
+    discovered.add(cachedId);
+  }
+
+  // Deduplicate by normalized name.
+  // Priority: KV keys > aliases > local NODE_ID > Tailscale hostnames
+  // (KV and aliases have stable, daemon-assigned names; Tailscale names can be weird)
+  const seen = new Map<string, string>();
+  for (const id of discovered) {
+    const norm = normalizeNodeId(id);
+    const existing = seen.get(norm);
+    if (!existing) {
+      seen.set(norm, id);
+    } else {
+      // Prefer the version that looks like a stable daemon ID (lowercase, dashes, no spaces/apostrophes)
+      const existingIsClean = /^[a-z0-9][a-z0-9-]*$/.test(existing);
+      const newIsClean = /^[a-z0-9][a-z0-9-]*$/.test(id);
+      if (!existingIsClean && newIsClean) {
+        seen.set(norm, id);
+      } else if (existingIsClean && newIsClean && id.length > existing.length) {
+        // Both clean — prefer the longer/more specific one (e.g. with -local suffix)
+        seen.set(norm, id);
+      }
+    }
+  }
+
+  return Array.from(seen.values());
+}
 
 // ── Local Health Fallback ────────────────────────────────────────────────
 // When NATS is down, gather local system info directly so the THIS node
@@ -243,9 +314,10 @@ export const GET = withTrace("mesh", "GET /api/mesh/nodes", async () => {
   const db = getDb();
   const now = Date.now();
 
+  const discoveredNodeIds = await discoverNodes(kv);
   const nodes: MeshNode[] = [];
 
-  for (const nodeId of KNOWN_NODES) {
+  for (const nodeId of discoveredNodeIds) {
     let health: NodeHealth | null = null;
     let staleSeconds: number | null = null;
 
