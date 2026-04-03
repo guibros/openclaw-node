@@ -725,6 +725,12 @@ reconcile = tracer.wrapAsync('reconcile', reconcile, { tier: 2, category: 'compu
 handleEvent = tracer.wrap('handleEvent', handleEvent, { tier: 1, category: 'state_transition' });
 handleCompleted = tracer.wrap('handleCompleted', handleCompleted, { tier: 1, category: 'state_transition' });
 handleFailed = tracer.wrap('handleFailed', handleFailed, { tier: 1, category: 'state_transition' });
+handleCancelled = tracer.wrap('handleCancelled', handleCancelled, { tier: 1, category: 'state_transition' });
+handleCollabEvent = tracer.wrap('handleCollabEvent', handleCollabEvent, { tier: 1, category: 'state_transition' });
+handlePlanEvent = tracer.wrap('handlePlanEvent', handlePlanEvent, { tier: 1, category: 'state_transition' });
+materializeSubtask = tracer.wrap('materializeSubtask', materializeSubtask, { tier: 1, category: 'state_transition' });
+checkStaleness = tracer.wrap('checkStaleness', checkStaleness, { tier: 2 });
+writeLog = tracer.wrap('writeLog', writeLog, { tier: 3 });
 
 // ── Main ────────────────────────────────────────────
 

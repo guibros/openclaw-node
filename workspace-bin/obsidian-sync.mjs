@@ -578,6 +578,9 @@ SORT file.name ASC
 // MAIN SYNC ORCHESTRATOR
 // ============================================================
 
+// ── Tracer wrapping ──────────────────────────────────
+apiPut = tracer.wrapAsync('apiPut', apiPut, { tier: 3 });
+
 /**
  * Run a full sync cycle.
  * @param {object} opts - { dryRun, verbose, force }

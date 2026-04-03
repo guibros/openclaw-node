@@ -779,6 +779,9 @@ installMeshCode = tracer.wrap('installMeshCode', installMeshCode, { tier: 2, cat
 installService = tracer.wrap('installService', installService, { tier: 2, category: 'lifecycle' });
 verifyServiceRunning = tracer.wrap('verifyServiceRunning', verifyServiceRunning, { tier: 2, category: 'lifecycle' });
 verifyNatsHealth = tracer.wrapAsync('verifyNatsHealth', verifyNatsHealth, { tier: 2, category: 'lifecycle' });
+installMissing = tracer.wrap('installMissing', installMissing, { tier: 2, category: 'lifecycle' });
+provisionSSHKey = tracer.wrap('provisionSSHKey', provisionSSHKey, { tier: 2, category: 'lifecycle' });
+configureNats = tracer.wrap('configureNats', configureNats, { tier: 2, category: 'lifecycle' });
 
 // ── Main ──────────────────────────────────────────────
 

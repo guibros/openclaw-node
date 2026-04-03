@@ -990,6 +990,13 @@ function loadDaemonState() {
   return null;
 }
 
+// ── Tracer wrapping ──────────────────────────────────
+runPhase0Bootstrap = tracer.wrapAsync('runPhase0Bootstrap', runPhase0Bootstrap, { tier: 1, category: 'lifecycle' });
+runPhase1StatusSync = tracer.wrap('runPhase1StatusSync', runPhase1StatusSync, { tier: 1, category: 'lifecycle' });
+runPhase2ThrottledWork = tracer.wrapAsync('runPhase2ThrottledWork', runPhase2ThrottledWork, { tier: 1, category: 'lifecycle' });
+handleTransitions = tracer.wrapAsync('handleTransitions', handleTransitions, { tier: 1, category: 'state_transition' });
+runSubprocess = tracer.wrap('runSubprocess', runSubprocess, { tier: 2 });
+
 // ============================================================
 // MAIN LOOP
 // ============================================================

@@ -2,6 +2,7 @@ import { connect, NatsConnection, StringCodec, type KV } from "nats";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { traceCall } from "./tracer";
 
 // ── Singleton state (globalThis survives Next.js hot-reload) ─────────────
 // In dev mode, Turbopack re-evaluates modules on change, wiping module-level
@@ -54,6 +55,7 @@ const TASKS_BUCKET = "MESH_TASKS";
  * Returns null if NATS is unreachable — MC degrades gracefully.
  */
 export async function getNats(): Promise<NatsConnection | null> {
+  const _start = Date.now();
   if (g.__nats_nc && !g.__nats_nc.isClosed()) return g.__nats_nc;
 
   // Reset stale guard (self-heal if previous attempt hung)
@@ -94,10 +96,12 @@ export async function getNats(): Promise<NatsConnection | null> {
       g.__nats_tasksKv = null;
     });
 
+    traceCall("nats", "getNats", _start, "connected");
     return g.__nats_nc;
   } catch (err) {
     console.error("[nats] connection failed:", (err as Error).message);
     g.__nats_nc = null;
+    traceCall("nats", "getNats", _start, undefined, err);
     return null;
   } finally {
     g.__nats_connectingSince = null;
@@ -114,6 +118,7 @@ export async function getNats(): Promise<NatsConnection | null> {
  * Returns null if NATS is unavailable.
  */
 export async function getHealthKv(): Promise<KV | null> {
+  const _start = Date.now();
   if (g.__nats_healthKv) return g.__nats_healthKv;
 
   const conn = await getNats();
@@ -125,9 +130,11 @@ export async function getHealthKv(): Promise<KV | null> {
       history: 1,
       ttl: 120_000,
     });
+    traceCall("nats", "getHealthKv", _start, "ok");
     return g.__nats_healthKv;
   } catch (err) {
     console.error("[nats] KV bucket error:", (err as Error).message);
+    traceCall("nats", "getHealthKv", _start, undefined, err);
     return null;
   }
 }
@@ -143,6 +150,7 @@ const COLLAB_BUCKET = "MESH_COLLAB";
  * Returns null if NATS is unavailable.
  */
 export async function getCollabKv(): Promise<KV | null> {
+  const _start = Date.now();
   if (g.__nats_collabKv) return g.__nats_collabKv;
 
   const conn = await getNats();
@@ -153,9 +161,11 @@ export async function getCollabKv(): Promise<KV | null> {
     g.__nats_collabKv = await js.views.kv(COLLAB_BUCKET, {
       history: 1,
     });
+    traceCall("nats", "getCollabKv", _start, "ok");
     return g.__nats_collabKv;
   } catch (err) {
     console.error("[nats] Collab KV bucket error:", (err as Error).message);
+    traceCall("nats", "getCollabKv", _start, undefined, err);
     return null;
   }
 }
@@ -171,6 +181,7 @@ export async function getCollabKv(): Promise<KV | null> {
  * Returns null if NATS is unavailable.
  */
 export async function getTasksKv(): Promise<KV | null> {
+  const _start = Date.now();
   if (g.__nats_tasksKv) return g.__nats_tasksKv;
 
   const conn = await getNats();
@@ -181,9 +192,11 @@ export async function getTasksKv(): Promise<KV | null> {
     g.__nats_tasksKv = await js.views.kv(TASKS_BUCKET, {
       history: 1,
     });
+    traceCall("nats", "getTasksKv", _start, "ok");
     return g.__nats_tasksKv;
   } catch (err) {
     console.error("[nats] Tasks KV bucket error:", (err as Error).message);
+    traceCall("nats", "getTasksKv", _start, undefined, err);
     return null;
   }
 }

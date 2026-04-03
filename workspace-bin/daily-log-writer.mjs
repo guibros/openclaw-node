@@ -254,4 +254,5 @@ function run() {
   if (VERBOSE || DRY_RUN) console.log('Done.');
 }
 
+run = tracer.wrap('run', run, { tier: 1, category: 'lifecycle' });
 run();

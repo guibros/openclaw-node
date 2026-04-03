@@ -259,6 +259,7 @@ async function main() {
 
   const handlers = createHandlers(token);
   tracer.wrapClass(handlers, ['readMessages', 'searchMessages', 'listChannels', 'channelInfo'], { tier: 3 });
+  discordRequest = tracer.wrapAsync('discordRequest', discordRequest, { tier: 3 });
 
   // Create registry and register tool
   const { nc, registry } = await createRegistry();

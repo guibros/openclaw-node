@@ -473,6 +473,11 @@ function checkSharedLessons() {
 // MAIN
 // ============================================================
 
+// ── Tracer wrapping ──────────────────────────────────
+checkArchival = tracer.wrap('checkArchival', checkArchival, { tier: 2, category: 'compute' });
+checkPredictions = tracer.wrap('checkPredictions', checkPredictions, { tier: 2, category: 'compute' });
+checkStaleTasks = tracer.wrap('checkStaleTasks', checkStaleTasks, { tier: 2, category: 'compute' });
+
 export async function runMaintenance(opts = {}) {
   const force = opts.force ?? FORCE;
   const dryRun = opts.dryRun ?? DRY_RUN;

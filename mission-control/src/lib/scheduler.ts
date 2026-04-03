@@ -37,57 +37,62 @@ export function computeWaves(
 ): Wave[] {
   const _start = Date.now();
   try {
-  const taskSet = new Set(taskIds);
+    const taskSet = new Set(taskIds);
 
-  // Build in-degree map (only count active edges within dispatchable set)
-  const inDegree = new Map<string, number>();
-  const successors = new Map<string, string[]>();
+    // Build in-degree map (only count active edges within dispatchable set)
+    const inDegree = new Map<string, number>();
+    const successors = new Map<string, string[]>();
 
-  for (const id of taskIds) {
-    inDegree.set(id, 0);
-    successors.set(id, []);
-  }
-
-  for (const id of taskIds) {
-    const preds = depTargetMap.get(id) || [];
-    for (const pred of preds) {
-      const predStatus = taskStatusLookup.get(pred);
-      // Done predecessors don't block us
-      if (predStatus === "done") continue;
-      // Only count predecessors in our dispatchable set
-      if (taskSet.has(pred)) {
-        inDegree.set(id, (inDegree.get(id) || 0) + 1);
-        const succs = successors.get(pred) || [];
-        succs.push(id);
-        successors.set(pred, succs);
-      }
+    for (const id of taskIds) {
+      inDegree.set(id, 0);
+      successors.set(id, []);
     }
-  }
 
-  // BFS layer-by-layer = waves
-  const waves: Wave[] = [];
-  let currentWave: string[] = [];
-
-  for (const [id, deg] of inDegree) {
-    if (deg === 0) currentWave.push(id);
-  }
-
-  while (currentWave.length > 0) {
-    waves.push({ index: waves.length, taskIds: [...currentWave] });
-    const nextWave: string[] = [];
-
-    for (const id of currentWave) {
-      for (const succ of successors.get(id) || []) {
-        const newDeg = (inDegree.get(succ) || 1) - 1;
-        inDegree.set(succ, newDeg);
-        if (newDeg === 0) nextWave.push(succ);
+    for (const id of taskIds) {
+      const preds = depTargetMap.get(id) || [];
+      for (const pred of preds) {
+        const predStatus = taskStatusLookup.get(pred);
+        // Done predecessors don't block us
+        if (predStatus === "done") continue;
+        // Only count predecessors in our dispatchable set
+        if (taskSet.has(pred)) {
+          inDegree.set(id, (inDegree.get(id) || 0) + 1);
+          const succs = successors.get(pred) || [];
+          succs.push(id);
+          successors.set(pred, succs);
+        }
       }
     }
 
-    currentWave = nextWave;
-  }
+    // BFS layer-by-layer = waves
+    const waves: Wave[] = [];
+    let currentWave: string[] = [];
 
-  return waves;
+    for (const [id, deg] of inDegree) {
+      if (deg === 0) currentWave.push(id);
+    }
+
+    while (currentWave.length > 0) {
+      waves.push({ index: waves.length, taskIds: [...currentWave] });
+      const nextWave: string[] = [];
+
+      for (const id of currentWave) {
+        for (const succ of successors.get(id) || []) {
+          const newDeg = (inDegree.get(succ) || 1) - 1;
+          inDegree.set(succ, newDeg);
+          if (newDeg === 0) nextWave.push(succ);
+        }
+      }
+
+      currentWave = nextWave;
+    }
+
+    traceCall("scheduler", "computeWaves", _start, `${waves.length} waves`);
+    return waves;
+  } catch (err: any) {
+    traceCall("scheduler", "computeWaves", _start, undefined, err);
+    throw err;
+  }
 }
 
 /**
@@ -96,6 +101,8 @@ export function computeWaves(
  * Idempotent — safe to call repeatedly.
  */
 export function schedulerTick(): TickResult {
+  const _start = Date.now();
+  try {
   const db = getDb();
   const now = new Date();
   const result: TickResult = {
@@ -369,7 +376,12 @@ export function schedulerTick(): TickResult {
     syncTasksToMarkdown(db);
   }
 
+  traceCall("scheduler", "schedulerTick", _start, `t:${result.triggered.length} d:${result.dispatched.length} r:${result.recurring.length}`);
   return result;
+  } catch (err: any) {
+    traceCall("scheduler", "schedulerTick", _start, undefined, err);
+    throw err;
+  }
 }
 
 function generateNextId(

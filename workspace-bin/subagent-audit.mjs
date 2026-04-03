@@ -44,7 +44,7 @@ const LESSONS_FILE = path.join(WORKSPACE, '.learnings/lessons.md');
  * @param {string} jsonlPath
  * @returns {Promise<DelegationResult[]>}
  */
-export async function auditSession(jsonlPath) {
+export const auditSession = tracer.wrapAsync('auditSession', async function auditSession(jsonlPath) {
   if (!fs.existsSync(jsonlPath)) return [];
 
   const results = [];
@@ -123,7 +123,7 @@ export async function auditSession(jsonlPath) {
   }
 
   return results;
-}
+}, { tier: 1, category: 'compute' });
 
 function extractResultText(block) {
   if (typeof block.content === 'string') return block.content;

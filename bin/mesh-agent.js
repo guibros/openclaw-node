@@ -1421,6 +1421,12 @@ commitAndMergeWorktree = tracer.wrap('commitAndMergeWorktree', commitAndMergeWor
 cleanupWorktree = tracer.wrap('cleanupWorktree', cleanupWorktree, { tier: 2, category: 'compute' });
 buildInitialPrompt = tracer.wrap('buildInitialPrompt', buildInitialPrompt, { tier: 2, category: 'compute' });
 buildRetryPrompt = tracer.wrap('buildRetryPrompt', buildRetryPrompt, { tier: 2, category: 'compute' });
+natsRequest = tracer.wrapAsync('natsRequest', natsRequest, { tier: 2 });
+isAllowedMetric = tracer.wrap('isAllowedMetric', isAllowedMetric, { tier: 2 });
+buildCollabPrompt = tracer.wrap('buildCollabPrompt', buildCollabPrompt, { tier: 2 });
+buildCirclingPrompt = tracer.wrap('buildCirclingPrompt', buildCirclingPrompt, { tier: 2 });
+parseReflection = tracer.wrap('parseReflection', parseReflection, { tier: 3 });
+parseCirclingReflection = tracer.wrap('parseCirclingReflection', parseCirclingReflection, { tier: 3 });
 
 // ── Main Loop ─────────────────────────────────────────
 
