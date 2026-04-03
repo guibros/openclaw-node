@@ -189,10 +189,23 @@ export function NetworkTopology({ nodes, meshStatus }: Props) {
                 </span>
                 <span className="text-muted-foreground/30">·</span>
                 <span className="text-muted-foreground/50">Agent:</span>
+                {localNode?.health?.agent?.name && (
+                  <span className="text-foreground/70 font-medium">{localNode.health.agent.name}</span>
+                )}
                 <span className={agentStatus === "working" || agentStatus === "idle" ? "text-green-400" : agentStatus === "stopped" ? "text-red-400" : "text-zinc-500"}>
                   {agentStatus}
                   {agentStatus === "working" && localNode?.health?.agent?.currentTask && ` (${localNode.health.agent.currentTask})`}
                 </span>
+                {localNode?.health?.agent?.llm && (
+                  <>
+                    <span className="text-muted-foreground/30">·</span>
+                    <span className="text-muted-foreground/50">LLM:</span>
+                    <span className="text-foreground/60">
+                      {localNode.health.agent.llm}
+                      {localNode.health.agent.model && `/${localNode.health.agent.model}`}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>

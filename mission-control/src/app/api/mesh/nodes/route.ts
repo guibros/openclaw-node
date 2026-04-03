@@ -295,6 +295,7 @@ function gatherLocalHealth(): NodeHealth {
     cpuLoadPercent: cpuLoad,
     services,
     agent: (() => {
+      // Read runtime state if agent is active
       try {
         const statePath = path.join(os.homedir(), ".openclaw", ".tmp", "agent-state.json");
         if (fs.existsSync(statePath)) {
@@ -302,16 +303,22 @@ function gatherLocalHealth(): NodeHealth {
           return {
             status: state.status || "idle",
             currentTask: state.taskId || null,
-            llm: state.llm || null,
+            llm: state.llm || process.env.LLM_PROVIDER || "anthropic",
             model: state.model || null,
           };
         }
       } catch {}
-      // No agent state file — check if mesh-agent service is running
+      // No runtime state — derive from config + service status
       const agentSvc = services.find((s: any) => s.name.includes("agent") && !s.name.includes("audit"));
+      // Read configured agent name and LLM from env/defaults
+      const agentName = process.env.OPENCLAW_AGENT_NAME || "Daedalus";
+      const llmProvider = process.env.LLM_PROVIDER || "anthropic";
       return {
         status: agentSvc?.status === "active" ? "idle" : agentSvc ? "stopped" : "not installed",
-        currentTask: null, llm: null, model: null,
+        currentTask: null,
+        llm: llmProvider,
+        model: null,
+        name: agentName,
       };
     })(),
     capabilities: [],

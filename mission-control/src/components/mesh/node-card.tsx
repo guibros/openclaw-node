@@ -298,7 +298,9 @@ export function NodeCard({ node, isExpanded: controlledExpanded, onToggle }: Pro
           <div className="flex items-center gap-2">
             <Activity className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs text-foreground">
-              Agent:{" "}
+              {(h.agent as any).name && (
+                <span className="font-medium text-foreground/80">{(h.agent as any).name} · </span>
+              )}
               <span
                 className={
                   h.agent.status === "working" || h.agent.status === "active"
@@ -314,7 +316,7 @@ export function NodeCard({ node, isExpanded: controlledExpanded, onToggle }: Pro
             {h.agent.llm && (
               <span className="text-[10px] text-muted-foreground/60 font-mono">
                 {h.agent.llm}
-                {h.agent.model ? ` (${h.agent.model})` : ""}
+                {h.agent.model ? `/${h.agent.model}` : ""}
               </span>
             )}
             {h.agent.budgetRemainingSeconds != null && (
