@@ -1,6 +1,28 @@
 "use client";
 
-import { Wifi, Database, Globe, Clock, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { Wifi, Database, Globe, Clock, AlertTriangle, CheckCircle2, XCircle, Info } from "lucide-react";
+import { useState } from "react";
+
+function InfoBubble({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative inline-flex">
+      <button
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow(!show)}
+        className="text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+      >
+        <Info className="h-3 w-3" />
+      </button>
+      {show && (
+        <div className="absolute left-5 top-0 z-50 w-72 rounded-lg border border-border bg-popover p-3 text-[10px] leading-relaxed text-popover-foreground shadow-xl">
+          {text}
+        </div>
+      )}
+    </span>
+  );
+}
 import type { MeshNode } from "./types";
 
 interface Props {
@@ -217,6 +239,7 @@ export function NetworkTopology({ nodes, meshStatus }: Props) {
         <div className="px-4 py-3 space-y-2">
           <div className="flex items-center gap-1.5 text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
             <Database className="h-3 w-3" /> NATS Message Bus
+            <InfoBubble text="NATS is a lightweight, high-performance messaging system that connects all OpenClaw nodes. It acts as the central nervous system of the mesh — every task submission, claim, completion, health heartbeat, and collaboration event flows through NATS as publish/subscribe messages. NATS also provides a Key-Value store (JetStream KV) used for task state, health data, and collab sessions. If NATS goes down, nodes can't coordinate — tasks stop dispatching, health stops reporting, and the mesh is effectively disconnected. NATS runs as a server process on one node (the host) and all other nodes connect to it over the Tailscale VPN." />
           </div>
 
           <div className="grid grid-cols-[80px_1fr] gap-y-1.5 gap-x-2 text-[10px]">
@@ -284,6 +307,7 @@ export function NetworkTopology({ nodes, meshStatus }: Props) {
         <div className="px-4 py-3 space-y-2">
           <div className="flex items-center gap-1.5 text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
             <Wifi className="h-3 w-3" /> Tailscale VPN
+            <InfoBubble text="Tailscale is a zero-config VPN built on WireGuard that creates an encrypted mesh network between your machines. Each machine gets a stable IP address (100.x.x.x) on the tailnet, and all traffic between nodes is end-to-end encrypted. Nodes can connect directly (peer-to-peer) or through relay servers (DERP) when direct connections aren't possible due to NAT. Tailscale is the trust layer for OpenClaw — if a machine is on your tailnet, it's trusted to join the mesh. NATS runs on top of Tailscale, so all mesh traffic is encrypted even though NATS itself uses plaintext." />
           </div>
 
           <div className="grid grid-cols-[80px_1fr] gap-y-1.5 gap-x-2 text-[10px]">
