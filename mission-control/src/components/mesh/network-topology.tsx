@@ -96,84 +96,105 @@ export function NetworkTopology({ nodes, meshStatus }: Props) {
         <span className={`text-[10px] font-medium ${verdictColor}`}>{verdict}</span>
       </div>
 
-      {/* ── Layer Status Bar ── */}
+      {/* ── Infrastructure Identity ── */}
       {(() => {
-        // Compute per-layer status
         const svcList = localNode?.health?.services || [];
         const svcUp = svcList.filter((s: any) => s.status === "active").length;
         const svcDown = svcList.filter((s: any) => s.status === "error" || s.status === "down").length;
-        const svcTotal = svcList.length;
         const agentStatus = localNode?.health?.agent?.status || "unknown";
-        const cpu = localNode?.cpuLoadPercent ?? localNode?.health?.cpuLoadPercent;
-        const disk = localNode?.health?.diskPercent;
-        const ram = localNode?.health?.mem ? Math.round((1 - localNode.health.mem.free / localNode.health.mem.total) * 100) : null;
+        const localPlatform = localNode?.health?.platform || "unknown";
+        const localRole = localNode?.health?.role || "unknown";
+        const deployVer = localNode?.health?.deployVersion || null;
 
-        const layers: Array<{ name: string; status: "ok" | "warn" | "error" | "unknown"; detail: string }> = [
-          {
-            name: "Hardware",
-            status: cpu != null ? (cpu > 90 || (disk ?? 0) > 90 || (ram ?? 0) > 95 ? "warn" : "ok") : "unknown",
-            detail: cpu != null ? `CPU ${cpu}% · RAM ${ram ?? "?"}% · Disk ${disk ?? "?"}%` : "No system data",
-          },
-          {
-            name: "Tailscale",
-            status: localIp ? (offlinePeers.length > 0 && onlinePeers.length === 0 ? "warn" : "ok") : "error",
-            detail: localIp
-              ? `${localIp} · ${onlinePeers.length} peer${onlinePeers.length !== 1 ? "s" : ""} online${offlinePeers.length > 0 ? ` · ${offlinePeers.length} offline` : ""}`
-              : "Not connected",
-          },
-          {
-            name: "NATS",
-            status: natsFunctional ? "ok" : natsSocketOpen ? "warn" : "error",
-            detail: natsFunctional
-              ? `Operational · ${natsUrl || "?"}`
-              : natsSocketOpen
-              ? "Socket open, no KV data"
-              : `Unreachable${natsHostNode?.status === "offline" ? ` (${natsHostName} offline)` : ""}`,
-          },
-          {
-            name: "Services",
-            status: svcTotal === 0 ? "unknown" : svcDown > 0 ? (svcDown > svcTotal / 2 ? "error" : "warn") : "ok",
-            detail: svcTotal > 0 ? `${svcUp}/${svcTotal} running${svcDown > 0 ? ` · ${svcDown} errored` : ""}` : "No service data",
-          },
-          {
-            name: "Agent",
-            status: agentStatus === "working" || agentStatus === "idle" ? "ok"
-              : agentStatus === "stopped" || agentStatus === "not installed" ? "error"
-              : "unknown",
-            detail: agentStatus === "working"
-              ? `Working on ${localNode?.health?.agent?.currentTask || "task"}`
-              : agentStatus === "idle" ? "Idle — waiting for tasks"
-              : agentStatus === "stopped" ? "Stopped (service error)"
-              : agentStatus === "not installed" ? "Not installed"
-              : "No agent data",
-          },
-          {
-            name: "Mission Control",
-            status: "ok", // If you're seeing this, MC is running
-            detail: "Serving on this node",
-          },
-        ];
+        // Derive tailnet name from DNS
+        const tsDnsRaw = localNode?.tailscale?.dnsName || "";
+        const tailnetName = tsDnsRaw
+          ? tsDnsRaw.replace(/\.$/, "").split(".").slice(-3).join(".")
+          : localIp ? "connected" : "not connected";
 
-        const statusDot = (s: string) =>
-          s === "ok" ? "bg-green-400" : s === "warn" ? "bg-yellow-400" : s === "error" ? "bg-red-400" : "bg-zinc-600";
-        const statusText = (s: string) =>
-          s === "ok" ? "text-green-400/80" : s === "warn" ? "text-yellow-400/80" : s === "error" ? "text-red-400/80" : "text-zinc-500";
+        const dot = (ok: boolean | null) =>
+          ok === true ? "bg-green-400" : ok === false ? "bg-red-400" : "bg-zinc-600";
+        const txt = (ok: boolean | null) =>
+          ok === true ? "text-green-400" : ok === false ? "text-red-400" : "text-zinc-500";
 
         return (
-          <div className="px-4 py-3 border-b border-border/50 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-            {layers.map((layer) => (
-              <div key={layer.name} className="space-y-0.5">
-                <div className="flex items-center gap-1.5">
-                  <span className={`h-2 w-2 rounded-full ${statusDot(layer.status)}`} />
-                  <span className="text-[9px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
-                    {layer.name}
+          <div className="px-4 py-3 border-b border-border/50 space-y-2 text-[10px]">
+            {/* Row 1: This Machine */}
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1">
+              <span className="text-muted-foreground/50 font-semibold uppercase text-[8px] tracking-wider pt-0.5">This machine</span>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-foreground/90">{meshStatus?.localNodeId || "unknown"}</span>
+                  <span className="text-muted-foreground/40 font-mono text-[9px]">{localPlatform}</span>
+                  <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded ${localRole === "lead" ? "bg-green-500/15 text-green-400" : "bg-blue-500/15 text-blue-400"}`}>
+                    {localRole}
                   </span>
+                  {deployVer && deployVer !== "unknown" && (
+                    <span className="font-mono text-muted-foreground/30 text-[8px]">v{deployVer}</span>
+                  )}
                 </div>
-                <p className={`text-[9px] leading-tight ${statusText(layer.status)}`}>
-                  {layer.detail}
-                </p>
               </div>
-            ))}
+            </div>
+
+            {/* Row 2: Tailscale */}
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1">
+              <span className="text-muted-foreground/50 font-semibold uppercase text-[8px] tracking-wider pt-0.5">Tailscale VPN</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`h-1.5 w-1.5 rounded-full ${dot(!!localIp)}`} />
+                {localIp ? (
+                  <>
+                    <span className="font-mono text-foreground/70">{localIp}</span>
+                    <span className="text-muted-foreground/40">on</span>
+                    <span className="text-foreground/60">{tailnetName}</span>
+                    <span className="text-muted-foreground/30">·</span>
+                    <span className={onlinePeers.length > 0 ? "text-green-400/80" : "text-zinc-500"}>
+                      {allPeers.length} peer{allPeers.length !== 1 ? "s" : ""} ({onlinePeers.length} online)
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-red-400">Not connected — no Tailscale IP</span>
+                )}
+              </div>
+            </div>
+
+            {/* Row 3: NATS */}
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1">
+              <span className="text-muted-foreground/50 font-semibold uppercase text-[8px] tracking-wider pt-0.5">NATS bus</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`h-1.5 w-1.5 rounded-full ${dot(natsFunctional ? true : natsSocketOpen ? null : false)}`} />
+                <span className="font-mono text-foreground/70">{natsUrl || "not configured"}</span>
+                <span className="text-muted-foreground/30">·</span>
+                <span className={txt(natsFunctional ? true : natsSocketOpen ? null : false)}>
+                  {natsFunctional ? "operational" : natsSocketOpen ? "socket open, no data" : "unreachable"}
+                </span>
+                <span className="text-muted-foreground/30">·</span>
+                <span className="text-muted-foreground/50">
+                  hosted on{" "}
+                  <span className={natsHostOnline ? "text-green-400" : natsHostOnline === false ? "text-red-400" : "text-foreground/60"}>
+                    {natsHostName}
+                    {natsHostOnline === false && " (offline)"}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {/* Row 4: Services + Agent */}
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1">
+              <span className="text-muted-foreground/50 font-semibold uppercase text-[8px] tracking-wider pt-0.5">Services</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`h-1.5 w-1.5 rounded-full ${dot(svcDown === 0 && svcUp > 0 ? true : svcDown > 0 ? false : null)}`} />
+                <span className={svcDown > 0 ? "text-yellow-400" : "text-foreground/70"}>
+                  {svcUp} running{svcDown > 0 && <>, <span className="text-red-400">{svcDown} errored</span></>}
+                  {svcUp === 0 && svcDown === 0 && "no data"}
+                </span>
+                <span className="text-muted-foreground/30">·</span>
+                <span className="text-muted-foreground/50">Agent:</span>
+                <span className={agentStatus === "working" || agentStatus === "idle" ? "text-green-400" : agentStatus === "stopped" ? "text-red-400" : "text-zinc-500"}>
+                  {agentStatus}
+                  {agentStatus === "working" && localNode?.health?.agent?.currentTask && ` (${localNode.health.agent.currentTask})`}
+                </span>
+              </div>
+            </div>
           </div>
         );
       })()}

@@ -248,7 +248,8 @@ function gatherLocalHealth(): NodeHealth {
           });
         }
       }
-      tailscaleData = { peers, selfIp: tailscaleIp, natType: "unknown" };
+      const dnsName = status.Self?.DNSName || "";
+      tailscaleData = { peers, selfIp: tailscaleIp, natType: status.Self?.CapMap?.natType || "unknown", dnsName };
     }
   } catch {}
 
@@ -271,7 +272,17 @@ function gatherLocalHealth(): NodeHealth {
     } catch {}
   }
 
-  const natsUrl = process.env.OPENCLAW_NATS || "unknown";
+  const natsUrl = process.env.OPENCLAW_NATS || (() => {
+    try {
+      const envPath = path.join(os.homedir(), ".openclaw", "openclaw.env");
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, "utf-8");
+        const match = content.match(/^\s*OPENCLAW_NATS\s*=\s*(.+)/m);
+        if (match) return match[1].trim().replace(/^["']|["']$/g, "");
+      }
+    } catch {}
+    return "unknown";
+  })();
 
   return {
     nodeId: NODE_ID,
@@ -480,7 +491,17 @@ export const GET = withTrace("mesh", "GET /api/mesh/nodes", async () => {
 
   // Add mesh-wide status
   const natsConnected = kv !== null;
-  const natsUrl = process.env.OPENCLAW_NATS || "unknown";
+  const natsUrl = process.env.OPENCLAW_NATS || (() => {
+    try {
+      const envPath = path.join(os.homedir(), ".openclaw", "openclaw.env");
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, "utf-8");
+        const match = content.match(/^\s*OPENCLAW_NATS\s*=\s*(.+)/m);
+        if (match) return match[1].trim().replace(/^["']|["']$/g, "");
+      }
+    } catch {}
+    return "unknown";
+  })();
   const meshStatus = {
     natsConnected,
     natsUrl,
