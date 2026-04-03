@@ -126,11 +126,11 @@ export function EventTimeline({
           </div>
         ) : (
           <div className="divide-y divide-border/30">
-            {groups.map((group) => {
+            {groups.map((group, idx) => {
               const isActive = activeGroupFilter === group.key;
               return (
                 <button
-                  key={group.key}
+                  key={group.key || `group-${idx}`}
                   onClick={() =>
                     onGroupSelect(isActive ? null : group.key)
                   }

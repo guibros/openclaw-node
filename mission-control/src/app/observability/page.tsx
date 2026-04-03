@@ -102,11 +102,9 @@ export default function ObservabilityPage() {
   }, [handleTraceEvent]);
 
   // Derive filter options from events + nodes
-  const nodeOptions = Array.from(new Set(events.map((e) => e.node_id))).sort();
-  const moduleOptions = Array.from(new Set(events.map((e) => e.module))).sort();
-  const categoryOptions = Array.from(
-    new Set(events.map((e) => e.category).filter(Boolean))
-  ).sort() as string[];
+  const nodeOptions = Array.from(new Set(events.map((e) => e.node_id).filter(Boolean))).sort();
+  const moduleOptions = Array.from(new Set(events.map((e) => e.module).filter(Boolean))).sort();
+  const categoryOptions = Array.from(new Set(events.map((e) => e.category).filter(Boolean))).sort();
 
   // Apply filters
   const filtered = events.filter((e) => {
