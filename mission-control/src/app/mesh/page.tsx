@@ -52,7 +52,7 @@ function MeshEvents({ events }: { events: MeshEvent[] }) {
 }
 
 export default function MeshPage() {
-  const { data, error, isLoading } = useSWR<{ nodes: MeshNode[] }>(
+  const { data, error, isLoading } = useSWR<{ nodes: MeshNode[]; meshStatus?: any }>(
     "/api/mesh/nodes",
     fetcher,
     { refreshInterval: 10_000 }
@@ -147,7 +147,7 @@ export default function MeshPage() {
         {nodes.length > 0 && (
           <div className="flex flex-col gap-6 p-6">
             {/* Network Overview */}
-            <NetworkTopology nodes={nodes} />
+            <NetworkTopology nodes={nodes} meshStatus={data?.meshStatus} />
 
             {/* Connection Matrix (expandable) */}
             <ConnectionMatrix nodes={nodes} />
