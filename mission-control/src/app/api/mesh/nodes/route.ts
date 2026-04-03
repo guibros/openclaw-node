@@ -283,7 +283,26 @@ function gatherLocalHealth(): NodeHealth {
     uptimeSeconds: os.uptime(),
     cpuLoadPercent: cpuLoad,
     services,
-    agent: { status: "unknown", currentTask: null, llm: null, model: null },
+    agent: (() => {
+      try {
+        const statePath = path.join(os.homedir(), ".openclaw", ".tmp", "agent-state.json");
+        if (fs.existsSync(statePath)) {
+          const state = JSON.parse(fs.readFileSync(statePath, "utf-8"));
+          return {
+            status: state.status || "idle",
+            currentTask: state.taskId || null,
+            llm: state.llm || null,
+            model: state.model || null,
+          };
+        }
+      } catch {}
+      // No agent state file — check if mesh-agent service is running
+      const agentSvc = services.find((s: any) => s.name.includes("agent") && !s.name.includes("audit"));
+      return {
+        status: agentSvc?.status === "active" ? "idle" : agentSvc ? "stopped" : "not installed",
+        currentTask: null, llm: null, model: null,
+      };
+    })(),
     capabilities: [],
     stats: { tasksToday: 0, successRate: 1.0, tokenSpendTodayUsd: 0 },
     tailscale: tailscaleData,
