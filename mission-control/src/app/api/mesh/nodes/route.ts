@@ -4,6 +4,9 @@ import { getDb, getRawDb } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { withTrace } from "@/lib/tracer";
+import { NODE_ID, NODE_PLATFORM, NODE_ROLE } from "@/lib/config";
+import { execSync } from "child_process";
+import os from "os";
 
 export const dynamic = "force-dynamic";
 
@@ -106,10 +109,118 @@ function derivePeerConnectivity(
 }
 
 // Known nodes — extend this list or discover from KV keys
-const KNOWN_NODES = [
+const BASE_KNOWN_NODES = [
   "moltymacs-virtual-machine-local",
   "calos-vmware-virtual-platform",
 ];
+
+// Normalize node ID for comparison (lowercase, strip .local, replace dots with dashes)
+function normalizeNodeId(id: string): string {
+  return id.toLowerCase().replace(/\.local$/, "").replace(/\./g, "-");
+}
+
+// Check if NODE_ID already matches a known node (despite naming differences)
+const localNormalized = normalizeNodeId(NODE_ID);
+const localAlreadyKnown = BASE_KNOWN_NODES.some(n => {
+  const nn = normalizeNodeId(n);
+  return nn === localNormalized || nn.startsWith(localNormalized) || localNormalized.startsWith(nn);
+});
+const localMatchedNode = BASE_KNOWN_NODES.find(n => {
+  const nn = normalizeNodeId(n);
+  return nn === localNormalized || nn.startsWith(localNormalized) || localNormalized.startsWith(nn);
+});
+const KNOWN_NODES = localAlreadyKnown ? BASE_KNOWN_NODES : [...BASE_KNOWN_NODES, NODE_ID];
+
+// Map of normalized → canonical name (for local fallback matching)
+const NORMALIZED_MAP = new Map<string, string>();
+for (const n of KNOWN_NODES) NORMALIZED_MAP.set(normalizeNodeId(n), n);
+
+// ── Local Health Fallback ────────────────────────────────────────────────
+// When NATS is down, gather local system info directly so the THIS node
+// still shows real data instead of "offline".
+
+function execSafe(cmd: string): string {
+  try { return execSync(cmd, { timeout: 5000, encoding: "utf-8" }).trim(); } catch { return ""; }
+}
+
+function gatherLocalHealth(): NodeHealth {
+  const mem = { total: Math.round(os.totalmem() / 1024 / 1024), free: Math.round(os.freemem() / 1024 / 1024) };
+  const cpuLoad = Math.round((os.loadavg()[0] / os.cpus().length) * 100);
+
+  let diskPercent = 0;
+  try {
+    const df = execSafe("df -h /");
+    const match = df.match(/(\d+)%/);
+    if (match) diskPercent = parseInt(match[1], 10);
+  } catch {}
+
+  let tailscaleIp = "unknown";
+  let tailscaleData: any = null;
+  try {
+    tailscaleIp = execSafe("tailscale ip -4") || "unknown";
+    const raw = execSafe("tailscale status --json");
+    if (raw) {
+      const status = JSON.parse(raw);
+      const peers: any[] = [];
+      if (status.Peer) {
+        for (const [, peer] of Object.entries(status.Peer) as [string, any][]) {
+          const peerIp = (peer.TailscaleIPs || []).find((ip: string) => !ip.includes(":")) || "";
+          peers.push({
+            hostname: peer.HostName || "unknown",
+            ip: peerIp,
+            online: peer.Online || false,
+            os: peer.OS || "unknown",
+            lastSeen: peer.LastSeen || null,
+            direct: !!peer.CurAddr && !peer.Relay,
+            relay: peer.Relay || null,
+            latency: null,
+          });
+        }
+      }
+      tailscaleData = { peers, selfIp: tailscaleIp, natType: "unknown" };
+    }
+  } catch {}
+
+  // Check services via launchctl/systemctl
+  const services: Array<{ name: string; status: string; pid?: number }> = [];
+  if (process.platform === "darwin") {
+    try {
+      const raw = execSafe("launchctl list");
+      for (const line of raw.split("\n")) {
+        if (!line.includes("openclaw")) continue;
+        const parts = line.split("\t");
+        const pid = parts[0] === "-" ? undefined : parseInt(parts[0], 10);
+        const exitCode = parseInt(parts[1], 10);
+        const label = parts[2]?.trim();
+        if (label) {
+          const name = label.replace("ai.openclaw.", "");
+          services.push({ name, status: pid ? "active" : exitCode === 0 ? "stopped" : "error", pid: pid || undefined });
+        }
+      }
+    } catch {}
+  }
+
+  const natsUrl = process.env.OPENCLAW_NATS || "unknown";
+
+  return {
+    nodeId: NODE_ID,
+    platform: NODE_PLATFORM === "macOS" ? "darwin" : "linux",
+    role: NODE_ROLE,
+    tailscaleIp,
+    diskPercent,
+    mem,
+    uptimeSeconds: os.uptime(),
+    cpuLoadPercent: cpuLoad,
+    services,
+    agent: { status: "unknown", currentTask: null, llm: null, model: null },
+    capabilities: [],
+    stats: { tasksToday: 0, successRate: 1.0, tokenSpendTodayUsd: 0 },
+    tailscale: tailscaleData,
+    nats: { serverUrl: natsUrl, connected: false, serverVersion: "unknown", isHost: false },
+    deployVersion: execSafe("cd ~/openclaw && git rev-parse --short HEAD 2>/dev/null") || "unknown",
+    reportedAt: new Date().toISOString(),
+  } as any;
+}
 
 // ── Route Handler ────────────────────────────────────────────────────────
 
@@ -160,6 +271,15 @@ export const GET = withTrace("mesh", "GET /api/mesh/nodes", async () => {
       if (cached) {
         health = cached.health;
       }
+    }
+
+    // ── Fall back to local system data for THIS node ──────────────────
+    // When NATS is completely down, at least show real data for the local node
+    const nn = normalizeNodeId(nodeId);
+    const isLocal = nn === localNormalized || nn.startsWith(localNormalized) || localNormalized.startsWith(nn);
+    if (!health && isLocal) {
+      health = gatherLocalHealth();
+      nodeCache.set(nodeId, { health, fetchedAt: now });
     }
 
     // ── Derive status from staleness ───────────────────────────────────
@@ -265,7 +385,18 @@ export const GET = withTrace("mesh", "GET /api/mesh/nodes", async () => {
     // token_usage table may not exist yet
   }
 
-  return NextResponse.json({ nodes, tokenStats });
+  // Add mesh-wide status
+  const natsConnected = kv !== null;
+  const natsUrl = process.env.OPENCLAW_NATS || "unknown";
+  const meshStatus = {
+    natsConnected,
+    natsUrl,
+    localNodeId: NODE_ID,
+    nodesOnline: nodes.filter(n => n.status === "online").length,
+    nodesTotal: nodes.length,
+  };
+
+  return NextResponse.json({ nodes, tokenStats, meshStatus });
   } catch (err) {
     console.error("[mesh/nodes] error:", err);
     return NextResponse.json(
