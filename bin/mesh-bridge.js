@@ -53,7 +53,7 @@ const HEARTBEAT_CHECK_INTERVAL = 30000;  // check every 30s
 
 // ── Logging ─────────────────────────────────────────
 
-const { info: log, warn, error: logError } = require('../lib/logger').createLogger('mesh-bridge');
+const { info: log, warn, error: logError, debug } = require('../lib/logger').createLogger('mesh-bridge');
 
 // ── NATS Helpers ────────────────────────────────────
 
@@ -169,11 +169,20 @@ function findDispatchable() {
     return null;
   }
 
-  const candidates = tasks
-    .filter(t => t.execution === 'mesh' && t.status === 'queued' && !dispatched.has(t.task_id))
-    .sort((a, b) => (b.auto_priority || 0) - (a.auto_priority || 0));
+  const meshTasks = tasks.filter(t => t.execution === 'mesh');
+  const queued = meshTasks.filter(t => t.status === 'queued');
+  const filtered = queued.filter(t => !dispatched.has(t.task_id));
+  const candidates = filtered.sort((a, b) => (b.auto_priority || 0) - (a.auto_priority || 0));
 
-  return candidates[0] || null;
+  const candidate = candidates[0] || null;
+  if (!candidate) {
+    if (meshTasks.length > 0) {
+      debug(`findDispatchable: ${tasks.length} total, ${meshTasks.length} mesh, ${queued.length} queued, ${filtered.length} undispatched`);
+    } else {
+      debug('findDispatchable: no candidates');
+    }
+  }
+  return candidate;
 }
 
 async function dispatchTask(task) {
@@ -544,6 +553,7 @@ function handleEvent(eventType, taskId, meshTask) {
         return;
       case 'heartbeat':
         // Track heartbeat for staleness detection (#7)
+        debug(`HEARTBEAT: ${taskId} from ${meshTask?.owner}`);
         lastHeartbeat.set(taskId, Date.now());
         return;
       default:
@@ -557,6 +567,7 @@ function handleEvent(eventType, taskId, meshTask) {
         return;
     }
     dispatched.delete(taskId);
+    log(`SLOT FREED: ${taskId} (${dispatched.size} remaining)`);
     lastHeartbeat.delete(taskId);
   } catch (err) {
     log(`ERROR handling event ${eventType} for ${taskId}: ${err.message}`);
@@ -656,10 +667,6 @@ function truncateAtLine(str, maxLen) {
 // ── Log Writer ──────────────────────────────────────
 
 function writeLog(taskId, meshTask, finalStatus) {
-  if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-  }
-
   const logPath = path.join(LOG_DIR, `${taskId}.md`);
   const lines = [];
 
@@ -718,8 +725,13 @@ function writeLog(taskId, meshTask, finalStatus) {
     }
   }
 
-  fs.writeFileSync(logPath, lines.join('\n') + '\n');
-  log(`LOG: ${logPath}`);
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    fs.writeFileSync(logPath, lines.join('\n') + '\n');
+    log(`LOG: ${logPath}`);
+  } catch (err) {
+    warn(`writeLog failed for ${taskId}: ${err.message}`);
+  }
   return logPath;
 }
 
@@ -814,6 +826,7 @@ async function main() {
 
   // Dispatch loop (polls active-tasks.md)
   while (running) {
+    debug(`Dispatch poll: dispatched=${dispatched.size}`);
     try {
       // Only dispatch if no active tasks in the mesh from this bridge
       if (dispatched.size === 0) {

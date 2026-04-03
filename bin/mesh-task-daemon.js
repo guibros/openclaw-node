@@ -62,7 +62,7 @@ const circlingStepTimers = new Map();
 
 // ── Logging ─────────────────────────────────────────
 
-const { info: log, warn, error: logError } = require('../lib/logger').createLogger('mesh-task-daemon');
+const { info: log, warn, error: logError, debug } = require('../lib/logger').createLogger('mesh-task-daemon');
 
 // ── Response helpers ────────────────────────────────
 
@@ -132,6 +132,7 @@ async function handleSubmit(msg) {
     publishCollabEvent('created', session);
 
     // Broadcast recruit signal
+    log(`RECRUIT: broadcasting for session ${session.session_id}`);
     nc.publish(`mesh.collab.${session.session_id}.recruit`, sc.encode(JSON.stringify({
       session_id: session.session_id,
       task_id: task.task_id,
@@ -251,18 +252,23 @@ async function handleComplete(msg) {
   if (!existingTask) return respondError(msg, `Task ${task_id} not found`);
 
   let needsReview = existingTask.requires_review;
+  let reviewReason = needsReview ? 'explicit_requires_review' : null;
   if (needsReview === null || needsReview === undefined) {
     const mode = existingTask.collaboration ? 'collab_mesh' : (existingTask.tags?.includes('soul') ? 'soul' : 'solo_mesh');
     const hasMetric = !!existingTask.metric;
 
     if (mode === 'soul' || existingTask.tags?.includes('human')) {
       needsReview = true;
+      reviewReason = existingTask.tags?.includes('human') ? 'human_review_tag' : 'soul_requires_review';
     } else if (mode === 'collab_mesh' && !hasMetric) {
       needsReview = true;
+      reviewReason = 'collab_no_metric';
     } else if (mode === 'solo_mesh' && !hasMetric) {
       needsReview = true;
+      reviewReason = 'solo_no_metric';
     } else {
       needsReview = false;
+      reviewReason = 'metric_auto_approved';
     }
   }
 
@@ -289,11 +295,14 @@ async function handleComplete(msg) {
         log(`ROLE VALIDATION FAILED for ${task_id} (role: ${role.id}): ${roleValidation.issues.length} issue(s)`);
         for (const issue of roleValidation.issues) log(`  - ${issue}`);
         needsReview = true; // force review if validation failed on auto-complete path
+        reviewReason = 'role_validation_failed';
       } else {
         log(`ROLE VALIDATION PASSED for ${task_id} (role: ${role.id})`);
       }
     }
   }
+
+  log(`REVIEW DECISION: ${task_id} needsReview=${needsReview} reason=${reviewReason || 'none'}`);
 
   let task;
   if (needsReview) {
@@ -611,6 +620,7 @@ async function detectStalls() {
 
     // Notify the agent's node (fire-and-forget)
     if (task.owner) {
+      log(`STALL NOTIFY: ${task.task_id} → ${task.owner}`);
       nc.publish(`mesh.agent.${task.owner}.stall`, sc.encode(JSON.stringify({
         task_id: task.task_id,
         silent_minutes: parseFloat(silentMin),
@@ -674,6 +684,7 @@ async function enforceBudgets() {
     await checkPlanProgress(task.task_id, 'failed');
 
     // Publish notification so the agent knows
+    log(`BUDGET NOTIFY: ${task.task_id} → ${task.owner}`);
     nc.publish(`mesh.agent.${task.owner}.budget_exceeded`, sc.encode(JSON.stringify({
       task_id: task.task_id,
       elapsed_minutes: parseFloat(elapsed),
@@ -685,6 +696,7 @@ async function enforceBudgets() {
 // ── Collab Event Publishing ──────────────────────────
 
 function publishCollabEvent(eventType, session) {
+  log(`COLLAB EVENT: ${eventType} session=${session.session_id}`);
   nc.publish(`mesh.events.collab.${eventType}`, sc.encode(JSON.stringify({
     event: eventType,
     session_id: session.session_id,
@@ -720,6 +732,7 @@ async function handleCollabCreate(msg) {
   publishCollabEvent('created', session);
 
   // Broadcast recruit signal
+  log(`RECRUIT: broadcasting for session ${session.session_id}`);
   nc.publish(`mesh.collab.${session.session_id}.recruit`, sc.encode(JSON.stringify({
     session_id: session.session_id,
     task_id: task_id,
@@ -1019,6 +1032,7 @@ function computeNodeScopes(nodes, taskScope, strategy) {
     }
   }
 
+  log(`SCOPES: ${Object.entries(scopes).map(([n,s]) => `${n}=${Array.isArray(s) ? s.join(';') : s}`).join(', ')} (strategy=${strategy})`);
   return scopes;
 }
 
@@ -1065,6 +1079,7 @@ async function startCollabRound(sessionId) {
 
   for (const node of nodesToNotify) {
     const effectiveScope = nodeScopes[node.node_id] || node.scope;
+    debug(`ROUND NOTIFY: session=${sessionId} node=${node.node_id} round=${round.round_number}`);
     nc.publish(`mesh.collab.${sessionId}.node.${node.node_id}.round`, sc.encode(JSON.stringify({
       session_id: sessionId,
       task_id: session.task_id,
@@ -1111,6 +1126,7 @@ async function notifySequentialTurn(sessionId, nextNodeId) {
   const nodeScopes = computeNodeScopes(session.nodes, taskScope, scopeStrategy);
   const nextNode = session.nodes.find(n => n.node_id === nextNodeId);
 
+  debug(`ROUND NOTIFY: session=${sessionId} node=${nextNodeId} round=${currentRound.round_number} (sequential turn)`);
   nc.publish(`mesh.collab.${sessionId}.node.${nextNodeId}.round`, sc.encode(JSON.stringify({
     session_id: sessionId,
     task_id: session.task_id,
@@ -1269,6 +1285,7 @@ async function startCirclingStep(sessionId) {
   for (const node of freshSession.nodes) {
     const directedInput = collabStore.compileDirectedInput(freshSession, node.node_id, taskDescription);
 
+    debug(`ROUND NOTIFY: session=${sessionId} node=${node.node_id} round=${freshSession.current_round} (circling)`);
     nc.publish(`mesh.collab.${sessionId}.node.${node.node_id}.round`, sc.encode(JSON.stringify({
       session_id: sessionId,
       task_id: freshSession.task_id,
@@ -1585,6 +1602,7 @@ async function sweepCirclingStepTimeouts() {
 // ── Plan Event Publishing ───────────────────────────
 
 function publishPlanEvent(eventType, plan) {
+  log(`PLAN EVENT: ${eventType} plan=${plan.plan_id}`);
   nc.publish(`mesh.events.plan.${eventType}`, sc.encode(JSON.stringify({
     event: eventType,
     plan_id: plan.plan_id,
@@ -1803,6 +1821,7 @@ async function advancePlanWave(planId) {
           log(`  → COLLAB SESSION ${session.session_id} for subtask ${st.subtask_id}`);
           publishCollabEvent('created', session);
 
+          log(`RECRUIT: broadcasting for session ${session.session_id}`);
           nc.publish(`mesh.collab.${session.session_id}.recruit`, sc.encode(JSON.stringify({
             session_id: session.session_id,
             task_id: meshTask.task_id,
@@ -2172,17 +2191,22 @@ async function main() {
   // Shutdown handler
   const shutdown = async () => {
     log('Shutting down...');
+    log('Clearing timers...');
     clearInterval(proposalTimer);
     clearInterval(budgetTimer);
     clearInterval(stallTimer);
     clearInterval(recruitTimer);
     if (circlingStepSweepTimer) clearInterval(circlingStepSweepTimer);
     if (circlingStepTimers) {
+      log(`Clearing ${circlingStepTimers.size} circling step timers...`);
       for (const timer of circlingStepTimers.values()) clearTimeout(timer);
       circlingStepTimers.clear();
     }
+    log(`Unsubscribing ${subs.length} handlers...`);
     for (const sub of subs) sub.unsubscribe();
+    log('Draining NATS...');
     await nc.drain();
+    log('Shutdown complete.');
     process.exit(0);
   };
 

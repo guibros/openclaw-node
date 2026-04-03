@@ -85,8 +85,11 @@ function injectRules(parts, scope) {
   // Path-scoped coding standards
   const matched = matchRules(getRules(), scope || []);
   if (matched.length > 0) {
+    debug(`Rules: ${matched.length} matched for scope`);
     parts.push(formatRulesForPrompt(matched));
     parts.push('');
+  } else {
+    debug(`Rules: 0 matched for scope`);
   }
 
   // Harness behavioral rules (soft enforcement — LLM-agnostic prompt injection)
@@ -117,7 +120,11 @@ function getRole(roleId) {
  */
 function injectRole(parts, roleId) {
   const role = getRole(roleId);
-  if (!role) return;
+  if (!role) {
+    debug(`Role not found: ${roleId}`);
+    return;
+  }
+  debug(`Role injected: ${roleId}`);
   const roleText = formatRoleForPrompt(role);
   if (roleText) {
     parts.push(roleText);
@@ -186,6 +193,7 @@ async function natsRequest(subject, payload, timeoutMs = 10000) {
  * It does NOT get: NATS subjects, mesh protocol, budget deadlines.
  */
 function buildInitialPrompt(task) {
+  log(`Building initial prompt for ${task.task_id}`);
   const parts = [];
 
   parts.push(`# Task: ${task.title}`);
@@ -237,7 +245,9 @@ function buildInitialPrompt(task) {
     parts.push('- If verification fails, analyze the failure and iterate on your approach.');
   }
 
-  return parts.join('\n');
+  const prompt = parts.join('\n');
+  debug(`Initial prompt: ${prompt.length} chars`);
+  return prompt;
 }
 
 /**
@@ -245,6 +255,7 @@ function buildInitialPrompt(task) {
  * Includes: what was tried, why it failed, what to try differently.
  */
 function buildRetryPrompt(task, previousAttempts, attemptNumber) {
+  log(`Building retry prompt for ${task.task_id} (attempt ${previousAttempts.length + 1})`);
   const parts = [];
 
   parts.push(`# Task: ${task.title} (Attempt ${attemptNumber}/${MAX_ATTEMPTS})`);
@@ -592,6 +603,7 @@ function evaluateMetric(metric, cwd) {
  * Includes: task description, round number, shared intel from previous round, scope.
  */
 function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole) {
+  log(`Building collab prompt: round=${roundNumber || 0} mode=${task.collaboration?.mode}`);
   const parts = [];
 
   parts.push(`# Task: ${task.title} (Collaborative Round ${roundNumber})`);
@@ -719,6 +731,7 @@ function parseReflection(output) {
         };
       }
 
+      debug(`Reflection parsed: vote=${vote} confidence=${confidence}`);
       return { summary, learnings, confidence, vote, parse_failed: false };
     } catch (err) {
       log(`REFLECTION PARSE: JSON block found but invalid JSON: ${err.message}`);
@@ -763,6 +776,7 @@ function parseReflection(output) {
  */
 function buildCirclingPrompt(task, circlingData) {
   const { circling_phase, circling_step, circling_subround, directed_input, my_role } = circlingData;
+  log(`Building circling prompt: phase=${circling_phase} step=${circling_step}`);
   const isWorker = my_role === 'worker';
   const parts = [];
 
@@ -998,6 +1012,7 @@ async function executeCollabTask(task) {
       task_id: task.task_id,
       reason: `Collab session not found for task ${task.task_id}. Task requires collaborative execution (mode: ${collabSpec.mode}) but no session could be discovered. Solo fallback refused — collab tasks must run collaboratively.`,
     }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
+    debug('state → idle');
     writeAgentState('idle', null);
     return;
   }
@@ -1024,6 +1039,7 @@ async function executeCollabTask(task) {
       task_id: task.task_id,
       reason: `Failed to join collab session ${sessionId}: ${err.message}`,
     }).catch(err2 => warn(`mesh.tasks.fail: ${err2.message}`));
+    debug('state → idle');
     writeAgentState('idle', null);
     return;
   }
@@ -1035,6 +1051,7 @@ async function executeCollabTask(task) {
       task_id: task.task_id,
       reason: `Collab session ${sessionId} rejected join (full, closed, or duplicate node).`,
     }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
+    debug('state → idle');
     writeAgentState('idle', null);
     return;
   }
@@ -1451,6 +1468,10 @@ async function main() {
   log(`  Max attempts: ${MAX_ATTEMPTS}`);
   log(`  Poll interval: ${POLL_INTERVAL / 1000}s`);
   log(`  Mode:        ${ONCE ? 'single task' : 'continuous'} ${DRY_RUN ? '(dry run)' : ''}`);
+  log(`  Heartbeat interval: ${HEARTBEAT_INTERVAL}ms`);
+  log(`  Rules dir:          ${RULES_DIR}`);
+  log(`  Harness path:       ${HARNESS_PATH}`);
+  log(`  Worktree base:      ${WORKTREE_BASE}`);
 
   const natsOpts = natsConnectOpts();
   nc = await connect({
