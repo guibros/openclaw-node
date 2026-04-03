@@ -40,6 +40,9 @@ const tracer = createTracer('memory-daemon');
 // --- Hermes-inspired modules ---
 import { shouldFlush, runFlush } from '../lib/pre-compression-flush.mjs';
 import { createBudget } from '../lib/memory-budget.mjs';
+import { createSessionTraceEmitter } from './session-trace-emitter.mjs';
+
+const traceEmitter = createSessionTraceEmitter(tracer);
 
 // Session store loaded lazily (requires better-sqlite3)
 let _sessionStore = null;
@@ -845,6 +848,7 @@ async function handleTransitions(transitions, config) {
 
     // IDLE → ENDED: Full cleanup pipeline
     if (t.from === STATES.IDLE && t.to === STATES.ENDED) {
+      traceEmitter.reset();
       log('Session ended — running full cleanup pipeline');
       const clawvault = path.join(WORKSPACE, config.clawvaultBin);
       const obsSync = path.join(WORKSPACE, 'bin/obsidian-sync.mjs');
@@ -1065,6 +1069,15 @@ async function main() {
       // 4. Phase 1: Status sync (when ACTIVE or IDLE)
       if (sm.state === STATES.ACTIVE || sm.state === STATES.IDLE) {
         runPhase1StatusSync(config);
+      }
+
+      // 4.5. Phase 1.5: Session trace emission (real-time JSONL → observability feed)
+      if (sm.state === STATES.ACTIVE && activity.newestSession && activity.newestSource) {
+        const source = sources.find(s => s.name === activity.newestSource);
+        if (source) {
+          const jsonlPath = path.join(source.path, activity.newestSession + '.jsonl');
+          traceEmitter.processNewEntries(jsonlPath);
+        }
       }
 
       // 5. Phase 2: Throttled work (when ACTIVE or IDLE)
