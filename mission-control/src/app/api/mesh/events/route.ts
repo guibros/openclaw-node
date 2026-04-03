@@ -43,6 +43,7 @@ export async function GET() {
 
   const stream = new ReadableStream({
     async start(controller) {
+      console.log("[mesh/events] SSE client connected");
       const encoder = new TextEncoder();
 
       controller.enqueue(encoder.encode(": connected\n\n"));
@@ -124,6 +125,7 @@ export async function GET() {
       });
     },
     cancel() {
+      console.log("[mesh/events] SSE client disconnected");
       closed = true;
       sub.unsubscribe();
       if (watcher && typeof watcher.stop === "function") {

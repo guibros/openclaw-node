@@ -62,10 +62,7 @@ const circlingStepTimers = new Map();
 
 // ── Logging ─────────────────────────────────────────
 
-function log(msg) {
-  const ts = new Date().toISOString();
-  console.log(`[${ts}] ${msg}`);
-}
+const { info: log, warn, error: logError } = require('../lib/logger').createLogger('mesh-task-daemon');
 
 // ── Response helpers ────────────────────────────────
 
@@ -74,13 +71,15 @@ function respond(msg, data) {
 }
 
 function respondError(msg, error) {
+  warn(`RPC error: ${error}`);
   msg.respond(sc.encode(JSON.stringify({ ok: false, error })));
 }
 
 function parseRequest(msg) {
   try {
     return JSON.parse(sc.decode(msg.data));
-  } catch {
+  } catch (err) {
+    warn(`parseRequest: malformed message: ${err.message}`);
     return {};
   }
 }
@@ -566,7 +565,7 @@ async function detectStalls() {
           continue;
         }
       } catch {
-        // No response within 5s — agent is truly unresponsive
+        // Intentional: no response within 5s — agent is truly unresponsive
         log(`STALL CONFIRMED ${task.task_id}: agent ${task.owner} did not respond to alive check.`);
       }
     }
@@ -2140,7 +2139,7 @@ async function main() {
           await handler(msg);
         } catch (err) {
           log(`ERROR handling ${subject}: ${err.message}\n${err.stack}`);
-          try { respondError(msg, err.message); } catch {}
+          try { respondError(msg, err.message); } catch { /* Intentional: last-resort error reply — nothing to log to */ }
         }
       }
     })();
@@ -2154,8 +2153,12 @@ async function main() {
   const budgetTimer = setInterval(async () => {
     try { await enforceBudgets(); } catch (err) { log(`enforceBudgets error: ${err.message}`); }
   }, BUDGET_CHECK_INTERVAL);
-  const stallTimer = setInterval(detectStalls, BUDGET_CHECK_INTERVAL);
-  const recruitTimer = setInterval(checkRecruitingDeadlines, 5000); // check every 5s
+  const stallTimer = setInterval(async () => {
+    try { await detectStalls(); } catch (err) { logError(`detectStalls: ${err.message}`); }
+  }, BUDGET_CHECK_INTERVAL);
+  const recruitTimer = setInterval(async () => {
+    try { await checkRecruitingDeadlines(); } catch (err) { logError(`checkRecruitingDeadlines: ${err.message}`); }
+  }, 5000); // check every 5s
   const circlingStepSweepTimer = setInterval(sweepCirclingStepTimeouts, 60000); // every 60s
   log(`Proposal processing: every ${BUDGET_CHECK_INTERVAL / 1000}s`);
   log(`Budget enforcement: every ${BUDGET_CHECK_INTERVAL / 1000}s`);

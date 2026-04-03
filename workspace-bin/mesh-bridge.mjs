@@ -57,11 +57,12 @@ export async function createMeshBridge() {
     let natsModule;
     try {
       natsModule = await import('nats');
-    } catch {
+    } catch (err) {
+      console.warn(`[mesh-bridge] nats import failed, trying fallback: ${err.message}`);
       try {
         natsModule = await import(natsPath);
-      } catch {
-        // NATS npm package not installed — mesh not available
+      } catch (err2) {
+        console.warn(`[mesh-bridge] nats fallback import failed: ${err2.message}`);
         return null;
       }
     }
@@ -92,8 +93,8 @@ export async function createMeshBridge() {
             subject: msg.subject,
           }) + '\n';
           fs.appendFileSync(EVENTS_LOG, line);
-        } catch {
-          // Malformed event — skip
+        } catch (err) {
+          console.warn(`[mesh-bridge] malformed event on ${msg.subject}: ${err.message}`);
         }
       }
     })();
@@ -120,8 +121,8 @@ export async function createMeshBridge() {
             `openclaw.memory.${NODE_ID}.${eventType}`,
             sc.encode(JSON.stringify(event))
           );
-        } catch {
-          // NATS disconnected — swallow, don't crash the daemon
+        } catch (err) {
+          console.warn(`[mesh-bridge] publish failed for ${eventType}: ${err.message}`);
         }
       },
 
@@ -135,9 +136,10 @@ export async function createMeshBridge() {
           if (!fs.existsSync(EVENTS_LOG)) return [];
           const lines = fs.readFileSync(EVENTS_LOG, 'utf8').trim().split('\n');
           return lines.slice(-n).map(l => {
-            try { return JSON.parse(l); } catch { return null; }
+            try { return JSON.parse(l); } catch (err) { console.warn(`[mesh-bridge] event line parse failed: ${err.message}`); return null; }
           }).filter(Boolean);
-        } catch {
+        } catch (err) {
+          console.warn(`[mesh-bridge] events log read failed: ${err.message}`);
           return [];
         }
       },
@@ -148,13 +150,13 @@ export async function createMeshBridge() {
       async close() {
         try {
           await nc.drain();
-        } catch {
-          // Already closed
+        } catch (err) {
+          console.warn(`[mesh-bridge] drain failed (already closed): ${err.message}`);
         }
       },
     };
-  } catch {
-    // NATS connection failed — mesh not available, standalone mode
+  } catch (err) {
+    console.warn(`[mesh-bridge] NATS connection failed, standalone mode: ${err.message}`);
     return null;
   }
 }

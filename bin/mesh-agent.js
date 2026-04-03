@@ -159,18 +159,23 @@ function writeAgentState(status, taskId, provider, model) {
 
 // ── Logging ───────────────────────────────────────────
 
-function log(msg) {
-  const ts = new Date().toISOString();
-  console.log(`[${ts}] [mesh-agent:${NODE_ID}] ${msg}`);
-}
+const { info: log, warn, error: logError, debug } = require('../lib/logger').createLogger('mesh-agent');
 
 // ── NATS Helpers ──────────────────────────────────────
 
 async function natsRequest(subject, payload, timeoutMs = 10000) {
-  const msg = await nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: timeoutMs });
-  const response = JSON.parse(sc.decode(msg.data));
-  if (!response.ok) throw new Error(response.error);
-  return response.data;
+  try {
+    const msg = await nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: timeoutMs });
+    const response = JSON.parse(sc.decode(msg.data));
+    if (!response.ok) {
+      warn(`natsRequest ${subject}: ${response.error}`);
+      throw new Error(response.error);
+    }
+    return response.data;
+  } catch (err) {
+    if (!err.message?.includes(subject)) warn(`natsRequest ${subject}: ${err.message}`);
+    throw err;
+  }
 }
 
 // ── Prompt Construction ───────────────────────────────
@@ -325,14 +330,14 @@ function createWorktree(taskId) {
       log(`Cleaning stale worktree: ${worktreePath}`);
       try {
         execFileSync('git', ['worktree', 'remove', '--force', worktreePath], { cwd: WORKSPACE, timeout: 10000 });
-      } catch {
-        // If git worktree remove fails, manually clean up
+      } catch (err) {
+        warn(`git worktree remove failed for ${worktreePath}: ${err.message} — cleaning up manually`);
         fs.rmSync(worktreePath, { recursive: true, force: true });
       }
       // Also clean up the branch if it exists
       try {
         execFileSync('git', ['branch', '-D', branch], { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' });
-      } catch { /* branch may not exist */ }
+      } catch { /* Intentional: branch may not exist after worktree cleanup */ }
     }
 
     // Create new worktree branched off HEAD
@@ -493,6 +498,7 @@ function runLLM(prompt, task, worktreePath) {
     // Heartbeat: signal daemon with activity state.
     // getActivityState reads Claude JSONL files — only useful for Claude provider.
     // For other providers, send a basic heartbeat (process alive = active).
+    let lastHeartbeatWarn = 0;
     const isClaude = provider.name === 'claude';
     const heartbeatTimer = setInterval(async () => {
       try {
@@ -509,8 +515,11 @@ function runLLM(prompt, task, worktreePath) {
           payload.activity_timestamp = new Date().toISOString();
         }
         await natsRequest('mesh.tasks.heartbeat', payload);
-      } catch {
-        // fire-and-forget
+      } catch (err) {
+        if (!lastHeartbeatWarn || Date.now() - lastHeartbeatWarn > 60000) {
+          warn(`heartbeat: ${err.message}`);
+          lastHeartbeatWarn = Date.now();
+        }
       }
     }, HEARTBEAT_INTERVAL);
 
@@ -988,7 +997,7 @@ async function executeCollabTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       reason: `Collab session not found for task ${task.task_id}. Task requires collaborative execution (mode: ${collabSpec.mode}) but no session could be discovered. Solo fallback refused — collab tasks must run collaboratively.`,
-    }).catch(() => {});
+    }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
     writeAgentState('idle', null);
     return;
   }
@@ -1014,7 +1023,7 @@ async function executeCollabTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       reason: `Failed to join collab session ${sessionId}: ${err.message}`,
-    }).catch(() => {});
+    }).catch(err2 => warn(`mesh.tasks.fail: ${err2.message}`));
     writeAgentState('idle', null);
     return;
   }
@@ -1025,7 +1034,7 @@ async function executeCollabTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       reason: `Collab session ${sessionId} rejected join (full, closed, or duplicate node).`,
-    }).catch(() => {});
+    }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
     writeAgentState('idle', null);
     return;
   }
@@ -1050,11 +1059,11 @@ async function executeCollabTask(task) {
         roundsDone = true;
         roundSub.unsubscribe();
       }
-    } catch { /* best effort */ }
+    } catch (err) { warn(`collab heartbeat: ${err.message}`); }
   }, 10000);
 
   // Signal start
-  await natsRequest('mesh.tasks.start', { task_id: task.task_id }).catch(() => {});
+  await natsRequest('mesh.tasks.start', { task_id: task.task_id }).catch(err => warn(`mesh.tasks.start: ${err.message}`));
 
   try {
     for await (const roundMsg of roundSub) {
@@ -1158,7 +1167,7 @@ async function executeCollabTask(task) {
           lastKnownSessionStatus = status.status;
           roundsDone = true;
         }
-      } catch { /* continue listening */ }
+      } catch (err) { warn(`collab status check: ${err.message}`); }
     }
   } finally {
     clearInterval(sessionHeartbeat);
@@ -1477,7 +1486,8 @@ async function main() {
         const alive = currentTaskId != null && (task_id === currentTaskId || !task_id);
         msg.respond(sc.encode(JSON.stringify({ alive, task_id: currentTaskId })));
         log(`ALIVE CHECK: responded ${alive} (asked about ${task_id}, working on ${currentTaskId})`);
-      } catch {
+      } catch (err) {
+        debug(`alive check parse failed: ${err.message}`);
         msg.respond(sc.encode(JSON.stringify({ alive: currentTaskId != null, task_id: currentTaskId })));
       }
     }
@@ -1548,7 +1558,7 @@ async function main() {
         await executeCollabTask(task);
         currentTaskId = null;
       }
-    } catch { /* silent — recruiting poll is best-effort */ }
+    } catch (err) { warn(`recruiting poll: ${err.message}`); }
   }
 
   while (running) {

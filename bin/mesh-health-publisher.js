@@ -52,7 +52,8 @@ let lastErrorRepeatCount = 0;
 function execSafe(cmd) {
   try {
     return execSync(cmd, { encoding: "utf-8", timeout: 5000 }).trim();
-  } catch {
+  } catch (err) {
+    console.warn(`[health-publisher] execSafe(${cmd.slice(0, 40)}): ${err.message}`);
     return null;
   }
 }
@@ -163,8 +164,8 @@ function getAgentStatus() {
       status.llm = state.llm || "claude";
       status.model = state.model || null;
     }
-  } catch {
-    // No state file = idle
+  } catch (err) {
+    console.warn(`[health-publisher] read agent state: ${err.message}`);
   }
   return status;
 }
@@ -174,7 +175,8 @@ function getDeployVersion() {
     return execSync('git rev-parse --short HEAD', {
       cwd: REPO_DIR, encoding: 'utf-8', timeout: 5000,
     }).trim();
-  } catch {
+  } catch (err) {
+    console.warn(`[health-publisher] read deploy version: ${err.message}`);
     return 'unknown';
   }
 }
@@ -206,7 +208,7 @@ function getTailscalePeers() {
     }
 
     return { peers, selfIp, natType: status.Self?.CapMap?.['natType'] || 'unknown' };
-  } catch { return { peers: [], selfIp: 'unknown', natType: 'unknown' }; }
+  } catch (err) { console.warn(`[health-publisher] get tailscale peers: ${err.message}`); return { peers: [], selfIp: 'unknown', natType: 'unknown' }; }
 }
 
 function getTailscaleLatency(peerIp) {
@@ -220,7 +222,7 @@ function getTailscaleLatency(peerIp) {
       via: viaMatch ? viaMatch[1] : 'unknown',
       isDirect: viaMatch ? !viaMatch[1].startsWith('DERP') : null,
     };
-  } catch { return null; }
+  } catch (err) { console.warn(`[health-publisher] tailscale ping: ${err.message}`); return null; }
 }
 
 function getCpuLoad() {
@@ -238,7 +240,7 @@ function getNatsInfo(nc, natsUrl) {
       serverVersion: info?.version || 'unknown',
       isHost: false,
     };
-  } catch { return { serverUrl: 'unknown', connected: false, serverVersion: 'unknown', isHost: false }; }
+  } catch (err) { console.warn(`[health-publisher] get NATS info: ${err.message}`); return { serverUrl: 'unknown', connected: false, serverVersion: 'unknown', isHost: false }; }
 }
 
 function getNodeStats() {
@@ -258,7 +260,7 @@ function getNodeStats() {
         if (entry.outcome === 'completed' || entry.outcome === 'success') completed++;
         else if (entry.outcome === 'failed' || entry.outcome === 'error') failed++;
         if (entry.token_cost_usd) tokens += entry.token_cost_usd;
-      } catch { continue; }
+      } catch (err) { console.warn(`[health-publisher] parse perf line: ${err.message}`); continue; }
     }
 
     const total = completed + failed;
@@ -267,7 +269,7 @@ function getNodeStats() {
       successRate: total > 0 ? completed / total : 1.0,
       tokenSpendTodayUsd: Math.round(tokens * 100) / 100,
     };
-  } catch { return { tasksToday: 0, successRate: 1.0, tokenSpendTodayUsd: 0 }; }
+  } catch (err) { console.warn(`[health-publisher] get node stats: ${err.message}`); return { tasksToday: 0, successRate: 1.0, tokenSpendTodayUsd: 0 }; }
 }
 
 let publishCount = 0;

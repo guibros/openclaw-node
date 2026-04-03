@@ -16,7 +16,7 @@ function InfoBubble({ text }: { text: string }) {
         <Info className="h-3 w-3" />
       </button>
       {show && (
-        <div className="absolute left-5 top-0 z-50 w-72 rounded-lg border border-border bg-popover p-3 text-[10px] leading-relaxed text-popover-foreground shadow-xl">
+        <div className="absolute left-5 top-0 z-50 w-72 rounded-lg border border-border bg-zinc-900 p-3 text-[10px] leading-relaxed text-zinc-200 shadow-2xl">
           {text}
         </div>
       )}

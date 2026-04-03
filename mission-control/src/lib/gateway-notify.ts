@@ -46,7 +46,8 @@ export function gatewayNotify(text: string): Promise<boolean> {
 
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
-      try { ws.close(); } catch {}
+      console.warn("gateway-notify: timeout after 5s");
+      try { ws.close(); } catch (e) { /* close may fail if already closed */ }
       resolve(false);
     }, 5000);
 

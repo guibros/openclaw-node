@@ -71,7 +71,7 @@ const getOrCreateSecret = tracer.wrap('getOrCreateSecret', function getOrCreateS
     if (fs.existsSync(SECRET_PATH)) {
       return fs.readFileSync(SECRET_PATH, 'utf8').trim();
     }
-  } catch { /* fall through */ }
+  } catch (err) { console.warn(`[mesh-join-token] read mesh secret: ${err.message}`); }
 
   const secret = crypto.randomBytes(32).toString('hex');
   fs.mkdirSync(path.dirname(SECRET_PATH), { recursive: true });

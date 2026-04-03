@@ -52,7 +52,7 @@ function insertEvent(event: any) {
     const db = getDb();
     db.insert(observabilityEvents).values(event).run();
   } catch {
-    // Best effort — don't crash the route
+    // Intentional: best-effort DB insert, event may be published via NATS
   }
 }
 
@@ -65,7 +65,7 @@ async function publishEvent(event: any) {
       nats.publish(subject, sc.encode(JSON.stringify(event)));
     }
   } catch {
-    // Best effort
+    // Intentional: best-effort NATS publish, event may be in DB
   }
 }
 
@@ -102,7 +102,7 @@ export function batchInsertEvents(events: any[]) {
     for (const e of events) {
       db.insert(observabilityEvents).values(e).run();
     }
-  } catch {
-    // Best effort
+  } catch (err) {
+    console.warn(`[tracer] batchInsert failed (${events.length} events): ${(err as Error).message}`);
   }
 }

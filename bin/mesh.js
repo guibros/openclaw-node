@@ -49,7 +49,7 @@ function loadNodeAliases() {
       const custom = JSON.parse(fs.readFileSync(aliasPath, 'utf8'));
       return { ...NODE_ALIASES_DEFAULTS, ...custom };
     }
-  } catch {}
+  } catch (err) { console.warn(`[mesh] load node aliases: ${err.message}`); }
   return NODE_ALIASES_DEFAULTS;
 }
 const NODE_ALIASES = loadNodeAliases();
@@ -700,7 +700,7 @@ async function cmdDeploy(args) {
     const js = nc.jetstream();
     const resultsKv = await js.views.kv('MESH_DEPLOY_RESULTS', { history: 5, ttl: 7 * 24 * 60 * 60 * 1000 });
     await resultsKv.put('latest', sc.encode(JSON.stringify({ sha, branch })));
-  } catch {}
+  } catch (err) { console.warn(`[mesh] write deploy latest marker: ${err.message}`); }
 
   // Publish trigger
   nc.publish('mesh.deploy.trigger', sc.encode(JSON.stringify(trigger)));
@@ -737,13 +737,13 @@ async function cmdDeploy(args) {
               seen.add(nodeId);
             }
           }
-        } catch {}
+        } catch (err) { console.warn(`[mesh] poll deploy result for node: ${err.message}`); }
       }
 
       if (seen.size >= checkNodes.length) break;
       await new Promise(r => setTimeout(r, 2000));
     }
-  } catch {}
+  } catch (err) { console.warn(`[mesh] poll deploy results: ${err.message}`); }
 
   if (seen.size === 0) {
     console.log('  (no responses yet — nodes may still be deploying)');

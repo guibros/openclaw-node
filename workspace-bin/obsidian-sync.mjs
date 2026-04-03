@@ -55,7 +55,8 @@ function loadConfig() {
   try {
     const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
     return { ...defaults, ...raw };
-  } catch {
+  } catch (err) {
+    console.warn(`[obsidian-sync] config parse failed: ${err.message}`);
     return defaults;
   }
 }
@@ -132,7 +133,8 @@ function loadSyncState() {
   if (!fs.existsSync(SYNC_STATE_PATH)) return {};
   try {
     return JSON.parse(fs.readFileSync(SYNC_STATE_PATH, 'utf-8'));
-  } catch {
+  } catch (err) {
+    console.warn(`[obsidian-sync] sync state parse failed: ${err.message}`);
     return {};
   }
 }
@@ -313,7 +315,8 @@ function walkDir(dir, base, results = []) {
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    console.warn(`[obsidian-sync] walkDir readdir failed for ${dir}: ${err.message}`);
     return results;
   }
 
@@ -375,7 +378,7 @@ function discoverFiles(config) {
         for (const e of entries) {
           if (e.isFile()) allFiles.push(e.name);
         }
-      } catch { /* skip */ }
+      } catch (err) { console.warn(`[obsidian-sync] root dir scan failed: ${err.message}`); }
     } else {
       walkDir(path.join(WORKSPACE, dir), WORKSPACE, allFiles);
     }
@@ -638,7 +641,8 @@ export async function syncToObsidian(opts = {}) {
     let currentHash;
     try {
       currentHash = fileHash(absPath);
-    } catch {
+    } catch (err) {
+      console.warn(`[obsidian-sync] file hash failed for ${absPath}: ${err.message}`);
       continue; // unreadable
     }
 
@@ -651,7 +655,8 @@ export async function syncToObsidian(opts = {}) {
     let content;
     try {
       content = fs.readFileSync(absPath, 'utf-8');
-    } catch {
+    } catch (err) {
+      console.warn(`[obsidian-sync] file read failed for ${absPath}: ${err.message}`);
       errors++;
       continue;
     }
@@ -775,7 +780,8 @@ function propagateSharedLessons(vaultRoot, config, verbose = false) {
   try {
     nodeDirs = fs.readdirSync(nodesDir, { withFileTypes: true })
       .filter(e => e.isDirectory() && !e.name.startsWith('_'));
-  } catch {
+  } catch (err) {
+    console.warn(`[obsidian-sync] nodes dir scan failed: ${err.message}`);
     return 0;
   }
 
@@ -788,7 +794,8 @@ function propagateSharedLessons(vaultRoot, config, verbose = false) {
     let files;
     try {
       files = fs.readdirSync(lessonsDir).filter(f => f.endsWith('.md') && !f.startsWith('_'));
-    } catch {
+    } catch (err) {
+      console.warn(`[obsidian-sync] lessons dir readdir failed for ${lessonsDir}: ${err.message}`);
       continue;
     }
 
@@ -799,8 +806,8 @@ function propagateSharedLessons(vaultRoot, config, verbose = false) {
         const body = content.replace(FM_REGEX, '');
         const lessons = parseLessons(body, nodeId);
         allLessons.push(...lessons);
-      } catch {
-        if (verbose) console.log(`  [lessons] failed to read ${nodeId}/lessons/${file}`);
+      } catch (err) {
+        console.warn(`[obsidian-sync] lesson file read failed for ${nodeId}/lessons/${file}: ${err.message}`);
       }
     }
   }
@@ -812,7 +819,7 @@ function propagateSharedLessons(vaultRoot, config, verbose = false) {
       const content = fs.readFileSync(workspaceLessons, 'utf-8');
       const lessons = parseLessons(content, config.nodeId);
       allLessons.push(...lessons);
-    } catch { /* skip */ }
+    } catch (err) { console.warn(`[obsidian-sync] workspace lessons read failed: ${err.message}`); }
   }
 
   // Filter to shareable lessons only

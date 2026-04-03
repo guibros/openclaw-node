@@ -59,7 +59,7 @@ function timestamp() {
 
 function log(msg) {
   const line = `[${timestamp()}] ${msg}`;
-  try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch {}
+  try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch (err) { /* Intentional: log write failure shouldn't crash maintenance */ }
   if (VERBOSE) console.log(line);
 }
 
@@ -260,7 +260,7 @@ async function checkClawVault() {
     });
     proc.unref();
     // Kill after 10s
-    setTimeout(() => { try { proc.kill(); } catch {} }, 10000);
+    setTimeout(() => { try { proc.kill(); } catch { /* Intentional: process may already be dead */ } }, 10000);
     log('ClawVault checkpoint dispatched (background, 10s timeout)');
     actions++;
   } catch (e) {

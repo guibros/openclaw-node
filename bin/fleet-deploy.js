@@ -79,9 +79,9 @@ async function discoverNodes(nc) {
         if (entry && entry.value) {
           nodes.push(JSON.parse(sc.decode(entry.value)));
         }
-      } catch {}
+      } catch (err) { console.warn(`[fleet-deploy] parse MESH_NODES entry: ${err.message}`); }
     }
-  } catch {}
+  } catch (err) { console.warn(`[fleet-deploy] read MESH_NODES bucket: ${err.message}`); }
 
   // Fall back to MESH_NODE_HEALTH if MESH_NODES is empty
   if (nodes.length === 0) {
@@ -101,9 +101,9 @@ async function discoverNodes(nc) {
               lastSeen: health.reportedAt || null,
             });
           }
-        } catch {}
+        } catch (err) { console.warn(`[fleet-deploy] parse MESH_NODE_HEALTH entry: ${err.message}`); }
       }
-    } catch {}
+    } catch (err) { console.warn(`[fleet-deploy] read MESH_NODE_HEALTH bucket: ${err.message}`); }
   }
 
   return nodes;
@@ -273,7 +273,7 @@ async function fleetDeploy(nc, opts) {
             }
           }
         }
-      } catch {}
+      } catch (err) { console.warn(`[fleet-deploy] poll deploy result: ${err.message}`); }
     }
 
     allDone = nodeResults.size >= expectedNodes.size;

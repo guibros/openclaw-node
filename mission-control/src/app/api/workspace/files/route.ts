@@ -57,7 +57,7 @@ function scanDir(absPath: string, relPath: string, depth: number): FileNode[] {
       let size = 0;
       try {
         size = fs.statSync(entryAbs).size;
-      } catch {}
+      } catch (err) { console.warn(`[workspace/files] stat failed for ${entryAbs}: ${(err as Error).message}`); }
       result.push({
         name: entry.name,
         path: entryRel,

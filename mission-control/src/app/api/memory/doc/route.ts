@@ -25,6 +25,7 @@ export const GET = withTrace("memory", "GET /api/memory/doc", async (request: Ne
     // Resolve and validate path is within workspace root
     const resolved = path.resolve(WORKSPACE_ROOT, relPath);
     if (!resolved.startsWith(path.resolve(WORKSPACE_ROOT) + path.sep) && resolved !== path.resolve(WORKSPACE_ROOT)) {
+      console.warn(`[SECURITY] memory/doc: path traversal blocked`);
       return NextResponse.json(
         { error: "Path must be within the workspace root" },
         { status: 400 }

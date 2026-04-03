@@ -16,6 +16,7 @@ function ensureDataDir() {
 }
 
 function runMigrations(sqlite: Database.Database) {
+  console.log("[db] Running migrations...");
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
@@ -61,6 +62,8 @@ function runMigrations(sqlite: Database.Database) {
       content_rowid='id'
     );
   `);
+
+  console.log("[db] Core tables ready");
 
   // Create triggers for FTS sync (idempotent via IF NOT EXISTS workaround)
   const triggerExists = sqlite
@@ -127,6 +130,7 @@ function runMigrations(sqlite: Database.Database) {
   // Add soul columns to tasks if missing
   const taskCols = sqlite.prepare("PRAGMA table_info(tasks)").all() as { name: string }[];
   const colNames = taskCols.map((c) => c.name);
+  console.log(`[db] Checking column migrations (${colNames.length} existing columns)`);
   if (!colNames.includes("soul_id")) {
     sqlite.exec("ALTER TABLE tasks ADD COLUMN soul_id TEXT");
   }
@@ -504,6 +508,9 @@ function runMigrations(sqlite: Database.Database) {
 
   // Cleanup: delete observability events older than 24h
   sqlite.exec(`DELETE FROM observability_events WHERE timestamp < ${Date.now() - 86400000}`);
+  console.log("[db] Observability events cleanup done");
+
+  console.log("[db] Migrations complete");
 }
 
 export function getDb() {
@@ -514,6 +521,8 @@ export function getDb() {
   _sqlite = new Database(DB_PATH);
   _sqlite.pragma("journal_mode = WAL");
   _sqlite.pragma("foreign_keys = ON");
+
+  console.log(`[db] Opening database: ${DB_PATH}`);
 
   runMigrations(_sqlite);
 
@@ -530,7 +539,9 @@ export function getDb() {
     if (existsSync(journalPath)) {
       chmodSync(journalPath, 0o600);
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`[db] chmod failed: ${(err as Error).message}`);
+  }
 
   _db = drizzle(_sqlite, { schema });
   return _db;

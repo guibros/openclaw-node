@@ -62,7 +62,7 @@ function log(msg) {
   if (suppressedCount > 0) {
     const summaryLine = `${new Date().toISOString()} [lane-watchdog] (suppressed ${suppressedCount} duplicate message(s))`;
     console.log(summaryLine);
-    try { fs.appendFileSync(INCIDENT_LOG, summaryLine + '\n'); } catch { /* best effort */ }
+    try { fs.appendFileSync(INCIDENT_LOG, summaryLine + '\n'); } catch (err) { console.warn(`[lane-watchdog] write incident log summary: ${err.message}`); }
   }
   lastIncidentMsg = msg;
   lastIncidentAt = now;
@@ -73,7 +73,7 @@ function log(msg) {
   console.log(line);
   try {
     fs.appendFileSync(INCIDENT_LOG, line + '\n');
-  } catch { /* best effort */ }
+  } catch (err) { console.warn(`[lane-watchdog] write incident log: ${err.message}`); }
 }
 
 function getGatewayPid() {
@@ -85,7 +85,8 @@ function getGatewayPid() {
     ).trim();
     const pids = out.split('\n').filter(Boolean);
     return pids.length > 0 ? parseInt(pids[0], 10) : null;
-  } catch {
+  } catch (err) {
+    console.warn(`[lane-watchdog] get gateway pid: ${err.message}`);
     return null;
   }
 }
@@ -186,7 +187,8 @@ function tailLog(filePath, label) {
   try {
     const stat = fs.statSync(filePath);
     fileSize = stat.size; // Start from current end
-  } catch {
+  } catch (err) {
+    console.warn(`[lane-watchdog] stat log file ${filePath}: ${err.message}`);
     log(`WARNING: log file not found: ${filePath}`);
     return null;
   }

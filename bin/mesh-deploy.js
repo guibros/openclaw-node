@@ -97,7 +97,7 @@ function resolveNodeRole() {
       const match = content.match(/^\s*OPENCLAW_NODE_ROLE\s*=\s*(.+)/m);
       if (match && match[1].trim()) return match[1].trim();
     }
-  } catch {}
+  } catch (err) { console.warn(`[mesh-deploy] resolve node role: ${err.message}`); }
   return IS_MAC ? 'lead' : 'worker';
 }
 const NODE_ROLE = resolveNodeRole();
@@ -470,7 +470,7 @@ const MANIFEST = [
         if (current && latest && current !== latest) {
           return { changed: true, current, latest };
         }
-      } catch {}
+      } catch (err) { console.warn(`[mesh-deploy] detect openclaw version: ${err.message}`); }
       return { changed: false };
     },
     install: (dryRun) => {
@@ -507,7 +507,7 @@ const MANIFEST = [
         if (current && latest) {
           return { changed: !current.includes(latest), current, latest };
         }
-      } catch {}
+      } catch (err) { console.warn(`[mesh-deploy] detect companion version: ${err.message}`); }
       return { changed: false };
     },
     install: (dryRun) => {
@@ -579,7 +579,7 @@ function loadDeployState() {
     if (fs.existsSync(DIRS.DEPLOY_STATE)) {
       return JSON.parse(fs.readFileSync(DIRS.DEPLOY_STATE, 'utf8'));
     }
-  } catch {}
+  } catch (err) { console.warn(`[mesh-deploy] load deploy state: ${err.message}`); }
   return { lastDeploy: null, lastSha: null, components: {} };
 }
 

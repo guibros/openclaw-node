@@ -52,7 +52,7 @@ function resolveNodeRole() {
       const match = content.match(/^\s*OPENCLAW_NODE_ROLE\s*=\s*(.+)/m);
       if (match && match[1].trim()) return match[1].trim();
     }
-  } catch {}
+  } catch (err) { console.warn(`[deploy-listener] resolve node role: ${err.message}`); }
   return IS_MAC ? 'lead' : 'worker';
 }
 const NODE_ROLE = resolveNodeRole();
@@ -84,7 +84,7 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
       await resultsKv.put(resultKey, sc.encode(JSON.stringify({
         nodeId: NODE_ID, sha: trigger.sha, status: 'deploying', startedAt,
       })));
-    } catch {}
+    } catch (err) { console.warn(`[deploy-listener] write deploying status: ${err.message}`); }
 
     const result = {
       nodeId: NODE_ID,
@@ -143,7 +143,7 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
           result.status = 'skipped';
           result.log = `No matching components for role ${NODE_ROLE}`;
           result.completedAt = new Date().toISOString();
-          try { await resultsKv.put(resultKey, sc.encode(JSON.stringify(result))); } catch {}
+          try { await resultsKv.put(resultKey, sc.encode(JSON.stringify(result))); } catch (err) { console.warn(`[deploy-listener] write skipped result: ${err.message}`); }
           return;
         }
         for (const c of applicable) cmd += ` --component ${c}`;
@@ -195,7 +195,7 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
           node.lastDeploy = result.completedAt;
           await nodesKv.put(NODE_ID, sc.encode(JSON.stringify(node)));
         }
-      } catch {}
+      } catch (err) { console.warn(`[deploy-listener] update node deploy version: ${err.message}`); }
     }
   } finally {
     deploying = false;
@@ -270,7 +270,7 @@ async function main() {
   let nodesKv = null;
   try {
     nodesKv = await js.views.kv(NODES_BUCKET, { history: 1 }); // No TTL — node identity persists
-  } catch {}
+  } catch (err) { console.warn(`[deploy-listener] open MESH_NODES bucket: ${err.message}`); }
 
   // Check for missed deploys while we were offline
   await checkAndCatchUp(resultsKv, nodesKv);
@@ -306,7 +306,7 @@ async function main() {
         currentSha = execSync('git rev-parse --short HEAD', {
           cwd: REPO_DIR, encoding: 'utf8',
         }).trim();
-      } catch {}
+      } catch (err) { console.warn(`[deploy-listener] read git HEAD: ${err.message}`); }
 
       const response = {
         nodeId: NODE_ID,

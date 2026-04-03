@@ -53,18 +53,23 @@ const HEARTBEAT_CHECK_INTERVAL = 30000;  // check every 30s
 
 // ── Logging ─────────────────────────────────────────
 
-function log(msg) {
-  const ts = new Date().toISOString();
-  console.log(`[${ts}] [mesh-bridge] ${msg}`);
-}
+const { info: log, warn, error: logError } = require('../lib/logger').createLogger('mesh-bridge');
 
 // ── NATS Helpers ────────────────────────────────────
 
 async function natsRequest(subject, payload, timeoutMs = 10000) {
-  const msg = await nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: timeoutMs });
-  const response = JSON.parse(sc.decode(msg.data));
-  if (!response.ok) throw new Error(response.error);
-  return response.data;
+  try {
+    const msg = await nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: timeoutMs });
+    const response = JSON.parse(sc.decode(msg.data));
+    if (!response.ok) {
+      warn(`natsRequest ${subject}: ${response.error}`);
+      throw new Error(response.error);
+    }
+    return response.data;
+  } catch (err) {
+    if (!err.message?.includes(subject)) warn(`natsRequest ${subject}: ${err.message}`);
+    throw err;
+  }
 }
 
 // ── Startup Reconciliation ──────────────────────────

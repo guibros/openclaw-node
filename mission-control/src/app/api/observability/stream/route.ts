@@ -25,6 +25,7 @@ export async function GET() {
 
   const stream = new ReadableStream({
     async start(controller) {
+      console.log("[observability/stream] SSE client connected");
       const encoder = new TextEncoder();
 
       // Initial connection event
@@ -77,6 +78,7 @@ export async function GET() {
       });
     },
     cancel() {
+      console.log("[observability/stream] SSE client disconnected");
       closed = true;
       sub.unsubscribe();
     },

@@ -19,7 +19,7 @@ export async function POST() {
       try {
         const cwd = process.cwd();
         execSync(`rm -rf ${cwd}/.next/cache`, { timeout: 5000 });
-      } catch {}
+      } catch { /* Intentional: cache clear before process exit */ }
     }
 
     // Send response BEFORE killing ourselves

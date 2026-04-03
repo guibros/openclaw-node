@@ -82,7 +82,8 @@ const cleanNatsState = tracer.wrapAsync('cleanNatsState', async function cleanNa
   try {
     const { NATS_URL } = require('../lib/nats-resolve');
     natsUrl = NATS_URL;
-  } catch {
+  } catch (err) {
+    console.warn(`[mesh-node-remove] resolve NATS URL: ${err.message}`);
     // If we're running after code deletion, try env
     natsUrl = process.env.OPENCLAW_NATS || 'nats://100.91.131.61:4222';
   }
@@ -144,8 +145,8 @@ const cleanNatsState = tracer.wrapAsync('cleanNatsState', async function cleanNa
       const nodeKv = await js.views.kv('MESH_NODES');
       await nodeKv.delete(nodeId);
       ok(`Removed ${nodeId} from MESH_NODES registry`);
-    } catch {
-      // Bucket may not exist — that's fine
+    } catch (err) {
+      console.warn(`[mesh-node-remove] clean MESH_NODES entry: ${err.message}`);
       ok('No MESH_NODES registry entry to remove');
     }
 

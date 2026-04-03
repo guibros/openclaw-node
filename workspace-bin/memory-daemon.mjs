@@ -110,7 +110,7 @@ function loadConfig() {
         ...loaded,
         intervals: { ...defaults.intervals, ...loaded.intervals },
       };
-    } catch { /* use defaults */ }
+    } catch (err) { console.warn(`[memory-daemon] config parse failed: ${err.message}`); }
   }
   return defaults;
 }
@@ -147,7 +147,7 @@ function log(msg) {
   const line = `[${timestamp()}] ${msg}`;
   try {
     fs.appendFileSync(LOG_FILE, line + '\n');
-  } catch { /* ignore log write failures */ }
+  } catch { /* Intentional: ignore log write failures to avoid recursion */ }
   if (VERBOSE) console.log(line);
 }
 
@@ -162,7 +162,7 @@ function loadTranscriptSources() {
       return (reg.sources || [])
         .filter(s => s.enabled !== false)
         .map(s => ({ ...s, path: resolvePath(s.path) }));
-    } catch { /* fall through */ }
+    } catch (err) { console.warn(`[memory-daemon] transcript registry parse failed: ${err.message}`); }
   }
 
   // Legacy fallback: derive Claude Code paths from workspace
@@ -196,7 +196,7 @@ function _detectActivity(sources, activityWindowMs) {
     let files;
     try {
       files = fs.readdirSync(source.path).filter(f => f.endsWith('.jsonl'));
-    } catch { continue; }
+    } catch (err) { console.warn(`[memory-daemon] session readdir failed for ${source.path}: ${err.message}`); continue; }
 
     for (const f of files) {
       const full = path.join(source.path, f);
@@ -210,7 +210,7 @@ function _detectActivity(sources, activityWindowMs) {
           newestSource = source.name;
           newestFormat = source.format || null;
         }
-      } catch { continue; }
+      } catch (err) { console.warn(`[memory-daemon] session file stat failed for ${full}: ${err.message}`); continue; }
     }
   }
 
@@ -474,9 +474,9 @@ function findPreviousJsonl(sources) {
           const stat = fs.statSync(full);
           if (stat.size < 50 * 1024) continue; // skip tiny
           all.push({ path: full, mtime: stat.mtimeMs });
-        } catch { continue; }
+        } catch (err) { console.warn(`[memory-daemon] prev jsonl stat failed for ${full}: ${err.message}`); continue; }
       }
-    } catch { continue; }
+    } catch (err) { console.warn(`[memory-daemon] prev jsonl readdir failed for ${source.path}: ${err.message}`); continue; }
   }
   all.sort((a, b) => b.mtime - a.mtime);
   return all.length > 1 ? all[1].path : null; // second most recent = previous
@@ -494,9 +494,9 @@ function findCurrentJsonl(sources) {
           const stat = fs.statSync(full);
           if (stat.size < 50 * 1024) continue;
           all.push({ path: full, mtime: stat.mtimeMs });
-        } catch { continue; }
+        } catch (err) { console.warn(`[memory-daemon] current jsonl stat failed for ${full}: ${err.message}`); continue; }
       }
-    } catch { continue; }
+    } catch (err) { console.warn(`[memory-daemon] current jsonl readdir failed for ${source.path}: ${err.message}`); continue; }
   }
   all.sort((a, b) => b.mtime - a.mtime);
   return all.length > 0 ? all[0].path : null; // most recent = current
@@ -541,7 +541,7 @@ function runPhase1StatusSync(config) {
       if (running.length > 0) {
         runningTasks = running.slice(0, 3).join('\n');
       }
-    } catch { /* use defaults */ }
+    } catch (err) { console.warn(`[memory-daemon] active-tasks read failed: ${err.message}`); }
   }
 
   const now = new Date().toLocaleString('en-CA', {
@@ -558,7 +558,7 @@ function runPhase1StatusSync(config) {
       const existing = fs.readFileSync(companion, 'utf-8');
       const match = existing.match(/started_at:\s*(.+)/);
       if (match) startedAt = match[1].trim();
-    } catch { /* use current time */ }
+    } catch (err) { console.warn(`[memory-daemon] companion-state read failed: ${err.message}`); }
   }
 
   const output = `## Session Status
@@ -592,7 +592,7 @@ function loadThrottleState() {
   if (fs.existsSync(THROTTLE_STATE_FILE)) {
     try {
       return JSON.parse(fs.readFileSync(THROTTLE_STATE_FILE, 'utf-8'));
-    } catch { /* use defaults */ }
+    } catch (err) { console.warn(`[memory-daemon] throttle state parse failed: ${err.message}`); }
   }
   return {
     lastRecap: 0, lastMaintenance: 0, lastObsidianSync: 0, lastTrustHealth: 0,
@@ -964,7 +964,7 @@ function saveDaemonState(sm, throttle) {
   };
   try {
     fs.writeFileSync(DAEMON_STATE_FILE, JSON.stringify(state, null, 2));
-  } catch { /* ignore */ }
+  } catch (err) { console.warn(`[memory-daemon] daemon state write failed: ${err.message}`); }
 }
 
 function loadDaemonState() {
@@ -982,10 +982,10 @@ function loadDaemonState() {
             log('Stale PID detected (>5 min since last update) — resetting state');
             state.state = STATES.ENDED;
           }
-        } catch { state.state = STATES.ENDED; } // not alive, reset
+        } catch (err) { console.warn(`[memory-daemon] PID check failed (process not alive): ${err.message}`); state.state = STATES.ENDED; }
       }
       return state;
-    } catch { /* ignore */ }
+    } catch (err) { console.warn(`[memory-daemon] daemon state parse failed: ${err.message}`); }
   }
   return null;
 }

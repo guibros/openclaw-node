@@ -160,7 +160,7 @@ async function discoverNodes(kv: any): Promise<string[]> {
         }
       }
     }
-  } catch {}
+  } catch (err) { console.warn(`[mesh/nodes] tailscale peer discovery failed: ${(err as Error).message}`); }
 
   // Source 3: mesh-aliases.json (maps shortnames → full IDs)
   try {
@@ -171,7 +171,7 @@ async function discoverNodes(kv: any): Promise<string[]> {
         if (fullId && fullId !== "self") discovered.add(fullId);
       }
     }
-  } catch {}
+  } catch (err) { console.warn(`[mesh/nodes] mesh-aliases.json read failed: ${(err as Error).message}`); }
 
   // Source 4: Local node always included
   discovered.add(NODE_ID);
@@ -223,7 +223,7 @@ function gatherLocalHealth(): NodeHealth {
     const df = execSafe("df -h /");
     const match = df.match(/(\d+)%/);
     if (match) diskPercent = parseInt(match[1], 10);
-  } catch {}
+  } catch (err) { console.warn(`[mesh/nodes] disk usage check failed: ${(err as Error).message}`); }
 
   let tailscaleIp = "unknown";
   let tailscaleData: any = null;
@@ -251,7 +251,7 @@ function gatherLocalHealth(): NodeHealth {
       const dnsName = status.Self?.DNSName || "";
       tailscaleData = { peers, selfIp: tailscaleIp, natType: status.Self?.CapMap?.natType || "unknown", dnsName };
     }
-  } catch {}
+  } catch (err) { console.warn(`[mesh/nodes] tailscale status read failed: ${(err as Error).message}`); }
 
   // Check services via launchctl/systemctl
   const services: Array<{ name: string; status: string; pid?: number }> = [];
@@ -269,7 +269,7 @@ function gatherLocalHealth(): NodeHealth {
           services.push({ name, status: pid ? "active" : exitCode === 0 ? "stopped" : "error", pid: pid || undefined });
         }
       }
-    } catch {}
+    } catch (err) { console.warn(`[mesh/nodes] launchctl service check failed: ${(err as Error).message}`); }
   }
 
   const natsUrl = process.env.OPENCLAW_NATS || (() => {
@@ -280,7 +280,7 @@ function gatherLocalHealth(): NodeHealth {
         const match = content.match(/^\s*OPENCLAW_NATS\s*=\s*(.+)/m);
         if (match) return match[1].trim().replace(/^["']|["']$/g, "");
       }
-    } catch {}
+    } catch (err) { console.warn(`[mesh/nodes] openclaw.env read failed: ${(err as Error).message}`); }
     return "unknown";
   })();
 
@@ -307,7 +307,7 @@ function gatherLocalHealth(): NodeHealth {
             model: state.model || null,
           };
         }
-      } catch {}
+      } catch (err) { console.warn(`[mesh/nodes] agent-state.json read failed: ${(err as Error).message}`); }
       // No runtime state — derive from config + service status
       const agentSvc = services.find((s: any) => s.name.includes("agent") && !s.name.includes("audit"));
       // Read configured agent name and LLM from env/defaults
@@ -506,7 +506,7 @@ export const GET = withTrace("mesh", "GET /api/mesh/nodes", async () => {
         const match = content.match(/^\s*OPENCLAW_NATS\s*=\s*(.+)/m);
         if (match) return match[1].trim().replace(/^["']|["']$/g, "");
       }
-    } catch {}
+    } catch (err) { console.warn(`[mesh/nodes] NATS URL env read failed: ${(err as Error).message}`); }
     return "unknown";
   })();
   const meshStatus = {

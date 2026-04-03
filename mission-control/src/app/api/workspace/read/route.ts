@@ -19,6 +19,7 @@ export const GET = withTrace("workspace", "GET /api/workspace/read", async (requ
     const absPath = path.resolve(WORKSPACE_ROOT, relPath);
     // Security: ensure path is within workspace
     if (!absPath.startsWith(WORKSPACE_ROOT + path.sep) && absPath !== WORKSPACE_ROOT) {
+      console.warn(`[SECURITY] workspace/read: path traversal blocked: ${relPath}`);
       return NextResponse.json({ error: "Path traversal denied" }, { status: 403 });
     }
 
@@ -30,6 +31,7 @@ export const GET = withTrace("workspace", "GET /api/workspace/read", async (requ
     const realPath = fs.realpathSync(absPath);
     const realRoot = fs.realpathSync(WORKSPACE_ROOT);
     if (!realPath.startsWith(realRoot + path.sep) && realPath !== realRoot) {
+      console.warn(`[SECURITY] workspace/read: path traversal blocked: ${relPath}`);
       return NextResponse.json({ error: "Path traversal denied" }, { status: 403 });
     }
 

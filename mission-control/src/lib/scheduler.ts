@@ -103,6 +103,7 @@ export function computeWaves(
 export function schedulerTick(): TickResult {
   const _start = Date.now();
   try {
+  console.log("[scheduler] tick");
   const db = getDb();
   const now = new Date();
   const result: TickResult = {
@@ -202,8 +203,8 @@ export function schedulerTick(): TickResult {
           currentDate: now,
         });
         nextTriggerAt = interval.next().toDate().toISOString();
-      } catch {
-        // keep null
+      } catch (err) {
+        console.warn(`[scheduler] cron parse failed: ${(err as Error).message}`);
       }
     }
 
@@ -373,7 +374,7 @@ export function schedulerTick(): TickResult {
     result.dispatched.length > 0 ||
     result.recurring.length > 0
   ) {
-    syncTasksToMarkdown(db);
+    try { syncTasksToMarkdown(db); } catch (err) { console.warn(`[scheduler] markdown sync failed: ${(err as Error).message}`); }
   }
 
   traceCall("scheduler", "schedulerTick", _start, `t:${result.triggered.length} d:${result.dispatched.length} r:${result.recurring.length}`);
