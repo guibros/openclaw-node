@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity, Radar } from "lucide-react";
+import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity, Radar, RotateCcw } from "lucide-react";
 import { useState, useEffect } from "react";
 import { LiveStream } from "@/components/board/live-stream";
 
@@ -58,6 +58,32 @@ function NodeBadge() {
 export function Sidebar() {
   const pathname = usePathname();
   const [syncing, setSyncing] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+
+  const handleRestart = async () => {
+    if (!confirm("Restart Mission Control? The page will reload in a few seconds.")) return;
+    setRestarting(true);
+    try {
+      await fetch("/api/system/restart", { method: "POST" });
+      // Wait for the server to die and restart, then reload
+      setTimeout(() => {
+        const tryReload = () => {
+          fetch("/")
+            .then(() => window.location.reload())
+            .catch(() => setTimeout(tryReload, 1000));
+        };
+        setTimeout(tryReload, 2000);
+      }, 1000);
+    } catch {
+      // Server already died — start polling for it to come back
+      const tryReload = () => {
+        fetch("/")
+          .then(() => window.location.reload())
+          .catch(() => setTimeout(tryReload, 1000));
+      };
+      setTimeout(tryReload, 2000);
+    }
+  };
 
   const handleSync = async () => {
     setSyncing(true);
@@ -75,6 +101,14 @@ export function Sidebar() {
         <span className="text-sm font-semibold tracking-tight">
           Mission Control
         </span>
+        <button
+          onClick={handleRestart}
+          disabled={restarting}
+          title="Restart Mission Control"
+          className="p-1 rounded hover:bg-accent/50 text-muted-foreground/50 hover:text-foreground transition-colors disabled:opacity-30"
+        >
+          <RotateCcw className={`h-3.5 w-3.5 ${restarting ? "animate-spin" : ""}`} />
+        </button>
         <div className="ml-auto">
           <NodeBadge />
         </div>
