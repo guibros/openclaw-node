@@ -48,6 +48,7 @@ async function getSessionStore() {
   try {
     const { SessionStore } = await import('../lib/session-store.mjs');
     _sessionStore = new SessionStore();
+    console.log('[memory-daemon] Session store initialized');
     return _sessionStore;
   } catch (err) {
     log(`session-store unavailable: ${err.message}`);
@@ -62,6 +63,7 @@ async function getHyperAgentStore() {
   try {
     const { createHyperAgentStore } = await import('../lib/hyperagent-store.mjs');
     _haStore = createHyperAgentStore();
+    console.log('[memory-daemon] HyperAgent store initialized');
     return _haStore;
   } catch (err) {
     log(`hyperagent-store unavailable: ${err.message}`);
@@ -105,13 +107,16 @@ function loadConfig() {
   if (fs.existsSync(CONFIG_PATH)) {
     try {
       const loaded = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-      return {
+      const merged = {
         ...defaults,
         ...loaded,
         intervals: { ...defaults.intervals, ...loaded.intervals },
       };
+      console.log(`[memory-daemon] Config loaded from ${CONFIG_PATH}`);
+      return merged;
     } catch (err) { console.warn(`[memory-daemon] config parse failed: ${err.message}`); }
   }
+  console.log('[memory-daemon] Using default config');
   return defaults;
 }
 
@@ -214,7 +219,12 @@ function _detectActivity(sources, activityWindowMs) {
     }
   }
 
-  return { active, newestSession, newestMtime, newestSource, newestFormat };
+  const result = { active, newestSession, newestMtime, newestSource, newestFormat };
+  if (process.env.OPENCLAW_LOG_LEVEL === 'debug') {
+    const ageMs = newestMtime ? Math.round(Date.now() - newestMtime) : -1;
+    console.log(`[memory-daemon] Activity: source=${newestSource || 'none'} age=${ageMs}ms`);
+  }
+  return result;
 }
 const detectActivity = tracer.wrap('detectActivity', _detectActivity, { tier: 1 });
 
@@ -579,7 +589,12 @@ If this file says \`status: active\` but the session is dead:
 3. Resume from the active task listed above
 `;
 
+  let previousContent = '';
+  try { previousContent = fs.readFileSync(companion, 'utf-8'); } catch {}
   fs.writeFileSync(companion, output);
+  if (output !== previousContent) {
+    console.log('[memory-daemon] Companion state updated');
+  }
 }
 
 // ============================================================

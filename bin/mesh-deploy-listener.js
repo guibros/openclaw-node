@@ -117,18 +117,22 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
         execSync(`git remote add origin ${REPO_REMOTE_URL}`, {
           cwd: REPO_DIR, encoding: 'utf8', timeout: 10000,
         });
+        console.log(`[deploy-listener] git fetch origin ${branch}...`);
         execSync(`git fetch origin ${branch}`, {
           cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
         });
+        console.log(`[deploy-listener] git reset --hard origin/${branch}...`);
         execSync(`git reset --hard origin/${branch}`, {
           cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
         });
         console.log(`[deploy-listener] Git bootstrapped from origin/${branch}`);
       } else {
         // Normal path: fetch + ff merge
+        console.log(`[deploy-listener] git fetch origin ${branch}...`);
         execSync(`git fetch origin ${branch}`, {
           cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
         });
+        console.log(`[deploy-listener] git merge origin/${branch} --ff-only...`);
         execSync(`git merge origin/${branch} --ff-only`, {
           cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
         });
@@ -194,6 +198,7 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
           node.deployVersion = result.sha;
           node.lastDeploy = result.completedAt;
           await nodesKv.put(NODE_ID, sc.encode(JSON.stringify(node)));
+          console.log(`[deploy-listener] Updated node registry: deployVersion=${result.sha.slice(0,7)}`);
         }
       } catch (err) { console.warn(`[deploy-listener] update node deploy version: ${err.message}`); }
     }

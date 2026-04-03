@@ -48,7 +48,10 @@ const EVENTS_LOG = path.join(WORKSPACE, 'memory', 'mesh-events.jsonl');
  */
 export async function createMeshBridge() {
   // No NATS URL = mesh not configured, return null (standalone mode)
-  if (!NATS_URL) return null;
+  if (!NATS_URL) {
+    console.log('[mesh-bridge] NATS not configured — bridge disabled');
+    return null;
+  }
 
   try {
     // Dynamic import — nats package lives in ~/openclaw/node_modules
@@ -72,7 +75,8 @@ export async function createMeshBridge() {
 
     // Connect with a short timeout — don't block the daemon
     const nc = await connect({ servers: NATS_URL, timeout: 5000 });
-    
+    console.log(`[mesh-bridge] Connected to ${NATS_URL}`);
+
     // ── Event log file (append-only JSONL for mesh event history) ──
     const logDir = path.dirname(EVENTS_LOG);
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
@@ -121,6 +125,7 @@ export async function createMeshBridge() {
             `openclaw.memory.${NODE_ID}.${eventType}`,
             sc.encode(JSON.stringify(event))
           );
+          console.log(`[mesh-bridge] Publish: openclaw.memory.${NODE_ID}.${eventType}`);
         } catch (err) {
           console.warn(`[mesh-bridge] publish failed for ${eventType}: ${err.message}`);
         }

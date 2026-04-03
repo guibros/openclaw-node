@@ -592,6 +592,7 @@ apiPut = tracer.wrapAsync('apiPut', apiPut, { tier: 3 });
 export async function syncToObsidian(opts = {}) {
   const { dryRun = false, verbose = false, force = false } = opts;
   const config = loadConfig();
+  console.log(`[obsidian-sync] Config: vault=${config.vaultPath} api=${!!config.apiPort}`);
 
   if (!config.enabled) {
     if (verbose) console.log('Obsidian sync disabled in config');
@@ -616,6 +617,7 @@ export async function syncToObsidian(opts = {}) {
   // Check API availability
   const apiKey = loadApiKey(config);
   const apiAvailable = apiKey ? await apiHealthCheck(apiKey, config.apiPort) : false;
+  console.log(`[obsidian-sync] API health: ${apiAvailable ? 'OK' : 'FAILED'}`);
   const method = apiAvailable ? 'api' : 'file';
 
   if (verbose) {
@@ -701,6 +703,7 @@ export async function syncToObsidian(opts = {}) {
     if (!ok) {
       try {
         ok = directWrite(vaultRoot, route.dest, content);
+        if (ok) console.log(`[obsidian-sync] Write: ${route.dest} (${content.length} bytes)`);
       } catch (e) {
         if (verbose) console.log(`  [error] ${route.dest}: ${e.message}`);
         errors++;
@@ -730,6 +733,8 @@ export async function syncToObsidian(opts = {}) {
       console.log(`  [lessons] ${propagated} shared lessons propagated to 00-meta/shared-lessons.md`);
     }
   }
+
+  console.log(`[obsidian-sync] Synced: ${synced} created, 0 updated, ${skipped} unchanged`);
 
   return { synced, skipped, errors, method };
 }

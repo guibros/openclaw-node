@@ -106,6 +106,7 @@ async function discoverNodes(nc) {
     } catch (err) { console.warn(`[fleet-deploy] read MESH_NODE_HEALTH bucket: ${err.message}`); }
   }
 
+  console.log(`Discovered ${nodes.length} nodes`);
   return nodes;
 }
 
@@ -227,6 +228,7 @@ async function fleetDeploy(nc, opts) {
     force: !!force,
   };
 
+  console.log(`Publishing deploy trigger: sha=${sha} nodes=${(targetNodes || ['all']).join(',')}`);
   nc.publish('mesh.deploy.trigger', sc.encode(JSON.stringify(trigger)));
   info(`Trigger published: ${sha} → mesh.deploy.trigger`);
 

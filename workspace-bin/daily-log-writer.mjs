@@ -240,8 +240,10 @@ function run() {
     if (!fs.existsSync(dailyFile)) {
       fs.mkdirSync(MEMORY_DIR, { recursive: true });
       fs.writeFileSync(dailyFile, `# ${todayStr} — Daily Log\n\n`);
+      console.log(`[daily-log] Created: ${dailyFile}`);
     }
     fs.appendFileSync(dailyFile, entry + '\n');
+    console.log(`[daily-log] Appended ${entry.length} bytes to ${path.basename(dailyFile)}`);
     log(`Appended to ${dailyFile}`);
   }
 

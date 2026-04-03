@@ -598,6 +598,7 @@ function gitFetchAndDiff(repoDir) {
     return { currentSha: null, remoteSha: null, changedFiles: [], upToDate: true };
   }
 
+  info(`Fetching origin/${DEPLOY_BRANCH}...`);
   exec(`git fetch origin ${DEPLOY_BRANCH}`, { cwd: repoDir });
   const currentSha = exec('git rev-parse HEAD', { cwd: repoDir });
   const remoteSha = exec(`git rev-parse origin/${DEPLOY_BRANCH}`, { cwd: repoDir });
@@ -609,13 +610,16 @@ function gitFetchAndDiff(repoDir) {
     changedFiles = diff ? diff.split('\n').filter(Boolean) : [];
   }
 
+  info(`Local: ${currentSha} Remote: ${remoteSha} Changed: ${changedFiles.length} files`);
   return { currentSha, remoteSha, changedFiles, upToDate };
 }
 
 function gitMerge(repoDir) {
+  info(`Merging origin/${DEPLOY_BRANCH}...`);
   const prevSha = exec('git rev-parse HEAD', { cwd: repoDir });
   exec(`git merge origin/${DEPLOY_BRANCH} --ff-only`, { cwd: repoDir });
   const newSha = exec('git rev-parse --short HEAD', { cwd: repoDir });
+  ok(`Merged: ${prevSha.slice(0,7)} → ${newSha.slice(0,7)}`);
   return { prevSha, newSha };
 }
 
@@ -695,10 +699,12 @@ function installComponentFiles(comp, repoDir, dryRun) {
       const dstDir = path.dirname(dstPath);
       if (!fs.existsSync(dstDir)) fs.mkdirSync(dstDir, { recursive: true });
       fs.copyFileSync(srcPath, dstPath);
+      console.log(`  ${C.dim('copy')} ${srcPath} → ${dstPath}`);
 
       // Preserve executable bit
       if (relFile.endsWith('.js') || relFile.endsWith('.sh')) {
         fs.chmodSync(dstPath, 0o755);
+        console.log(`  ${C.dim('chmod +x')} ${dstPath}`);
       }
       copied++;
     }
@@ -849,9 +855,10 @@ async function main() {
     info(`Reverting to ${state.lastSha.slice(0, 8)}`);
     const dirty = exec('git status --porcelain', { cwd: REPO_DIR, ignoreError: true });
     if (dirty) {
-      warn('Working tree has uncommitted changes — stashing before rollback');
+      warn('Stashing local changes for rollback');
       exec('git stash push -m "pre-rollback-stash"', { cwd: REPO_DIR });
     }
+    warn(`Rolling back to ${state.lastSha.slice(0,7)}`);
     exec(`git reset --hard ${state.lastSha}`, { cwd: REPO_DIR });
 
     // Full reinstall from the reverted state

@@ -357,7 +357,12 @@ async function main() {
 
     try {
       const health = gatherHealth(nc);
-      await kv.put(NODE_ID, sc.encode(JSON.stringify(health)));
+      const payload = JSON.stringify(health);
+      await kv.put(NODE_ID, sc.encode(payload));
+      if (publishCount % 10 === 0) {
+        console.log(`[health-publisher] Health: cpu=${health.cpuLoadPercent}% mem=${health.mem.free}MB disk=${health.diskPercent}% services=${health.services?.length || 0}`);
+        console.log(`[health-publisher] Published: ${NODE_ID} (${payload.length} bytes)`);
+      }
       // Reset on success
       if (consecutiveFailures > 0) {
         console.log(`[health-publisher] recovered after ${consecutiveFailures} consecutive failures`);
