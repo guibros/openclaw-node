@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRawDb } from "@/lib/db";
 import { withTrace } from "@/lib/tracer";
-import { startTraceIngestion } from "@/lib/trace-ingest";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +19,6 @@ export const dynamic = "force-dynamic";
  * Returns JSON array ordered by timestamp DESC.
  */
 export const GET = withTrace("observability", "GET /api/observability/events", async (request: NextRequest) => {
-  // Start NATS→DB ingestion for daemon trace events (singleton, no-op if already started)
-  startTraceIngestion();
-
   try {
     const url = request.nextUrl;
     // Support both ?since=<ms timestamp> and ?hours=<N> for convenience

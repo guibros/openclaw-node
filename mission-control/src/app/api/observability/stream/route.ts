@@ -1,6 +1,5 @@
 import { getNats, sc } from "@/lib/nats";
 import { NODE_ID } from "@/lib/config";
-import { startTraceIngestion } from "@/lib/trace-ingest";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +18,6 @@ export async function GET() {
       { status: 503, headers: { "Content-Type": "application/json" } }
     );
   }
-
-  // Start NATS→DB ingestion for daemon trace events (singleton, no-op if already started)
-  startTraceIngestion();
 
   // Subscribe to all trace events across the mesh
   const sub = nc.subscribe("openclaw.trace.>");
