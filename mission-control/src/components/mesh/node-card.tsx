@@ -183,47 +183,103 @@ export function NodeCard({ node, isExpanded: controlledExpanded, onToggle }: Pro
         )}
       </div>
 
-      {/* ── Connectivity ────────────────────────────────────────── */}
+      {/* ── Network & Connectivity ──────────────────────────────── */}
       {h && (
-        <div className="border-t border-border/50 px-4 py-2.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Wifi className="h-3 w-3" />
-            <span className="font-mono">{node.tailscale?.selfIp ?? h.tailscaleIp}</span>
+        <div className="border-t border-border/50 px-4 py-3 space-y-2.5 text-[10px]">
+          <div className="flex items-center gap-1.5 text-[9px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
+            <Wifi className="h-3 w-3" /> Network
           </div>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Globe className="h-3 w-3" />
+
+          {/* Tailscale */}
+          <div className="grid grid-cols-[80px_1fr] gap-y-1 gap-x-2 pl-1">
+            <span className="text-muted-foreground/50">Tailscale IP</span>
+            <span className="font-mono text-foreground/80">{node.tailscale?.selfIp ?? h.tailscaleIp ?? "unknown"}</span>
+
+            <span className="text-muted-foreground/50">Connection</span>
             <span>
-              {node.peerConnectivity === "all_direct"
-                ? "Direct"
-                : node.peerConnectivity === "some_relay"
-                ? "Relay"
-                : node.peerConnectivity === "degraded"
-                ? "Degraded"
-                : "Unknown"}
-            </span>
-            {node.tailscale?.peers?.find((p) => p.online && p.latencyMs !== null) && (
-              <span className="text-muted-foreground/60 font-mono">
-                {Math.round(
-                  node.tailscale!.peers!.find((p) => p.online && p.latencyMs !== null)!.latencyMs!
-                )}ms
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Database className="h-3 w-3" />
-            <span>
-              NATS{" "}
-              {node.nats?.connected ? (
-                <span className="text-green-400">connected</span>
+              {node.peerConnectivity === "all_direct" ? (
+                <span className="text-green-400">✓ Direct</span>
+              ) : node.peerConnectivity === "some_relay" ? (
+                <span className="text-yellow-400">⚡ Via relay</span>
+              ) : node.peerConnectivity === "degraded" ? (
+                <span className="text-red-400">✗ Degraded</span>
               ) : (
-                <span className="text-zinc-500">disconnected</span>
+                <span className="text-zinc-500">— No peer data</span>
               )}
             </span>
+
+            <span className="text-muted-foreground/50">Data age</span>
+            <span className={stalenessColor}>{formatStaleness(node.staleSeconds) || "no data"}</span>
           </div>
-          <div className={`flex items-center gap-1.5 ${stalenessColor}`}>
-            <Clock className="h-3 w-3" />
-            <span>Data {formatStaleness(node.staleSeconds)}</span>
+
+          {/* NATS */}
+          <div className="grid grid-cols-[80px_1fr] gap-y-1 gap-x-2 pl-1 pt-1 border-t border-border/30">
+            <span className="text-muted-foreground/50">NATS</span>
+            <span>
+              {node.nats?.connected ? (
+                <span className="text-green-400">● Connected</span>
+              ) : (
+                <span className="text-red-400">● Disconnected</span>
+              )}
+            </span>
+
+            {node.nats?.serverUrl && node.nats.serverUrl !== "unknown" && (
+              <>
+                <span className="text-muted-foreground/50">NATS server</span>
+                <span className="font-mono text-foreground/60">{node.nats.serverUrl}</span>
+              </>
+            )}
+
+            {node.isNatsHost && (
+              <>
+                <span className="text-muted-foreground/50">Role</span>
+                <span className="text-amber-400">★ NATS Host</span>
+              </>
+            )}
+
+            {node.nats?.serverVersion && node.nats.serverVersion !== "unknown" && (
+              <>
+                <span className="text-muted-foreground/50">Server ver.</span>
+                <span className="font-mono text-foreground/40">{node.nats.serverVersion}</span>
+              </>
+            )}
           </div>
+
+          {/* Peers */}
+          {(node.tailscale?.peers?.length ?? 0) > 0 && (
+            <div className="pt-1 border-t border-border/30">
+              <div className="text-muted-foreground/50 mb-1">Peers</div>
+              <div className="space-y-1 pl-1">
+                {node.tailscale!.peers!.map((peer: any, i: number) => (
+                  <div key={peer.hostname || i} className="flex items-center gap-2">
+                    <span className={`h-1.5 w-1.5 rounded-full ${peer.online ? "bg-green-400" : "bg-red-400"}`} />
+                    <span className="text-foreground/70">{peer.hostname || "unknown"}</span>
+                    <span className="font-mono text-muted-foreground/40">{peer.ip || ""}</span>
+                    {peer.online ? (
+                      <span className={`ml-auto ${peer.direct ? "text-green-400" : "text-yellow-400"}`}>
+                        {peer.direct ? "direct" : peer.relay ? `relay (${peer.relay})` : "relay"}
+                        {peer.latency?.latencyMs != null && (
+                          <span className="font-mono ml-1">{Math.round(peer.latency.latencyMs)}ms</span>
+                        )}
+                        {peer.latencyMs != null && !peer.latency && (
+                          <span className="font-mono ml-1">{Math.round(peer.latencyMs)}ms</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="ml-auto text-red-400/70">
+                        offline
+                        {peer.lastSeen && (
+                          <span className="text-muted-foreground/40 ml-1">
+                            (last: {new Date(peer.lastSeen).toLocaleString()})
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
