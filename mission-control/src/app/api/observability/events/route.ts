@@ -25,7 +25,13 @@ export const GET = withTrace("observability", "GET /api/observability/events", a
 
   try {
     const url = request.nextUrl;
-    const since = url.searchParams.get("since");
+    // Support both ?since=<ms timestamp> and ?hours=<N> for convenience
+    let since = url.searchParams.get("since");
+    const hours = url.searchParams.get("hours");
+    if (!since && hours) {
+      const h = parseFloat(hours);
+      if (!isNaN(h)) since = String(Date.now() - h * 3600000);
+    }
     const module = url.searchParams.get("module");
     const node = url.searchParams.get("node");
     const category = url.searchParams.get("category");
@@ -80,7 +86,7 @@ export const GET = withTrace("observability", "GET /api/observability/events", a
 
     const rows = db.prepare(sql).all(...params);
 
-    return NextResponse.json(rows);
+    return NextResponse.json({ events: rows });
   } catch (err) {
     console.error("[observability/events] error:", err);
     return NextResponse.json(
