@@ -96,6 +96,88 @@ export function NetworkTopology({ nodes, meshStatus }: Props) {
         <span className={`text-[10px] font-medium ${verdictColor}`}>{verdict}</span>
       </div>
 
+      {/* ── Layer Status Bar ── */}
+      {(() => {
+        // Compute per-layer status
+        const svcList = localNode?.health?.services || [];
+        const svcUp = svcList.filter((s: any) => s.status === "active").length;
+        const svcDown = svcList.filter((s: any) => s.status === "error" || s.status === "down").length;
+        const svcTotal = svcList.length;
+        const agentStatus = localNode?.health?.agent?.status || "unknown";
+        const cpu = localNode?.cpuLoadPercent ?? localNode?.health?.cpuLoadPercent;
+        const disk = localNode?.health?.diskPercent;
+        const ram = localNode?.health?.mem ? Math.round((1 - localNode.health.mem.free / localNode.health.mem.total) * 100) : null;
+
+        const layers: Array<{ name: string; status: "ok" | "warn" | "error" | "unknown"; detail: string }> = [
+          {
+            name: "Hardware",
+            status: cpu != null ? (cpu > 90 || (disk ?? 0) > 90 || (ram ?? 0) > 95 ? "warn" : "ok") : "unknown",
+            detail: cpu != null ? `CPU ${cpu}% · RAM ${ram ?? "?"}% · Disk ${disk ?? "?"}%` : "No system data",
+          },
+          {
+            name: "Tailscale",
+            status: localIp ? (offlinePeers.length > 0 && onlinePeers.length === 0 ? "warn" : "ok") : "error",
+            detail: localIp
+              ? `${localIp} · ${onlinePeers.length} peer${onlinePeers.length !== 1 ? "s" : ""} online${offlinePeers.length > 0 ? ` · ${offlinePeers.length} offline` : ""}`
+              : "Not connected",
+          },
+          {
+            name: "NATS",
+            status: natsFunctional ? "ok" : natsSocketOpen ? "warn" : "error",
+            detail: natsFunctional
+              ? `Operational · ${natsUrl || "?"}`
+              : natsSocketOpen
+              ? "Socket open, no KV data"
+              : `Unreachable${natsHostNode?.status === "offline" ? ` (${natsHostName} offline)` : ""}`,
+          },
+          {
+            name: "Services",
+            status: svcTotal === 0 ? "unknown" : svcDown > 0 ? (svcDown > svcTotal / 2 ? "error" : "warn") : "ok",
+            detail: svcTotal > 0 ? `${svcUp}/${svcTotal} running${svcDown > 0 ? ` · ${svcDown} errored` : ""}` : "No service data",
+          },
+          {
+            name: "Agent",
+            status: agentStatus === "working" || agentStatus === "idle" ? "ok"
+              : agentStatus === "stopped" || agentStatus === "not installed" ? "error"
+              : "unknown",
+            detail: agentStatus === "working"
+              ? `Working on ${localNode?.health?.agent?.currentTask || "task"}`
+              : agentStatus === "idle" ? "Idle — waiting for tasks"
+              : agentStatus === "stopped" ? "Stopped (service error)"
+              : agentStatus === "not installed" ? "Not installed"
+              : "No agent data",
+          },
+          {
+            name: "Mission Control",
+            status: "ok", // If you're seeing this, MC is running
+            detail: "Serving on this node",
+          },
+        ];
+
+        const statusDot = (s: string) =>
+          s === "ok" ? "bg-green-400" : s === "warn" ? "bg-yellow-400" : s === "error" ? "bg-red-400" : "bg-zinc-600";
+        const statusText = (s: string) =>
+          s === "ok" ? "text-green-400/80" : s === "warn" ? "text-yellow-400/80" : s === "error" ? "text-red-400/80" : "text-zinc-500";
+
+        return (
+          <div className="px-4 py-3 border-b border-border/50 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {layers.map((layer) => (
+              <div key={layer.name} className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className={`h-2 w-2 rounded-full ${statusDot(layer.status)}`} />
+                  <span className="text-[9px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
+                    {layer.name}
+                  </span>
+                </div>
+                <p className={`text-[9px] leading-tight ${statusText(layer.status)}`}>
+                  {layer.detail}
+                </p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-border/50">
         {/* ── Column 1: NATS ── */}
         <div className="px-4 py-3 space-y-2">
