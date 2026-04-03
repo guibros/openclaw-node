@@ -53,7 +53,9 @@ const HEARTBEAT_CHECK_INTERVAL = 30000;  // check every 30s
 
 // ── Logging ─────────────────────────────────────────
 
-const { info: log, warn, error: logError, debug } = require('../lib/logger').createLogger('mesh-bridge');
+const _logger = require('../lib/logger').createLogger('mesh-bridge');
+_logger.attachTracer(tracer);
+const { info: log, warn, error: logError, debug } = _logger;
 
 // ── NATS Helpers ────────────────────────────────────
 

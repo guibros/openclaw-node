@@ -166,7 +166,9 @@ function writeAgentState(status, taskId, provider, model) {
 
 // ── Logging ───────────────────────────────────────────
 
-const { info: log, warn, error: logError, debug } = require('../lib/logger').createLogger('mesh-agent');
+const _logger = require('../lib/logger').createLogger('mesh-agent');
+_logger.attachTracer(tracer);
+const { info: log, warn, error: logError, debug } = _logger;
 
 // ── NATS Helpers ──────────────────────────────────────
 

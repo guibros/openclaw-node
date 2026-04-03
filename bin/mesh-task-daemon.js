@@ -62,7 +62,9 @@ const circlingStepTimers = new Map();
 
 // ── Logging ─────────────────────────────────────────
 
-const { info: log, warn, error: logError, debug } = require('../lib/logger').createLogger('mesh-task-daemon');
+const _logger = require('../lib/logger').createLogger('mesh-task-daemon');
+_logger.attachTracer(tracer);
+const { info: log, warn, error: logError, debug } = _logger;
 
 // ── Response helpers ────────────────────────────────
 
