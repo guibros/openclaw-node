@@ -2,14 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import useSWR from "swr";
-import { SystemMap } from "@/components/observability/system-map";
-import { LiveFeed } from "@/components/observability/live-feed";
-import { EventTimeline } from "@/components/observability/event-timeline";
-import { Activity, Filter, Search } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-type Mode = "dev" | "smart";
 
 export interface TraceEvent {
   id: string;
@@ -27,228 +22,292 @@ export interface TraceEvent {
   meta?: Record<string, string> | string | null;
 }
 
+// ── Color helpers ──────────────────────────────────────
+
+const MODULE_COLORS: Record<string, string> = {
+  "mesh-agent": "text-cyan-400",
+  "mesh-bridge": "text-blue-400",
+  "mesh-task-daemon": "text-purple-400",
+  "memory-daemon": "text-amber-400",
+  "mesh-health-publisher": "text-pink-400",
+  "mesh-deploy-listener": "text-teal-400",
+  observability: "text-gray-400",
+};
+
+function modColor(mod: string): string {
+  if (MODULE_COLORS[mod]) return MODULE_COLORS[mod];
+  const hash = mod.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const p = [
+    "text-emerald-400",
+    "text-violet-400",
+    "text-rose-400",
+    "text-indigo-400",
+    "text-lime-400",
+    "text-orange-400",
+  ];
+  return p[hash % p.length];
+}
+
+function levelColor(e: TraceEvent): string {
+  if (e.error || e.category === "error") return "text-red-400";
+  if (e.duration_ms > 2000) return "text-red-400";
+  if (e.duration_ms > 500) return "text-yellow-400";
+  return "text-foreground/50";
+}
+
+function levelTag(e: TraceEvent): string {
+  if (e.error || e.category === "error") return "ERR ";
+  if (e.function?.startsWith("log.")) {
+    const lvl = e.function.split(".")[1] || "info";
+    return (lvl.toUpperCase() + " ").slice(0, 5).padEnd(5);
+  }
+  if (e.duration_ms > 500) return "SLOW";
+  return "    ";
+}
+
+function fmtTs(ts: string | number): string {
+  try {
+    const d = new Date(ts);
+    return (
+      d.getHours().toString().padStart(2, "0") +
+      ":" +
+      d.getMinutes().toString().padStart(2, "0") +
+      ":" +
+      d.getSeconds().toString().padStart(2, "0") +
+      "." +
+      d.getMilliseconds().toString().padStart(3, "0")
+    );
+  } catch {
+    return "??:??:??.???";
+  }
+}
+
+function fmtDuration(ms: number): string {
+  if (!ms) return "";
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+// ── Main page ──────────────────────────────────────────
+
 export default function ObservabilityPage() {
-  const [mode, setMode] = useState<Mode>("dev");
   const [events, setEvents] = useState<TraceEvent[]>([]);
-  const [filterNode, setFilterNode] = useState<string>("all");
   const [filterModule, setFilterModule] = useState<string>("all");
-  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterLevel, setFilterLevel] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
-  const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
+  const [follow, setFollow] = useState(true);
+  const [limit, setLimit] = useState(500);
+  const containerRef = useRef<HTMLDivElement>(null);
   const eventIdSet = useRef(new Set<string>());
 
-  // Fetch nodes for filter dropdowns and system map
-  const { data: nodesData } = useSWR<{
-    nodes: Array<{
-      nodeId: string;
-      platform: string;
-      status: string;
-      daemons: Array<{ name: string; status: string; lastEventAt?: string }>;
-    }>;
-  }>("/api/observability/nodes", fetcher, { refreshInterval: 5000 });
-
-  // Fetch historical events on load
-  const { data: historyData } = useSWR<{ events: TraceEvent[] }>(
-    "/api/observability/events?hours=2",
+  // Fetch all events from DB — no artificial cap, real data
+  const { data: historyData, mutate } = useSWR<{ events: TraceEvent[] }>(
+    `/api/observability/events?hours=24&limit=${limit}`,
     fetcher,
-    { revalidateOnFocus: false }
+    { refreshInterval: 3000 }
   );
 
-  // Seed historical events once
+  // Seed events
   useEffect(() => {
-    if (historyData?.events) {
-      setEvents((prev) => {
-        const merged = [...historyData.events];
-        const ids = new Set(merged.map((e) => e.id));
-        for (const ev of prev) {
-          if (!ids.has(ev.id)) merged.push(ev);
-        }
-        merged.sort(
-          (a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        );
-        const trimmed = merged.slice(0, 500);
-        eventIdSet.current = new Set(trimmed.map((e) => e.id));
-        return trimmed;
-      });
-    }
+    if (!historyData?.events) return;
+    const incoming = historyData.events;
+    const ids = new Set(incoming.map((e) => e.id));
+    eventIdSet.current = ids;
+    setEvents(incoming);
   }, [historyData]);
 
-  // SSE for live trace events
-  const handleTraceEvent = useCallback((ev: TraceEvent) => {
-    if (eventIdSet.current.has(ev.id)) return;
-    eventIdSet.current.add(ev.id);
-    setEvents((prev) => {
-      const next = [ev, ...prev].slice(0, 500);
-      // Prune id set when we drop events
-      if (next.length < prev.length + 1) {
-        eventIdSet.current = new Set(next.map((e) => e.id));
-      }
-      return next;
-    });
-  }, []);
-
+  // Auto-scroll to bottom when following
   useEffect(() => {
-    const es = new EventSource("/api/observability/stream");
-    es.addEventListener("trace", (e) => {
-      try {
-        handleTraceEvent(JSON.parse(e.data));
-      } catch {}
-    });
-    es.onerror = () => {
-      // EventSource auto-reconnects
-    };
-    return () => es.close();
-  }, [handleTraceEvent]);
+    if (!follow) return;
+    const el = containerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [events, follow]);
 
-  // Derive filter options from events + nodes
-  const nodeOptions = Array.from(new Set(events.map((e) => e.node_id).filter(Boolean))).sort();
-  const moduleOptions = Array.from(new Set(events.map((e) => e.module).filter(Boolean))).sort();
-  const categoryOptions = Array.from(new Set(events.map((e) => e.category).filter(Boolean))).sort();
+  // Detect user scroll to pause follow
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    if (!atBottom && follow) setFollow(false);
+    if (atBottom && !follow) setFollow(true);
+  }, [follow]);
+
+  // Derive filter options from data
+  const moduleOptions = Array.from(
+    new Set(events.map((e) => e.module).filter(Boolean))
+  ).sort();
 
   // Apply filters
   const filtered = events.filter((e) => {
-    if (filterNode !== "all" && e.node_id !== filterNode) return false;
     if (filterModule !== "all" && e.module !== filterModule) return false;
-    if (filterCategory !== "all" && e.category !== filterCategory) return false;
+    if (filterLevel === "error" && !e.error && e.category !== "error") return false;
+    if (filterLevel === "warn" && !e.error && e.category !== "error" && e.duration_ms <= 500) return false;
     if (searchText) {
       const q = searchText.toLowerCase();
-      const haystack =
-        `${e.module} ${e.function} ${e.args_summary ?? ""} ${e.result_summary ?? ""} ${e.error_message ?? ""}`.toLowerCase();
+      const haystack = `${e.module} ${e.function} ${e.args_summary ?? ""} ${e.result_summary ?? ""} ${e.error ?? ""}`.toLowerCase();
       if (!haystack.includes(q)) return false;
-    }
-    if (activeGroupFilter) {
-      const groupKey =
-        e.meta?.task_id || e.meta?.session_id || e.module;
-      if (groupKey !== activeGroupFilter) return false;
     }
     return true;
   });
 
-  const nodes = nodesData?.nodes ?? [];
+  // Show newest at bottom (chronological terminal style)
+  const display = [...filtered].reverse();
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Top bar */}
-      <header className="border-b border-border px-6 py-3 flex items-center gap-4 shrink-0">
-        <div className="flex items-center gap-2">
-          <Activity className="h-5 w-5 text-muted-foreground" />
-          <h1 className="text-xl font-semibold text-foreground">
-            Observability
-          </h1>
+    <div className="h-full flex flex-col bg-[#0d1117] text-[#c9d1d9]">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-[#21262d] shrink-0 bg-[#161b22]">
+        <span className="text-xs font-bold text-[#58a6ff] tracking-wide">
+          TRACE LOG
+        </span>
+
+        {/* Module filter */}
+        <select
+          value={filterModule}
+          onChange={(e) => setFilterModule(e.target.value)}
+          className="text-[11px] bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[#c9d1d9] font-mono"
+        >
+          <option value="all">all modules</option>
+          {moduleOptions.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+
+        {/* Level filter */}
+        <select
+          value={filterLevel}
+          onChange={(e) => setFilterLevel(e.target.value)}
+          className="text-[11px] bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[#c9d1d9] font-mono"
+        >
+          <option value="all">all levels</option>
+          <option value="warn">warn+err+slow</option>
+          <option value="error">errors only</option>
+        </select>
+
+        {/* Search */}
+        <div className="relative flex-1 max-w-sm">
+          <Search className="h-3 w-3 text-[#484f58] absolute left-2 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="grep..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="text-[11px] bg-[#0d1117] border border-[#30363d] rounded pl-6 pr-2 py-1 text-[#c9d1d9] w-full font-mono placeholder:text-[#484f58]"
+          />
         </div>
 
-        {/* Mode toggle */}
-        <div className="flex rounded-lg border border-border overflow-hidden text-xs ml-4">
+        {/* Count + controls */}
+        <span className="text-[11px] text-[#484f58] font-mono ml-auto">
+          {filtered.length}/{events.length}
+        </span>
+
+        {limit <= events.length && (
           <button
-            onClick={() => setMode("dev")}
-            className={`px-3 py-1.5 transition-colors ${
-              mode === "dev"
-                ? "bg-primary text-primary-foreground"
-                : "bg-background text-muted-foreground hover:bg-accent"
-            }`}
+            onClick={() => setLimit((l) => l + 500)}
+            className="text-[10px] text-[#58a6ff] hover:text-[#79c0ff] font-mono px-2 py-1 rounded hover:bg-[#1f2937]"
           >
-            Dev
+            load more
           </button>
-          <button
-            onClick={() => setMode("smart")}
-            className={`px-3 py-1.5 transition-colors ${
-              mode === "smart"
-                ? "bg-primary text-primary-foreground"
-                : "bg-background text-muted-foreground hover:bg-accent"
-            }`}
-          >
-            Smart
-          </button>
-        </div>
+        )}
 
-        {/* Filters */}
-        <div className="flex items-center gap-2 ml-4">
-          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-          <select
-            value={filterNode}
-            onChange={(e) => setFilterNode(e.target.value)}
-            className="text-xs bg-card border border-border rounded px-2 py-1 text-foreground"
-          >
-            <option value="all">All Nodes</option>
-            {nodeOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterModule}
-            onChange={(e) => setFilterModule(e.target.value)}
-            className="text-xs bg-card border border-border rounded px-2 py-1 text-foreground"
-          >
-            <option value="all">All Modules</option>
-            {moduleOptions.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="text-xs bg-card border border-border rounded px-2 py-1 text-foreground"
-          >
-            <option value="all">All Categories</option>
-            {categoryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <div className="relative">
-            <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              className="text-xs bg-card border border-border rounded pl-6 pr-2 py-1 text-foreground w-40 placeholder:text-muted-foreground/50"
-            />
-          </div>
-        </div>
+        <button
+          onClick={() => mutate()}
+          className="text-[#484f58] hover:text-[#c9d1d9] p-1 rounded hover:bg-[#1f2937]"
+          title="Refresh"
+        >
+          <RotateCcw className="h-3 w-3" />
+        </button>
 
-        {/* Event count */}
-        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-          {activeGroupFilter && (
-            <button
-              onClick={() => setActiveGroupFilter(null)}
-              className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
-            >
-              Clear filter
-            </button>
+        <button
+          onClick={() => {
+            setFollow(!follow);
+            if (!follow) {
+              const el = containerRef.current;
+              if (el) el.scrollTop = el.scrollHeight;
+            }
+          }}
+          className={`text-[10px] font-mono px-2 py-1 rounded ${
+            follow
+              ? "text-green-400 bg-green-400/10"
+              : "text-[#484f58] hover:text-[#c9d1d9] hover:bg-[#1f2937]"
+          }`}
+        >
+          {follow ? (
+            <span className="flex items-center gap-1">
+              <ChevronDown className="h-3 w-3" /> follow
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <ChevronUp className="h-3 w-3" /> paused
+            </span>
           )}
-          <span className="font-mono">
-            {filtered.length} / {events.length} events
-          </span>
-        </div>
-      </header>
+        </button>
+      </div>
 
-      {/* Main content */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {/* System Map */}
-        <div className="border-b border-border shrink-0">
-          <SystemMap nodes={nodes} events={events} />
-        </div>
+      {/* Log stream */}
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto font-mono text-[11px] leading-[18px]"
+      >
+        {display.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-[#484f58]">
+            no events
+          </div>
+        ) : (
+          display.map((e) => {
+            const isErr = !!(e.error || e.category === "error");
+            const isSlow = e.duration_ms > 500;
+            const rowBg = isErr
+              ? "bg-red-500/5 hover:bg-red-500/10"
+              : isSlow
+                ? "bg-yellow-500/5 hover:bg-yellow-500/10"
+                : "hover:bg-[#161b22]";
 
-        {/* Bottom panels: Timeline + LiveFeed */}
-        <div className="flex-1 grid grid-cols-[320px_1fr] min-h-0">
-          <div className="border-r border-border overflow-y-auto">
-            <EventTimeline
-              events={filtered}
-              activeGroupFilter={activeGroupFilter}
-              onGroupSelect={setActiveGroupFilter}
-            />
-          </div>
-          <div className="overflow-hidden">
-            <LiveFeed events={filtered} mode={mode} />
-          </div>
-        </div>
+            return (
+              <div key={e.id} className={`flex gap-0 px-3 py-[2px] ${rowBg} border-b border-[#21262d]/40`}>
+                {/* Timestamp */}
+                <span className="text-[#484f58] w-[85px] shrink-0 tabular-nums">
+                  {fmtTs(e.timestamp)}
+                </span>
+
+                {/* Level tag */}
+                <span className={`w-[40px] shrink-0 ${levelColor(e)}`}>
+                  {levelTag(e)}
+                </span>
+
+                {/* Module — fixed width */}
+                <span className={`w-[140px] shrink-0 truncate ${modColor(e.module)}`}>
+                  {e.module}
+                </span>
+
+                {/* Function */}
+                <span className="text-[#e6edf3] w-[200px] shrink-0 truncate">
+                  {e.function}
+                </span>
+
+                {/* Args summary — the actual useful info, fills remaining space */}
+                <span className="text-[#8b949e] truncate flex-1 min-w-0">
+                  {e.args_summary || ""}
+                </span>
+
+                {/* Duration */}
+                <span className={`w-[55px] shrink-0 text-right tabular-nums ${levelColor(e)}`}>
+                  {fmtDuration(e.duration_ms)}
+                </span>
+
+                {/* Error indicator */}
+                {isErr && (
+                  <span className="text-red-500 ml-1 shrink-0" title={e.error || ""}>
+                    ✗
+                  </span>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
