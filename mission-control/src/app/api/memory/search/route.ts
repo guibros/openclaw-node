@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRawDb } from "@/lib/db";
-import { withTrace } from "@/lib/tracer";
 
 /**
  * Score decay: time-weighted relevance scoring.
@@ -30,17 +29,14 @@ function applyScoreDecay(
  * Daedalus does deeper semantic rewriting inline during his own searches.
  */
 function expandQuery(query: string): string {
-  // Escape double quotes and strip FTS5 operators to prevent query injection
-  const safeQuery = query.replace(/"/g, '""').replace(/[*(){}^]/g, '').trim();
-  if (!safeQuery) return '""';
   // Split into terms and add OR variants for common patterns
-  const terms = safeQuery.split(/\s+/);
+  const terms = query.trim().split(/\s+/);
   if (terms.length === 1) {
     // Single term: use prefix matching
-    return `"${safeQuery}"*`;
+    return `"${query.replace(/"/g, '""')}"*`;
   }
   // Multi-term: quote as phrase + add individual terms with OR for broader recall
-  const phrase = `"${safeQuery}"`;
+  const phrase = `"${query.replace(/"/g, '""')}"`;
   const individual = terms.map((t) => `"${t.replace(/"/g, '""')}"*`).join(" OR ");
   return `(${phrase}) OR (${individual})`;
 }
@@ -51,14 +47,14 @@ function expandQuery(query: string): string {
  * Supports score decay (time-weighted relevance) via &decay=true (default: true).
  * Uses raw SQLite for FTS5 MATCH + snippet() since Drizzle doesn't support FTS5.
  */
-export const GET = withTrace("memory", "GET /api/memory/search", async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const query = searchParams.get("q");
     const source = searchParams.get("source");
     const category = searchParams.get("category");
     const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 100);
-    const offset = Math.max(0, Math.min(parseInt(searchParams.get("offset") || "0", 10) || 0, 10000));
+    const offset = parseInt(searchParams.get("offset") || "0", 10);
     const useDecay = searchParams.get("decay") !== "false"; // default: true
     const decayRate = parseFloat(searchParams.get("decay_rate") || "0.01");
 
@@ -142,7 +138,6 @@ export const GET = withTrace("memory", "GET /api/memory/search", async (request:
     console.error("GET /api/memory/search error:", err);
     const message =
       err instanceof Error ? err.message : "Failed to search memory";
-    const status = err instanceof SyntaxError || err instanceof RangeError ? 400 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-});
+}

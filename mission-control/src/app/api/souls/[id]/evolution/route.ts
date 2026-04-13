@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { validatePathParam } from "@/lib/config";
 import { soulEvolutionLog } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import fs from "fs/promises";
@@ -8,7 +7,6 @@ import path from "path";
 import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { withTrace } from "@/lib/tracer";
 
 const execFileAsync = promisify(execFile);
 const SOULS_DIR = path.join(os.homedir(), ".openclaw/souls");
@@ -28,17 +26,12 @@ interface EvolutionEvent {
 }
 
 // GET /api/souls/:id/evolution - Get evolution events for a soul
-export const GET = withTrace("souls", "GET /api/souls/:id/evolution", async (
+export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   try {
-    let soulId: string;
-    try {
-      soulId = validatePathParam((await params).id);
-    } catch {
-      return NextResponse.json({ error: "Invalid soul ID" }, { status: 400 });
-    }
+    const { id: soulId } = await params;
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") || "pending";
 
@@ -70,10 +63,7 @@ export const GET = withTrace("souls", "GET /api/souls/:id/evolution", async (
       const lines = content.trim().split("\n").filter(Boolean);
       fullEvents = lines.map((line) => JSON.parse(line));
     } catch (error) {
-      // events.jsonl might be empty, not exist yet, or contain malformed lines
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.warn("Failed to parse events.jsonl:", error);
-      }
+      // events.jsonl might be empty or not exist yet
     }
 
     // Merge DB records with full event details
@@ -95,20 +85,15 @@ export const GET = withTrace("souls", "GET /api/souls/:id/evolution", async (
       { status: 500 }
     );
   }
-});
+}
 
 // POST /api/souls/:id/evolution - Create new evolution event (used by souls)
-export const POST = withTrace("souls", "POST /api/souls/:id/evolution", async (
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   try {
-    let soulId: string;
-    try {
-      soulId = validatePathParam((await params).id);
-    } catch {
-      return NextResponse.json({ error: "Invalid soul ID" }, { status: 400 });
-    }
+    const { id: soulId } = await params;
     const event: EvolutionEvent = await request.json();
 
     const db = getDb();
@@ -140,20 +125,15 @@ export const POST = withTrace("souls", "POST /api/souls/:id/evolution", async (
       { status: 500 }
     );
   }
-});
+}
 
 // PATCH /api/souls/:id/evolution/:eventId - Approve/reject evolution
-export const PATCH = withTrace("souls", "PATCH /api/souls/:id/evolution", async (
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   try {
-    let soulId: string;
-    try {
-      soulId = validatePathParam((await params).id);
-    } catch {
-      return NextResponse.json({ error: "Invalid soul ID" }, { status: 400 });
-    }
+    const { id: soulId } = await params;
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
 
@@ -178,20 +158,11 @@ export const PATCH = withTrace("souls", "PATCH /api/souls/:id/evolution", async 
         "events.jsonl"
       );
       const content = await fs.readFile(eventsPath, "utf-8");
-      let events: EvolutionEvent[];
-      try {
-        events = content
-          .trim()
-          .split("\n")
-          .filter(Boolean)
-          .map((line) => JSON.parse(line));
-      } catch (parseErr) {
-        console.error("Malformed JSONL in events.jsonl:", parseErr);
-        return NextResponse.json(
-          { error: "Failed to parse evolution events file (malformed JSONL)" },
-          { status: 500 }
-        );
-      }
+      const events = content
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
       const event = events.find((e: EvolutionEvent) => e.eventId === eventId);
 
       if (!event) {
@@ -199,25 +170,15 @@ export const PATCH = withTrace("souls", "PATCH /api/souls/:id/evolution", async 
       }
 
       // Apply change (e.g., update genes.json)
-      const safeTarget = validatePathParam(event.proposedChange.target);
       const targetPath = path.join(
         SOULS_DIR,
         soulId,
         "evolution",
-        safeTarget
+        event.proposedChange.target
       );
 
       if (event.proposedChange.action === "add") {
-        let existing;
-        try {
-          existing = JSON.parse(await fs.readFile(targetPath, "utf-8"));
-        } catch (parseErr) {
-          console.error(`Malformed JSON in ${targetPath}:`, parseErr);
-          return NextResponse.json(
-            { error: `Failed to parse ${event.proposedChange.target} (malformed JSON)` },
-            { status: 500 }
-          );
-        }
+        const existing = JSON.parse(await fs.readFile(targetPath, "utf-8"));
         if (event.proposedChange.target === "genes.json") {
           existing.genes.push(event.proposedChange.content);
         }
@@ -228,6 +189,7 @@ export const PATCH = withTrace("souls", "PATCH /api/souls/:id/evolution", async 
       // Sanitize all user-derived inputs: eventId, soulId, reviewedBy, event.summary
       // could all contain shell metacharacters if crafted maliciously.
       const safeBranch = `evolution/${eventId.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const safeTarget = event.proposedChange.target.replace(/[^a-zA-Z0-9._/-]/g, "_");
       const commitMessage = [
         `evolution(${eventId}): ${event.summary}`,
         "",
@@ -288,4 +250,4 @@ export const PATCH = withTrace("souls", "PATCH /api/souls/:id/evolution", async 
       { status: 500 }
     );
   }
-});
+}

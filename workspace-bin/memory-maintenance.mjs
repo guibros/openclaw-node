@@ -12,17 +12,11 @@
  */
 
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import http from 'http';
-
-// --- Tracer ---
-const require = createRequire(import.meta.url);
-const { createTracer } = require('../lib/tracer');
-const tracer = createTracer('memory-maintenance');
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -59,7 +53,7 @@ function timestamp() {
 
 function log(msg) {
   const line = `[${timestamp()}] ${msg}`;
-  try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch (err) { /* Intentional: log write failure shouldn't crash maintenance */ }
+  try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch {}
   if (VERBOSE) console.log(line);
 }
 
@@ -260,7 +254,7 @@ async function checkClawVault() {
     });
     proc.unref();
     // Kill after 10s
-    setTimeout(() => { try { proc.kill(); } catch { /* Intentional: process may already be dead */ } }, 10000);
+    setTimeout(() => { try { proc.kill(); } catch {} }, 10000);
     log('ClawVault checkpoint dispatched (background, 10s timeout)');
     actions++;
   } catch (e) {
@@ -270,18 +264,72 @@ async function checkClawVault() {
 
 // 7. Mission Control sync
 async function checkMissionControl() {
-  log('Checking Mission Control for memory sync...');
+  log('Checking Mission Control health...');
 
-  const isUp = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/tasks', { timeout: 3000 }, res => {
-      resolve(res.statusCode === 200);
-      res.resume();
+  // Use health endpoint for real diagnostics
+  const healthResult = await new Promise(resolve => {
+    const req = http.get('http://localhost:3000/api/system/health', { timeout: 5000 }, res => {
+      let data = '';
+      res.on('data', d => { data += d; });
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, body: null }); }
+      });
     });
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
   });
 
-  if (!isUp) { log('Mission Control not running — skipping'); return; }
+  if (!healthResult) {
+    log('Mission Control unreachable — skipping');
+    report('MC_DOWN: Mission Control unreachable (timeout or connection refused)');
+    warnings++;
+    // Attempt restart if MC is completely down
+    try {
+      const { execSync: execSyncImport } = await import('child_process');
+      const mcHealthScript = path.join(WORKSPACE, 'bin', 'mc-health.mjs');
+      const result = execSyncImport(`node "${mcHealthScript}" --restart`, {
+        timeout: 45000,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      log(`MC restart result: ${result.trim()}`);
+      report('MC_RESTART: Auto-restart from unreachable state');
+      actions++;
+    } catch (e) {
+      log(`MC restart attempt failed: ${e.message}`);
+    }
+    return;
+  }
+
+  if (healthResult.status === 503 || healthResult.body?.status === 'unhealthy') {
+    const err = healthResult.body?.error || 'unknown';
+    log(`Mission Control UNHEALTHY: ${err}`);
+    report(`MC_UNHEALTHY: ${err}`);
+    warnings++;
+    // Attempt restart via mc-health script (handles kill + restart + verification)
+    try {
+      const { execSync: execSyncImport } = await import('child_process');
+      const mcHealthScript = path.join(WORKSPACE, 'bin', 'mc-health.mjs');
+      const result = execSyncImport(`node "${mcHealthScript}" --restart`, {
+        timeout: 45000,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      log(`MC restart result: ${result.trim()}`);
+      report('MC_RESTART: Auto-restart triggered and verified');
+      actions++;
+    } catch (e) {
+      log(`MC restart failed: ${e.message}`);
+      report('MC_RESTART_FAILED: Could not recover Mission Control');
+      warnings++;
+    }
+    return;
+  }
+
+  const db = healthResult.body?.db || {};
+  log(`MC healthy: tasks=${db.taskCount} obs=${db.obsEventCount} db=${db.dbSizeMB}MB wal=${db.walSizeMB}MB`);
+
   if (DRY_RUN) { log('DRY RUN: Would sync Mission Control'); return; }
 
   try {
@@ -472,11 +520,6 @@ function checkSharedLessons() {
 // ============================================================
 // MAIN
 // ============================================================
-
-// ── Tracer wrapping ──────────────────────────────────
-checkArchival = tracer.wrap('checkArchival', checkArchival, { tier: 2, category: 'compute' });
-checkPredictions = tracer.wrap('checkPredictions', checkPredictions, { tier: 2, category: 'compute' });
-checkStaleTasks = tracer.wrap('checkStaleTasks', checkStaleTasks, { tier: 2, category: 'compute' });
 
 export async function runMaintenance(opts = {}) {
   const force = opts.force ?? FORCE;

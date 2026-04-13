@@ -15,7 +15,6 @@
 
 import { getTasksKv, sc } from "@/lib/nats";
 import { NODE_ID, NODE_ROLE } from "@/lib/config";
-import { traceCall } from "@/lib/tracer";
 
 // ── Types ──
 
@@ -51,30 +50,23 @@ export interface MeshTaskEntry {
  * Returns empty array if NATS is unavailable.
  */
 export async function listMeshTasks(): Promise<MeshTaskEntry[]> {
-  const _start = Date.now();
-  try {
-    const kv = await getTasksKv();
-    if (!kv) return [];
+  const kv = await getTasksKv();
+  if (!kv) return [];
 
-    const tasks: MeshTaskEntry[] = [];
-    const keys = await kv.keys();
+  const tasks: MeshTaskEntry[] = [];
+  const keys = await kv.keys();
 
-    for await (const key of keys) {
-      const entry = await kv.get(key);
-      if (!entry?.value) continue;
-      try {
-        tasks.push(JSON.parse(sc.decode(entry.value)));
-      } catch {
-        // skip malformed
-      }
+  for await (const key of keys) {
+    const entry = await kv.get(key);
+    if (!entry?.value) continue;
+    try {
+      tasks.push(JSON.parse(sc.decode(entry.value)));
+    } catch {
+      // skip malformed
     }
-
-    traceCall("sync/mesh-kv", "listMeshTasks", _start, `${tasks.length} tasks`);
-    return tasks;
-  } catch (err: any) {
-    traceCall("sync/mesh-kv", "listMeshTasks", _start, undefined, err);
-    throw err;
   }
+
+  return tasks;
 }
 
 /**
@@ -83,24 +75,16 @@ export async function listMeshTasks(): Promise<MeshTaskEntry[]> {
 export async function getMeshTask(
   taskId: string
 ): Promise<{ task: MeshTaskEntry; revision: number } | null> {
-  const _start = Date.now();
-  try {
-    const kv = await getTasksKv();
-    if (!kv) return null;
+  const kv = await getTasksKv();
+  if (!kv) return null;
 
-    const entry = await kv.get(taskId);
-    if (!entry?.value) return null;
+  const entry = await kv.get(taskId);
+  if (!entry?.value) return null;
 
-    const result = {
-      task: JSON.parse(sc.decode(entry.value)),
-      revision: entry.revision,
-    };
-    traceCall("sync/mesh-kv", "getMeshTask", _start, taskId);
-    return result;
-  } catch (err: any) {
-    traceCall("sync/mesh-kv", "getMeshTask", _start, undefined, err);
-    throw err;
-  }
+  return {
+    task: JSON.parse(sc.decode(entry.value)),
+    revision: entry.revision,
+  };
 }
 
 // ── KV Write Operations (CAS) ──
@@ -110,18 +94,11 @@ export async function getMeshTask(
  * No CAS — overwrites unconditionally. Use updateMeshTaskCAS for safe updates.
  */
 export async function putMeshTask(task: MeshTaskEntry): Promise<number> {
-  const _start = Date.now();
-  try {
-    const kv = await getTasksKv();
-    if (!kv) throw new Error("NATS KV unavailable");
+  const kv = await getTasksKv();
+  if (!kv) throw new Error("NATS KV unavailable");
 
-    const rev = await kv.put(task.task_id, sc.encode(JSON.stringify(task)));
-    traceCall("sync/mesh-kv", "putMeshTask", _start, task.task_id);
-    return rev;
-  } catch (err: any) {
-    traceCall("sync/mesh-kv", "putMeshTask", _start, undefined, err);
-    throw err;
-  }
+  const rev = await kv.put(task.task_id, sc.encode(JSON.stringify(task)));
+  return rev;
 }
 
 /**
@@ -169,24 +146,17 @@ export async function updateMeshTaskCAS(
 export async function proposeMeshTask(
   task: Omit<MeshTaskEntry, "status" | "origin">
 ): Promise<MeshTaskEntry> {
-  const _start = Date.now();
-  try {
-    const kv = await getTasksKv();
-    if (!kv) throw new Error("NATS KV unavailable");
+  const kv = await getTasksKv();
+  if (!kv) throw new Error("NATS KV unavailable");
 
-    const proposed: MeshTaskEntry = {
-      ...task,
-      status: NODE_ROLE === "lead" ? "queued" : "proposed",
-      origin: NODE_ID,
-    } as MeshTaskEntry;
+  const proposed: MeshTaskEntry = {
+    ...task,
+    status: NODE_ROLE === "lead" ? "queued" : "proposed",
+    origin: NODE_ID,
+  } as MeshTaskEntry;
 
-    await kv.put(proposed.task_id, sc.encode(JSON.stringify(proposed)));
-    traceCall("sync/mesh-kv", "proposeMeshTask", _start, proposed.task_id);
-    return proposed;
-  } catch (err: any) {
-    traceCall("sync/mesh-kv", "proposeMeshTask", _start, undefined, err);
-    throw err;
-  }
+  await kv.put(proposed.task_id, sc.encode(JSON.stringify(proposed)));
+  return proposed;
 }
 
 // ── KV Watcher ──
@@ -277,7 +247,6 @@ export function mergeTasks(
   kvTasks: Array<{ task_id: string; [key: string]: unknown }>,
   nodeRole: "lead" | "worker" = NODE_ROLE
 ): MergedTask[] {
-  const _start = Date.now();
   const merged = new Map<string, MergedTask>();
 
   // SQLite tasks first
@@ -306,7 +275,5 @@ export function mergeTasks(
     // Lead: SQLite wins (don't overwrite)
   }
 
-  const result = Array.from(merged.values());
-  traceCall("sync/mesh-kv", "mergeTasks", _start, `${result.length} merged`);
-  return result;
+  return Array.from(merged.values());
 }

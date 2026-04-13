@@ -13,17 +13,11 @@
  */
 
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import https from 'https';
 import os from 'os';
-
-// --- Tracer ---
-const require = createRequire(import.meta.url);
-const { createTracer } = require('../lib/tracer');
-const tracer = createTracer('obsidian-sync');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,8 +49,7 @@ function loadConfig() {
   try {
     const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
     return { ...defaults, ...raw };
-  } catch (err) {
-    console.warn(`[obsidian-sync] config parse failed: ${err.message}`);
+  } catch {
     return defaults;
   }
 }
@@ -133,8 +126,7 @@ function loadSyncState() {
   if (!fs.existsSync(SYNC_STATE_PATH)) return {};
   try {
     return JSON.parse(fs.readFileSync(SYNC_STATE_PATH, 'utf-8'));
-  } catch (err) {
-    console.warn(`[obsidian-sync] sync state parse failed: ${err.message}`);
+  } catch {
     return {};
   }
 }
@@ -315,8 +307,7 @@ function walkDir(dir, base, results = []) {
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch (err) {
-    console.warn(`[obsidian-sync] walkDir readdir failed for ${dir}: ${err.message}`);
+  } catch {
     return results;
   }
 
@@ -378,7 +369,7 @@ function discoverFiles(config) {
         for (const e of entries) {
           if (e.isFile()) allFiles.push(e.name);
         }
-      } catch (err) { console.warn(`[obsidian-sync] root dir scan failed: ${err.message}`); }
+      } catch { /* skip */ }
     } else {
       walkDir(path.join(WORKSPACE, dir), WORKSPACE, allFiles);
     }
@@ -581,9 +572,6 @@ SORT file.name ASC
 // MAIN SYNC ORCHESTRATOR
 // ============================================================
 
-// ── Tracer wrapping ──────────────────────────────────
-apiPut = tracer.wrapAsync('apiPut', apiPut, { tier: 3 });
-
 /**
  * Run a full sync cycle.
  * @param {object} opts - { dryRun, verbose, force }
@@ -592,7 +580,6 @@ apiPut = tracer.wrapAsync('apiPut', apiPut, { tier: 3 });
 export async function syncToObsidian(opts = {}) {
   const { dryRun = false, verbose = false, force = false } = opts;
   const config = loadConfig();
-  console.log(`[obsidian-sync] Config: vault=${config.vaultPath} api=${!!config.apiPort}`);
 
   if (!config.enabled) {
     if (verbose) console.log('Obsidian sync disabled in config');
@@ -617,7 +604,6 @@ export async function syncToObsidian(opts = {}) {
   // Check API availability
   const apiKey = loadApiKey(config);
   const apiAvailable = apiKey ? await apiHealthCheck(apiKey, config.apiPort) : false;
-  console.log(`[obsidian-sync] API health: ${apiAvailable ? 'OK' : 'FAILED'}`);
   const method = apiAvailable ? 'api' : 'file';
 
   if (verbose) {
@@ -643,8 +629,7 @@ export async function syncToObsidian(opts = {}) {
     let currentHash;
     try {
       currentHash = fileHash(absPath);
-    } catch (err) {
-      console.warn(`[obsidian-sync] file hash failed for ${absPath}: ${err.message}`);
+    } catch {
       continue; // unreadable
     }
 
@@ -657,8 +642,7 @@ export async function syncToObsidian(opts = {}) {
     let content;
     try {
       content = fs.readFileSync(absPath, 'utf-8');
-    } catch (err) {
-      console.warn(`[obsidian-sync] file read failed for ${absPath}: ${err.message}`);
+    } catch {
       errors++;
       continue;
     }
@@ -703,7 +687,6 @@ export async function syncToObsidian(opts = {}) {
     if (!ok) {
       try {
         ok = directWrite(vaultRoot, route.dest, content);
-        if (ok) console.log(`[obsidian-sync] Write: ${route.dest} (${content.length} bytes)`);
       } catch (e) {
         if (verbose) console.log(`  [error] ${route.dest}: ${e.message}`);
         errors++;
@@ -733,8 +716,6 @@ export async function syncToObsidian(opts = {}) {
       console.log(`  [lessons] ${propagated} shared lessons propagated to 00-meta/shared-lessons.md`);
     }
   }
-
-  console.log(`[obsidian-sync] Synced: ${synced} created, 0 updated, ${skipped} unchanged`);
 
   return { synced, skipped, errors, method };
 }
@@ -785,8 +766,7 @@ function propagateSharedLessons(vaultRoot, config, verbose = false) {
   try {
     nodeDirs = fs.readdirSync(nodesDir, { withFileTypes: true })
       .filter(e => e.isDirectory() && !e.name.startsWith('_'));
-  } catch (err) {
-    console.warn(`[obsidian-sync] nodes dir scan failed: ${err.message}`);
+  } catch {
     return 0;
   }
 
@@ -799,8 +779,7 @@ function propagateSharedLessons(vaultRoot, config, verbose = false) {
     let files;
     try {
       files = fs.readdirSync(lessonsDir).filter(f => f.endsWith('.md') && !f.startsWith('_'));
-    } catch (err) {
-      console.warn(`[obsidian-sync] lessons dir readdir failed for ${lessonsDir}: ${err.message}`);
+    } catch {
       continue;
     }
 
@@ -811,8 +790,8 @@ function propagateSharedLessons(vaultRoot, config, verbose = false) {
         const body = content.replace(FM_REGEX, '');
         const lessons = parseLessons(body, nodeId);
         allLessons.push(...lessons);
-      } catch (err) {
-        console.warn(`[obsidian-sync] lesson file read failed for ${nodeId}/lessons/${file}: ${err.message}`);
+      } catch {
+        if (verbose) console.log(`  [lessons] failed to read ${nodeId}/lessons/${file}`);
       }
     }
   }
@@ -824,7 +803,7 @@ function propagateSharedLessons(vaultRoot, config, verbose = false) {
       const content = fs.readFileSync(workspaceLessons, 'utf-8');
       const lessons = parseLessons(content, config.nodeId);
       allLessons.push(...lessons);
-    } catch (err) { console.warn(`[obsidian-sync] workspace lessons read failed: ${err.message}`); }
+    } catch { /* skip */ }
   }
 
   // Filter to shareable lessons only

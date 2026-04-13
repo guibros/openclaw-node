@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { WORKSPACE_ROOT } from "@/lib/config";
-import { withTrace } from "@/lib/tracer";
 
 const HOME = process.env.HOME || "/Users/moltymac";
 
@@ -64,7 +63,7 @@ function findFile(dir: string, target: string, depth: number): string | null {
  * Body: { name: "somefile.md" }
  * Returns: { path: "/full/path/to/somefile.md" } or { path: null }
  */
-export const POST = withTrace("workspace", "POST /api/resolve-path", async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
   try {
     const { name } = await request.json();
 
@@ -90,4 +89,4 @@ export const POST = withTrace("workspace", "POST /api/resolve-path", async (requ
     console.error("POST /api/resolve-path error:", err);
     return NextResponse.json({ error: "Failed to resolve path" }, { status: 500 });
   }
-});
+}

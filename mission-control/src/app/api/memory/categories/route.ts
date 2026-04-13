@@ -6,7 +6,6 @@ import {
   getCategoryItemsFormatted,
   VALID_CATEGORIES,
 } from "@/lib/memory/categories";
-import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/memory/categories
@@ -14,7 +13,7 @@ import { withTrace } from "@/lib/tracer";
  * Add ?category=work to get the full summary for a specific category.
  * Add ?category=work&items=true to get the raw items list for regeneration.
  */
-export const GET = withTrace("memory", "GET /api/memory/categories", async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const category = searchParams.get("category");
@@ -52,14 +51,14 @@ export const GET = withTrace("memory", "GET /api/memory/categories", async (requ
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * POST /api/memory/categories
  * Write a category summary. Called by Daedalus after generating the summary inline.
  * Body: { category: string, content: string }
  */
-export const POST = withTrace("memory", "POST /api/memory/categories", async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { category, content } = body as {
@@ -91,4 +90,4 @@ export const POST = withTrace("memory", "POST /api/memory/categories", async (re
       { status: 500 }
     );
   }
-});
+}

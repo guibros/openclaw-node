@@ -3,7 +3,6 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import path from "path";
 import { WORKSPACE_ROOT } from "@/lib/config";
-import { withTrace } from "@/lib/tracer";
 
 const execFileAsync = promisify(execFile);
 
@@ -16,7 +15,7 @@ const CACHE_TTL = 60_000; // 60 seconds
  * GET /api/skills/list
  * Returns all skills with quality grades. Cached for 60s.
  */
-export const GET = withTrace("skills", "GET /api/skills/list", async () => {
+export async function GET() {
   const now = Date.now();
   if (cache && now - cache.ts < CACHE_TTL) {
     return NextResponse.json(cache.data);
@@ -39,4 +38,4 @@ export const GET = withTrace("skills", "GET /api/skills/list", async () => {
       { status: 500 }
     );
   }
-});
+}

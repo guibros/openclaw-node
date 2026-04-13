@@ -507,8 +507,25 @@ function runMigrations(sqlite: Database.Database) {
   }
 
   // Cleanup: delete observability events older than 24h
-  sqlite.exec(`DELETE FROM observability_events WHERE timestamp < ${Date.now() - 86400000}`);
-  console.log("[db] Observability events cleanup done");
+  // Wrapped in recovery — this is the most likely corruption point (heavy writes + index use)
+  try {
+    sqlite.exec(`DELETE FROM observability_events WHERE timestamp < ${Date.now() - 86400000}`);
+    console.log("[db] Observability events cleanup done");
+  } catch (err: any) {
+    if (err?.code === "SQLITE_CORRUPT_INDEX" || err?.message?.includes("malformed")) {
+      console.warn("[db] Corrupt index detected — running REINDEX...");
+      try {
+        sqlite.exec("REINDEX");
+        console.log("[db] REINDEX complete — retrying cleanup");
+        sqlite.exec(`DELETE FROM observability_events WHERE timestamp < ${Date.now() - 86400000}`);
+        console.log("[db] Observability events cleanup done (after recovery)");
+      } catch (reindexErr) {
+        console.error("[db] REINDEX failed — skipping cleanup:", reindexErr);
+      }
+    } else {
+      console.error("[db] Observability cleanup failed:", err);
+    }
+  }
 
   console.log("[db] Migrations complete");
 }
@@ -521,8 +538,42 @@ export function getDb() {
   _sqlite = new Database(DB_PATH);
   _sqlite.pragma("journal_mode = WAL");
   _sqlite.pragma("foreign_keys = ON");
+  // Checkpoint every 1000 pages (~4MB) to prevent WAL bloat
+  _sqlite.pragma("wal_autocheckpoint = 1000");
 
   console.log(`[db] Opening database: ${DB_PATH}`);
+
+  // Integrity check on startup — catch WAL corruption early
+  try {
+    const walPath = DB_PATH + "-wal";
+    const walSize = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;
+    // Only run full integrity check if WAL is suspiciously large (>100MB)
+    // or quick_check always (very fast, catches most issues)
+    const quickResult = _sqlite.pragma("quick_check") as Array<{ integrity_check: string }>;
+    const quickOk = quickResult?.[0]?.integrity_check === "ok";
+
+    if (!quickOk) {
+      console.warn("[db] quick_check FAILED — attempting REINDEX recovery...");
+      try {
+        _sqlite.exec("REINDEX");
+        console.log("[db] REINDEX complete after quick_check failure");
+      } catch (reindexErr) {
+        console.error("[db] REINDEX failed:", reindexErr);
+      }
+    }
+
+    if (walSize > 100 * 1024 * 1024) {
+      console.warn(`[db] Large WAL detected (${Math.round(walSize / 1024 / 1024)}MB) — forcing checkpoint`);
+      try {
+        _sqlite.pragma("wal_checkpoint(TRUNCATE)");
+        console.log("[db] WAL checkpoint (TRUNCATE) complete on startup");
+      } catch (cpErr) {
+        console.error("[db] Startup WAL checkpoint failed:", cpErr);
+      }
+    }
+  } catch (err) {
+    console.error("[db] Startup integrity check error:", err);
+  }
 
   runMigrations(_sqlite);
 
@@ -550,4 +601,59 @@ export function getDb() {
 export function getRawDb(): Database.Database {
   if (!_sqlite) getDb();
   return _sqlite!;
+}
+
+/**
+ * Run a WAL checkpoint to merge journal into main DB.
+ * Call periodically to prevent WAL bloat.
+ * Returns { walPages, checkpointed, busy } or null on error.
+ */
+export function walCheckpoint(): { walPages: number; checkpointed: number; busy: number } | null {
+  try {
+    const db = getRawDb();
+    const result = db.pragma("wal_checkpoint(PASSIVE)") as Array<{ busy: number; log: number; checkpointed: number }>;
+    const r = result[0];
+    if (r) {
+      console.log(`[db] WAL checkpoint: ${r.log} pages, ${r.checkpointed} checkpointed, ${r.busy} busy`);
+      return { walPages: r.log, checkpointed: r.checkpointed, busy: r.busy };
+    }
+    return null;
+  } catch (err) {
+    console.error("[db] WAL checkpoint failed:", err);
+    return null;
+  }
+}
+
+/**
+ * Health check — tests DB read capability and returns diagnostics.
+ */
+export function dbHealth(): {
+  ok: boolean;
+  error?: string;
+  walSizeBytes?: number;
+  dbSizeBytes?: number;
+  taskCount?: number;
+  obsEventCount?: number;
+} {
+  try {
+    const db = getRawDb();
+    // Test basic read
+    const taskCount = (db.prepare("SELECT COUNT(*) as c FROM tasks").get() as { c: number })?.c ?? 0;
+    const obsCount = (db.prepare("SELECT COUNT(*) as c FROM observability_events").get() as { c: number })?.c ?? 0;
+
+    // Check file sizes
+    let dbSizeBytes = 0;
+    let walSizeBytes = 0;
+    try {
+      dbSizeBytes = fs.statSync(DB_PATH).size;
+      const walPath = DB_PATH + "-wal";
+      if (fs.existsSync(walPath)) {
+        walSizeBytes = fs.statSync(walPath).size;
+      }
+    } catch { /* stat failures are non-fatal */ }
+
+    return { ok: true, taskCount, obsEventCount: obsCount, dbSizeBytes, walSizeBytes };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || String(err) };
+  }
 }

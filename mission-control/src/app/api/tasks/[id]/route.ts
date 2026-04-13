@@ -8,13 +8,6 @@ import { logActivity } from "@/lib/activity";
 import { gatewayNotify } from "@/lib/gateway-notify";
 import { AGENT_NAME, HUMAN_NAME } from "@/lib/config";
 import { getNats, sc } from "@/lib/nats";
-import { withTrace } from "@/lib/tracer";
-
-/** Safely parse a JSON string from a DB field, returning fallback on failure. */
-function safeParse(json: string | null, fallback: unknown = []): unknown {
-  if (!json) return fallback;
-  try { return JSON.parse(json); } catch { return fallback; }
-}
 
 /**
  * Push a notification message to the OpenClaw TUI via gateway chat.send + abort.
@@ -46,10 +39,10 @@ async function cancelMeshTask(taskId: string, execution: string | null, status: 
  * DELETE /api/tasks/[id]
  * Delete a task (and its children) by ID.
  */
-export const DELETE = withTrace("tasks", "DELETE /api/tasks/:id", async (
+export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   try {
     const { id } = await params;
     const db = getDb();
@@ -105,17 +98,17 @@ export const DELETE = withTrace("tasks", "DELETE /api/tasks/:id", async (
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * PATCH /api/tasks/[id]
  * Update a task by ID. Body: partial task fields.
  * Updates in DB, then syncs to markdown.
  */
-export const PATCH = withTrace("tasks", "PATCH /api/tasks/:id", async (
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   try {
     const { id } = await params;
     const db = getDb();
@@ -136,18 +129,6 @@ export const PATCH = withTrace("tasks", "PATCH /api/tasks/:id", async (
 
     const body = await request.json();
     const now = new Date().toISOString();
-
-    // Status validation
-    const VALID_STATUSES = new Set([
-      "not started", "queued", "ready", "submitted", "running",
-      "blocked", "waiting-user", "done", "cancelled", "archived",
-    ]);
-    if (body.status && !VALID_STATUSES.has(body.status)) {
-      return NextResponse.json(
-        { error: `Invalid status: ${body.status}` },
-        { status: 400 }
-      );
-    }
 
     // Transition guard: block execution mode changes on in-flight mesh tasks
     if (body.execution !== undefined && body.execution !== existing.execution) {
@@ -356,8 +337,10 @@ export const PATCH = withTrace("tasks", "PATCH /api/tasks/:id", async (
 
     return NextResponse.json({
       ...updated,
-      successCriteria: safeParse(updated?.successCriteria ?? null),
-      artifacts: safeParse(updated?.artifacts ?? null),
+      successCriteria: updated?.successCriteria
+        ? JSON.parse(updated.successCriteria)
+        : [],
+      artifacts: updated?.artifacts ? JSON.parse(updated.artifacts) : [],
     });
   } catch (err) {
     console.error("PATCH /api/tasks/[id] error:", err);
@@ -366,4 +349,4 @@ export const PATCH = withTrace("tasks", "PATCH /api/tasks/:id", async (
       { status: 500 }
     );
   }
-});
+}

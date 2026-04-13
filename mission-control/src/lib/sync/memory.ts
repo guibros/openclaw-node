@@ -6,7 +6,6 @@ import { MEMORY_DIR, MEMORY_MD, CLAWVAULT_INDEX, LORE_DIRS } from "@/lib/config"
 import { parseDailyLog, listDailyLogs } from "@/lib/parsers/daily-log";
 import { parseVaultDocument, listVaultDocuments } from "@/lib/parsers/clawvault-doc";
 import { parseMemoryMd } from "@/lib/parsers/memory-md";
-import { traceCall } from "@/lib/tracer";
 
 type DrizzleDb = ReturnType<typeof import("@/lib/db")["getDb"]>;
 
@@ -22,7 +21,6 @@ interface SyncStats {
  * Removes rows for files that no longer exist on disk.
  */
 export function indexAllMemory(db: DrizzleDb): SyncStats {
-  const _start = Date.now();
   const stats: SyncStats = { indexed: 0, updated: 0, removed: 0 };
   const seenPaths = new Set<string>();
 
@@ -150,7 +148,6 @@ export function indexAllMemory(db: DrizzleDb): SyncStats {
     }
   }
 
-  traceCall("sync/memory", "indexAllMemory", _start, `i:${stats.indexed} u:${stats.updated} r:${stats.removed}`);
   return stats;
 }
 

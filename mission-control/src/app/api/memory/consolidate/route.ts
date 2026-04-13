@@ -12,7 +12,6 @@ import { NextResponse } from "next/server";
 import { getRawDb, getDb } from "@/lib/db";
 import { memoryItems, memoryAudit } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { withTrace } from "@/lib/tracer";
 
 function tokenJaccard(a: string, b: string): number {
   const tokensA = new Set(a.toLowerCase().split(/\s+/).filter(t => t.length > 2));
@@ -26,7 +25,7 @@ function tokenJaccard(a: string, b: string): number {
   return union === 0 ? 0 : intersection / union;
 }
 
-export const POST = withTrace("memory", "POST /api/memory/consolidate", async () => {
+export async function POST() {
   const raw = getRawDb();
   const db = getDb();
 
@@ -105,4 +104,4 @@ export const POST = withTrace("memory", "POST /api/memory/consolidate", async ()
     totalActive: activeFacts.length - merged,
     pairs: mergedPairs.slice(0, 20), // cap for response size
   });
-});
+}

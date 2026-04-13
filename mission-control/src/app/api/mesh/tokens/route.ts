@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRawDb } from "@/lib/db";
-import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +7,7 @@ export const dynamic = "force-dynamic";
  * GET /api/mesh/tokens?period=today|week|month
  * Returns token usage summary with breakdowns by model and node.
  */
-export const GET = withTrace("mesh", "GET /api/mesh/tokens", async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
   const period = req.nextUrl.searchParams.get("period") || "today";
   const raw = getRawDb();
 
@@ -104,13 +103,13 @@ export const GET = withTrace("mesh", "GET /api/mesh/tokens", async (req: NextReq
       recent: [],
     });
   }
-});
+}
 
 /**
  * POST /api/mesh/tokens — record a token usage entry
  * Body: { task_id, node_id, model, input_tokens, output_tokens, cost_usd }
  */
-export const POST = withTrace("mesh", "POST /api/mesh/tokens", async (req: NextRequest) => {
+export async function POST(req: NextRequest) {
   const body = await req.json();
   const raw = getRawDb();
 
@@ -131,4 +130,4 @@ export const POST = withTrace("mesh", "POST /api/mesh/tokens", async (req: NextR
     .run(task_id || null, node_id || null, model, input_tokens, output_tokens, cost_usd);
 
   return NextResponse.json({ ok: true });
-});
+}

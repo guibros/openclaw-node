@@ -10,12 +10,10 @@
  */
 
 import fs from "fs";
-import os from "os";
 import path from "path";
 import { getActiveItems } from "./extract";
-import { traceCall } from "../tracer";
 
-const WORKSPACE = process.env.WORKSPACE_ROOT || path.join(os.homedir(), ".openclaw", "workspace");
+const WORKSPACE = process.env.WORKSPACE_ROOT || "/Users/moltymac/.openclaw/workspace";
 const CATEGORIES_DIR = path.join(WORKSPACE, "memory", "categories");
 
 export const VALID_CATEGORIES = [
@@ -59,7 +57,6 @@ export function readCategorySummary(category: string): string | null {
  * This is called by Daedalus after generating the summary inline.
  */
 export function writeCategorySummary(category: string, content: string) {
-  const _start = Date.now();
   ensureCategoriesDir();
   const filePath = getCategoryPath(category);
 
@@ -74,7 +71,6 @@ export function writeCategorySummary(category: string, content: string) {
   }
 
   fs.writeFileSync(filePath, content, "utf-8");
-  traceCall("memory/categories", "writeCategorySummary", _start, category);
 }
 
 /**
@@ -101,9 +97,8 @@ export function getCategoryOverview(): Array<{
   hasSummary: boolean;
   summaryAge: number | null;
 }> {
-  const _start = Date.now();
   ensureCategoriesDir();
-  const result = VALID_CATEGORIES.map((cat) => {
+  return VALID_CATEGORIES.map((cat) => {
     const items = getActiveItems(cat);
     const filePath = getCategoryPath(cat);
     const hasSummary = fs.existsSync(filePath);
@@ -121,8 +116,6 @@ export function getCategoryOverview(): Array<{
       summaryAge,
     };
   });
-  traceCall("memory/categories", "getCategoryOverview", _start, `${result.length} categories`);
-  return result;
 }
 
 function daysOld(dateStr: string): number {

@@ -20,8 +20,6 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { createTracer } = require('../lib/tracer');
-const tracer = createTracer('lane-watchdog');
 
 // --- Configuration ---
 const GATEWAY_LOG = process.env.GATEWAY_LOG
@@ -202,10 +200,6 @@ function tailLog(filePath, label) {
 
   return watcher;
 }
-
-// ── Tracer wrapping ──────────────────────────────────
-sendSigusr1 = tracer.wrap('sendSigusr1', sendSigusr1, { tier: 1, category: 'state_transition' });
-checkForDeadlock = tracer.wrap('checkForDeadlock', checkForDeadlock, { tier: 2 });
 
 // --- Main ---
 function main() {

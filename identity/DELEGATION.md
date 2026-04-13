@@ -48,12 +48,12 @@ Subjective outputs (lore, design) require a verification proxy: word count, form
 
 Check `bin/trust-registry` before delegating to a specialist soul.
 
-| Tier | Min Tasks | Trust >= | Autonomy | Capability |
+| Tier | Min Tasks | Trust >= | Autonomy | Model |
 |---|---|---|---|---|
-| new | 0 | — | atomic (strict I/O) | fast |
-| developing | 3 | 0.50 | guided (can decompose, must report steps) | standard |
-| proven | 10 | 0.65 | open-ended (pursue sub-goals, report at end) | standard |
-| expert | 25 | 0.80 | full (can sub-delegate, minimal oversight) | reasoning |
+| new | 0 | — | atomic (strict I/O) | sonnet |
+| developing | 3 | 0.50 | guided (can decompose, must report steps) | sonnet |
+| proven | 10 | 0.65 | open-ended (pursue sub-goals, report at end) | sonnet |
+| expert | 25 | 0.80 | full (can sub-delegate, minimal oversight) | opus |
 
 After every delegation: `bin/trust-registry update <soul-id> --result success|failure --turns N --verified true|false --task "description"`
 
@@ -64,10 +64,25 @@ Any sub-agent producing code/file changes:
 1. **Spec compliance** — output matches contract? Deliverable format, file locations, scope. Reject immediately if wrong.
 2. **Code quality** — correct, safe, minimal? Security, complexity, scope creep, broken patterns. Only if stage 1 passes.
 
+**Stage 1 blocks Stage 2.** Don't waste time reviewing quality of wrong code.
+
 Apply by task size:
 - Simple (<20 lines): mental check both inline
 - Substantial (multi-file): explicitly verify stage 1 first
 - Expert-tier: stage 1 only, trust their quality
+- High-criticality (contracts, auth): `bin/multi-review` → 3 parallel reviewers
+
+See `skills/code-review/SKILL.md` for full protocol.
+
+## Subagent Isolation Pattern
+
+**Fresh context per task.** Each subagent receives:
+- **Task text** — complete (not file references). Include all code, specs, verification steps.
+- **Scene-setting context** — what's this task for? Where does it fit?
+- **Constraints** — what NOT to change, what's out of scope
+- **No session history** — fresh context prevents distraction
+
+**Why:** Subagents with full session history get confused by earlier work, consume controller context, and make worse decisions. Isolation = focus.
 
 ## Task Granularity
 
@@ -81,7 +96,7 @@ Every delegated task: completable in **2-5 minutes**.
 On sub-agent failure:
 1. Retry once with enriched context (add the error + background)
 2. Re-delegate to different soul if capability mismatch
-3. Escalate capability tier (standard → reasoning)
+3. Escalate model (sonnet → opus)
 4. Escalate to Gui if 1-3 fail or task is high-criticality
 
 Never retry same prompt unchanged. Each retry must add information.
@@ -288,6 +303,95 @@ Standardized templates for context transfer between souls. Every handoff uses on
 - **Relevant logs:** [paths or snippets]
 - **Suspected cause:** [hypothesis if any]
 - **Files touched:** [recent changes that might be related]
+```
+
+## Plan Decomposition Protocol
+
+When a task is too complex for a single agent (>5min, multi-file, multi-domain), decompose it into a **plan** with routed subtasks.
+
+### Plan Lifecycle
+
+```
+Task arrives → Planner decomposes → Plan (draft)
+  → Gui approves (or auto-approve) → Plan (approved)
+  → Subtasks materialized → Wave-based dispatch
+  → All subtasks complete → Parent task waiting-user
+```
+
+### Creating a Plan
+
+Plans are created via NATS RPC (`mesh.plans.create`) or by Daedalus directly. Each plan decomposes a parent task into subtasks with:
+
+- **Delegation routing** — how each subtask is executed (see decision tree below)
+- **Dependencies** — which subtasks must complete before others can start
+- **Execution contracts** — budget, metric, scope, success criteria per subtask
+- **Wave assignments** — computed from dependency DAG (same algorithm as `computeWaves`)
+
+### Delegation Decision Tree
+
+For each subtask, the planner routes it:
+
+```
+1. Is it < 2 min of work?
+   YES → mode: local (Daedalus does inline)
+
+2. Does it require human judgment?
+   YES → mode: human (Gui)
+
+3. Does it match a specialist soul domain?
+   YES → mode: soul, soul_id = <soul> (see Soul Routing Guide below)
+
+4. Is it high-criticality? (contracts/, auth/, security keywords)
+   YES → mode: collab_mesh (N-node review mode, unanimous convergence)
+
+5. Does it have broad scope? (>3 file paths)
+   YES → mode: collab_mesh (parallel mode, partitioned scope)
+
+6. Is it mechanically verifiable? (has metric)
+   YES → mode: solo_mesh (single mesh agent)
+
+7. Default → mode: local (safest fallback)
+```
+
+### Delegation Modes
+
+| Mode | Where it runs | Who does it |
+|------|--------------|-------------|
+| `solo_mesh` | NATS mesh agent | Any idle mesh-agent node |
+| `collab_mesh` | NATS N-node session | Multiple mesh-agent nodes (parallel/sequential/review) |
+| `local` | This Claude session | Daedalus (inline or sub-agent) |
+| `soul` | This Claude session | Soul-specific sub-agent via `bin/soul-prompt` |
+| `human` | Kanban (blocked) | Gui provides input |
+
+### Wave-Based Execution
+
+Subtasks are dispatched in waves based on their dependency graph:
+- **Wave 0** — all independent subtasks (no dependencies)
+- **Wave 1** — depends on at least one Wave 0 subtask
+- **Wave N** — depends on at least one Wave N-1 subtask
+
+When all subtasks in a wave complete, the next wave dispatches automatically.
+
+### NATS Subjects (Plans)
+
+```
+mesh.plans.create           → create plan from decomposition
+mesh.plans.get              → get plan by ID
+mesh.plans.list             → list plans (filter by status)
+mesh.plans.approve          → approve plan (triggers materialization)
+mesh.plans.abort            → abort plan
+mesh.plans.subtask.update   → update subtask status
+```
+
+### Plan Events (PubSub)
+
+```
+mesh.events.plan.created
+mesh.events.plan.approved
+mesh.events.plan.wave_started
+mesh.events.plan.subtask_completed
+mesh.events.plan.completed
+mesh.events.plan.aborted
 ```
 
 ### Soul Routing Guide

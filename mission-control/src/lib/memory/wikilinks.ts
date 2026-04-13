@@ -3,8 +3,6 @@
  * Pure functions — no DB dependency.
  */
 
-import { traceCall } from "../tracer";
-
 /** Extract all [[wikilink]] targets from markdown content, ignoring code blocks. */
 export function extractWikilinks(content: string): string[] {
   const cleaned = stripCode(content);
@@ -63,7 +61,6 @@ export interface ResolutionMaps {
 export function buildResolutionMaps(
   docs: Array<{ filePath: string; title: string | null }>
 ): ResolutionMaps {
-  const _start = Date.now();
   const byPath = new Map<string, string>();
   const byBasename = new Map<string, string>();
   const byTitle = new Map<string, string>();
@@ -91,7 +88,6 @@ export function buildResolutionMaps(
     }
   }
 
-  traceCall("memory/wikilinks", "buildResolutionMaps", _start, `${docs.length} docs`);
   return { byPath, byBasename, byTitle };
 }
 
@@ -121,7 +117,6 @@ export function extractAllReferences(
   maps: ResolutionMaps,
   selfPath: string
 ): string[] {
-  const _start = Date.now();
   const resolved = new Set<string>();
 
   // 1. Explicit [[wikilinks]]
@@ -148,7 +143,5 @@ export function extractAllReferences(
     }
   }
 
-  const result = [...resolved];
-  traceCall("memory/wikilinks", "extractAllReferences", _start, `${result.length} refs`);
-  return result;
+  return [...resolved];
 }

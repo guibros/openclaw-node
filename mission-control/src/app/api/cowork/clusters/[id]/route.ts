@@ -2,17 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { clusters, clusterMembers } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/cowork/clusters/[id]
  */
-export const GET = withTrace("cowork", "GET /api/cowork/clusters/[id]", async (
+export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   const { id } = await params;
   const db = getDb();
 
@@ -28,17 +27,17 @@ export const GET = withTrace("cowork", "GET /api/cowork/clusters/[id]", async (
     .all();
 
   return NextResponse.json({ ...cluster, members });
-});
+}
 
 /**
  * PATCH /api/cowork/clusters/[id]
  *
  * Partial update — only touches fields present in request body.
  */
-export const PATCH = withTrace("cowork", "PATCH /api/cowork/clusters/[id]", async (
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   const { id } = await params;
   const body = await request.json();
   const db = getDb();
@@ -62,17 +61,17 @@ export const PATCH = withTrace("cowork", "PATCH /api/cowork/clusters/[id]", asyn
   db.update(clusters).set(updates).where(eq(clusters.id, id)).run();
 
   return NextResponse.json({ ok: true });
-});
+}
 
 /**
  * DELETE /api/cowork/clusters/[id]
  *
  * Soft-delete: sets status to "archived".
  */
-export const DELETE = withTrace("cowork", "DELETE /api/cowork/clusters/[id]", async (
+export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   const { id } = await params;
   const db = getDb();
 
@@ -82,4 +81,4 @@ export const DELETE = withTrace("cowork", "DELETE /api/cowork/clusters/[id]", as
     .run();
 
   return NextResponse.json({ ok: true });
-});
+}

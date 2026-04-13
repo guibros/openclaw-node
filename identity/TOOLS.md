@@ -33,10 +33,10 @@ Things like:
 
 ### ClawVault
 
-- clawvault binary: `$OPENCLAW_WORKSPACE/.npm-global/bin/clawvault` (or system PATH)
-- wrapper (preferred): `$OPENCLAW_WORKSPACE/bin/clawvault-local`
-- default vault: `$OPENCLAW_WORKSPACE/memory-vault`
-- qmd binary: In PATH (installed via npm/bun)
+- clawvault binary: `/Users/moltymac/.openclaw/workspace/.npm-global/bin/clawvault`
+- wrapper (preferred): `/Users/moltymac/.openclaw/workspace/bin/clawvault-local`
+- default vault: `/Users/moltymac/.openclaw/workspace/memory-vault`
+- qmd binary: `/Users/moltymac/.bun/bin/qmd`
 
 ## Why Separate?
 

@@ -1,0 +1,301 @@
+#!/usr/bin/env python3
+"""
+Migrate SKILL.md frontmatter to Agent Skills spec compliance.
+
+Moves non-spec fields under metadata.openclaw namespace.
+Generates compatibility field from os/requires/config.
+
+Spec-allowed top-level fields: name, description, license, compatibility, metadata, allowed-tools
+Everything else → metadata.openclaw.*
+
+Usage:
+    bin/migrate-skill-frontmatter                    # Dry run (default)
+    bin/migrate-skill-frontmatter --apply            # Apply changes
+    bin/migrate-skill-frontmatter --skill <name>     # Single skill
+    bin/migrate-skill-frontmatter --apply --skill <name>
+"""
+
+from __future__ import annotations
+
+import sys
+import os
+import re
+import json
+import argparse
+from pathlib import Path
+from typing import Any
+
+# Try to use PyYAML, fall back to basic parser
+try:
+    import yaml
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
+
+# ─── Constants ────────────────────────────────────────────────────────────────
+
+DEFAULT_SKILLS_DIR = Path.home() / ".openclaw" / "workspace" / "skills"
+
+# Fields allowed at top level per Agent Skills spec
+SPEC_FIELDS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
+
+# Fields to move under metadata.openclaw
+MIGRATE_FIELDS = {
+    "triggers", "negative_triggers", "displayName", "emoji", "summary",
+    "primaryEnv", "os", "requires", "install", "config", "version", "homepage",
+}
+
+# ANSI
+class C:
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    CYAN = "\033[96m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+
+
+# ─── YAML Helpers ─────────────────────────────────────────────────────────────
+
+def parse_frontmatter(text: str) -> tuple[dict, str]:
+    """Parse YAML frontmatter from SKILL.md. Returns (frontmatter_dict, body)."""
+    if not text.startswith("---"):
+        return {}, text
+
+    # Find closing ---
+    end = text.find("\n---", 3)
+    if end == -1:
+        return {}, text
+
+    yaml_str = text[4:end]  # skip opening ---\n
+    body = text[end + 4:]   # skip closing ---\n
+
+    if HAS_YAML:
+        try:
+            fm = yaml.safe_load(yaml_str)
+            if not isinstance(fm, dict):
+                fm = {}
+        except yaml.YAMLError:
+            fm = {}
+    else:
+        # Minimal fallback — won't handle nested structures well
+        fm = {}
+        for line in yaml_str.split("\n"):
+            if ":" in line and not line.startswith(" "):
+                key, _, val = line.partition(":")
+                fm[key.strip()] = val.strip().strip('"').strip("'")
+
+    return fm, body
+
+
+def serialize_frontmatter(fm: dict) -> str:
+    """Serialize dict to YAML frontmatter string."""
+    if HAS_YAML:
+        # Custom representer to handle multiline strings nicely
+        class CustomDumper(yaml.SafeDumper):
+            pass
+
+        def str_representer(dumper, data):
+            if "\n" in data:
+                return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+            if len(data) > 80 or any(c in data for c in "{}[],&*#?|-<>=!%@\\"):
+                return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+        CustomDumper.add_representer(str, str_representer)
+
+        # Control key order: spec fields first, then metadata
+        ordered = {}
+        for key in ["name", "description", "license", "compatibility", "allowed-tools", "metadata"]:
+            if key in fm:
+                ordered[key] = fm[key]
+        for key in fm:
+            if key not in ordered:
+                ordered[key] = fm[key]
+
+        return yaml.dump(ordered, Dumper=CustomDumper, default_flow_style=False,
+                         allow_unicode=True, sort_keys=False, width=120)
+    else:
+        # Fallback: JSON-ish
+        lines = []
+        for k, v in fm.items():
+            if isinstance(v, str):
+                lines.append(f'{k}: "{v}"')
+            elif isinstance(v, list):
+                lines.append(f"{k}:")
+                for item in v:
+                    lines.append(f"  - {json.dumps(item) if isinstance(item, dict) else item}")
+            elif isinstance(v, dict):
+                lines.append(f"{k}: {json.dumps(v)}")
+            else:
+                lines.append(f"{k}: {v}")
+        return "\n".join(lines) + "\n"
+
+
+# ─── Migration Logic ─────────────────────────────────────────────────────────
+
+def generate_compatibility(fm: dict) -> str:
+    """Generate compatibility string from os/requires/config fields."""
+    parts = []
+
+    # OS
+    os_list = fm.get("os", [])
+    if isinstance(os_list, list) and os_list:
+        os_map = {"darwin": "macOS", "linux": "Linux", "windows": "Windows"}
+        os_names = [os_map.get(o, o) for o in os_list]
+        parts.append(f"{'/'.join(os_names)} only")
+
+    # Required binaries
+    requires = fm.get("requires", {})
+    if isinstance(requires, dict):
+        bins = requires.get("bins", [])
+        if isinstance(bins, list) and bins:
+            parts.append(f"Requires: {', '.join(bins)}")
+        pip = requires.get("pip", [])
+        if isinstance(pip, list) and pip:
+            parts.append(f"pip: {', '.join(pip)}")
+
+    # Required env vars
+    config = fm.get("config", {})
+    if isinstance(config, dict):
+        env_vars = config.get("requiredEnv", [])
+        if isinstance(env_vars, list) and env_vars:
+            parts.append(f"Env: {', '.join(env_vars)}")
+
+    return ". ".join(parts) if parts else ""
+
+
+def migrate_skill(skill_path: Path, apply: bool = False) -> dict:
+    """Migrate a single skill's frontmatter. Returns migration report."""
+    skill_md = skill_path / "SKILL.md"
+    dir_name = skill_path.name
+
+    if not skill_md.exists():
+        return {"name": dir_name, "status": "skip", "reason": "no SKILL.md"}
+
+    raw = skill_md.read_text()
+    fm, body = parse_frontmatter(raw)
+
+    if not fm:
+        return {"name": dir_name, "status": "skip", "reason": "empty frontmatter"}
+
+    # Find fields that need migration
+    fields_to_move = {k: v for k, v in fm.items() if k in MIGRATE_FIELDS}
+
+    if not fields_to_move:
+        return {"name": dir_name, "status": "skip", "reason": "already compliant"}
+
+    # Build new frontmatter
+    new_fm = {}
+
+    # Copy spec fields
+    for key in ["name", "description", "license", "compatibility", "allowed-tools"]:
+        if key in fm:
+            new_fm[key] = fm[key]
+
+    # Generate compatibility if not already set
+    if "compatibility" not in new_fm:
+        compat = generate_compatibility(fm)
+        if compat:
+            new_fm["compatibility"] = compat
+
+    # Build metadata.openclaw (merge with existing)
+    existing_metadata = fm.get("metadata", {})
+    if not isinstance(existing_metadata, dict):
+        existing_metadata = {}
+
+    existing_openclaw = existing_metadata.get("openclaw", {})
+    if not isinstance(existing_openclaw, dict):
+        existing_openclaw = {}
+
+    # Merge migrated fields into openclaw namespace
+    for k, v in fields_to_move.items():
+        if k not in existing_openclaw:  # don't overwrite existing openclaw fields
+            existing_openclaw[k] = v
+
+    # Reconstruct metadata
+    new_metadata = {}
+    # Preserve non-openclaw metadata (e.g., clawdbot)
+    for mk, mv in existing_metadata.items():
+        if mk != "openclaw":
+            new_metadata[mk] = mv
+    new_metadata["openclaw"] = existing_openclaw
+
+    new_fm["metadata"] = new_metadata
+
+    # Copy any unknown fields (future-proof)
+    for key in fm:
+        if key not in SPEC_FIELDS and key not in MIGRATE_FIELDS:
+            new_fm[key] = fm[key]
+
+    # Serialize
+    yaml_str = serialize_frontmatter(new_fm)
+    new_content = f"---\n{yaml_str}---{body}"
+
+    if apply:
+        skill_md.write_text(new_content)
+
+    return {
+        "name": dir_name,
+        "status": "migrated" if apply else "would_migrate",
+        "fields_moved": list(fields_to_move.keys()),
+        "compatibility_generated": "compatibility" not in fm and generate_compatibility(fm) != "",
+    }
+
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description="Migrate SKILL.md to Agent Skills spec")
+    parser.add_argument("--apply", action="store_true", help="Apply changes (default: dry run)")
+    parser.add_argument("--skill", help="Migrate a single skill by name")
+    parser.add_argument("--skills-dir", default=str(DEFAULT_SKILLS_DIR), help="Skills directory")
+    args = parser.parse_args()
+
+    skills_dir = Path(args.skills_dir)
+    if not skills_dir.exists():
+        print(f"Error: {skills_dir} not found", file=sys.stderr)
+        sys.exit(1)
+
+    if not HAS_YAML:
+        print(f"{C.YELLOW}Warning: PyYAML not installed. Using basic parser (less reliable).{C.RESET}")
+        print(f"Install with: pip3 install pyyaml\n")
+
+    # Collect skills
+    if args.skill:
+        dirs = [skills_dir / args.skill]
+        if not dirs[0].exists():
+            print(f"Error: skill not found: {args.skill}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        dirs = sorted([d for d in skills_dir.iterdir() if d.is_dir()])
+
+    mode = "APPLY" if args.apply else "DRY RUN"
+    print(f"\n{C.BOLD}Skill Frontmatter Migration{C.RESET}  [{mode}]\n")
+
+    migrated = 0
+    skipped = 0
+    results = []
+
+    for d in dirs:
+        result = migrate_skill(d, apply=args.apply)
+        results.append(result)
+
+        if result["status"] in ("migrated", "would_migrate"):
+            migrated += 1
+            fields = ", ".join(result["fields_moved"])
+            compat = " +compatibility" if result.get("compatibility_generated") else ""
+            status_label = f"{C.GREEN}migrated{C.RESET}" if args.apply else f"{C.CYAN}would migrate{C.RESET}"
+            print(f"  {status_label}  {result['name']:<35}  [{fields}{compat}]")
+        else:
+            skipped += 1
+
+    print(f"\n{C.BOLD}Summary:{C.RESET} {migrated} to migrate, {skipped} already compliant / skipped")
+
+    if not args.apply and migrated > 0:
+        print(f"\n{C.YELLOW}Dry run complete. Run with --apply to write changes.{C.RESET}\n")
+
+
+if __name__ == "__main__":
+    main()

@@ -26,15 +26,9 @@
  *   bridge?.close();
  */
 
-import { createRequire } from 'module';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-
-// --- Tracer ---
-const require = createRequire(import.meta.url);
-const { createTracer } = require('../lib/tracer');
-const tracer = createTracer('mesh-bridge');
 
 // ── NATS connection URL from environment (set by agent service) ──
 const NATS_URL = process.env.OPENCLAW_NATS || '';
@@ -48,10 +42,7 @@ const EVENTS_LOG = path.join(WORKSPACE, 'memory', 'mesh-events.jsonl');
  */
 export async function createMeshBridge() {
   // No NATS URL = mesh not configured, return null (standalone mode)
-  if (!NATS_URL) {
-    console.log('[mesh-bridge] NATS not configured — bridge disabled');
-    return null;
-  }
+  if (!NATS_URL) return null;
 
   try {
     // Dynamic import — nats package lives in ~/openclaw/node_modules
@@ -60,12 +51,11 @@ export async function createMeshBridge() {
     let natsModule;
     try {
       natsModule = await import('nats');
-    } catch (err) {
-      console.warn(`[mesh-bridge] nats import failed, trying fallback: ${err.message}`);
+    } catch {
       try {
         natsModule = await import(natsPath);
-      } catch (err2) {
-        console.warn(`[mesh-bridge] nats fallback import failed: ${err2.message}`);
+      } catch {
+        // NATS npm package not installed — mesh not available
         return null;
       }
     }
@@ -75,8 +65,7 @@ export async function createMeshBridge() {
 
     // Connect with a short timeout — don't block the daemon
     const nc = await connect({ servers: NATS_URL, timeout: 5000 });
-    console.log(`[mesh-bridge] Connected to ${NATS_URL}`);
-
+    
     // ── Event log file (append-only JSONL for mesh event history) ──
     const logDir = path.dirname(EVENTS_LOG);
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
@@ -97,8 +86,8 @@ export async function createMeshBridge() {
             subject: msg.subject,
           }) + '\n';
           fs.appendFileSync(EVENTS_LOG, line);
-        } catch (err) {
-          console.warn(`[mesh-bridge] malformed event on ${msg.subject}: ${err.message}`);
+        } catch {
+          // Malformed event — skip
         }
       }
     })();
@@ -125,9 +114,8 @@ export async function createMeshBridge() {
             `openclaw.memory.${NODE_ID}.${eventType}`,
             sc.encode(JSON.stringify(event))
           );
-          console.log(`[mesh-bridge] Publish: openclaw.memory.${NODE_ID}.${eventType}`);
-        } catch (err) {
-          console.warn(`[mesh-bridge] publish failed for ${eventType}: ${err.message}`);
+        } catch {
+          // NATS disconnected — swallow, don't crash the daemon
         }
       },
 
@@ -141,10 +129,9 @@ export async function createMeshBridge() {
           if (!fs.existsSync(EVENTS_LOG)) return [];
           const lines = fs.readFileSync(EVENTS_LOG, 'utf8').trim().split('\n');
           return lines.slice(-n).map(l => {
-            try { return JSON.parse(l); } catch (err) { console.warn(`[mesh-bridge] event line parse failed: ${err.message}`); return null; }
+            try { return JSON.parse(l); } catch { return null; }
           }).filter(Boolean);
-        } catch (err) {
-          console.warn(`[mesh-bridge] events log read failed: ${err.message}`);
+        } catch {
           return [];
         }
       },
@@ -155,13 +142,13 @@ export async function createMeshBridge() {
       async close() {
         try {
           await nc.drain();
-        } catch (err) {
-          console.warn(`[mesh-bridge] drain failed (already closed): ${err.message}`);
+        } catch {
+          // Already closed
         }
       },
     };
-  } catch (err) {
-    console.warn(`[mesh-bridge] NATS connection failed, standalone mode: ${err.message}`);
+  } catch {
+    // NATS connection failed — mesh not available, standalone mode
     return null;
   }
 }

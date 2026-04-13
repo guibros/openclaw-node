@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { validatePathParam } from "@/lib/config";
 import { soulEvolutionLog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { withTrace } from "@/lib/tracer";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -16,25 +14,14 @@ interface PropagateRequest {
 }
 
 // POST /api/souls/:id/propagate — Propagate an approved gene to another soul
-export const POST = withTrace("souls", "POST /api/souls/:id/propagate", async (
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   try {
-    let sourceSoulId: string;
-    try {
-      sourceSoulId = validatePathParam((await params).id);
-    } catch {
-      return NextResponse.json({ error: "Invalid source soul ID" }, { status: 400 });
-    }
+    const { id: sourceSoulId } = await params;
     const body: PropagateRequest = await request.json();
-    let targetSoulId: string;
-    try {
-      targetSoulId = validatePathParam(body.targetSoulId);
-    } catch {
-      return NextResponse.json({ error: "Invalid target soul ID" }, { status: 400 });
-    }
-    const { sourceEventId } = body;
+    const { sourceEventId, targetSoulId } = body;
 
     // Validate target soul exists
     const targetSoulDir = path.join(SOULS_DIR, targetSoulId);
@@ -76,17 +63,10 @@ export const POST = withTrace("souls", "POST /api/souls/:id/propagate", async (
       const lines = content.trim().split("\n").filter(Boolean);
       const events: EvolutionEventEntry[] = lines.map((line) => JSON.parse(line));
       sourceEvent = events.find((e) => e.eventId === sourceEventId) ?? null;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return NextResponse.json(
-          { error: "Source events file not found" },
-          { status: 404 }
-        );
-      }
-      console.error("Failed to parse source events.jsonl:", error);
+    } catch {
       return NextResponse.json(
-        { error: "Failed to parse source events file (malformed JSONL)" },
-        { status: 500 }
+        { error: "Source events file not found" },
+        { status: 404 }
       );
     }
 
@@ -163,4 +143,4 @@ export const POST = withTrace("souls", "POST /api/souls/:id/propagate", async (
       { status: 500 }
     );
   }
-});
+}

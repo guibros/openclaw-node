@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCollabKv, sc } from "@/lib/nats";
-import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +10,7 @@ export const dynamic = "force-dynamic";
  * Optional ?status= filter (e.g., "active", "recruiting", "completed").
  * Returns { sessions[], natsAvailable }.
  */
-export const GET = withTrace("cowork", "GET /api/cowork/sessions", async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   const kv = await getCollabKv();
   if (!kv) {
     return NextResponse.json({ sessions: [], natsAvailable: false });
@@ -62,4 +61,4 @@ export const GET = withTrace("cowork", "GET /api/cowork/sessions", async (reques
   });
 
   return NextResponse.json({ sessions, natsAvailable: true });
-});
+}

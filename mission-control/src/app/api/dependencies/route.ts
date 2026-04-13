@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb, getRawDb } from "@/lib/db";
 import { dependencies } from "@/lib/db/schema";
-import { withTrace } from "@/lib/tracer";
 
 /**
  * GET /api/dependencies?taskId=X
  * Get all dependencies where taskId is source or target.
  * Also accepts ?projectId=X to get all deps within a project tree.
  */
-export const GET = withTrace("dependencies", "GET /api/dependencies", async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const taskId = searchParams.get("taskId");
@@ -79,14 +78,14 @@ export const GET = withTrace("dependencies", "GET /api/dependencies", async (req
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * POST /api/dependencies
  * Create a dependency. Body: { sourceId, targetId, type? }
  * Includes cycle detection via recursive CTE.
  */
-export const POST = withTrace("dependencies", "POST /api/dependencies", async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
   try {
     const db = getDb();
     const raw = getRawDb();
@@ -143,13 +142,13 @@ export const POST = withTrace("dependencies", "POST /api/dependencies", async (r
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * DELETE /api/dependencies?id=X
  * Remove a dependency by ID.
  */
-export const DELETE = withTrace("dependencies", "DELETE /api/dependencies", async (request: NextRequest) => {
+export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const idStr = searchParams.get("id");
@@ -174,4 +173,4 @@ export const DELETE = withTrace("dependencies", "DELETE /api/dependencies", asyn
       { status: 500 }
     );
   }
-});
+}

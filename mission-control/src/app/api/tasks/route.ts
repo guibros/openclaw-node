@@ -10,14 +10,7 @@ import { schedulerTick } from "@/lib/scheduler";
 import { generateTaskId } from "@/lib/task-id";
 import { getNats, sc } from "@/lib/nats";
 import { WORKSPACE_ROOT, AGENT_NAME } from "@/lib/config";
-import { withTrace } from "@/lib/tracer";
 import path from "path";
-
-/** Safely parse a JSON string from a DB field, returning fallback on failure. */
-function safeParse(json: string | null, fallback: unknown = []): unknown {
-  if (!json) return fallback;
-  try { return JSON.parse(json); } catch { return fallback; }
-}
 
 /**
  * Parse .companion-state.md to extract current active task.
@@ -58,7 +51,7 @@ function readCompanionState(): { title: string; nextAction: string } | null {
  * Also injects a live "current session" task from .companion-state.md.
  * Optional query params: ?status=X&column=X
  */
-export const GET = withTrace("tasks", "GET /api/tasks", async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
     const db = getDb();
 
@@ -128,11 +121,11 @@ export const GET = withTrace("tasks", "GET /api/tasks", async (request: NextRequ
         .all();
     }
 
-    // Parse JSON fields for the response (per-row guard against corrupt data)
+    // Parse JSON fields for the response
     const result = rows.map((t) => ({
       ...t,
-      successCriteria: safeParse(t.successCriteria),
-      artifacts: safeParse(t.artifacts),
+      successCriteria: t.successCriteria ? JSON.parse(t.successCriteria) : [],
+      artifacts: t.artifacts ? JSON.parse(t.artifacts) : [],
     }));
 
     return NextResponse.json(result);
@@ -143,14 +136,14 @@ export const GET = withTrace("tasks", "GET /api/tasks", async (request: NextRequ
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * POST /api/tasks
  * Create a new task. Body: { title, status?, owner?, success_criteria?, artifacts?, next_action? }
  * Auto-generates task_id as T-YYYYMMDD-NNN, writes to DB, then syncs to markdown.
  */
-export const POST = withTrace("tasks", "POST /api/tasks", async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
   try {
     const db = getDb();
     const body = await request.json();
@@ -160,60 +153,6 @@ export const POST = withTrace("tasks", "POST /api/tasks", async (request: NextRe
         { error: "title is required and must be a string" },
         { status: 400 }
       );
-    }
-
-    if (body.title.length > 500) {
-      return NextResponse.json(
-        { error: "title must be 500 characters or fewer" },
-        { status: 400 }
-      );
-    }
-
-    if (body.success_criteria !== undefined) {
-      if (!Array.isArray(body.success_criteria)) {
-        if (typeof body.success_criteria === "string") {
-          try {
-            const parsed = JSON.parse(body.success_criteria);
-            if (!Array.isArray(parsed)) {
-              return NextResponse.json(
-                { error: "success_criteria must be a JSON array" },
-                { status: 400 }
-              );
-            }
-          } catch {
-            return NextResponse.json(
-              { error: "success_criteria must be a valid JSON array string" },
-              { status: 400 }
-            );
-          }
-        } else {
-          return NextResponse.json(
-            { error: "success_criteria must be an array or JSON array string" },
-            { status: 400 }
-          );
-        }
-      }
-    }
-
-    const VALID_STATUSES = [
-      "not started", "queued", "ready", "submitted", "running",
-      "blocked", "waiting-user", "done", "cancelled", "archived",
-    ];
-    if (body.status && !VALID_STATUSES.includes(body.status)) {
-      return NextResponse.json(
-        { error: `status must be one of: ${VALID_STATUSES.join(", ")}` },
-        { status: 400 }
-      );
-    }
-
-    if (body.scheduled_date) {
-      const d = new Date(body.scheduled_date);
-      if (isNaN(d.getTime())) {
-        return NextResponse.json(
-          { error: "scheduled_date must be a valid ISO date string" },
-          { status: 400 }
-        );
-      }
     }
 
     const status = body.status || "not started";
@@ -288,17 +227,18 @@ export const POST = withTrace("tasks", "POST /api/tasks", async (request: NextRe
     return NextResponse.json(
       {
         ...created,
-        successCriteria: safeParse(created?.successCriteria ?? null),
-        artifacts: safeParse(created?.artifacts ?? null),
+        successCriteria: created?.successCriteria
+          ? JSON.parse(created.successCriteria)
+          : [],
+        artifacts: created?.artifacts ? JSON.parse(created.artifacts) : [],
       },
       { status: 201 }
     );
   } catch (err) {
     console.error("POST /api/tasks error:", err);
-    const status = err instanceof SyntaxError ? 400 : 500;
     return NextResponse.json(
-      { error: status === 400 ? String(err) : "Failed to create task" },
-      { status }
+      { error: "Failed to create task" },
+      { status: 500 }
     );
   }
-});
+}

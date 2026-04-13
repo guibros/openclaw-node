@@ -1,0 +1,457 @@
+#!/usr/bin/env python3
+"""
+Batch fix skill quality issues across all SKILL.md files.
+
+Fixes (in order):
+  1. Name mismatch: set name field to match directory name
+  2. Description quality: add "Use when..." clause, trim to <=300 chars
+  3. Triggers: add metadata.openclaw.triggers for skills missing them
+  4. Negative triggers: add metadata.openclaw.negative_triggers
+  5. Stale README.md: delete if SKILL.md exists
+  6. References dir: create references/ for skills >200 lines
+
+Usage:
+    bin/skill-batch-fix                    # dry run (show what would change)
+    bin/skill-batch-fix --apply            # apply all fixes
+    bin/skill-batch-fix --skill github     # single skill
+    bin/skill-batch-fix --fix triggers     # only fix triggers
+"""
+
+from __future__ import annotations
+import sys
+import os
+import re
+import json
+import argparse
+from pathlib import Path
+
+SKILLS_DIR = Path.home() / ".openclaw" / "workspace" / "skills"
+
+# ── Trigger generation ────────────────────────────────────────────────────────
+
+def generate_triggers(name: str, description: str) -> list[str]:
+    """Generate 3-5 trigger phrases from skill name and description."""
+    triggers = []
+    clean_name = name.replace("-", " ")
+
+    # Extract key action verbs and objects from description
+    desc_lower = description.lower()
+
+    # Strategy 1: use the skill name directly
+    if len(clean_name.split()) <= 3:
+        triggers.append(clean_name)
+
+    # Strategy 2: "help me with {name}"
+    triggers.append(f"help me with {clean_name}")
+
+    # Strategy 3: extract "verb + object" patterns from description
+    # Common action words in descriptions
+    action_patterns = [
+        r"(?:create|build|generate|write|draft|design)\s+(?:a\s+)?(\w+(?:\s+\w+){0,2})",
+        r"(?:analyze|evaluate|assess|audit|review)\s+(?:a\s+)?(\w+(?:\s+\w+){0,2})",
+        r"(?:manage|configure|set up|install|deploy)\s+(\w+(?:\s+\w+){0,2})",
+        r"(?:search|find|look up|query|fetch)\s+(\w+(?:\s+\w+){0,2})",
+    ]
+    for pattern in action_patterns:
+        matches = re.findall(pattern, desc_lower)
+        for m in matches[:2]:
+            phrase = m.strip()
+            if len(phrase) > 5 and phrase not in triggers:
+                triggers.append(phrase)
+
+    # Strategy 4: use "Use when" clause if present
+    when_match = re.search(r"use (?:when|for|to)\s+(.+?)(?:\.|,|$)", desc_lower)
+    if when_match:
+        clause = when_match.group(1).strip()
+        # Split on commas/or to get individual triggers
+        parts = re.split(r",\s*(?:or\s+)?|,?\s+or\s+", clause)
+        for part in parts[:3]:
+            part = part.strip()
+            if 3 < len(part) < 50 and part not in triggers:
+                triggers.append(part)
+
+    # Strategy 5: domain-specific triggers based on keywords
+    domain_triggers = {
+        "workshop": [f"run a {clean_name}", f"facilitate {clean_name}"],
+        "canvas": [f"fill out {clean_name}", f"create {clean_name}"],
+        "calculator": [f"calculate {clean_name.replace('calculator', '').strip()}"],
+        "advisor": [f"advise on {clean_name.replace('advisor', '').strip()}"],
+        "browser": [f"browse to", "open this URL"],
+        "search": [f"search for", "look up"],
+        "pdf": ["convert to PDF", "read this PDF"],
+        "excel": ["create spreadsheet", "read this Excel file"],
+    }
+    for keyword, trigs in domain_triggers.items():
+        if keyword in name.lower() or keyword in desc_lower[:100]:
+            for t in trigs:
+                if t not in triggers:
+                    triggers.append(t)
+
+    # Deduplicate and limit
+    seen = set()
+    unique = []
+    for t in triggers:
+        t_clean = t.strip().lower()
+        if t_clean not in seen and len(t_clean) > 2:
+            seen.add(t_clean)
+            unique.append(t.strip())
+
+    # Ensure minimum 3
+    if len(unique) < 3:
+        unique.append(f"use {clean_name}")
+    if len(unique) < 3:
+        unique.append(f"run {clean_name}")
+
+    return unique[:5]
+
+
+def generate_negative_triggers(name: str, description: str, triggers: list[str]) -> list[str]:
+    """Generate 2-3 negative trigger phrases."""
+    neg = []
+    clean_name = name.replace("-", " ")
+    desc_lower = description.lower()
+
+    # Common confusions by domain
+    if any(w in desc_lower for w in ["browser", "web", "scrape", "navigate"]):
+        neg.extend(["open a local file", "browse my filesystem"])
+    elif any(w in desc_lower for w in ["pdf", "document", "docx"]):
+        neg.extend(["edit images", "convert video"])
+    elif any(w in desc_lower for w in ["search", "find", "query"]):
+        neg.extend(["edit this file", "write code"])
+    elif any(w in desc_lower for w in ["git", "github", "commit"]):
+        neg.extend(["search the web", "browse a website"])
+    elif any(w in desc_lower for w in ["excel", "spreadsheet", "xlsx"]):
+        neg.extend(["create a PDF", "edit a Word document"])
+    elif any(w in desc_lower for w in ["workshop", "canvas", "strategy"]):
+        neg.extend(["write code", "fix a bug"])
+    elif any(w in desc_lower for w in ["deploy", "infrastructure", "server"]):
+        neg.extend(["design a UI", "write documentation"])
+    elif any(w in desc_lower for w in ["security", "audit", "vulnerability"]):
+        neg.extend(["create a feature", "design a UI"])
+    elif any(w in desc_lower for w in ["music", "audio", "spotify"]):
+        neg.extend(["edit video", "create images"])
+    elif any(w in desc_lower for w in ["memory", "remember", "recall"]):
+        neg.extend(["delete files", "search the web"])
+    elif any(w in desc_lower for w in ["image", "design", "ui"]):
+        neg.extend(["write backend code", "manage databases"])
+
+    # Generic fallbacks
+    if len(neg) < 2:
+        neg.append(f"something unrelated to {clean_name}")
+    if len(neg) < 2:
+        neg.append("general conversation")
+
+    return neg[:3]
+
+
+# ── Description fixer ─────────────────────────────────────────────────────────
+
+def fix_description(description: str, name: str) -> str | None:
+    """Fix description quality. Returns new description or None if no change."""
+    original = description
+    clean_name = name.replace("-", " ")
+
+    # Check if "Use when" is already present
+    when_patterns = ["use when", "use for", "use this", "use to", "invoke when"]
+    has_when = any(p in description.lower() for p in when_patterns)
+
+    # Trim if too long (>300 chars)
+    if len(description) > 300:
+        # Try to find a natural break point
+        # First, see if there's a "Use when..." sentence we can preserve
+        when_match = re.search(r"(Use (?:when|for|to|this).+?)(?:\.|$)", description)
+        if when_match:
+            when_part = when_match.group(1).strip()
+            # Get the WHAT part (before "Use when")
+            what_part = description[:when_match.start()].strip().rstrip(".")
+            if len(what_part) > 200:
+                # Truncate the WHAT part
+                what_part = what_part[:180].rsplit(" ", 1)[0] + "..."
+            description = f"{what_part}. {when_part}."
+        else:
+            # No when clause — truncate and add one
+            description = description[:250].rsplit(" ", 1)[0]
+            if not description.endswith("."):
+                description += "."
+
+    # Add "Use when" clause if missing
+    if not has_when and len(description) < 280:
+        # Try to extract a use case from the existing description
+        # Look for action verbs
+        actions = re.findall(
+            r"(?:for|to|enables?|allows?|helps?)\s+(\w+(?:\s+\w+){1,4})",
+            description.lower()
+        )
+        if actions:
+            use_case = actions[0]
+            if not description.endswith("."):
+                description += "."
+            description += f" Use when {use_case}."
+        else:
+            if not description.endswith("."):
+                description += "."
+            description += f" Use when working with {clean_name}."
+
+    # Final trim if still over
+    if len(description) > 300:
+        description = description[:295].rsplit(" ", 1)[0]
+        if not description.endswith("."):
+            description += "."
+
+    return description if description != original else None
+
+
+# ── YAML patching ─────────────────────────────────────────────────────────────
+
+def patch_frontmatter(text: str, fixes: dict) -> str:
+    """Apply fixes to SKILL.md raw text. Returns modified text."""
+    fm_match = re.match(r"(\A---\s*\n)(.*?\n)(---\s*\n?)", text, re.DOTALL)
+    if not fm_match:
+        return text
+
+    before = fm_match.group(1)
+    fm_raw = fm_match.group(2)
+    after_fm = fm_match.group(3)
+    body = text[fm_match.end():]
+
+    # Fix name
+    if "name" in fixes:
+        fm_raw = re.sub(
+            r"^(name:\s*).*$",
+            rf"\g<1>{fixes['name']}",
+            fm_raw,
+            count=1,
+            flags=re.MULTILINE,
+        )
+
+    # Fix description
+    if "description" in fixes:
+        new_desc = fixes["description"]
+        # Handle multiline descriptions — replace entire description block
+        # Match: description: "..." or description: >- \n ...
+        desc_pattern = re.compile(
+            r'^description:\s*(?:"[^"]*"|\'[^\']*\'|>-?\s*\n(?:\s+.+\n)*|.+)$',
+            re.MULTILINE,
+        )
+        match = desc_pattern.search(fm_raw)
+        if match:
+            # Escape for YAML
+            escaped = new_desc.replace('"', '\\"')
+            fm_raw = fm_raw[:match.start()] + f'description: "{escaped}"' + fm_raw[match.end():]
+
+    # Fix triggers / negative_triggers
+    if "triggers" in fixes or "negative_triggers" in fixes:
+        # Check if metadata.openclaw section exists
+        has_metadata = bool(re.search(r"^metadata:", fm_raw, re.MULTILINE))
+        has_openclaw = bool(re.search(r"^\s+openclaw:", fm_raw, re.MULTILINE))
+
+        if not has_metadata:
+            # Add entire metadata.openclaw block before closing ---
+            lines = ["metadata:", "  openclaw:"]
+            if "triggers" in fixes:
+                lines.append("    triggers:")
+                for t in fixes["triggers"]:
+                    lines.append(f'    - "{t}"')
+            if "negative_triggers" in fixes:
+                lines.append("    negative_triggers:")
+                for t in fixes["negative_triggers"]:
+                    lines.append(f'    - "{t}"')
+            fm_raw = fm_raw.rstrip("\n") + "\n" + "\n".join(lines) + "\n"
+
+        elif not has_openclaw:
+            # Add openclaw section inside metadata
+            meta_match = re.search(r"^metadata:\s*$", fm_raw, re.MULTILINE)
+            if meta_match:
+                insert_pos = meta_match.end()
+                lines = ["\n  openclaw:"]
+                if "triggers" in fixes:
+                    lines.append("    triggers:")
+                    for t in fixes["triggers"]:
+                        lines.append(f'    - "{t}"')
+                if "negative_triggers" in fixes:
+                    lines.append("    negative_triggers:")
+                    for t in fixes["negative_triggers"]:
+                        lines.append(f'    - "{t}"')
+                fm_raw = fm_raw[:insert_pos] + "\n".join(lines) + fm_raw[insert_pos:]
+
+        else:
+            # openclaw section exists — add missing fields
+            # Find the openclaw block to insert after
+            oc_match = re.search(r"^(\s+)openclaw:\s*$", fm_raw, re.MULTILINE)
+            if oc_match:
+                oc_indent = oc_match.group(1)
+                child_indent = oc_indent + "  "
+
+                # Find end of openclaw block
+                after_oc = fm_raw[oc_match.end():]
+                oc_lines = after_oc.split("\n")
+                end_pos = oc_match.end()
+
+                for i, line in enumerate(oc_lines):
+                    if not line.strip():
+                        end_pos += len(line) + 1
+                        continue
+                    indent = len(line) - len(line.lstrip())
+                    if indent <= len(oc_indent) and line.strip():
+                        break
+                    end_pos += len(line) + 1
+
+                insert_lines = []
+                if "triggers" in fixes:
+                    # Check if triggers already exist (even empty)
+                    has_triggers = bool(re.search(r"^\s+triggers:", fm_raw[oc_match.start():end_pos], re.MULTILINE))
+                    if not has_triggers:
+                        insert_lines.append(f"{child_indent}triggers:")
+                        for t in fixes["triggers"]:
+                            insert_lines.append(f'{child_indent}- "{t}"')
+
+                if "negative_triggers" in fixes:
+                    has_neg = bool(re.search(r"^\s+negative_triggers:", fm_raw[oc_match.start():end_pos], re.MULTILINE))
+                    if not has_neg:
+                        insert_lines.append(f"{child_indent}negative_triggers:")
+                        for t in fixes["negative_triggers"]:
+                            insert_lines.append(f'{child_indent}- "{t}"')
+
+                if insert_lines:
+                    insert_text = "\n".join(insert_lines) + "\n"
+                    fm_raw = fm_raw[:end_pos] + insert_text + fm_raw[end_pos:]
+
+    return before + fm_raw + after_fm + body
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def audit_and_fix(skill_path: Path, apply: bool, fix_filter: str | None) -> dict:
+    """Analyze a skill and return proposed fixes."""
+    dir_name = skill_path.name
+    skill_md = skill_path / "SKILL.md"
+
+    if not skill_md.exists():
+        return {"name": dir_name, "skipped": "no SKILL.md"}
+
+    text = skill_md.read_text()
+    fm_match = re.match(r"\A---\s*\n(.*?\n)---\s*\n?", text, re.DOTALL)
+    if not fm_match:
+        return {"name": dir_name, "skipped": "no frontmatter"}
+
+    fm_raw = fm_match.group(1)
+
+    # Extract current values
+    name_match = re.search(r"^name:\s*(.+)$", fm_raw, re.MULTILINE)
+    current_name = name_match.group(1).strip().strip("'\"") if name_match else ""
+
+    desc_match = re.search(r'^description:\s*(?:"([^"]*)"|\'([^\']*)\'|(.+))$', fm_raw, re.MULTILINE)
+    if desc_match:
+        current_desc = (desc_match.group(1) or desc_match.group(2) or desc_match.group(3) or "").strip()
+    else:
+        # Try multiline description
+        desc_block = re.search(r'^description:\s*>-?\s*\n((?:\s+.+\n)*)', fm_raw, re.MULTILINE)
+        current_desc = " ".join(desc_block.group(1).split()).strip() if desc_block else ""
+
+    fixes = {}
+    fix_log = []
+
+    # 1. Name mismatch
+    if (not fix_filter or fix_filter == "name") and current_name.lower() != dir_name.lower():
+        fixes["name"] = dir_name
+        fix_log.append(f"name: '{current_name}' → '{dir_name}'")
+
+    # 2. Description quality
+    if (not fix_filter or fix_filter == "description") and current_desc:
+        new_desc = fix_description(current_desc, dir_name)
+        if new_desc:
+            fixes["description"] = new_desc
+            fix_log.append(f"description: trimmed/added WHEN ({len(current_desc)} → {len(new_desc)} chars)")
+
+    # 3. Triggers (check if missing via the audit parser approach)
+    has_triggers = bool(re.search(r"^\s+triggers:\s*\n\s+-\s+", fm_raw, re.MULTILINE))
+    if (not fix_filter or fix_filter == "triggers") and not has_triggers:
+        desc_for_gen = fixes.get("description", current_desc)
+        triggers = generate_triggers(dir_name, desc_for_gen)
+        fixes["triggers"] = triggers
+        fix_log.append(f"triggers: +{len(triggers)} generated")
+
+    # 4. Negative triggers
+    has_neg_triggers = bool(re.search(r"^\s+negative_triggers:\s*\n\s+-\s+", fm_raw, re.MULTILINE))
+    if (not fix_filter or fix_filter == "negative_triggers") and not has_neg_triggers:
+        desc_for_gen = fixes.get("description", current_desc)
+        trig_for_gen = fixes.get("triggers", [])
+        neg_triggers = generate_negative_triggers(dir_name, desc_for_gen, trig_for_gen)
+        fixes["negative_triggers"] = neg_triggers
+        fix_log.append(f"negative_triggers: +{len(neg_triggers)} generated")
+
+    # 5. Stale README
+    readme = skill_path / "README.md"
+    if (not fix_filter or fix_filter == "readme") and readme.exists():
+        fix_log.append("README.md: will delete")
+        if apply:
+            readme.unlink()
+
+    # 6. References dir for large files
+    line_count = text.count("\n") + 1
+    refs_dir = skill_path / "references"
+    if (not fix_filter or fix_filter == "references") and line_count > 200 and not refs_dir.exists():
+        fix_log.append(f"references/: will create ({line_count} lines)")
+        if apply:
+            refs_dir.mkdir(exist_ok=True)
+            (refs_dir / ".gitkeep").touch()
+
+    # Apply YAML fixes
+    if apply and fixes:
+        new_text = patch_frontmatter(text, fixes)
+        if new_text != text:
+            skill_md.write_text(new_text)
+
+    return {
+        "name": dir_name,
+        "fixes": fix_log,
+        "changes": len(fix_log),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Batch fix skill quality issues")
+    parser.add_argument("--apply", action="store_true", help="Apply fixes (default: dry run)")
+    parser.add_argument("--skill", help="Fix a single skill")
+    parser.add_argument("--fix", choices=["name", "description", "triggers", "negative_triggers", "readme", "references"],
+                        help="Only apply this fix type")
+    parser.add_argument("--json", action="store_true", help="JSON output")
+    args = parser.parse_args()
+
+    if args.skill:
+        skill_dirs = [SKILLS_DIR / args.skill]
+    else:
+        skill_dirs = sorted(
+            [d for d in SKILLS_DIR.iterdir() if d.is_dir() and (d / "SKILL.md").exists()],
+            key=lambda d: d.name,
+        )
+
+    results = []
+    for d in skill_dirs:
+        result = audit_and_fix(d, apply=args.apply, fix_filter=args.fix)
+        results.append(result)
+
+    if args.json:
+        print(json.dumps(results, indent=2))
+        return
+
+    # Summary
+    total_changes = sum(r.get("changes", 0) for r in results)
+    changed = [r for r in results if r.get("changes", 0) > 0]
+    skipped = [r for r in results if "skipped" in r]
+
+    mode = "APPLIED" if args.apply else "DRY RUN"
+    print(f"\n[{mode}] {len(results)} skills scanned, {len(changed)} need fixes ({total_changes} total changes)")
+    if skipped:
+        print(f"  Skipped: {len(skipped)} ({', '.join(r['name'] for r in skipped)})")
+    print()
+
+    for r in changed:
+        print(f"  {r['name']}:")
+        for fix in r.get("fixes", []):
+            print(f"    - {fix}")
+    print()
+
+
+if __name__ == "__main__":
+    main()

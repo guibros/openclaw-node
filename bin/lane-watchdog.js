@@ -20,8 +20,6 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { createTracer } = require('../lib/tracer');
-const tracer = createTracer('lane-watchdog');
 
 // --- Configuration ---
 const GATEWAY_LOG = process.env.GATEWAY_LOG
@@ -39,11 +37,6 @@ let lastInterventionAt = 0;
 let logWatcher = null;
 let errWatcher = null;
 
-// Incident log dedup: suppress identical messages within 60s
-let lastIncidentMsg = '';
-let lastIncidentAt = 0;
-let suppressedCount = 0;
-
 // Track detected events
 const events = {
   agentTimeout: null,    // timestamp of last "embedded run timeout"
@@ -52,28 +45,12 @@ const events = {
 
 // --- Helpers ---
 function log(msg) {
-  const now = Date.now();
-  // Dedup: suppress identical messages within 60s
-  if (msg === lastIncidentMsg && (now - lastIncidentAt) < 60_000) {
-    suppressedCount++;
-    return;
-  }
-  // If we suppressed duplicates, emit a summary before the new message
-  if (suppressedCount > 0) {
-    const summaryLine = `${new Date().toISOString()} [lane-watchdog] (suppressed ${suppressedCount} duplicate message(s))`;
-    console.log(summaryLine);
-    try { fs.appendFileSync(INCIDENT_LOG, summaryLine + '\n'); } catch (err) { console.warn(`[lane-watchdog] write incident log summary: ${err.message}`); }
-  }
-  lastIncidentMsg = msg;
-  lastIncidentAt = now;
-  suppressedCount = 0;
-
   const ts = new Date().toISOString();
   const line = `${ts} [lane-watchdog] ${msg}`;
   console.log(line);
   try {
     fs.appendFileSync(INCIDENT_LOG, line + '\n');
-  } catch (err) { console.warn(`[lane-watchdog] write incident log: ${err.message}`); }
+  } catch { /* best effort */ }
 }
 
 function getGatewayPid() {
@@ -85,8 +62,7 @@ function getGatewayPid() {
     ).trim();
     const pids = out.split('\n').filter(Boolean);
     return pids.length > 0 ? parseInt(pids[0], 10) : null;
-  } catch (err) {
-    console.warn(`[lane-watchdog] get gateway pid: ${err.message}`);
+  } catch {
     return null;
   }
 }
@@ -187,8 +163,7 @@ function tailLog(filePath, label) {
   try {
     const stat = fs.statSync(filePath);
     fileSize = stat.size; // Start from current end
-  } catch (err) {
-    console.warn(`[lane-watchdog] stat log file ${filePath}: ${err.message}`);
+  } catch {
     log(`WARNING: log file not found: ${filePath}`);
     return null;
   }
@@ -197,49 +172,34 @@ function tailLog(filePath, label) {
 
   const watcher = fs.watch(filePath, { persistent: true }, () => {
     try {
-      // Read from current fileSize to EOF — avoid TOCTOU race by not
-      // pre-checking stat.size. createReadStream with just `start` reads
-      // to the end of the file atomically, then we update fileSize from
-      // the bytes actually read.
-      const stream = fs.createReadStream(filePath, {
-        start: fileSize,
-        encoding: 'utf8'
-      });
-      let buffer = '';
-      let bytesRead = 0;
-      stream.on('data', chunk => { buffer += chunk; bytesRead += Buffer.byteLength(chunk, 'utf8'); });
-      stream.on('end', () => {
-        if (bytesRead === 0) return; // no new data
-        const lines = buffer.split('\n').filter(Boolean);
-        for (const line of lines) {
-          parseLine(line);
-        }
-        fileSize += bytesRead;
-      });
-      stream.on('error', (err) => {
-        if (err.code === 'ENOENT') {
-          // File was deleted/rotated — reset position
-          fileSize = 0;
-        } else {
-          log(`ERROR: reading ${label}: ${err.message}`);
-        }
-      });
-    } catch (err) {
-      if (err.code === 'ENOENT') {
+      const stat = fs.statSync(filePath);
+      if (stat.size < fileSize) {
+        // Log was rotated
         fileSize = 0;
-      } else {
-        log(`ERROR: reading ${label}: ${err.message}`);
       }
+      if (stat.size > fileSize) {
+        const stream = fs.createReadStream(filePath, {
+          start: fileSize,
+          end: stat.size,
+          encoding: 'utf8'
+        });
+        let buffer = '';
+        stream.on('data', chunk => { buffer += chunk; });
+        stream.on('end', () => {
+          const lines = buffer.split('\n').filter(Boolean);
+          for (const line of lines) {
+            parseLine(line);
+          }
+          fileSize = stat.size;
+        });
+      }
+    } catch (err) {
+      log(`ERROR: reading ${label}: ${err.message}`);
     }
   });
 
   return watcher;
 }
-
-// --- Tracer Instrumentation ---
-tailLog = tracer.wrap('tailLog', tailLog, { tier: 2, category: 'lifecycle' });
-checkForDeadlock = tracer.wrap('checkForDeadlock', checkForDeadlock, { tier: 2, category: 'lifecycle' });
-sendSigusr1 = tracer.wrap('sendSigusr1', sendSigusr1, { tier: 2, category: 'lifecycle' });
 
 // --- Main ---
 function main() {
@@ -260,8 +220,8 @@ function main() {
   for (const sig of ['SIGTERM', 'SIGINT']) {
     process.on(sig, () => {
       log(`Received ${sig}, shutting down`);
-      if (logWatcher) logWatcher.close();
-      if (errWatcher) errWatcher.close();
+      if (logWatcher) fs.unwatchFile(GATEWAY_LOG);
+      if (errWatcher) fs.unwatchFile(GATEWAY_ERR_LOG);
       process.exit(0);
     });
   }

@@ -1,5 +1,4 @@
 import fs from "fs";
-import { traceCall } from "@/lib/tracer";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -30,7 +29,6 @@ export interface LongTermMemory {
  * Throws if the file does not exist.
  */
 export function parseMemoryMd(filePath: string): LongTermMemory {
-  const _start = Date.now();
   if (!fs.existsSync(filePath)) {
     throw new Error(`Memory file not found: ${filePath}`);
   }
@@ -73,13 +71,11 @@ export function parseMemoryMd(filePath: string): LongTermMemory {
 
   flush();
 
-  const result = {
+  return {
     filePath,
     title,
     sections,
     fullContent,
     modifiedAt: stat.mtime.toISOString(),
   };
-  traceCall("parsers/memory-md", "parseMemoryMd", _start, `${sections.length} sections`);
-  return result;
 }

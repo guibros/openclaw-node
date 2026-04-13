@@ -1,17 +1,15 @@
-import { NextRequest } from "next/server";
 import { getTasksKv, sc } from "@/lib/nats";
 import { NODE_ID, NODE_ROLE } from "@/lib/config";
-import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/mesh/tasks/:id — Get a single task from KV.
  */
-export const GET = withTrace("mesh", "GET /api/mesh/tasks/:id", async (
-  _req: NextRequest,
+export async function GET(
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   const { id } = await params;
   const kv = await getTasksKv();
   if (!kv) {
@@ -25,7 +23,7 @@ export const GET = withTrace("mesh", "GET /api/mesh/tasks/:id", async (
 
   const task = JSON.parse(sc.decode(entry.value));
   return Response.json({ task, revision: entry.revision });
-});
+}
 
 /**
  * PATCH /api/mesh/tasks/:id — Update a task with CAS.
@@ -35,10 +33,10 @@ export const GET = withTrace("mesh", "GET /api/mesh/tasks/:id", async (
  * - Workers can only update tasks they originated
  * - Revision must match (CAS) to prevent stale writes
  */
-export const PATCH = withTrace("mesh", "PATCH /api/mesh/tasks/:id", async (
-  req: NextRequest,
+export async function PATCH(
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
-) => {
+) {
   const { id } = await params;
   const kv = await getTasksKv();
   if (!kv) {
@@ -91,4 +89,4 @@ export const PATCH = withTrace("mesh", "PATCH /api/mesh/tasks/:id", async (
   }
 
   return Response.json({ ok: true, task: updated });
-});
+}

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import { withTrace } from "@/lib/tracer";
 
 const SOULS_DIR = path.join(os.homedir(), ".openclaw/souls");
 const REGISTRY_PATH = path.join(SOULS_DIR, "registry.json");
@@ -45,7 +44,7 @@ async function saveRegistry(registry: SoulRegistry): Promise<void> {
 
 // GET /api/souls - List all souls
 // GET /api/souls?id=soul-id - Get specific soul
-export const GET = withTrace("souls", "GET /api/souls", async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
     const registry = await loadRegistry();
     const { searchParams } = new URL(request.url);
@@ -67,10 +66,10 @@ export const GET = withTrace("souls", "GET /api/souls", async (request: NextRequ
       { status: 500 }
     );
   }
-});
+}
 
 // POST /api/souls - Register new soul
-export const POST = withTrace("souls", "POST /api/souls", async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const registry = await loadRegistry();
@@ -95,16 +94,15 @@ export const POST = withTrace("souls", "POST /api/souls", async (request: NextRe
     return NextResponse.json(newSoul, { status: 201 });
   } catch (error) {
     console.error("Failed to register soul:", error);
-    const status = error instanceof SyntaxError ? 400 : 500;
     return NextResponse.json(
-      { error: status === 400 ? String(error) : "Failed to register soul" },
-      { status }
+      { error: "Failed to register soul" },
+      { status: 500 }
     );
   }
-});
+}
 
 // PATCH /api/souls?id=soul-id - Update soul
-export const PATCH = withTrace("souls", "PATCH /api/souls", async (request: NextRequest) => {
+export async function PATCH(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const soulId = searchParams.get("id");
@@ -135,16 +133,15 @@ export const PATCH = withTrace("souls", "PATCH /api/souls", async (request: Next
     return NextResponse.json(registry.souls[soulIndex]);
   } catch (error) {
     console.error("Failed to update soul:", error);
-    const status = error instanceof SyntaxError ? 400 : 500;
     return NextResponse.json(
-      { error: status === 400 ? String(error) : "Failed to update soul" },
-      { status }
+      { error: "Failed to update soul" },
+      { status: 500 }
     );
   }
-});
+}
 
 // DELETE /api/souls?id=soul-id - Delete soul
-export const DELETE = withTrace("souls", "DELETE /api/souls", async (request: NextRequest) => {
+export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const soulId = searchParams.get("id");
@@ -174,4 +171,4 @@ export const DELETE = withTrace("souls", "DELETE /api/souls", async (request: Ne
       { status: 500 }
     );
   }
-});
+}

@@ -11,7 +11,6 @@
 import { getRawDb } from "../db";
 import { readCategorySummary, VALID_CATEGORIES } from "./categories";
 import { expandQueryWithGraph } from "./entities";
-import { traceCall } from "../tracer";
 
 export interface RetrievalResult {
   factText: string;
@@ -36,9 +35,8 @@ function decay(relevance: number, daysOld: number, rate = 0.01): number {
  * Multi-word  → ("word1 word2") OR ("word1"* OR "word2"*)
  */
 function buildFtsQuery(query: string): string {
-  const safe = query.replace(/"/g, '""').replace(/[*(){}^]/g, '').trim();
-  if (!safe) return '""';
-  const terms = safe.split(/\s+/).filter((t) => t.length >= 2);
+  const safe = query.replace(/"/g, '""');
+  const terms = safe.trim().split(/\s+/).filter((t) => t.length >= 2);
   if (terms.length <= 1) return `"${safe}"*`;
   const phrase = `"${safe}"`;
   const individual = terms.map((t) => `"${t}"*`).join(" OR ");
@@ -191,7 +189,6 @@ export function tieredSearch(
   query: string,
   limit = 10
 ): RetrievalResult[] {
-  const _start = Date.now();
   // Graph expansion: find related entities and add to search
   let graphExpansions: string[] = [];
   try {
@@ -212,9 +209,7 @@ export function tieredSearch(
       tier2Results.push(...searchItems(q, Math.ceil(limit / queries.length)));
     }
     const merged = [...tier1, ...tier2Results];
-    const earlyResult = dedup(merged).slice(0, limit);
-    traceCall("memory/retrieval", "tieredSearch", _start, `${earlyResult.length} results (early)`);
-    return earlyResult;
+    return dedup(merged).slice(0, limit);
   }
 
   // Tier 2: memory items (expanded queries)
@@ -228,9 +223,7 @@ export function tieredSearch(
 
   // Merge all tiers, sort by decayed score
   const merged = [...tier1, ...tier2Results, ...tier3];
-  const result = dedup(merged).slice(0, limit);
-  traceCall("memory/retrieval", "tieredSearch", _start, `${result.length} results`);
-  return result;
+  return dedup(merged).slice(0, limit);
 }
 
 /**
@@ -282,9 +275,7 @@ export function getMemoryInjection(
   query: string,
   maxItems = 10
 ): { block: string; results: RetrievalResult[] } {
-  const _start = Date.now();
   const results = tieredSearch(query, maxItems);
   const block = formatInjectionBlock(results, maxItems);
-  traceCall("memory/retrieval", "getMemoryInjection", _start, `${results.length} results`);
   return { block, results };
 }

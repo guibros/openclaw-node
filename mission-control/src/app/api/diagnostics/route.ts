@@ -4,12 +4,10 @@ import { getNats } from "@/lib/nats";
 import fs from "fs";
 import { ACTIVE_TASKS_MD, WORKSPACE_ROOT } from "@/lib/config";
 import { parseTasksMarkdown, serializeTasksMarkdown } from "@/lib/parsers/task-markdown";
-import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
-export const GET = withTrace("diagnostics", "GET /api/diagnostics", async () => {
-  try {
+export async function GET() {
   const raw = getRawDb();
 
   // Task stats
@@ -96,11 +94,4 @@ export const GET = withTrace("diagnostics", "GET /api/diagnostics", async () => 
     nats: natsStatus,
     workspace: workspaceExists,
   });
-  } catch (err) {
-    console.error("[diagnostics] error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal server error" },
-      { status: err instanceof SyntaxError ? 400 : 500 }
-    );
-  }
-});
+}

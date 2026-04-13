@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
-import { traceCall } from "@/lib/tracer";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -27,7 +26,6 @@ export interface VaultDocument {
  * Throws if the file does not exist.
  */
 export function parseVaultDocument(filePath: string): VaultDocument {
-  const _start = Date.now();
   if (!fs.existsSync(filePath)) {
     throw new Error(`Vault document not found: ${filePath}`);
   }
@@ -55,7 +53,7 @@ export function parseVaultDocument(filePath: string): VaultDocument {
     }
   }
 
-  const result = {
+  return {
     filePath,
     category,
     title,
@@ -64,8 +62,6 @@ export function parseVaultDocument(filePath: string): VaultDocument {
     content,
     modifiedAt: stat.mtime.toISOString(),
   };
-  traceCall("parsers/clawvault-doc", "parseVaultDocument", _start, title);
-  return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -79,7 +75,6 @@ export function parseVaultDocument(filePath: string): VaultDocument {
 export function listVaultDocuments(
   indexPath: string
 ): Array<{ path: string; category: string }> {
-  const _start = Date.now();
   if (!fs.existsSync(indexPath)) {
     return [];
   }
@@ -97,9 +92,7 @@ export function listVaultDocuments(
     return [];
   }
 
-  const result = index.documents
+  return index.documents
     .filter((doc) => doc.category !== "templates")
     .map((doc) => ({ path: doc.path, category: doc.category }));
-  traceCall("parsers/clawvault-doc", "listVaultDocuments", _start, `${result.length} docs`);
-  return result;
 }

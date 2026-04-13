@@ -21,15 +21,9 @@
  */
 
 import fs from 'fs';
-import { createRequire } from 'module';
 import path from 'path';
 import { execSync } from 'child_process';
 import { createHash } from 'crypto';
-
-// --- Tracer ---
-const require = createRequire(import.meta.url);
-const { createTracer } = require('../lib/tracer');
-const tracer = createTracer('daily-log-writer');
 
 const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.dirname(new URL('.', import.meta.url).pathname);
 const MEMORY_DIR = path.join(WORKSPACE, 'memory');
@@ -66,13 +60,13 @@ function hash(str) {
 }
 
 function readOr(p, fallback = '') {
-  try { return fs.readFileSync(p, 'utf-8'); } catch (err) { console.warn(`[daily-log-writer] file read failed for ${p}: ${err.message}`); return fallback; }
+  try { return fs.readFileSync(p, 'utf-8'); } catch { return fallback; }
 }
 
 // --- State management ---
 
 function loadState() {
-  try { return JSON.parse(readOr(STATE_FILE, '{}')); } catch (err) { console.warn(`[daily-log-writer] state parse failed: ${err.message}`); return {}; }
+  try { return JSON.parse(readOr(STATE_FILE, '{}')); } catch { return {}; }
 }
 
 function saveState(state) {
@@ -154,8 +148,7 @@ function getGitDelta() {
       .filter(Boolean);
 
     return files.length > 0 ? files : null;
-  } catch (err) {
-    console.warn(`[daily-log-writer] git diff failed: ${err.message}`);
+  } catch {
     return null;
   }
 }
@@ -240,10 +233,8 @@ function run() {
     if (!fs.existsSync(dailyFile)) {
       fs.mkdirSync(MEMORY_DIR, { recursive: true });
       fs.writeFileSync(dailyFile, `# ${todayStr} — Daily Log\n\n`);
-      console.log(`[daily-log] Created: ${dailyFile}`);
     }
     fs.appendFileSync(dailyFile, entry + '\n');
-    console.log(`[daily-log] Appended ${entry.length} bytes to ${path.basename(dailyFile)}`);
     log(`Appended to ${dailyFile}`);
   }
 
@@ -257,5 +248,4 @@ function run() {
   if (VERBOSE || DRY_RUN) console.log('Done.');
 }
 
-run = tracer.wrap('run', run, { tier: 1, category: 'lifecycle' });
 run();

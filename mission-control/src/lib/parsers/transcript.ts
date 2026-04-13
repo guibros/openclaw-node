@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import { traceCall } from "@/lib/tracer";
 
 /**
  * Represents a single activity event extracted from the JSONL transcript.
@@ -102,7 +101,6 @@ function tailJsonl(filePath: string, bytes: number = 200_000): object[] {
  * Returns the last `limit` events, most recent first.
  */
 export function getRecentTranscriptActivity(limit: number = 50): TranscriptEvent[] {
-  const _start = Date.now();
   const transcriptPath = findLatestTranscript();
   if (!transcriptPath) return [];
 
@@ -191,19 +189,16 @@ export function getRecentTranscriptActivity(limit: number = 50): TranscriptEvent
   }
 
   // Return most recent first, limited
-  const result = events.slice(-limit).reverse();
-  traceCall("parsers/transcript", "getRecentTranscriptActivity", _start, `${result.length} events`);
-  return result;
+  return events.slice(-limit).reverse();
 }
 
 /**
  * Shorten a file path for display by removing the workspace prefix.
  */
 function shortenPath(fp: string): string {
-  const home = process.env.HOME || require("os").homedir();
   const prefixes = [
-    `${home}/.openclaw/workspace/`,
-    `${home}/`,
+    "/Users/moltymac/.openclaw/workspace/",
+    "/Users/moltymac/",
   ];
   for (const prefix of prefixes) {
     if (fp.startsWith(prefix)) {

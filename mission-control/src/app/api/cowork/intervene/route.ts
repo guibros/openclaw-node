@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { syncTasksToMarkdown } from "@/lib/sync/tasks";
-import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +13,7 @@ export const dynamic = "force-dynamic";
  * Operator interventions on collab sessions.
  * Actions: abort, force_converge, remove_node
  */
-export const POST = withTrace("cowork", "POST /api/cowork/intervene", async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
   const nc = await getNats();
   if (!nc) {
     return NextResponse.json({ error: "NATS unavailable" }, { status: 503 });
@@ -257,4 +256,4 @@ export const POST = withTrace("cowork", "POST /api/cowork/intervene", async (req
       { status: 500 }
     );
   }
-});
+}

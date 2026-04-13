@@ -15,17 +15,11 @@
  */
 
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createInterface } from 'readline';
-
-// --- Tracer ---
-const require = createRequire(import.meta.url);
-const { createTracer } = require('../lib/tracer');
-const tracer = createTracer('subagent-audit');
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -44,7 +38,7 @@ const LESSONS_FILE = path.join(WORKSPACE, '.learnings/lessons.md');
  * @param {string} jsonlPath
  * @returns {Promise<DelegationResult[]>}
  */
-export const auditSession = tracer.wrapAsync('auditSession', async function auditSession(jsonlPath) {
+export async function auditSession(jsonlPath) {
   if (!fs.existsSync(jsonlPath)) return [];
 
   const results = [];
@@ -123,7 +117,7 @@ export const auditSession = tracer.wrapAsync('auditSession', async function audi
   }
 
   return results;
-}, { tier: 1, category: 'compute' });
+}
 
 function extractResultText(block) {
   if (typeof block.content === 'string') return block.content;

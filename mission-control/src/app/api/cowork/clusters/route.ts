@@ -3,7 +3,6 @@ import { getDb } from "@/lib/db";
 import { clusters, clusterMembers } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getHealthKv, sc } from "@/lib/nats";
-import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +11,7 @@ export const dynamic = "force-dynamic";
  *
  * List all active clusters with members. Enriches members with live node status.
  */
-export const GET = withTrace("cowork", "GET /api/cowork/clusters", async () => {
+export async function GET() {
   const db = getDb();
   const kv = await getHealthKv();
 
@@ -65,14 +64,14 @@ export const GET = withTrace("cowork", "GET /api/cowork/clusters", async () => {
   }));
 
   return NextResponse.json({ clusters: result });
-});
+}
 
 /**
  * POST /api/cowork/clusters
  *
  * Create a new cluster with members.
  */
-export const POST = withTrace("cowork", "POST /api/cowork/clusters", async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
     name,
@@ -139,4 +138,4 @@ export const POST = withTrace("cowork", "POST /api/cowork/clusters", async (requ
   }
 
   return NextResponse.json({ id, name });
-});
+}

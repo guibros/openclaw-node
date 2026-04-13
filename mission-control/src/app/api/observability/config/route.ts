@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getNats, sc } from "@/lib/nats";
 import { NODE_ID } from "@/lib/config";
-import { withTrace } from "@/lib/tracer";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +12,7 @@ let traceMode: "dev" | "smart" = "dev";
  *
  * Returns current observability configuration.
  */
-export const GET = withTrace("observability", "GET /api/observability/config", async () => {
+export async function GET() {
   try {
     return NextResponse.json({ mode: traceMode, nodeId: NODE_ID });
   } catch (err) {
@@ -23,7 +22,7 @@ export const GET = withTrace("observability", "GET /api/observability/config", a
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * PATCH /api/observability/config
@@ -32,7 +31,7 @@ export const GET = withTrace("observability", "GET /api/observability/config", a
  * Updates local state and publishes openclaw.trace.config via NATS
  * so all mesh nodes can switch mode.
  */
-export const PATCH = withTrace("observability", "PATCH /api/observability/config", async (request: NextRequest) => {
+export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const newMode = body?.mode;
@@ -69,4 +68,4 @@ export const PATCH = withTrace("observability", "PATCH /api/observability/config
       { status: 500 }
     );
   }
-});
+}

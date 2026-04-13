@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRawDb } from "@/lib/db";
-import { withTrace } from "@/lib/tracer";
 
 interface TaskRow {
   id: string;
@@ -14,7 +13,7 @@ interface TaskRow {
  * Computes the critical path through the dependency DAG using
  * forward/backward pass (ES/EF/LS/LF). Tasks with zero float are critical.
  */
-export const GET = withTrace("critical-path", "GET /api/critical-path", async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const projectId = searchParams.get("projectId");
@@ -157,4 +156,4 @@ export const GET = withTrace("critical-path", "GET /api/critical-path", async (r
       { status: 500 }
     );
   }
-});
+}

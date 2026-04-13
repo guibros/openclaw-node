@@ -17,15 +17,9 @@
  */
 
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-
-// --- Tracer ---
-const require = createRequire(import.meta.url);
-const { createTracer } = require('../lib/tracer');
-const tracer = createTracer('session-search');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
