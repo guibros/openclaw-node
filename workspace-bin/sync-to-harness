@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# sync-to-harness — push workspace changes to the distributable harness repo
+#
+# Usage:
+#   bin/sync-to-harness              # dry run (show diff only)
+#   bin/sync-to-harness --commit     # sync + commit
+#   bin/sync-to-harness --push       # sync + commit + push to GitHub
+#
+# Maps:
+#   workspace lib/        → harness lib/
+#   workspace bin/        → harness workspace-bin/
+#   workspace projects/mission-control/src/ → harness mission-control/src/
+#   workspace *.md        → harness identity/ + docs/
+#
+set -euo pipefail
+
+WORKSPACE="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
+HARNESS="${OPENCLAW_HARNESS:-$HOME/openclaw}"
+
+DO_COMMIT=false
+DO_PUSH=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --commit) DO_COMMIT=true ;;
+    --push)   DO_COMMIT=true; DO_PUSH=true ;;
+    --help|-h)
+      echo "Usage: sync-to-harness [--commit] [--push]"
+      echo "  (no flags)  = dry run, show what would change"
+      echo "  --commit    = sync files and commit"
+      echo "  --push      = sync, commit, and push to GitHub"
+      exit 0 ;;
+  esac
+done
+
+if [ ! -d "$WORKSPACE/lib" ]; then
+  echo "[sync] ERROR: workspace not found at $WORKSPACE" >&2
+  exit 1
+fi
+if [ ! -d "$HARNESS/.git" ]; then
+  echo "[sync] ERROR: harness repo not found at $HARNESS" >&2
+  exit 1
+fi
+
+echo "[sync] Workspace: $WORKSPACE"
+echo "[sync] Harness:   $HARNESS"
+echo ""
+
+# 1. lib/ → lib/
+echo "[sync] lib/ ..."
+rsync -a --delete \
+  --exclude='mcp-knowledge/node_modules' \
+  --exclude='mcp-knowledge/.knowledge.db*' \
+  "$WORKSPACE/lib/" "$HARNESS/lib/"
+
+# 2. bin/ → workspace-bin/
+echo "[sync] bin/ → workspace-bin/ ..."
+rsync -a \
+  --exclude='*.bash.bak' \
+  --exclude='routing-eval-tests.json' \
+  --exclude='brainstorm-server' \
+  --exclude='node_modules' \
+  "$WORKSPACE/bin/" "$HARNESS/workspace-bin/"
+
+# 3. Mission Control src + config
+echo "[sync] mission-control/ ..."
+rsync -a --delete \
+  --exclude='node_modules' \
+  --exclude='.next' \
+  --exclude='data' \
+  --exclude='.env' \
+  --exclude='.env.local' \
+  "$WORKSPACE/projects/mission-control/src/" "$HARNESS/mission-control/src/"
+
+for f in package.json tsconfig.json next.config.ts postcss.config.mjs eslint.config.mjs vitest.config.ts drizzle.config.ts; do
+  src="$WORKSPACE/projects/mission-control/$f"
+  [ -f "$src" ] && cp "$src" "$HARNESS/mission-control/$f"
+done
+
+for d in drizzle public scripts; do
+  src="$WORKSPACE/projects/mission-control/$d"
+  [ -d "$src" ] && rsync -a "$src/" "$HARNESS/mission-control/$d/"
+done
+
+# 4. Identity files
+echo "[sync] identity/ ..."
+for f in SOUL.md AGENTS.md PRINCIPLES.md DELEGATION.md TOOLS.md HEARTBEAT.md MEMORY_SPEC.md CLAUDE.md OPERATIONS.md MULTI_SOUL_GUIDE.md; do
+  src="$WORKSPACE/$f"
+  [ -f "$src" ] && cp "$src" "$HARNESS/identity/$f"
+done
+
+[ -f "$WORKSPACE/ARCHITECTURE.md" ] && cp "$WORKSPACE/ARCHITECTURE.md" "$HARNESS/docs/ARCHITECTURE.md"
+
+# 5. Show diff
+echo ""
+echo "=== Changes ==="
+cd "$HARNESS"
+git add -A
+DIFF=$(git diff --cached --stat)
+
+if [ -z "$DIFF" ]; then
+  echo "[sync] No changes detected. Workspace and harness are in sync."
+  git reset HEAD -- . > /dev/null 2>&1
+  exit 0
+fi
+
+echo "$DIFF"
+echo ""
+
+if [ "$DO_COMMIT" = false ]; then
+  echo "[sync] DRY RUN — pass --commit to commit, --push to commit+push"
+  git reset HEAD -- . > /dev/null 2>&1
+  exit 0
+fi
+
+# Commit
+TIMESTAMP=$(date +"%Y-%m-%d %H:%M")
+git commit -m "sync: workspace → harness ($TIMESTAMP)
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
+
+echo "[sync] Committed."
+
+if [ "$DO_PUSH" = true ]; then
+  git push origin main
+  echo "[sync] Pushed to GitHub."
+fi
