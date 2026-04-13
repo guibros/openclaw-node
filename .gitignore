@@ -25,3 +25,4 @@ __pycache__/
 
 # Skill build artifacts (not actual skills)
 skills/dist/
+.claude/worktrees/
