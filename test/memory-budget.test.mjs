@@ -235,6 +235,37 @@ describe('getStats', () => {
   });
 });
 
+describe('reload after external write', () => {
+  it('reload after external write updates getRendered in mid-session', () => {
+    const filePath = path.join(tmpDir, 'MEMORY.md');
+    fs.writeFileSync(filePath, '# Memory\n- original fact\n');
+
+    const mb = new MemoryBudget(filePath, { charBudget: 500 });
+    mb.startSession();
+    assert.equal(mb.getRendered(), '# Memory\n- original fact\n');
+
+    // Simulate an external flush writing new facts to MEMORY.md on disk
+    fs.writeFileSync(filePath, '# Memory\n- original fact\n- extracted-by-flush\n');
+
+    // Without reload, frozen snapshot is stale
+    assert.equal(mb.getRendered(), '# Memory\n- original fact\n');
+
+    // After reload, snapshot picks up the flush output
+    const reloaded = mb.reload();
+    assert.equal(mb.getRendered(), '# Memory\n- original fact\n- extracted-by-flush\n');
+    assert.equal(reloaded, '# Memory\n- original fact\n- extracted-by-flush\n');
+
+    // Verify reload event carried correct stats
+    let reloadEvent = null;
+    mb.on('reload', (e) => { reloadEvent = e; });
+    fs.writeFileSync(filePath, '# Memory\n- final version\n');
+    mb.reload();
+    assert.ok(reloadEvent);
+    assert.equal(reloadEvent.charCount, '# Memory\n- final version\n'.length);
+    assert.equal(reloadEvent.lineCount, 3);
+  });
+});
+
 describe('createBudget', () => {
   it('creates budget with correct file path', () => {
     const mb = createBudget(tmpDir);

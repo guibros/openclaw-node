@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 0 awaits. Step 0.1 is the next step.
-**Current version carrier.** `v0.0` (no steps closed yet).
-**Streaks.** zero-Phase-4-correction: 0 of 0 · zero-Phase-8-patch: 0 of 0.
-**Last commit on plan branch.** none yet (workplan scaffolding only).
+**Workplan status.** Block 0 in progress. Step 0.1 closed; Step 0.2 is next.
+**Current version carrier.** `v0.1` (Step 0.1 closed).
+**Streaks.** zero-Phase-4-correction: 1 of 1 · zero-Phase-8-patch: 1 of 1.
+**Last commit on plan branch.** v0.1 — Wire MemoryBudget.reload() into daemon flush paths + NATS subscription + test.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -43,20 +43,28 @@ re-litigated per step. Each block transition will reset §0 with the block's own
 
 ## §1 — Per-step close paragraphs
 
-(Populated by Phase 9f at each step close. Empty until Step 0.1 closes.)
+### Step 0.1 — Wire MemoryBudget.reload() into daemon flush paths + NATS subscription + test
+
+Closed at v0.1. `MemoryBudget.reload()` now fires after both daemon flush paths
+(pre-compression at line 835, end-of-session at line 874) and via an optional NATS
+subscription on `mesh.memory.compaction_completed` (line 1054). The NATS connection is
+optional with graceful degradation — if NATS is unavailable, the daemon continues to work
+locally. One new test added. 6 positive audit findings, zero Phase 4 corrections, zero
+Phase 8 patches. Carry-forwards to Step 0.2: the daemon now has an async shutdown handler
+and an optional `natsConn` in `main()` scope.
 
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               0 / 45
+Steps closed:               1 / 45
 Current block:              0 (Stop the bleeding)
-Steps closed in block:      0 / 7
-Consecutive zero-Phase-4-correction streak:  0
-Consecutive zero-Phase-8-patch streak:       0
-Test baseline (npm test):   (not yet measured — Step 0.1 will set the baseline)
-Last successful tick:       (none)
+Steps closed in block:      1 / 7
+Consecutive zero-Phase-4-correction streak:  1
+Consecutive zero-Phase-8-patch streak:       1
+Test baseline (npm test):   467 tests (394 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-20 (Step 0.1)
 Last block file written:    (none)
 ```
 
@@ -66,11 +74,9 @@ Last block file written:    (none)
 
 The next scheduled tick should:
 
-1. Run pre-flight (Framework §9).
-2. Decode state: `VERSION` is `v0.0` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 0.1.
-4. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.1.
-5. Commit. Stop.
-
-If the worker can't complete Step 0.1 in its time budget, it stops at the highest sub-version
-reached (`v0.1-pre` or `v0.1-mid`) and leaves the working tree dirty for the next tick.
+1. Run pre-flight (Framework §8).
+2. Decode state: `VERSION` is `v0.1` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 0.2.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step01_reload_memory_budget/AUDIT_POST.md` for carry-forwards.
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.2.
+6. Commit. Stop.

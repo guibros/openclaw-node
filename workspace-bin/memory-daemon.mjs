@@ -831,6 +831,10 @@ async function handleTransitions(transitions, config) {
               charBudget: budget.charBudget,
             });
             log(`  flush: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped`);
+            if (memoryBudget && (result.added > 0 || result.merged > 0)) {
+              memoryBudget.reload();
+              log('  memory-budget: snapshot reloaded after flush');
+            }
           }
         } catch (e) { log(`  pre-compression flush failed: ${e.message}`); }
       }
@@ -866,6 +870,10 @@ async function handleTransitions(transitions, config) {
           });
           if (result.added > 0 || result.merged > 0) {
             log(`  end-of-session flush: ${result.added} added, ${result.merged} merged`);
+            if (memoryBudget) {
+              memoryBudget.reload();
+              log('  memory-budget: snapshot reloaded after end-of-session flush');
+            }
           }
         } catch (e) { log(`  end-of-session flush failed: ${e.message}`); }
       }
@@ -1037,12 +1045,35 @@ async function main() {
     log(`Restored state: ${sm.state} (session: ${sm.sessionId?.slice(0, 8) || 'none'})`);
   }
 
+  // Optional NATS subscription for external compaction signals
+  let natsConn = null;
+  try {
+    const { connect: natsConnect } = require('nats');
+    const { natsConnectOpts } = require('../lib/nats-resolve');
+    natsConn = await natsConnect(natsConnectOpts({ name: 'memory-daemon', timeout: 5000 }));
+    const sub = natsConn.subscribe('mesh.memory.compaction_completed');
+    (async () => {
+      for await (const msg of sub) {
+        if (memoryBudget) {
+          memoryBudget.reload();
+          log('[nats] memory-budget reloaded via mesh.memory.compaction_completed');
+        }
+      }
+    })().catch(() => {}); // subscription ends on drain/close
+    log(`NATS connected — subscribed to mesh.memory.compaction_completed`);
+  } catch (e) {
+    log(`NATS unavailable (${e.message}) — continuing without compaction subscription`);
+  }
+
   // Graceful shutdown
   let running = true;
-  const shutdown = (signal) => {
+  const shutdown = async (signal) => {
     log(`Received ${signal} — shutting down`);
     running = false;
     saveDaemonState(sm);
+    if (natsConn) {
+      try { await natsConn.drain(); } catch (_) {}
+    }
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
