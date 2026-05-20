@@ -26,3 +26,5 @@ __pycache__/
 # Skill build artifacts (not actual skills)
 skills/dist/
 .claude/worktrees/
+memory-plan/tick-logs/*.log
+memory-plan/.tick.lock/
