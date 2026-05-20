@@ -105,6 +105,12 @@ fi
 # `--print` runs headless. `--permission-mode acceptEdits` allows file edits without
 # interactive prompts (the framework's Deep Review Gate is the real safety net).
 # `--add-dir` grants tool access to the workspace (out of repo) for runtime-file inspection.
+# Unset CLAUDECODE so the headless invocation isn't blocked as "nested".
+# Safe in production (launchd has no parent CLAUDECODE); also enables manual
+# smoke tests from inside an interactive `claude` session. The child's
+# environment is independent — the parent session is not affected.
+unset CLAUDECODE CLAUDECODE_TICK CLAUDE_CODE_ENTRYPOINT
+
 {
   printf '## Tick started: %s\n' "$(ts)"
   printf '## VERSION at start: %s\n' "${VERSION:-<unset>}"
