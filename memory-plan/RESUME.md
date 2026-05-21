@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
 **Workplan status.** Block 1 in progress.
-**Current version carrier.** `v1.1` (Step 1.1 closed).
-**Streaks.** zero-Phase-4-correction: 1 of 1 (Block 1) · zero-Phase-8-patch: 0 of 1 (Block 1; reset due to .gitignore patch).
-**Last commit on plan branch.** v1.1 — Create packages/event-schemas (zod envelope + memory event payloads + discriminated union).
+**Current version carrier.** `v1.2` (Step 1.2 closed).
+**Streaks.** zero-Phase-4-correction: 0 of 2 (Block 1; reset due to test count underestimate) · zero-Phase-8-patch: 1 of 2 (Block 1).
+**Last commit on plan branch.** v1.2 — Create local event log substrate (lib/local-event-log.mjs + JetStream R=1 stream + dual-write wiring).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -195,18 +195,38 @@ mission-control's tsc (workaround), `toJsonSchema` has an `as any` cast for Zod 
 type mismatch — both resolve when workspace deps are properly installed; event-schemas
 package exports are ready for import by `lib/local-event-log.mjs`.
 
+### Step 1.2 — Create local event log substrate (lib/local-event-log.mjs + JetStream R=1 stream + dual-write wiring)
+
+Closed at v1.2. Created `lib/local-event-log.mjs` — the per-node event log substrate backed
+by NATS JetStream. `createLocalEventLog(nc, nodeId)` ensures a JetStream stream
+`local-events-${NODE_ID}` exists (R=1, file storage, `local.>` subject filter) and returns
+a `publishLocal(event)` method that validates against `MemoryEventSchema` and publishes with
+`idempotency_key` as `msgID` for dedup. `buildMemoryEvent()` helper constructs
+envelope-conformant events with auto-generated `event_id`, `timestamp`, and `idempotency_key`.
+Dual-write wired into `MemoryBudget` at three sites: `startSession()` publishes
+`memory.session_started`, `endSession()` publishes `memory.session_ended`, `addEntry()`
+publishes `memory.fact_extracted`. All publishing is fire-and-forget via `#publishEvent()`
+private helper — errors are caught silently to ensure the event log never disrupts the
+primary MEMORY.md write path (shadow mode). The daemon initializes the event log after NATS
+connection and passes it as `eventLog` option to `createBudget`. 9 new tests cover event
+construction, schema validation, dual-write integration, and error isolation. 6 positive
+audit findings, 0 Phase 8 patches. Phase-4-correction streak reset to 0 (test count
+underestimated in AUDIT_PRE: planned 7, delivered 9). Carry-forwards to Step 1.3: test
+baseline now 506; `createLocalEventLog` and `buildMemoryEvent` are available for use by
+the artifact store; MemoryBudget accepts `eventLog` and `nodeId` options.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               8 / 45
+Steps closed:               9 / 45
 Current block:              Block 1 in progress (Schema & event foundations)
-Steps closed in block:      1 / 4
-Consecutive zero-Phase-4-correction streak:  1 (Block 1)
-Consecutive zero-Phase-8-patch streak:       0 (Block 1; reset due to .gitignore patch)
-Test baseline (npm test):   497 tests (424 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 1.1)
+Steps closed in block:      2 / 4
+Consecutive zero-Phase-4-correction streak:  0 (Block 1; reset due to test count underestimate)
+Consecutive zero-Phase-8-patch streak:       1 (Block 1)
+Test baseline (npm test):   506 tests (433 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 1.2)
 Last block file written:    memory-plan/audits/BLOCK_0_COMPLETE.md
 ```
 
@@ -217,9 +237,9 @@ Last block file written:    memory-plan/audits/BLOCK_0_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v1.1` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 1.2.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step08_event_schemas/AUDIT_POST.md` for carry-forwards.
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 1.2.
-6. **Important for Step 1.2:** The event-schemas package build may require running `npm install` first to properly resolve workspace dependencies. If `npm install` is still blocked, the build workaround (mission-control tsc path) should continue to work. Step 1.2 creates `lib/local-event-log.mjs` which imports from the compiled event-schemas package.
+2. Decode state: `VERSION` is `v1.2` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 1.3.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step09_local_event_log/AUDIT_POST.md` for carry-forwards.
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 1.3.
+6. **Important for Step 1.3:** Step 1.3 creates `lib/artifacts.mjs` — the content-addressed artifact store under `~/.openclaw/artifacts/`. `buildMemoryEvent` from `lib/local-event-log.mjs` is available if artifact events need publishing. MemoryBudget dual-write is established; the artifact store can follow the same pattern if events are needed. The event-schemas package build workaround (mission-control tsc path) should continue to work if `npm install` is still blocked.
 7. Commit. Stop.

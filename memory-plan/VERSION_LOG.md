@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v1.2 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 1.2: Create local event log substrate (lib/local-event-log.mjs + JetStream R=1 stream + dual-write wiring).
+- Files committed: `lib/local-event-log.mjs` (new), `lib/memory-budget.mjs` (mod), `workspace-bin/memory-daemon.mjs` (mod), `test/local-event-log.test.mjs` (new), audit docs, ledger files.
+- Test count: 506 (433 pass, 73 fail — pre-existing). +9 tests added this step.
+- V2 audit: 6 POSITIVE findings, 1 NEGATIVE finding (test count underestimate in AUDIT_PRE), 0 Phase 8 patches.
+- Streak: 0-of-2 zero-Phase-4-correction (Block 1; reset due to test count underestimate).
+
+### v1.2-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 1.2.
+- Files changed: `lib/local-event-log.mjs` (new — createLocalEventLog factory, publishLocal method, buildMemoryEvent helper), `lib/memory-budget.mjs` (mod — added #eventLog/#sessionId/#nodeId private fields, #publishEvent helper, dual-write in startSession/endSession/addEntry), `workspace-bin/memory-daemon.mjs` (mod — import createLocalEventLog, init local event log after NATS, pass eventLog+nodeId to createBudget), `test/local-event-log.test.mjs` (new — 7 tests).
+- Test additions: 7 new tests (buildMemoryEvent envelope, 3 schema validations, 3 MemoryBudget dual-write + error isolation).
+
+### v1.2-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 1.2.
+- Files planned: `lib/local-event-log.mjs` (new), `lib/memory-budget.mjs` (mod), `workspace-bin/memory-daemon.mjs` (mod), `test/local-event-log.test.mjs` (new).
+- Audit: `memory-plan/audits/step09_local_event_log/AUDIT_PRE.md`.
+- Test baseline: 497 tests (424 pass, 73 fail — pre-existing).
+
 ### v1.1 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 1.1: Create packages/event-schemas (zod envelope + memory event payloads + discriminated union).

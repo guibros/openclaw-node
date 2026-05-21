@@ -41,6 +41,7 @@ const tracer = createTracer('memory-daemon');
 import { shouldFlush, runFlush } from '../lib/pre-compression-flush.mjs';
 import { createBudget } from '../lib/memory-budget.mjs';
 import { createSessionTraceEmitter } from './session-trace-emitter.mjs';
+import { createLocalEventLog } from '../lib/local-event-log.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -344,11 +345,14 @@ class SessionStateMachine {
 // ============================================================
 
 let memoryBudget = null;
+let localEventLog = null;
 
 function initMemoryBudget(config) {
   if (memoryBudget) return memoryBudget;
   memoryBudget = createBudget(config.workspace || WORKSPACE, {
     charBudget: config.memoryCharBudget || 2200,
+    eventLog: localEventLog,
+    nodeId: NODE_ID,
   });
 
   memoryBudget.on('add', ({ entry, pctUsed, charsRemaining }) => {
@@ -1062,6 +1066,14 @@ async function main() {
       }
     })().catch(() => {}); // subscription ends on drain/close
     log(`NATS connected — subscribed to mesh.memory.compaction_completed`);
+
+    // Initialize local event log for dual-write shadow mode
+    try {
+      localEventLog = await createLocalEventLog(natsConn, NODE_ID);
+      log(`Local event log initialized (stream: ${localEventLog.streamName})`);
+    } catch (evtErr) {
+      log(`Local event log unavailable (${evtErr.message}) — continuing without event log`);
+    }
   } catch (e) {
     log(`NATS unavailable (${e.message}) — continuing without compaction subscription`);
   }
