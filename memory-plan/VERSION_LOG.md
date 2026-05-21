@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v2.3 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 2.3: Chunk and embed existing sessions (resumable migration with checkpoint file).
+- Files committed: `bin/embed-existing-sessions.mjs` (new — runMigration, checkpoint helpers, CLI entry), `test/embed-existing-sessions.test.mjs` (new — 5 tests), audit docs, ledger files.
+- Test count: 545 (472 pass, 73 fail — pre-existing). +5 tests added this step.
+- V2 audit: 6 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 2-of-3 zero-Phase-4-correction (Block 2).
+
+### v2.3-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 2.3.
+- Files changed: `bin/embed-existing-sessions.mjs` (new — runMigration function, checkpoint helpers, CLI entry), `test/embed-existing-sessions.test.mjs` (new — 5 tests).
+- Test additions: 5 new tests (migrate 2 sessions, idempotent re-run, checkpoint file verification, empty session store, zero-message session skip).
+
+### v2.3-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 2.3.
+- Files planned: `bin/embed-existing-sessions.mjs` (new), `test/embed-existing-sessions.test.mjs` (new).
+- Audit: `memory-plan/audits/step14_embed_existing_sessions/AUDIT_PRE.md`.
+- Test baseline: 540 tests (467 pass, 73 fail — pre-existing).
+
 ### v2.2 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 2.2: Choose embedding model + benchmark on real session data (latency target <100ms/turn).

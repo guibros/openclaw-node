@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 2 in progress; Step 2.2 closed.
-**Current version carrier.** `v2.2` (Step 2.2 closed; Block 2 step 2 of 5).
-**Streaks.** zero-Phase-4-correction: 1 of 2 (Block 2) · zero-Phase-8-patch: 2 of 2 (Block 2).
-**Last commit on plan branch.** v2.2 — Choose embedding model + benchmark on real session data (latency target <100ms/turn).
+**Workplan status.** Block 2 in progress; Step 2.3 closed.
+**Current version carrier.** `v2.3` (Step 2.3 closed; Block 2 step 3 of 5).
+**Streaks.** zero-Phase-4-correction: 2 of 3 (Block 2) · zero-Phase-8-patch: 3 of 3 (Block 2).
+**Last commit on plan branch.** v2.3 — Chunk and embed existing sessions (resumable migration with checkpoint file).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -260,19 +260,34 @@ output is L2-normalized) and "embedding latency benchmark" (2 tests: per-turn me
 (NATS config, code review, architecture discussion, debugging, artifact store, spreading
 activation). 6 positive audit findings, 0 negative, 0 Phase 8 patches.
 
+### Step 2.3 — Chunk and embed existing sessions (resumable migration with checkpoint file)
+
+Closed at v2.3. Created `bin/embed-existing-sessions.mjs` — a standalone resumable migration
+script that reads all sessions from the session-store DB (`~/.openclaw/state.db`) and indexes
+their embeddings into the mcp-knowledge database via the existing `indexSessionTurns()`
+infrastructure. The script opens the session store read-only (`{ readonly: true }` flag in
+better-sqlite3), iterates all sessions, queries their messages, forms turns arrays, and calls
+`indexSessionTurns()` for each. Checkpoint file at `~/.openclaw/.embed-migration-checkpoint.json`
+tracks completed session IDs after each session for crash resumability. SIGINT handler enables
+graceful mid-migration shutdown. Session source path uses synthetic URI format
+`session-store://<session-id>`. `indexSessionTurns()` idempotency (content-hash check) provides
+a second layer of dedup. 5 new tests in `test/embed-existing-sessions.test.mjs`: migrate 2
+sessions, idempotent re-run, checkpoint file verification, empty session store, zero-message
+session skip. 6 positive audit findings, 0 negative, 0 Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               13 / 45
-Current block:              Block 2 — Local semantic layer (2 of 5 steps closed)
-Steps closed in block:      2 / 5
-Consecutive zero-Phase-4-correction streak:  1 (test count matched)
-Consecutive zero-Phase-8-patch streak:       2
-Test baseline (npm test):   540 tests (467 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 2.2)
-Last block file written:    memory-plan/audits/step13_embed_model_benchmark/AUDIT_POST.md
+Steps closed:               14 / 45
+Current block:              Block 2 — Local semantic layer (3 of 5 steps closed)
+Steps closed in block:      3 / 5
+Consecutive zero-Phase-4-correction streak:  2 (test count matched)
+Consecutive zero-Phase-8-patch streak:       3
+Test baseline (npm test):   545 tests (472 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 2.3)
+Last block file written:    memory-plan/audits/step14_embed_existing_sessions/AUDIT_POST.md
 ```
 
 ---
@@ -282,9 +297,9 @@ Last block file written:    memory-plan/audits/step13_embed_model_benchmark/AUDI
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v2.2` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 2.3.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step13_embed_model_benchmark/AUDIT_POST.md` for carry-forwards.
+2. Decode state: `VERSION` is `v2.3` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 2.4.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step14_embed_existing_sessions/AUDIT_POST.md` for carry-forwards.
 5. Block 2 frozen decisions are authored in §0. Proceed.
-6. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.3.
+6. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.4.
 7. Commit. Stop.

@@ -73,7 +73,9 @@ gate per RESUME.md §0.
 | 2 | 2.2 | v2.2 | [x] | Choose embedding model + benchmark on real session data (latency target <100ms/turn) |
 
 > **Step 2.2 closed.** Confirmed Xenova/all-MiniLM-L6-v2 (384-dim) as the embedding model per Block 2 frozen decisions. Benchmark proves <100ms/turn latency target met by wide margin (~5ms/turn on M4). 5 new tests validate model identity (name, dimension, normalization) and latency (mean on 50 turns, batch of 100 turns). 6 positive audit findings, zero corrections, zero Phase 8 patches.
-| 2 | 2.3 | v2.3 | [ ] | Chunk and embed existing sessions (resumable migration with checkpoint file) |
+| 2 | 2.3 | v2.3 | [x] | Chunk and embed existing sessions (resumable migration with checkpoint file) |
+
+> **Step 2.3 closed.** Created `bin/embed-existing-sessions.mjs` — a standalone resumable migration script that reads all sessions from the session-store DB (`~/.openclaw/state.db`), extracts their messages as turns, and indexes embeddings into the mcp-knowledge database via `indexSessionTurns()`. Checkpoint file (`~/.openclaw/.embed-migration-checkpoint.json`) tracks progress per session for crash resumability. Script opens session store read-only, handles SIGINT for graceful shutdown. 5 new tests. 6 positive audit findings, zero corrections, zero Phase 8 patches.
 | 2 | 2.4 | v2.4 | [ ] | Implement semanticSearch + hybridSearch (RRF) + CLI --semantic/--hybrid flags |
 | 2 | 2.5 | v2.5 | [ ] | Manual evaluation against 20-30 real queries; spreadsheet of results; **Gulf 1 gate** |
 
