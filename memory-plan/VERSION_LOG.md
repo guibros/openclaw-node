@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v2.1 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 2.1: Scope review vs mcp-knowledge; install/verify sqlite-vec in chosen store; integration smoke test.
+- Files committed: `lib/mcp-knowledge/core.mjs` (mod — session tables, chunkSessionTurns, indexSessionTurns, searchSessions, getStats update, engine exports), `test/mcp-knowledge-sessions.test.mjs` (new — 7 tests), audit docs, ledger files.
+- Test count: 535 (462 pass, 73 fail — pre-existing). +7 tests added this step.
+- V2 audit: 6 POSITIVE findings, 1 NEGATIVE finding (test count underestimate: planned 6, delivered 7), 0 Phase 8 patches.
+- Streak: 0 (reset — test count underestimate).
+
+### v2.1-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 2.1.
+- Files changed: `lib/mcp-knowledge/core.mjs` (mod — session tables in initDatabase, chunkSessionTurns, indexSessionTurns, searchSessions, getStats session counts, engine factory session exports), `test/mcp-knowledge-sessions.test.mjs` (new — 6 tests).
+- Test additions: 6 new tests (session tables existence, chunk role prefix + empty turn skipping, index+vector creation, idempotent skip, semantic search, stats inclusion).
+
+### v2.1-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 2.1.
+- Files planned: `lib/mcp-knowledge/core.mjs` (mod), `test/mcp-knowledge-sessions.test.mjs` (new).
+- Audit: `memory-plan/audits/step12_scope_review_mcp_knowledge/AUDIT_PRE.md`.
+- Test baseline: 528 tests (455 pass, 73 fail — pre-existing).
+
 ### v1.4 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 1.4: Configure shared JetStream cluster preparation only (R=3 stream, idle until Phase 4).

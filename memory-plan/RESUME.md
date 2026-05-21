@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 1 closed; Block 2 awaits.
-**Current version carrier.** `v1.4` (Step 1.4 closed; Block 1 complete).
-**Streaks.** zero-Phase-4-correction: 0 of 4 (Block 1) · zero-Phase-8-patch: 3 of 4 (Block 1).
-**Last commit on plan branch.** v1.4 — Configure shared JetStream cluster preparation only (R=3 stream, idle until Phase 4).
+**Workplan status.** Block 2 in progress; Step 2.1 closed.
+**Current version carrier.** `v2.1` (Step 2.1 closed; Block 2 step 1 of 5).
+**Streaks.** zero-Phase-4-correction: 0 of 1 (Block 2) · zero-Phase-8-patch: 1 of 1 (Block 2).
+**Last commit on plan branch.** v2.1 — Scope review vs mcp-knowledge; install/verify sqlite-vec in chosen store; integration smoke test.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -232,19 +232,35 @@ and inspection. 6 positive audit findings, 1 negative finding (`StorageType.File
 assumption — numeric 2 vs actual string 'file'), 0 Phase 8 patches. Phase-4-correction
 streak reset to 0. **Block 1 complete (4/4).**
 
+### Step 2.1 — Scope review vs mcp-knowledge; install/verify sqlite-vec in chosen store; integration smoke test
+
+Closed at v2.1. Extended `lib/mcp-knowledge/core.mjs` with session-turn embedding capability.
+Three deliverables landed: (1) Scope review documented in AUDIT_PRE §3 — decision is to extend
+mcp-knowledge with parallel session tables (`session_documents`, `session_chunks`,
+`session_chunk_vectors`) rather than mixing into existing document tables. One embedding stack,
+two data sources. (2) sqlite-vec verified working — already loaded in mcp-knowledge via
+`sqlite-vec` package. (3) Integration smoke test — 7 new tests prove session turns can be
+embedded, stored, and searched alongside markdown chunks. New exports: `chunkSessionTurns(turns)`
+for turn-aligned chunking with role prefix, `indexSessionTurns(db, sessionId, sourcePath, turns)`
+for idempotent content-hash-based indexing, `searchSessions(db, query, limit)` for semantic search
+over session chunks. `getStats()` updated to include `session_documents` and `session_chunks`
+counts. `createKnowledgeEngine()` exposes `searchSessions` and `indexSessionTurns` methods.
+6 positive audit findings, 1 negative (test count underestimate: planned 6, delivered 7),
+0 Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               11 / 45
-Current block:              Block 1 closed; Block 2 awaits (Local semantic layer)
-Steps closed in block:      4 / 4 (Block 1 complete)
-Consecutive zero-Phase-4-correction streak:  0 (Block 1 final)
-Consecutive zero-Phase-8-patch streak:       3 (Block 1 final)
-Test baseline (npm test):   528 tests (455 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 1.4)
-Last block file written:    memory-plan/audits/BLOCK_1_COMPLETE.md
+Steps closed:               12 / 45
+Current block:              Block 2 — Local semantic layer (1 of 5 steps closed)
+Steps closed in block:      1 / 5
+Consecutive zero-Phase-4-correction streak:  0 (test count underestimate)
+Consecutive zero-Phase-8-patch streak:       1
+Test baseline (npm test):   535 tests (462 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 2.1)
+Last block file written:    memory-plan/audits/step12_scope_review_mcp_knowledge/AUDIT_POST.md
 ```
 
 ---
@@ -254,10 +270,9 @@ Last block file written:    memory-plan/audits/BLOCK_1_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v1.4` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 2.1.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step11_shared_jetstream_cluster/AUDIT_POST.md` for carry-forwards.
-5. **CRITICAL GATE:** Block 2 frozen decisions are NOT YET AUTHORED in `RESUME.md §0`. The autonomous worker MUST find Block 2 frozen decisions populated before proceeding. If §0 for Block 2 says "NOT YET AUTHORED", write `BLOCKED.md` with reason "Block 2 frozen decisions not recorded" and STOP.
-6. Step 2.1 requires a scoping decision (extend mcp-knowledge vs. parallel embedding stack). This decision must be in §0 before the step begins.
-7. If §0 is populated: execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.1.
-8. Commit. Stop.
+2. Decode state: `VERSION` is `v2.1` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 2.2.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step12_scope_review_mcp_knowledge/AUDIT_POST.md` for carry-forwards.
+5. Block 2 frozen decisions are authored in §0. Proceed.
+6. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.2.
+7. Commit. Stop.

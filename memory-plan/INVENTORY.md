@@ -69,7 +69,7 @@ gate per RESUME.md §0.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 2 | 2.1 | v2.1 | [ ] | Scope review vs mcp-knowledge; install/verify sqlite-vec in chosen store; integration smoke test |
+| 2 | 2.1 | v2.1 | [x] | Scope review vs mcp-knowledge; install/verify sqlite-vec in chosen store; integration smoke test |
 | 2 | 2.2 | v2.2 | [ ] | Choose embedding model + benchmark on real session data (latency target <100ms/turn) |
 | 2 | 2.3 | v2.3 | [ ] | Chunk and embed existing sessions (resumable migration with checkpoint file) |
 | 2 | 2.4 | v2.4 | [ ] | Implement semanticSearch + hybridSearch (RRF) + CLI --semantic/--hybrid flags |
