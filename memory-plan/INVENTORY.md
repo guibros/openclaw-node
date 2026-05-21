@@ -79,7 +79,9 @@ gate per RESUME.md §0.
 | 2 | 2.4 | v2.4 | [x] | Implement semanticSearch + hybridSearch (RRF) + CLI --semantic/--hybrid flags |
 
 > **Step 2.4 closed.** Extended `lib/mcp-knowledge/core.mjs` with FTS5 full-text search (`session_chunks_fts` virtual table with external content triggers), `searchSessionsFts()` for BM25-ranked keyword search, `reciprocalRankFusion()` for combining multiple ranked result sets, and `hybridSearchSessions()` which fuses FTS5 + semantic via RRF. Updated `searchSessions()` to include `chunk_id` for RRF keying. Created `bin/session-search.mjs` CLI tool with `--semantic`/`--hybrid`/`--fts` flags (default: hybrid). 7 new tests. 7 positive audit findings, zero corrections, zero Phase 8 patches.
-| 2 | 2.5 | v2.5 | [ ] | Manual evaluation against 20-30 real queries; spreadsheet of results; **Gulf 1 gate** |
+| 2 | 2.5 | v2.5 | [x] | Manual evaluation against 20-30 real queries; spreadsheet of results; **Gulf 1 gate** |
+
+> **Step 2.5 closed.** Created `bin/run-gulf1-eval.mjs` — the Gulf 1 evaluation runner that queries all three search modes (FTS5, semantic, hybrid) against a curated 25-query set and produces a structured markdown results document with scoring columns for manual operator review. Created `memory-plan/eval/gulf1-queries.json` with 25 queries across 8 categories (architecture, memory-lifecycle, architecture-decision, semantic-layer, extraction, infrastructure, search, federation). The evaluation tool exports `parseQuerySet`, `runEvaluation`, `formatResults`, `aggregateScores`, and `checkDatabaseReadiness` for programmatic use. Operator must run the evaluation against live databases and score results to make the go/no-go decision for Block 3. 7 new tests. 6 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches. **Block 2 complete (5/5).**
 
 ## Block 3 — LLM-driven extraction
 

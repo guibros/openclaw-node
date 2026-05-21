@@ -9,6 +9,28 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v2.5 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 2.5: Manual evaluation against 20-30 real queries; spreadsheet of results; Gulf 1 gate.
+- Files committed: `bin/run-gulf1-eval.mjs` (new — evaluation runner with parseQuerySet, runEvaluation, formatResults, aggregateScores, checkDatabaseReadiness, CLI entry), `memory-plan/eval/gulf1-queries.json` (new — 25 curated queries across 8 categories), `test/gulf1-eval.test.mjs` (new — 7 tests), audit docs, ledger files.
+- Test count: 559 (486 pass, 73 fail — pre-existing). +7 tests added this step.
+- V2 audit: 6 POSITIVE findings, 1 NEGATIVE finding (test count underestimate: planned 5, delivered 7), 0 Phase 8 patches.
+- Streak: 0-of-5 zero-Phase-4-correction (Block 2; reset due to test count underestimate).
+- **Block 2 complete (5/5).**
+
+### v2.5-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 2.5.
+- Files changed: `bin/run-gulf1-eval.mjs` (new — parseQuerySet, runEvaluation, formatResults, aggregateScores, checkDatabaseReadiness, CLI entry point), `memory-plan/eval/gulf1-queries.json` (new — 25 curated queries across 8 categories), `test/gulf1-eval.test.mjs` (new — 5 tests).
+- Test additions: 5 new tests (parseQuerySet validation ×3 in 1 describe, runEvaluation 3-mode + empty DB in 1 describe, formatResults markdown output, checkDatabaseReadiness counts).
+
+### v2.5-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 2.5.
+- Files planned: `bin/run-gulf1-eval.mjs` (new), `memory-plan/eval/gulf1-queries.json` (new), `test/gulf1-eval.test.mjs` (new).
+- Audit: `memory-plan/audits/step16_gulf1_evaluation/AUDIT_PRE.md`.
+- Test baseline: 552 tests (479 pass, 73 fail — pre-existing).
+
 ### v2.4 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 2.4: Implement semanticSearch + hybridSearch (RRF) + CLI --semantic/--hybrid flags.

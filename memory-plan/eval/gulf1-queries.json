@@ -1,0 +1,152 @@
+[
+  {
+    "id": "q01",
+    "query": "How is NATS JetStream configured for local event logging?",
+    "category": "architecture",
+    "expected_topic": "local-event-log, JetStream R=1 stream, local-events stream"
+  },
+  {
+    "id": "q02",
+    "query": "What happens during memory compaction and how does reload work?",
+    "category": "memory-lifecycle",
+    "expected_topic": "MemoryBudget.reload, pre-compression flush, compaction"
+  },
+  {
+    "id": "q03",
+    "query": "How does the daemon state file work and why was it renamed?",
+    "category": "architecture-decision",
+    "expected_topic": "companion-state collision, daemon-state-NODE_ID, migration"
+  },
+  {
+    "id": "q04",
+    "query": "What embedding model is used and what are its dimensions?",
+    "category": "semantic-layer",
+    "expected_topic": "Xenova/all-MiniLM-L6-v2, 384-dim, mcp-knowledge"
+  },
+  {
+    "id": "q05",
+    "query": "How does fact extraction work from session messages?",
+    "category": "extraction",
+    "expected_topic": "extractFacts, pre-compression-flush, regex patterns, speaker field"
+  },
+  {
+    "id": "q06",
+    "query": "How are session turns chunked and indexed for search?",
+    "category": "semantic-layer",
+    "expected_topic": "chunkSessionTurns, indexSessionTurns, session_chunks table"
+  },
+  {
+    "id": "q07",
+    "query": "What is the content-addressed artifact store and how does hashing work?",
+    "category": "infrastructure",
+    "expected_topic": "lib/artifacts.mjs, SHA-256, sharded path, meta.json sidecar"
+  },
+  {
+    "id": "q08",
+    "query": "How does the shared JetStream stream differ from the local one?",
+    "category": "federation",
+    "expected_topic": "OPENCLAW_SHARED, R=3 vs R=1, shared-event-stream, 7 subject patterns"
+  },
+  {
+    "id": "q09",
+    "query": "What event schemas exist and how are they validated?",
+    "category": "schema",
+    "expected_topic": "packages/event-schemas, Zod, discriminated union, 8 memory events"
+  },
+  {
+    "id": "q10",
+    "query": "How does the merge facts function handle duplicate entries?",
+    "category": "extraction",
+    "expected_topic": "mergeFacts, supersedes comment model, similarity threshold 0.7-0.9"
+  },
+  {
+    "id": "q11",
+    "query": "What is dual-write shadow mode for the event log?",
+    "category": "architecture-decision",
+    "expected_topic": "local-event-log, fire-and-forget publishing, MEMORY.md still primary"
+  },
+  {
+    "id": "q12",
+    "query": "How does the session store database work?",
+    "category": "infrastructure",
+    "expected_topic": "state.db, session-store, better-sqlite3, messages table"
+  },
+  {
+    "id": "q13",
+    "query": "What files were deleted as dead artifacts and why?",
+    "category": "cleanup",
+    "expected_topic": "pre-compact-state, session-fingerprint, frontend-activity, confidence field"
+  },
+  {
+    "id": "q14",
+    "query": "How does the daily log writer generate activity summaries?",
+    "category": "memory-lifecycle",
+    "expected_topic": "daily-log-writer.mjs, workspace memory files, session recap"
+  },
+  {
+    "id": "q15",
+    "query": "What is reciprocal rank fusion and how is it used for hybrid search?",
+    "category": "search",
+    "expected_topic": "reciprocalRankFusion, k=60, FTS5 + semantic, chunk_id dedup"
+  },
+  {
+    "id": "q16",
+    "query": "How does the FTS5 virtual table stay in sync with session chunks?",
+    "category": "search",
+    "expected_topic": "external content mode, INSERT/DELETE triggers, one-time rebuild"
+  },
+  {
+    "id": "q17",
+    "query": "What is the NODE_ID convention across shell and JavaScript files?",
+    "category": "infrastructure",
+    "expected_topic": "OPENCLAW_NODE_ID, os.hostname, consistent derivation"
+  },
+  {
+    "id": "q18",
+    "query": "How does the migration script for embedding existing sessions work?",
+    "category": "semantic-layer",
+    "expected_topic": "embed-existing-sessions, checkpoint file, crash resumability, SIGINT"
+  },
+  {
+    "id": "q19",
+    "query": "What truncation strategy is used for extracted facts?",
+    "category": "extraction",
+    "expected_topic": "truncateAtWord, 120 char limit, word boundary, 0.7 fallback threshold"
+  },
+  {
+    "id": "q20",
+    "query": "How does the mcp-knowledge server handle workspace file indexing?",
+    "category": "semantic-layer",
+    "expected_topic": "indexWorkspace, polling, markdown chunking, document hashing"
+  },
+  {
+    "id": "q21",
+    "query": "What is the MEMORY.md file format and how is it structured?",
+    "category": "memory-lifecycle",
+    "expected_topic": "working memory, sections, budget, rendered output"
+  },
+  {
+    "id": "q22",
+    "query": "How are assistant-role messages handled differently from user messages?",
+    "category": "extraction",
+    "expected_topic": "role filter, agent_action patterns, finding patterns, speaker field"
+  },
+  {
+    "id": "q23",
+    "query": "What idempotency mechanisms prevent duplicate data?",
+    "category": "infrastructure",
+    "expected_topic": "content hash, idempotency_key, msgID dedup, indexSessionTurns skip"
+  },
+  {
+    "id": "q24",
+    "query": "How does the session-start hook initialize a new session?",
+    "category": "memory-lifecycle",
+    "expected_topic": "session-start.sh, daemon state read, environment setup"
+  },
+  {
+    "id": "q25",
+    "query": "What is the promotion policy for sharing local knowledge to the cluster?",
+    "category": "federation",
+    "expected_topic": "Block 4 future work, promoter, subscriber, provenance fields"
+  }
+]

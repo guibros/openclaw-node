@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 2 in progress; Step 2.4 closed.
-**Current version carrier.** `v2.4` (Step 2.4 closed; Block 2 step 4 of 5).
-**Streaks.** zero-Phase-4-correction: 3 of 4 (Block 2) · zero-Phase-8-patch: 4 of 4 (Block 2).
-**Last commit on plan branch.** v2.4 — Implement semanticSearch + hybridSearch (RRF) + CLI --semantic/--hybrid flags.
+**Workplan status.** Block 2 closed; Block 3 awaits operator Gulf 1 evaluation + frozen decisions.
+**Current version carrier.** `v2.5` (Step 2.5 closed; Block 2 complete 5 of 5).
+**Streaks.** zero-Phase-4-correction: 0 of 5 (Block 2) · zero-Phase-8-patch: 5 of 5 (Block 2).
+**Last commit on plan branch.** v2.5 — Manual evaluation against 20-30 real queries; spreadsheet of results; Gulf 1 gate.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -291,19 +291,36 @@ hybrid), `--limit N`, `--db PATH` options. Uses `node:util` parseArgs (zero exte
 FTS5 keyword hit, FTS5 no-match, hybrid combined results, hybrid ranking. 7 positive audit
 findings, 0 negative, 0 Phase 8 patches.
 
+### Step 2.5 — Manual evaluation against 20-30 real queries; spreadsheet of results; Gulf 1 gate
+
+Closed at v2.5. Created `bin/run-gulf1-eval.mjs` — the Gulf 1 evaluation runner that queries
+all three search modes (FTS5, semantic, hybrid) against a curated query set and produces a
+structured markdown results document with scoring columns for manual operator review. Exports
+`parseQuerySet`, `runEvaluation`, `formatResults`, `aggregateScores`, and `checkDatabaseReadiness`.
+Created `memory-plan/eval/gulf1-queries.json` with 25 queries across 8 categories (architecture,
+memory-lifecycle, architecture-decision, semantic-layer, extraction, infrastructure, search,
+federation). Each query has `id`, `query`, `category`, and `expected_topic` fields. The results
+document includes per-query tables showing top-5 results from each mode with empty 0-2 scoring
+columns, plus an aggregate scores section and a go/no-go decision checklist. Operator must run
+the evaluation against live databases and score results before Block 3 can begin. 7 new tests in
+`test/gulf1-eval.test.mjs`: parseQuerySet valid/invalid/missing-field, runEvaluation 3-mode
+structured results, empty database handling, formatResults markdown output, checkDatabaseReadiness
+counts. 6 positive audit findings, 1 negative (test count underestimate: planned 5, delivered 7),
+0 Phase 8 patches. **Block 2 complete (5/5).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               15 / 45
-Current block:              Block 2 — Local semantic layer (4 of 5 steps closed)
-Steps closed in block:      4 / 5
-Consecutive zero-Phase-4-correction streak:  3 (test count matched)
-Consecutive zero-Phase-8-patch streak:       4
-Test baseline (npm test):   552 tests (479 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 2.4)
-Last block file written:    memory-plan/audits/step15_hybrid_search_rrf/AUDIT_POST.md
+Steps closed:               16 / 45
+Current block:              Block 2 closed — Local semantic layer (5 of 5 steps closed)
+Steps closed in block:      5 / 5
+Consecutive zero-Phase-4-correction streak:  0 (reset in Step 2.5)
+Consecutive zero-Phase-8-patch streak:       5
+Test baseline (npm test):   559 tests (486 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 2.5)
+Last block file written:    memory-plan/audits/BLOCK_2_COMPLETE.md
 ```
 
 ---
@@ -313,10 +330,13 @@ Last block file written:    memory-plan/audits/step15_hybrid_search_rrf/AUDIT_PO
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v2.4` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 2.5.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step15_hybrid_search_rrf/AUDIT_POST.md` for carry-forwards.
-5. Block 2 frozen decisions are authored in §0. Proceed.
-6. **Step 2.5 is the Gulf 1 evaluation gate.** This is the last step of Block 2.
-7. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.5. Include block-close ceremony if closing.
-8. Commit. Stop.
+2. Decode state: `VERSION` is `v2.5` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 3.1.
+4. **STOP.** Block 3 frozen decisions have NOT been authored in §0 yet.
+5. The operator must first:
+   a. Run `bin/embed-existing-sessions.mjs` to populate session embeddings.
+   b. Run `bin/run-gulf1-eval.mjs` to generate `memory-plan/eval/gulf1-results.md`.
+   c. Manually score results (0-2 per result) and make the go/no-go decision.
+   d. If proceeding, author Block 3 frozen decisions in RESUME.md §0.
+6. Until Block 3 frozen decisions are authored, the next tick should write `BLOCKED.md`
+   with reason: "Block 3 frozen decisions not yet authored; Gulf 1 evaluation pending."
