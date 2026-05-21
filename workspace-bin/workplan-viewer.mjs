@@ -1125,7 +1125,7 @@ async function renderAutomation() {
   let html = '';
   html += '<h2>' + statusPill + ' Automated tick scheduler</h2>';
   html += '<p class="lede" style="color:var(--dim);margin:0 0 24px;font-size:13px;">' +
-    'Runs <code>' + esc(cfg.tick_command.split(\'/\').pop()) + '</code> on a fixed interval via macOS launchd. ' +
+    'Runs <code>' + esc(cfg.tick_command.split('/').pop()) + '</code> on a fixed interval via macOS launchd. ' +
     'Independent from manual <code>./...-tick.sh</code> invocations.</p>';
 
   // ── Section: Current status ──
