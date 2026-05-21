@@ -175,6 +175,27 @@ unset CLAUDECODE CLAUDECODE_TICK CLAUDE_CODE_ENTRYPOINT
 
 TICK_RAW="${TICK_LOG%.log}.jsonl"
 PRETTY="${REPO}/workspace-bin/memory-plan-pretty-stream.sh"
+TICK_START_EPOCH=$(date +%s)
+
+# Heartbeat: emit a one-line proof-of-life to OUR stdout (= launchd.stdout.log)
+# every 60s while claude is running. Without this the launchd log sits silent
+# for 5-15 minutes between "starting tick" and "tick done", making it look
+# stuck. The subshell is backgrounded BEFORE the heredoc block so its stdout
+# is the wrapper's stdout, not the redirected TICK_LOG.
+(
+  while sleep 60; do
+    NOW=$(date +%s)
+    ELAPSED=$(( NOW - TICK_START_EPOCH ))
+    MINS=$(( ELAPSED / 60 ))
+    TICK_SIZE=0
+    [ -f "${TICK_LOG}" ] && TICK_SIZE=$(stat -f '%z' "${TICK_LOG}" 2>/dev/null || echo 0)
+    TICK_KB=$(( TICK_SIZE / 1024 ))
+    log "heartbeat: ${MINS}m elapsed · ${TICK_KB} KB written · log=$(basename "${TICK_LOG}")"
+  done
+) &
+HEARTBEAT_PID=$!
+# Re-set the trap to also kill the heartbeat. Defensive against unset var.
+trap 'kill "${HEARTBEAT_PID:-}" 2>/dev/null || true; rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
 
 {
   printf '## Tick started: %s\n' "$(ts)"
@@ -183,9 +204,9 @@ PRETTY="${REPO}/workspace-bin/memory-plan-pretty-stream.sh"
   printf '## Raw JSON stream: %s\n' "$(basename "${TICK_RAW}")"
   printf '## ─── live claude work ───\n'
   set +e
-  # stream-json + verbose + include-partial-messages → events flush line-by-line
-  # as claude works. tee → raw .jsonl for forensics. pretty-stream → readable
-  # lines into THIS log. PIPESTATUS[0] = claude's exit code (what we care about).
+  # stream-json + verbose → events flush line-by-line as claude works.
+  # tee → raw .jsonl for forensics. pretty-stream → readable lines into log.
+  # PIPESTATUS[0] = claude's exit code (what we care about).
   cat "${PROMPT_FILE}" | claude \
     --print \
     --permission-mode acceptEdits \
@@ -200,6 +221,11 @@ PRETTY="${REPO}/workspace-bin/memory-plan-pretty-stream.sh"
   printf '\n## ─── end claude (rc=%d) ───\n' "${CLAUDE_RC}"
   printf '## Tick ended: %s\n' "$(ts)"
 } >>"${TICK_LOG}" 2>&1
+
+# Stop heartbeat now that claude is done; the EXIT trap also handles this.
+kill "${HEARTBEAT_PID:-}" 2>/dev/null || true
+TICK_DURATION=$(( $(date +%s) - "${TICK_START_EPOCH:-$(date +%s)}" ))
+log "claude exited rc=${CLAUDE_RC:-?} after ${TICK_DURATION}s"
 
 # ── Post-tick observability ──────────────────────────────────────────────────
 # Regenerate the markdown timeline (best-effort; never blocks exit).
