@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v0.4 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 0.4: Include assistant-role messages in extraction + add speaker field + new patterns.
+- Files committed: `lib/pre-compression-flush.mjs`, `test/memory-budget.test.mjs`, audit docs, ledger files.
+- Test count: 477 (404 pass, 73 fail — pre-existing). +5 tests added this step.
+- V2 audit: 6 POSITIVE findings, 0 Phase 8 patches.
+- Streak: 4-of-4 zero-Phase-4-correction.
+
+### v0.4-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 0.4.
+- Files changed: `lib/pre-compression-flush.mjs` (added `stripSpeaker` helper, two assistant-voice pattern groups, opened role filter to include assistant, added `speaker` field on facts, updated `mergeFacts` to format with speaker tags and strip during comparison), `test/memory-budget.test.mjs` (+5 tests in new `extractFacts assistant extraction` describe block).
+- Test additions: 5 new tests (assistant inclusion, speaker field, assistant patterns, tool exclusion, mergeFacts speaker tags).
+
+### v0.4-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 0.4.
+- Files planned: `lib/pre-compression-flush.mjs`, `test/memory-budget.test.mjs`.
+- Audit: `memory-plan/audits/step04_assistant_extraction/AUDIT_PRE.md`.
+- Test baseline: 472 tests (399 pass, 73 fail — pre-existing).
+
 ### v0.3 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 0.3: Fix mergeFacts parenthetical chain (supersedes-event-id comment model + one-time cleanup).

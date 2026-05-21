@@ -13,7 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { MemoryBudget, createBudget } from '../lib/memory-budget.mjs';
-import { mergeFacts, cleanParentheticalChains, stripSupersedes } from '../lib/pre-compression-flush.mjs';
+import { extractFacts, mergeFacts, cleanParentheticalChains, stripSupersedes, stripSpeaker } from '../lib/pre-compression-flush.mjs';
 
 let tmpDir;
 
@@ -332,5 +332,65 @@ describe('mergeFacts parenthetical regression', () => {
     const clean = '# Memory\n- normal entry\n- another entry\n';
     const result = cleanParentheticalChains(clean);
     assert.equal(result, clean, 'Clean content should be unchanged');
+  });
+});
+
+describe('extractFacts assistant extraction', () => {
+  it('includes assistant-role messages in extraction', () => {
+    const messages = [
+      { role: 'assistant', content: "I found that the database config is in /etc/openclaw/db.conf and needs updating" },
+      { role: 'user', content: "always use port 5433 for the database connection instead of default" },
+    ];
+    const facts = extractFacts(messages);
+    // Should extract from both roles
+    const assistantFacts = facts.filter(f => f.speaker === 'assistant');
+    const userFacts = facts.filter(f => f.speaker === 'user');
+    assert.ok(assistantFacts.length > 0, 'Should extract facts from assistant messages');
+    assert.ok(userFacts.length > 0, 'Should extract facts from user messages');
+  });
+
+  it('speaker field is present on all extracted facts', () => {
+    const messages = [
+      { role: 'user', content: "don't use the old authentication endpoint for any API calls going forward" },
+      { role: 'assistant', content: "I'll switch to the new OAuth2 endpoint at /api/v2/auth for all requests" },
+    ];
+    const facts = extractFacts(messages);
+    assert.ok(facts.length > 0, 'Should extract at least one fact');
+    for (const f of facts) {
+      assert.ok(f.speaker === 'user' || f.speaker === 'assistant',
+        `Speaker field must be 'user' or 'assistant', got '${f.speaker}'`);
+    }
+  });
+
+  it('assistant-specific patterns match agent actions and findings', () => {
+    const messages = [
+      { role: 'assistant', content: "I'll switch to the new build pipeline using esbuild instead of webpack for faster builds" },
+      { role: 'assistant', content: "I noticed that the memory daemon crashes when NATS is unavailable and needs a fallback" },
+    ];
+    const facts = extractFacts(messages);
+    const categories = facts.map(f => f.category);
+    assert.ok(categories.includes('agent_action'), 'Should detect agent_action category');
+    assert.ok(categories.includes('finding'), 'Should detect finding category');
+  });
+
+  it('tool-role messages are excluded from extraction', () => {
+    const messages = [
+      { role: 'tool', content: "don't use this pattern, always prefer the other approach for consistency" },
+      { role: 'system', content: "I found that the critical config is at /opt/openclaw/system.conf for reference" },
+    ];
+    const facts = extractFacts(messages);
+    assert.equal(facts.length, 0, 'Tool and system role messages should produce no facts');
+  });
+
+  it('mergeFacts formats entries with speaker tag', () => {
+    const content = '# Memory\n\n## Recent\n';
+    const facts = [
+      { fact: 'the API endpoint moved to port 8080 for all services', category: 'environment', confidence: 75, speaker: 'assistant' },
+      { fact: 'always use dark mode in the editor for all development work', category: 'preference', confidence: 85, speaker: 'user' },
+    ];
+    const result = mergeFacts(content, facts, 5000);
+    assert.equal(result.added, 2);
+    assert.ok(result.content.includes('[assistant] the API endpoint'), 'Should prefix assistant fact with [assistant]');
+    assert.ok(result.content.includes('[user] always use dark mode'), 'Should prefix user fact with [user]');
   });
 });

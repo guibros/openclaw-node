@@ -27,7 +27,9 @@ Fix active bugs in the existing harness before adding complexity. See REFERENCE_
 | 0 | 0.3 | v0.3 | [x] | Fix mergeFacts parenthetical chain (supersedes-event-id comment model + one-time cleanup) |
 
 > **Step 0.3 closed.** Replaced parenthetical merge format `(updated: ...)` with supersedes-comment model `<!-- supersedes: <hash> -->` in `mergeFacts`. Added `cleanParentheticalChains` for legacy cleanup and `stripSupersedes` for clean similarity comparison. 5 new regression tests. 6 positive audit findings, zero corrections, zero Phase 8 patches.
-| 0 | 0.4 | v0.4 | [ ] | Include assistant-role messages in extraction + add speaker field + new patterns |
+| 0 | 0.4 | v0.4 | [x] | Include assistant-role messages in extraction + add speaker field + new patterns |
+
+> **Step 0.4 closed.** Opened `extractFacts` role filter to include assistant messages alongside user messages. Added `stripSpeaker` helper and two assistant-voice pattern groups (`agent_action`, `finding`). Added `speaker` field on extracted facts. Updated `mergeFacts` to format MEMORY.md entries with `[user]`/`[assistant]` prefix and strip speaker tags during similarity comparison. 5 new tests. 6 positive audit findings, zero corrections, zero Phase 8 patches.
 | 0 | 0.5 | v0.5 | [ ] | Fix mid-word truncation via truncateAtWord helper |
 | 0 | 0.6 | v0.6 | [ ] | Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field) |
 | 0 | 0.7 | v0.7 | [ ] | Document state files (docs/STATE_FILES.md) |

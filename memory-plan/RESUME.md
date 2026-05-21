@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 0 in progress. Step 0.3 closed; Step 0.4 is next.
-**Current version carrier.** `v0.3` (Step 0.3 closed).
-**Streaks.** zero-Phase-4-correction: 3 of 3 · zero-Phase-8-patch: 3 of 3.
-**Last commit on plan branch.** v0.3 — Fix mergeFacts parenthetical chain (supersedes-event-id comment model + one-time cleanup).
+**Workplan status.** Block 0 in progress. Step 0.4 closed; Step 0.5 is next.
+**Current version carrier.** `v0.4` (Step 0.4 closed).
+**Streaks.** zero-Phase-4-correction: 4 of 4 · zero-Phase-8-patch: 4 of 4.
+**Last commit on plan branch.** v0.4 — Include assistant-role messages in extraction + add speaker field + new patterns.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -81,18 +81,36 @@ Carry-forwards to Step 0.4: test baseline now 472 (399 pass, 73 fail pre-existin
 `extractFacts` still filters `role === 'user'` only; `confidence` field still unused;
 `crypto` import shifts line numbers in `pre-compression-flush.mjs`.
 
+### Step 0.4 — Include assistant-role messages in extraction + add speaker field + new patterns
+
+Closed at v0.4. Opened `extractFacts` role filter to include assistant messages
+alongside user messages (line 166). Added `stripSpeaker(text)` helper (line 203) to
+remove `[user]`/`[assistant]` prefix before similarity comparison. Added two
+assistant-voice pattern groups: `agent_action` (line 160) for intent declarations
+(`I'll`, `I'm going to`, etc.) and `finding` (line 162) for observations (`I found`,
+`I noticed`, etc.). Added `speaker: msg.role` field on all extracted fact objects
+(line 180). Updated `mergeFacts` to format entries with `[speaker]` prefix and strip
+speaker tags during similarity comparison and hash computation. 5 new tests cover
+assistant inclusion, speaker field, pattern matching, tool exclusion, and speaker tag
+formatting. 6 positive audit findings, zero Phase 4 corrections, zero Phase 8 patches.
+Carry-forwards to Step 0.5: test baseline now 477 (404 pass, 73 fail pre-existing);
+`confidence` field still unused (deferred to Step 0.6); `stripSpeaker` exported at
+line 203; speaker tags formatted as `[user]`/`[assistant]` in MEMORY.md entries;
+`agent_action` and `finding` categories are new (no downstream consumer filters by
+category yet).
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               3 / 45
+Steps closed:               4 / 45
 Current block:              0 (Stop the bleeding)
-Steps closed in block:      3 / 7
-Consecutive zero-Phase-4-correction streak:  3
-Consecutive zero-Phase-8-patch streak:       3
-Test baseline (npm test):   472 tests (399 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 0.3)
+Steps closed in block:      4 / 7
+Consecutive zero-Phase-4-correction streak:  4
+Consecutive zero-Phase-8-patch streak:       4
+Test baseline (npm test):   477 tests (404 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 0.4)
 Last block file written:    (none)
 ```
 
@@ -103,8 +121,8 @@ Last block file written:    (none)
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v0.3` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 0.4.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step03_merge_facts_parenthetical/AUDIT_POST.md` for carry-forwards.
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.4.
+2. Decode state: `VERSION` is `v0.4` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 0.5.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step04_assistant_extraction/AUDIT_POST.md` for carry-forwards.
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.5.
 6. Commit. Stop.
