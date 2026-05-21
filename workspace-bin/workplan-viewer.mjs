@@ -1294,17 +1294,30 @@ async function renderAutomation() {
 
   // ── Section: Actions ──
   html += '<div class="section"><h3>Actions</h3>';
-  if (state.lastLocked && !loaded) {
-    html += '<div class="note">A tick is currently running (manual or just finished). Loading the scheduler is safe — the lock will be released when the in-flight tick completes.</div>';
+  if (state.lastLocked) {
+    html += '<div class="note">A tick is currently running. Watch the Live tab. Most actions will refuse while the lock is held.</div>';
   }
   html += '<div class="actions">';
   if (loaded) {
-    html += '<button type="button" class="primary" id="btn-kickstart">▶ Fire tick now</button>';
-    html += '<button type="button" class="danger" id="btn-unload">⏹ Unload (stop scheduler)</button>';
+    html += '<button type="button" class="primary" id="btn-kickstart" title="launchctl kickstart -k">▶ Fire scheduled tick now</button>';
+    html += '<button type="button" class="secondary" id="btn-run-once" title="Spawn one tick directly (independent of launchd)">▶ Run one tick (manual)</button>';
+    html += '<button type="button" class="danger" id="btn-unload" title="launchctl bootout">⏹ Stop scheduler (unload)</button>';
   } else {
-    html += '<button type="button" class="primary" id="btn-load"' + (s.tick_command_exists ? '' : ' disabled title="tick command not found"') + '>▶ Load scheduler</button>';
+    html += '<button type="button" class="primary" id="btn-load"' + (s.tick_command_exists ? '' : ' disabled title="tick command not found"') +
+      ' title="Writes plist + launchctl bootstrap. In chain mode RunAtLoad=true, so the first tick fires immediately.">' +
+      '▶ Start scheduler (cold-start)</button>';
+    html += '<button type="button" class="secondary" id="btn-run-once" title="Spawn one tick directly without involving launchd. Useful for one-off testing.">▶ Run one tick (manual)</button>';
   }
   html += '</div>';
+  if (!loaded) {
+    html += '<div style="margin-top:14px;font-size:11px;color:var(--dim);">' +
+      '<strong>What "Start scheduler" does:</strong> writes <code>' + esc(cfg.plist_path) + '</code>, ' +
+      'then runs <code>launchctl bootstrap</code>. In ' + (cfg.mode === 'chain' ? 'chain' : 'interval') + ' mode, ' +
+      (cfg.mode === 'chain'
+        ? 'the first tick fires <strong>immediately</strong> (RunAtLoad=true), then each subsequent tick fires ~' + currentThrottle + 's after the previous one exits.'
+        : 'the first tick fires after one full <strong>' + humanInterval(currentInterval) + '</strong> interval (RunAtLoad=false). Use "Fire scheduled tick now" after loading to start sooner, or "Run one tick" right away.') +
+      '</div>';
+  }
   html += '<div id="action-toast"></div>';
   html += '</div>';
 
@@ -1429,6 +1442,14 @@ async function renderAutomation() {
     const res = await r2.json();
     if (res.error) showToast('action-toast', 'Error: ' + res.error, true);
     else { showToast('action-toast', res.msg || 'kickstart fired', false); }
+  });
+  const runOnceBtn = $('btn-run-once');
+  if (runOnceBtn) runOnceBtn.addEventListener('click', async () => {
+    if (!confirm('Run one tick now?\\n\\nSpawns the wrapper directly (no launchd involvement). Use this to cold-start without committing to a schedule.')) return;
+    const r2 = await fetch('/api/plans/' + state.planId + '/automation/run-once', { method: 'POST' });
+    const res = await r2.json();
+    if (res.error) showToast('action-toast', 'Error: ' + res.error, true);
+    else { showToast('action-toast', res.msg || 'tick spawned', false); setTimeout(refreshState, 1500); }
   });
 }
 
@@ -1713,6 +1734,46 @@ const server = http.createServer(async (req, res) => {
       const r = await launchctlKickstart(process.getuid(), cfg.plist_label);
       if (!r.ok) return json(res, { error: r.error }, 500);
       return json(res, { ok: true, msg: 'kickstart fired — a new tick should start within a second' });
+    }
+
+    // Run a single tick manually, without involving launchd. Spawns the
+    // tick wrapper detached and returns immediately. Works whether or not
+    // the scheduler is loaded.
+    if (sub === '/automation/run-once' && req.method === 'POST') {
+      const cfg = readAutomationConfig(plan);
+      if (!fs.existsSync(cfg.tick_command)) {
+        return json(res, { error: 'tick command not found: ' + cfg.tick_command }, 400);
+      }
+      // Reject if the lock is already held — would just skip-fast.
+      if (fs.existsSync(path.join(plan.dir, '.tick.lock'))) {
+        return json(res, { error: 'a tick is already running (lock held)' }, 409);
+      }
+      // Reject if blocked — clearer than running and immediately exiting.
+      if (fs.existsSync(path.join(plan.dir, 'BLOCKED.md'))) {
+        return json(res, { error: 'plan is paused (BLOCKED.md present) — clear the block first' }, 409);
+      }
+      try {
+        const { spawn } = await import('node:child_process');
+        const child = spawn(cfg.tick_command, [], {
+          cwd: cfg.working_dir,
+          detached: true,
+          stdio: 'ignore',
+          env: {
+            ...process.env,
+            // Don't auto-pause launchd for manual runs (in case it IS loaded).
+            WORKPLAN_AUTOPAUSE: '0',
+            // Clear nested-claude guard so the manual fire works from inside
+            // an interactive claude session.
+            CLAUDECODE: undefined,
+            CLAUDECODE_TICK: undefined,
+            CLAUDE_CODE_ENTRYPOINT: undefined,
+          },
+        });
+        child.unref();
+        return json(res, { ok: true, msg: 'tick wrapper spawned (pid ' + child.pid + ') — watch the Live tab', pid: child.pid });
+      } catch (e) {
+        return json(res, { error: e.message }, 500);
+      }
     }
 
     if (sub === '/doc') {
