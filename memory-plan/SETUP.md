@@ -18,17 +18,35 @@ memory-plan/
 ├── TICK_PROMPT.md              # prompt fed to headless claude on each tick
 ├── BLOCK_TEMPLATE.md           # template for BLOCKED.md
 ├── BLOCKED.md                  # PAUSE SIGNAL (present = plan paused)
+├── TIMELINE.md                 # auto-regenerated humans-readable timeline (gitignored)
 ├── SETUP.md                    # this file
 ├── audits/
 │   └── stepNN_<slug>/          # one folder per step
 │       ├── AUDIT_PRE.md
 │       └── AUDIT_POST.md
 └── tick-logs/
-    └── YYYYMMDD-HHMMSS.log     # one log per tick invocation
+    └── YYYYMMDD-HHMMSS.log     # one log per tick invocation (gitignored)
 
 workspace-bin/
-└── memory-plan-tick.sh         # invoked by launchd
+├── memory-plan-tick.sh         # invoked by launchd
+├── memory-plan-status.sh       # one-command status (--watch, --log, --json)
+├── memory-plan-notify.sh       # macOS notification helper (closed | blocked | test)
+└── memory-plan-timeline.sh     # regenerates TIMELINE.md from git log + audits
+
+~/.openclaw/workspace/memory/
+└── memory-plan-progress.md     # one-line-per-tick digest (workspace, outside repo)
 ```
+
+## Observability surfaces
+
+Pick the one(s) that match your workflow:
+
+- **Live terminal** — `./workspace-bin/memory-plan-status.sh --watch --log` refreshes every 2s with a tail of the most recent tick log.
+- **Markdown timeline** — `memory-plan/TIMELINE.md`. Auto-regenerated after every tick. Open in any markdown viewer.
+- **Daedalus session bootstrap** — append `memory/memory-plan-progress.md` to the bootstrap reading list in `~/.claude/CLAUDE.md` to have Daedalus see the per-tick digest at every session start.
+- **macOS banner** — fires automatically after each tick. Closed = soft banner with Glass sound. Blocked = Sosumi sound + banner. Disable with `MEMORY_PLAN_NOTIFY=off` in the launchd plist's `EnvironmentVariables`.
+- **git log** — `git log --oneline --grep='^v[0-9]'` shows the canonical step-close history.
+- **JSON for tooling** — `./workspace-bin/memory-plan-status.sh --json` for any external dashboard you want to build later.
 
 ---
 

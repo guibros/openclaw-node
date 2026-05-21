@@ -28,3 +28,4 @@ skills/dist/
 .claude/worktrees/
 memory-plan/tick-logs/*.log
 memory-plan/.tick.lock/
+memory-plan/TIMELINE.md

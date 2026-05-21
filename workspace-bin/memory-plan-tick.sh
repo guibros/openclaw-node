@@ -129,10 +129,38 @@ unset CLAUDECODE CLAUDECODE_TICK CLAUDE_CODE_ENTRYPOINT
   printf '## Tick ended: %s\n' "$(ts)"
 } >>"${TICK_LOG}" 2>&1
 
-# Post-tick: if BLOCKED.md was written, surface that fact in the exit code.
+# ── Post-tick observability ──────────────────────────────────────────────────
+# Regenerate the markdown timeline (best-effort; never blocks exit).
+"${REPO}/workspace-bin/memory-plan-timeline.sh" >/dev/null 2>&1 || true
+
+# Append a one-line digest entry to the workspace memory file. The file is
+# outside the repo so it doesn't dirty the working tree. Daedalus (the interactive
+# session) can be pointed at it via CLAUDE.md if desired.
+DIGEST_FILE="${HOME}/.openclaw/workspace/memory/memory-plan-progress.md"
+mkdir -p "$(dirname "${DIGEST_FILE}")"
+if [ ! -f "${DIGEST_FILE}" ]; then
+  printf '# Memory Plan — Progress digest\n\nOne line per autonomous tick. Newest at bottom.\n\n' > "${DIGEST_FILE}"
+fi
+
+POST_VERSION=$(cat "${VERSION_FILE}" 2>/dev/null || echo "?")
+LATEST_COMMIT=$(git -C "${REPO}" log -1 --format='%h %s' 2>/dev/null || echo "?")
+
 if [ -f "${BLOCK_FILE}" ]; then
+  TRIG=$(grep -m1 '^\*\*Trigger\*\*:' "${BLOCK_FILE}" 2>/dev/null | sed 's/^\*\*Trigger\*\*: //' | cut -c1-120)
+  printf -- '- `%s` BLOCKED at `%s` — %s\n' "$(ts)" "${POST_VERSION}" "${TRIG:-see BLOCKED.md}" >> "${DIGEST_FILE}"
+  "${REPO}/workspace-bin/memory-plan-notify.sh" blocked "${POST_VERSION}" "${TRIG:-see BLOCKED.md}" >/dev/null 2>&1 || true
   log "tick blocked — see ${BLOCK_FILE}"
   exit 2
+fi
+
+# Did this tick close a step? Detect by comparing pre/post VERSION.
+if [ "${POST_VERSION}" != "${VERSION:-}" ] && printf '%s' "${POST_VERSION}" | grep -qvE -- '-pre$|-mid$'; then
+  printf -- '- `%s` closed `%s` — %s\n' "$(ts)" "${POST_VERSION}" "${LATEST_COMMIT}" >> "${DIGEST_FILE}"
+  STEP_DESC=$(printf '%s' "${LATEST_COMMIT}" | sed -E 's/^[a-f0-9]+ v[0-9]+\.[0-9]+ — //' | cut -c1-120)
+  "${REPO}/workspace-bin/memory-plan-notify.sh" closed "${POST_VERSION}" "${STEP_DESC}" >/dev/null 2>&1 || true
+elif [ "${POST_VERSION}" != "${VERSION:-}" ]; then
+  # In-flight sub-version progress (e.g. v0.3-pre or -mid). Log silently, no notification.
+  printf -- '- `%s` progress: `%s` → `%s`\n' "$(ts)" "${VERSION:-?}" "${POST_VERSION}" >> "${DIGEST_FILE}"
 fi
 
 log "tick done (rc=${CLAUDE_RC:-?})"
