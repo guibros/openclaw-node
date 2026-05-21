@@ -131,7 +131,6 @@ PRETTY="${REPO}/workspace-bin/memory-plan-pretty-stream.sh"
     --add-dir "/Users/moltymac/.openclaw" \
     --output-format stream-json \
     --verbose \
-    --include-partial-messages \
     | tee "${TICK_RAW}" \
     | "${PRETTY}"
   CLAUDE_RC=${PIPESTATUS[0]}

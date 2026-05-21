@@ -1,77 +1,189 @@
-#!/usr/bin/env bash
-# memory-plan-pretty-stream.sh — reads claude `--output-format stream-json`
-# events on stdin and emits human-readable timestamped lines on stdout.
-#
-# Used by memory-plan-tick.sh to give live visibility into what the headless
-# claude is actually doing (tool calls, assistant text, results) instead of
-# waiting for one giant text dump at the end.
-#
-# Each input line is one JSON event. Output is one pretty line per event.
-# Unparseable lines pass through untouched (so error text from claude is
-# still visible, e.g. auth failures).
-#
-# Usage:
-#   claude --output-format stream-json --verbose ... | memory-plan-pretty-stream.sh
+#!/usr/bin/env node
+// memory-plan-pretty-stream.sh — reads claude `--output-format stream-json`
+// events on stdin and emits a verbatim transcript on stdout.
+//
+// Renders full content (no truncation) with multi-line bodies indented under
+// each event header. The intent is to make the headless tick produce the same
+// kind of live transcript you see when watching an interactive Claude session:
+// every tool call with full arguments, every tool result in full, every
+// assistant message in full.
+//
+// Used by memory-plan-tick.sh. Each input line is one JSON event; output is
+// one event header line plus indented body lines.
 
-set -u
+const readline = require('readline');
 
-# jq filter. --unbuffered ensures each input line flushes immediately so
-# `tail -F` sees events in real time.
-exec jq --unbuffered -r '
-  def shorten(n): if (. | length) > n then .[0:n] + "…" else . end;
-  def hms: (now | strftime("%H:%M:%S"));
-  def asline(tag; body): "\(hms)  \(tag)  \(body)";
+const ANSI = {
+  reset:   '\x1b[0m',
+  dim:     '\x1b[2m',
+  bold:    '\x1b[1m',
+  red:     '\x1b[31m',
+  green:   '\x1b[32m',
+  yellow:  '\x1b[33m',
+  blue:    '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan:    '\x1b[36m',
+};
 
-  # Pretty-print a tool-call input object: key=value, value shortened.
-  def tool_args:
-    if . == null then ""
-    else (to_entries
-          | map("\(.key)=\(.value | tostring | gsub("\n"; "\\n") | shorten(60))")
-          | join("  "))
-    end;
+const PREFIX = '  │ ';
+const SUB    = '  │   ';
 
-  if .type == "system" then
-    asline("[2msys   [0m"; "\(.subtype // "?")\(if .model then "  model=\(.model)" else "" end)\(if .session_id then "  session=\(.session_id | .[0:8])" else "" end)")
+function hms() {
+  const d = new Date();
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(n => String(n).padStart(2, '0'))
+    .join(':');
+}
 
-  elif .type == "assistant" then
-    (.message.content // [])[]? | (
-      if .type == "text" then
-        asline("[36masst  [0m"; (.text | gsub("\n"; " ") | shorten(180)))
-      elif .type == "tool_use" then
-        asline("[35mtool  [0m"; "\(.name)(\(.input | tool_args))")
-      elif .type == "thinking" then
-        asline("[2mthink [0m"; ((.thinking // "") | gsub("\n"; " ") | shorten(180)))
-      else empty end
-    )
+function indent(text, prefix = PREFIX) {
+  if (text == null) return '';
+  const str = String(text);
+  if (str === '') return '';
+  return str.split('\n').map(line => prefix + line).join('\n');
+}
 
-  elif .type == "user" then
-    if (.message.content | type) == "array" then
-      .message.content[]? | (
-        if .type == "tool_result" then
-          asline("[33mres   [0m";
-            (if (.content | type) == "string" then .content
-             elif (.content | type) == "array" then ((.content | map(.text // "" ) | join(" ")))
-             else (.content | tostring) end)
-            | gsub("\n"; " ") | shorten(180)
-            + (if .is_error then "  [31m[ERROR][0m" else "" end))
-        else empty end
-      )
-    else empty end
+function formatToolArgs(name, input) {
+  if (input == null || typeof input !== 'object') return '';
+  // Edit/Write get a diff-style rendering with explicit old/new blocks.
+  if ((name === 'Edit' || name === 'MultiEdit' || name === 'Write') &&
+      typeof input === 'object') {
+    const lines = [];
+    if (input.file_path) lines.push(`file_path: ${input.file_path}`);
+    if (input.old_string != null) {
+      lines.push(`old_string:`);
+      lines.push(indent(input.old_string, SUB));
+    }
+    if (input.new_string != null) {
+      lines.push(`new_string:`);
+      lines.push(indent(input.new_string, SUB));
+    }
+    if (input.content != null) {
+      lines.push(`content:`);
+      lines.push(indent(input.content, SUB));
+    }
+    if (input.edits) {
+      lines.push(`edits: ${JSON.stringify(input.edits, null, 2)}`);
+    }
+    if (input.replace_all) lines.push(`replace_all: true`);
+    return lines.join('\n');
+  }
+  // Default rendering for every other tool: key: value pairs.
+  return Object.entries(input).map(([k, v]) => {
+    if (v == null) return `${k}: null`;
+    if (typeof v === 'string') {
+      return v.includes('\n') ? `${k}:\n${indent(v, SUB)}` : `${k}: ${v}`;
+    }
+    if (typeof v === 'object') {
+      const j = JSON.stringify(v, null, 2);
+      return j.includes('\n') ? `${k}:\n${indent(j, SUB)}` : `${k}: ${j}`;
+    }
+    return `${k}: ${v}`;
+  }).join('\n');
+}
 
-  elif .type == "stream_event" then
-    # Partial-message chunks. Only print the deltas of real text content.
-    if .event.type == "content_block_start" and .event.content_block.type == "tool_use" then
-      asline("[35mtool  [0m"; "\(.event.content_block.name)(…)")
-    elif .event.type == "content_block_delta" and .event.delta.type == "text_delta" then
-      # Skip — too noisy. Full text arrives in the "assistant" message above.
-      empty
-    else empty end
+function formatToolResult(content) {
+  if (content == null) return '';
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map(c => {
+      if (typeof c === 'string') return c;
+      if (c && typeof c === 'object') {
+        if (typeof c.text === 'string') return c.text;
+        return JSON.stringify(c);
+      }
+      return String(c);
+    }).join('\n');
+  }
+  if (typeof content === 'object') {
+    if (typeof content.text === 'string') return content.text;
+    return JSON.stringify(content, null, 2);
+  }
+  return String(content);
+}
 
-  elif .type == "result" then
-    asline("[32mEND   [0m";
-      "\(.subtype // "?")  cost=$\(.total_cost_usd // 0 | . * 10000 | floor / 10000)  dur=\((.duration_ms // 0) / 1000 | floor)s  turns=\(.num_turns // "?")")
+function header(time, color, tag, suffix = '') {
+  return `${ANSI.dim}[${time}]${ANSI.reset} ${color}${tag}${ANSI.reset}${suffix ? '  ' + suffix : ''}`;
+}
 
-  else
-    asline("[2m?     [0m"; (.type // "unknown"))
-  end
-' 2>/dev/null
+function emit(line) {
+  process.stdout.write(line + '\n');
+}
+
+function handle(evt) {
+  const t = hms();
+
+  if (evt.type === 'system') {
+    const bits = [];
+    if (evt.subtype) bits.push(evt.subtype);
+    if (evt.model) bits.push(`model=${evt.model}`);
+    if (evt.session_id) bits.push(`session=${String(evt.session_id).slice(0, 8)}`);
+    if (evt.cwd) bits.push(`cwd=${evt.cwd}`);
+    emit(header(t, ANSI.dim, '━ sys  ', bits.join('  ')));
+    return;
+  }
+
+  if (evt.type === 'assistant') {
+    const content = (evt.message && evt.message.content) || [];
+    for (const c of content) {
+      if (!c) continue;
+      if (c.type === 'text') {
+        emit(header(t, ANSI.cyan, '◆ asst '));
+        if (c.text) emit(indent(c.text));
+      } else if (c.type === 'tool_use') {
+        emit(header(t, ANSI.magenta, '→ tool ', `${ANSI.bold}${c.name}${ANSI.reset}`));
+        const body = formatToolArgs(c.name, c.input || {});
+        if (body) emit(indent(body));
+      } else if (c.type === 'thinking') {
+        emit(header(t, ANSI.dim, '✻ think'));
+        if (c.thinking) emit(indent(c.thinking));
+      }
+    }
+    return;
+  }
+
+  if (evt.type === 'user' && evt.message && Array.isArray(evt.message.content)) {
+    for (const c of evt.message.content) {
+      if (!c) continue;
+      if (c.type === 'tool_result') {
+        const tag = c.is_error ? `${ANSI.red}← ERR  ${ANSI.reset}` : `${ANSI.yellow}← res  ${ANSI.reset}`;
+        emit(`${ANSI.dim}[${t}]${ANSI.reset} ${tag}`);
+        const body = formatToolResult(c.content);
+        if (body) emit(indent(body));
+      }
+    }
+    return;
+  }
+
+  if (evt.type === 'result') {
+    const cost = evt.total_cost_usd != null ? `$${Number(evt.total_cost_usd).toFixed(4)}` : '?';
+    const dur  = evt.duration_ms != null ? `${Math.floor(evt.duration_ms / 1000)}s` : '?';
+    const turns = evt.num_turns ?? '?';
+    const sub = evt.subtype || '?';
+    emit(header(t, ANSI.green, '━ END  ', `${sub}  cost=${cost}  dur=${dur}  turns=${turns}`));
+    return;
+  }
+
+  // Unknown event type — log compactly so we don't lose anything silently.
+  if (evt.type) {
+    emit(header(t, ANSI.dim, '? ' + evt.type, ''));
+  }
+}
+
+const rl = readline.createInterface({ input: process.stdin, terminal: false });
+rl.on('line', (line) => {
+  const trimmed = line.trim();
+  if (!trimmed) return;
+  let evt;
+  try { evt = JSON.parse(trimmed); }
+  catch {
+    // Pass through unparseable lines (e.g., claude error text on stderr that
+    // bled into stdout). Better to see it than swallow it.
+    process.stdout.write(line + '\n');
+    return;
+  }
+  try { handle(evt); }
+  catch (err) {
+    process.stdout.write(`[${hms()}] ${ANSI.red}prettifier error${ANSI.reset}: ${err.message}\n`);
+    process.stdout.write(line + '\n');
+  }
+});
