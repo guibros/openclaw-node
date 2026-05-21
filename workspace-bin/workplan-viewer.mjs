@@ -879,7 +879,7 @@ async function refreshState() {
   if (state.tab === 'block') renderBlock();
   if (state.tab === 'auto') renderAutomation();
 }
-setInterval(refreshState, 5000);
+setInterval(refreshState, 10000);
 
 // Header pause/resume button.
 $('header-pause-btn').addEventListener('click', async () => {
@@ -1092,10 +1092,35 @@ async function renderDoc(name) {
 async function renderBlock() {
   if (!state.planId) return;
   const view = $('block-view');
-  view.innerHTML = '<div class="empty">loading…</div>';
+
+  // Preserve UI state across 5s auto-refreshes.
+  const prevScroll = view.scrollTop;
+  const prevTriggerVal = $('block-trigger')?.value;
+  const prevDetailVal  = $('block-detail')?.value;
+  const prevEditVal    = $('block-edit')?.value;
+  const isFirstRender = !view.firstChild ||
+    (view.firstElementChild && view.firstElementChild.classList.contains('empty'));
+  if (isFirstRender) {
+    view.innerHTML = '<div class="empty">loading…</div>';
+  }
+
   const r = await fetch('/api/plans/' + state.planId + '/blocked');
   if (!r.ok) { view.innerHTML = '<div class="empty">failed to load</div>'; return; }
   const data = await r.json();
+
+  // Skip when only the mtime changed; only re-render when block status flips
+  // OR the content changes meaningfully.
+  const stateHash = JSON.stringify({
+    planId: state.planId,
+    blocked: data.blocked,
+    contentLen: data.content ? data.content.length : 0,
+    locked: state.lastLocked,
+  });
+  if (!isFirstRender && state.lastBlockStateHash === stateHash) {
+    return;
+  }
+  state.lastBlockStateHash = stateHash;
+
   view.classList.toggle('is-blocked', !!data.blocked);
 
   if (data.blocked) {
@@ -1150,6 +1175,12 @@ async function renderBlock() {
       showToast('block-toast', res.error ? 'Error: ' + res.error : 'Paused — BLOCKED.md written.', !!res.error);
     });
   }
+
+  // Restore preserved UI state.
+  view.scrollTop = prevScroll;
+  if (prevTriggerVal !== undefined && $('block-trigger')) $('block-trigger').value = prevTriggerVal;
+  if (prevDetailVal  !== undefined && $('block-detail'))  $('block-detail').value  = prevDetailVal;
+  if (prevEditVal    !== undefined && $('block-edit'))    $('block-edit').value    = prevEditVal;
 }
 
 function renderBlockEditor(currentContent) {
@@ -1237,19 +1268,17 @@ async function renderAutomation() {
   const s = await r.json();
   const cfg = s.config;
 
-  // Skip re-render if nothing material changed — prevents scroll-jump and
-  // form-input wipe on the 5s state refresh.
+  // Skip re-render if nothing STRUCTURAL changed — prevents the 5s scroll-jump
+  // and form-input wipe. Deliberately excludes last_tick / last_tick_mtime /
+  // pid so a tick firing doesn't redraw the whole panel (the user is in the
+  // middle of clicking stuff).
   const stateHash = JSON.stringify({
     planId: state.planId,
     loaded: s.launchd.loaded,
-    pid: s.launchd.pid,
     mode: s.plist_mode || cfg.mode,
     interval: s.plist_interval_seconds || cfg.interval_seconds,
     throttle: s.plist_throttle_seconds || cfg.throttle_seconds,
     plist_exists: s.plist_exists,
-    last_tick: s.last_tick_name,
-    last_tick_mtime: s.last_tick_mtime,
-    locked: state.lastLocked,
     blocked: state.lastBlocked,
   });
   if (!isFirstRender && state.lastAutoStateHash === stateHash) {
