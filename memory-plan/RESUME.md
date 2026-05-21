@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 1 in progress.
-**Current version carrier.** `v1.3` (Step 1.3 closed).
-**Streaks.** zero-Phase-4-correction: 1 of 3 (Block 1) · zero-Phase-8-patch: 2 of 3 (Block 1).
-**Last commit on plan branch.** v1.3 — Create content-addressed artifact store (lib/artifacts.mjs + ~/.openclaw/artifacts/).
+**Workplan status.** Block 1 closed; Block 2 awaits.
+**Current version carrier.** `v1.4` (Step 1.4 closed; Block 1 complete).
+**Streaks.** zero-Phase-4-correction: 0 of 4 (Block 1) · zero-Phase-8-patch: 3 of 4 (Block 1).
+**Last commit on plan branch.** v1.4 — Configure shared JetStream cluster preparation only (R=3 stream, idle until Phase 4).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -14,8 +14,8 @@ conversational context. The Framework that governs how steps are executed is at
 
 ## §0 — Block-level frozen decisions
 
-These constraints apply to every step in the **current block** (Block 1) and are not
-re-litigated per step. Each block transition will reset §0 with the block's own constraints.
+These constraints apply to every step in the **current block** and are not
+re-litigated per step. Each block transition resets §0 with the block's own constraints.
 
 ### Working principles (apply to all blocks)
 
@@ -25,52 +25,30 @@ re-litigated per step. Each block transition will reset §0 with the block's own
 - **Tests are a hard gate.** A red `npm test` at Phase 5 is a block trigger, not a "fix forward" cue.
 - **Workspace files are out of repo.** `/Users/moltymac/.openclaw/workspace/` is the live runtime tree (MEMORY.md, .companion-state.md, memory/*). When a step touches a workspace file, the **change is documented in the audit doc** but the workspace file itself is not committed (it's not git-tracked). Plan ledgers committed to the repo describe what landed in the workspace.
 
-### Block 1 frozen decisions
+### Block 1 frozen decisions (CLOSED — preserved for reference)
 
-Authored 2026-05-21 by operator (interactive viewer session).
+Block 1 completed 2026-05-21. All 4 steps (v1.1–v1.4) closed. See `memory-plan/audits/BLOCK_1_COMPLETE.md`.
 
-**Scope and file list — authoritative for Block 1:** exactly what REFERENCE_PLAN §"Phase 1 — Schema & event foundations" specifies. No deviations:
+### Block 2 frozen decisions
 
-- **Step 1.1** — `packages/event-schemas/`:
-  - `src/envelope.ts` (`EventEnvelopeSchema` per REFERENCE_PLAN §1.1).
-  - `src/memory/*.ts` — one file per payload schema: `session-started.ts`, `session-ended.ts`, `turn-recorded.ts`, `fact-extracted.ts`, `concept-mentioned.ts`, `snapshot-taken.ts`, `compaction-triggered.ts`, `artifact-attached.ts`.
-  - `src/events.ts` — `MemoryEventSchema` discriminated union.
-  - `package.json` declaring `zod` + `zod-to-json-schema` deps.
-  - TypeScript types via `z.infer<>` exported from each module.
-- **Step 1.2** — `lib/local-event-log.mjs`:
-  - JetStream local stream `local-events-${NODE_ID}` at **R=1**, file-backed under `~/.openclaw/local-events/`.
-  - `publishLocal(event)` API per REFERENCE_PLAN §1.2 (zod-validated, `msgID = idempotency_key`).
-  - Dual-write at three call sites (see Events wiring below).
-- **Step 1.3** — `lib/artifacts.mjs`:
-  - `putArtifact` / `getArtifact` / `hasArtifact` / `validateArtifact` per REFERENCE_PLAN §1.3.
-  - Directory layout `~/.openclaw/artifacts/sha256/<2>/<2>/<full-hash>` with `.meta.json` sidecars.
-  - Local-only for now (peer NATS RPC `artifacts.fetch.<hash>` is Block 4's wiring).
-- **Step 1.4** — shared JetStream cluster config:
-  - Configure R=3 across the three mesh nodes (moltymac, Ubuntu VM, macOS VM).
-  - Stream `OPENCLAW_SHARED` with subject filter per REFERENCE_PLAN §1.4.
-  - **Configure only — no memory data flows until Block 4.** This step preps infrastructure; the cluster sits idle.
+**NOT YET AUTHORED.** Block 2 cannot start until the operator records frozen decisions here.
 
-**Package manager — npm workspaces.** No new tools. Add `"workspaces": ["packages/*"]` to the root `package.json` in Step 1.1. The existing project uses `npm install` patterns; a one-package addition doesn't justify introducing pnpm.
+**Mandatory gate before first step:** Step 2.1 requires a written re-scoping decision: extend `lib/mcp-knowledge/` to embed session JSONL turns, or add a parallel embedding stack in session-store. This decision must be recorded here before the autonomous worker begins Step 2.1. See carry-forward from Block 0 and BLOCK_1_COMPLETE.md §Carry-forwards.
 
-**Zod version — `^3.23.0`.** Latest 3.x stable line. `zod-to-json-schema` ecosystem support is mature on 3.x; Zod 4 ecosystem lag isn't worth the risk for a foundational schema package.
+### Carry-forward from Block 0 + Block 1
 
-**Events to wire in Step 1.2 — all three** per REFERENCE_PLAN §1.2:
-- `MemoryBudget.startSession` → publishes `memory.session_started`.
-- `MemoryBudget.endSession` → publishes `memory.session_ended`.
-- `MemoryBudget.addEntry` → publishes `memory.fact_extracted`.
-
-Dual-write — the existing `MEMORY.md` + session-store DB writes continue unchanged. The local event log accumulates ALONGSIDE these. This is shadow mode; validation runs for one full week of real activity (REFERENCE_PLAN §1 "Validation") before Block 2 may begin.
-
-### Carry-forward from Block 0
-
-- **Phase 2 scope must be revisited before Block 2 starts.** A prior repo analysis showed that `lib/mcp-knowledge/core.mjs` already implements sqlite-vec + embeddings via `@huggingface/transformers` (Xenova/all-MiniLM-L6-v2, 384-dim) and is the registered "knowledge" MCP server in `.mcp.json`. Step 2.1's first deliverable is a written re-scoping decision: extend mcp-knowledge to embed session JSONL turns, or add a parallel embedding stack in session-store. Block 2 cannot start without this decision recorded in `RESUME.md §0` for Block 2.
-- **Zod is not yet a top-level dependency.** Block 1 adds it via the new `packages/event-schemas` workspace package, not as a root dependency.
-- **NATS JetStream is already mesh-wired** ([lib/mesh-tasks.js](../lib/mesh-tasks.js), [lib/mesh-plans.js](../lib/mesh-plans.js), [lib/mesh-collab.js](../lib/mesh-collab.js)). Block 1 adds a NEW stream `local-events-${NODE_ID}` at R=1; existing buckets are untouched.
-- **`docs/ARCHITECTURE.md`** has stale references to `frontend-activity` and `session-fingerprint.json`. Should be updated when convenient.
-- **COMPANION variable name** in `daily-log-writer.mjs:34` is cosmetic. Not functionally broken.
-- **Test fixture `confidence`** in `test/memory-budget.test.mjs` (lines 284, 315, 388, 389) — harmless extra property.
+- **Phase 2 scope must be revisited before Block 2 starts.** `lib/mcp-knowledge/core.mjs` already implements sqlite-vec + embeddings via `@huggingface/transformers` (Xenova/all-MiniLM-L6-v2, 384-dim) and is the registered "knowledge" MCP server in `.mcp.json`. Step 2.1's first deliverable is a written re-scoping decision.
+- **Zod** is a workspace package dependency (`packages/event-schemas`), not a root dependency.
+- **NATS JetStream** has local stream `local-events-${NODE_ID}` (R=1) and shared stream config `OPENCLAW_SHARED` (R=3, idle).
+- **`docs/ARCHITECTURE.md`** has stale references to `frontend-activity` and `session-fingerprint.json`.
+- **COMPANION variable name** in `daily-log-writer.mjs:34` is cosmetic.
+- **Test fixture `confidence`** in `test/memory-budget.test.mjs` — harmless extra property.
 - **`pre-compact.sh`** is a no-op stub awaiting Block 4 rewiring.
-- **`docs/STATE_FILES.md`** should be updated as Block 1 adds new state files.
+- **`docs/STATE_FILES.md`** should be updated to document `~/.openclaw/artifacts/` directory and shared stream.
+- **`lib/artifacts.mjs`** has no caller wiring; peer NATS RPC is Block 4.
+- **`ensureSharedStream`** has no caller wiring; promoter/subscriber are Block 4.
+- **`npm install`** may still be blocked. No new dependencies since Block 1.
+- **NATS cluster** must have ≥3 nodes for R=3 to succeed (infrastructure prerequisite).
 
 ---
 
@@ -231,19 +209,34 @@ fields. 6 positive audit findings, 0 Phase 8 patches. Carry-forwards to Step 1.4
 now 512; `lib/artifacts.mjs` is standalone with no caller wiring; peer NATS RPC and event
 publishing for artifacts deferred; `docs/STATE_FILES.md` update for artifacts directory deferred.
 
+### Step 1.4 — Configure shared JetStream cluster preparation only (R=3 stream, idle until Phase 4)
+
+Closed at v1.4. Created `lib/shared-event-stream.mjs` — the shared JetStream stream
+configuration module. Exports `ensureSharedStream(nc)` which creates/verifies the
+`OPENCLAW_SHARED` stream with R=3 replication, File storage, and 7 federation subject
+patterns (`kanban.events.>`, `lessons.shared.>`, `concepts.shared.>`,
+`context.broadcast.>`, `context.offer.>`, `context.accepted.>`, `artifacts.shared.>`).
+Exports `inspectSharedStream(nc)` for operational verification returning `{ config, state }`.
+Exports `SHARED_STREAM_NAME` and `SHARED_SUBJECTS` constants. Infrastructure preparation
+only — stream sits idle until Block 4 wires promoter/subscriber processes. 16 new tests
+with mock NATS connection cover constants, stream creation, idempotency, storage type,
+and inspection. 6 positive audit findings, 1 negative finding (`StorageType.File` value
+assumption — numeric 2 vs actual string 'file'), 0 Phase 8 patches. Phase-4-correction
+streak reset to 0. **Block 1 complete (4/4).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               10 / 45
-Current block:              Block 1 in progress (Schema & event foundations)
-Steps closed in block:      3 / 4
-Consecutive zero-Phase-4-correction streak:  1 (Block 1)
-Consecutive zero-Phase-8-patch streak:       2 (Block 1)
-Test baseline (npm test):   512 tests (439 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 1.3)
-Last block file written:    memory-plan/audits/BLOCK_0_COMPLETE.md
+Steps closed:               11 / 45
+Current block:              Block 1 closed; Block 2 awaits (Local semantic layer)
+Steps closed in block:      4 / 4 (Block 1 complete)
+Consecutive zero-Phase-4-correction streak:  0 (Block 1 final)
+Consecutive zero-Phase-8-patch streak:       3 (Block 1 final)
+Test baseline (npm test):   528 tests (455 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 1.4)
+Last block file written:    memory-plan/audits/BLOCK_1_COMPLETE.md
 ```
 
 ---
@@ -253,9 +246,10 @@ Last block file written:    memory-plan/audits/BLOCK_0_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v1.3` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 1.4.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step10_artifact_store/AUDIT_POST.md` for carry-forwards.
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 1.4.
-6. **Important for Step 1.4:** Step 1.4 configures the shared JetStream cluster (R=3 across three mesh nodes). This is infrastructure preparation only — no memory data flows until Block 4. The step creates stream configuration, not application code. This is the **last step of Block 1** — the block-close ceremony (FRAMEWORK §7) must run after Phase 9.
-7. Commit. Stop.
+2. Decode state: `VERSION` is `v1.4` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 2.1.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step11_shared_jetstream_cluster/AUDIT_POST.md` for carry-forwards.
+5. **CRITICAL GATE:** Block 2 frozen decisions are NOT YET AUTHORED in `RESUME.md §0`. The autonomous worker MUST find Block 2 frozen decisions populated before proceeding. If §0 for Block 2 says "NOT YET AUTHORED", write `BLOCKED.md` with reason "Block 2 frozen decisions not recorded" and STOP.
+6. Step 2.1 requires a scoping decision (extend mcp-knowledge vs. parallel embedding stack). This decision must be in §0 before the step begins.
+7. If §0 is populated: execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.1.
+8. Commit. Stop.

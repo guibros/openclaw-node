@@ -56,7 +56,9 @@ See REFERENCE_PLAN.md §Phase 1.
 | 1 | 1.3 | v1.3 | [x] | Create content-addressed artifact store (lib/artifacts.mjs + ~/.openclaw/artifacts/) |
 
 > **Step 1.3 closed.** Created `lib/artifacts.mjs` — the content-addressed artifact store under `~/.openclaw/artifacts/sha256/<2>/<2>/<full-hash>` with `.meta.json` sidecars. Exports `putArtifact` (SHA-256, sharded write, idempotent), `getArtifact` (local read, throws on miss), `hasArtifact` (boolean existence check), `validateArtifact` (re-hash integrity check). No new dependencies (Node.js built-ins only). 6 new tests. 6 positive findings, 0 Phase 8 patches.
-| 1 | 1.4 | v1.4 | [ ] | Configure shared JetStream cluster preparation only (R=3 stream, idle until Phase 4) |
+| 1 | 1.4 | v1.4 | [x] | Configure shared JetStream cluster preparation only (R=3 stream, idle until Phase 4) |
+
+> **Step 1.4 closed.** Created `lib/shared-event-stream.mjs` — the shared JetStream stream configuration module. Exports `ensureSharedStream(nc)` which creates/verifies the `OPENCLAW_SHARED` stream with R=3 replication, File storage, and 7 federation subject patterns (kanban.events, lessons.shared, concepts.shared, context.broadcast, context.offer, context.accepted, artifacts.shared). Exports `inspectSharedStream(nc)` for operational verification. Infrastructure preparation only — stream sits idle until Block 4 wires promoter/subscriber. 16 new tests with mock NATS connection. 6 positive findings, 1 negative finding (StorageType assertion fix), 0 Phase 8 patches. **Block 1 complete (4/4).**
 
 ## Block 2 — Local semantic layer
 

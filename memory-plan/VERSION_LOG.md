@@ -9,6 +9,28 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v1.4 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 1.4: Configure shared JetStream cluster preparation only (R=3 stream, idle until Phase 4).
+- Files committed: `lib/shared-event-stream.mjs` (new), `test/shared-event-stream.test.mjs` (new), audit docs, ledger files.
+- Test count: 528 (455 pass, 73 fail — pre-existing). +16 tests added this step.
+- V2 audit: 6 POSITIVE findings, 1 NEGATIVE finding (StorageType.File value assumption), 0 Phase 8 patches.
+- Streak: 0-of-4 zero-Phase-4-correction (Block 1; reset due to StorageType fix).
+- **Block 1 complete (4/4).**
+
+### v1.4-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 1.4.
+- Files changed: `lib/shared-event-stream.mjs` (new — SHARED_STREAM_NAME, SHARED_SUBJECTS constants, ensureSharedStream, inspectSharedStream), `test/shared-event-stream.test.mjs` (new — 16 tests with mock NATS connection).
+- Test additions: 16 new tests (2 constant identity, 7 subject pattern verification, 4 ensureSharedStream create/replicas/subjects/storage/idempotent, 2 inspectSharedStream success/failure, 1 StorageType.File assertion fix).
+
+### v1.4-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 1.4.
+- Files planned: `lib/shared-event-stream.mjs` (new), `test/shared-event-stream.test.mjs` (new).
+- Audit: `memory-plan/audits/step11_shared_jetstream_cluster/AUDIT_PRE.md`.
+- Test baseline: 512 tests (439 pass, 73 fail — pre-existing).
+
 ### v1.3 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 1.3: Create content-addressed artifact store (lib/artifacts.mjs + ~/.openclaw/artifacts/).
