@@ -27,6 +27,8 @@ __pycache__/
 skills/dist/
 .claude/worktrees/
 memory-plan/tick-logs/*.log
+memory-plan/tick-logs/*.jsonl
+memory-plan/tick-logs/test-*
 memory-plan/.tick.lock/
 memory-plan/TIMELINE.md
 automation.json
