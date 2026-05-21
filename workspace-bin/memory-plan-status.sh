@@ -2,10 +2,13 @@
 # memory-plan-status.sh — one-command view of the OpenClaw Memory Plan state.
 #
 # Usage:
-#   ./workspace-bin/memory-plan-status.sh            # one-shot summary
-#   ./workspace-bin/memory-plan-status.sh --watch    # refresh every 2s
-#   ./workspace-bin/memory-plan-status.sh --log      # also tail the active tick log
-#   ./workspace-bin/memory-plan-status.sh --json     # machine-readable
+#   ./workspace-bin/memory-plan-status.sh             # one-shot summary
+#   ./workspace-bin/memory-plan-status.sh --watch     # full redraw every 2s
+#   ./workspace-bin/memory-plan-status.sh --stream    # append-only event log (real-time)
+#   ./workspace-bin/memory-plan-status.sh --stream --with-log
+#                                                     # event log + tail of live tick log
+#   ./workspace-bin/memory-plan-status.sh --log       # also tail the active tick log
+#   ./workspace-bin/memory-plan-status.sh --json      # machine-readable
 
 set -u
 # Intentionally NOT pipefail/errexit — grep returning 1 on zero matches
@@ -140,23 +143,201 @@ print_human() {
 
 # ── entry ─────────────────────────────────────────────────────────────────────
 
+# ── streaming mode ────────────────────────────────────────────────────────────
+#
+# Append-only event log. Polls the plan filesystem once per second and emits
+# one line whenever something changed. Never clears the screen.
+#
+# Events: VER (version carrier), STEP (inventory state), COMMIT (new git log
+# entry), BLOCK (BLOCKED.md create/delete), LOCK (tick lock acquire/release),
+# TICK (new tick log file).
+
+ts()      { date '+%H:%M:%S'; }
+ev_ts()   { dim "$(ts)"; }
+tag_ver()    { printf '\033[36m%-7s\033[0m' "VER";    }   # cyan
+tag_step()   { printf '\033[35m%-7s\033[0m' "STEP";   }   # magenta
+tag_commit() { printf '\033[32m%-7s\033[0m' "COMMIT"; }   # green
+tag_block()  { printf '\033[31m%-7s\033[0m' "BLOCK";  }   # red
+tag_lock()   { printf '\033[33m%-7s\033[0m' "LOCK";   }   # amber
+tag_tick()   { printf '\033[34m%-7s\033[0m' "TICK";   }   # blue
+tag_init()   { printf '\033[2m%-7s\033[0m'  "init";   }   # dim
+
+emit() {
+  local tag="$1"; shift
+  printf '%s  %s  %s\n' "$(ev_ts)" "${tag}" "$*"
+}
+
+# Snapshot the inventory state lines we care about. Format per line:
+#   "<step>|<state>"
+# Example: "0.3|[A]". Cheap diff source.
+snap_inventory() {
+  grep -E '^\| [0-9]+ \| [0-9]+\.[0-9]+ \| v[0-9]+\.[0-9]+ \| \[(x|A| )\]' \
+    "${PLAN}/INVENTORY.md" 2>/dev/null \
+    | awk -F'|' '{gsub(/ /,"",$3); gsub(/ /,"",$5); print $3 "|" $5}'
+}
+
+stream_mode() {
+  local with_log="${1:-no}"
+
+  # Initial snapshot.
+  local prev_version prev_blocked prev_locked prev_commit prev_latest_log
+  prev_version=$(cat "${PLAN}/VERSION" 2>/dev/null || echo '<missing>')
+  prev_blocked=$([ -f "${PLAN}/BLOCKED.md" ] && echo yes || echo no)
+  prev_locked=$([ -d "${PLAN}/.tick.lock" ] && echo yes || echo no)
+  prev_commit=$(git -C "${REPO}" log -1 --format='%H' 2>/dev/null || echo '')
+  prev_latest_log=$(ls -1t "${PLAN}/tick-logs/"*.log 2>/dev/null | head -1 || true)
+
+  local prev_inv_file cur_inv_file
+  prev_inv_file=$(mktemp -t mpstream.inv.prev.XXXXXX)
+  cur_inv_file=$(mktemp -t mpstream.inv.cur.XXXXXX)
+  snap_inventory > "${prev_inv_file}"
+
+  # Banner.
+  probe
+  bold "memory-plan stream"; printf '   '
+  dim "(Ctrl-C to stop · polling 1s · plan=${PLAN})"; printf '\n'
+  emit "$(tag_init)" "version=${prev_version}  closed=${CLOSED}/${TOTAL}  blocked=${prev_blocked}  lock=${prev_locked}"
+  if [ -n "${prev_latest_log}" ]; then
+    emit "$(tag_init)" "latest log: $(basename "${prev_latest_log}")"
+  fi
+
+  # Background tail of the latest tick log (if requested).
+  local TAIL_PID=""
+  local cur_tailed=""
+  start_log_tail() {
+    local f="$1"
+    [ -z "$f" ] && return
+    [ "$f" = "$cur_tailed" ] && return
+    if [ -n "${TAIL_PID}" ]; then
+      kill "${TAIL_PID}" 2>/dev/null || true
+      wait "${TAIL_PID}" 2>/dev/null || true
+    fi
+    cur_tailed="$f"
+    ( tail -n 0 -F "$f" 2>/dev/null \
+        | while IFS= read -r line; do
+            printf '%s  %s  %s\n' "$(ev_ts)" "$(dim '   log ')" "$(dim "${line}")"
+          done
+    ) &
+    TAIL_PID=$!
+  }
+
+  if [ "${with_log}" = "yes" ] && [ -n "${prev_latest_log}" ]; then
+    start_log_tail "${prev_latest_log}"
+  fi
+
+  cleanup() {
+    if [ -n "${TAIL_PID}" ]; then
+      kill "${TAIL_PID}" 2>/dev/null || true
+    fi
+    rm -f "${prev_inv_file}" "${cur_inv_file}" 2>/dev/null || true
+    printf '\n'; dim "stream stopped"; printf '\n'
+  }
+  trap cleanup EXIT INT TERM
+
+  # Poll loop.
+  while true; do
+    sleep 1
+
+    # VERSION change.
+    local cur_version
+    cur_version=$(cat "${PLAN}/VERSION" 2>/dev/null || echo '<missing>')
+    if [ "${cur_version}" != "${prev_version}" ]; then
+      emit "$(tag_ver)" "${prev_version} → $(bold "${cur_version}")"
+      prev_version="${cur_version}"
+    fi
+
+    # BLOCKED.md state.
+    local cur_blocked
+    cur_blocked=$([ -f "${PLAN}/BLOCKED.md" ] && echo yes || echo no)
+    if [ "${cur_blocked}" != "${prev_blocked}" ]; then
+      if [ "${cur_blocked}" = "yes" ]; then
+        local trig
+        trig=$(grep -m1 '^\*\*Trigger\*\*:' "${PLAN}/BLOCKED.md" 2>/dev/null | sed 's/^\*\*Trigger\*\*: //')
+        emit "$(tag_block)" "$(red 'PAUSED') — ${trig:-see BLOCKED.md}"
+      else
+        emit "$(tag_block)" "$(green 'cleared')"
+      fi
+      prev_blocked="${cur_blocked}"
+    fi
+
+    # Tick lock state.
+    local cur_locked
+    cur_locked=$([ -d "${PLAN}/.tick.lock" ] && echo yes || echo no)
+    if [ "${cur_locked}" != "${prev_locked}" ]; then
+      if [ "${cur_locked}" = "yes" ]; then
+        emit "$(tag_lock)" "acquired (tick running)"
+      else
+        emit "$(tag_lock)" "released"
+      fi
+      prev_locked="${cur_locked}"
+    fi
+
+    # New git commit.
+    local cur_commit
+    cur_commit=$(git -C "${REPO}" log -1 --format='%H' 2>/dev/null || echo '')
+    if [ -n "${cur_commit}" ] && [ "${cur_commit}" != "${prev_commit}" ]; then
+      # Emit each commit between prev and cur (in chronological order).
+      git -C "${REPO}" log --reverse --format='%h %s' "${prev_commit}..${cur_commit}" 2>/dev/null \
+        | while IFS= read -r line; do
+            [ -z "${line}" ] && continue
+            emit "$(tag_commit)" "${line}"
+          done
+      prev_commit="${cur_commit}"
+    fi
+
+    # New tick log file (a tick started).
+    local cur_latest_log
+    cur_latest_log=$(ls -1t "${PLAN}/tick-logs/"*.log 2>/dev/null | head -1 || true)
+    if [ -n "${cur_latest_log}" ] && [ "${cur_latest_log}" != "${prev_latest_log}" ]; then
+      emit "$(tag_tick)" "new log: $(basename "${cur_latest_log}")"
+      prev_latest_log="${cur_latest_log}"
+      if [ "${with_log}" = "yes" ]; then
+        start_log_tail "${cur_latest_log}"
+      fi
+    fi
+
+    # Inventory step state diff.
+    snap_inventory > "${cur_inv_file}"
+    if ! cmp -s "${prev_inv_file}" "${cur_inv_file}"; then
+      # Build a map of previous states and diff against current.
+      while IFS='|' read -r step state; do
+        [ -z "${step}" ] && continue
+        local prev_state
+        prev_state=$(awk -F'|' -v s="${step}" '$1==s {print $2}' "${prev_inv_file}")
+        if [ -n "${prev_state}" ] && [ "${prev_state}" != "${state}" ]; then
+          emit "$(tag_step)" "${step}  ${prev_state} → $(bold "${state}")"
+        fi
+      done < "${cur_inv_file}"
+      cp "${cur_inv_file}" "${prev_inv_file}"
+    fi
+  done
+}
+
+# ── entry ─────────────────────────────────────────────────────────────────────
+
 MODE=human
 WATCH=no
 TAIL_LOG=no
+STREAM=no
+WITH_LOG=no
 
 for arg in "$@"; do
   case "$arg" in
     --json) MODE=json ;;
     --watch) WATCH=yes ;;
+    --stream) STREAM=yes ;;
+    --with-log) WITH_LOG=yes ;;
     --log) TAIL_LOG=yes ;;
     --help|-h)
-      sed -n '2,9p' "$0" | sed 's/^# //; s/^#//'
+      sed -n '2,12p' "$0" | sed 's/^# //; s/^#//'
       exit 0
       ;;
   esac
 done
 
-if [ "${WATCH}" = "yes" ]; then
+if [ "${STREAM}" = "yes" ]; then
+  stream_mode "${WITH_LOG}"
+elif [ "${WATCH}" = "yes" ]; then
   while true; do
     clear
     print_human
