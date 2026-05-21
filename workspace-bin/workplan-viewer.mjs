@@ -340,6 +340,20 @@ async function launchdStatus(label) {
   return { loaded, pid, last_exit_status: lastExit };
 }
 
+// One launchctl call returns the loaded set for ALL labels — cheaper than
+// invoking `launchctl list <label>` per plan.
+async function getAllLoadedLabels() {
+  const r = await exec('launchctl', ['list']);
+  if (r.err && r.rc !== 0) return new Set();
+  const labels = new Set();
+  for (const line of r.stdout.split('\n')) {
+    // Format: PID<TAB>Status<TAB>Label
+    const parts = line.split('\t');
+    if (parts.length >= 3 && parts[2]) labels.add(parts[2].trim());
+  }
+  return labels;
+}
+
 function readIntervalFromPlist(plistPath) {
   if (!fs.existsSync(plistPath)) return null;
   try {
@@ -465,12 +479,24 @@ const HTML = String.raw`<!doctype html>
   aside .plan-list li { padding: 10px 16px; cursor: pointer; border-left: 3px solid transparent; }
   aside .plan-list li:hover { background: var(--bg-3); }
   aside .plan-list li.active { background: var(--bg-3); border-left-color: var(--accent); }
-  aside .plan-list .name { font-weight: 500; }
+  aside .plan-list .name { font-weight: 500; display: flex; align-items: center; gap: 8px; }
   aside .plan-list .meta { font-size: 11px; color: var(--dim); margin-top: 2px; display: flex; gap: 8px; align-items: center; }
   aside .plan-list .pill { display: inline-block; padding: 1px 6px; border-radius: 9px; font-size: 10px; font-weight: 500; background: var(--bg); }
   aside .plan-list .pill.run { background: rgba(86, 211, 100, 0.15); color: var(--green); }
   aside .plan-list .pill.idle { background: var(--bg); color: var(--dim); }
   aside .plan-list .pill.blocked { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+  aside .plan-list .pill.auto { background: rgba(86, 211, 100, 0.15); color: var(--green); }
+  /* Status dot: green=auto running · yellow=manual tick running · red=blocked · gray=idle */
+  @keyframes status-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  .status-dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    flex-shrink: 0; background: var(--dim-2);
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 8px rgba(86, 211, 100, 0.7); animation: status-pulse 2.2s ease-in-out infinite; }
+  .status-dot.running { background: var(--yellow); box-shadow: 0 0 6px rgba(227, 179, 65, 0.5); animation: status-pulse 1.4s ease-in-out infinite; }
+  .status-dot.blocked { background: var(--red); box-shadow: 0 0 6px rgba(248, 81, 73, 0.5); }
+  .status-dot.idle { background: var(--dim-2); }
+  .status-dot.lg { width: 12px; height: 12px; }
   aside .footer { margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--border); color: var(--dim-2); font-size: 11px; }
   /* Main */
   main { display: grid; grid-template-rows: auto auto 1fr; overflow: hidden; }
@@ -782,13 +808,24 @@ async function refreshPlans() {
     const li = document.createElement('li');
     li.dataset.id = p.id;
     if (p.id === state.planId) li.classList.add('active');
-    const status = p.blocked ? 'blocked' : (p.locked ? 'run' : 'idle');
-    const statusLabel = p.blocked ? 'BLOCKED' : (p.locked ? 'running' : 'idle');
-    li.innerHTML = '<div class="name">' + esc(p.id) + '</div>' +
+    // Dot priority: blocked > scheduler-auto-running > manual-tick-running > idle.
+    let dotClass, pillClass, pillLabel;
+    if (p.blocked) {
+      dotClass = 'blocked'; pillClass = 'blocked'; pillLabel = 'BLOCKED';
+    } else if (p.scheduler_loaded) {
+      dotClass = 'active';  pillClass = 'auto'; pillLabel = p.locked ? 'auto · ticking' : 'auto';
+    } else if (p.locked) {
+      dotClass = 'running'; pillClass = 'run';  pillLabel = 'manual tick';
+    } else {
+      dotClass = 'idle';    pillClass = 'idle'; pillLabel = 'idle';
+    }
+    li.innerHTML = '<div class="name">' +
+        '<span class="status-dot ' + dotClass + '" title="' + pillLabel + '"></span>' +
+        esc(p.id) + '</div>' +
       '<div class="meta">' +
-      '<span class="pill ' + status + '">' + statusLabel + '</span>' +
-      '<span>' + p.closed_steps + '/' + p.total_steps + '</span>' +
-      '<span>' + esc(p.version) + '</span>' +
+        '<span class="pill ' + pillClass + '">' + pillLabel + '</span>' +
+        '<span>' + p.closed_steps + '/' + p.total_steps + '</span>' +
+        '<span>' + esc(p.version) + '</span>' +
       '</div>';
     li.addEventListener('click', () => selectPlan(p.id));
     list.appendChild(li);
@@ -1183,11 +1220,42 @@ const INTERVAL_PRESETS = [
 async function renderAutomation() {
   if (!state.planId) return;
   const view = $('auto-view');
-  view.innerHTML = '<div class="empty" style="padding:30px;color:var(--dim);">loading…</div>';
+
+  // Preserve UI state we don't want to wipe on the 5s state-refresh re-render.
+  const prevScroll = view.scrollTop;
+  const prevIntervalVal  = $('interval-val')?.value;
+  const prevIntervalUnit = $('interval-unit')?.value;
+  const prevThrottleVal  = $('throttle-val')?.value;
+  const isFirstRender = !view.firstChild ||
+    (view.firstElementChild && view.firstElementChild.classList.contains('empty'));
+  if (isFirstRender) {
+    view.innerHTML = '<div class="empty" style="padding:30px;color:var(--dim);">loading…</div>';
+  }
+
   const r = await fetch('/api/plans/' + state.planId + '/automation');
   if (!r.ok) { view.innerHTML = '<div class="empty">failed to load</div>'; return; }
   const s = await r.json();
   const cfg = s.config;
+
+  // Skip re-render if nothing material changed — prevents scroll-jump and
+  // form-input wipe on the 5s state refresh.
+  const stateHash = JSON.stringify({
+    planId: state.planId,
+    loaded: s.launchd.loaded,
+    pid: s.launchd.pid,
+    mode: s.plist_mode || cfg.mode,
+    interval: s.plist_interval_seconds || cfg.interval_seconds,
+    throttle: s.plist_throttle_seconds || cfg.throttle_seconds,
+    plist_exists: s.plist_exists,
+    last_tick: s.last_tick_name,
+    last_tick_mtime: s.last_tick_mtime,
+    locked: state.lastLocked,
+    blocked: state.lastBlocked,
+  });
+  if (!isFirstRender && state.lastAutoStateHash === stateHash) {
+    return;
+  }
+  state.lastAutoStateHash = stateHash;
 
   const loaded = s.launchd.loaded;
   const plistExists = s.plist_exists;
@@ -1426,7 +1494,13 @@ async function renderAutomation() {
     const r2 = await fetch('/api/plans/' + state.planId + '/automation/load', { method: 'POST' });
     const res = await r2.json();
     if (res.error) showToast('action-toast', 'Error: ' + res.error, true);
-    else { showToast('action-toast', res.msg || 'loaded', false); setTimeout(renderAutomation, 600); }
+    else {
+      showToast('action-toast', res.msg || 'loaded', false);
+      // Invalidate state-hash so the next renderAutomation actually redraws.
+      state.lastAutoStateHash = null;
+      setTimeout(renderAutomation, 600);
+      setTimeout(refreshPlans, 600);  // update sidebar dot
+    }
   });
   const unloadBtn = $('btn-unload');
   if (unloadBtn) unloadBtn.addEventListener('click', async () => {
@@ -1434,14 +1508,19 @@ async function renderAutomation() {
     const r2 = await fetch('/api/plans/' + state.planId + '/automation/unload', { method: 'POST' });
     const res = await r2.json();
     if (res.error) showToast('action-toast', 'Error: ' + res.error, true);
-    else { showToast('action-toast', res.msg || 'unloaded', false); setTimeout(renderAutomation, 600); }
+    else {
+      showToast('action-toast', res.msg || 'unloaded', false);
+      state.lastAutoStateHash = null;
+      setTimeout(renderAutomation, 600);
+      setTimeout(refreshPlans, 600);
+    }
   });
   const kickBtn = $('btn-kickstart');
   if (kickBtn) kickBtn.addEventListener('click', async () => {
     const r2 = await fetch('/api/plans/' + state.planId + '/automation/kickstart', { method: 'POST' });
     const res = await r2.json();
     if (res.error) showToast('action-toast', 'Error: ' + res.error, true);
-    else { showToast('action-toast', res.msg || 'kickstart fired', false); }
+    else { showToast('action-toast', res.msg || 'kickstart fired', false); setTimeout(refreshPlans, 800); }
   });
   const runOnceBtn = $('btn-run-once');
   if (runOnceBtn) runOnceBtn.addEventListener('click', async () => {
@@ -1449,8 +1528,14 @@ async function renderAutomation() {
     const r2 = await fetch('/api/plans/' + state.planId + '/automation/run-once', { method: 'POST' });
     const res = await r2.json();
     if (res.error) showToast('action-toast', 'Error: ' + res.error, true);
-    else { showToast('action-toast', res.msg || 'tick spawned', false); setTimeout(refreshState, 1500); }
+    else { showToast('action-toast', res.msg || 'tick spawned', false); setTimeout(refreshState, 1500); setTimeout(refreshPlans, 1500); }
   });
+
+  // Restore preserved UI state (scroll + form inputs).
+  view.scrollTop = prevScroll;
+  if (prevIntervalVal  !== undefined && $('interval-val'))  $('interval-val').value  = prevIntervalVal;
+  if (prevIntervalUnit !== undefined && $('interval-unit')) $('interval-unit').value = prevIntervalUnit;
+  if (prevThrottleVal  !== undefined && $('throttle-val'))  $('throttle-val').value  = prevThrottleVal;
 }
 
 // ── History ───────────────────────────────────────────────────────────────────
@@ -1487,7 +1572,7 @@ async function renderHistory() {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 refreshPlans();
-setInterval(refreshPlans, 30000);
+setInterval(refreshPlans, 10000);
 </script>
 </body>
 </html>
@@ -1570,10 +1655,13 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && url.pathname === '/api/plans') {
-    return json(res, {
-      roots: ROOTS,
-      plans: PLANS.map(planSummary),
+    const loadedLabels = await getAllLoadedLabels();
+    const plans = PLANS.map(p => {
+      const cfg = readAutomationConfig(p);
+      const summary = planSummary(p);
+      return { ...summary, scheduler_loaded: loadedLabels.has(cfg.plist_label) };
     });
+    return json(res, { roots: ROOTS, plans });
   }
 
   const m = url.pathname.match(PLAN_PATH_RE);
