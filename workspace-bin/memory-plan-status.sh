@@ -11,7 +11,7 @@ set -u
 # Intentionally NOT pipefail/errexit — grep returning 1 on zero matches
 # is normal here and must not abort the script.
 
-REPO="/Users/moltymac/openclaw"
+REPO="/Users/moltymac/openclaw-nodedev"
 PLAN="${REPO}/memory-plan"
 
 # ── helpers ───────────────────────────────────────────────────────────────────

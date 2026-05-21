@@ -21,7 +21,7 @@
 
 set -euo pipefail
 
-REPO="/Users/moltymac/openclaw"
+REPO="/Users/moltymac/openclaw-nodedev"
 PLAN_DIR="${REPO}/memory-plan"
 TICK_LOG_DIR="${PLAN_DIR}/tick-logs"
 PROMPT_FILE="${PLAN_DIR}/TICK_PROMPT.md"

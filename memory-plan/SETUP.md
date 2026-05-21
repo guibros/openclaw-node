@@ -55,7 +55,7 @@ Pick the one(s) that match your workflow:
 Before turning on the 30-min cron, run one tick by hand to verify the pipeline:
 
 ```bash
-cd /Users/moltymac/openclaw
+cd /Users/moltymac/openclaw-nodedev
 ./workspace-bin/memory-plan-tick.sh
 ```
 
@@ -65,7 +65,7 @@ Then inspect:
 ls -1t memory-plan/tick-logs/ | head -3
 cat memory-plan/tick-logs/$(ls -1t memory-plan/tick-logs/ | head -1)
 cat memory-plan/VERSION
-git -C /Users/moltymac/openclaw log --oneline -5
+git -C /Users/moltymac/openclaw-nodedev log --oneline -5
 ```
 
 A healthy first tick should:
@@ -94,7 +94,7 @@ Create the plist at `~/Library/LaunchAgents/com.openclaw.memory-plan-tick.plist`
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/moltymac/openclaw/workspace-bin/memory-plan-tick.sh</string>
+    <string>/Users/moltymac/openclaw-nodedev/workspace-bin/memory-plan-tick.sh</string>
   </array>
 
   <key>StartInterval</key>
@@ -104,10 +104,10 @@ Create the plist at `~/Library/LaunchAgents/com.openclaw.memory-plan-tick.plist`
   <false/>
 
   <key>StandardOutPath</key>
-  <string>/Users/moltymac/openclaw/memory-plan/tick-logs/launchd.stdout.log</string>
+  <string>/Users/moltymac/openclaw-nodedev/memory-plan/tick-logs/launchd.stdout.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/Users/moltymac/openclaw/memory-plan/tick-logs/launchd.stderr.log</string>
+  <string>/Users/moltymac/openclaw-nodedev/memory-plan/tick-logs/launchd.stderr.log</string>
 
   <key>EnvironmentVariables</key>
   <dict>
@@ -118,7 +118,7 @@ Create the plist at `~/Library/LaunchAgents/com.openclaw.memory-plan-tick.plist`
   </dict>
 
   <key>WorkingDirectory</key>
-  <string>/Users/moltymac/openclaw</string>
+  <string>/Users/moltymac/openclaw-nodedev</string>
 </dict>
 </plist>
 ```

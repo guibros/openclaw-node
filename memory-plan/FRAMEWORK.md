@@ -13,7 +13,7 @@ Deep Review Gate is non-negotiable. **Exactly one commit lands per step, at Phas
 
 | Placeholder | This project |
 |---|---|
-| `{ARTIFACT_KIND}` | source code in `/Users/moltymac/openclaw` (mjs/js/ts/sh) + plan-internal docs |
+| `{ARTIFACT_KIND}` | source code in `/Users/moltymac/openclaw-nodedev` (mjs/js/ts/sh) + plan-internal docs |
 | `{VERSION_CARRIERS}` | `memory-plan/VERSION` (single line, no other carriers) |
 | `{TEST_COMMAND}` | `npm test` from repo root (`node --test test/*.test.js test/*.test.mjs`) |
 | `{INVENTORY_FILE}` | `memory-plan/INVENTORY.md` |

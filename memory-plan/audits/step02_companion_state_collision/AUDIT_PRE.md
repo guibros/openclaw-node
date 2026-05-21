@@ -63,7 +63,7 @@ The headless tick worker hit a hard sandbox restriction on `.claude/hooks/sessio
 protocol. Operator (interactive Claude session) applied the §6 delta #2 edit manually
 and verified via:
 
-  grep -n 'daemon-state' /Users/moltymac/openclaw/.claude/hooks/session-start.sh
+  grep -n 'daemon-state' /Users/moltymac/openclaw-nodedev/.claude/hooks/session-start.sh
 
 Resume protocol: when this step is re-attempted at v0.2-pre, the worker should grep-verify
 that delta #2 is already present in the working tree and SKIP re-edit. Do not re-attempt

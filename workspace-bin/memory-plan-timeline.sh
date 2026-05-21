@@ -15,7 +15,7 @@
 
 set -u
 
-REPO="/Users/moltymac/openclaw"
+REPO="/Users/moltymac/openclaw-nodedev"
 PLAN="${REPO}/memory-plan"
 OUT="${PLAN}/TIMELINE.md"
 

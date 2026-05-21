@@ -16,13 +16,13 @@ You have ~25 minutes of clock time. After the Phase 9 commit lands, exit. Do not
 
 Read these files first, before any other tool use:
 
-1. `/Users/moltymac/openclaw/memory-plan/BLOCKED.md` — if it exists, **EXIT IMMEDIATELY** (do not write anything, do not produce output beyond "blocked; exiting"). Do not overwrite it.
-2. `/Users/moltymac/openclaw/memory-plan/FRAMEWORK.md` — the operational procedure. Follow it to the letter.
-3. `/Users/moltymac/openclaw/memory-plan/RESUME.md` — current state + §0 block-level frozen decisions.
-4. `/Users/moltymac/openclaw/memory-plan/INVENTORY.md` — step list and statuses.
-5. `/Users/moltymac/openclaw/memory-plan/VERSION` — current version string.
-6. `/Users/moltymac/openclaw/memory-plan/REFERENCE_PLAN.md` — the full implementation plan with step-level details (read only the section relevant to the step you're about to execute).
-7. `/Users/moltymac/openclaw/memory-plan/VERSION_LOG.md` — for baseline test counts and continuity.
+1. `/Users/moltymac/openclaw-nodedev/memory-plan/BLOCKED.md` — if it exists, **EXIT IMMEDIATELY** (do not write anything, do not produce output beyond "blocked; exiting"). Do not overwrite it.
+2. `/Users/moltymac/openclaw-nodedev/memory-plan/FRAMEWORK.md` — the operational procedure. Follow it to the letter.
+3. `/Users/moltymac/openclaw-nodedev/memory-plan/RESUME.md` — current state + §0 block-level frozen decisions.
+4. `/Users/moltymac/openclaw-nodedev/memory-plan/INVENTORY.md` — step list and statuses.
+5. `/Users/moltymac/openclaw-nodedev/memory-plan/VERSION` — current version string.
+6. `/Users/moltymac/openclaw-nodedev/memory-plan/REFERENCE_PLAN.md` — the full implementation plan with step-level details (read only the section relevant to the step you're about to execute).
+7. `/Users/moltymac/openclaw-nodedev/memory-plan/VERSION_LOG.md` — for baseline test counts and continuity.
 8. Most recent `memory-plan/audits/stepNN_*/AUDIT_POST.md` (if any) — for the prior step's `§6` carry-forwards.
 
 ## Operational rules — non-negotiable
