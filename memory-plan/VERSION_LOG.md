@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v0.2 — 2026-05-20 — memory-plan-tick
+
+- **Phase 9** close for Step 0.2: Resolve .companion-state.md collision (rename to .daemon-state-${NODE_ID}.md + migrate readers).
+- Files committed: `workspace-bin/memory-daemon.mjs`, `.claude/hooks/session-start.sh`, `workspace-bin/daily-log-writer.mjs`, `mission-control/src/app/api/tasks/route.ts`, `scripts/migrate-companion-state.mjs` (new), audit docs, ledger files.
+- Test count: 467 (394 pass, 73 fail — pre-existing). No new tests added this step.
+- V2 audit: 6 POSITIVE findings, 0 Phase 8 patches.
+- Streak: 2-of-2 zero-Phase-4-correction.
+
+### v0.2-mid — 2026-05-20 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 0.2.
+- Files changed: `workspace-bin/memory-daemon.mjs` (NODE_ID + daemon-state path), `.claude/hooks/session-start.sh` (daemon-state path), `workspace-bin/daily-log-writer.mjs` (os import + NODE_ID + daemon-state path), `mission-control/src/app/api/tasks/route.ts` (os import + NODE_ID + readDaemonState rename + path), `scripts/migrate-companion-state.mjs` (new).
+- Deltas #1 and #2 were pre-applied by prior tick + operator; deltas #3, #4, #5 applied this tick.
+
+### v0.2-pre — 2026-05-20 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 0.2.
+- Files planned: `workspace-bin/memory-daemon.mjs`, `.claude/hooks/session-start.sh`, `workspace-bin/daily-log-writer.mjs`, `mission-control/src/app/api/tasks/route.ts`, `scripts/migrate-companion-state.mjs` (new).
+- Audit: `memory-plan/audits/step02_companion_state_collision/AUDIT_PRE.md`.
+- Test baseline: 467 tests (394 pass, 73 fail — pre-existing).
+
 ### v0.1 — 2026-05-20 — memory-plan-tick
 
 - **Phase 9** close for Step 0.1: Wire MemoryBudget.reload() into daemon flush paths + NATS subscription + test.

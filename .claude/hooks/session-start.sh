@@ -28,8 +28,9 @@ if [ -f "$TASKS" ]; then
   echo ""
 fi
 
-# Companion state
-STATE="${WORKSPACE}/.companion-state.md"
+# Daemon state (per-node, written by memory-daemon)
+_NODE_ID="${OPENCLAW_NODE_ID:-$(hostname)}"
+STATE="${WORKSPACE}/.daemon-state-${_NODE_ID}.md"
 if [ -f "$STATE" ]; then
   echo "Session state:"
   cat "$STATE"

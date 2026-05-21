@@ -21,7 +21,9 @@ Fix active bugs in the existing harness before adding complexity. See REFERENCE_
 | 0 | 0.1 | v0.1 | [x] | Wire MemoryBudget.reload() into daemon flush paths + NATS subscription + test |
 
 > **Step 0.1 closed.** `reload()` now fires after both daemon flush paths (pre-compression and end-of-session) and via an optional NATS subscription on `mesh.memory.compaction_completed`. One new test added. 6 positive audit findings, zero corrections.
-| 0 | 0.2 | v0.2 | [ ] | Resolve .companion-state.md collision (rename to .daemon-state-${NODE_ID}.md + migrate readers) |
+| 0 | 0.2 | v0.2 | [x] | Resolve .companion-state.md collision (rename to .daemon-state-${NODE_ID}.md + migrate readers) |
+
+> **Step 0.2 closed.** Daemon state file renamed from `.companion-state.md` to `.daemon-state-${NODE_ID}.md` across all four readers (daemon, session-start hook, daily-log-writer, mission-control tasks route). Migration script added at `scripts/migrate-companion-state.mjs`. Function `readCompanionState` renamed to `readDaemonState`. 6 positive audit findings, zero corrections, zero Phase 8 patches.
 | 0 | 0.3 | v0.3 | [ ] | Fix mergeFacts parenthetical chain (supersedes-event-id comment model + one-time cleanup) |
 | 0 | 0.4 | v0.4 | [ ] | Include assistant-role messages in extraction + add speaker field + new patterns |
 | 0 | 0.5 | v0.5 | [ ] | Fix mid-word truncation via truncateAtWord helper |

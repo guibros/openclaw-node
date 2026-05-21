@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 0 in progress. Step 0.1 closed; Step 0.2 is next.
-**Current version carrier.** `v0.1` (Step 0.1 closed).
-**Streaks.** zero-Phase-4-correction: 1 of 1 · zero-Phase-8-patch: 1 of 1.
-**Last commit on plan branch.** v0.1 — Wire MemoryBudget.reload() into daemon flush paths + NATS subscription + test.
+**Workplan status.** Block 0 in progress. Step 0.2 closed; Step 0.3 is next.
+**Current version carrier.** `v0.2` (Step 0.2 closed).
+**Streaks.** zero-Phase-4-correction: 2 of 2 · zero-Phase-8-patch: 2 of 2.
+**Last commit on plan branch.** v0.2 — Resolve .companion-state.md collision (rename to .daemon-state-${NODE_ID}.md + migrate readers).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -53,18 +53,32 @@ locally. One new test added. 6 positive audit findings, zero Phase 4 corrections
 Phase 8 patches. Carry-forwards to Step 0.2: the daemon now has an async shutdown handler
 and an optional `natsConn` in `main()` scope.
 
+### Step 0.2 — Resolve .companion-state.md collision (rename to .daemon-state-${NODE_ID}.md + migrate readers)
+
+Closed at v0.2. Daemon state file renamed from `.companion-state.md` to
+`.daemon-state-${NODE_ID}.md` across all four readers: `memory-daemon.mjs` (line 526),
+`session-start.sh` (line 33), `daily-log-writer.mjs` (line 34), and
+`mission-control/src/app/api/tasks/route.ts` (line 23). Function `readCompanionState`
+renamed to `readDaemonState`. Migration script `scripts/migrate-companion-state.mjs`
+added — idempotent, detects daemon-written files via `## Session Status` / `last_flush`
+markers. `NODE_ID` derived consistently as `process.env.OPENCLAW_NODE_ID || os.hostname()`
+across all JS/TS files and `${OPENCLAW_NODE_ID:-$(hostname)}` in shell. 6 positive audit
+findings, zero Phase 4 corrections, zero Phase 8 patches. Carry-forwards to Step 0.3:
+`COMPANION` variable name retained in daily-log-writer (cosmetic, deferred); session-start.sh
+sandbox restriction requires operator pre-apply for Step 0.6; test baseline unchanged at 467.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               1 / 45
+Steps closed:               2 / 45
 Current block:              0 (Stop the bleeding)
-Steps closed in block:      1 / 7
-Consecutive zero-Phase-4-correction streak:  1
-Consecutive zero-Phase-8-patch streak:       1
+Steps closed in block:      2 / 7
+Consecutive zero-Phase-4-correction streak:  2
+Consecutive zero-Phase-8-patch streak:       2
 Test baseline (npm test):   467 tests (394 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-20 (Step 0.1)
+Last successful tick:       2026-05-20 (Step 0.2)
 Last block file written:    (none)
 ```
 
@@ -75,8 +89,8 @@ Last block file written:    (none)
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v0.1` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 0.2.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step01_reload_memory_budget/AUDIT_POST.md` for carry-forwards.
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.2.
+2. Decode state: `VERSION` is `v0.2` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 0.3.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step02_companion_state_collision/AUDIT_POST.md` for carry-forwards.
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.3.
 6. Commit. Stop.

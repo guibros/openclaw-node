@@ -11,13 +11,16 @@ import { generateTaskId } from "@/lib/task-id";
 import { getNats, sc } from "@/lib/nats";
 import { WORKSPACE_ROOT, AGENT_NAME } from "@/lib/config";
 import path from "path";
+import os from "os";
+
+const NODE_ID = process.env.OPENCLAW_NODE_ID || os.hostname();
 
 /**
- * Parse .companion-state.md to extract current active task.
+ * Parse .daemon-state-${NODE_ID}.md to extract current active task.
  * Returns a synthetic task object if there's active work, null otherwise.
  */
-function readCompanionState(): { title: string; nextAction: string } | null {
-  const statePath = path.join(WORKSPACE_ROOT, ".companion-state.md");
+function readDaemonState(): { title: string; nextAction: string } | null {
+  const statePath = path.join(WORKSPACE_ROOT, `.daemon-state-${NODE_ID}.md`);
   if (!fs.existsSync(statePath)) return null;
 
   const content = fs.readFileSync(statePath, "utf-8");
@@ -48,7 +51,7 @@ function readCompanionState(): { title: string; nextAction: string } | null {
 /**
  * GET /api/tasks
  * List all tasks. Always re-syncs from active-tasks.md for fresh state.
- * Also injects a live "current session" task from .companion-state.md.
+ * Also injects a live "current session" task from .daemon-state-${NODE_ID}.md.
  * Optional query params: ?status=X&column=X
  */
 export async function GET(request: NextRequest) {
@@ -58,8 +61,8 @@ export async function GET(request: NextRequest) {
     // Only re-sync from markdown if the file was modified externally
     syncTasksFromMarkdownIfChanged(db);
 
-    // Inject live session task from companion state
-    const liveWork = readCompanionState();
+    // Inject live session task from daemon state
+    const liveWork = readDaemonState();
     const liveTaskId = "__LIVE_SESSION__";
 
     if (liveWork) {

@@ -22,14 +22,16 @@
 
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { execSync } from 'child_process';
 import { createHash } from 'crypto';
 
 const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.dirname(new URL('.', import.meta.url).pathname);
+const NODE_ID = process.env.OPENCLAW_NODE_ID || os.hostname();
 const MEMORY_DIR = path.join(WORKSPACE, 'memory');
 const RECAP_FILE = path.join(MEMORY_DIR, 'last-session-recap.md');
 const ACTIVE_TASKS = path.join(MEMORY_DIR, 'active-tasks.md');
-const COMPANION = path.join(WORKSPACE, '.companion-state.md');
+const COMPANION = path.join(WORKSPACE, `.daemon-state-${NODE_ID}.md`);
 const STATE_FILE = path.join(WORKSPACE, '.tmp/daily-log-state.json');
 const TZ = 'America/Montreal';
 

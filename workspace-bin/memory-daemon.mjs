@@ -82,6 +82,7 @@ const __dirname = path.dirname(__filename);
 // CONFIGURATION
 // ============================================================
 
+const NODE_ID = process.env.OPENCLAW_NODE_ID || os.hostname();
 const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.dirname(__dirname);
 const HOME = os.homedir();
 const CONFIG_PATH = path.join(HOME, '.openclaw/config/daemon.json');
@@ -517,12 +518,12 @@ function findCurrentJsonl(sources) {
 
 // ============================================================
 // PHASE 1: STATUS SYNC
-// Updates .companion-state.md from active-tasks.md (~5ms)
+// Updates .daemon-state-${NODE_ID}.md from active-tasks.md (~5ms)
 // ============================================================
 
 function runPhase1StatusSync(config) {
   const activeTasks = path.join(WORKSPACE, 'memory/active-tasks.md');
-  const companion = path.join(WORKSPACE, '.companion-state.md');
+  const companion = path.join(WORKSPACE, `.daemon-state-${NODE_ID}.md`);
 
   let runningTasks = 'Standing by';
   let runningCount = 0;
