@@ -30,7 +30,9 @@ Fix active bugs in the existing harness before adding complexity. See REFERENCE_
 | 0 | 0.4 | v0.4 | [x] | Include assistant-role messages in extraction + add speaker field + new patterns |
 
 > **Step 0.4 closed.** Opened `extractFacts` role filter to include assistant messages alongside user messages. Added `stripSpeaker` helper and two assistant-voice pattern groups (`agent_action`, `finding`). Added `speaker` field on extracted facts. Updated `mergeFacts` to format MEMORY.md entries with `[user]`/`[assistant]` prefix and strip speaker tags during similarity comparison. 5 new tests. 6 positive audit findings, zero corrections, zero Phase 8 patches.
-| 0 | 0.5 | v0.5 | [ ] | Fix mid-word truncation via truncateAtWord helper |
+| 0 | 0.5 | v0.5 | [x] | Fix mid-word truncation via truncateAtWord helper |
+
+> **Step 0.5 closed.** Added `truncateAtWord(text, maxLen)` helper to replace the hard `.slice(0, 120)` in `extractFacts`. The helper truncates at the last space before `maxLen`, with a 0.7 fallback threshold for long words. 4 new tests. 6 positive audit findings, zero corrections, zero Phase 8 patches.
 | 0 | 0.6 | v0.6 | [ ] | Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field) |
 | 0 | 0.7 | v0.7 | [ ] | Document state files (docs/STATE_FILES.md) |
 

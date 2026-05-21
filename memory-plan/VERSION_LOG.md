@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v0.5 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 0.5: Fix mid-word truncation via truncateAtWord helper.
+- Files committed: `lib/pre-compression-flush.mjs`, `test/memory-budget.test.mjs`, audit docs, ledger files.
+- Test count: 481 (408 pass, 73 fail — pre-existing). +4 tests added this step.
+- V2 audit: 6 POSITIVE findings, 0 Phase 8 patches.
+- Streak: 5-of-5 zero-Phase-4-correction.
+
+### v0.5-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 0.5.
+- Files changed: `lib/pre-compression-flush.mjs` (added `truncateAtWord` helper, replaced `.slice(0, 120)` with `truncateAtWord(match[0].trim(), 120)` in `extractFacts`), `test/memory-budget.test.mjs` (+4 tests in new `truncateAtWord` describe block, added `truncateAtWord` to import).
+- Test additions: 4 new tests (short text passthrough, word-boundary truncation, long-word fallback, exact-length passthrough).
+
+### v0.5-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 0.5.
+- Files planned: `lib/pre-compression-flush.mjs`, `test/memory-budget.test.mjs`.
+- Audit: `memory-plan/audits/step05_truncate_at_word/AUDIT_PRE.md`.
+- Test baseline: 477 tests (404 pass, 73 fail — pre-existing).
+
 ### v0.4 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 0.4: Include assistant-role messages in extraction + add speaker field + new patterns.

@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 0 in progress. Step 0.4 closed; Step 0.5 is next.
-**Current version carrier.** `v0.4` (Step 0.4 closed).
-**Streaks.** zero-Phase-4-correction: 4 of 4 · zero-Phase-8-patch: 4 of 4.
-**Last commit on plan branch.** v0.4 — Include assistant-role messages in extraction + add speaker field + new patterns.
+**Workplan status.** Block 0 in progress. Step 0.5 closed; Step 0.6 is next.
+**Current version carrier.** `v0.5` (Step 0.5 closed).
+**Streaks.** zero-Phase-4-correction: 5 of 5 · zero-Phase-8-patch: 5 of 5.
+**Last commit on plan branch.** v0.5 — Fix mid-word truncation via truncateAtWord helper.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -99,18 +99,31 @@ line 203; speaker tags formatted as `[user]`/`[assistant]` in MEMORY.md entries;
 `agent_action` and `finding` categories are new (no downstream consumer filters by
 category yet).
 
+### Step 0.5 — Fix mid-word truncation via truncateAtWord helper
+
+Closed at v0.5. Added `truncateAtWord(text, maxLen)` helper at
+`lib/pre-compression-flush.mjs:212` to replace the hard `.slice(0, 120)` in
+`extractFacts` (line 173). The helper truncates at the last space before `maxLen`,
+with a 0.7 fallback threshold that avoids absurdly short results when a single word
+is very long (falls back to hard slice if `lastSpace < maxLen * 0.7`). 4 new tests
+cover short-text passthrough, word-boundary truncation, long-word fallback, and
+exact-length passthrough. 6 positive audit findings, zero Phase 4 corrections, zero
+Phase 8 patches. Carry-forwards to Step 0.6: test baseline now 481 (408 pass, 73
+fail pre-existing); `confidence` field still unused (Step 0.6 deletes it);
+`truncateAtWord` exported at line 212; `cleanParentheticalChains` shifted to line 222.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               4 / 45
+Steps closed:               5 / 45
 Current block:              0 (Stop the bleeding)
-Steps closed in block:      4 / 7
-Consecutive zero-Phase-4-correction streak:  4
-Consecutive zero-Phase-8-patch streak:       4
-Test baseline (npm test):   477 tests (404 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 0.4)
+Steps closed in block:      5 / 7
+Consecutive zero-Phase-4-correction streak:  5
+Consecutive zero-Phase-8-patch streak:       5
+Test baseline (npm test):   481 tests (408 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 0.5)
 Last block file written:    (none)
 ```
 
@@ -121,8 +134,8 @@ Last block file written:    (none)
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v0.4` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 0.5.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step04_assistant_extraction/AUDIT_POST.md` for carry-forwards.
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.5.
+2. Decode state: `VERSION` is `v0.5` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 0.6.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step05_truncate_at_word/AUDIT_POST.md` for carry-forwards.
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.6.
 6. Commit. Stop.

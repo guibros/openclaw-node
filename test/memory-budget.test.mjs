@@ -13,7 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { MemoryBudget, createBudget } from '../lib/memory-budget.mjs';
-import { extractFacts, mergeFacts, cleanParentheticalChains, stripSupersedes, stripSpeaker } from '../lib/pre-compression-flush.mjs';
+import { extractFacts, mergeFacts, cleanParentheticalChains, stripSupersedes, stripSpeaker, truncateAtWord } from '../lib/pre-compression-flush.mjs';
 
 let tmpDir;
 
@@ -392,5 +392,37 @@ describe('extractFacts assistant extraction', () => {
     assert.equal(result.added, 2);
     assert.ok(result.content.includes('[assistant] the API endpoint'), 'Should prefix assistant fact with [assistant]');
     assert.ok(result.content.includes('[user] always use dark mode'), 'Should prefix user fact with [user]');
+  });
+});
+
+describe('truncateAtWord', () => {
+  it('returns short text unchanged', () => {
+    const text = 'hello world';
+    assert.equal(truncateAtWord(text, 120), text);
+  });
+
+  it('truncates at word boundary instead of mid-word', () => {
+    const text = 'the quick brown fox jumps over the lazy dog and keeps running across the field until it reaches the distant mountain range beyond';
+    const result = truncateAtWord(text, 80);
+    assert.ok(result.length <= 80, `Result should be <= 80 chars, got ${result.length}`);
+    assert.ok(!result.endsWith(' '), 'Should not end with a space');
+    // Should end at a word boundary (no partial word at the end)
+    const lastChar = result[result.length - 1];
+    assert.ok(lastChar.match(/[a-z]/i), 'Last char should be a letter, not a mid-word cut');
+    // Verify it chose a space-aligned boundary
+    assert.ok(text.startsWith(result), 'Result should be a prefix of the original');
+  });
+
+  it('falls back to hard slice when last space is too early', () => {
+    // A string where the only space is very early — "ab <100+ chars of no-space>"
+    const text = 'ab ' + 'x'.repeat(120);
+    const result = truncateAtWord(text, 80);
+    // lastSpace = 2, which is < 80 * 0.7 = 56, so falls back to hard slice
+    assert.equal(result.length, 80, 'Should hard-slice to exactly maxLen');
+  });
+
+  it('returns text unchanged when exactly at maxLen', () => {
+    const text = 'a'.repeat(120);
+    assert.equal(truncateAtWord(text, 120), text);
   });
 });
