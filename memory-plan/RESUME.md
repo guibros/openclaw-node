@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 2 in progress; Step 2.3 closed.
-**Current version carrier.** `v2.3` (Step 2.3 closed; Block 2 step 3 of 5).
-**Streaks.** zero-Phase-4-correction: 2 of 3 (Block 2) · zero-Phase-8-patch: 3 of 3 (Block 2).
-**Last commit on plan branch.** v2.3 — Chunk and embed existing sessions (resumable migration with checkpoint file).
+**Workplan status.** Block 2 in progress; Step 2.4 closed.
+**Current version carrier.** `v2.4` (Step 2.4 closed; Block 2 step 4 of 5).
+**Streaks.** zero-Phase-4-correction: 3 of 4 (Block 2) · zero-Phase-8-patch: 4 of 4 (Block 2).
+**Last commit on plan branch.** v2.4 — Implement semanticSearch + hybridSearch (RRF) + CLI --semantic/--hybrid flags.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -275,19 +275,35 @@ a second layer of dedup. 5 new tests in `test/embed-existing-sessions.test.mjs`:
 sessions, idempotent re-run, checkpoint file verification, empty session store, zero-message
 session skip. 6 positive audit findings, 0 negative, 0 Phase 8 patches.
 
+### Step 2.4 — Implement semanticSearch + hybridSearch (RRF) + CLI --semantic/--hybrid flags
+
+Closed at v2.4. Extended `lib/mcp-knowledge/core.mjs` with three search modes: FTS5 keyword
+search (`searchSessionsFts` at line 712), Reciprocal Rank Fusion combiner (`reciprocalRankFusion`
+at line 768), and hybrid search (`hybridSearchSessions` at line 804) which fuses FTS5 + semantic
+via RRF. Added `session_chunks_fts` FTS5 virtual table with external content mode
+(`content='session_chunks', content_rowid='id'`) and sync triggers (AFTER INSERT, AFTER DELETE)
+in `initDatabase()`. One-time FTS5 rebuild for pre-existing data via `session_fts_built` meta key.
+Updated `searchSessions()` to include `chunk_id` field for RRF deduplication keying. Updated
+`createKnowledgeEngine()` to expose `searchSessionsFts` and `hybridSearchSessions` methods.
+Created `bin/session-search.mjs` CLI tool with `--semantic`/`--hybrid`/`--fts` flags (default:
+hybrid), `--limit N`, `--db PATH` options. Uses `node:util` parseArgs (zero external dependencies).
+7 new tests in `test/hybrid-search.test.mjs`: RRF merge+boost, RRF empty input, RRF single set,
+FTS5 keyword hit, FTS5 no-match, hybrid combined results, hybrid ranking. 7 positive audit
+findings, 0 negative, 0 Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               14 / 45
-Current block:              Block 2 — Local semantic layer (3 of 5 steps closed)
-Steps closed in block:      3 / 5
-Consecutive zero-Phase-4-correction streak:  2 (test count matched)
-Consecutive zero-Phase-8-patch streak:       3
-Test baseline (npm test):   545 tests (472 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 2.3)
-Last block file written:    memory-plan/audits/step14_embed_existing_sessions/AUDIT_POST.md
+Steps closed:               15 / 45
+Current block:              Block 2 — Local semantic layer (4 of 5 steps closed)
+Steps closed in block:      4 / 5
+Consecutive zero-Phase-4-correction streak:  3 (test count matched)
+Consecutive zero-Phase-8-patch streak:       4
+Test baseline (npm test):   552 tests (479 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 2.4)
+Last block file written:    memory-plan/audits/step15_hybrid_search_rrf/AUDIT_POST.md
 ```
 
 ---
@@ -297,9 +313,10 @@ Last block file written:    memory-plan/audits/step14_embed_existing_sessions/AU
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v2.3` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 2.4.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step14_embed_existing_sessions/AUDIT_POST.md` for carry-forwards.
+2. Decode state: `VERSION` is `v2.4` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 2.5.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step15_hybrid_search_rrf/AUDIT_POST.md` for carry-forwards.
 5. Block 2 frozen decisions are authored in §0. Proceed.
-6. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.4.
-7. Commit. Stop.
+6. **Step 2.5 is the Gulf 1 evaluation gate.** This is the last step of Block 2.
+7. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.5. Include block-close ceremony if closing.
+8. Commit. Stop.

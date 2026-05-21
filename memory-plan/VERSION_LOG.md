@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v2.4 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 2.4: Implement semanticSearch + hybridSearch (RRF) + CLI --semantic/--hybrid flags.
+- Files committed: `lib/mcp-knowledge/core.mjs` (mod — FTS5 virtual table + triggers + rebuild, searchSessionsFts, reciprocalRankFusion, hybridSearchSessions, searchSessions chunk_id, engine exports), `bin/session-search.mjs` (new — CLI tool), `test/hybrid-search.test.mjs` (new — 7 tests), audit docs, ledger files.
+- Test count: 552 (479 pass, 73 fail — pre-existing). +7 tests added this step.
+- V2 audit: 7 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 3-of-4 zero-Phase-4-correction (Block 2).
+
+### v2.4-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 2.4.
+- Files changed: `lib/mcp-knowledge/core.mjs` (mod — FTS5 virtual table + triggers + rebuild in initDatabase, searchSessionsFts, reciprocalRankFusion, hybridSearchSessions, searchSessions chunk_id, engine exports), `bin/session-search.mjs` (new — CLI tool with --semantic/--hybrid/--fts flags), `test/hybrid-search.test.mjs` (new — 7 tests).
+- Test additions: 7 new tests (3 RRF: merge+boost, empty input, single set; 2 FTS5: keyword hit, no match; 2 hybrid: combined results, ranking).
+
+### v2.4-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 2.4.
+- Files planned: `lib/mcp-knowledge/core.mjs` (mod — FTS5 table, triggers, searchSessionsFts, reciprocalRankFusion, hybridSearchSessions, searchSessions chunk_id, engine exports), `bin/session-search.mjs` (new — CLI tool), `test/hybrid-search.test.mjs` (new — 7 tests).
+- Audit: `memory-plan/audits/step15_hybrid_search_rrf/AUDIT_PRE.md`.
+- Test baseline: 545 tests (472 pass, 73 fail — pre-existing).
+
 ### v2.3 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 2.3: Chunk and embed existing sessions (resumable migration with checkpoint file).
