@@ -229,6 +229,56 @@ const HTML = String.raw`<!doctype html>
   .header-bar .bad .val { color: var(--red); }
   .header-bar .spacer { flex: 1; }
   .header-bar .step { color: var(--dim); font-family: 'SF Mono', 'Menlo', monospace; font-size: 11px; }
+  .header-bar button.pause-btn {
+    background: var(--bg-3); color: var(--text-2); border: 1px solid var(--border);
+    padding: 6px 14px; border-radius: 5px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .header-bar button.pause-btn:hover { background: var(--bg); border-color: var(--accent); color: var(--accent); }
+  .header-bar button.pause-btn.paused { background: rgba(86, 211, 100, 0.15); border-color: var(--green); color: var(--green); }
+  .header-bar button.pause-btn.paused:hover { background: rgba(86, 211, 100, 0.25); }
+  /* Block pane */
+  #pane-block { grid-template-rows: 1fr; }
+  .block-view { overflow-y: scroll; padding: 24px 28px; max-width: 900px; }
+  .block-view.is-blocked { background: rgba(248, 81, 73, 0.04); }
+  .block-view h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  .block-view .status-pill {
+    display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+  }
+  .block-view .status-pill.blocked { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+  .block-view .status-pill.clear { background: rgba(86, 211, 100, 0.2); color: var(--green); }
+  .block-view p.lede { color: var(--dim); margin: 0 0 24px; font-size: 13px; }
+  .block-view .actions { margin: 16px 0 24px; display: flex; gap: 10px; align-items: center; }
+  .block-view button.primary {
+    background: var(--accent); color: var(--bg); border: none; padding: 8px 16px;
+    border-radius: 5px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
+  }
+  .block-view button.primary:hover { background: #79b8ff; }
+  .block-view button.danger {
+    background: rgba(248, 81, 73, 0.15); color: var(--red); border: 1px solid var(--red);
+    padding: 8px 16px; border-radius: 5px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 500;
+  }
+  .block-view button.danger:hover { background: rgba(248, 81, 73, 0.25); }
+  .block-view .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .block-view label { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .block-view input[type=text], .block-view textarea {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    padding: 8px 10px; border-radius: 4px; font: inherit; font-size: 13px;
+  }
+  .block-view textarea { font-family: 'SF Mono', monospace; font-size: 12px; min-height: 90px; resize: vertical; }
+  .block-view .doc-render {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 16px 20px; margin-top: 16px;
+    white-space: pre-wrap; word-break: break-word;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 12px; line-height: 1.6; color: var(--text-2);
+  }
+  .block-view .note {
+    background: rgba(227, 179, 65, 0.1); border-left: 3px solid var(--yellow);
+    padding: 10px 14px; margin: 16px 0; font-size: 12px; color: var(--text-2);
+  }
+  .block-view .meta-row { color: var(--dim); font-size: 12px; margin-top: 4px; font-family: 'SF Mono', monospace; }
+  .block-view .toast { background: rgba(86, 211, 100, 0.15); border-left: 3px solid var(--green); padding: 8px 12px; margin: 10px 0; font-size: 12px; color: var(--green); }
+  .block-view .toast.err { background: rgba(248, 81, 73, 0.15); border-left-color: var(--red); color: var(--red); }
   /* Tabs */
   .tabs { display: flex; background: var(--bg-2); border-bottom: 1px solid var(--border); padding: 0 20px; align-items: center; }
   .tabs button { background: none; border: none; color: var(--dim); padding: 10px 16px; cursor: pointer; font-family: inherit; font-size: 13px; border-bottom: 2px solid transparent; }
@@ -313,11 +363,13 @@ const HTML = String.raw`<!doctype html>
     <span class="badge" id="h-block-wrap"><span class="key">block</span><span class="val" id="h-block">—</span></span>
     <span class="spacer"></span>
     <span class="step" id="h-step"></span>
+    <button class="pause-btn" id="header-pause-btn" title="Pause future ticks">⏸ Pause</button>
   </div>
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="live">Live</button>
     <button class="tab-btn" data-tab="steps">Steps</button>
+    <button class="tab-btn" data-tab="block" id="tab-block">Block</button>
     <button class="tab-btn" data-tab="docs">Documents</button>
     <button class="tab-btn" data-tab="history">History</button>
     <span class="spacer"></span>
@@ -346,6 +398,10 @@ const HTML = String.raw`<!doctype html>
 
   <div id="pane-history" class="pane">
     <div class="history-list" id="history-list"></div>
+  </div>
+
+  <div id="pane-block" class="pane">
+    <div class="block-view" id="block-view"></div>
   </div>
 </main>
 
@@ -455,8 +511,56 @@ async function refreshState() {
   $('h-step').textContent = s.current_step
     ? (s.current_step.step + '  ' + s.current_step.version + '  ' + s.current_step.desc).slice(0, 90)
     : '';
+  // Header pause/resume button mirrors the block state.
+  const btn = $('header-pause-btn');
+  btn.classList.toggle('paused', !!s.blocked);
+  btn.textContent = s.blocked ? '▶ Resume' : '⏸ Pause';
+  btn.title = s.blocked
+    ? 'Plan is paused — click to delete BLOCKED.md and resume'
+    : 'Pause future ticks by writing BLOCKED.md';
+  state.lastBlocked = s.blocked;
+  state.lastLocked = s.locked;
+  // If user is on Block tab, refresh its content too.
+  if (state.tab === 'block') renderBlock();
 }
 setInterval(refreshState, 5000);
+
+// Header pause/resume button.
+$('header-pause-btn').addEventListener('click', async () => {
+  if (state.lastBlocked) {
+    if (!confirm('Resume the plan?\\n\\nDeletes BLOCKED.md so the next tick runs.')) return;
+    await doUnblock();
+  } else {
+    // Quick pause: prompt for trigger, use simple defaults.
+    const trigger = prompt('Pause future ticks. Brief reason (one line):', 'operator-requested pause');
+    if (trigger == null) return;
+    await doBlock({ trigger, detail: '' });
+  }
+});
+
+async function doBlock({ trigger, detail }) {
+  if (!state.planId) return;
+  const r = await fetch('/api/plans/' + state.planId + '/block', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trigger: trigger || 'operator pause', detail: detail || '' }),
+  });
+  const data = await r.json();
+  await refreshState();
+  await refreshPlans();
+  if (state.tab === 'block') renderBlock();
+  return data;
+}
+
+async function doUnblock() {
+  if (!state.planId) return;
+  const r = await fetch('/api/plans/' + state.planId + '/unblock', { method: 'POST' });
+  const data = await r.json();
+  await refreshState();
+  await refreshPlans();
+  if (state.tab === 'block') renderBlock();
+  return data;
+}
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -469,6 +573,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     else if (state.tab === 'steps') renderSteps();
     else if (state.tab === 'docs') renderDocList();
     else if (state.tab === 'history') renderHistory();
+    else if (state.tab === 'block') renderBlock();
   });
 });
 
@@ -626,6 +731,97 @@ async function renderDoc(name) {
   $('doc-view').textContent = text;
 }
 
+// ── Block / Pause control ─────────────────────────────────────────────────────
+async function renderBlock() {
+  if (!state.planId) return;
+  const view = $('block-view');
+  view.innerHTML = '<div class="empty">loading…</div>';
+  const r = await fetch('/api/plans/' + state.planId + '/blocked');
+  if (!r.ok) { view.innerHTML = '<div class="empty">failed to load</div>'; return; }
+  const data = await r.json();
+  view.classList.toggle('is-blocked', !!data.blocked);
+
+  if (data.blocked) {
+    // Parse the trigger out of the body if present (matches BLOCK_TEMPLATE).
+    const trigMatch = (data.content || '').match(/^\*\*Trigger\*\*:\s*(.+)$/m);
+    const trigger = trigMatch ? trigMatch[1].trim() : '(no trigger line)';
+    view.innerHTML =
+      '<h2><span class="status-pill blocked">PAUSED</span> Plan is blocked</h2>' +
+      '<p class="lede">No further ticks will run until <code>BLOCKED.md</code> is removed.</p>' +
+      (state.lastLocked
+        ? '<div class="note"><strong>Note:</strong> a tick is currently still running. Pausing only prevents future ticks — the in-flight tick will finish on its own (it does not check the block file mid-run).</div>'
+        : '') +
+      '<div class="meta-row">file: memory-plan/BLOCKED.md · trigger: ' + esc(trigger) + '</div>' +
+      '<div class="actions">' +
+        '<button class="primary" id="btn-resume">▶ Resume (delete BLOCKED.md)</button>' +
+        '<button class="danger" id="btn-edit-block">Edit reason</button>' +
+      '</div>' +
+      '<div id="block-toast"></div>' +
+      '<div class="doc-render">' + esc(data.content || '(empty)') + '</div>';
+    $('btn-resume').addEventListener('click', async () => {
+      if (!confirm('Resume the plan? This deletes BLOCKED.md so the next tick runs.')) return;
+      const res = await doUnblock();
+      showToast('block-toast', res.error ? 'Error: ' + res.error : 'Resumed — block file deleted.', !!res.error);
+    });
+    $('btn-edit-block').addEventListener('click', () => renderBlockEditor(data.content || ''));
+  } else {
+    view.innerHTML =
+      '<h2><span class="status-pill clear">CLEAR</span> Plan is running</h2>' +
+      '<p class="lede">Write a <code>BLOCKED.md</code> file to pause future ticks. The framework checks for this file at the start of every tick.</p>' +
+      (state.lastLocked
+        ? '<div class="note"><strong>Heads up:</strong> a tick is running right now. Pausing now will prevent the <em>next</em> tick — the in-flight one runs to completion regardless.</div>'
+        : '') +
+      '<div class="form-row"><label for="block-trigger">Trigger (one line)</label>' +
+        '<input type="text" id="block-trigger" placeholder="e.g. operator pause — investigating Step 0.5"></div>' +
+      '<div class="form-row"><label for="block-detail">Detail (optional — multi-line)</label>' +
+        '<textarea id="block-detail" placeholder="What\'s wrong, what you need to look into, anything the next operator should know."></textarea></div>' +
+      '<div class="actions">' +
+        '<button class="primary" id="btn-pause">⏸ Pause future ticks</button>' +
+      '</div>' +
+      '<div id="block-toast"></div>';
+    $('btn-pause').addEventListener('click', async () => {
+      const trigger = $('block-trigger').value.trim() || 'operator pause';
+      const detail  = $('block-detail').value;
+      if (!confirm('Pause future ticks?\n\nWrites memory-plan/BLOCKED.md. The current tick (if any) continues.')) return;
+      const res = await doBlock({ trigger, detail });
+      showToast('block-toast', res.error ? 'Error: ' + res.error : 'Paused — BLOCKED.md written.', !!res.error);
+    });
+  }
+}
+
+function renderBlockEditor(currentContent) {
+  const view = $('block-view');
+  view.innerHTML =
+    '<h2><span class="status-pill blocked">PAUSED</span> Edit block reason</h2>' +
+    '<p class="lede">Replace the full content of <code>BLOCKED.md</code>. The plan stays paused until you click Resume on the previous screen.</p>' +
+    '<div class="form-row"><label for="block-edit">BLOCKED.md content</label>' +
+      '<textarea id="block-edit" style="min-height:280px;">' + esc(currentContent) + '</textarea></div>' +
+    '<div class="actions">' +
+      '<button class="primary" id="btn-save">Save</button>' +
+      '<button class="danger" id="btn-cancel">Cancel</button>' +
+    '</div>' +
+    '<div id="block-toast"></div>';
+  $('btn-cancel').addEventListener('click', () => renderBlock());
+  $('btn-save').addEventListener('click', async () => {
+    const content = $('block-edit').value;
+    const r = await fetch('/api/plans/' + state.planId + '/block', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, force: true }),
+    });
+    const res = await r.json();
+    if (res.error) showToast('block-toast', 'Error: ' + res.error, true);
+    else renderBlock();
+  });
+}
+
+function showToast(id, msg, isErr) {
+  const el = $(id);
+  if (!el) return;
+  el.innerHTML = '<div class="toast' + (isErr ? ' err' : '') + '">' + esc(msg) + '</div>';
+  if (!isErr) setTimeout(() => { el.innerHTML = ''; }, 4000);
+}
+
 // ── History ───────────────────────────────────────────────────────────────────
 async function renderHistory() {
   if (!state.planId) return;
@@ -673,6 +869,64 @@ function json(res, body, code = 200) {
   res.end(JSON.stringify(body));
 }
 
+function readJsonBody(req, max = 64 * 1024) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > max) {
+        reject(new Error('body too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8');
+      if (!raw.trim()) return resolve({});
+      try { resolve(JSON.parse(raw)); }
+      catch (e) { reject(new Error('invalid JSON: ' + e.message)); }
+    });
+    req.on('error', reject);
+  });
+}
+
+function generatedBlockDoc({ trigger, detail, version }) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const stamp = new Date().toLocaleString('en-CA', { hour12: false }).replace(',', '') + ' ' + tz;
+  return [
+    '# CONTINUATION_BLOCKED — ' + stamp,
+    '',
+    '**Step**: (current)',
+    '**Phase you were in**: (operator pause)',
+    '**Trigger**: ' + (trigger || 'operator pause'),
+    '',
+    '## What failed',
+    '',
+    detail && detail.trim()
+      ? detail.trim()
+      : 'Operator paused the plan from the workplan viewer.',
+    '',
+    '## What\'s needed from the user',
+    '',
+    '- Investigate, address as needed.',
+    '- Delete `BLOCKED.md` (or click ▶ Resume in the viewer) to let the next tick run.',
+    '',
+    '## How to resume',
+    '',
+    '1. Address whatever caused the pause.',
+    '2. Delete `BLOCKED.md`.',
+    '3. The next scheduled tick will pick up from the current state.',
+    '',
+    '## State at block',
+    '',
+    '- Source: workplan-viewer pause button',
+    '- Time: ' + stamp,
+    version ? '- VERSION at pause: `' + version + '`' : '',
+  ].filter(Boolean).join('\n') + '\n';
+}
+
 const PLAN_PATH_RE = /^\/api\/plans\/([^/]+)(\/.*)?$/;
 
 const server = http.createServer((req, res) => {
@@ -701,6 +955,52 @@ const server = http.createServer((req, res) => {
     if (sub === '/logs')  return json(res, tickLogs(plan));
     if (sub === '/inventory') return json(res, inventoryRows(plan));
     if (sub === '/docs')  return json(res, planDocuments(plan));
+
+    if (sub === '/blocked' && req.method === 'GET') {
+      const file = path.join(plan.dir, 'BLOCKED.md');
+      if (!fs.existsSync(file)) return json(res, { blocked: false, content: null });
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const stat = fs.statSync(file);
+        return json(res, { blocked: true, content, mtime: stat.mtimeMs });
+      } catch (e) {
+        return json(res, { error: e.message }, 500);
+      }
+    }
+
+    if (sub === '/block' && req.method === 'POST') {
+      return readJsonBody(req).then((body) => {
+        const file = path.join(plan.dir, 'BLOCKED.md');
+        const exists = fs.existsSync(file);
+        if (exists && !body.force) {
+          return json(res, { error: 'already blocked — pass {force:true} to overwrite, or unblock first' }, 409);
+        }
+        const content = (typeof body.content === 'string' && body.content.length > 0)
+          ? body.content
+          : generatedBlockDoc({
+              trigger: body.trigger,
+              detail:  body.detail,
+              version: readVersion(plan),
+            });
+        try {
+          fs.writeFileSync(file, content);
+          return json(res, { ok: true, blocked: true, path: 'BLOCKED.md' });
+        } catch (e) {
+          return json(res, { error: e.message }, 500);
+        }
+      }).catch((e) => json(res, { error: e.message }, 400));
+    }
+
+    if (sub === '/unblock' && req.method === 'POST') {
+      const file = path.join(plan.dir, 'BLOCKED.md');
+      if (!fs.existsSync(file)) return json(res, { ok: true, blocked: false, note: 'already clear' });
+      try {
+        fs.unlinkSync(file);
+        return json(res, { ok: true, blocked: false });
+      } catch (e) {
+        return json(res, { error: e.message }, 500);
+      }
+    }
 
     if (sub === '/doc') {
       const rel = url.searchParams.get('path');
