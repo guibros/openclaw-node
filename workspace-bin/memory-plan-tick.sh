@@ -62,18 +62,24 @@ trap 'rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
 # Auto-pause helper. When run under launchd with WORKPLAN_AUTOPAUSE=1, fast-exit
 # paths tell launchd to unload this job (stop polling) instead of looping every
 # ThrottleInterval seconds. Operator resumes via the viewer's Resume button or
-# by running `launchctl bootstrap gui/$UID <plist>` manually.
+# by running `launchctl enable gui/$UID/<label> && launchctl bootstrap …`.
 #
-# The bootout call is fire-and-forget in a backgrounded subshell — launchd
-# would otherwise SIGTERM us mid-call. Detaching lets the wrapper exit cleanly
-# first; launchd then sees the exit and processes the bootout (idempotent).
+# Earlier attempt used a detached subshell to delay the bootout, hoping to
+# survive launchd's job-tree cleanup. It didn't — the subshell was killed
+# before sleep completed. New approach:
+#   1. `launchctl disable` first — synchronous, sets a persistent flag, does
+#      not try to kill us. After the wrapper exits, launchd checks the flag
+#      and skips the next refire. This alone is sufficient to stop polling.
+#   2. `launchctl bootout` after, best-effort, to also remove from the current
+#      session. May SIGTERM us mid-call; the EXIT trap still fires.
 maybe_autopause() {
   local reason="$1"
   [ "${WORKPLAN_AUTOPAUSE:-0}" = "1" ] || return 0
   [ -n "${WORKPLAN_PLIST_LABEL:-}" ] || return 0
-  log "auto-pause: ${reason} — unloading ${WORKPLAN_PLIST_LABEL}"
-  ( sleep 1; launchctl bootout "gui/$(id -u)/${WORKPLAN_PLIST_LABEL}" >/dev/null 2>&1 ) &
-  disown 2>/dev/null || true
+  local target="gui/$(id -u)/${WORKPLAN_PLIST_LABEL}"
+  log "auto-pause: ${reason} — disabling ${WORKPLAN_PLIST_LABEL}"
+  launchctl disable "${target}" >/dev/null 2>&1 || true
+  launchctl bootout  "${target}" >/dev/null 2>&1 || true
 }
 
 # Write a BLOCKED.md describing a dirty-tree situation so the operator has

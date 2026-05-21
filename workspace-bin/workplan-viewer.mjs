@@ -405,8 +405,13 @@ async function getAutomationState(plan) {
   };
 }
 
-async function launchctlBoot(uid, plistPath) {
-  // bootstrap is the modern equivalent of `load`. Falls back to load on older macOS.
+async function launchctlBoot(uid, plistPath, label) {
+  // The wrapper's auto-pause calls `launchctl disable <target>` which sets a
+  // persistent flag. Bootstrap will succeed but the job won't fire until we
+  // re-enable. Always enable before bootstrap so Resume / Start actually run.
+  if (label) {
+    await exec('launchctl', ['enable', `gui/${uid}/${label}`]);
+  }
   let r = await exec('launchctl', ['bootstrap', `gui/${uid}`, plistPath]);
   if (r.err && r.stderr.match(/already loaded|already bootstrapped/i)) return { ok: true, msg: 'already loaded' };
   if (r.err) {
@@ -1754,7 +1759,7 @@ const server = http.createServer(async (req, res) => {
       let scheduler_reloaded = false;
       let scheduler_error = null;
       if (plistExists && !status.loaded) {
-        const r = await launchctlBoot(process.getuid(), cfg.plist_path);
+        const r = await launchctlBoot(process.getuid(), cfg.plist_path, cfg.plist_label);
         if (r.ok) scheduler_reloaded = true;
         else scheduler_error = r.error;
       }
@@ -1806,7 +1811,7 @@ const server = http.createServer(async (req, res) => {
             fs.writeFileSync(saved.plist_path, generatePlistXml(saved));
             if (status.loaded) {
               await launchctlBootout(process.getuid(), saved.plist_label, saved.plist_path);
-              await launchctlBoot(process.getuid(), saved.plist_path);
+              await launchctlBoot(process.getuid(), saved.plist_path, saved.plist_label);
             }
           }
           return json(res, { ok: true, config: saved, applied_to_plist: fs.existsSync(saved.plist_path), reloaded: status.loaded });
@@ -1825,7 +1830,7 @@ const server = http.createServer(async (req, res) => {
         fs.mkdirSync(path.dirname(cfg.plist_path), { recursive: true });
         fs.mkdirSync(path.dirname(cfg.stdout_path), { recursive: true });
         fs.writeFileSync(cfg.plist_path, generatePlistXml(cfg));
-        const r = await launchctlBoot(process.getuid(), cfg.plist_path);
+        const r = await launchctlBoot(process.getuid(), cfg.plist_path, cfg.plist_label);
         if (!r.ok) return json(res, { error: r.error }, 500);
         const state = await getAutomationState(plan);
         return json(res, { ok: true, msg: r.msg || 'loaded', state });
