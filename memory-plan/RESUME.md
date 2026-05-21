@@ -31,9 +31,17 @@ Block 1 completed 2026-05-21. All 4 steps (v1.1–v1.4) closed. See `memory-plan
 
 ### Block 2 frozen decisions
 
-**NOT YET AUTHORED.** Block 2 cannot start until the operator records frozen decisions here.
+Authored 2026-05-21 by operator (interactive viewer session).
 
-**Mandatory gate before first step:** Step 2.1 requires a written re-scoping decision: extend `lib/mcp-knowledge/` to embed session JSONL turns, or add a parallel embedding stack in session-store. This decision must be recorded here before the autonomous worker begins Step 2.1. See carry-forward from Block 0 and BLOCK_1_COMPLETE.md §Carry-forwards.
+**Validation gate (REFERENCE_PLAN §1 "Validation") — skipped, not honored.** REFERENCE_PLAN calls for one week of dual-write shadow mode before Block 2 starts. Skipping is deliberate: the dual-write is genuinely shadow-only (existing MEMORY.md + session-store writes are unchanged; the local event log is additive), so the risk of breakage is bounded. The semantic-search Gulf-1 evaluation in Step 2.5 is the more valuable signal anyway. **Record:** if validation reveals event-log issues later, fix forward — do not roll back Block 2.
+
+**Step 2.1 sqlite-vec stack scoping — extend `lib/mcp-knowledge/core.mjs`.** It already implements sqlite-vec + `@huggingface/transformers` (Xenova/all-MiniLM-L6-v2, 384-dim) and is the registered "knowledge" MCP server in `.mcp.json`. Step 2.1 adds session-JSONL-turn embedding to this existing stack. **One embedding stack, two data sources** (markdown files + session messages). No Ollama install, no BGE-M3, no parallel vec table in session-store. This contradicts REFERENCE_PLAN §2.1's literal "install Ollama, pull bge-m3" instructions and is intentional — the plan was written before the operator confirmed mcp-knowledge was already wired.
+
+**Block 2 hard scope — Phase 2 only (Steps 2.1–2.5).** Steps 2.1–2.4 implement extend-mcp-knowledge + hybrid search (FTS5 + semantic via reciprocal rank fusion). Step 2.5 is the manual evaluation against 20–30 real historical queries — the **major decision gate** for the entire memory plan. **Block 3 (LLM extraction) does NOT begin until Step 2.5's evaluation results are scored AND the operator authors Block 3 frozen decisions here.** If hybrid retrieval is no-better-or-worse than FTS5 on real data, the plan terminates at Block 2.
+
+**Embedding model — Xenova/all-MiniLM-L6-v2 (384-dim).** Already in the repo via mcp-knowledge. Standardize on it for session turns. If Step 2.5 shows poor retrieval quality, the choice to upgrade to BGE-M3 (1024-dim, multilingual) can be made in a follow-on step.
+
+**Test baseline for Block 2:** the existing 73 pre-existing failures are still expected to fail; do not chase them. Step 2.1 begins from the v1.4 commit (`2511c75`) baseline.
 
 ### Carry-forward from Block 0 + Block 1
 
