@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
 **Workplan status.** Block 1 in progress.
-**Current version carrier.** `v1.2` (Step 1.2 closed).
-**Streaks.** zero-Phase-4-correction: 0 of 2 (Block 1; reset due to test count underestimate) · zero-Phase-8-patch: 1 of 2 (Block 1).
-**Last commit on plan branch.** v1.2 — Create local event log substrate (lib/local-event-log.mjs + JetStream R=1 stream + dual-write wiring).
+**Current version carrier.** `v1.3` (Step 1.3 closed).
+**Streaks.** zero-Phase-4-correction: 1 of 3 (Block 1) · zero-Phase-8-patch: 2 of 3 (Block 1).
+**Last commit on plan branch.** v1.3 — Create content-addressed artifact store (lib/artifacts.mjs + ~/.openclaw/artifacts/).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -215,18 +215,34 @@ underestimated in AUDIT_PRE: planned 7, delivered 9). Carry-forwards to Step 1.3
 baseline now 506; `createLocalEventLog` and `buildMemoryEvent` are available for use by
 the artifact store; MemoryBudget accepts `eventLog` and `nodeId` options.
 
+### Step 1.3 — Create content-addressed artifact store (lib/artifacts.mjs + ~/.openclaw/artifacts/)
+
+Closed at v1.3. Created `lib/artifacts.mjs` — the content-addressed artifact store under
+`~/.openclaw/artifacts/sha256/<2>/<2>/<full-hash>` with `.meta.json` sidecars. Four exported
+functions: `putArtifact(bytes, opts)` computes SHA-256, writes to sharded path, writes
+`.meta.json` sidecar with `{ ref, size, mime_type, filename, created_at, encoding }`, returns
+`{ ref, size, path }`. Idempotent: existing file → skip write. `getArtifact(ref)` reads bytes
+from local path, throws on miss (peer NATS RPC deferred to Block 4). `hasArtifact(ref)` returns
+boolean. `validateArtifact(ref)` re-hashes stored bytes and compares to ref. No new dependencies
+(Node.js built-ins: `node:crypto`, `node:fs/promises`, `node:path`, `node:os`). Configurable
+base directory via `OPENCLAW_ARTIFACTS_DIR` env var or `baseDir` parameter. 6 new tests cover
+roundtrip, existence check, integrity validation, tamper detection, idempotency, and sidecar
+fields. 6 positive audit findings, 0 Phase 8 patches. Carry-forwards to Step 1.4: test baseline
+now 512; `lib/artifacts.mjs` is standalone with no caller wiring; peer NATS RPC and event
+publishing for artifacts deferred; `docs/STATE_FILES.md` update for artifacts directory deferred.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               9 / 45
+Steps closed:               10 / 45
 Current block:              Block 1 in progress (Schema & event foundations)
-Steps closed in block:      2 / 4
-Consecutive zero-Phase-4-correction streak:  0 (Block 1; reset due to test count underestimate)
-Consecutive zero-Phase-8-patch streak:       1 (Block 1)
-Test baseline (npm test):   506 tests (433 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 1.2)
+Steps closed in block:      3 / 4
+Consecutive zero-Phase-4-correction streak:  1 (Block 1)
+Consecutive zero-Phase-8-patch streak:       2 (Block 1)
+Test baseline (npm test):   512 tests (439 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 1.3)
 Last block file written:    memory-plan/audits/BLOCK_0_COMPLETE.md
 ```
 
@@ -237,9 +253,9 @@ Last block file written:    memory-plan/audits/BLOCK_0_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v1.2` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 1.3.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step09_local_event_log/AUDIT_POST.md` for carry-forwards.
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 1.3.
-6. **Important for Step 1.3:** Step 1.3 creates `lib/artifacts.mjs` — the content-addressed artifact store under `~/.openclaw/artifacts/`. `buildMemoryEvent` from `lib/local-event-log.mjs` is available if artifact events need publishing. MemoryBudget dual-write is established; the artifact store can follow the same pattern if events are needed. The event-schemas package build workaround (mission-control tsc path) should continue to work if `npm install` is still blocked.
+2. Decode state: `VERSION` is `v1.3` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 1.4.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step10_artifact_store/AUDIT_POST.md` for carry-forwards.
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 1.4.
+6. **Important for Step 1.4:** Step 1.4 configures the shared JetStream cluster (R=3 across three mesh nodes). This is infrastructure preparation only — no memory data flows until Block 4. The step creates stream configuration, not application code. This is the **last step of Block 1** — the block-close ceremony (FRAMEWORK §7) must run after Phase 9.
 7. Commit. Stop.

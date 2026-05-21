@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v1.3 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 1.3: Create content-addressed artifact store (lib/artifacts.mjs + ~/.openclaw/artifacts/).
+- Files committed: `lib/artifacts.mjs` (new), `test/artifacts.test.mjs` (new), audit docs, ledger files.
+- Test count: 512 (439 pass, 73 fail — pre-existing). +6 tests added this step.
+- V2 audit: 6 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 1-of-3 zero-Phase-4-correction (Block 1).
+
+### v1.3-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 1.3.
+- Files changed: `lib/artifacts.mjs` (new — putArtifact, getArtifact, hasArtifact, validateArtifact with sha256 sharded layout + .meta.json sidecars), `test/artifacts.test.mjs` (new — 6 tests).
+- Test additions: 6 new tests (put+get roundtrip, hasArtifact true/false, validateArtifact valid, validateArtifact tamper detection, idempotent put, .meta.json sidecar fields).
+
+### v1.3-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 1.3.
+- Files planned: `lib/artifacts.mjs` (new), `test/artifacts.test.mjs` (new).
+- Audit: `memory-plan/audits/step10_artifact_store/AUDIT_PRE.md`.
+- Test baseline: 506 tests (433 pass, 73 fail — pre-existing).
+
 ### v1.2 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 1.2: Create local event log substrate (lib/local-event-log.mjs + JetStream R=1 stream + dual-write wiring).

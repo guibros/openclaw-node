@@ -53,7 +53,9 @@ See REFERENCE_PLAN.md §Phase 1.
 | 1 | 1.2 | v1.2 | [x] | Create local event log substrate (lib/local-event-log.mjs + JetStream R=1 stream + dual-write wiring) |
 
 > **Step 1.2 closed.** Created `lib/local-event-log.mjs` — the per-node event log substrate backed by NATS JetStream (R=1, file storage, `local.>` subjects). `createLocalEventLog(nc, nodeId)` ensures the stream exists and returns a `publishLocal(event)` method that validates against `MemoryEventSchema` and publishes with `idempotency_key` as msgID. `buildMemoryEvent()` helper constructs envelope-conformant events. Dual-write wired into `MemoryBudget`: `startSession` → `memory.session_started`, `endSession` → `memory.session_ended`, `addEntry` → `memory.fact_extracted`. All publishing is fire-and-forget (shadow mode). Daemon initializes the event log after NATS connection and passes it to `createBudget`. 9 new tests. 6 positive findings, 0 Phase 8 patches.
-| 1 | 1.3 | v1.3 | [ ] | Create content-addressed artifact store (lib/artifacts.mjs + ~/.openclaw/artifacts/) |
+| 1 | 1.3 | v1.3 | [x] | Create content-addressed artifact store (lib/artifacts.mjs + ~/.openclaw/artifacts/) |
+
+> **Step 1.3 closed.** Created `lib/artifacts.mjs` — the content-addressed artifact store under `~/.openclaw/artifacts/sha256/<2>/<2>/<full-hash>` with `.meta.json` sidecars. Exports `putArtifact` (SHA-256, sharded write, idempotent), `getArtifact` (local read, throws on miss), `hasArtifact` (boolean existence check), `validateArtifact` (re-hash integrity check). No new dependencies (Node.js built-ins only). 6 new tests. 6 positive findings, 0 Phase 8 patches.
 | 1 | 1.4 | v1.4 | [ ] | Configure shared JetStream cluster preparation only (R=3 stream, idle until Phase 4) |
 
 ## Block 2 — Local semantic layer
