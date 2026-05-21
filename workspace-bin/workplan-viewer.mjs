@@ -27,6 +27,17 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { execFile } from 'node:child_process';
+
+// Promise wrapper around execFile with a timeout.
+function exec(cmd, args, opts = {}) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { timeout: 8000, ...opts }, (err, stdout, stderr) => {
+      resolve({ err, stdout: String(stdout || ''), stderr: String(stderr || ''), rc: err?.code ?? 0 });
+    });
+  });
+}
 
 const PORT = Number(process.env.WORKPLAN_VIEWER_PORT || 7892);
 const ROOTS = (process.env.WORKPLAN_ROOTS
@@ -164,6 +175,192 @@ function planSummary(plan) {
     current_step: (rows.find(r => r.state === 'A') || rows.find(r => r.state === ' ') || null),
     latest_log: latestLog(plan)?.split('/').pop() || null,
   };
+}
+
+// ── Automation (launchd) ──────────────────────────────────────────────────────
+// Per-plan automation is described by an `automation.json` file at the plan
+// root. If missing, defaults are derived from the plan id and the repo layout.
+// Schema:
+// {
+//   "plist_label":      "com.openclaw.memory-plan-tick",
+//   "plist_path":       "~/Library/LaunchAgents/<label>.plist",
+//   "tick_command":     "/path/to/workspace-bin/<id>-tick.sh",
+//   "working_dir":      "/path/to/repo",
+//   "interval_seconds": 1800,
+//   "stdout_path":      "...",
+//   "stderr_path":      "...",
+//   "env": { "PATH": "...", "HOME": "..." }
+// }
+
+const LAUNCH_AGENTS = path.join(os.homedir(), 'Library/LaunchAgents');
+
+function deriveAutomationDefaults(plan) {
+  // The "repo root" containing the plan is the discovery root we chose.
+  const repo = plan.root;
+  const id = plan.id;
+  // Backward compat: keep existing memory-plan-tick label if it already exists.
+  const legacyLabel = `com.openclaw.${id}-tick`;
+  const cmdCandidates = [
+    path.join(repo, 'workspace-bin', `${id}-tick.sh`),
+    path.join(repo, 'workspace-bin', 'memory-plan-tick.sh'), // legacy fallback
+  ];
+  const cmd = cmdCandidates.find(p => fs.existsSync(p)) || cmdCandidates[0];
+  return {
+    plist_label: legacyLabel,
+    plist_path: path.join(LAUNCH_AGENTS, `${legacyLabel}.plist`),
+    tick_command: cmd,
+    working_dir: repo,
+    interval_seconds: 1800,
+    stdout_path: path.join(plan.dir, 'tick-logs', 'launchd.stdout.log'),
+    stderr_path: path.join(plan.dir, 'tick-logs', 'launchd.stderr.log'),
+    env: {
+      PATH: '/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin',
+      HOME: os.homedir(),
+    },
+  };
+}
+
+function readAutomationConfig(plan) {
+  const file = path.join(plan.dir, 'automation.json');
+  const defaults = deriveAutomationDefaults(plan);
+  if (!fs.existsSync(file)) return { ...defaults, _persisted: false };
+  try {
+    const stored = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return { ...defaults, ...stored, _persisted: true };
+  } catch (e) {
+    return { ...defaults, _error: 'invalid automation.json: ' + e.message, _persisted: false };
+  }
+}
+
+function writeAutomationConfig(plan, cfg) {
+  const file = path.join(plan.dir, 'automation.json');
+  const out = {
+    plist_label: cfg.plist_label,
+    plist_path: cfg.plist_path,
+    tick_command: cfg.tick_command,
+    working_dir: cfg.working_dir,
+    interval_seconds: Number(cfg.interval_seconds),
+    stdout_path: cfg.stdout_path,
+    stderr_path: cfg.stderr_path,
+    env: cfg.env || {},
+  };
+  fs.writeFileSync(file, JSON.stringify(out, null, 2) + '\n');
+  return out;
+}
+
+function plistEscape(s) {
+  // For values placed inside <string>…</string>, escape XML.
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function generatePlistXml(cfg) {
+  const envEntries = Object.entries(cfg.env || {})
+    .map(([k, v]) => `    <key>${plistEscape(k)}</key>\n    <string>${plistEscape(v)}</string>`)
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${plistEscape(cfg.plist_label)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${plistEscape(cfg.tick_command)}</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>${Number(cfg.interval_seconds)}</integer>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>${plistEscape(cfg.stdout_path)}</string>
+  <key>StandardErrorPath</key>
+  <string>${plistEscape(cfg.stderr_path)}</string>
+  <key>WorkingDirectory</key>
+  <string>${plistEscape(cfg.working_dir)}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+${envEntries}
+  </dict>
+</dict>
+</plist>
+`;
+}
+
+async function launchdStatus(label) {
+  // Returns { loaded, pid, last_exit_status, interval_seconds (from plist),
+  //           plist_exists }.
+  const result = await exec('launchctl', ['list', label]);
+  // `launchctl list <label>` writes a plist-formatted dict to stdout when
+  // the agent is loaded; exit code is non-zero when not loaded.
+  const loaded = result.rc === 0;
+  let pid = null;
+  let lastExit = null;
+  if (loaded) {
+    const pidMatch = result.stdout.match(/"PID"\s*=\s*(\d+);/);
+    if (pidMatch) pid = Number(pidMatch[1]);
+    const exitMatch = result.stdout.match(/"LastExitStatus"\s*=\s*(\d+);/);
+    if (exitMatch) lastExit = Number(exitMatch[1]);
+  }
+  return { loaded, pid, last_exit_status: lastExit };
+}
+
+function readIntervalFromPlist(plistPath) {
+  if (!fs.existsSync(plistPath)) return null;
+  try {
+    const raw = fs.readFileSync(plistPath, 'utf8');
+    const m = raw.match(/<key>StartInterval<\/key>\s*<integer>(\d+)<\/integer>/);
+    return m ? Number(m[1]) : null;
+  } catch { return null; }
+}
+
+async function getAutomationState(plan) {
+  const cfg = readAutomationConfig(plan);
+  const plistExists = fs.existsSync(cfg.plist_path);
+  const plistInterval = plistExists ? readIntervalFromPlist(cfg.plist_path) : null;
+  const status = await launchdStatus(cfg.plist_label);
+  const logs = tickLogs(plan, 1);
+  const lastTickMtime = logs.length ? logs[0].mtime : null;
+  const lastTickName = logs.length ? logs[0].name : null;
+  return {
+    config: cfg,
+    plist_exists: plistExists,
+    plist_interval_seconds: plistInterval,
+    launchd: status,
+    last_tick_mtime: lastTickMtime,
+    last_tick_name: lastTickName,
+    tick_command_exists: fs.existsSync(cfg.tick_command),
+  };
+}
+
+async function launchctlBoot(uid, plistPath) {
+  // bootstrap is the modern equivalent of `load`. Falls back to load on older macOS.
+  let r = await exec('launchctl', ['bootstrap', `gui/${uid}`, plistPath]);
+  if (r.err && r.stderr.match(/already loaded|already bootstrapped/i)) return { ok: true, msg: 'already loaded' };
+  if (r.err) {
+    // Older macOS: try load -w.
+    const r2 = await exec('launchctl', ['load', '-w', plistPath]);
+    if (r2.err) return { ok: false, error: (r2.stderr || r.stderr || r.err.message || 'load failed').trim() };
+    return { ok: true, msg: 'loaded (legacy load)' };
+  }
+  return { ok: true };
+}
+
+async function launchctlBootout(uid, label, plistPath) {
+  let r = await exec('launchctl', ['bootout', `gui/${uid}/${label}`]);
+  if (r.err && r.stderr.match(/No such process/i)) return { ok: true, msg: 'not loaded' };
+  if (r.err) {
+    const r2 = await exec('launchctl', ['unload', '-w', plistPath]);
+    if (r2.err) return { ok: false, error: (r2.stderr || r.stderr || r.err.message || 'unload failed').trim() };
+    return { ok: true, msg: 'unloaded (legacy unload)' };
+  }
+  return { ok: true };
+}
+
+async function launchctlKickstart(uid, label) {
+  const r = await exec('launchctl', ['kickstart', '-k', `gui/${uid}/${label}`]);
+  if (r.err) return { ok: false, error: (r.stderr || r.err.message || 'kickstart failed').trim() };
+  return { ok: true };
 }
 
 // Path traversal guard.
@@ -341,6 +538,50 @@ const HTML = String.raw`<!doctype html>
   .history-list .h-item .size { color: var(--dim); font-size: 11px; }
   .history-list .h-item .time { color: var(--dim); font-size: 11px; }
   .history-list .empty { padding: 30px; color: var(--dim); font-style: italic; text-align: center; }
+  /* Automation pane */
+  #pane-auto { grid-template-rows: 1fr; }
+  .auto-view { overflow-y: scroll; padding: 24px 28px; max-width: 900px; }
+  .auto-view h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  .auto-view .section { margin: 24px 0; padding: 20px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 6px; }
+  .auto-view .section h3 { margin: 0 0 14px; font-size: 12px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
+  .auto-view .kv-grid { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; font-size: 12px; }
+  .auto-view .kv-grid .k { color: var(--dim); }
+  .auto-view .kv-grid .v { color: var(--text-2); font-family: 'SF Mono', monospace; word-break: break-all; }
+  .auto-view .kv-grid .v.muted { color: var(--dim); }
+  .auto-view .status-pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+  .auto-view .status-pill.on { background: rgba(86, 211, 100, 0.2); color: var(--green); }
+  .auto-view .status-pill.off { background: var(--bg); color: var(--dim); }
+  .auto-view .status-pill.warn { background: rgba(227, 179, 65, 0.15); color: var(--yellow); }
+  .auto-view .interval-input { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .auto-view .interval-input input { width: 90px; background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 10px; border-radius: 4px; font: inherit; font-size: 13px; }
+  .auto-view .interval-input select { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 4px; font: inherit; font-size: 13px; }
+  .auto-view .presets { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  .auto-view .preset {
+    background: var(--bg-3); color: var(--text-2); border: 1px solid var(--border);
+    padding: 5px 10px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 11px;
+  }
+  .auto-view .preset:hover { border-color: var(--accent); color: var(--accent); }
+  .auto-view .preset.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .auto-view .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .auto-view button.primary {
+    background: var(--accent); color: var(--bg); border: none; padding: 8px 16px;
+    border-radius: 5px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
+  }
+  .auto-view button.primary:hover { background: #79b8ff; }
+  .auto-view button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .auto-view button.secondary {
+    background: var(--bg-3); color: var(--text-2); border: 1px solid var(--border);
+    padding: 8px 16px; border-radius: 5px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 500;
+  }
+  .auto-view button.secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .auto-view button.danger {
+    background: rgba(248, 81, 73, 0.15); color: var(--red); border: 1px solid var(--red);
+    padding: 8px 16px; border-radius: 5px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 500;
+  }
+  .auto-view button.danger:hover { background: rgba(248, 81, 73, 0.25); }
+  .auto-view .note { background: rgba(227, 179, 65, 0.1); border-left: 3px solid var(--yellow); padding: 10px 14px; margin: 12px 0; font-size: 12px; color: var(--text-2); }
+  .auto-view .toast { background: rgba(86, 211, 100, 0.15); border-left: 3px solid var(--green); padding: 8px 12px; margin: 10px 0; font-size: 12px; color: var(--green); }
+  .auto-view .toast.err { background: rgba(248, 81, 73, 0.15); border-left-color: var(--red); color: var(--red); }
   /* Pause banner */
   #pause-banner { display: none; background: var(--yellow); color: #000; padding: 4px 20px; font-size: 12px; font-weight: 500; cursor: pointer; text-align: center; position: absolute; bottom: 0; left: 240px; right: 0; }
   #pause-banner.visible { display: block; }
@@ -369,6 +610,7 @@ const HTML = String.raw`<!doctype html>
   <div class="tabs">
     <button class="tab-btn active" data-tab="live">Live</button>
     <button class="tab-btn" data-tab="steps">Steps</button>
+    <button class="tab-btn" data-tab="auto" id="tab-auto">Automation</button>
     <button class="tab-btn" data-tab="block" id="tab-block">Block</button>
     <button class="tab-btn" data-tab="docs">Documents</button>
     <button class="tab-btn" data-tab="history">History</button>
@@ -402,6 +644,10 @@ const HTML = String.raw`<!doctype html>
 
   <div id="pane-block" class="pane">
     <div class="block-view" id="block-view"></div>
+  </div>
+
+  <div id="pane-auto" class="pane">
+    <div class="auto-view" id="auto-view"></div>
   </div>
 </main>
 
@@ -493,6 +739,8 @@ async function selectPlan(id) {
   else if (state.tab === 'steps') renderSteps();
   else if (state.tab === 'docs') renderDocList();
   else if (state.tab === 'history') renderHistory();
+  else if (state.tab === 'block') renderBlock();
+  else if (state.tab === 'auto') renderAutomation();
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -522,6 +770,7 @@ async function refreshState() {
   state.lastLocked = s.locked;
   // If user is on Block tab, refresh its content too.
   if (state.tab === 'block') renderBlock();
+  if (state.tab === 'auto') renderAutomation();
 }
 setInterval(refreshState, 5000);
 
@@ -574,6 +823,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     else if (state.tab === 'docs') renderDocList();
     else if (state.tab === 'history') renderHistory();
     else if (state.tab === 'block') renderBlock();
+    else if (state.tab === 'auto') renderAutomation();
   });
 });
 
@@ -822,6 +1072,192 @@ function showToast(id, msg, isErr) {
   if (!isErr) setTimeout(() => { el.innerHTML = ''; }, 4000);
 }
 
+// ── Automation ────────────────────────────────────────────────────────────────
+function humanInterval(sec) {
+  sec = Number(sec);
+  if (!Number.isFinite(sec) || sec <= 0) return '—';
+  if (sec < 60) return sec + 's';
+  if (sec < 3600) return (sec / 60).toFixed(sec % 60 === 0 ? 0 : 1) + ' min';
+  if (sec < 86400) return (sec / 3600).toFixed(sec % 3600 === 0 ? 0 : 1) + ' h';
+  return (sec / 86400).toFixed(sec % 86400 === 0 ? 0 : 1) + ' d';
+}
+
+function relativeTime(ms) {
+  if (!ms) return '—';
+  const diff = Date.now() - ms;
+  if (diff < 0) return 'in the future';
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return s + 's ago';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + ' min ago';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + ' h ago';
+  return Math.floor(h / 24) + ' d ago';
+}
+
+const INTERVAL_PRESETS = [
+  { label: '5 min',  s: 300   },
+  { label: '15 min', s: 900   },
+  { label: '30 min', s: 1800  },
+  { label: '1 h',    s: 3600  },
+  { label: '2 h',    s: 7200  },
+  { label: '6 h',    s: 21600 },
+];
+
+async function renderAutomation() {
+  if (!state.planId) return;
+  const view = $('auto-view');
+  view.innerHTML = '<div class="empty" style="padding:30px;color:var(--dim);">loading…</div>';
+  const r = await fetch('/api/plans/' + state.planId + '/automation');
+  if (!r.ok) { view.innerHTML = '<div class="empty">failed to load</div>'; return; }
+  const s = await r.json();
+  const cfg = s.config;
+
+  const loaded = s.launchd.loaded;
+  const plistExists = s.plist_exists;
+  const persisted = cfg._persisted;
+  const currentInterval = s.plist_interval_seconds || cfg.interval_seconds;
+
+  const statusPill = loaded
+    ? '<span class="status-pill on">RUNNING</span>'
+    : (plistExists ? '<span class="status-pill warn">plist on disk, not loaded</span>' : '<span class="status-pill off">not installed</span>');
+
+  let html = '';
+  html += '<h2>' + statusPill + ' Automated tick scheduler</h2>';
+  html += '<p class="lede" style="color:var(--dim);margin:0 0 24px;font-size:13px;">' +
+    'Runs <code>' + esc(cfg.tick_command.split(\'/\').pop()) + '</code> on a fixed interval via macOS launchd. ' +
+    'Independent from manual <code>./...-tick.sh</code> invocations.</p>';
+
+  // ── Section: Current status ──
+  html += '<div class="section"><h3>Current status</h3><div class="kv-grid">';
+  html += '<div class="k">State</div><div class="v">' +
+    (loaded ? 'loaded — fires every <strong>' + humanInterval(currentInterval) + '</strong>' : 'not loaded') +
+    '</div>';
+  if (loaded) {
+    html += '<div class="k">launchd PID</div><div class="v ' + (s.launchd.pid ? '' : 'muted') + '">' +
+      (s.launchd.pid != null ? s.launchd.pid : '(not currently executing)') + '</div>';
+    html += '<div class="k">Last exit status</div><div class="v ' + (s.launchd.last_exit_status === 0 ? '' : 'muted') + '">' +
+      (s.launchd.last_exit_status != null ? s.launchd.last_exit_status : '—') + '</div>';
+  }
+  html += '<div class="k">Last tick log</div><div class="v">' +
+    (s.last_tick_name ? esc(s.last_tick_name) + '  <span class="muted">(' + relativeTime(s.last_tick_mtime) + ')</span>' : '—') +
+    '</div>';
+  html += '<div class="k">Config persisted</div><div class="v ' + (persisted ? '' : 'muted') + '">' +
+    (persisted ? 'automation.json present' : 'using derived defaults (not saved yet)') + '</div>';
+  html += '</div></div>';
+
+  // ── Section: Schedule ──
+  html += '<div class="section"><h3>Schedule</h3>';
+  html += '<div style="font-size:12px;color:var(--dim);margin-bottom:10px;">' +
+    'How often the autonomous tick fires. Each tick may close one step (typically 5–15 min of headless Claude work).' +
+    '</div>';
+  html += '<div class="presets" id="interval-presets">';
+  for (const p of INTERVAL_PRESETS) {
+    html += '<button type="button" class="preset' + (p.s === currentInterval ? ' active' : '') + '" data-seconds="' + p.s + '">' + esc(p.label) + '</button>';
+  }
+  html += '</div>';
+  html += '<div class="interval-input">' +
+    '<label style="color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;">Custom:</label>' +
+    '<input type="number" id="interval-val" value="' + (currentInterval / 60).toFixed(currentInterval % 60 === 0 ? 0 : 1) + '" min="1" step="1">' +
+    '<select id="interval-unit">' +
+      '<option value="60">minutes</option>' +
+      '<option value="1">seconds</option>' +
+      '<option value="3600">hours</option>' +
+    '</select>' +
+    '<button type="button" class="primary" id="interval-save">Apply interval</button>' +
+    '</div>';
+  html += '<div id="interval-toast"></div>';
+  html += '</div>';
+
+  // ── Section: Actions ──
+  html += '<div class="section"><h3>Actions</h3>';
+  if (state.lastLocked && !loaded) {
+    html += '<div class="note">A tick is currently running (manual or just finished). Loading the scheduler is safe — the lock will be released when the in-flight tick completes.</div>';
+  }
+  html += '<div class="actions">';
+  if (loaded) {
+    html += '<button type="button" class="primary" id="btn-kickstart">▶ Fire tick now</button>';
+    html += '<button type="button" class="danger" id="btn-unload">⏹ Unload (stop scheduler)</button>';
+  } else {
+    html += '<button type="button" class="primary" id="btn-load"' + (s.tick_command_exists ? '' : ' disabled title="tick command not found"') + '>▶ Load scheduler</button>';
+  }
+  html += '</div>';
+  html += '<div id="action-toast"></div>';
+  html += '</div>';
+
+  // ── Section: Configuration (read-only display) ──
+  html += '<div class="section"><h3>Configuration</h3><div class="kv-grid">';
+  html += '<div class="k">launchd label</div><div class="v">' + esc(cfg.plist_label) + '</div>';
+  html += '<div class="k">plist file</div><div class="v">' + esc(cfg.plist_path) + '</div>';
+  html += '<div class="k">tick command</div><div class="v">' + esc(cfg.tick_command) +
+    (s.tick_command_exists ? '' : '  <span style="color:var(--red);">(missing!)</span>') + '</div>';
+  html += '<div class="k">working dir</div><div class="v">' + esc(cfg.working_dir) + '</div>';
+  html += '<div class="k">stdout log</div><div class="v">' + esc(cfg.stdout_path) + '</div>';
+  html += '<div class="k">stderr log</div><div class="v">' + esc(cfg.stderr_path) + '</div>';
+  html += '<div class="k">env</div><div class="v">' + Object.entries(cfg.env || {}).map(([k,v]) => k + '=' + v).join('  ') + '</div>';
+  html += '</div>';
+  html += '<div style="margin-top:14px;font-size:11px;color:var(--dim);">Stored at <code>' + esc(state.planId) + '/automation.json</code>. Hand-edit then re-save from the UI to apply.</div>';
+  html += '</div>';
+
+  view.innerHTML = html;
+
+  // Wire interactions.
+  for (const btn of view.querySelectorAll('.preset')) {
+    btn.addEventListener('click', () => {
+      const sec = Number(btn.dataset.seconds);
+      $('interval-val').value = (sec / 60).toFixed(sec % 60 === 0 ? 0 : 1);
+      $('interval-unit').value = '60';
+      view.querySelectorAll('.preset').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  }
+  const intervalSaveBtn = $('interval-save');
+  if (intervalSaveBtn) {
+    intervalSaveBtn.addEventListener('click', async () => {
+      const val = Number($('interval-val').value);
+      const unit = Number($('interval-unit').value);
+      const sec = Math.round(val * unit);
+      if (!Number.isFinite(sec) || sec < 60) {
+        showToast('interval-toast', 'Interval must be at least 60 seconds.', true);
+        return;
+      }
+      const r2 = await fetch('/api/plans/' + state.planId + '/automation/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval_seconds: sec }),
+      });
+      const res = await r2.json();
+      if (res.error) showToast('interval-toast', 'Error: ' + res.error, true);
+      else {
+        showToast('interval-toast', 'Interval set to ' + humanInterval(sec) +
+          (res.reloaded ? ' (scheduler reloaded)' : (res.applied_to_plist ? ' (plist updated)' : ' (config saved — load to apply)')), false);
+        setTimeout(renderAutomation, 600);
+      }
+    });
+  }
+  const loadBtn = $('btn-load');
+  if (loadBtn) loadBtn.addEventListener('click', async () => {
+    const r2 = await fetch('/api/plans/' + state.planId + '/automation/load', { method: 'POST' });
+    const res = await r2.json();
+    if (res.error) showToast('action-toast', 'Error: ' + res.error, true);
+    else { showToast('action-toast', res.msg || 'loaded', false); setTimeout(renderAutomation, 600); }
+  });
+  const unloadBtn = $('btn-unload');
+  if (unloadBtn) unloadBtn.addEventListener('click', async () => {
+    if (!confirm('Unload the scheduler? No more automated ticks will fire until you load it again.')) return;
+    const r2 = await fetch('/api/plans/' + state.planId + '/automation/unload', { method: 'POST' });
+    const res = await r2.json();
+    if (res.error) showToast('action-toast', 'Error: ' + res.error, true);
+    else { showToast('action-toast', res.msg || 'unloaded', false); setTimeout(renderAutomation, 600); }
+  });
+  const kickBtn = $('btn-kickstart');
+  if (kickBtn) kickBtn.addEventListener('click', async () => {
+    const r2 = await fetch('/api/plans/' + state.planId + '/automation/kickstart', { method: 'POST' });
+    const res = await r2.json();
+    if (res.error) showToast('action-toast', 'Error: ' + res.error, true);
+    else { showToast('action-toast', res.msg || 'kickstart fired', false); }
+  });
+}
+
 // ── History ───────────────────────────────────────────────────────────────────
 async function renderHistory() {
   if (!state.planId) return;
@@ -929,7 +1365,7 @@ function generatedBlockDoc({ trigger, detail, version }) {
 
 const PLAN_PATH_RE = /^\/api\/plans\/([^/]+)(\/.*)?$/;
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
 
   if (req.method === 'GET' && url.pathname === '/') {
@@ -1000,6 +1436,84 @@ const server = http.createServer((req, res) => {
       } catch (e) {
         return json(res, { error: e.message }, 500);
       }
+    }
+
+    // ── Automation ──
+    if (sub === '/automation' && req.method === 'GET') {
+      return getAutomationState(plan).then((s) => json(res, s));
+    }
+
+    if (sub === '/automation/config' && req.method === 'PUT') {
+      return readJsonBody(req).then(async (body) => {
+        const current = readAutomationConfig(plan);
+        const next = {
+          ...current,
+          plist_label:      body.plist_label      ?? current.plist_label,
+          plist_path:       body.plist_path       ?? current.plist_path,
+          tick_command:     body.tick_command     ?? current.tick_command,
+          working_dir:      body.working_dir      ?? current.working_dir,
+          interval_seconds: body.interval_seconds != null ? Number(body.interval_seconds) : current.interval_seconds,
+          stdout_path:      body.stdout_path      ?? current.stdout_path,
+          stderr_path:      body.stderr_path      ?? current.stderr_path,
+          env:              body.env              ?? current.env,
+        };
+        if (!Number.isFinite(next.interval_seconds) || next.interval_seconds < 60) {
+          return json(res, { error: 'interval_seconds must be ≥ 60' }, 400);
+        }
+        try {
+          const saved = writeAutomationConfig(plan, next);
+          // If plist exists OR launchd loaded, rewrite plist; reload if loaded.
+          const status = await launchdStatus(saved.plist_label);
+          if (fs.existsSync(saved.plist_path) || status.loaded) {
+            fs.mkdirSync(path.dirname(saved.plist_path), { recursive: true });
+            fs.writeFileSync(saved.plist_path, generatePlistXml(saved));
+            if (status.loaded) {
+              await launchctlBootout(process.getuid(), saved.plist_label, saved.plist_path);
+              await launchctlBoot(process.getuid(), saved.plist_path);
+            }
+          }
+          return json(res, { ok: true, config: saved, applied_to_plist: fs.existsSync(saved.plist_path), reloaded: status.loaded });
+        } catch (e) {
+          return json(res, { error: e.message }, 500);
+        }
+      }).catch((e) => json(res, { error: e.message }, 400));
+    }
+
+    if (sub === '/automation/load' && req.method === 'POST') {
+      const cfg = readAutomationConfig(plan);
+      try {
+        if (!fs.existsSync(cfg.tick_command)) {
+          return json(res, { error: 'tick command not found: ' + cfg.tick_command }, 400);
+        }
+        fs.mkdirSync(path.dirname(cfg.plist_path), { recursive: true });
+        fs.mkdirSync(path.dirname(cfg.stdout_path), { recursive: true });
+        fs.writeFileSync(cfg.plist_path, generatePlistXml(cfg));
+        const r = await launchctlBoot(process.getuid(), cfg.plist_path);
+        if (!r.ok) return json(res, { error: r.error }, 500);
+        const state = await getAutomationState(plan);
+        return json(res, { ok: true, msg: r.msg || 'loaded', state });
+      } catch (e) {
+        return json(res, { error: e.message }, 500);
+      }
+    }
+
+    if (sub === '/automation/unload' && req.method === 'POST') {
+      const cfg = readAutomationConfig(plan);
+      const r = await launchctlBootout(process.getuid(), cfg.plist_label, cfg.plist_path);
+      if (!r.ok) return json(res, { error: r.error }, 500);
+      const state = await getAutomationState(plan);
+      return json(res, { ok: true, msg: r.msg || 'unloaded', state });
+    }
+
+    if (sub === '/automation/kickstart' && req.method === 'POST') {
+      const cfg = readAutomationConfig(plan);
+      const status = await launchdStatus(cfg.plist_label);
+      if (!status.loaded) {
+        return json(res, { error: 'launchd job not loaded — Load it first, or use the manual tick command' }, 400);
+      }
+      const r = await launchctlKickstart(process.getuid(), cfg.plist_label);
+      if (!r.ok) return json(res, { error: r.error }, 500);
+      return json(res, { ok: true, msg: 'kickstart fired — a new tick should start within a second' });
     }
 
     if (sub === '/doc') {
