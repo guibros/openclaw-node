@@ -111,21 +111,32 @@ fi
 # environment is independent — the parent session is not affected.
 unset CLAUDECODE CLAUDECODE_TICK CLAUDE_CODE_ENTRYPOINT
 
+TICK_RAW="${TICK_LOG%.log}.jsonl"
+PRETTY="${REPO}/workspace-bin/memory-plan-pretty-stream.sh"
+
 {
   printf '## Tick started: %s\n' "$(ts)"
   printf '## VERSION at start: %s\n' "${VERSION:-<unset>}"
   printf '## Working tree dirty? %s\n' "$([ -n "${DIRTY}" ] && echo yes || echo no)"
-  printf '## ─── claude stdout ───\n'
+  printf '## Raw JSON stream: %s\n' "$(basename "${TICK_RAW}")"
+  printf '## ─── live claude work ───\n'
   set +e
+  # stream-json + verbose + include-partial-messages → events flush line-by-line
+  # as claude works. tee → raw .jsonl for forensics. pretty-stream → readable
+  # lines into THIS log. PIPESTATUS[0] = claude's exit code (what we care about).
   cat "${PROMPT_FILE}" | claude \
     --print \
     --permission-mode acceptEdits \
     --add-dir "/Users/moltymac/.openclaw/workspace" \
     --add-dir "/Users/moltymac/.openclaw" \
-    --output-format text
-  CLAUDE_RC=$?
+    --output-format stream-json \
+    --verbose \
+    --include-partial-messages \
+    | tee "${TICK_RAW}" \
+    | "${PRETTY}"
+  CLAUDE_RC=${PIPESTATUS[0]}
   set -e
-  printf '\n## ─── end claude stdout (rc=%d) ───\n' "${CLAUDE_RC}"
+  printf '\n## ─── end claude (rc=%d) ───\n' "${CLAUDE_RC}"
   printf '## Tick ended: %s\n' "$(ts)"
 } >>"${TICK_LOG}" 2>&1
 
