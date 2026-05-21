@@ -704,6 +704,32 @@ const HTML = String.raw`<!doctype html>
   .auto-view .note { background: rgba(227, 179, 65, 0.1); border-left: 3px solid var(--yellow); padding: 10px 14px; margin: 12px 0; font-size: 12px; color: var(--text-2); }
   .auto-view .toast { background: rgba(86, 211, 100, 0.15); border-left: 3px solid var(--green); padding: 8px 12px; margin: 10px 0; font-size: 12px; color: var(--green); }
   .auto-view .toast.err { background: rgba(248, 81, 73, 0.15); border-left-color: var(--red); color: var(--red); }
+  /* Progress pane — one human-readable line per agent action */
+  #pane-progress { grid-template-rows: 1fr; }
+  #progress-list {
+    overflow-y: scroll;
+    padding: 12px 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  #progress-list .pl-row { display: flex; gap: 10px; padding: 1px 0; align-items: baseline; }
+  #progress-list .pl-row:hover { background: rgba(255,255,255,0.02); }
+  #progress-list .pl-time { color: var(--dim); font-family: 'SF Mono', monospace; font-size: 11px; flex-shrink: 0; min-width: 62px; }
+  #progress-list .pl-icon { flex-shrink: 0; width: 18px; text-align: center; }
+  #progress-list .pl-body { flex: 1; min-width: 0; word-break: break-word; }
+  #progress-list .pl-verb { color: var(--accent); font-weight: 600; margin-right: 4px; }
+  #progress-list .pl-obj  { color: var(--text); }
+  #progress-list .pl-arg  { color: var(--dim); font-size: 11px; }
+  #progress-list .pl-row.r-thinking .pl-body { color: var(--dim); font-style: italic; }
+  #progress-list .pl-row.r-asst     .pl-body { color: var(--cyan); }
+  #progress-list .pl-row.r-error    .pl-body { color: var(--red); }
+  #progress-list .pl-row.r-error    .pl-verb { color: var(--red); }
+  #progress-list .pl-row.r-end      { background: rgba(86,211,100,0.08); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  #progress-list .pl-row.r-end      .pl-verb { color: var(--green); }
+  #progress-list .pl-row.r-tick-start { background: rgba(88,166,255,0.08); border-top: 1px solid var(--border); }
+  #progress-list .pl-row.r-tick-start .pl-verb { color: var(--accent); }
+  #progress-list .pl-row.r-rate     .pl-verb { color: var(--yellow); }
   /* Pause banner */
   #pause-banner { display: none; background: var(--yellow); color: #000; padding: 4px 20px; font-size: 12px; font-weight: 500; cursor: pointer; text-align: center; position: absolute; bottom: 0; left: 240px; right: 0; }
   #pause-banner.visible { display: block; }
@@ -731,6 +757,7 @@ const HTML = String.raw`<!doctype html>
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="live">Live</button>
+    <button class="tab-btn" data-tab="progress" id="tab-progress">Progress</button>
     <button class="tab-btn" data-tab="steps">Steps</button>
     <button class="tab-btn" data-tab="auto" id="tab-auto">Automation</button>
     <button class="tab-btn" data-tab="block" id="tab-block">Block</button>
@@ -746,6 +773,10 @@ const HTML = String.raw`<!doctype html>
 
   <div id="pane-live" class="pane active">
     <div id="log"><div class="empty">select a plan…</div></div>
+  </div>
+
+  <div id="pane-progress" class="pane">
+    <div id="progress-list"><div class="empty" style="padding:20px;color:var(--dim);">connecting…</div></div>
   </div>
 
   <div id="pane-steps" class="pane">
@@ -874,6 +905,7 @@ async function selectPlan(id) {
   else if (state.tab === 'history') renderHistory();
   else if (state.tab === 'block') renderBlock();
   else if (state.tab === 'auto') renderAutomation();
+  else if (state.tab === 'progress') connectProgressStream();
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -957,6 +989,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     else if (state.tab === 'history') renderHistory();
     else if (state.tab === 'block') renderBlock();
     else if (state.tab === 'auto') renderAutomation();
+    else if (state.tab === 'progress') connectProgressStream();
   });
 });
 
@@ -1028,6 +1061,48 @@ $('log-picker').addEventListener('change', (e) => {
   $('follow-new').checked = !e.target.value;
   reconnectStream();
 });
+
+// ── Progress stream (brief activity lines) ────────────────────────────────────
+const progressEl = $('progress-list');
+
+function appendProgress(act) {
+  if (progressEl.firstElementChild && progressEl.firstElementChild.classList.contains('empty')) {
+    progressEl.innerHTML = '';
+  }
+  const row = document.createElement('div');
+  row.className = 'pl-row r-' + (act.kind || 'info');
+  row.innerHTML =
+    '<span class="pl-time">' + esc(act.time || '') + '</span>' +
+    '<span class="pl-icon">' + (act.icon || '·') + '</span>' +
+    '<span class="pl-body">' +
+      (act.verb ? '<span class="pl-verb">' + esc(act.verb) + '</span>' : '') +
+      '<span class="pl-obj">' + esc(act.body || '') + '</span>' +
+    '</span>';
+  progressEl.appendChild(row);
+  // Auto-scroll if user is at bottom.
+  const atBottom = progressEl.scrollHeight - progressEl.scrollTop - progressEl.clientHeight < 40;
+  if (atBottom) progressEl.scrollTop = progressEl.scrollHeight;
+}
+
+function connectProgressStream() {
+  if (state.progressSource) { state.progressSource.close(); state.progressSource = null; }
+  if (!state.planId) return;
+  progressEl.innerHTML = '<div class="empty" style="padding:20px;color:var(--dim);">connecting…</div>';
+  const es = new EventSource('/api/plans/' + state.planId + '/activity-stream');
+  state.progressSource = es;
+  es.addEventListener('reset', () => {
+    progressEl.innerHTML = '';
+  });
+  es.addEventListener('activity', (e) => {
+    try { appendProgress(JSON.parse(e.data)); } catch {}
+  });
+  es.addEventListener('info', (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      progressEl.innerHTML = '<div class="empty" style="padding:20px;color:var(--dim);">' + esc(d.msg || '') + '</div>';
+    } catch {}
+  });
+}
 
 // ── Steps ─────────────────────────────────────────────────────────────────────
 async function renderSteps() {
@@ -1698,6 +1773,173 @@ function generatedBlockDoc({ trigger, detail, version }) {
   ].filter(Boolean).join('\n') + '\n';
 }
 
+// ── Activity stream (brief human-readable per-action lines) ──────────────────
+// Reads from the wrapper's raw stream-json sidecar (<tick-log>.jsonl) and
+// converts each event into ONE concise activity line. Powers the "Progress"
+// tab — different rendering of the same source data the Live tab uses.
+
+const ACTIVITY_REPO_PREFIX = '/Users/moltymac/openclaw-nodedev/';
+const ACTIVITY_HOME = os.homedir();
+
+function relPath(p) {
+  if (!p) return '?';
+  let s = String(p);
+  if (s.startsWith(ACTIVITY_REPO_PREFIX)) s = s.slice(ACTIVITY_REPO_PREFIX.length);
+  else if (s.startsWith(ACTIVITY_HOME))    s = '~' + s.slice(ACTIVITY_HOME.length);
+  return s;
+}
+
+function truncMid(s, max = 110) {
+  if (!s) return '';
+  s = String(s).replace(/\s+/g, ' ').trim();
+  return s.length > max ? s.slice(0, max) + '…' : s;
+}
+
+// One JSON event → zero-or-more activity lines. Each line is:
+//   { time, icon, verb, body, kind }
+// kind ∈ {tick-start, tool, asst, thinking, rate, error, end, info}
+function eventToActivity(evt, ctx) {
+  const out = [];
+  const t = new Date().toLocaleTimeString('en-GB', { hour12: false });
+
+  if (evt.type === 'system') {
+    const model = evt.model || '?';
+    const tools = Array.isArray(evt.tools) ? evt.tools.length : 0;
+    const mcps = Array.isArray(evt.mcp_servers) ? evt.mcp_servers.length : 0;
+    out.push({ time: t, icon: '🚀', verb: 'Tick started', body: `${model} · ${tools} tools · ${mcps} MCP servers`, kind: 'tick-start' });
+    return out;
+  }
+
+  if (evt.type === 'assistant') {
+    const content = (evt.message && evt.message.content) || [];
+    for (const c of content) {
+      if (!c) continue;
+      if (c.type === 'text') {
+        const text = truncMid(c.text, 140);
+        if (text) out.push({ time: t, icon: '💬', verb: '', body: text, kind: 'asst' });
+      } else if (c.type === 'thinking') {
+        const text = truncMid(c.thinking, 140);
+        if (text) out.push({ time: t, icon: '💭', verb: 'thinking', body: text, kind: 'thinking' });
+      } else if (c.type === 'tool_use') {
+        const desc = describeToolCall(c.name, c.input || {});
+        out.push({ time: t, icon: desc.icon, verb: desc.verb, body: desc.body, kind: 'tool', tool_id: c.id });
+      }
+    }
+    return out;
+  }
+
+  if (evt.type === 'user' && evt.message && Array.isArray(evt.message.content)) {
+    for (const c of evt.message.content) {
+      if (!c || c.type !== 'tool_result') continue;
+      if (c.is_error) {
+        let msg = c.content;
+        if (Array.isArray(msg)) msg = msg.map(x => x.text || '').join(' ');
+        out.push({ time: t, icon: '✗', verb: 'error', body: truncMid(msg, 200), kind: 'error' });
+      }
+      // Skip non-error results — keeps Progress lean. Click the Live tab
+      // if you want the actual result content.
+    }
+    return out;
+  }
+
+  if (evt.type === 'rate_limit_event') {
+    const info = evt.rate_limit_info || {};
+    if (info.status && info.status !== 'allowed') {
+      out.push({ time: t, icon: '⏳', verb: 'rate limit', body: `${info.status} (${info.rateLimitType || '?'})`, kind: 'rate' });
+    }
+    return out;
+  }
+
+  if (evt.type === 'result') {
+    const cost = evt.total_cost_usd != null ? `$${Number(evt.total_cost_usd).toFixed(4)}` : '?';
+    const dur  = evt.duration_ms != null ? `${Math.floor(evt.duration_ms / 1000)}s` : '?';
+    const turns = evt.num_turns ?? '?';
+    out.push({ time: t, icon: '✅', verb: 'Tick done', body: `${evt.subtype || 'success'} · ${cost} · ${dur} · ${turns} turns`, kind: 'end' });
+    return out;
+  }
+
+  return out;
+}
+
+function describeToolCall(name, input) {
+  switch (name) {
+    case 'Read': {
+      const p = relPath(input.file_path);
+      const range = (input.offset || input.limit)
+        ? ` (lines ${input.offset || 1}${input.limit ? '–' + ((input.offset || 0) + input.limit) : '+'})`
+        : '';
+      return { icon: '📖', verb: 'Reading', body: p + range };
+    }
+    case 'Write': {
+      const p = relPath(input.file_path);
+      const lines = input.content ? input.content.split('\n').length : 0;
+      return { icon: '💾', verb: 'Writing', body: `${p}${lines ? ' (' + lines + ' lines)' : ''}` };
+    }
+    case 'Edit':
+      return { icon: '✏️', verb: 'Editing', body: relPath(input.file_path) + (input.replace_all ? ' (replace all)' : '') };
+    case 'MultiEdit':
+      return { icon: '✏️', verb: 'Editing', body: `${relPath(input.file_path)} (${(input.edits || []).length} changes)` };
+    case 'Bash': {
+      const cmd = truncMid(input.command, 110);
+      const desc = input.description ? ` — ${truncMid(input.description, 60)}` : '';
+      return { icon: '▶️', verb: 'Running', body: cmd + desc };
+    }
+    case 'BashOutput':
+      return { icon: '▶️', verb: 'Reading shell output', body: input.bash_id || '?' };
+    case 'KillShell':
+      return { icon: '🛑', verb: 'Killing shell', body: input.shell_id || '?' };
+    case 'Glob':
+      return { icon: '🔍', verb: 'Listing', body: `${input.pattern || '?'}${input.path ? ' in ' + relPath(input.path) : ''}` };
+    case 'Grep': {
+      const q = truncMid(input.pattern, 60);
+      const where = input.path ? ' in ' + relPath(input.path) : '';
+      const glob = input.glob ? ` (include ${input.glob})` : '';
+      return { icon: '🔍', verb: 'Grep', body: `"${q}"${where}${glob}` };
+    }
+    case 'WebFetch':
+      return { icon: '🌐', verb: 'Fetching', body: input.url || '?' };
+    case 'WebSearch':
+      return { icon: '🌐', verb: 'Web search', body: `"${truncMid(input.query, 100)}"` };
+    case 'Task':
+      return { icon: '🧬', verb: 'Spawning subagent', body: `${input.subagent_type || 'general'}: ${truncMid(input.description, 100)}` };
+    case 'TodoWrite':
+      return { icon: '✓', verb: 'Updating todos', body: `${(input.todos || []).length} items` };
+    case 'AskUserQuestion': {
+      const q = input.questions && input.questions[0] && input.questions[0].question;
+      return { icon: '❓', verb: 'Asking user', body: truncMid(q, 120) };
+    }
+    case 'NotebookEdit':
+      return { icon: '📓', verb: 'Editing notebook', body: relPath(input.notebook_path) };
+    case 'mcp__knowledge__semantic_search':
+      return { icon: '🧠', verb: 'Semantic search', body: `"${truncMid(input.query, 100)}"` };
+    case 'mcp__knowledge__find_related':
+      return { icon: '🧠', verb: 'Finding related', body: truncMid(input.text, 100) };
+    case 'mcp__knowledge__reindex':
+      return { icon: '🧠', verb: 'Reindexing knowledge', body: input.path || '(default)' };
+    case 'mcp__knowledge__knowledge_stats':
+      return { icon: '🧠', verb: 'Knowledge stats', body: '' };
+    default: {
+      if (name.startsWith('mcp__')) {
+        const parts = name.split('__');
+        const server = parts[1] || 'mcp';
+        const tool = parts.slice(2).join('.');
+        const arg = Object.keys(input)[0];
+        return { icon: '🔌', verb: `${server}.${tool}`, body: arg ? `${arg}=${truncMid(JSON.stringify(input[arg]), 80)}` : '' };
+      }
+      return { icon: '⚙️', verb: name, body: truncMid(JSON.stringify(input), 100) };
+    }
+  }
+}
+
+// JSONL path for a given tick log. The wrapper writes <log>.jsonl alongside.
+function jsonlPathFor(logPath) {
+  if (!logPath) return null;
+  // current.log symlinks to <timestamp>.log; we need <timestamp>.jsonl.
+  const resolved = fs.realpathSync.native ? fs.realpathSync(logPath) : logPath;
+  if (resolved.endsWith('.log')) return resolved.slice(0, -4) + '.jsonl';
+  return resolved + '.jsonl';
+}
+
 const PLAN_PATH_RE = /^\/api\/plans\/([^/]+)(\/.*)?$/;
 
 const server = http.createServer(async (req, res) => {
@@ -1949,6 +2191,100 @@ const server = http.createServer(async (req, res) => {
         pre:  readMaybe('AUDIT_PRE.md'),
         post: readMaybe('AUDIT_POST.md'),
       });
+    }
+
+    if (sub === '/activity-stream') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      res.write(':ok\n\n');
+
+      const logLink = latestLog(plan);
+      let currentJsonl = jsonlPathFor(logLink);
+      let position = 0;
+      let closed = false;
+      let buffer = '';
+
+      const send = (event, data) => {
+        if (closed) return;
+        res.write('event: ' + event + '\n' + 'data: ' + JSON.stringify(data) + '\n\n');
+      };
+
+      const processChunk = (chunk) => {
+        buffer += chunk;
+        let nl;
+        while ((nl = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (!line) continue;
+          let evt;
+          try { evt = JSON.parse(line); } catch { continue; }
+          for (const act of eventToActivity(evt)) {
+            send('activity', act);
+          }
+        }
+      };
+
+      const emitFull = () => {
+        if (!currentJsonl || !fs.existsSync(currentJsonl)) {
+          send('info', { msg: '(no events yet — waiting for tick to start)' });
+          return;
+        }
+        const data = fs.readFileSync(currentJsonl, 'utf8');
+        position = Buffer.byteLength(data, 'utf8');
+        buffer = '';
+        send('reset', { source: path.basename(currentJsonl) });
+        processChunk(data);
+      };
+
+      emitFull();
+
+      const interval = setInterval(() => {
+        if (closed) return;
+        try {
+          // Detect symlink target swap → new tick started → reset.
+          const newLink = latestLog(plan);
+          const newJsonl = jsonlPathFor(newLink);
+          if (newJsonl && newJsonl !== currentJsonl) {
+            currentJsonl = newJsonl;
+            position = 0;
+            buffer = '';
+            send('reset', { source: path.basename(currentJsonl) });
+            emitFull();
+            return;
+          }
+          if (!currentJsonl || !fs.existsSync(currentJsonl)) return;
+          const stat = fs.statSync(currentJsonl);
+          if (stat.size > position) {
+            const fd = fs.openSync(currentJsonl, 'r');
+            const buf = Buffer.alloc(stat.size - position);
+            fs.readSync(fd, buf, 0, buf.length, position);
+            fs.closeSync(fd);
+            position = stat.size;
+            processChunk(buf.toString('utf8'));
+          } else if (stat.size < position) {
+            position = 0;
+            buffer = '';
+            send('reset', { source: path.basename(currentJsonl) });
+            emitFull();
+          }
+        } catch {}
+      }, 500);
+
+      const heartbeat = setInterval(() => {
+        if (!closed) res.write(':hb\n\n');
+      }, 15000);
+
+      req.on('close', () => {
+        closed = true;
+        clearInterval(interval);
+        clearInterval(heartbeat);
+        try { res.end(); } catch {}
+      });
+      return;
     }
 
     if (sub === '/stream') {
