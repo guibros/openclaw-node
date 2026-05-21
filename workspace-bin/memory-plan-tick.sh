@@ -177,25 +177,11 @@ TICK_RAW="${TICK_LOG%.log}.jsonl"
 PRETTY="${REPO}/workspace-bin/memory-plan-pretty-stream.sh"
 TICK_START_EPOCH=$(date +%s)
 
-# Heartbeat: emit a one-line proof-of-life to OUR stdout (= launchd.stdout.log)
-# every 60s while claude is running. Without this the launchd log sits silent
-# for 5-15 minutes between "starting tick" and "tick done", making it look
-# stuck. The subshell is backgrounded BEFORE the heredoc block so its stdout
-# is the wrapper's stdout, not the redirected TICK_LOG.
-(
-  while sleep 60; do
-    NOW=$(date +%s)
-    ELAPSED=$(( NOW - TICK_START_EPOCH ))
-    MINS=$(( ELAPSED / 60 ))
-    TICK_SIZE=0
-    [ -f "${TICK_LOG}" ] && TICK_SIZE=$(stat -f '%z' "${TICK_LOG}" 2>/dev/null || echo 0)
-    TICK_KB=$(( TICK_SIZE / 1024 ))
-    log "heartbeat: ${MINS}m elapsed · ${TICK_KB} KB written · log=$(basename "${TICK_LOG}")"
-  done
-) &
-HEARTBEAT_PID=$!
-# Re-set the trap to also kill the heartbeat. Defensive against unset var.
-trap 'kill "${HEARTBEAT_PID:-}" 2>/dev/null || true; rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
+# Maintain a `current.log` symlink that always points at the running tick's
+# log. One `tail -F memory-plan/tick-logs/current.log` follows everything
+# claude does across tick boundaries — no need to switch files manually.
+CURRENT_LINK="${TICK_LOG_DIR}/current.log"
+ln -sfn "$(basename "${TICK_LOG}")" "${CURRENT_LINK}"
 
 {
   printf '## Tick started: %s\n' "$(ts)"
@@ -222,8 +208,6 @@ trap 'kill "${HEARTBEAT_PID:-}" 2>/dev/null || true; rmdir "${LOCK_DIR}" 2>/dev/
   printf '## Tick ended: %s\n' "$(ts)"
 } >>"${TICK_LOG}" 2>&1
 
-# Stop heartbeat now that claude is done; the EXIT trap also handles this.
-kill "${HEARTBEAT_PID:-}" 2>/dev/null || true
 TICK_DURATION=$(( $(date +%s) - "${TICK_START_EPOCH:-$(date +%s)}" ))
 log "claude exited rc=${CLAUDE_RC:-?} after ${TICK_DURATION}s"
 
