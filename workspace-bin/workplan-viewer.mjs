@@ -195,14 +195,12 @@ function planSummary(plan) {
 const LAUNCH_AGENTS = path.join(os.homedir(), 'Library/LaunchAgents');
 
 function deriveAutomationDefaults(plan) {
-  // The "repo root" containing the plan is the discovery root we chose.
   const repo = plan.root;
   const id = plan.id;
-  // Backward compat: keep existing memory-plan-tick label if it already exists.
   const legacyLabel = `com.openclaw.${id}-tick`;
   const cmdCandidates = [
     path.join(repo, 'workspace-bin', `${id}-tick.sh`),
-    path.join(repo, 'workspace-bin', 'memory-plan-tick.sh'), // legacy fallback
+    path.join(repo, 'workspace-bin', 'memory-plan-tick.sh'),
   ];
   const cmd = cmdCandidates.find(p => fs.existsSync(p)) || cmdCandidates[0];
   return {
@@ -210,7 +208,13 @@ function deriveAutomationDefaults(plan) {
     plist_path: path.join(LAUNCH_AGENTS, `${legacyLabel}.plist`),
     tick_command: cmd,
     working_dir: repo,
+    // Scheduling mode:
+    //   'interval' — launchd StartInterval (every N seconds)
+    //   'chain'    — launchd KeepAlive (restart on exit; throttle_seconds is
+    //                the minimum gap launchd will enforce between restarts)
+    mode: 'interval',
     interval_seconds: 1800,
+    throttle_seconds: 30,
     stdout_path: path.join(plan.dir, 'tick-logs', 'launchd.stdout.log'),
     stderr_path: path.join(plan.dir, 'tick-logs', 'launchd.stderr.log'),
     env: {
@@ -239,7 +243,9 @@ function writeAutomationConfig(plan, cfg) {
     plist_path: cfg.plist_path,
     tick_command: cfg.tick_command,
     working_dir: cfg.working_dir,
+    mode: cfg.mode === 'chain' ? 'chain' : 'interval',
     interval_seconds: Number(cfg.interval_seconds),
+    throttle_seconds: Number(cfg.throttle_seconds) || 30,
     stdout_path: cfg.stdout_path,
     stderr_path: cfg.stderr_path,
     env: cfg.env || {},
@@ -257,6 +263,30 @@ function generatePlistXml(cfg) {
   const envEntries = Object.entries(cfg.env || {})
     .map(([k, v]) => `    <key>${plistEscape(k)}</key>\n    <string>${plistEscape(v)}</string>`)
     .join('\n');
+
+  // Scheduling block depends on mode.
+  let scheduling;
+  if (cfg.mode === 'chain') {
+    // KeepAlive=true → launchd restarts the program whenever it exits.
+    // ThrottleInterval is the minimum gap between launches (launchd default 10s).
+    // RunAtLoad=true so the first tick fires immediately after `launchctl bootstrap`,
+    //   instead of waiting for an arbitrary first kickstart.
+    scheduling =
+      `  <key>KeepAlive</key>\n` +
+      `  <true/>\n` +
+      `  <key>ThrottleInterval</key>\n` +
+      `  <integer>${Math.max(10, Number(cfg.throttle_seconds) || 30)}</integer>\n` +
+      `  <key>RunAtLoad</key>\n` +
+      `  <true/>`;
+  } else {
+    // Interval mode: launchd fires the program every StartInterval seconds.
+    scheduling =
+      `  <key>StartInterval</key>\n` +
+      `  <integer>${Number(cfg.interval_seconds)}</integer>\n` +
+      `  <key>RunAtLoad</key>\n` +
+      `  <false/>`;
+  }
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -268,10 +298,7 @@ function generatePlistXml(cfg) {
   <array>
     <string>${plistEscape(cfg.tick_command)}</string>
   </array>
-  <key>StartInterval</key>
-  <integer>${Number(cfg.interval_seconds)}</integer>
-  <key>RunAtLoad</key>
-  <false/>
+${scheduling}
   <key>StandardOutPath</key>
   <string>${plistEscape(cfg.stdout_path)}</string>
   <key>StandardErrorPath</key>
@@ -314,10 +341,31 @@ function readIntervalFromPlist(plistPath) {
   } catch { return null; }
 }
 
+function readPlistMode(plistPath) {
+  if (!fs.existsSync(plistPath)) return null;
+  try {
+    const raw = fs.readFileSync(plistPath, 'utf8');
+    if (raw.match(/<key>KeepAlive<\/key>\s*<true\/>/)) return 'chain';
+    if (raw.match(/<key>StartInterval<\/key>/)) return 'interval';
+    return null;
+  } catch { return null; }
+}
+
+function readThrottleFromPlist(plistPath) {
+  if (!fs.existsSync(plistPath)) return null;
+  try {
+    const raw = fs.readFileSync(plistPath, 'utf8');
+    const m = raw.match(/<key>ThrottleInterval<\/key>\s*<integer>(\d+)<\/integer>/);
+    return m ? Number(m[1]) : null;
+  } catch { return null; }
+}
+
 async function getAutomationState(plan) {
   const cfg = readAutomationConfig(plan);
   const plistExists = fs.existsSync(cfg.plist_path);
   const plistInterval = plistExists ? readIntervalFromPlist(cfg.plist_path) : null;
+  const plistMode = plistExists ? readPlistMode(cfg.plist_path) : null;
+  const plistThrottle = plistExists ? readThrottleFromPlist(cfg.plist_path) : null;
   const status = await launchdStatus(cfg.plist_label);
   const logs = tickLogs(plan, 1);
   const lastTickMtime = logs.length ? logs[0].mtime : null;
@@ -326,6 +374,8 @@ async function getAutomationState(plan) {
     config: cfg,
     plist_exists: plistExists,
     plist_interval_seconds: plistInterval,
+    plist_mode: plistMode,
+    plist_throttle_seconds: plistThrottle,
     launchd: status,
     last_tick_mtime: lastTickMtime,
     last_tick_name: lastTickName,
@@ -562,6 +612,18 @@ const HTML = String.raw`<!doctype html>
   }
   .auto-view .preset:hover { border-color: var(--accent); color: var(--accent); }
   .auto-view .preset.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .auto-view .mode-toggle { display: flex; gap: 0; margin: 0 0 16px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; max-width: 460px; }
+  .auto-view .mode-toggle button {
+    flex: 1; background: var(--bg-3); color: var(--text-2); border: none; padding: 12px 16px;
+    cursor: pointer; font: inherit; font-size: 13px; text-align: left; border-right: 1px solid var(--border);
+  }
+  .auto-view .mode-toggle button:last-child { border-right: none; }
+  .auto-view .mode-toggle button:hover { background: var(--bg); color: var(--accent); }
+  .auto-view .mode-toggle button.active { background: var(--accent); color: var(--bg); }
+  .auto-view .mode-toggle button .mode-name { display: block; font-weight: 600; margin-bottom: 2px; }
+  .auto-view .mode-toggle button .mode-desc { display: block; font-size: 11px; opacity: 0.85; font-weight: 400; }
+  .auto-view .mode-block { display: none; }
+  .auto-view .mode-block.active { display: block; }
   .auto-view .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
   .auto-view button.primary {
     background: var(--accent); color: var(--bg); border: none; padding: 8px 16px;
@@ -1116,7 +1178,10 @@ async function renderAutomation() {
   const loaded = s.launchd.loaded;
   const plistExists = s.plist_exists;
   const persisted = cfg._persisted;
+  // Effective mode/interval/throttle: prefer installed plist values, else config.
+  const effMode     = s.plist_mode || cfg.mode || 'interval';
   const currentInterval = s.plist_interval_seconds || cfg.interval_seconds;
+  const currentThrottle = s.plist_throttle_seconds || cfg.throttle_seconds || 30;
 
   const statusPill = loaded
     ? '<span class="status-pill on">RUNNING</span>'
@@ -1125,14 +1190,17 @@ async function renderAutomation() {
   let html = '';
   html += '<h2>' + statusPill + ' Automated tick scheduler</h2>';
   html += '<p class="lede" style="color:var(--dim);margin:0 0 24px;font-size:13px;">' +
-    'Runs <code>' + esc(cfg.tick_command.split('/').pop()) + '</code> on a fixed interval via macOS launchd. ' +
+    'Runs <code>' + esc(cfg.tick_command.split('/').pop()) + '</code> via macOS launchd. ' +
     'Independent from manual <code>./...-tick.sh</code> invocations.</p>';
 
   // ── Section: Current status ──
   html += '<div class="section"><h3>Current status</h3><div class="kv-grid">';
-  html += '<div class="k">State</div><div class="v">' +
-    (loaded ? 'loaded — fires every <strong>' + humanInterval(currentInterval) + '</strong>' : 'not loaded') +
-    '</div>';
+  const stateLine = loaded
+    ? (effMode === 'chain'
+        ? 'loaded — <strong>chain mode</strong> (restarts ≥' + humanInterval(currentThrottle) + ' after each tick exits)'
+        : 'loaded — <strong>interval mode</strong> (fires every ' + humanInterval(currentInterval) + ')')
+    : 'not loaded';
+  html += '<div class="k">State</div><div class="v">' + stateLine + '</div>';
   if (loaded) {
     html += '<div class="k">launchd PID</div><div class="v ' + (s.launchd.pid ? '' : 'muted') + '">' +
       (s.launchd.pid != null ? s.launchd.pid : '(not currently executing)') + '</div>';
@@ -1148,8 +1216,26 @@ async function renderAutomation() {
 
   // ── Section: Schedule ──
   html += '<div class="section"><h3>Schedule</h3>';
+  html += '<div style="font-size:12px;color:var(--dim);margin-bottom:14px;">' +
+    'Choose how the autonomous tick is triggered.' +
+    '</div>';
+
+  // Mode toggle.
+  html += '<div class="mode-toggle">' +
+    '<button type="button" data-mode="interval" class="' + (effMode === 'interval' ? 'active' : '') + '">' +
+      '<span class="mode-name">⏱ Interval</span>' +
+      '<span class="mode-desc">Fires every N minutes regardless of work</span>' +
+    '</button>' +
+    '<button type="button" data-mode="chain" class="' + (effMode === 'chain' ? 'active' : '') + '">' +
+      '<span class="mode-name">⛓ Chain</span>' +
+      '<span class="mode-desc">Fires the next tick as soon as the previous one exits</span>' +
+    '</button>' +
+  '</div>';
+
+  // Interval mode block.
+  html += '<div class="mode-block' + (effMode === 'interval' ? ' active' : '') + '" id="mode-block-interval">';
   html += '<div style="font-size:12px;color:var(--dim);margin-bottom:10px;">' +
-    'How often the autonomous tick fires. Each tick may close one step (typically 5–15 min of headless Claude work).' +
+    'Each tick may close one step (typically 5–15 min of headless Claude work). Pick an interval longer than a typical tick to avoid overlap (the lock dir prevents real overlap, but skips waste a slot).' +
     '</div>';
   html += '<div class="presets" id="interval-presets">';
   for (const p of INTERVAL_PRESETS) {
@@ -1166,8 +1252,31 @@ async function renderAutomation() {
     '</select>' +
     '<button type="button" class="primary" id="interval-save">Apply interval</button>' +
     '</div>';
-  html += '<div id="interval-toast"></div>';
+  html += '</div>'; // /mode-block-interval
+
+  // Chain mode block.
+  html += '<div class="mode-block' + (effMode === 'chain' ? ' active' : '') + '" id="mode-block-chain">';
+  html += '<div style="font-size:12px;color:var(--dim);margin-bottom:10px;">' +
+    'launchd <code>KeepAlive</code>: every time the tick wrapper exits, it is restarted after the throttle gap. This means ticks run back-to-back — the next one fires as soon as the previous one closes a step (or exits early because the lock is held / tree dirty / blocked).' +
+    '</div>';
+  html += '<div class="note" style="margin:8px 0 12px;">' +
+    '<strong>Heads up:</strong> chain mode keeps polling whenever there\'s nothing to do (BLOCKED.md, dirty tree, lock held, plan complete). It exits fast and waits the throttle gap. Set a sane floor.' +
+    '</div>';
+  html += '<div class="interval-input">' +
+    '<label style="color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;">Throttle (min gap):</label>' +
+    '<input type="number" id="throttle-val" value="' + currentThrottle + '" min="10" step="5">' +
+    '<span style="color:var(--dim);font-size:12px;">seconds (launchd minimum: 10)</span>' +
+    '<button type="button" class="primary" id="throttle-save" style="margin-left:8px;">Apply throttle</button>' +
+    '</div>';
+  html += '<div class="presets" style="margin-top:8px;">';
+  for (const t of [10, 30, 60, 120, 300]) {
+    html += '<button type="button" class="preset throttle-preset' + (t === currentThrottle ? ' active' : '') + '" data-throttle="' + t + '">' + t + 's</button>';
+  }
   html += '</div>';
+  html += '</div>'; // /mode-block-chain
+
+  html += '<div id="interval-toast"></div>';
+  html += '</div>'; // /section schedule
 
   // ── Section: Actions ──
   html += '<div class="section"><h3>Actions</h3>';
@@ -1202,12 +1311,63 @@ async function renderAutomation() {
   view.innerHTML = html;
 
   // Wire interactions.
-  for (const btn of view.querySelectorAll('.preset')) {
+  for (const btn of view.querySelectorAll('.preset[data-seconds]')) {
     btn.addEventListener('click', () => {
       const sec = Number(btn.dataset.seconds);
       $('interval-val').value = (sec / 60).toFixed(sec % 60 === 0 ? 0 : 1);
       $('interval-unit').value = '60';
-      view.querySelectorAll('.preset').forEach(b => b.classList.toggle('active', b === btn));
+      view.querySelectorAll('.preset[data-seconds]').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  }
+  for (const btn of view.querySelectorAll('.throttle-preset')) {
+    btn.addEventListener('click', () => {
+      $('throttle-val').value = btn.dataset.throttle;
+      view.querySelectorAll('.throttle-preset').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  }
+  // Mode toggle.
+  for (const btn of view.querySelectorAll('.mode-toggle button')) {
+    btn.addEventListener('click', async () => {
+      const newMode = btn.dataset.mode;
+      if (newMode === effMode) return;
+      const msg = newMode === 'chain'
+        ? 'Switch to CHAIN mode? Next tick fires as soon as the previous one exits (min ' + currentThrottle + 's gap).\\n\\nThe scheduler will reload now.'
+        : 'Switch to INTERVAL mode? Next tick fires every ' + Math.round(currentInterval / 60) + ' min on a fixed cadence.\\n\\nThe scheduler will reload now.';
+      if (!confirm(msg)) return;
+      const r2 = await fetch('/api/plans/' + state.planId + '/automation/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: newMode }),
+      });
+      const res = await r2.json();
+      if (res.error) showToast('interval-toast', 'Error: ' + res.error, true);
+      else {
+        showToast('interval-toast', 'Switched to ' + newMode + ' mode' +
+          (res.reloaded ? ' (scheduler reloaded)' : (res.applied_to_plist ? ' (plist updated)' : ' (saved — load to apply)')), false);
+        setTimeout(renderAutomation, 600);
+      }
+    });
+  }
+  const throttleSaveBtn = $('throttle-save');
+  if (throttleSaveBtn) {
+    throttleSaveBtn.addEventListener('click', async () => {
+      const sec = Number($('throttle-val').value);
+      if (!Number.isFinite(sec) || sec < 10) {
+        showToast('interval-toast', 'Throttle must be at least 10 seconds (launchd minimum).', true);
+        return;
+      }
+      const r2 = await fetch('/api/plans/' + state.planId + '/automation/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ throttle_seconds: sec, mode: 'chain' }),
+      });
+      const res = await r2.json();
+      if (res.error) showToast('interval-toast', 'Error: ' + res.error, true);
+      else {
+        showToast('interval-toast', 'Throttle set to ' + sec + 's' +
+          (res.reloaded ? ' (scheduler reloaded)' : (res.applied_to_plist ? ' (plist updated)' : ' (saved — load to apply)')), false);
+        setTimeout(renderAutomation, 600);
+      }
     });
   }
   const intervalSaveBtn = $('interval-save');
@@ -1223,7 +1383,7 @@ async function renderAutomation() {
       const r2 = await fetch('/api/plans/' + state.planId + '/automation/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interval_seconds: sec }),
+        body: JSON.stringify({ interval_seconds: sec, mode: 'interval' }),
       });
       const res = await r2.json();
       if (res.error) showToast('interval-toast', 'Error: ' + res.error, true);
@@ -1452,13 +1612,21 @@ const server = http.createServer(async (req, res) => {
           plist_path:       body.plist_path       ?? current.plist_path,
           tick_command:     body.tick_command     ?? current.tick_command,
           working_dir:      body.working_dir      ?? current.working_dir,
+          mode:             body.mode             ?? current.mode,
           interval_seconds: body.interval_seconds != null ? Number(body.interval_seconds) : current.interval_seconds,
+          throttle_seconds: body.throttle_seconds != null ? Number(body.throttle_seconds) : current.throttle_seconds,
           stdout_path:      body.stdout_path      ?? current.stdout_path,
           stderr_path:      body.stderr_path      ?? current.stderr_path,
           env:              body.env              ?? current.env,
         };
-        if (!Number.isFinite(next.interval_seconds) || next.interval_seconds < 60) {
+        if (next.mode !== 'interval' && next.mode !== 'chain') {
+          return json(res, { error: 'mode must be "interval" or "chain"' }, 400);
+        }
+        if (next.mode === 'interval' && (!Number.isFinite(next.interval_seconds) || next.interval_seconds < 60)) {
           return json(res, { error: 'interval_seconds must be ≥ 60' }, 400);
+        }
+        if (next.mode === 'chain' && (!Number.isFinite(next.throttle_seconds) || next.throttle_seconds < 10)) {
+          return json(res, { error: 'throttle_seconds must be ≥ 10 (launchd minimum)' }, 400);
         }
         try {
           const saved = writeAutomationConfig(plan, next);
