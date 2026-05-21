@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v0.6 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 0.6: Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field).
+- Files committed: `.claude/hooks/pre-compact.sh`, `workspace-bin/session-recap`, `workspace-bin/auto-checkpoint`, `lib/pre-compression-flush.mjs`, `test/memory-budget.test.mjs`, audit docs, ledger files.
+- Test count: 482 (409 pass, 73 fail — pre-existing). +1 test added this step.
+- V2 audit: 6 POSITIVE findings, 0 Phase 8 patches.
+- Streak: 6-of-6 zero-Phase-4-correction.
+
+### v0.6-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 0.6.
+- Files changed: `.claude/hooks/pre-compact.sh` (removed `STATE_FILE` variable and dead `.pre-compact-state.md` write block), `workspace-bin/session-recap` (deleted `FINGERPRINT_FILE` constant, `extractFingerprint` function, `writeFingerprint` function, and fingerprint caller in `main()`), `workspace-bin/auto-checkpoint` (deleted `ACTIVITY_FILE` variable and `touch "$ACTIVITY_FILE"`), `lib/pre-compression-flush.mjs` (removed `confidence` property from all pattern objects, destructuring, fact push, and JSDoc), `test/memory-budget.test.mjs` (+1 test: extractFacts confidence removal).
+- Test additions: 1 new test (extractFacts returns no confidence property).
+
+### v0.6-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 0.6.
+- Files planned: `.claude/hooks/pre-compact.sh`, `workspace-bin/session-recap`, `workspace-bin/auto-checkpoint`, `lib/pre-compression-flush.mjs`, `test/memory-budget.test.mjs`.
+- Audit: `memory-plan/audits/step06_delete_dead_artifacts/AUDIT_PRE.md`.
+- Test baseline: 481 tests (408 pass, 73 fail — pre-existing).
+
 ### v0.5 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 0.5: Fix mid-word truncation via truncateAtWord helper.

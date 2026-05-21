@@ -33,7 +33,9 @@ Fix active bugs in the existing harness before adding complexity. See REFERENCE_
 | 0 | 0.5 | v0.5 | [x] | Fix mid-word truncation via truncateAtWord helper |
 
 > **Step 0.5 closed.** Added `truncateAtWord(text, maxLen)` helper to replace the hard `.slice(0, 120)` in `extractFacts`. The helper truncates at the last space before `maxLen`, with a 0.7 fallback threshold for long words. 4 new tests. 6 positive audit findings, zero corrections, zero Phase 8 patches.
-| 0 | 0.6 | v0.6 | [ ] | Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field) |
+| 0 | 0.6 | v0.6 | [x] | Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field) |
+
+> **Step 0.6 closed.** Removed four dead artifacts: `.pre-compact-state.md` write from `pre-compact.sh`, `session-fingerprint.json` write infrastructure from `session-recap` (~80 lines: `extractFingerprint`, `writeFingerprint`, `FINGERPRINT_FILE` constant, and caller block), `frontend-activity` touch from `auto-checkpoint`, and the unused `confidence` field from `extractFacts` pattern objects and return shape. 1 new regression test. 6 positive audit findings, zero corrections, zero Phase 8 patches.
 | 0 | 0.7 | v0.7 | [ ] | Document state files (docs/STATE_FILES.md) |
 
 ## Block 1 — Schema & event foundations

@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 0 in progress. Step 0.5 closed; Step 0.6 is next.
-**Current version carrier.** `v0.5` (Step 0.5 closed).
-**Streaks.** zero-Phase-4-correction: 5 of 5 · zero-Phase-8-patch: 5 of 5.
-**Last commit on plan branch.** v0.5 — Fix mid-word truncation via truncateAtWord helper.
+**Workplan status.** Block 0 in progress. Step 0.6 closed; Step 0.7 is next.
+**Current version carrier.** `v0.6` (Step 0.6 closed).
+**Streaks.** zero-Phase-4-correction: 6 of 6 · zero-Phase-8-patch: 6 of 6.
+**Last commit on plan branch.** v0.6 — Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -112,18 +112,37 @@ Phase 8 patches. Carry-forwards to Step 0.6: test baseline now 481 (408 pass, 73
 fail pre-existing); `confidence` field still unused (Step 0.6 deletes it);
 `truncateAtWord` exported at line 212; `cleanParentheticalChains` shifted to line 222.
 
+### Step 0.6 — Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field)
+
+Closed at v0.6. Removed four dead artifacts that were written but never read by any
+in-repo consumer. (1) `.claude/hooks/pre-compact.sh`: removed `STATE_FILE` variable and
+the entire `.pre-compact-state.md` write block; hook retained as no-op stub for future
+Block 4 rewiring. (2) `workspace-bin/session-recap`: deleted `FINGERPRINT_FILE` constant,
+`extractFingerprint` function (~60 lines), `writeFingerprint` function (~12 lines), and
+the fingerprint caller block in `main()`. (3) `workspace-bin/auto-checkpoint`: deleted
+`ACTIVITY_FILE` variable and `touch "$ACTIVITY_FILE"`. (4) `lib/pre-compression-flush.mjs`:
+removed `confidence` property from all 7 pattern objects, from the loop destructuring, from
+the fact push, and from both JSDoc annotations. `extractFacts` return shape is now
+`{ fact, category, speaker }`. 1 new regression test asserts `confidence` is absent from
+returned fact objects. 6 positive audit findings, zero Phase 4 corrections, zero Phase 8
+patches. Carry-forwards to Step 0.7: test baseline now 482 (409 pass, 73 fail pre-existing);
+`docs/ARCHITECTURE.md` has stale references to `frontend-activity` and
+`session-fingerprint.json` (out of Block 0 scope, defer or address if Step 0.7's
+`docs/STATE_FILES.md` work opens the door); `pre-compact.sh` is a no-op stub; test
+fixture data still passes `confidence` in some `mergeFacts` calls (harmless, cosmetic).
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               5 / 45
+Steps closed:               6 / 45
 Current block:              0 (Stop the bleeding)
-Steps closed in block:      5 / 7
-Consecutive zero-Phase-4-correction streak:  5
-Consecutive zero-Phase-8-patch streak:       5
-Test baseline (npm test):   481 tests (408 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 0.5)
+Steps closed in block:      6 / 7
+Consecutive zero-Phase-4-correction streak:  6
+Consecutive zero-Phase-8-patch streak:       6
+Test baseline (npm test):   482 tests (409 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 0.6)
 Last block file written:    (none)
 ```
 
@@ -134,8 +153,9 @@ Last block file written:    (none)
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v0.5` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 0.6.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step05_truncate_at_word/AUDIT_POST.md` for carry-forwards.
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.6.
-6. Commit. Stop.
+2. Decode state: `VERSION` is `v0.6` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 0.7.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step06_delete_dead_artifacts/AUDIT_POST.md` for carry-forwards.
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.7.
+6. Step 0.7 is the LAST step of Block 0 — run block-close ceremony (Framework §7).
+7. Commit. Stop.

@@ -426,3 +426,17 @@ describe('truncateAtWord', () => {
     assert.equal(truncateAtWord(text, 120), text);
   });
 });
+
+describe('extractFacts confidence removal', () => {
+  it('returned fact objects do NOT have a confidence property', () => {
+    const messages = [
+      { role: 'user', content: "don't use the old authentication endpoint for any API calls going forward" },
+      { role: 'assistant', content: "I found that the database config is in /etc/openclaw/db.conf and needs updating" },
+    ];
+    const facts = extractFacts(messages);
+    assert.ok(facts.length > 0, 'Should extract at least one fact');
+    for (const f of facts) {
+      assert.equal('confidence' in f, false, `Fact should not have confidence property, but found confidence=${f.confidence}`);
+    }
+  });
+});

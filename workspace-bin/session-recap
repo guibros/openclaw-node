@@ -277,85 +277,6 @@ function buildDigest(file) {
   return { digest: formatDigest(messages, file.name), file, msgCount: messages.length };
 }
 
-// --- Session Fingerprint (P4): extract structured tool usage from JSONL ---
-const FINGERPRINT_FILE = path.join(WORKSPACE, ".tmp/session-fingerprint.json");
-
-function extractFingerprint(jsonlText) {
-  const lines = jsonlText.split("\n").filter(Boolean);
-  const filesRead = new Set();
-  const filesEdited = new Set();
-  const commands = [];
-  const skills = new Set();
-  let turnCount = 0;
-  let firstTs = null;
-  let lastTs = null;
-
-  for (const line of lines) {
-    let obj;
-    try { obj = JSON.parse(line); } catch { continue; }
-
-    // Track timestamps for duration
-    if (obj.timestamp) {
-      if (!firstTs) firstTs = obj.timestamp;
-      lastTs = obj.timestamp;
-    }
-
-    // Count conversation turns
-    if (obj.message?.role === "user") turnCount++;
-
-    // Extract tool usage from assistant content blocks
-    const content = obj.message?.content;
-    if (!Array.isArray(content)) continue;
-
-    for (const block of content) {
-      if (block.type !== "tool_use") continue;
-
-      const name = block.name;
-      const input = block.input || {};
-
-      if (name === "Read" && input.file_path) {
-        filesRead.add(input.file_path);
-      } else if ((name === "Edit" || name === "Write") && input.file_path) {
-        filesEdited.add(input.file_path);
-      } else if (name === "Bash" && input.command) {
-        const cmd = input.command.split(/\s+/).slice(0, 3).join(" ");
-        if (commands.length < 20) commands.push(cmd);
-      } else if (name === "Skill" && input.skill) {
-        skills.add(input.skill);
-      }
-    }
-  }
-
-  // Duration in minutes
-  let durationMin = 0;
-  if (firstTs && lastTs) {
-    durationMin = Math.round((new Date(lastTs) - new Date(firstTs)) / 60000);
-  }
-
-  return {
-    generatedAt: new Date().toISOString(),
-    turns: turnCount,
-    durationMin,
-    filesRead: [...filesRead].slice(0, 30),
-    filesEdited: [...filesEdited].slice(0, 20),
-    commands: commands.slice(0, 20),
-    skills: [...skills],
-  };
-}
-
-function writeFingerprint(file) {
-  try {
-    const raw = tailFile(file.path, MAX_TAIL_BYTES);
-    const fp = extractFingerprint(raw);
-    fp.sessionFile = path.basename(file.name);
-    fs.writeFileSync(FINGERPRINT_FILE, JSON.stringify(fp, null, 2));
-    console.log(`Fingerprint: ${fp.turns} turns, ${fp.filesEdited.length} files edited, ${fp.durationMin}min`);
-  } catch (e) {
-    // Non-blocking — fingerprint is best-effort
-    console.error(`Fingerprint failed: ${e.message}`);
-  }
-}
-
 // --- Main ---
 function main() {
   const args = process.argv.slice(2);
@@ -443,11 +364,6 @@ function main() {
   fs.writeFileSync(OUTPUT_FILE, header + kept.join(""), "utf-8");
   console.log(`Written: ${kept.length} digests to ${OUTPUT_FILE}`);
 
-  // Write session fingerprint sidecar (P4)
-  const currentSession = findJsonlByOffset(0);
-  if (currentSession) {
-    writeFingerprint(currentSession);
-  }
 }
 
 main();

@@ -16,13 +16,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE="${OPENCLAW_WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
 
 STATE_DIR="$WORKSPACE/.tmp"
-ACTIVITY_FILE="$STATE_DIR/frontend-activity"
 SESSION_FILE="$STATE_DIR/active-sessions/claude-code"
 
 mkdir -p "$STATE_DIR/active-sessions"
-
-# 1. Signal activity to the memory daemon
-touch "$ACTIVITY_FILE"
 
 # 1b. Check for MC-Kanban notifications (written by Mission Control API)
 NOTIFY_FILE="$STATE_DIR/mc-kanban-notify.txt"
