@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 0 in progress. Step 0.6 closed; Step 0.7 is next.
-**Current version carrier.** `v0.6` (Step 0.6 closed).
-**Streaks.** zero-Phase-4-correction: 6 of 6 · zero-Phase-8-patch: 6 of 6.
-**Last commit on plan branch.** v0.6 — Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field).
+**Workplan status.** Block 0 closed. Block 1 awaits.
+**Current version carrier.** `v0.7` (Step 0.7 closed, Block 0 complete).
+**Streaks.** zero-Phase-4-correction: 7 of 7 · zero-Phase-8-patch: 7 of 7.
+**Last commit on plan branch.** v0.7 — Document state files (docs/STATE_FILES.md).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -14,7 +14,7 @@ conversational context. The Framework that governs how steps are executed is at
 
 ## §0 — Block-level frozen decisions
 
-These constraints apply to every step in the **current block** (Block 0) and are not
+These constraints apply to every step in the **current block** (Block 1) and are not
 re-litigated per step. Each block transition will reset §0 with the block's own constraints.
 
 ### Working principles (apply to all blocks)
@@ -25,19 +25,28 @@ re-litigated per step. Each block transition will reset §0 with the block's own
 - **Tests are a hard gate.** A red `npm test` at Phase 5 is a block trigger, not a "fix forward" cue.
 - **Workspace files are out of repo.** `/Users/moltymac/.openclaw/workspace/` is the live runtime tree (MEMORY.md, .companion-state.md, memory/*). When a step touches a workspace file, the **change is documented in the audit doc** but the workspace file itself is not committed (it's not git-tracked). Plan ledgers committed to the repo describe what landed in the workspace.
 
-### Block 0 frozen decisions
+### Block 1 frozen decisions
 
-- **Scope.** Block 0 fixes already-known bugs in the current memory harness. No new abstractions, no new dependencies. If a step's audit-pre risk register surfaces a refactor temptation, the refactor is deferred to a later block.
-- **Files in scope.** Block 0 touches only: `lib/memory-budget.mjs`, `lib/pre-compression-flush.mjs`, `workspace-bin/memory-daemon.mjs`, `workspace-bin/auto-checkpoint`, `workspace-bin/session-recap`, `.claude/hooks/pre-compact.sh`, `.claude/hooks/session-start.sh`, `workspace-bin/daily-log-writer.mjs`, `mission-control/src/app/api/tasks/route.ts`, `test/memory-budget.test.mjs`, `test/regression-bugs.test.js` (new tests as needed), `docs/STATE_FILES.md` (new), `scripts/migrate-companion-state.mjs` (new).
-- **No new top-level dependencies.** Anything that touches `package.json` requires a separate block.
-- **Workspace-file changes** for Block 0 are limited to renaming the daemon's own `.companion-state.md` → `.daemon-state-${NODE_ID}.md` (Step 0.2). The migration script is the only thing that touches workspace state at runtime.
-- **`NODE_ID` source.** Derive from `process.env.OPENCLAW_NODE_ID` with fallback to `os.hostname()`. Document the fallback in the audit-pre.
+> **IMPORTANT:** Block 1 frozen decisions have NOT yet been authored by the operator.
+> The first tick of Block 1 MUST find these decisions populated here before proceeding.
+> If this section still contains this placeholder, the tick must write `BLOCKED.md` and stop.
 
-### Carry-forward into Block 1 (Schema & event foundations)
+Pending operator decisions for Block 1:
+- Scope and file list for Block 1 steps (packages/event-schemas, lib/local-event-log.mjs, lib/artifacts.mjs, JetStream config).
+- Whether `pnpm` or `npm` workspaces are used for the schema package.
+- Zod version constraint.
+- Which memory events to wire first in Step 1.2.
+
+### Carry-forward from Block 0
 
 - **Phase 2 scope must be revisited before Block 2 starts.** A prior repo analysis showed that `lib/mcp-knowledge/core.mjs` already implements sqlite-vec + embeddings via `@huggingface/transformers` (Xenova/all-MiniLM-L6-v2, 384-dim) and is the registered "knowledge" MCP server in `.mcp.json`. Step 2.1's first deliverable is a written re-scoping decision: extend mcp-knowledge to embed session JSONL turns, or add a parallel embedding stack in session-store. Block 2 cannot start without this decision recorded in `RESUME.md §0` for Block 2.
 - **Zod is not yet a top-level dependency.** Block 1 adds it via the new `packages/event-schemas` workspace package, not as a root dependency.
 - **NATS JetStream is already mesh-wired** ([lib/mesh-tasks.js](../lib/mesh-tasks.js), [lib/mesh-plans.js](../lib/mesh-plans.js), [lib/mesh-collab.js](../lib/mesh-collab.js)). Block 1 adds a NEW stream `local-events-${NODE_ID}` at R=1; existing buckets are untouched.
+- **`docs/ARCHITECTURE.md`** has stale references to `frontend-activity` and `session-fingerprint.json`. Should be updated when convenient.
+- **COMPANION variable name** in `daily-log-writer.mjs:34` is cosmetic. Not functionally broken.
+- **Test fixture `confidence`** in `test/memory-budget.test.mjs` (lines 284, 315, 388, 389) — harmless extra property.
+- **`pre-compact.sh`** is a no-op stub awaiting Block 4 rewiring.
+- **`docs/STATE_FILES.md`** should be updated as Block 1 adds new state files.
 
 ---
 
@@ -131,19 +140,31 @@ patches. Carry-forwards to Step 0.7: test baseline now 482 (409 pass, 73 fail pr
 `docs/STATE_FILES.md` work opens the door); `pre-compact.sh` is a no-op stub; test
 fixture data still passes `confidence` in some `mergeFacts` calls (harmless, cosmetic).
 
+### Step 0.7 — Document state files (docs/STATE_FILES.md)
+
+Closed at v0.7. Created `docs/STATE_FILES.md` — comprehensive reference inventory of
+every runtime state file the memory infrastructure writes. Organized by location:
+workspace runtime files (`~/.openclaw/workspace/`), daemon internal state (`.tmp/`),
+SQLite databases (`~/.openclaw/`), and configuration files (`~/.openclaw/config/`).
+Each entry documents owner process, format, lifetime, and consumers. Includes a
+"Files removed in Block 0" section tracking the four artifacts deleted in Step 0.6.
+Documentation-only step: zero functional code changes, zero new tests. 6 positive
+audit findings, zero Phase 4 corrections, zero Phase 8 patches. **Block 0 complete
+(7/7).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               6 / 45
-Current block:              0 (Stop the bleeding)
-Steps closed in block:      6 / 7
-Consecutive zero-Phase-4-correction streak:  6
-Consecutive zero-Phase-8-patch streak:       6
+Steps closed:               7 / 45
+Current block:              0 closed; 1 awaits (Schema & event foundations)
+Steps closed in block:      7 / 7 (Block 0 complete)
+Consecutive zero-Phase-4-correction streak:  7
+Consecutive zero-Phase-8-patch streak:       7
 Test baseline (npm test):   482 tests (409 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 0.6)
-Last block file written:    (none)
+Last successful tick:       2026-05-21 (Step 0.7)
+Last block file written:    memory-plan/audits/BLOCK_0_COMPLETE.md
 ```
 
 ---
@@ -153,9 +174,9 @@ Last block file written:    (none)
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v0.6` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 0.7.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step06_delete_dead_artifacts/AUDIT_POST.md` for carry-forwards.
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.7.
-6. Step 0.7 is the LAST step of Block 0 — run block-close ceremony (Framework §7).
+2. Decode state: `VERSION` is `v0.7` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 1.1.
+4. **BLOCK TRANSITION**: Block 0 is closed. Block 1 §0 frozen decisions must be populated by the operator before the first Block 1 tick can proceed. If §0 still contains the placeholder, write `BLOCKED.md` and stop.
+5. Read `AUDIT_POST §6` from `memory-plan/audits/step07_document_state_files/AUDIT_POST.md` and `memory-plan/audits/BLOCK_0_COMPLETE.md` for carry-forwards.
+6. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 1.1.
 7. Commit. Stop.

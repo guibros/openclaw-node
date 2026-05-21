@@ -36,7 +36,9 @@ Fix active bugs in the existing harness before adding complexity. See REFERENCE_
 | 0 | 0.6 | v0.6 | [x] | Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field) |
 
 > **Step 0.6 closed.** Removed four dead artifacts: `.pre-compact-state.md` write from `pre-compact.sh`, `session-fingerprint.json` write infrastructure from `session-recap` (~80 lines: `extractFingerprint`, `writeFingerprint`, `FINGERPRINT_FILE` constant, and caller block), `frontend-activity` touch from `auto-checkpoint`, and the unused `confidence` field from `extractFacts` pattern objects and return shape. 1 new regression test. 6 positive audit findings, zero corrections, zero Phase 8 patches.
-| 0 | 0.7 | v0.7 | [ ] | Document state files (docs/STATE_FILES.md) |
+| 0 | 0.7 | v0.7 | [x] | Document state files (docs/STATE_FILES.md) |
+
+> **Step 0.7 closed.** Created `docs/STATE_FILES.md` — comprehensive reference inventory of every runtime state file the memory infrastructure writes, organized by location (workspace, .tmp/, SQLite, config). Covers owner, format, lifetime, consumers for each file. Includes "Files removed in Block 0" section documenting the four artifacts deleted in Step 0.6. Documentation-only step, zero functional changes, zero new tests. 6 positive audit findings, zero corrections, zero Phase 8 patches. **Block 0 complete (7/7).**
 
 ## Block 1 — Schema & event foundations
 

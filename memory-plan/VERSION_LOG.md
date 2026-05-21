@@ -9,6 +9,28 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v0.7 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 0.7: Document state files (docs/STATE_FILES.md).
+- Files committed: `docs/STATE_FILES.md` (new), audit docs, ledger files.
+- Test count: 482 (409 pass, 73 fail — pre-existing). No new tests (documentation-only step).
+- V2 audit: 6 POSITIVE findings, 0 Phase 8 patches.
+- Streak: 7-of-7 zero-Phase-4-correction.
+- **Block 0 complete (7/7).**
+
+### v0.7-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 0.7.
+- Files changed: `docs/STATE_FILES.md` (new — comprehensive state file inventory).
+- Test additions: none (documentation-only step).
+
+### v0.7-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 0.7.
+- Files planned: `docs/STATE_FILES.md` (new).
+- Audit: `memory-plan/audits/step07_document_state_files/AUDIT_PRE.md`.
+- Test baseline: 482 tests (409 pass, 73 fail — pre-existing).
+
 ### v0.6 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 0.6: Delete dead artifacts (.pre-compact-state.md write, .tmp/session-fingerprint.json, .tmp/frontend-activity, confidence field).
