@@ -59,9 +59,63 @@ if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
 fi
 trap 'rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
 
+# Auto-pause helper. When run under launchd with WORKPLAN_AUTOPAUSE=1, fast-exit
+# paths tell launchd to unload this job (stop polling) instead of looping every
+# ThrottleInterval seconds. Operator resumes via the viewer's Resume button or
+# by running `launchctl bootstrap gui/$UID <plist>` manually.
+#
+# The bootout call is fire-and-forget in a backgrounded subshell — launchd
+# would otherwise SIGTERM us mid-call. Detaching lets the wrapper exit cleanly
+# first; launchd then sees the exit and processes the bootout (idempotent).
+maybe_autopause() {
+  local reason="$1"
+  [ "${WORKPLAN_AUTOPAUSE:-0}" = "1" ] || return 0
+  [ -n "${WORKPLAN_PLIST_LABEL:-}" ] || return 0
+  log "auto-pause: ${reason} — unloading ${WORKPLAN_PLIST_LABEL}"
+  ( sleep 1; launchctl bootout "gui/$(id -u)/${WORKPLAN_PLIST_LABEL}" >/dev/null 2>&1 ) &
+  disown 2>/dev/null || true
+}
+
+# Write a BLOCKED.md describing a dirty-tree situation so the operator has
+# context when they investigate. Idempotent — won't overwrite an existing one.
+write_dirty_tree_block_file() {
+  [ -f "${BLOCK_FILE}" ] && return 0
+  local stamp
+  stamp=$(date '+%Y-%m-%d %H:%M:%S %z')
+  {
+    printf '# CONTINUATION_BLOCKED — %s\n\n' "${stamp}"
+    printf '**Step**: (pre-tick guard)\n'
+    printf '**Phase you were in**: (pre-flight)\n'
+    printf '**Trigger**: working tree dirty on clean VERSION=%s\n\n' "${VERSION:-?}"
+    printf '## What failed\n\n'
+    printf 'The tick wrapper found uncommitted/untracked files in the working tree, but\n'
+    printf 'VERSION=`%s` is clean (no `-pre` / `-mid` suffix). This means the changes are\n' "${VERSION:-?}"
+    printf 'unexpected — either an in-progress edit the operator made by hand, leftover\n'
+    printf 'artifacts from a previous run, or a bug.\n\n'
+    printf '```\n'
+    printf '%s\n' "${DIRTY}"
+    printf '```\n\n'
+    printf "## What's needed from the user\n\n"
+    printf -- '- Inspect each file: keep, stash, commit, or `git restore` it.\n'
+    printf -- '- Delete this `BLOCKED.md`.\n'
+    printf -- '- The scheduler was auto-unloaded; re-enable it from the viewer\n'
+    printf '  (Automation tab → ▶ Load scheduler) or by clicking ▶ Resume on the Block tab.\n\n'
+    printf '## How to resume\n\n'
+    printf '1. Address the dirty files above.\n'
+    printf '2. Delete this file (or click Resume in the viewer).\n'
+    printf '3. The next tick will proceed.\n\n'
+    printf '## State at block\n\n'
+    printf -- '- Source: auto-pause from `memory-plan-tick.sh` pre-flight\n'
+    printf -- '- Time: %s\n' "${stamp}"
+    printf -- '- VERSION: `%s`\n' "${VERSION:-?}"
+  } > "${BLOCK_FILE}"
+  log "      wrote ${BLOCK_FILE} with dirty-tree details"
+}
+
 # If BLOCKED.md is present, exit silently. The operator must delete it.
 if [ -f "${BLOCK_FILE}" ]; then
   log "skip: ${BLOCK_FILE} present — operator must clear before next tick"
+  maybe_autopause "BLOCKED.md present"
   exit 0
 fi
 
@@ -79,7 +133,8 @@ if [ -n "${DIRTY}" ]; then
       log "skip: working tree dirty and VERSION=${VERSION} (clean) — unexpected dirt; not invoking claude"
       log "      git status --short:"
       printf '%s\n' "${DIRTY}" | sed 's/^/        /'
-      log "      operator: either commit/stash the changes, or write ${BLOCK_FILE} to pause the plan"
+      write_dirty_tree_block_file
+      maybe_autopause "dirty working tree on clean VERSION"
       exit 0
       ;;
   esac
@@ -88,6 +143,7 @@ fi
 # Inventory must have at least one [A] or [ ] row, else write block-close ceremony hint.
 if ! grep -E '^\| [0-9]+ \| [0-9]+\.[0-9]+ \| v[0-9]+\.[0-9]+ \| \[(A| )\]' "${INVENTORY_FILE}" >/dev/null 2>&1; then
   log "skip: no [A]/[ ] rows in inventory — plan is fully closed"
+  maybe_autopause "plan complete (all steps closed)"
   exit 0
 fi
 

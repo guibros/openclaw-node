@@ -260,7 +260,15 @@ function plistEscape(s) {
 }
 
 function generatePlistXml(cfg) {
-  const envEntries = Object.entries(cfg.env || {})
+  // Inject auto-pause env vars so the wrapper can unload this job on fast-exit
+  // paths (BLOCKED.md, dirty tree on clean VERSION, plan complete). Otherwise
+  // chain mode polls the wall forever and interval mode wastes a slot per tick.
+  const env = {
+    ...(cfg.env || {}),
+    WORKPLAN_AUTOPAUSE: '1',
+    WORKPLAN_PLIST_LABEL: cfg.plist_label,
+  };
+  const envEntries = Object.entries(env)
     .map(([k, v]) => `    <key>${plistEscape(k)}</key>\n    <string>${plistEscape(v)}</string>`)
     .join('\n');
 
@@ -1071,9 +1079,15 @@ async function renderBlock() {
       '<div id="block-toast"></div>' +
       '<div class="doc-render">' + esc(data.content || '(empty)') + '</div>';
     $('btn-resume').addEventListener('click', async () => {
-      if (!confirm('Resume the plan? This deletes BLOCKED.md so the next tick runs.')) return;
+      if (!confirm('Resume the plan?\\n\\nDeletes BLOCKED.md so the next tick runs. If the scheduler was auto-unloaded by a previous fast-exit, it will also be reloaded.')) return;
       const res = await doUnblock();
-      showToast('block-toast', res.error ? 'Error: ' + res.error : 'Resumed — block file deleted.', !!res.error);
+      if (res.error) showToast('block-toast', 'Error: ' + res.error, true);
+      else {
+        let msg = 'Resumed — block file deleted.';
+        if (res.scheduler_reloaded) msg += ' Scheduler reloaded.';
+        else if (res.scheduler_error) msg += ' (Scheduler reload failed: ' + res.scheduler_error + ')';
+        showToast('block-toast', msg, false);
+      }
     });
     $('btn-edit-block').addEventListener('click', () => renderBlockEditor(data.content || ''));
   } else {
@@ -1589,13 +1603,30 @@ const server = http.createServer(async (req, res) => {
 
     if (sub === '/unblock' && req.method === 'POST') {
       const file = path.join(plan.dir, 'BLOCKED.md');
-      if (!fs.existsSync(file)) return json(res, { ok: true, blocked: false, note: 'already clear' });
-      try {
-        fs.unlinkSync(file);
-        return json(res, { ok: true, blocked: false });
-      } catch (e) {
-        return json(res, { error: e.message }, 500);
+      let removed = false;
+      if (fs.existsSync(file)) {
+        try { fs.unlinkSync(file); removed = true; }
+        catch (e) { return json(res, { error: e.message }, 500); }
       }
+      // If the scheduler had auto-paused itself (plist exists but launchd no
+      // longer has the job), bring it back up so the chain/interval resumes.
+      const cfg = readAutomationConfig(plan);
+      const plistExists = fs.existsSync(cfg.plist_path);
+      const status = await launchdStatus(cfg.plist_label);
+      let scheduler_reloaded = false;
+      let scheduler_error = null;
+      if (plistExists && !status.loaded) {
+        const r = await launchctlBoot(process.getuid(), cfg.plist_path);
+        if (r.ok) scheduler_reloaded = true;
+        else scheduler_error = r.error;
+      }
+      return json(res, {
+        ok: true,
+        blocked: false,
+        note: removed ? 'BLOCKED.md removed' : 'already clear',
+        scheduler_reloaded,
+        scheduler_error,
+      });
     }
 
     // ── Automation ──
