@@ -111,11 +111,25 @@ function inventoryRows(plan) {
   return rows;
 }
 
+// Names that are .log files but are NOT per-tick claude transcripts.
+// They must NEVER be returned as the "live" log to stream — they contain
+// supervisor-level noise (launchd's own stdout/stderr) or are convenience
+// symlinks/aliases that we list separately.
+const NON_TICK_LOG_PATTERNS = [
+  /^launchd\./i,        // launchd.stdout.log, launchd.stderr.log
+  /^current\.log$/,     // symlink alias — handled specially
+];
+
+function isPerTickLog(filename) {
+  return filename.endsWith('.log') &&
+         !NON_TICK_LOG_PATTERNS.some(re => re.test(filename));
+}
+
 function tickLogs(plan, limit = 100) {
   const dir = planTickLogDir(plan);
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
-    .filter(f => f.endsWith('.log'))
+    .filter(isPerTickLog)
     .sort()
     .reverse()
     .slice(0, limit)
@@ -127,8 +141,15 @@ function tickLogs(plan, limit = 100) {
 }
 
 function latestLog(plan) {
+  // Prefer the wrapper-maintained `current.log` symlink — it always points
+  // at the running tick's log and atomically updates when a new tick starts.
+  const dir = planTickLogDir(plan);
+  const current = path.join(dir, 'current.log');
+  if (fs.existsSync(current)) return current;
+  // Fallback: highest-mtime real tick log (NOT lexicographic — handles
+  // edge cases where filenames don't sort chronologically).
   const logs = tickLogs(plan, 1);
-  return logs.length ? path.join(planTickLogDir(plan), logs[0].name) : null;
+  return logs.length ? path.join(dir, logs[0].name) : null;
 }
 
 function planDocuments(plan) {
@@ -1988,6 +2009,10 @@ const server = http.createServer(async (req, res) => {
             position = stat.size;
             send('append', JSON.stringify(buf.toString('utf8')));
           } else if (stat.size < position) {
+            // Size shrank → almost always means current.log's symlink target
+            // swapped to a fresh tick log. Tell the client to clear its
+            // buffer, then re-emit the new file from the beginning.
+            send('switch', path.basename(currentPath));
             position = 0;
             emitFull();
           }
