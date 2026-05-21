@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 0 closed. Block 1 awaits.
-**Current version carrier.** `v0.7` (Step 0.7 closed, Block 0 complete).
-**Streaks.** zero-Phase-4-correction: 7 of 7 · zero-Phase-8-patch: 7 of 7.
-**Last commit on plan branch.** v0.7 — Document state files (docs/STATE_FILES.md).
+**Workplan status.** Block 1 in progress.
+**Current version carrier.** `v1.1` (Step 1.1 closed).
+**Streaks.** zero-Phase-4-correction: 1 of 1 (Block 1) · zero-Phase-8-patch: 0 of 1 (Block 1; reset due to .gitignore patch).
+**Last commit on plan branch.** v1.1 — Create packages/event-schemas (zod envelope + memory event payloads + discriminated union).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -176,18 +176,37 @@ Documentation-only step: zero functional code changes, zero new tests. 6 positiv
 audit findings, zero Phase 4 corrections, zero Phase 8 patches. **Block 0 complete
 (7/7).**
 
+### Step 1.1 — Create packages/event-schemas (zod envelope + memory event payloads + discriminated union)
+
+Closed at v1.1. Created the `packages/event-schemas` workspace package — the foundational
+schema layer for the event-sourced memory infrastructure. EventEnvelopeSchema defines the
+13-field canonical event envelope (event_id, event_type, event_version, entity_id,
+entity_type, timestamp, causation_id, correlation_id, actor, node_id, idempotency_key).
+Eight memory event payload schemas extend the envelope with literal `event_type`
+discriminators and typed `data` payloads: session-started, session-ended, turn-recorded,
+fact-extracted, concept-mentioned, snapshot-taken, compaction-triggered, artifact-attached.
+MemoryEventSchema provides a `z.discriminatedUnion` for runtime validation by event_type.
+`toJsonSchema()` generates JSON Schema for cross-language consumers. npm workspaces enabled
+at root (`"workspaces": ["packages/*"]`) with a `pretest` script that builds workspace
+packages before tests. 15 new tests. 6 positive audit findings, 1 Phase 8 patch
+(`.gitignore` for `packages/*/dist/`). Carry-forwards to Step 1.2: test baseline now 497;
+`npm install` was blocked during this tick — event-schemas build script uses
+mission-control's tsc (workaround), `toJsonSchema` has an `as any` cast for Zod 4/3
+type mismatch — both resolve when workspace deps are properly installed; event-schemas
+package exports are ready for import by `lib/local-event-log.mjs`.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               7 / 45
-Current block:              0 closed; 1 awaits (Schema & event foundations)
-Steps closed in block:      7 / 7 (Block 0 complete)
-Consecutive zero-Phase-4-correction streak:  7
-Consecutive zero-Phase-8-patch streak:       7
-Test baseline (npm test):   482 tests (409 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 0.7)
+Steps closed:               8 / 45
+Current block:              Block 1 in progress (Schema & event foundations)
+Steps closed in block:      1 / 4
+Consecutive zero-Phase-4-correction streak:  1 (Block 1)
+Consecutive zero-Phase-8-patch streak:       0 (Block 1; reset due to .gitignore patch)
+Test baseline (npm test):   497 tests (424 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 1.1)
 Last block file written:    memory-plan/audits/BLOCK_0_COMPLETE.md
 ```
 
@@ -198,9 +217,9 @@ Last block file written:    memory-plan/audits/BLOCK_0_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v0.7` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 1.1.
-4. **BLOCK TRANSITION**: Block 0 is closed. Block 1 §0 frozen decisions must be populated by the operator before the first Block 1 tick can proceed. If §0 still contains the placeholder, write `BLOCKED.md` and stop.
-5. Read `AUDIT_POST §6` from `memory-plan/audits/step07_document_state_files/AUDIT_POST.md` and `memory-plan/audits/BLOCK_0_COMPLETE.md` for carry-forwards.
-6. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 1.1.
+2. Decode state: `VERSION` is `v1.1` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 1.2.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step08_event_schemas/AUDIT_POST.md` for carry-forwards.
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 1.2.
+6. **Important for Step 1.2:** The event-schemas package build may require running `npm install` first to properly resolve workspace dependencies. If `npm install` is still blocked, the build workaround (mission-control tsc path) should continue to work. Step 1.2 creates `lib/local-event-log.mjs` which imports from the compiled event-schemas package.
 7. Commit. Stop.

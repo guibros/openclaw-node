@@ -9,6 +9,28 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v1.1 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 1.1: Create packages/event-schemas (zod envelope + memory event payloads + discriminated union).
+- Files committed: `package.json` (root, mod), `packages/event-schemas/` (15 new files: package.json, tsconfig.json, src/envelope.ts, src/memory/*.ts ×8, src/memory/index.ts, src/events.ts, src/index.ts), `test/event-schemas.test.mjs` (new), `.gitignore` (mod, Phase 8 patch), audit docs, ledger files.
+- Test count: 497 (424 pass, 73 fail — pre-existing). +15 tests added this step.
+- V2 audit: 6 POSITIVE findings, 1 NEGATIVE finding, 1 Phase 8 patch (`.gitignore` for `packages/*/dist/`).
+- Streak: 1-of-1 zero-Phase-4-correction (Block 1). Phase-8-patch streak reset to 0.
+
+### v1.1-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 1.1.
+- Files changed: `package.json` (root, added `workspaces` + `pretest` script), `packages/event-schemas/package.json` (new), `packages/event-schemas/tsconfig.json` (new), `packages/event-schemas/src/envelope.ts` (new — EventEnvelopeSchema), `packages/event-schemas/src/memory/session-started.ts` (new), `packages/event-schemas/src/memory/session-ended.ts` (new), `packages/event-schemas/src/memory/turn-recorded.ts` (new), `packages/event-schemas/src/memory/fact-extracted.ts` (new), `packages/event-schemas/src/memory/concept-mentioned.ts` (new), `packages/event-schemas/src/memory/snapshot-taken.ts` (new), `packages/event-schemas/src/memory/compaction-triggered.ts` (new), `packages/event-schemas/src/memory/artifact-attached.ts` (new), `packages/event-schemas/src/memory/index.ts` (new — barrel re-export), `packages/event-schemas/src/events.ts` (new — MemoryEventSchema discriminated union), `packages/event-schemas/src/index.ts` (new — package entry + toJsonSchema), `test/event-schemas.test.mjs` (new — 15 tests).
+- Test additions: 15 new tests (4 envelope, 8 event payloads, 2 discriminated union, 1 JSON Schema).
+- Build note: `tsc` build uses mission-control's TypeScript (5.9.3) via path reference since `npm install` was unavailable during this tick. The `as any` cast in `toJsonSchema()` works around a Zod 4 vs Zod 3 type mismatch in root node_modules; resolves when workspace deps are properly installed.
+
+### v1.1-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 1.1.
+- Files planned: `package.json` (root, mod), `packages/event-schemas/package.json` (new), `packages/event-schemas/tsconfig.json` (new), `packages/event-schemas/src/envelope.ts` (new), `packages/event-schemas/src/memory/session-started.ts` (new), `packages/event-schemas/src/memory/session-ended.ts` (new), `packages/event-schemas/src/memory/turn-recorded.ts` (new), `packages/event-schemas/src/memory/fact-extracted.ts` (new), `packages/event-schemas/src/memory/concept-mentioned.ts` (new), `packages/event-schemas/src/memory/snapshot-taken.ts` (new), `packages/event-schemas/src/memory/compaction-triggered.ts` (new), `packages/event-schemas/src/memory/artifact-attached.ts` (new), `packages/event-schemas/src/memory/index.ts` (new), `packages/event-schemas/src/events.ts` (new), `packages/event-schemas/src/index.ts` (new), `test/event-schemas.test.mjs` (new).
+- Audit: `memory-plan/audits/step08_event_schemas/AUDIT_PRE.md`.
+- Test baseline: 482 tests (409 pass, 73 fail — pre-existing).
+
 ### v0.7 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 0.7: Document state files (docs/STATE_FILES.md).

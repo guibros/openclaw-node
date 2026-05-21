@@ -47,7 +47,9 @@ See REFERENCE_PLAN.md §Phase 1.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 1 | 1.1 | v1.1 | [ ] | Create packages/event-schemas (zod envelope + memory event payloads + discriminated union) |
+| 1 | 1.1 | v1.1 | [x] | Create packages/event-schemas (zod envelope + memory event payloads + discriminated union) |
+
+> **Step 1.1 closed.** Created the `packages/event-schemas` workspace package with Zod-based schemas. EventEnvelopeSchema defines the canonical event envelope (13 fields). Eight memory event payload schemas (session-started, session-ended, turn-recorded, fact-extracted, concept-mentioned, snapshot-taken, compaction-triggered, artifact-attached) extend the envelope with literal `event_type` discriminators and typed `data` payloads. MemoryEventSchema provides a discriminated union for runtime validation. toJsonSchema() generates JSON Schema for cross-language consumers. npm workspaces enabled at root with pretest build hook. 15 new tests. 6 positive findings, 1 Phase 8 patch (.gitignore for dist/).
 | 1 | 1.2 | v1.2 | [ ] | Create local event log substrate (lib/local-event-log.mjs + JetStream R=1 stream + dual-write wiring) |
 | 1 | 1.3 | v1.3 | [ ] | Create content-addressed artifact store (lib/artifacts.mjs + ~/.openclaw/artifacts/) |
 | 1 | 1.4 | v1.4 | [ ] | Configure shared JetStream cluster preparation only (R=3 stream, idle until Phase 4) |

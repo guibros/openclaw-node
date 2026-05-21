@@ -1,0 +1,15 @@
+import { z } from 'zod';
+import { EventEnvelopeSchema } from '../envelope.js';
+
+export const FactExtractedSchema = EventEnvelopeSchema.extend({
+  event_type: z.literal('memory.fact_extracted'),
+  data: z.object({
+    session_id: z.string(),
+    fact: z.string(),
+    category: z.string(),
+    speaker: z.enum(['user', 'assistant']),
+    supersedes: z.string().optional(),
+  }),
+});
+
+export type FactExtractedEvent = z.infer<typeof FactExtractedSchema>;
