@@ -27,15 +27,39 @@ re-litigated per step. Each block transition will reset §0 with the block's own
 
 ### Block 1 frozen decisions
 
-> **IMPORTANT:** Block 1 frozen decisions have NOT yet been authored by the operator.
-> The first tick of Block 1 MUST find these decisions populated here before proceeding.
-> If this section still contains this placeholder, the tick must write `BLOCKED.md` and stop.
+Authored 2026-05-21 by operator (interactive viewer session).
 
-Pending operator decisions for Block 1:
-- Scope and file list for Block 1 steps (packages/event-schemas, lib/local-event-log.mjs, lib/artifacts.mjs, JetStream config).
-- Whether `pnpm` or `npm` workspaces are used for the schema package.
-- Zod version constraint.
-- Which memory events to wire first in Step 1.2.
+**Scope and file list — authoritative for Block 1:** exactly what REFERENCE_PLAN §"Phase 1 — Schema & event foundations" specifies. No deviations:
+
+- **Step 1.1** — `packages/event-schemas/`:
+  - `src/envelope.ts` (`EventEnvelopeSchema` per REFERENCE_PLAN §1.1).
+  - `src/memory/*.ts` — one file per payload schema: `session-started.ts`, `session-ended.ts`, `turn-recorded.ts`, `fact-extracted.ts`, `concept-mentioned.ts`, `snapshot-taken.ts`, `compaction-triggered.ts`, `artifact-attached.ts`.
+  - `src/events.ts` — `MemoryEventSchema` discriminated union.
+  - `package.json` declaring `zod` + `zod-to-json-schema` deps.
+  - TypeScript types via `z.infer<>` exported from each module.
+- **Step 1.2** — `lib/local-event-log.mjs`:
+  - JetStream local stream `local-events-${NODE_ID}` at **R=1**, file-backed under `~/.openclaw/local-events/`.
+  - `publishLocal(event)` API per REFERENCE_PLAN §1.2 (zod-validated, `msgID = idempotency_key`).
+  - Dual-write at three call sites (see Events wiring below).
+- **Step 1.3** — `lib/artifacts.mjs`:
+  - `putArtifact` / `getArtifact` / `hasArtifact` / `validateArtifact` per REFERENCE_PLAN §1.3.
+  - Directory layout `~/.openclaw/artifacts/sha256/<2>/<2>/<full-hash>` with `.meta.json` sidecars.
+  - Local-only for now (peer NATS RPC `artifacts.fetch.<hash>` is Block 4's wiring).
+- **Step 1.4** — shared JetStream cluster config:
+  - Configure R=3 across the three mesh nodes (moltymac, Ubuntu VM, macOS VM).
+  - Stream `OPENCLAW_SHARED` with subject filter per REFERENCE_PLAN §1.4.
+  - **Configure only — no memory data flows until Block 4.** This step preps infrastructure; the cluster sits idle.
+
+**Package manager — npm workspaces.** No new tools. Add `"workspaces": ["packages/*"]` to the root `package.json` in Step 1.1. The existing project uses `npm install` patterns; a one-package addition doesn't justify introducing pnpm.
+
+**Zod version — `^3.23.0`.** Latest 3.x stable line. `zod-to-json-schema` ecosystem support is mature on 3.x; Zod 4 ecosystem lag isn't worth the risk for a foundational schema package.
+
+**Events to wire in Step 1.2 — all three** per REFERENCE_PLAN §1.2:
+- `MemoryBudget.startSession` → publishes `memory.session_started`.
+- `MemoryBudget.endSession` → publishes `memory.session_ended`.
+- `MemoryBudget.addEntry` → publishes `memory.fact_extracted`.
+
+Dual-write — the existing `MEMORY.md` + session-store DB writes continue unchanged. The local event log accumulates ALONGSIDE these. This is shadow mode; validation runs for one full week of real activity (REFERENCE_PLAN §1 "Validation") before Block 2 may begin.
 
 ### Carry-forward from Block 0
 
