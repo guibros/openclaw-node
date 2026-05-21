@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 0 in progress. Step 0.2 closed; Step 0.3 is next.
-**Current version carrier.** `v0.2` (Step 0.2 closed).
-**Streaks.** zero-Phase-4-correction: 2 of 2 · zero-Phase-8-patch: 2 of 2.
-**Last commit on plan branch.** v0.2 — Resolve .companion-state.md collision (rename to .daemon-state-${NODE_ID}.md + migrate readers).
+**Workplan status.** Block 0 in progress. Step 0.3 closed; Step 0.4 is next.
+**Current version carrier.** `v0.3` (Step 0.3 closed).
+**Streaks.** zero-Phase-4-correction: 3 of 3 · zero-Phase-8-patch: 3 of 3.
+**Last commit on plan branch.** v0.3 — Fix mergeFacts parenthetical chain (supersedes-event-id comment model + one-time cleanup).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -67,18 +67,32 @@ findings, zero Phase 4 corrections, zero Phase 8 patches. Carry-forwards to Step
 `COMPANION` variable name retained in daily-log-writer (cosmetic, deferred); session-start.sh
 sandbox restriction requires operator pre-apply for Step 0.6; test baseline unchanged at 467.
 
+### Step 0.3 — Fix mergeFacts parenthetical chain (supersedes-event-id comment model + one-time cleanup)
+
+Closed at v0.3. Replaced the parenthetical merge format `(updated: ...)` in `mergeFacts`
+with a supersedes-comment model: merged entries now write the NEW fact verbatim plus an
+invisible `<!-- supersedes: <8-char-sha256> -->` HTML comment. Added
+`cleanParentheticalChains(content)` to strip legacy chains (keeps only the innermost/most
+recent segment). Added `stripSupersedes(text)` for clean similarity comparison. 5 new
+regression tests cover 10-merge accumulation, nested chain cleanup, supersedes presence,
+comment stripping, and no-chain passthrough. `crypto` import added (Node.js built-in, no
+new dependency). 6 positive audit findings, zero Phase 4 corrections, zero Phase 8 patches.
+Carry-forwards to Step 0.4: test baseline now 472 (399 pass, 73 fail pre-existing);
+`extractFacts` still filters `role === 'user'` only; `confidence` field still unused;
+`crypto` import shifts line numbers in `pre-compression-flush.mjs`.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               2 / 45
+Steps closed:               3 / 45
 Current block:              0 (Stop the bleeding)
-Steps closed in block:      2 / 7
-Consecutive zero-Phase-4-correction streak:  2
-Consecutive zero-Phase-8-patch streak:       2
-Test baseline (npm test):   467 tests (394 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-20 (Step 0.2)
+Steps closed in block:      3 / 7
+Consecutive zero-Phase-4-correction streak:  3
+Consecutive zero-Phase-8-patch streak:       3
+Test baseline (npm test):   472 tests (399 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 0.3)
 Last block file written:    (none)
 ```
 
@@ -89,8 +103,8 @@ Last block file written:    (none)
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v0.2` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 0.3.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step02_companion_state_collision/AUDIT_POST.md` for carry-forwards.
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.3.
+2. Decode state: `VERSION` is `v0.3` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 0.4.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step03_merge_facts_parenthetical/AUDIT_POST.md` for carry-forwards.
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 0.4.
 6. Commit. Stop.

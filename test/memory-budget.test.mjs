@@ -13,6 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { MemoryBudget, createBudget } from '../lib/memory-budget.mjs';
+import { mergeFacts, cleanParentheticalChains, stripSupersedes } from '../lib/pre-compression-flush.mjs';
 
 let tmpDir;
 
@@ -270,5 +271,66 @@ describe('createBudget', () => {
   it('creates budget with correct file path', () => {
     const mb = createBudget(tmpDir);
     assert.equal(mb.filePath, path.join(tmpDir, 'MEMORY.md'));
+  });
+});
+
+describe('mergeFacts parenthetical regression', () => {
+  it('10 sequential merges on similar facts stay clean (no parenthetical accumulation)', () => {
+    // Use long facts with minimal variation so bigram similarity stays above 0.7
+    let content = '# Memory\n\n## Recent\n- always prefer using the NATS JetStream cluster for all messaging needs, config round 1\n';
+
+    for (let i = 0; i < 10; i++) {
+      const result = mergeFacts(content, [
+        { fact: `always prefer using the NATS JetStream cluster for all messaging needs, config round ${i + 2}`, category: 'preference', confidence: 85 },
+      ], 5000);
+      content = result.content;
+      assert.equal(result.merged, 1, `Merge iteration ${i + 1} should merge`);
+    }
+
+    // The final content should NOT contain "(updated:" anywhere
+    assert.ok(!content.includes('(updated:'), 'No parenthetical chains should remain');
+
+    // Should contain the most recent version of the fact
+    assert.ok(content.includes('config round 11'),
+      'Should contain the most recent fact text');
+
+    // Should contain exactly one supersedes comment (on the single entry)
+    const supersedesCount = (content.match(/<!-- supersedes:/g) || []).length;
+    assert.equal(supersedesCount, 1, 'Should have exactly one supersedes comment (on the single entry)');
+  });
+
+  it('cleanParentheticalChains strips nested chains', () => {
+    const dirty = '# Memory\n- original fact (updated: newer fact (updated: newest fact))\n- clean entry\n';
+    const cleaned = cleanParentheticalChains(dirty);
+
+    assert.ok(!cleaned.includes('(updated:'), 'All parenthetical chains should be stripped');
+    assert.ok(cleaned.includes('- newest fact'), 'Should keep the innermost (most recent) segment');
+    assert.ok(cleaned.includes('- clean entry'), 'Non-chained entries should be untouched');
+  });
+
+  it('supersedes comment is present after merge', () => {
+    // Use longer facts so bigram similarity exceeds 0.7 threshold
+    const content = '# Memory\n\n## Recent\n- we decided to use the NATS JetStream cluster on port 4222 for messaging\n';
+    const result = mergeFacts(content, [
+      { fact: 'we decided to use the NATS JetStream cluster on port 8080 for messaging', category: 'environment', confidence: 75 },
+    ], 5000);
+
+    assert.equal(result.merged, 1);
+    assert.ok(result.content.includes('<!-- supersedes:'), 'Merged entry should have supersedes comment');
+    assert.ok(result.content.includes('port 8080'),
+      'Merged entry should contain the new fact verbatim');
+    assert.ok(!result.content.includes('(updated:'), 'Should not use parenthetical format');
+  });
+
+  it('stripSupersedes removes HTML comments for clean text', () => {
+    const withComment = 'some fact text <!-- supersedes: abcd1234 -->';
+    const cleaned = stripSupersedes(withComment);
+    assert.equal(cleaned, 'some fact text');
+  });
+
+  it('cleanParentheticalChains handles content with no chains', () => {
+    const clean = '# Memory\n- normal entry\n- another entry\n';
+    const result = cleanParentheticalChains(clean);
+    assert.equal(result, clean, 'Clean content should be unchanged');
   });
 });

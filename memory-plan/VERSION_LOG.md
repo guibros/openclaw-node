@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v0.3 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 0.3: Fix mergeFacts parenthetical chain (supersedes-event-id comment model + one-time cleanup).
+- Files committed: `lib/pre-compression-flush.mjs`, `test/memory-budget.test.mjs`, audit docs, ledger files.
+- Test count: 472 (399 pass, 73 fail — pre-existing). +5 tests added this step.
+- V2 audit: 6 POSITIVE findings, 0 Phase 8 patches.
+- Streak: 3-of-3 zero-Phase-4-correction.
+
+### v0.3-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 0.3.
+- Files changed: `lib/pre-compression-flush.mjs` (added `crypto` import, `stripSupersedes`, `cleanParentheticalChains`; rewrote `mergeFacts` merge path to supersedes-comment model), `test/memory-budget.test.mjs` (+5 tests in new `mergeFacts parenthetical regression` describe block).
+- Test additions: 5 new tests (10-merge regression, nested chain cleanup, supersedes presence, stripSupersedes, no-chain passthrough).
+
+### v0.3-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 0.3.
+- Files planned: `lib/pre-compression-flush.mjs`, `test/memory-budget.test.mjs`.
+- Audit: `memory-plan/audits/step03_merge_facts_parenthetical/AUDIT_PRE.md`.
+- Test baseline: 467 tests (394 pass, 73 fail — pre-existing).
+
 ### v0.2 — 2026-05-20 — memory-plan-tick
 
 - **Phase 9** close for Step 0.2: Resolve .companion-state.md collision (rename to .daemon-state-${NODE_ID}.md + migrate readers).
