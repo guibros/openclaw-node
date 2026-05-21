@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v2.2 — 2026-05-21 — memory-plan-tick
+
+- **Phase 9** close for Step 2.2: Choose embedding model + benchmark on real session data (latency target <100ms/turn).
+- Files committed: `test/embed-benchmark.test.mjs` (new — 5 benchmark tests), audit docs, ledger files.
+- Test count: 540 (467 pass, 73 fail — pre-existing). +5 tests added this step.
+- V2 audit: 6 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 1-of-2 zero-Phase-4-correction (Block 2).
+
+### v2.2-mid — 2026-05-21 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 2.2.
+- Files changed: `test/embed-benchmark.test.mjs` (new — 5 tests: model name identity, embedding dimension 384, L2 normalization, per-turn latency <100ms on 50 turns, batch of 100 turns <10s).
+- Test additions: 5 new tests (2 describe blocks: "embedding model identity" with 3 tests, "embedding latency benchmark" with 2 tests).
+
+### v2.2-pre — 2026-05-21 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 2.2.
+- Files planned: `test/embed-benchmark.test.mjs` (new).
+- Audit: `memory-plan/audits/step13_embed_model_benchmark/AUDIT_PRE.md`.
+- Test baseline: 535 tests (462 pass, 73 fail — pre-existing).
+
 ### v2.1 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 2.1: Scope review vs mcp-knowledge; install/verify sqlite-vec in chosen store; integration smoke test.

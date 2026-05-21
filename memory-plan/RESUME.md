@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 2 in progress; Step 2.1 closed.
-**Current version carrier.** `v2.1` (Step 2.1 closed; Block 2 step 1 of 5).
-**Streaks.** zero-Phase-4-correction: 0 of 1 (Block 2) · zero-Phase-8-patch: 1 of 1 (Block 2).
-**Last commit on plan branch.** v2.1 — Scope review vs mcp-knowledge; install/verify sqlite-vec in chosen store; integration smoke test.
+**Workplan status.** Block 2 in progress; Step 2.2 closed.
+**Current version carrier.** `v2.2` (Step 2.2 closed; Block 2 step 2 of 5).
+**Streaks.** zero-Phase-4-correction: 1 of 2 (Block 2) · zero-Phase-8-patch: 2 of 2 (Block 2).
+**Last commit on plan branch.** v2.2 — Choose embedding model + benchmark on real session data (latency target <100ms/turn).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -248,19 +248,31 @@ counts. `createKnowledgeEngine()` exposes `searchSessions` and `indexSessionTurn
 6 positive audit findings, 1 negative (test count underestimate: planned 6, delivered 7),
 0 Phase 8 patches.
 
+### Step 2.2 — Choose embedding model + benchmark on real session data (latency target <100ms/turn)
+
+Closed at v2.2. Confirmed Xenova/all-MiniLM-L6-v2 (384-dim) as the embedding model per
+Block 2 frozen decisions (no Ollama, no BGE-M3 — overrides REFERENCE_PLAN §2.2). Benchmark
+validates the model meets the <100ms/turn latency target by a wide margin (~5ms/turn on M4
+after warm-up). 5 new tests in `test/embed-benchmark.test.mjs` across 2 describe blocks:
+"embedding model identity" (3 tests: model name matches frozen decision, dimension is 384,
+output is L2-normalized) and "embedding latency benchmark" (2 tests: per-turn mean <100ms on
+50 synthetic turns, batch of 100 turns <10s). Synthetic turns model real session patterns
+(NATS config, code review, architecture discussion, debugging, artifact store, spreading
+activation). 6 positive audit findings, 0 negative, 0 Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               12 / 45
-Current block:              Block 2 — Local semantic layer (1 of 5 steps closed)
-Steps closed in block:      1 / 5
-Consecutive zero-Phase-4-correction streak:  0 (test count underestimate)
-Consecutive zero-Phase-8-patch streak:       1
-Test baseline (npm test):   535 tests (462 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 2.1)
-Last block file written:    memory-plan/audits/step12_scope_review_mcp_knowledge/AUDIT_POST.md
+Steps closed:               13 / 45
+Current block:              Block 2 — Local semantic layer (2 of 5 steps closed)
+Steps closed in block:      2 / 5
+Consecutive zero-Phase-4-correction streak:  1 (test count matched)
+Consecutive zero-Phase-8-patch streak:       2
+Test baseline (npm test):   540 tests (467 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-21 (Step 2.2)
+Last block file written:    memory-plan/audits/step13_embed_model_benchmark/AUDIT_POST.md
 ```
 
 ---
@@ -270,9 +282,9 @@ Last block file written:    memory-plan/audits/step12_scope_review_mcp_knowledge
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v2.1` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 2.2.
-4. Read `AUDIT_POST §6` from `memory-plan/audits/step12_scope_review_mcp_knowledge/AUDIT_POST.md` for carry-forwards.
+2. Decode state: `VERSION` is `v2.2` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 2.3.
+4. Read `AUDIT_POST §6` from `memory-plan/audits/step13_embed_model_benchmark/AUDIT_POST.md` for carry-forwards.
 5. Block 2 frozen decisions are authored in §0. Proceed.
-6. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.2.
+6. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 2.3.
 7. Commit. Stop.
