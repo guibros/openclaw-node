@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * LLM latency benchmark for Qwen3.5-27B-Instruct via mlx-lm server.
+ * LLM latency benchmark for the local extraction LLM (default: Qwen3-8B via Ollama).
  *
  * Generates a synthetic 40-turn session and measures structured-output extraction
  * latency. Target: total ≤30 seconds (per Block 3 frozen decisions).
@@ -9,8 +9,10 @@
  * Usage:
  *   node bin/llm-benchmark.mjs [--base-url URL] [--model NAME] [--turns N]
  *
- * Requires the mlx-lm server to be running:
- *   mlx_lm.server --model mlx-community/Qwen2.5-27B-Instruct-4bit
+ * Requires a local OpenAI-compatible LLM server running. Default is Ollama:
+ *   brew install ollama && ollama pull qwen3:8b-instruct-q4_K_M
+ *   ollama serve  # listens on http://localhost:11434
+ * Operators may also use mlx-lm, llama-server, or vLLM by passing --base-url.
  */
 
 import { parseArgs } from 'node:util';
@@ -149,8 +151,11 @@ async function main() {
   if (!health.ok) {
     console.error(`FAIL: server not reachable at ${baseUrl}`);
     console.error(`Error: ${health.error}`);
-    console.error('\nMake sure the mlx-lm server is running:');
-    console.error(`  mlx_lm.server --model ${model}`);
+    console.error('\nMake sure a local OpenAI-compatible LLM server is running.');
+    console.error('Ollama (default):');
+    console.error(`  ollama pull ${model}`);
+    console.error('  ollama serve');
+    console.error('Or override --base-url to point at mlx-lm / llama-server / vLLM.');
     process.exit(1);
   }
   console.log(`Server OK — model loaded: ${health.model}`);

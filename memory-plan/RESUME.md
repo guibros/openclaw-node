@@ -51,12 +51,26 @@ Authored 2026-05-21 by operator (interactive viewer session).
 
 Authored 2026-05-22 by operator. Gulf-1 outcome: skip-formal-scoring; structural result already decisive — FTS5 returned 2/125 hits (broken on natural-language queries due to AND-on-tokens), semantic returned 125/125 with on-target snippets. Proceed to Block 3 (LLM extraction).
 
-**Extraction LLM — Qwen3.5-27B-Instruct via `mlx-lm`** (Apple Silicon native; ~3-5 tokens/sec on M4 for structured-output JSON). Already in the operator's stack. No Ollama. No cloud APIs. No fallback to a smaller model unless mlx-lm setup proves blocking, in which case Ollama runtime is acceptable; the model choice (Qwen3.5-27B) is fixed.
+**Extraction LLM — ~~Qwen3.5-27B-Instruct via mlx-lm~~ → AMENDED 2026-05-22 → tiered Qwen3 family via Ollama.** mlx-lm is Mac-only; Qwen3.5-27B needs ~24 GB RAM unquantized (or ~14 GB at 4-bit). Both contradict the lightweight worldwide-deployment goal. New baseline:
+
+- **Runtime — Ollama** (cross-platform: macOS / Linux / Windows). Single binary, HTTP API on localhost:11434, OpenAI-compatible endpoints (`/v1/chat/completions`). Operators can swap in mlx-lm / llama-server / vLLM by overriding `LLM_BASE_URL`.
+- **Default model — `qwen3:8b-instruct-q4_K_M`** (~5 GB RAM). The floor where JSON-mode is reliable enough for production extraction.
+- **Pluggable model selector** via env var `LLM_MODEL`. Tier policy:
+  - ≥48 GB RAM → `qwen3:32b-instruct-q4_K_M` (~18 GB) — top quality, slow inference
+  - ≥32 GB RAM → `qwen3:14b-instruct-q4_K_M` (~9 GB) — sweet spot
+  - ≥16 GB RAM → `qwen3:8b-instruct-q4_K_M` (~5 GB) — floor (default)
+  - <16 GB → local LLM extraction unsupported; operator must wire a cloud-LLM adapter (out of scope for Block 3) or skip
+- **4B is excluded** by operator decision — JSON-mode reliability is too poor below 8B for this task.
+- **Install-time system check — `bin/check-llm-baseline.mjs`** probes `os.totalmem()`, reports platform/arch/cores, recommends the right tier, and with `--install` runs `ollama pull <recommended>` to fetch it. Lands as part of this §0 amendment chore commit alongside the llm-client default fixes.
+
+Step 3.1 (committed at `605ad5e` as Qwen2.5-27B-via-mlx-lm) is SUPERSEDED in spirit but its artifacts (`lib/llm-client.mjs`, `bin/llm-benchmark.mjs`, `test/llm-benchmark.test.mjs`) are retained — the HTTP client is OpenAI-compatible, so swapping defaults (port 8080→11434, model name) makes them work with Ollama. Tweaks land in this §0 amendment commit.
+
+Step 3.2 (committed at `0bb224c` as extraction schema + prompt) is model-agnostic; no changes needed.
 
 **Block 3 hard scope — Phase 3 only (Steps 3.1–3.4).** No bundling of Phase 4 (federation). Steps:
-- **Step 3.1** — Set up Qwen3.5-27B via `mlx-lm`; benchmark structured-output extraction latency on a 40-turn tail (target: total ≤30 sec, acceptable end-of-session work).
-- **Step 3.2** — Design extraction prompt + Zod schema (`ExtractionResult`) covering entities, themes, actions, decisions, friction_signals, relationships. Prompt template in `lib/extraction-prompt.mjs`; schema in `lib/extraction-schema.mjs`.
-- **Step 3.3** — Wire into the daemon. Replace `pre-compression-flush.mjs:extractFacts` (regex) with `extractStructured(tailMessages)` (LLM call). New SQLite tables: `entities`, `themes`, `mentions`, `decisions`. MEMORY.md generated from these tables, not raw regex fragments. **Feature flag `USE_LLM_EXTRACTION` defaults true; setting it false restores the regex extractor** for emergency rollback.
+- **Step 3.1** — ~~Set up Qwen3.5-27B via mlx-lm~~ (committed; superseded by amendment).
+- **Step 3.2** — Design extraction prompt + Zod schema (`ExtractionResult`) covering entities, themes, actions, decisions, friction_signals, relationships. Prompt template in `lib/extraction-prompt.mjs`; schema in `lib/extraction-schema.mjs`. (Committed; model-agnostic.)
+- **Step 3.3** — Wire into the daemon. Replace `pre-compression-flush.mjs:extractFacts` (regex) with `extractStructured(tailMessages)` (LLM call). New SQLite tables: `entities`, `themes`, `mentions`, `decisions`. MEMORY.md generated from these tables, not raw regex fragments. **Feature flag `USE_LLM_EXTRACTION` defaults true; setting it false restores the regex extractor** for emergency rollback. Uses Ollama by default per the amended runtime above.
 - **Step 3.4** — Manual validation: pick 10 recent sessions, run both extractors, manually compare MEMORY.md output quality (semantic coherence, fragment count, signal/noise).
 
 **Validation gate before Block 4:** Step 3.4 must produce a written assessment in `memory-plan/eval/block-3-validation.md` showing LLM extraction is visibly better than regex on real sessions. If it's not better, prompt iteration is required before Block 4 begins; if it's persistently worse, Block 3 work is reverted via the feature flag and the plan continues with regex extraction (Block 4 doesn't depend on LLM extraction).
