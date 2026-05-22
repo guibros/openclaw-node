@@ -62,11 +62,27 @@ export function parseQuerySet(jsonStr) {
  * @param {number} limit
  * @returns {Promise<{fts: Array, semantic: Array, hybrid: Array}>}
  */
+// FTS5 MATCH treats punctuation (?, !, ", ', etc.) as syntax — a natural-
+// language query like "How is NATS configured?" throws. Sanitize to a bag of
+// AND-joined tokens before passing to MATCH. Words ≤2 chars get stopworded.
+function ftsSafeQuery(q) {
+  const tokens = String(q)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length >= 3);
+  if (!tokens.length) return null;
+  return tokens.join(' AND ');
+}
+
 async function runQueryAllModes(db, query, limit) {
   let fts = [];
-  try {
-    fts = searchSessionsFts(db, query, limit);
-  } catch { /* empty db or FTS5 syntax issue */ }
+  const ftsQ = ftsSafeQuery(query);
+  if (ftsQ) {
+    try {
+      fts = searchSessionsFts(db, ftsQ, limit);
+    } catch (e) { /* FTS5 still rejected the sanitized form */ }
+  }
 
   let semantic = [];
   try {
