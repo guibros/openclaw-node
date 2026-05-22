@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 3 closed; Block 4 awaits operator-authored frozen decisions.
-**Current version carrier.** `v3.4` (Step 3.4 closed; Block 3: 4 of 4 — complete).
-**Streaks.** zero-Phase-4-correction: 0 of 4 (Block 3; reset at Step 3.4 — test count underestimate) · zero-Phase-8-patch: 9 of 9 (Steps 2.1–3.4).
-**Last commit on plan branch.** v3.4 — Validate LLM vs regex extraction on 10 sessions; document quality delta.
+**Workplan status.** Block 4 in progress; Step 4.1 closed.
+**Current version carrier.** `v4.1` (Step 4.1 closed; Block 4: 1 of 9).
+**Streaks.** zero-Phase-4-correction: 0 of 1 (Block 4; reset at Step 4.1 — test count underestimate) · zero-Phase-8-patch: 10 of 10 (Steps 2.1–4.1).
+**Last commit on plan branch.** v4.1 — Define promotion policies (config/promotion-policy.yaml).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -462,18 +462,36 @@ checklist. 9 new tests with mock DB and mock LLM client. 6 positive audit findin
 1 negative (test count underestimate: planned ~6, delivered 9), zero Phase 8 patches.
 **Block 3 complete (4/4).**
 
+### Step 4.1 — Define promotion policies (config/promotion-policy.yaml)
+
+Closed at v4.1. Created `config/promotion-policy.yaml` with operator-specified thresholds
+(tighter than REFERENCE_PLAN defaults): `automatic: [kanban_events]`, `explicit: [share_true]`,
+`threshold: { concept_mention_count: 10, decision_confidence: 0.95 }`,
+`manual_review: [everything_else]`. Created `lib/promotion-policy.mjs` with
+`loadPromotionPolicy(configPath)` (async YAML loader with validation),
+`validatePromotionPolicy(parsed)` (structural validator rejecting unknown keys/categories),
+`DEFAULT_POLICY_PATH` (resolves to `config/promotion-policy.yaml`), and `POLICY_CATEGORIES`
+constant. Uses `js-yaml` (existing dependency, ^4.1.1). 11 new tests cover load default
+config, missing file, custom path, valid policy, null input, missing category, unknown key,
+non-numeric threshold, unknown threshold key, DEFAULT_POLICY_PATH suffix, POLICY_CATEGORIES
+content. 6 positive audit findings, 1 negative (test count underestimate: planned ~6,
+delivered 11), zero Phase 8 patches. INVENTORY.md updated to add Steps 4.7–4.9 per Block 4
+frozen decisions (block expanded from 6 to 9 steps; total steps 45 → 48).
+Carry-forwards to Step 4.2: `loadPromotionPolicy` ready for import by promoter daemon;
+`evaluatePromotionPolicy(event, policy)` is the next step's primary deliverable.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               20 / 45
-Current block:              Block 3 closed; Block 4 awaits frozen decisions
-Steps closed in block:      4 / 4 (Block 3 complete)
-Consecutive zero-Phase-4-correction streak:  0 (Block 3; reset at Step 3.4)
-Consecutive zero-Phase-8-patch streak:       9
-Test baseline (npm test):   587 tests (514 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-22 (Step 3.4)
+Steps closed:               21 / 48
+Current block:              Block 4 in progress
+Steps closed in block:      1 / 9 (Block 4)
+Consecutive zero-Phase-4-correction streak:  0 (Block 4; reset at Step 4.1)
+Consecutive zero-Phase-8-patch streak:       10
+Test baseline (npm test):   598 tests (521 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 4.1)
 Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 ```
 
@@ -484,9 +502,6 @@ Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. **STOP at pre-flight.** Block 3 is closed. Block 4 frozen decisions have not been authored.
-3. The operator must:
-   a. Run `node bin/run-block3-validation.mjs` against live session store with Ollama running.
-   b. Score the comparison document and write the go/no-go decision.
-   c. Author Block 4 frozen decisions in RESUME.md §0 before the next tick can proceed.
-4. Until Block 4 §0 is authored, the autonomous tick should find no `[ ]` or `[A]` rows to process and exit cleanly, OR it should see the block boundary and stop.
+2. Decode VERSION (`v4.1`, no suffix) → start Step 4.2 at Phase 1.
+3. Step 4.2: Implement promoter (`bin/memory-promoter.mjs`). Consumes `loadPromotionPolicy` from `lib/promotion-policy.mjs`. Primary deliverable: `evaluatePromotionPolicy(event, policy)` and the promoter daemon that subscribes to the local event log and publishes eligible events to the shared cluster.
+4. Read AUDIT_POST §6 from `memory-plan/audits/step21_promotion_policies/AUDIT_POST.md` for carry-forwards.

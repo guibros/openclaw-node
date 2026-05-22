@@ -1,0 +1,27 @@
+# Promotion Policy — governs which local events are eligible for sharing
+# to the shared JetStream cluster (OPENCLAW_SHARED).
+#
+# Default privacy: DEFAULT-PRIVATE. Nothing auto-shares unless it matches
+# an explicit rule below or meets a strict threshold.
+#
+# Policy categories (evaluated in order):
+#   automatic  — always promoted, no human review
+#   explicit   — promoted when the entity has share:true frontmatter
+#   threshold  — promoted when numeric criteria are met
+#   manual_review — queued for human review, never auto-shared
+#
+# Thresholds are deliberately tighter than REFERENCE_PLAN defaults.
+# See RESUME.md §0 Block 4 frozen decisions for rationale.
+
+automatic:
+  - kanban_events          # cross-node task coordination is the primary federation use case
+
+explicit:
+  - share_true             # any concept/lesson/entity with frontmatter share: true
+
+threshold:
+  concept_mention_count: 10   # local concepts seen 10+ times become candidates (REFERENCE_PLAN default: 5)
+  decision_confidence: 0.95   # high-confidence decisions auto-promote (REFERENCE_PLAN default: 0.9)
+
+manual_review:
+  - everything_else        # queued for human review before sharing; never auto-shared

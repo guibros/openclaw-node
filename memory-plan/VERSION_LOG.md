@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v4.1 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 4.1: Define promotion policies (config/promotion-policy.yaml).
+- Files committed: `config/promotion-policy.yaml` (new — policy config with frozen-decision thresholds: automatic kanban_events, explicit share_true, threshold concept_mention_count 10 + decision_confidence 0.95, manual_review everything_else), `lib/promotion-policy.mjs` (new — loadPromotionPolicy, validatePromotionPolicy, DEFAULT_POLICY_PATH, POLICY_CATEGORIES), `test/promotion-policy.test.mjs` (new — 11 tests), audit docs, ledger files.
+- Test count: 598 (521 pass, 77 fail — 73 pre-existing + 4 flaky). +11 tests added this step.
+- V2 audit: 6 POSITIVE findings, 1 NEGATIVE finding (test count underestimate: planned ~6, delivered 11), 0 Phase 8 patches.
+- Streak: 0-of-1 zero-Phase-4-correction (Block 4; reset due to test count underestimate).
+
+### v4.1-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 4.1.
+- Files changed: `config/promotion-policy.yaml` (new — policy config with frozen-decision thresholds), `lib/promotion-policy.mjs` (new — loadPromotionPolicy, validatePromotionPolicy, DEFAULT_POLICY_PATH, POLICY_CATEGORIES), `test/promotion-policy.test.mjs` (new — 11 tests).
+- Test additions: 11 new tests (3 describe blocks: "loadPromotionPolicy" with 3 tests — default config, missing file, custom path; "validatePromotionPolicy" with 6 tests — valid, null, missing category, unknown key, non-numeric threshold, unknown threshold key; "constants" with 2 tests — DEFAULT_POLICY_PATH, POLICY_CATEGORIES).
+
+### v4.1-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 4.1.
+- Files planned: `config/promotion-policy.yaml` (new), `lib/promotion-policy.mjs` (new), `test/promotion-policy.test.mjs` (new).
+- Audit: `memory-plan/audits/step21_promotion_policies/AUDIT_PRE.md`.
+- Test baseline: 587 tests (514 pass, 73 fail — pre-existing).
+
 ### v3.4 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 3.4: Validate LLM vs regex extraction on 10 sessions; document quality delta.

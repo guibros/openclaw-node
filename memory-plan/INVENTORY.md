@@ -108,12 +108,17 @@ Promoter, subscriber, provenance, policy. See REFERENCE_PLAN.md §Phase 4.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 4 | 4.1 | v4.1 | [ ] | Define promotion policies (config/promotion-policy.yaml) |
+| 4 | 4.1 | v4.1 | [x] | Define promotion policies (config/promotion-policy.yaml) |
+
+> **Step 4.1 closed.** Created `config/promotion-policy.yaml` with operator-specified thresholds (tighter than REFERENCE_PLAN): automatic kanban_events, explicit share_true, threshold concept_mention_count 10 + decision_confidence 0.95, manual_review everything_else. Created `lib/promotion-policy.mjs` with `loadPromotionPolicy(configPath)` loader, `validatePromotionPolicy(parsed)` validator, `DEFAULT_POLICY_PATH` and `POLICY_CATEGORIES` constants. Uses `js-yaml` (existing dependency). 11 new tests. 6 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
 | 4 | 4.2 | v4.2 | [ ] | Implement promoter (bin/memory-promoter.mjs) |
 | 4 | 4.3 | v4.3 | [ ] | Implement subscriber (bin/memory-subscriber.mjs) |
 | 4 | 4.4 | v4.4 | [ ] | Add provenance fields (source_type, source_node, source_event_id) to local stores |
 | 4 | 4.5 | v4.5 | [ ] | Always-ingest kanban events into tasks_observed |
 | 4 | 4.6 | v4.6 | [ ] | Conflict surfacing in retrieval pipeline (describeConflict) |
+| 4 | 4.7 | v4.7 | [ ] | Agnostic extraction trigger (mesh.memory.extract_request + 45-min idle timer) |
+| 4 | 4.8 | v4.8 | [ ] | Daemon health monitor + supervisor (lib/health-check.mjs + bin/health-watch.mjs) |
+| 4 | 4.9 | v4.9 | [ ] | Frontend publisher pack (hooks/ + lib/publishers/ + docs/PUBLISHERS.md) |
 
 ## Block 5 — Thematic substrate
 
@@ -179,12 +184,12 @@ context.broadcast/offer/accepted. See REFERENCE_PLAN.md §Phase 9.
 | 1 | 4 | 11 |
 | 2 | 5 | 16 |
 | 3 | 4 | 20 |
-| 4 | 6 | 26 |
-| 5 | 5 | 31 |
-| 6 | 3 | 34 |
-| 7 | 4 | 38 |
-| 8 | 2 | 40 |
-| 9 | 5 | 45 |
+| 4 | 9 | 29 |
+| 5 | 5 | 34 |
+| 6 | 3 | 37 |
+| 7 | 4 | 41 |
+| 8 | 2 | 43 |
+| 9 | 5 | 48 |
 
-**45 atomic steps total** across 10 blocks. Per the framework, each block ends with a
+**48 atomic steps total** across 10 blocks (updated from 45 after Block 4 expanded from 6 to 9 steps per frozen decisions). Per the framework, each block ends with a
 `BLOCK_<N>_COMPLETE.md` sentinel doc + a top-level milestone marker.
