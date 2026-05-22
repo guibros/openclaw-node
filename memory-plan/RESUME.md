@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 3 in progress (LLM-driven extraction); Step 3.1 closed.
-**Current version carrier.** `v3.1` (Step 3.1 closed; Block 3: 1 of 4).
-**Streaks.** zero-Phase-4-correction: 1 of 1 (Block 3) · zero-Phase-8-patch: 6 of 6 (Steps 2.1–3.1).
-**Last commit on plan branch.** v3.1 — Set up Qwen3.5-27B locally + latency benchmark (~10-30s per 40-turn session).
+**Workplan status.** Block 3 in progress (LLM-driven extraction); Step 3.2 closed.
+**Current version carrier.** `v3.2` (Step 3.2 closed; Block 3: 2 of 4).
+**Streaks.** zero-Phase-4-correction: 0 of 2 (Block 3; reset at Step 3.2 — test count underestimate) · zero-Phase-8-patch: 7 of 7 (Steps 2.1–3.2).
+**Last commit on plan branch.** v3.2 — Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -352,18 +352,44 @@ fail pre-existing); `createLlmClient` ready for import by the extraction prompt 
 against local installation); operator should run `node bin/llm-benchmark.mjs` to verify live
 ≤30s target before Step 3.2.
 
+### Step 3.2 — Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships)
+
+Closed at v3.2. Created `lib/extraction-schema.mjs` — ExtractionResultSchema via Zod v4.3.6
+defining the structured-output shape for LLM-driven extraction. Six categories: entities
+(name, type enum of 6 values, salience 0-1), themes (label, hierarchy array), actions (enum
+of 6 activity types), decisions (decision, rationale, confidence 0-1), friction_signals
+(signal, severity enum), relationships (source, target, type enum of 5 values). Sub-schemas
+exported individually (`EntitySchema`, `ThemeSchema`, `DecisionSchema`, `FrictionSignalSchema`,
+`RelationshipSchema`) alongside enum arrays (`ENTITY_TYPES`, `ACTION_TYPES`, `SEVERITY_LEVELS`,
+`RELATIONSHIP_TYPES`). `validateExtractionResult(data)` convenience function wraps
+`ExtractionResultSchema.parse()`. Created `lib/extraction-prompt.mjs` — prompt template and
+extraction runner. `buildExtractionPrompt(messages)` formats session tail messages (user +
+assistant only, tool messages filtered) into a system+user message pair with detailed
+extraction instructions, schema description in JSON format, and rules for canonical naming,
+salience interpretation, and empty-array handling. `extractStructured(client, messages)` calls
+`client.generate()` with JSON mode, parses the response content as JSON, validates against
+the schema, and returns the typed result. Three failure modes cleanly separated: network/HTTP
+(from client), JSON parse (caught with raw content preview), schema validation (Zod errors).
+7 new tests with mock clients: 4 schema validation tests (valid full, empty arrays, missing
+field, invalid type), 1 prompt builder test (message construction), 2 extraction runner tests
+(mock validation, malformed JSON rejection). 6 positive audit findings, zero Phase 8 patches.
+Phase-4-correction streak reset to 0 (test count underestimate: planned 6, delivered 7).
+Carry-forwards to Step 3.3: test baseline now 570 (497 pass, 73 fail pre-existing);
+`extractStructured` ready for daemon wiring behind `USE_LLM_EXTRACTION` feature flag;
+schema covers all 6 categories needed for the entity/theme/decision/mention SQLite tables.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               17 / 45
-Current block:              Block 3 — LLM-driven extraction (1 of 4 steps closed)
-Steps closed in block:      1 / 4
-Consecutive zero-Phase-4-correction streak:  1 (Block 3)
-Consecutive zero-Phase-8-patch streak:       6
-Test baseline (npm test):   563 tests (490 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-22 (Step 3.1)
+Steps closed:               18 / 45
+Current block:              Block 3 — LLM-driven extraction (2 of 4 steps closed)
+Steps closed in block:      2 / 4
+Consecutive zero-Phase-4-correction streak:  0 (Block 3; reset at Step 3.2)
+Consecutive zero-Phase-8-patch streak:       7
+Test baseline (npm test):   570 tests (497 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-22 (Step 3.2)
 Last block file written:    memory-plan/audits/BLOCK_2_COMPLETE.md
 ```
 
@@ -374,9 +400,9 @@ Last block file written:    memory-plan/audits/BLOCK_2_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v3.1` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 3.2.
-4. Read AUDIT_POST §6 from `memory-plan/audits/step17_qwen_setup_benchmark/AUDIT_POST.md`.
+2. Decode state: `VERSION` is `v3.2` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 3.3.
+4. Read AUDIT_POST §6 from `memory-plan/audits/step18_extraction_prompt_schema/AUDIT_POST.md`.
 5. Read RESUME.md §0 Block 3 frozen decisions (already authored).
-6. Execute Step 3.2: Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships).
-7. **Operator note:** before Step 3.2, the operator should run `node bin/llm-benchmark.mjs` to verify the live mlx-lm server meets the ≤30s latency target. This is not a blocker for the autonomous tick (Step 3.2 designs the schema/prompt, doesn't require live inference), but confirms the setup from Step 3.1.
+6. Execute Step 3.3: Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite.
+7. **Operator note:** Step 3.3 is the largest step in Block 3 — it replaces `extractFacts` with `extractStructured`, creates 4 new SQLite tables, generates MEMORY.md from structured data, and adds the `USE_LLM_EXTRACTION` feature flag. The operator should verify the live mlx-lm server is running before this step (it will make real LLM calls during daemon flush).

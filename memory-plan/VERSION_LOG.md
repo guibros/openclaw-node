@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v3.2 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 3.2: Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships).
+- Files committed: `lib/extraction-schema.mjs` (new — ExtractionResultSchema with EntitySchema, ThemeSchema, DecisionSchema, FrictionSignalSchema, RelationshipSchema, validateExtractionResult), `lib/extraction-prompt.mjs` (new — buildExtractionPrompt, extractStructured with JSON mode + schema validation), `test/extraction-schema.test.mjs` (new — 7 tests), audit docs, ledger files.
+- Test count: 570 (497 pass, 73 fail — pre-existing). +7 tests added this step.
+- V2 audit: 6 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 0-of-2 zero-Phase-4-correction (Block 3; reset due to test count underestimate: planned 6, delivered 7).
+
+### v3.2-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 3.2.
+- Files changed: `lib/extraction-schema.mjs` (new — ExtractionResultSchema with EntitySchema, ThemeSchema, DecisionSchema, FrictionSignalSchema, RelationshipSchema sub-schemas, validateExtractionResult convenience function), `lib/extraction-prompt.mjs` (new — buildExtractionPrompt for system+user message construction, extractStructured for LLM call + JSON parse + schema validation), `test/extraction-schema.test.mjs` (new — 6 tests).
+- Test additions: 6 new tests (2 describe blocks: "ExtractionResultSchema" with 4 tests: valid result, empty arrays, missing field, invalid entity type; "buildExtractionPrompt" with 1 test: message construction; "extractStructured" with 2 tests in 1 describe: mock validation, malformed JSON rejection). Total: 6 `it()` blocks.
+
+### v3.2-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 3.2.
+- Files planned: `lib/extraction-schema.mjs` (new), `lib/extraction-prompt.mjs` (new), `test/extraction-schema.test.mjs` (new).
+- Audit: `memory-plan/audits/step18_extraction_prompt_schema/AUDIT_PRE.md`.
+- Test baseline: 563 tests (490 pass, 73 fail — pre-existing).
+
 ### v3.1 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 3.1: Set up Qwen3.5-27B locally + latency benchmark (~10-30s per 40-turn session).

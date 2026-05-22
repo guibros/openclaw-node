@@ -92,7 +92,9 @@ Replace regex extraction with structured-output LLM. See REFERENCE_PLAN.md §Pha
 | 3 | 3.1 | v3.1 | [x] | Set up Qwen3.5-27B locally + latency benchmark (~10-30s per 40-turn session) |
 
 > **Step 3.1 closed.** Created `lib/llm-client.mjs` — LLM client module for local Qwen3.5-27B-Instruct via mlx-lm server's OpenAI-compatible API. Exports `createLlmClient({ baseUrl, model, timeout })` returning `{ generate(messages, opts), healthCheck() }`. Supports JSON mode for structured output. Fully configurable via environment variables. Created `bin/llm-benchmark.mjs` — CLI benchmark tool with 40-turn synthetic session and latency measurement against ≤30s target. 4 new tests with mock HTTP server. 6 positive audit findings, zero corrections, zero Phase 8 patches.
-| 3 | 3.2 | v3.2 | [ ] | Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships) |
+| 3 | 3.2 | v3.2 | [x] | Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships) |
+
+> **Step 3.2 closed.** Created `lib/extraction-schema.mjs` — ExtractionResultSchema via Zod v4 covering 6 extraction categories: entities (name/type/salience), themes (label/hierarchy), actions (enum of 6 activity types), decisions (decision/rationale/confidence), friction_signals (signal/severity), relationships (source/target/type). Created `lib/extraction-prompt.mjs` — `buildExtractionPrompt(messages)` formats session tail into system+user prompt with schema description and extraction rules; `extractStructured(client, messages)` calls LLM with JSON mode, parses response, validates against schema. 7 new tests with mock clients. 6 positive audit findings, zero Phase 8 patches. Phase-4-correction streak reset (test count: planned 6, delivered 7).
 | 3 | 3.3 | v3.3 | [ ] | Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite |
 | 3 | 3.4 | v3.4 | [ ] | Validate LLM vs regex extraction on 10 sessions; document quality delta |
 
