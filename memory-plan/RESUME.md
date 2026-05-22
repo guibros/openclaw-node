@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 3 in progress (LLM-driven extraction); Step 3.2 closed.
-**Current version carrier.** `v3.2` (Step 3.2 closed; Block 3: 2 of 4).
-**Streaks.** zero-Phase-4-correction: 0 of 2 (Block 3; reset at Step 3.2 — test count underestimate) · zero-Phase-8-patch: 7 of 7 (Steps 2.1–3.2).
-**Last commit on plan branch.** v3.2 — Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships).
+**Workplan status.** Block 3 in progress (LLM-driven extraction); Step 3.3 closed.
+**Current version carrier.** `v3.3` (Step 3.3 closed; Block 3: 3 of 4).
+**Streaks.** zero-Phase-4-correction: 0 of 3 (Block 3; reset at Step 3.3 — test count underestimate) · zero-Phase-8-patch: 8 of 8 (Steps 2.1–3.3).
+**Last commit on plan branch.** v3.3 — Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at

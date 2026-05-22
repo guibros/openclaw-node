@@ -95,7 +95,9 @@ Replace regex extraction with structured-output LLM. See REFERENCE_PLAN.md §Pha
 | 3 | 3.2 | v3.2 | [x] | Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships) |
 
 > **Step 3.2 closed.** Created `lib/extraction-schema.mjs` — ExtractionResultSchema via Zod v4 covering 6 extraction categories: entities (name/type/salience), themes (label/hierarchy), actions (enum of 6 activity types), decisions (decision/rationale/confidence), friction_signals (signal/severity), relationships (source/target/type). Created `lib/extraction-prompt.mjs` — `buildExtractionPrompt(messages)` formats session tail into system+user prompt with schema description and extraction rules; `extractStructured(client, messages)` calls LLM with JSON mode, parses response, validates against schema. 7 new tests with mock clients. 6 positive audit findings, zero Phase 8 patches. Phase-4-correction streak reset (test count: planned 6, delivered 7).
-| 3 | 3.3 | v3.3 | [ ] | Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite |
+| 3 | 3.3 | v3.3 | [x] | Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite |
+
+> **Step 3.3 closed.** Created `lib/extraction-store.mjs` — `createExtractionStore` with 4 SQLite tables (entities, themes, mentions, decisions), `storeExtractionResult` for atomic upsert from LLM extraction results, `generateMemoryContent` for structured MEMORY.md generation from accumulated data. Modified `lib/pre-compression-flush.mjs` — added `USE_LLM_EXTRACTION` feature flag (defaults true, `'false'` restores regex), extended `runFlush` with LLM extraction path and graceful fallback to regex on failure. Modified `workspace-bin/memory-daemon.mjs` — lazy init of LLM client + extraction store, passed to both flush call sites. 8 new tests with mock LLM clients and temp databases. 6 positive audit findings, 1 negative (test count: planned 7, delivered 8), zero Phase 8 patches. Phase-4-correction streak reset.
 | 3 | 3.4 | v3.4 | [ ] | Validate LLM vs regex extraction on 10 sessions; document quality delta |
 
 ## Block 4 — Federation primitives

@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v3.3 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 3.3: Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite.
+- Files committed: `lib/extraction-store.mjs` (new — createExtractionStore with 4 SQLite tables, storeExtractionResult, generateMemoryContent, getExtractionStats), `lib/pre-compression-flush.mjs` (mod — USE_LLM_EXTRACTION feature flag, LLM extraction path in runFlush with graceful fallback), `workspace-bin/memory-daemon.mjs` (mod — lazy init getLlmClient/getExtractionStore, pass to both flush sites), `test/extraction-store.test.mjs` (new — 8 tests), audit docs, ledger files.
+- Test count: 578 (505 pass, 73 fail — pre-existing). +8 tests added this step.
+- V2 audit: 6 POSITIVE findings, 1 NEGATIVE finding (test count underestimate: planned 7, delivered 8), 0 Phase 8 patches.
+- Streak: 0-of-3 zero-Phase-4-correction (Block 3; reset due to test count underestimate).
+
+### v3.3-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 3.3.
+- Files changed: `lib/extraction-store.mjs` (new — createExtractionStore with 4 SQLite tables, storeExtractionResult, generateMemoryContent, getExtractionStats), `lib/pre-compression-flush.mjs` (mod — USE_LLM_EXTRACTION feature flag, LLM extraction path in runFlush with graceful fallback to regex), `workspace-bin/memory-daemon.mjs` (mod — import createLlmClient + createExtractionStore, lazy init getLlmClient/getExtractionStore, pass to both runFlush call sites), `test/extraction-store.test.mjs` (new — 7 tests).
+- Test additions: 7 new tests (2 describe blocks: "createExtractionStore" with 5 tests — table creation, population, upsert/mention_count, generateMemoryContent format, empty content, budget respect; "runFlush with LLM extraction" with 2 tests — LLM path with mock client, regex fallback on LLM failure).
+
+### v3.3-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 3.3.
+- Files planned: `lib/extraction-store.mjs` (new), `lib/pre-compression-flush.mjs` (mod), `workspace-bin/memory-daemon.mjs` (mod), `test/extraction-store.test.mjs` (new).
+- Audit: `memory-plan/audits/step19_daemon_llm_wiring/AUDIT_PRE.md`.
+- Test baseline: 570 tests (497 pass, 73 fail — pre-existing).
+
 ### v3.2 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 3.2: Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships).

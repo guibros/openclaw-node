@@ -38,12 +38,39 @@ const { createTracer } = require('../lib/tracer');
 const tracer = createTracer('memory-daemon');
 
 // --- Hermes-inspired modules ---
-import { shouldFlush, runFlush } from '../lib/pre-compression-flush.mjs';
+import { shouldFlush, runFlush, USE_LLM_EXTRACTION } from '../lib/pre-compression-flush.mjs';
 import { createBudget } from '../lib/memory-budget.mjs';
 import { createSessionTraceEmitter } from './session-trace-emitter.mjs';
 import { createLocalEventLog } from '../lib/local-event-log.mjs';
+import { createLlmClient } from '../lib/llm-client.mjs';
+import { createExtractionStore } from '../lib/extraction-store.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
+
+// LLM client + extraction store (initialized lazily when USE_LLM_EXTRACTION is true)
+let _llmClient = null;
+let _extractionStore = null;
+function getLlmClient() {
+  if (!USE_LLM_EXTRACTION) return null;
+  if (!_llmClient) {
+    _llmClient = createLlmClient();
+    log(`LLM client initialized (USE_LLM_EXTRACTION=true)`);
+  }
+  return _llmClient;
+}
+function getExtractionStore() {
+  if (!USE_LLM_EXTRACTION) return null;
+  if (!_extractionStore) {
+    try {
+      _extractionStore = createExtractionStore();
+      log(`Extraction store initialized`);
+    } catch (err) {
+      log(`extraction-store unavailable: ${err.message}`);
+      return null;
+    }
+  }
+  return _extractionStore;
+}
 
 // Session store loaded lazily (requires better-sqlite3)
 let _sessionStore = null;
@@ -834,8 +861,10 @@ async function handleTransitions(transitions, config) {
             const budget = initMemoryBudget(config);
             const result = await runFlush(currentJsonl, memoryMd, {
               charBudget: budget.charBudget,
+              llmClient: getLlmClient(),
+              extractionStore: getExtractionStore(),
             });
-            log(`  flush: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped`);
+            log(`  flush [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped`);
             if (memoryBudget && (result.added > 0 || result.merged > 0)) {
               memoryBudget.reload();
               log('  memory-budget: snapshot reloaded after flush');
@@ -872,9 +901,11 @@ async function handleTransitions(transitions, config) {
           const budget = initMemoryBudget(config);
           const result = await runFlush(currentJsonl, memoryMd, {
             charBudget: budget.charBudget,
+            llmClient: getLlmClient(),
+            extractionStore: getExtractionStore(),
           });
           if (result.added > 0 || result.merged > 0) {
-            log(`  end-of-session flush: ${result.added} added, ${result.merged} merged`);
+            log(`  end-of-session flush [${result.mode || 'regex'}]: ${result.added} added, ${result.merged} merged`);
             if (memoryBudget) {
               memoryBudget.reload();
               log('  memory-budget: snapshot reloaded after end-of-session flush');

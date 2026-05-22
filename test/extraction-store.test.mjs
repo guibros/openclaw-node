@@ -1,0 +1,176 @@
+/**
+ * Tests for lib/extraction-store.mjs and the LLM extraction path in pre-compression-flush.mjs.
+ */
+
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { createExtractionStore } from '../lib/extraction-store.mjs';
+import { runFlush, USE_LLM_EXTRACTION } from '../lib/pre-compression-flush.mjs';
+
+// Use a temporary database for each test
+let tmpDir;
+let store;
+
+beforeEach(() => {
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'extraction-store-test-'));
+  store = createExtractionStore({ dbPath: path.join(tmpDir, 'test.db') });
+});
+
+afterEach(() => {
+  if (store) store.close();
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+// Mock ExtractionResult matching the schema
+const mockExtractionResult = {
+  entities: [
+    { name: 'NATS JetStream', type: 'technology', salience: 0.9 },
+    { name: 'Gui', type: 'person', salience: 0.7 },
+  ],
+  themes: [
+    { label: 'Message queue configuration', hierarchy: ['infrastructure', 'messaging'] },
+  ],
+  actions: ['implementing', 'debugging'],
+  decisions: [
+    { decision: 'Use file storage for JetStream', rationale: 'Durability over speed', confidence: 0.85 },
+  ],
+  friction_signals: [
+    { signal: 'WAL mode conflicts with concurrent writers', severity: 'medium' },
+  ],
+  relationships: [
+    { source: 'NATS JetStream', target: 'Gui', type: 'depends_on' },
+  ],
+};
+
+describe('createExtractionStore', () => {
+  it('creates tables and returns a valid store object', () => {
+    assert.equal(typeof store.storeExtractionResult, 'function');
+    assert.equal(typeof store.generateMemoryContent, 'function');
+    assert.equal(typeof store.getExtractionStats, 'function');
+    assert.equal(typeof store.close, 'function');
+
+    const stats = store.getExtractionStats();
+    assert.equal(stats.entityCount, 0);
+    assert.equal(stats.themeCount, 0);
+    assert.equal(stats.mentionCount, 0);
+    assert.equal(stats.decisionCount, 0);
+  });
+
+  it('storeExtractionResult populates all tables', () => {
+    store.storeExtractionResult('session-001', mockExtractionResult);
+
+    const stats = store.getExtractionStats();
+    assert.equal(stats.entityCount, 2);
+    assert.equal(stats.themeCount, 1);
+    assert.equal(stats.mentionCount, 2);
+    assert.equal(stats.decisionCount, 1);
+  });
+
+  it('storeExtractionResult upserts entities and increments mention_count', () => {
+    store.storeExtractionResult('session-001', mockExtractionResult);
+    store.storeExtractionResult('session-002', mockExtractionResult);
+
+    const stats = store.getExtractionStats();
+    // Entities remain 2 (upsert, not duplicate)
+    assert.equal(stats.entityCount, 2);
+    // Mentions accumulate (2 per call × 2 calls = 4)
+    assert.equal(stats.mentionCount, 4);
+    // Decisions accumulate (1 per call × 2 calls = 2)
+    assert.equal(stats.decisionCount, 2);
+  });
+
+  it('generateMemoryContent produces formatted markdown', () => {
+    store.storeExtractionResult('session-001', mockExtractionResult);
+
+    const content = generateContentFromStore(store);
+    assert.ok(content.includes('# Memory'));
+    assert.ok(content.includes('## Active Entities'));
+    assert.ok(content.includes('NATS JetStream'));
+    assert.ok(content.includes('## Recent Decisions'));
+    assert.ok(content.includes('Use file storage for JetStream'));
+    assert.ok(content.includes('## Active Themes'));
+    assert.ok(content.includes('Message queue configuration'));
+  });
+
+  it('generateMemoryContent returns minimal content when empty', () => {
+    const content = store.generateMemoryContent(2200);
+    assert.ok(content.includes('# Memory'));
+    assert.ok(content.includes('No structured data extracted yet'));
+  });
+
+  it('generateMemoryContent respects character budget', () => {
+    // Store enough data to potentially exceed a tiny budget
+    store.storeExtractionResult('session-001', mockExtractionResult);
+    const content = store.generateMemoryContent(200);
+    assert.ok(content.length <= 200 + 50); // some tolerance for the trimming loop
+  });
+});
+
+describe('runFlush with LLM extraction', () => {
+  it('uses LLM path when llmClient and extractionStore are provided', async () => {
+    // Create a minimal JSONL file in claude-code format (type + message wrapper)
+    const jsonlPath = path.join(tmpDir, 'test-session.jsonl');
+    const memoryMdPath = path.join(tmpDir, 'MEMORY.md');
+    const messages = [
+      { type: 'user', message: { role: 'user', content: "Let's configure NATS JetStream with file storage" }, timestamp: '2026-05-22T10:00:00Z' },
+      { type: 'assistant', message: { role: 'assistant', content: "I'll set up JetStream with file-backed storage for durability" }, timestamp: '2026-05-22T10:00:05Z' },
+    ];
+    fs.writeFileSync(jsonlPath, messages.map(m => JSON.stringify(m)).join('\n'));
+
+    // Mock LLM client that returns a valid ExtractionResult
+    const mockClient = {
+      async generate() {
+        return { content: JSON.stringify(mockExtractionResult), usage: null, finishReason: 'stop' };
+      },
+    };
+
+    const result = await runFlush(jsonlPath, memoryMdPath, {
+      charBudget: 2200,
+      llmClient: mockClient,
+      extractionStore: store,
+    });
+
+    assert.equal(result.flushed, true);
+    assert.equal(result.mode, 'llm');
+    assert.ok(result.facts > 0);
+
+    // Verify MEMORY.md was written with structured content
+    const memoryContent = fs.readFileSync(memoryMdPath, 'utf-8');
+    assert.ok(memoryContent.includes('NATS JetStream'));
+  });
+
+  it('falls back to regex when LLM extraction fails', async () => {
+    const jsonlPath = path.join(tmpDir, 'test-session.jsonl');
+    const memoryMdPath = path.join(tmpDir, 'MEMORY.md');
+    const messages = [
+      { type: 'user', message: { role: 'user', content: "I prefer using NATS over RabbitMQ for messaging" }, timestamp: '2026-05-22T10:00:00Z' },
+    ];
+    fs.writeFileSync(jsonlPath, messages.map(m => JSON.stringify(m)).join('\n'));
+
+    // Mock LLM client that throws an error
+    const failingClient = {
+      async generate() {
+        throw new Error('LLM server unreachable');
+      },
+    };
+
+    const result = await runFlush(jsonlPath, memoryMdPath, {
+      charBudget: 2200,
+      llmClient: failingClient,
+      extractionStore: store,
+    });
+
+    assert.equal(result.flushed, true);
+    assert.equal(result.mode, 'regex');
+    // Regex should still extract the preference pattern
+    assert.ok(result.facts > 0);
+  });
+});
+
+// Helper to call generateMemoryContent (avoids repeating the budget default)
+function generateContentFromStore(s) {
+  return s.generateMemoryContent(2200);
+}
