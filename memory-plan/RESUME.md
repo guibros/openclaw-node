@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 4 in progress; Step 4.8 closed.
-**Current version carrier.** `v4.8` (Step 4.8 closed; Block 4: 8 of 9).
-**Streaks.** zero-Phase-4-correction: 0 of 8 (Block 4; reset at Step 4.8) · zero-Phase-8-patch: 0 of 8 (Block 4; reset at Step 4.8).
-**Last commit on plan branch.** v4.8 — Daemon health monitor + supervisor (lib/health-check.mjs + bin/health-watch.mjs).
+**Workplan status.** Block 4 closed; Block 5 awaits.
+**Current version carrier.** `v4.9` (Step 4.9 closed; Block 4: 9 of 9 — complete).
+**Streaks.** zero-Phase-4-correction: 0 of 9 (Block 4; reset at Step 4.9) · zero-Phase-8-patch: 1 of 9 (Block 4; Step 4.9 had 0 patches).
+**Last commit on plan branch.** v4.9 — Frontend publisher pack (hooks/ + lib/publishers/ + docs/PUBLISHERS.md).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -613,19 +613,40 @@ Carry-forwards to Step 4.9: test baseline 671 (594 pass, 77 fail); `runHealthChe
 `lib/health-check.mjs:190`; `createHealthWatch` at `bin/health-watch.mjs:107`;
 `bin/openclaw-restart.sh` needs `chmod +x`; Step 4.9 should add health-watch launchd plist.
 
+### Step 4.9 — Frontend publisher pack (hooks/ + lib/publishers/ + docs/PUBLISHERS.md)
+
+Closed at v4.9. Created `lib/publishers/publish-helper.mjs` — shared NATS publish utility
+with `publishExtractDirect(nc, nodeId, triggeredBy)` for direct publishing on an existing
+connection (line 30) and `createNatsPublisher(opts)` factory (line 48) with lazy NATS
+connection and fire-and-forget semantics. Four SDK wrappers: `openai-wrapper.mjs` wraps
+`chat.completions.create` (line 29), `anthropic-wrapper.mjs` wraps `messages.create`
+(line 25), `gemini-wrapper.mjs` wraps `generateContent` (line 26), `minimax-wrapper.mjs`
+wraps `chat.completions.create` (line 24, OpenAI-compatible). All wrappers accept a publisher
+object via dependency injection and call `publisher.publish(triggeredBy).catch(() => {})`
+post-response — failures never propagate to callers. Created `bin/openclaw-extract-now.mjs`
+(line 30, `runExtractNow`) — manual CLI tool used by Tier 1 hooks and as Tier 3 fallback.
+Tier 1 hooks: `hooks/claude-code/pre-compact.sh` (shell, delegates to CLI),
+`hooks/openwebui/openclaw-publisher-plugin.py` (Python subprocess, fire-and-forget),
+`hooks/librechat/openclaw-trigger.js` (Node.js, imports publish-helper),
+`hooks/continue/openclaw-config.json` (config template). Created `docs/PUBLISHERS.md` —
+comprehensive 3-tier documentation with code examples, env vars, closed-app limitations table,
+and troubleshooting. `.claude/hooks/pre-compact.sh` modification dropped (sandbox constraint,
+third consecutive step). 14 new tests. 9 positive, 2 negative findings, zero Phase 8 patches.
+**Block 4 complete (9/9).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               28 / 48
-Current block:              Block 4 in progress
-Steps closed in block:      8 / 9 (Block 4)
-Consecutive zero-Phase-4-correction streak:  0 (Block 4; reset at Step 4.8)
-Consecutive zero-Phase-8-patch streak:       0 (Block 4; reset at Step 4.8)
-Test baseline (npm test):   671 tests (594 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 4.8)
-Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
+Steps closed:               29 / 48
+Current block:              Block 4 closed; Block 5 awaits
+Steps closed in block:      9 / 9 (Block 4 — complete)
+Consecutive zero-Phase-4-correction streak:  0 (Block 4; reset at Step 4.9)
+Consecutive zero-Phase-8-patch streak:       1 (Block 4; Step 4.9 had 0 patches)
+Test baseline (npm test):   685 tests (608 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 4.9)
+Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 ```
 
 ---
@@ -635,6 +656,7 @@ Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v4.8`, no suffix) → start Step 4.9 at Phase 1.
-3. Step 4.9: Frontend publisher pack. Lands in new top-level `hooks/` + `lib/publishers/` directories. Tier 1 (direct hooks): `hooks/claude-code/pre-compact.sh`, `hooks/openwebui/openclaw-publisher-plugin.py`, `hooks/librechat/openclaw-trigger.js`, `hooks/continue/openclaw-config.json`. Tier 2 (SDK wrappers): `lib/publishers/openai-wrapper.mjs`, `lib/publishers/anthropic-wrapper.mjs`, `lib/publishers/gemini-wrapper.mjs`, `lib/publishers/minimax-wrapper.mjs`. Tier 3 (universal fallback): idle timer from Step 4.7 + manual `openclaw extract-now` command. `docs/PUBLISHERS.md` documentation. **This is the last step of Block 4.**
-4. Read AUDIT_POST §6 from `memory-plan/audits/step28_health_monitor/AUDIT_POST.md` for carry-forwards.
+2. Decode VERSION (`v4.9`, no suffix) → Block 4 is closed. Next step is Step 5.1.
+3. **Block 5 cannot start until:** (a) operator authors Block 5 frozen decisions in RESUME.md §0, (b) Block 4 validation gate passes (health-watch running 24 hours with zero spurious warnings).
+4. If Block 5 frozen decisions are not yet authored → pre-flight CHECK 4 finds no `[A]`/`[ ]` row (since Block 5 rows exist but Block 5 §0 may not be authored) → write block-close if appropriate, or STOP.
+5. Read AUDIT_POST §6 from `memory-plan/audits/step29_frontend_publisher_pack/AUDIT_POST.md` for carry-forwards into Block 5.

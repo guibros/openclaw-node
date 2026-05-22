@@ -1,0 +1,23 @@
+{
+  "$schema": "https://continue.dev/config-schema.json",
+  "_comment": "Continue IDE extension configuration for OpenClaw extraction triggering.",
+  "_usage": [
+    "Copy this file to your Continue config directory (~/.continue/config.json).",
+    "The 'on_model_response' hook triggers extraction after each LLM response.",
+    "Requires: openclaw-nodedev installed, NATS running on localhost:4222."
+  ],
+  "openclaw": {
+    "enabled": true,
+    "extraction_trigger": {
+      "command": "node",
+      "args": ["bin/openclaw-extract-now.mjs", "--triggered-by=continue-ide"],
+      "cwd": "{{OPENCLAW_REPO_PATH}}",
+      "on_events": ["model_response"],
+      "fire_and_forget": true
+    },
+    "env": {
+      "NATS_URL": "nats://localhost:4222",
+      "OPENCLAW_NODE_ID": "{{hostname}}"
+    }
+  }
+}

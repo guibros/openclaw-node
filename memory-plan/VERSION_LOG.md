@@ -9,6 +9,28 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v4.9 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** step close for Step 4.9: Frontend publisher pack (hooks/ + lib/publishers/ + docs/PUBLISHERS.md).
+- Final test count: 685 (608 pass, 77 fail — 73 pre-existing + 4 flaky). +14 tests added this step.
+- Audit: `memory-plan/audits/step29_frontend_publisher_pack/AUDIT_POST.md`.
+- 9 POSITIVE, 2 NEGATIVE findings. 0 Phase 8 patches. 1 delta dropped (`.claude/hooks/pre-compact.sh` — sandbox constraint).
+- **Block 4 complete (9/9).**
+
+### v4.9-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 4.9.
+- Files changed: `lib/publishers/publish-helper.mjs` (new — DEFAULT_NATS_URL, EXTRACT_SUBJECT constants, publishExtractDirect for existing nc, createNatsPublisher factory with lazy connect + fire-and-forget publish), `lib/publishers/openai-wrapper.mjs` (new — wrapOpenAI wraps chat.completions.create), `lib/publishers/anthropic-wrapper.mjs` (new — wrapAnthropic wraps messages.create), `lib/publishers/gemini-wrapper.mjs` (new — wrapGemini wraps generateContent), `lib/publishers/minimax-wrapper.mjs` (new — wrapMiniMax wraps chat.completions.create, OpenAI-compatible), `bin/openclaw-extract-now.mjs` (new — manual CLI, runExtractNow export), `hooks/claude-code/pre-compact.sh` (new — shell hook delegating to CLI), `hooks/openwebui/openclaw-publisher-plugin.py` (new — Python plugin via subprocess), `hooks/librechat/openclaw-trigger.js` (new — Node.js trigger importing publish-helper), `hooks/continue/openclaw-config.json` (new — Continue IDE config template), `docs/PUBLISHERS.md` (new — comprehensive 3-tier integration docs), `test/publishers.test.mjs` (new — tests).
+- Note: `.claude/hooks/pre-compact.sh` modification blocked by sandbox (delta #11 dropped — same constraint as Steps 4.7/4.8).
+- Test additions: see Phase 5.
+
+### v4.9-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 4.9.
+- Files planned: `lib/publishers/publish-helper.mjs` (new), `lib/publishers/openai-wrapper.mjs` (new), `lib/publishers/anthropic-wrapper.mjs` (new), `lib/publishers/gemini-wrapper.mjs` (new), `lib/publishers/minimax-wrapper.mjs` (new), `bin/openclaw-extract-now.mjs` (new), `hooks/claude-code/pre-compact.sh` (new), `hooks/openwebui/openclaw-publisher-plugin.py` (new), `hooks/librechat/openclaw-trigger.js` (new), `hooks/continue/openclaw-config.json` (new), `.claude/hooks/pre-compact.sh` (mod), `docs/PUBLISHERS.md` (new), `test/publishers.test.mjs` (new).
+- Audit: `memory-plan/audits/step29_frontend_publisher_pack/AUDIT_PRE.md`.
+- Test baseline: 671 tests (594 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v4.8 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** step close for Step 4.8: Daemon health monitor + supervisor (lib/health-check.mjs + bin/health-watch.mjs).
