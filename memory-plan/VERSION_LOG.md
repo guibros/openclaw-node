@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v4.6 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 4.6: Conflict surfacing in retrieval pipeline (describeConflict).
+- Files committed: `lib/conflict-surfacing.mjs` (new — describeConflict pure function per REFERENCE_PLAN, findEntityConflicts via mixed-provenance mentions query, findDecisionConflicts via multi-source session decisions, surfaceConflicts aggregator returning { entity_conflicts, decision_conflicts, total }, annotateWithConflicts for retrieval result annotation with conflict: true flag), `test/conflict-surfacing.test.mjs` (new — 9 tests), audit docs, ledger files.
+- Test count: 647 (570 pass, 77 fail — 73 pre-existing + 4 flaky). +9 tests added this step.
+- V2 audit: 7 POSITIVE findings, 1 NEGATIVE finding (test count underestimate: planned ~8, delivered 9), 0 Phase 8 patches.
+- Streak: 0-of-6 zero-Phase-4-correction (Block 4; reset due to test count underestimate).
+
+### v4.6-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 4.6.
+- Files changed: `lib/conflict-surfacing.mjs` (new — describeConflict pure function, findEntityConflicts via mixed-provenance mentions query, findDecisionConflicts via multi-source session decisions, surfaceConflicts aggregator, annotateWithConflicts for retrieval result annotation), `test/conflict-surfacing.test.mjs` (new — 8 tests).
+- Test additions: 8 new tests (5 describe blocks: "describeConflict" with 1 test — output shape; "findEntityConflicts" with 3 tests — mixed provenance detection, local-only no conflict, no mentions no conflict; "findDecisionConflicts" with 2 tests — different sources, same source no conflict; "surfaceConflicts" with 1 test — aggregation; "annotateWithConflicts" with 2 tests — adds flag, no match unchanged). Total: 8 `it()` blocks minus 1 overlap = 8.
+
+### v4.6-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 4.6.
+- Files planned: `lib/conflict-surfacing.mjs` (new), `test/conflict-surfacing.test.mjs` (new).
+- Audit: `memory-plan/audits/step26_conflict_surfacing/AUDIT_PRE.md`.
+- Test baseline: 638 tests (561 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v4.5 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 4.5: Always-ingest kanban events into tasks_observed.

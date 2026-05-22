@@ -557,18 +557,38 @@ Carry-forwards to Step 4.6: `createKanbanStore` exported from `lib/kanban-store.
 wiring subscriber to kanban store requires category-routing in `onIngest` callback;
 `tasks_observed` table is in same database as extraction store tables.
 
+### Step 4.6 — Conflict surfacing in retrieval pipeline (describeConflict)
+
+Closed at v4.6. Created `lib/conflict-surfacing.mjs` with 5 exports for conflict detection
+and surfacing in the retrieval pipeline. `describeConflict(localItem, sharedItem)` is a pure
+function per REFERENCE_PLAN returning `{ local_definition, shared_definition, last_local_mention,
+last_shared_mention }`. `findEntityConflicts(db)` queries entities that have mentions from both
+`source_type='local'` AND `source_type='shared'` via subquery-based detection on the mentions
+table — each conflict includes `entity_name`, `conflict_type: 'mixed_provenance'`, mention counts
+by source, `shared_source_node`, and a formatted `description` from `describeConflict`.
+`findDecisionConflicts(db)` queries sessions that have decisions from both local and shared sources
+using GROUP BY with HAVING — returns local and shared decision lists per session.
+`surfaceConflicts(db)` aggregates entity and decision conflicts into
+`{ entity_conflicts, decision_conflicts, total }`. `annotateWithConflicts(results, conflicts)`
+adds `conflict: true` flag and `conflict_detail` to retrieval results matching known conflicts
+by entity name (O(1) Map lookup, non-mutating). All functions take `db` parameter (dependency
+injection) — compatible with both extraction store and kanban store databases. 9 new tests.
+7 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
+Carry-forwards to Step 4.7: `surfaceConflicts(db)` and `annotateWithConflicts()` ready for
+pipeline integration; Step 4.7 (agnostic extraction trigger) is independent of conflict surfacing.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               25 / 48
+Steps closed:               26 / 48
 Current block:              Block 4 in progress
-Steps closed in block:      5 / 9 (Block 4)
-Consecutive zero-Phase-4-correction streak:  2 (Block 4)
-Consecutive zero-Phase-8-patch streak:       14
-Test baseline (npm test):   638 tests (561 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 4.5)
+Steps closed in block:      6 / 9 (Block 4)
+Consecutive zero-Phase-4-correction streak:  0 (Block 4; reset at Step 4.6)
+Consecutive zero-Phase-8-patch streak:       15
+Test baseline (npm test):   647 tests (570 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 4.6)
 Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 ```
 
@@ -579,6 +599,6 @@ Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v4.5`, no suffix) → start Step 4.6 at Phase 1.
-3. Step 4.6: Conflict surfacing in retrieval pipeline. When local and shared knowledge disagree on a concept, retrieval returns both with provenance and `conflict: true` flag. Implement `describeConflict(localConcept, sharedConcept)` and integrate into the retrieval pipeline.
-4. Read AUDIT_POST §6 from `memory-plan/audits/step25_kanban_events/AUDIT_POST.md` for carry-forwards.
+2. Decode VERSION (`v4.6`, no suffix) → start Step 4.7 at Phase 1.
+3. Step 4.7: Agnostic extraction trigger. New NATS subject `mesh.memory.extract_request`. Memory daemon subscribes; any publisher fires extraction. Replace Claude-Code-specific `.claude/hooks/pre-compact.sh` with a thin publisher. Daemon also runs a time-based fallback: if no extract event in 45 min on an active session, daemon publishes one to itself. Env: `EXTRACTION_IDLE_THRESHOLD_SEC=2700`.
+4. Read AUDIT_POST §6 from `memory-plan/audits/step26_conflict_surfacing/AUDIT_POST.md` for carry-forwards.
