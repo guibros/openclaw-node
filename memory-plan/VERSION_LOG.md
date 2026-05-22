@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v4.3 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 4.3: Implement subscriber (bin/memory-subscriber.mjs).
+- Files committed: `bin/memory-subscriber.mjs` (new — parseSharedSubject, evaluateIngestionPolicy pure function, createSubscriber factory with durable consumer on shared stream + ingestion loop + backoff reuse from promoter + provenance envelope + degraded mode, CLI main with graceful shutdown), `test/memory-subscriber.test.mjs` (new — 14 tests), audit docs, ledger files.
+- Test count: 622 (545 pass, 77 fail — 73 pre-existing + 4 flaky). +14 tests added this step.
+- V2 audit: 8 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 0-of-3 zero-Phase-4-correction (Block 4; reset due to test count underestimate: planned ~10, delivered 14).
+
+### v4.3-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 4.3.
+- Files changed: `bin/memory-subscriber.mjs` (new — parseSharedSubject, evaluateIngestionPolicy, createSubscriber factory with durable consumer on shared stream + ingestion loop + backoff + provenance envelope, CLI main with graceful shutdown), `test/memory-subscriber.test.mjs` (new — 14 tests).
+- Test additions: 14 new tests (3 describe blocks: "parseSharedSubject" with 6 tests — kanban, concept, lesson, artifact, unknown, non-string; "evaluateIngestionPolicy" with 7 tests — self-skip, kanban accept, concept accept, lesson accept, artifact accept, broadcast skip, null parsed skip; "createBackoff import reuse" with 1 test — import from promoter works).
+
+### v4.3-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 4.3.
+- Files planned: `bin/memory-subscriber.mjs` (new), `test/memory-subscriber.test.mjs` (new).
+- Audit: `memory-plan/audits/step23_subscriber_daemon/AUDIT_PRE.md`.
+- Test baseline: 608 tests (531 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v4.2 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 4.2: Implement promoter (bin/memory-promoter.mjs).

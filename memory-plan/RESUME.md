@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 4 in progress; Step 4.2 closed.
-**Current version carrier.** `v4.2` (Step 4.2 closed; Block 4: 2 of 9).
-**Streaks.** zero-Phase-4-correction: 1 of 2 (Block 4) · zero-Phase-8-patch: 11 of 11 (Steps 2.1–4.2).
-**Last commit on plan branch.** v4.2 — Implement promoter (bin/memory-promoter.mjs).
+**Workplan status.** Block 4 in progress; Step 4.3 closed.
+**Current version carrier.** `v4.3` (Step 4.3 closed; Block 4: 3 of 9).
+**Streaks.** zero-Phase-4-correction: 0 of 3 (Block 4) · zero-Phase-8-patch: 12 of 12 (Steps 2.1–4.3).
+**Last commit on plan branch.** v4.3 — Implement subscriber (bin/memory-subscriber.mjs).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -501,18 +501,38 @@ zero corrections, zero Phase 8 patches.
 Carry-forwards to Step 4.3: `evaluatePromotionPolicy` available for reuse by subscriber;
 `createBackoff` reusable by subscriber; `mapToSharedSubject` establishes subject conventions.
 
+### Step 4.3 — Implement subscriber (bin/memory-subscriber.mjs)
+
+Closed at v4.3. Created `bin/memory-subscriber.mjs` — the subscriber daemon that subscribes
+to the shared NATS JetStream cluster (OPENCLAW_SHARED), evaluates each incoming event via
+`evaluateIngestionPolicy(event, nodeId, parsed)` — pure function checking self-originated
+(skip), category-based acceptance (kanban → always ingest, concept/lesson/artifact → accept,
+broadcast/offer/accepted → defer to Block 9). `parseSharedSubject(subject)` maps all 7
+SHARED_SUBJECTS patterns to category labels. `createSubscriber(nc, nodeId, opts)` factory
+creates a durable consumer (`subscriber-${nodeId}`) on the shared stream, runs the ingestion
+loop with provenance envelope `{ source_type: 'shared', source_node, source_event_id }`,
+reuses `createBackoff` from promoter (zero duplication). Handles shared stream unavailability
+gracefully — returns a degraded no-op subscriber. CLI entry point with SIGINT/SIGTERM
+graceful shutdown. 14 new tests covering parseSharedSubject (6 cases), evaluateIngestionPolicy
+(7 cases), and createBackoff reuse (1 case). 8 positive audit findings, zero corrections,
+zero Phase 8 patches.
+Carry-forwards to Step 4.4: `parseSharedSubject` provides category routing for store writes;
+`onIngest` callback is the hook point for actual store projection; provenance envelope shape
+matches the column schema planned for Step 4.4; `createBackoff` lives in promoter — both
+daemons import it.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               22 / 48
+Steps closed:               23 / 48
 Current block:              Block 4 in progress
-Steps closed in block:      2 / 9 (Block 4)
-Consecutive zero-Phase-4-correction streak:  1 (Block 4)
-Consecutive zero-Phase-8-patch streak:       11
-Test baseline (npm test):   608 tests (531 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 4.2)
+Steps closed in block:      3 / 9 (Block 4)
+Consecutive zero-Phase-4-correction streak:  0 (Block 4)
+Consecutive zero-Phase-8-patch streak:       12
+Test baseline (npm test):   622 tests (545 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 4.3)
 Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 ```
 
@@ -523,6 +543,6 @@ Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v4.2`, no suffix) → start Step 4.3 at Phase 1.
-3. Step 4.3: Implement subscriber (`bin/memory-subscriber.mjs`). Subscribes to relevant subjects on the shared cluster, decides whether to project each shared event into local memory, tracks provenance. Includes same health-check + backoff pattern as the promoter.
-4. Read AUDIT_POST §6 from `memory-plan/audits/step22_promoter_daemon/AUDIT_POST.md` for carry-forwards.
+2. Decode VERSION (`v4.3`, no suffix) → start Step 4.4 at Phase 1.
+3. Step 4.4: Add provenance fields (source_type, source_node, source_event_id) to local stores. Every table that can receive shared content gets provenance columns. Local-only content keeps `source_type = 'local'`.
+4. Read AUDIT_POST §6 from `memory-plan/audits/step23_subscriber_daemon/AUDIT_POST.md` for carry-forwards.
