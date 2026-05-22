@@ -111,7 +111,9 @@ Promoter, subscriber, provenance, policy. See REFERENCE_PLAN.md §Phase 4.
 | 4 | 4.1 | v4.1 | [x] | Define promotion policies (config/promotion-policy.yaml) |
 
 > **Step 4.1 closed.** Created `config/promotion-policy.yaml` with operator-specified thresholds (tighter than REFERENCE_PLAN): automatic kanban_events, explicit share_true, threshold concept_mention_count 10 + decision_confidence 0.95, manual_review everything_else. Created `lib/promotion-policy.mjs` with `loadPromotionPolicy(configPath)` loader, `validatePromotionPolicy(parsed)` validator, `DEFAULT_POLICY_PATH` and `POLICY_CATEGORIES` constants. Uses `js-yaml` (existing dependency). 11 new tests. 6 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
-| 4 | 4.2 | v4.2 | [ ] | Implement promoter (bin/memory-promoter.mjs) |
+| 4 | 4.2 | v4.2 | [x] | Implement promoter (bin/memory-promoter.mjs) |
+
+> **Step 4.2 closed.** Created `bin/memory-promoter.mjs` — the promoter daemon that subscribes to the local event log, evaluates each event against the promotion policy, and publishes eligible events to the shared cluster with `promoted_from` provenance tracking. Exports `evaluatePromotionPolicy(event, policy)` for pure policy evaluation (automatic kanban → promote, explicit share_true → promote, threshold concept_mention_count/decision_confidence → promote, default → queue_for_review), `mapToSharedSubject(event)` for local-to-shared subject mapping, `createBackoff(opts)` for exponential backoff (1s→60s, multiplier 2), and `createPromoter(nc, nodeId, opts)` factory that wires JetStream consumer + evaluate→promote pipeline with cluster health resilience. 10 new tests. 7 positive audit findings, zero corrections, zero Phase 8 patches.
 | 4 | 4.3 | v4.3 | [ ] | Implement subscriber (bin/memory-subscriber.mjs) |
 | 4 | 4.4 | v4.4 | [ ] | Add provenance fields (source_type, source_node, source_event_id) to local stores |
 | 4 | 4.5 | v4.5 | [ ] | Always-ingest kanban events into tasks_observed |

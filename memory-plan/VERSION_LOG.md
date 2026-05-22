@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v4.2 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 4.2: Implement promoter (bin/memory-promoter.mjs).
+- Files committed: `bin/memory-promoter.mjs` (new — evaluatePromotionPolicy, mapToSharedSubject, createBackoff, createPromoter factory with backoff + provenance, CLI main with graceful shutdown), `test/memory-promoter.test.mjs` (new — 10 tests), audit docs, ledger files.
+- Test count: 608 (531 pass, 77 fail — 73 pre-existing + 4 flaky). +10 tests added this step.
+- V2 audit: 7 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 1-of-2 zero-Phase-4-correction (Block 4).
+
+### v4.2-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 4.2.
+- Files changed: `bin/memory-promoter.mjs` (new — evaluatePromotionPolicy, mapToSharedSubject, createBackoff, createPromoter factory, CLI main), `test/memory-promoter.test.mjs` (new — 10 tests).
+- Test additions: 10 new tests (3 describe blocks: "evaluatePromotionPolicy" with 6 tests — kanban auto-promote, share_true explicit, concept_mention threshold, decision_confidence threshold, below_threshold queue, unrelated queue; "mapToSharedSubject" with 3 tests — kanban, concept, fact; "createBackoff" with 1 test — exponential increase + cap + reset).
+
+### v4.2-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 4.2.
+- Files planned: `bin/memory-promoter.mjs` (new), `test/memory-promoter.test.mjs` (new).
+- Audit: `memory-plan/audits/step22_promoter_daemon/AUDIT_PRE.md`.
+- Test baseline: 598 tests (521 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v4.1 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 4.1: Define promotion policies (config/promotion-policy.yaml).

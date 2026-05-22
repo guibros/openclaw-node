@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 4 in progress; Step 4.1 closed.
-**Current version carrier.** `v4.1` (Step 4.1 closed; Block 4: 1 of 9).
-**Streaks.** zero-Phase-4-correction: 0 of 1 (Block 4; reset at Step 4.1 — test count underestimate) · zero-Phase-8-patch: 10 of 10 (Steps 2.1–4.1).
-**Last commit on plan branch.** v4.1 — Define promotion policies (config/promotion-policy.yaml).
+**Workplan status.** Block 4 in progress; Step 4.2 closed.
+**Current version carrier.** `v4.2` (Step 4.2 closed; Block 4: 2 of 9).
+**Streaks.** zero-Phase-4-correction: 1 of 2 (Block 4) · zero-Phase-8-patch: 11 of 11 (Steps 2.1–4.2).
+**Last commit on plan branch.** v4.2 — Implement promoter (bin/memory-promoter.mjs).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -480,18 +480,39 @@ frozen decisions (block expanded from 6 to 9 steps; total steps 45 → 48).
 Carry-forwards to Step 4.2: `loadPromotionPolicy` ready for import by promoter daemon;
 `evaluatePromotionPolicy(event, policy)` is the next step's primary deliverable.
 
+### Step 4.2 — Implement promoter (bin/memory-promoter.mjs)
+
+Closed at v4.2. Created `bin/memory-promoter.mjs` — the promoter daemon that subscribes to
+the local event log (NATS JetStream), evaluates each event against the promotion policy, and
+publishes eligible events to the shared cluster (`OPENCLAW_SHARED`) with `promoted_from`
+provenance tracking. Exports `evaluatePromotionPolicy(event, policy)` — pure function checking
+event against policy rules in priority order: automatic (kanban_events via entity_type/event_type),
+explicit (share:true in data), threshold (concept_mention_count >= 10, decision_confidence >= 0.95).
+Returns `{ decision, category, reason }`. Exports `mapToSharedSubject(event)` mapping local event
+types to shared stream subjects (kanban → `kanban.events.*`, concept → `concepts.shared.*`,
+fact → `lessons.shared.*`). Exports `createBackoff(opts)` — exponential backoff controller
+(base 1s, max 60s, multiplier 2) with `recordFailure()`, `reset()`, `getDelay()`. Exports
+`createPromoter(nc, nodeId, opts)` — factory wiring JetStream durable consumer on local stream,
+evaluate→promote pipeline, shared cluster publishing with provenance, and cluster health
+resilience (degraded mode at startup, retry with backoff on publish failures). CLI entry point
+with SIGINT/SIGTERM graceful shutdown. 10 new tests covering policy evaluation (6 cases),
+subject mapping (3 cases), and backoff controller (1 case). 7 positive audit findings,
+zero corrections, zero Phase 8 patches.
+Carry-forwards to Step 4.3: `evaluatePromotionPolicy` available for reuse by subscriber;
+`createBackoff` reusable by subscriber; `mapToSharedSubject` establishes subject conventions.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               21 / 48
+Steps closed:               22 / 48
 Current block:              Block 4 in progress
-Steps closed in block:      1 / 9 (Block 4)
-Consecutive zero-Phase-4-correction streak:  0 (Block 4; reset at Step 4.1)
-Consecutive zero-Phase-8-patch streak:       10
-Test baseline (npm test):   598 tests (521 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 4.1)
+Steps closed in block:      2 / 9 (Block 4)
+Consecutive zero-Phase-4-correction streak:  1 (Block 4)
+Consecutive zero-Phase-8-patch streak:       11
+Test baseline (npm test):   608 tests (531 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 4.2)
 Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 ```
 
@@ -502,6 +523,6 @@ Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v4.1`, no suffix) → start Step 4.2 at Phase 1.
-3. Step 4.2: Implement promoter (`bin/memory-promoter.mjs`). Consumes `loadPromotionPolicy` from `lib/promotion-policy.mjs`. Primary deliverable: `evaluatePromotionPolicy(event, policy)` and the promoter daemon that subscribes to the local event log and publishes eligible events to the shared cluster.
-4. Read AUDIT_POST §6 from `memory-plan/audits/step21_promotion_policies/AUDIT_POST.md` for carry-forwards.
+2. Decode VERSION (`v4.2`, no suffix) → start Step 4.3 at Phase 1.
+3. Step 4.3: Implement subscriber (`bin/memory-subscriber.mjs`). Subscribes to relevant subjects on the shared cluster, decides whether to project each shared event into local memory, tracks provenance. Includes same health-check + backoff pattern as the promoter.
+4. Read AUDIT_POST §6 from `memory-plan/audits/step22_promoter_daemon/AUDIT_POST.md` for carry-forwards.
