@@ -39,9 +39,31 @@ Authored 2026-05-21 by operator (interactive viewer session).
 
 **Block 2 hard scope — Phase 2 only (Steps 2.1–2.5).** Steps 2.1–2.4 implement extend-mcp-knowledge + hybrid search (FTS5 + semantic via reciprocal rank fusion). Step 2.5 is the manual evaluation against 20–30 real historical queries — the **major decision gate** for the entire memory plan. **Block 3 (LLM extraction) does NOT begin until Step 2.5's evaluation results are scored AND the operator authors Block 3 frozen decisions here.** If hybrid retrieval is no-better-or-worse than FTS5 on real data, the plan terminates at Block 2.
 
-**Embedding model — Xenova/all-MiniLM-L6-v2 (384-dim).** Already in the repo via mcp-knowledge. Standardize on it for session turns. If Step 2.5 shows poor retrieval quality, the choice to upgrade to BGE-M3 (1024-dim, multilingual) can be made in a follow-on step.
+**Embedding model — ~~Xenova/all-MiniLM-L6-v2 (384-dim)~~ → AMENDED 2026-05-22 → Xenova/bge-m3 (1024-dim, multilingual).** Upgrade rationale: nodes deploy worldwide and must handle non-English content; MiniLM is English-only and benchmarks ~10 points lower on retrieval (MTEB ~41 vs BGE-M3 ~58). Latency trade-off (~200-300ms/query vs ~10ms) is acceptable for interactive use. Switch performed as an operator chore commit at the Block 2 → Block 3 boundary (tree clean, Block 2 closed). Steps required:
+- `lib/mcp-knowledge/core.mjs`: `MODEL_NAME` and `EMBEDDING_DIM` constants updated.
+- `test/embed-benchmark.test.mjs`: frozen-decision assertions + latency threshold updated (500ms target vs 100ms).
+- `~/.openclaw/workspace/.knowledge.db` wiped; `~/.openclaw/.embed-migration-checkpoint.json` cleared; `bin/embed-existing-sessions.mjs` re-run in background (~1-3 hours for 225 sessions).
+- Live MCP knowledge daemon experiences ~1-3h window of empty semantic results while re-embed runs; markdown indexer will repopulate on its next scheduled scan.
 
 **Test baseline for Block 2:** the existing 73 pre-existing failures are still expected to fail; do not chase them. Step 2.1 begins from the v1.4 commit (`2511c75`) baseline.
+
+### Block 3 frozen decisions
+
+Authored 2026-05-22 by operator. Gulf-1 outcome: skip-formal-scoring; structural result already decisive — FTS5 returned 2/125 hits (broken on natural-language queries due to AND-on-tokens), semantic returned 125/125 with on-target snippets. Proceed to Block 3 (LLM extraction).
+
+**Extraction LLM — Qwen3.5-27B-Instruct via `mlx-lm`** (Apple Silicon native; ~3-5 tokens/sec on M4 for structured-output JSON). Already in the operator's stack. No Ollama. No cloud APIs. No fallback to a smaller model unless mlx-lm setup proves blocking, in which case Ollama runtime is acceptable; the model choice (Qwen3.5-27B) is fixed.
+
+**Block 3 hard scope — Phase 3 only (Steps 3.1–3.4).** No bundling of Phase 4 (federation). Steps:
+- **Step 3.1** — Set up Qwen3.5-27B via `mlx-lm`; benchmark structured-output extraction latency on a 40-turn tail (target: total ≤30 sec, acceptable end-of-session work).
+- **Step 3.2** — Design extraction prompt + Zod schema (`ExtractionResult`) covering entities, themes, actions, decisions, friction_signals, relationships. Prompt template in `lib/extraction-prompt.mjs`; schema in `lib/extraction-schema.mjs`.
+- **Step 3.3** — Wire into the daemon. Replace `pre-compression-flush.mjs:extractFacts` (regex) with `extractStructured(tailMessages)` (LLM call). New SQLite tables: `entities`, `themes`, `mentions`, `decisions`. MEMORY.md generated from these tables, not raw regex fragments. **Feature flag `USE_LLM_EXTRACTION` defaults true; setting it false restores the regex extractor** for emergency rollback.
+- **Step 3.4** — Manual validation: pick 10 recent sessions, run both extractors, manually compare MEMORY.md output quality (semantic coherence, fragment count, signal/noise).
+
+**Validation gate before Block 4:** Step 3.4 must produce a written assessment in `memory-plan/eval/block-3-validation.md` showing LLM extraction is visibly better than regex on real sessions. If it's not better, prompt iteration is required before Block 4 begins; if it's persistently worse, Block 3 work is reverted via the feature flag and the plan continues with regex extraction (Block 4 doesn't depend on LLM extraction).
+
+**Test baseline carrying into Block 3:** post-BGE-M3-upgrade, the embed-benchmark test will run on bge-m3 (1024-dim). Expected baseline: 559 tests with the same 73 pre-existing failures. After Step 3.1, +3-5 tests added for Qwen setup verification.
+
+**Carry-forward to Block 4:** federation primitives (promoter, subscriber, JetStream cluster activation) do NOT depend on LLM extraction; they only need the local event log substrate from Block 1 to be working. If Step 3.4 hits problems, Block 4 can start in parallel.
 
 ### Carry-forward from Block 0 + Block 1
 

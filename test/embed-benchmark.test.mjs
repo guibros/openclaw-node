@@ -2,8 +2,10 @@
  * test/embed-benchmark.test.mjs — Embedding model identity + latency benchmark
  *
  * Step 2.2 deliverable: validates the frozen embedding model choice
- * (Xenova/all-MiniLM-L6-v2, 384-dim) and proves it meets the <100ms/turn
- * latency target on representative session turn data.
+ * (Xenova/bge-m3, 1024-dim, multilingual — upgraded 2026-05-22 from
+ * MiniLM-L6-v2 per operator decision for worldwide node deployment).
+ * Validates dimension, L2 normalization, and proves latency meets the
+ * 500ms/turn target on representative session turn data.
  */
 
 import { describe, it, before } from 'node:test';
@@ -55,15 +57,15 @@ function generateTurns(count) {
 // ── Test Suite ───────────────────────────────────────────────────────────────
 
 describe('embedding model identity', () => {
-  it('model name matches Block 2 frozen decision (Xenova/all-MiniLM-L6-v2)', () => {
-    assert.strictEqual(MODEL_NAME, 'Xenova/all-MiniLM-L6-v2',
-      'MODEL_NAME must match frozen decision');
+  it('model name matches Block 2 frozen decision (Xenova/bge-m3)', () => {
+    assert.strictEqual(MODEL_NAME, 'Xenova/bge-m3',
+      'MODEL_NAME must match frozen decision (upgraded 2026-05-22 from MiniLM-L6-v2)');
   });
 
-  it('embedding dimension is 384', async () => {
+  it('embedding dimension is 1024', async () => {
     const vec = await embed('test sentence for dimension check');
     assert.strictEqual(vec.length, EMBEDDING_DIM, `expected ${EMBEDDING_DIM}-dim vector`);
-    assert.strictEqual(EMBEDDING_DIM, 384, 'EMBEDDING_DIM constant is 384');
+    assert.strictEqual(EMBEDDING_DIM, 1024, 'EMBEDDING_DIM constant is 1024 (BGE-M3)');
   });
 
   it('embedding output is L2-normalized (norm ≈ 1.0)', async () => {
@@ -83,7 +85,7 @@ describe('embedding latency benchmark', () => {
     await embed('warm-up sentence to load model weights');
   });
 
-  it('per-turn embedding latency under 100ms (mean of 50 turns)', async () => {
+  it('per-turn embedding latency under 500ms (mean of 50 turns)', async () => {
     const turns = generateTurns(50);
     const chunks = chunkSessionTurns(turns);
     assert.ok(chunks.length >= 50, `expected ≥50 chunks, got ${chunks.length}`);
@@ -104,11 +106,13 @@ describe('embedding latency benchmark', () => {
     console.log(`  Embedding benchmark (${chunks.length} chunks):`);
     console.log(`    Mean: ${mean.toFixed(1)}ms | P50: ${p50.toFixed(1)}ms | P95: ${p95.toFixed(1)}ms`);
 
-    assert.ok(mean < 100,
-      `mean latency ${mean.toFixed(1)}ms exceeds 100ms/turn target`);
+    // BGE-M3 latency target: 500ms mean (vs MiniLM's 100ms). ~3-5x larger
+    // model, ONNX CPU inference; acceptable for interactive use.
+    assert.ok(mean < 500,
+      `mean latency ${mean.toFixed(1)}ms exceeds 500ms/turn target`);
   });
 
-  it('batch of 100 turns completes in under 10 seconds', async () => {
+  it('batch of 100 turns completes in under 60 seconds', async () => {
     const turns = generateTurns(100);
     const chunks = chunkSessionTurns(turns);
     assert.ok(chunks.length >= 100, `expected ≥100 chunks, got ${chunks.length}`);
@@ -123,7 +127,7 @@ describe('embedding latency benchmark', () => {
     console.log(`  Batch benchmark (${chunks.length} chunks):`);
     console.log(`    Total: ${(elapsed / 1000).toFixed(2)}s | Throughput: ${throughput} chunks/s`);
 
-    assert.ok(elapsed < 10000,
-      `batch of ${chunks.length} turns took ${(elapsed / 1000).toFixed(2)}s, exceeds 10s limit`);
+    assert.ok(elapsed < 60000,
+      `batch of ${chunks.length} turns took ${(elapsed / 1000).toFixed(2)}s, exceeds 60s limit`);
   });
 });
