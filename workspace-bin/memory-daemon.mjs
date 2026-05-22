@@ -44,6 +44,7 @@ import { createSessionTraceEmitter } from './session-trace-emitter.mjs';
 import { createLocalEventLog } from '../lib/local-event-log.mjs';
 import { createLlmClient } from '../lib/llm-client.mjs';
 import { createExtractionStore } from '../lib/extraction-store.mjs';
+import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -373,6 +374,7 @@ class SessionStateMachine {
 
 let memoryBudget = null;
 let localEventLog = null;
+let extractionTrigger = null;
 
 function initMemoryBudget(config) {
   if (memoryBudget) return memoryBudget;
@@ -1105,6 +1107,44 @@ async function main() {
     } catch (evtErr) {
       log(`Local event log unavailable (${evtErr.message}) — continuing without event log`);
     }
+
+    // Initialize agnostic extraction trigger (mesh.memory.extract_request)
+    try {
+      extractionTrigger = createExtractionTrigger(natsConn, NODE_ID, {
+        onExtract: async (payload) => {
+          log(`[nats] extraction requested by ${payload.triggered_by || 'unknown'}`);
+          if (sm.state !== STATES.ACTIVE && sm.state !== STATES.IDLE) {
+            log(`[nats] skipping extraction — session state is ${sm.state}`);
+            return;
+          }
+          const currentJsonl = findCurrentJsonl(loadTranscriptSources());
+          if (!currentJsonl) return;
+          try {
+            const flushCheck = await shouldFlush(currentJsonl, {
+              contextWindowTokens: config.contextWindowTokens || 200000,
+            });
+            if (flushCheck.shouldFlush) {
+              const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
+              const budget = initMemoryBudget(config);
+              const result = await runFlush(currentJsonl, memoryMd, {
+                charBudget: budget.charBudget,
+                llmClient: getLlmClient(),
+                extractionStore: getExtractionStore(),
+              });
+              log(`  nats-triggered flush [${result.mode || 'regex'}]: ${result.facts} facts, ${result.added} added, ${result.merged} merged`);
+              if (memoryBudget && (result.added > 0 || result.merged > 0)) {
+                memoryBudget.reload();
+                log('  memory-budget: snapshot reloaded after nats-triggered flush');
+              }
+            }
+          } catch (e) { log(`  nats-triggered flush failed: ${e.message}`); }
+        },
+      });
+      await extractionTrigger.start();
+      log(`Extraction trigger initialized (idle threshold: ${process.env.EXTRACTION_IDLE_THRESHOLD_SEC || 2700}s)`);
+    } catch (trigErr) {
+      log(`Extraction trigger unavailable (${trigErr.message}) — continuing without trigger`);
+    }
   } catch (e) {
     log(`NATS unavailable (${e.message}) — continuing without compaction subscription`);
   }
@@ -1114,6 +1154,9 @@ async function main() {
   const shutdown = async (signal) => {
     log(`Received ${signal} — shutting down`);
     running = false;
+    if (extractionTrigger) {
+      extractionTrigger.stop();
+    }
     saveDaemonState(sm);
     if (natsConn) {
       try { await natsConn.drain(); } catch (_) {}
@@ -1144,6 +1187,11 @@ async function main() {
       // 4. Phase 1: Status sync (when ACTIVE or IDLE)
       if (sm.state === STATES.ACTIVE || sm.state === STATES.IDLE) {
         runPhase1StatusSync(config);
+      }
+
+      // 4.1. Reset extraction trigger idle timer on activity
+      if (extractionTrigger && activity.active) {
+        extractionTrigger.resetIdleTimer();
       }
 
       // 4.5. Phase 1.5: Session trace emission (real-time JSONL → observability feed)

@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v4.7 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** step close for Step 4.7: Agnostic extraction trigger (mesh.memory.extract_request + 45-min idle timer).
+- Final test count: 656 (579 pass, 77 fail — 73 pre-existing + 4 flaky). +9 tests added this step.
+- Audit: `memory-plan/audits/step27_extraction_trigger/AUDIT_POST.md`.
+- 9 POSITIVE, 2 NEGATIVE findings. 1 Phase 8 patch (parseInt → parseFloat). 1 delta dropped (`.claude/hooks/pre-compact.sh` — tooling constraint, deferred to Step 4.9).
+
+### v4.7-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 4.7.
+- Files changed: `lib/extraction-trigger.mjs` (new — EXTRACT_SUBJECT constant, DEFAULT_IDLE_THRESHOLD_SEC constant, publishExtractRequest for NATS event publishing, createExtractionTrigger factory with NATS subscription + idle timer management), `workspace-bin/memory-daemon.mjs` (mod — import createExtractionTrigger, extractionTrigger variable, wire onExtract callback to flush pipeline after NATS connect, resetIdleTimer in tick loop on activity, stop in shutdown), `test/extraction-trigger.test.mjs` (new — 8 tests).
+- Test additions: 8 new tests (5 describe blocks: "EXTRACT_SUBJECT" with 1 test — value check; "DEFAULT_IDLE_THRESHOLD_SEC" with 1 test — value check; "publishExtractRequest" with 2 tests — correct subject+payload, default triggered_by; "createExtractionTrigger" with 4 tests — subscribes to subject, onExtract callback, idle timer fire, env var override, stop prevents fires). Note: `.claude/hooks/pre-compact.sh` modification dropped due to tooling constraint (see Mid-Implementation Findings in AUDIT_PRE).
+
+### v4.7-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 4.7.
+- Files planned: `lib/extraction-trigger.mjs` (new), `.claude/hooks/pre-compact.sh` (mod), `workspace-bin/memory-daemon.mjs` (mod), `test/extraction-trigger.test.mjs` (new).
+- Audit: `memory-plan/audits/step27_extraction_trigger/AUDIT_PRE.md`.
+- Test baseline: 647 tests (570 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v4.6 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 4.6: Conflict surfacing in retrieval pipeline (describeConflict).

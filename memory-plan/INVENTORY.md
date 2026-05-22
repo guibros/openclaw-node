@@ -126,7 +126,7 @@ Promoter, subscriber, provenance, policy. See REFERENCE_PLAN.md §Phase 4.
 | 4 | 4.6 | v4.6 | [x] | Conflict surfacing in retrieval pipeline (describeConflict) |
 
 > **Step 4.6 closed.** Created `lib/conflict-surfacing.mjs` with 5 exports: `describeConflict` pure function (per REFERENCE_PLAN — returns `{ local_definition, shared_definition, last_local_mention, last_shared_mention }`), `findEntityConflicts(db)` queries entities with mixed-provenance mentions from both local and shared sources, `findDecisionConflicts(db)` queries decisions from different source types in the same session, `surfaceConflicts(db)` aggregates all conflicts into `{ entity_conflicts, decision_conflicts, total }`, `annotateWithConflicts(results, conflicts)` adds `conflict: true` flag + detail to matching retrieval results. All functions take `db` parameter (dependency injection). 9 new tests. 7 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
-| 4 | 4.7 | v4.7 | [ ] | Agnostic extraction trigger (mesh.memory.extract_request + 45-min idle timer) |
+| 4 | 4.7 | v4.7 | [X] | Agnostic extraction trigger (mesh.memory.extract_request + 45-min idle timer) |
 | 4 | 4.8 | v4.8 | [ ] | Daemon health monitor + supervisor (lib/health-check.mjs + bin/health-watch.mjs) |
 | 4 | 4.9 | v4.9 | [ ] | Frontend publisher pack (hooks/ + lib/publishers/ + docs/PUBLISHERS.md) |
 
