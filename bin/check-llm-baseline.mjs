@@ -38,11 +38,11 @@ const GB = 1024 * 1024 * 1024;
 const RESERVED_GB = 4;
 
 const TIERS = [
-  { min_gb: 48, model: 'qwen3:32b-instruct-q4_K_M', size_gb: 18, name: 'Qwen3-32B',
+  { min_gb: 48, model: 'qwen3:32b', size_gb: 18, name: 'Qwen3-32B',
     note: 'High-end tier. Best quality, slowest inference (~5-15 tok/s on consumer hw).' },
-  { min_gb: 32, model: 'qwen3:14b-instruct-q4_K_M', size_gb: 9,  name: 'Qwen3-14B',
+  { min_gb: 32, model: 'qwen3:14b', size_gb: 9,  name: 'Qwen3-14B',
     note: 'Sweet spot. Reliable JSON-mode + implicit-fact extraction. ~10-25 tok/s.' },
-  { min_gb: 16, model: 'qwen3:8b-instruct-q4_K_M',  size_gb: 5,  name: 'Qwen3-8B',
+  { min_gb: 16, model: 'qwen3:8b',  size_gb: 5,  name: 'Qwen3-8B',
     note: 'Floor tier. JSON-mode reliable, explicit + most implicit facts. ~15-40 tok/s.' },
 ];
 

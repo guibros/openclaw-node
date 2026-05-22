@@ -49,7 +49,7 @@ const DEFAULT_LIMIT = 10;
  * @param {number} limit — number of sessions to read (most recent first)
  * @returns {Array<{id: string, startTime: string, messageCount: number, messages: Array<{role: string, content: string}>}>}
  */
-export function readSessions(dbPath, limit = DEFAULT_LIMIT) {
+export function readSessions(dbPath, limit = DEFAULT_LIMIT, opts = {}) {
   if (!existsSync(dbPath)) {
     throw new Error(`Session store not found: ${dbPath}`);
   }
@@ -57,8 +57,15 @@ export function readSessions(dbPath, limit = DEFAULT_LIMIT) {
   const db = new Database(dbPath, { readonly: true });
 
   try {
+    // For validation we usually want SUBSTANTIVE sessions, not the most recent
+    // (which on test machines tend to be 1-message test sessions). The default
+    // selects sessions with the most messages so we get real extraction signal.
+    // Pass {recent: true} to fall back to the old start_time DESC behavior.
+    const orderClause = opts.recent
+      ? 'ORDER BY start_time DESC'
+      : 'ORDER BY message_count DESC';
     const sessions = db.prepare(
-      'SELECT id, source, start_time, message_count FROM sessions ORDER BY start_time DESC LIMIT ?'
+      `SELECT id, source, start_time, message_count FROM sessions ${orderClause} LIMIT ?`
     ).all(limit);
 
     return sessions.map(session => {

@@ -54,12 +54,14 @@ Authored 2026-05-22 by operator. Gulf-1 outcome: skip-formal-scoring; structural
 **Extraction LLM — ~~Qwen3.5-27B-Instruct via mlx-lm~~ → AMENDED 2026-05-22 → tiered Qwen3 family via Ollama.** mlx-lm is Mac-only; Qwen3.5-27B needs ~24 GB RAM unquantized (or ~14 GB at 4-bit). Both contradict the lightweight worldwide-deployment goal. New baseline:
 
 - **Runtime — Ollama** (cross-platform: macOS / Linux / Windows). Single binary, HTTP API on localhost:11434, OpenAI-compatible endpoints (`/v1/chat/completions`). Operators can swap in mlx-lm / llama-server / vLLM by overriding `LLM_BASE_URL`.
-- **Default model — `qwen3:8b-instruct-q4_K_M`** (~5 GB RAM). The floor where JSON-mode is reliable enough for production extraction.
-- **Pluggable model selector** via env var `LLM_MODEL`. Tier policy:
-  - ≥48 GB RAM → `qwen3:32b-instruct-q4_K_M` (~18 GB) — top quality, slow inference
-  - ≥32 GB RAM → `qwen3:14b-instruct-q4_K_M` (~9 GB) — sweet spot
-  - ≥16 GB RAM → `qwen3:8b-instruct-q4_K_M` (~5 GB) — floor (default)
+- **Default model — `qwen3:8b`** (Ollama tag, 4-bit quant, ~5 GB RAM). The floor where JSON-mode is reliable enough for production extraction.
+- **Pluggable model selector** via env var `LLM_MODEL`. Tier policy (Ollama tags):
+  - ≥48 GB RAM → `qwen3:32b` (~18 GB) — top quality, slow inference
+  - ≥32 GB RAM → `qwen3:14b` (~9 GB) — sweet spot
+  - ≥16 GB RAM → `qwen3:8b` (~5 GB) — floor (default)
   - <16 GB → local LLM extraction unsupported; operator must wire a cloud-LLM adapter (out of scope for Block 3) or skip
+- **`/no_think` directive** prepended to extraction system prompt. Qwen3 has thinking mode enabled by default; for structured-JSON extraction we want output, not reasoning narration. With thinking enabled, Qwen3-8B burns 500-2000 tokens reasoning before JSON — extraction times out at 120s. With `/no_think`, latency drops to acceptable range. Non-Qwen models ignore the token harmlessly.
+- **Default LLM timeout — 600s (10 min).** Extraction is end-of-session work, not realtime; long timeout is acceptable. Operators override via `LLM_TIMEOUT`.
 - **4B is excluded** by operator decision — JSON-mode reliability is too poor below 8B for this task.
 - **Install-time system check — `bin/check-llm-baseline.mjs`** probes `os.totalmem()`, reports platform/arch/cores, recommends the right tier, and with `--install` runs `ollama pull <recommended>` to fetch it. Lands as part of this §0 amendment chore commit alongside the llm-client default fixes.
 
@@ -78,6 +80,55 @@ Step 3.2 (committed at `0bb224c` as extraction schema + prompt) is model-agnosti
 **Test baseline carrying into Block 3:** post-BGE-M3-upgrade, the embed-benchmark test will run on bge-m3 (1024-dim). Expected baseline: 559 tests with the same 73 pre-existing failures. After Step 3.1, +3-5 tests added for Qwen setup verification.
 
 **Carry-forward to Block 4:** federation primitives (promoter, subscriber, JetStream cluster activation) do NOT depend on LLM extraction; they only need the local event log substrate from Block 1 to be working. If Step 3.4 hits problems, Block 4 can start in parallel.
+
+**Carry-forward to Block 4 — LLM extraction timeout on large sessions:** Block 3 validation (`bin/run-block3-validation.mjs`) succeeded on small/synthetic sessions but failed with "fetch failed" on the 3 largest real sessions (557 / 340 / 336 messages, ~5K-20K input tokens). 600s timeout was insufficient at Qwen3-8B speed on that input volume. Mitigations to apply in Block 4: (a) reduce extraction tail from 40 messages to 20, OR (b) raise default LLM_TIMEOUT to 1800s (30 min), OR (c) stream the extraction so partial JSON can be parsed incrementally. Recommendation: (a) tail reduction since 40 turns produces redundant content beyond ~20-turn window in practice.
+
+### Block 4 frozen decisions
+
+Authored 2026-05-22 by operator (interactive session). Block 3 LLM extraction works correctly on small/medium sessions per direct smoke test; large-session timeout deferred as carry-forward.
+
+**Federation runtime — Ollama-based architecture remains the host for any cross-node concept embedding work.** Block 4 implements the network and policy primitives that let nodes share knowledge.
+
+**Default privacy — DEFAULT-PRIVATE.** Nothing auto-shares unless explicitly marked `share: true` OR meets the strict threshold. Per REFERENCE_PLAN: safest starting policy for a worldwide deployment with mixed-trust operators.
+
+**Promotion policy (tighter than REFERENCE_PLAN §4.1 defaults):**
+- `automatic`: kanban events (cross-node task coordination is the point)
+- `explicit`: any concept/lesson with frontmatter `share: true`
+- `threshold`: `concept_mention_count >= 10` (raised from REFERENCE_PLAN's 5)
+- `threshold`: `decision_confidence >= 0.95` (raised from 0.9)
+- `manual_review`: everything else → queued, never auto-shared
+
+**Mesh topology assumption — bridges build regardless of cluster health.** Shared JetStream `OPENCLAW_SHARED` (configured idle in Step 1.4) may or may not be up. Block 4 wires the bridge processes; if cluster unreachable, they retry with exponential backoff. Single-node operation must work fully without the cluster.
+
+**Conflict resolution — surface, don't auto-merge.** When local and shared disagree on a concept, retrieval returns both with provenance; agent decides per-conflict.
+
+**Always-ingest kanban events** — unconditional. Tasks must be visible across all nodes.
+
+**Block 4 hard scope — Steps 4.1–4.9** (expanded from REFERENCE_PLAN's 4.1–4.6 to incorporate operator-mandated agnostic-trigger + resilience work):
+
+- **4.1** — Promotion policies config (`config/promotion-policy.yaml`).
+- **4.2** — Promoter daemon (`bin/memory-promoter.mjs`): subscribes to local event log, evaluates policy, publishes eligible events to shared cluster. **Includes health-check hook + exponential backoff on cluster unreachable.**
+- **4.3** — Subscriber daemon (`bin/memory-subscriber.mjs`): subscribes to shared subjects, projects into local stores with provenance. **Includes same health-check + backoff.**
+- **4.4** — Provenance fields on all local stores: `source_type` (`local` / `shared`), `source_node`, `source_event_id`.
+- **4.5** — Always-ingest `kanban.events.>` subjects into local `tasks_observed` table.
+- **4.6** — Conflict surfacing in retrieval pipeline: when local and shared agree → merged; when disagree → return both with `conflict: true` flag.
+- **4.7** — **Agnostic extraction trigger.** New NATS subject `mesh.memory.extract_request`. Memory daemon subscribes; any publisher fires extraction. Replaces Claude-Code-specific `.claude/hooks/pre-compact.sh` with a thin publisher (5-line bash that publishes the event). Daemon ALSO runs a **time-based fallback**: if no extract event in 45 min on an active session, daemon publishes one to itself. Env: `EXTRACTION_IDLE_THRESHOLD_SEC=2700`.
+- **4.8** — **Daemon health monitor + supervisor.** New `lib/health-check.mjs` exporting `runHealthCheck()` → `{daemon, nats, ollama, embedder, sqlite, workspace_writable}` with per-component status. New `bin/health-watch.mjs` long-running watcher (60s interval). Alerts written to: `~/.openclaw/workspace/.daemon-health.md` (file), `mesh.health.alerts` (NATS), and macOS banner via `memory-plan-notify.sh`. launchd plist for memory-daemon gets `KeepAlive` so launchd respawns on crash. New `bin/openclaw-restart.sh` for manual graceful restart of all daemons.
+- **4.9** — **Frontend publisher pack** — agnostic event publishers for popular LLM frontends. Lands in new top-level `hooks/` + `lib/publishers/` directories:
+  - Tier 1 (direct hooks): `hooks/claude-code/pre-compact.sh` (replaces gutted stub), `hooks/openwebui/openclaw-publisher-plugin.py`, `hooks/librechat/openclaw-trigger.js`, `hooks/continue/openclaw-config.json`.
+  - Tier 2 (SDK wrappers): `lib/publishers/openai-wrapper.mjs`, `lib/publishers/anthropic-wrapper.mjs`, `lib/publishers/gemini-wrapper.mjs`, `lib/publishers/minimax-wrapper.mjs`. Kimi/DeepSeek/OpenRouter share the OpenAI wrapper (OpenAI-compatible APIs).
+  - Tier 3 (universal fallback): the 45-min idle timer from Step 4.7 plus manual `openclaw extract-now` command.
+  - `docs/PUBLISHERS.md` enumerates each frontend's integration + closed-app limitations.
+
+**Validation gate before Block 5:** all 9 steps closed AND `bin/health-watch.mjs` running for 24 hours on the operator's machine with zero spurious warnings.
+
+**Idle threshold — 45 min.** Configurable via `EXTRACTION_IDLE_THRESHOLD_SEC` env var (default 2700).
+
+**Health-watch alert destinations — all three:** file (`.daemon-health.md`), NATS (`mesh.health.alerts`), macOS banner. Operators can disable specific destinations via `HEALTH_ALERT_TARGETS` env var (CSV of: `file`, `nats`, `banner`).
+
+**Test baseline for Block 4:** starts from v3.4 commit baseline. Each step adds 3-8 tests. Block 4 total expected: +35-60 tests on top of Block 3 baseline.
+
+**Carry-forward to Block 5:** thematic substrate (Obsidian vault) needs to consume promoted concepts. The shared vault path `projects/arcane-vault/concepts-shared/` is where Block 4's subscriber writes promoted-from-others content. Block 5 reads from there.
 
 ### Carry-forward from Block 0 + Block 1
 
