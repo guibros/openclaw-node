@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v4.5 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 4.5: Always-ingest kanban events into tasks_observed.
+- Files committed: `lib/kanban-store.mjs` (new — createKanbanStore factory with tasks_observed table including provenance columns from creation, projectKanbanEvent with full projection for owned tasks and summary projection for non-owned, getObservedTasks with ownedOnly/status/sourceType filters, getTaskById latest event, getStats), `test/kanban-store.test.mjs` (new — 8 tests), audit docs, ledger files.
+- Test count: 638 (561 pass, 77 fail — 73 pre-existing + 4 flaky). +8 tests added this step.
+- V2 audit: 7 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 2-of-5 zero-Phase-4-correction (Block 4).
+
+### v4.5-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 4.5.
+- Files changed: `lib/kanban-store.mjs` (new — createKanbanStore factory with tasks_observed table, projectKanbanEvent with full/summary projection, getObservedTasks with filters, getTaskById latest event, getStats), `test/kanban-store.test.mjs` (new — 8 tests).
+- Test additions: 8 new tests (1 describe block "createKanbanStore": table creation with provenance columns, full projection for owned task, summary projection for non-owned task, getObservedTasks ownedOnly filter, getObservedTasks sourceType filter, getTaskById latest event, getStats counts, event without owner field).
+
+### v4.5-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 4.5.
+- Files planned: `lib/kanban-store.mjs` (new), `test/kanban-store.test.mjs` (new).
+- Audit: `memory-plan/audits/step25_kanban_events/AUDIT_PRE.md`.
+- Test baseline: 630 tests (553 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v4.4 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 4.4: Add provenance fields (source_type, source_node, source_event_id) to local stores.

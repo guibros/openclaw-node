@@ -120,7 +120,9 @@ Promoter, subscriber, provenance, policy. See REFERENCE_PLAN.md §Phase 4.
 | 4 | 4.4 | v4.4 | [x] | Add provenance fields (source_type, source_node, source_event_id) to local stores |
 
 > **Step 4.4 closed.** Added provenance columns (`source_type`, `source_node`, `source_event_id`) to all 4 extraction store tables (`entities`, `themes`, `mentions`, `decisions`) via idempotent ALTER TABLE migration. Provenance indexes for retrieval filtering. `storeExtractionResult` accepts optional provenance parameter — existing callers unaffected (defaults to `PROVENANCE_LOCAL`). `PROVENANCE_LOCAL` frozen constant exported. 8 new tests. 7 positive audit findings, zero corrections, zero Phase 8 patches.
-| 4 | 4.5 | v4.5 | [ ] | Always-ingest kanban events into tasks_observed |
+| 4 | 4.5 | v4.5 | [x] | Always-ingest kanban events into tasks_observed |
+
+> **Step 4.5 closed.** Created `lib/kanban-store.mjs` with `createKanbanStore` factory — `tasks_observed` table with provenance columns from creation (no migration needed). `projectKanbanEvent` provides full projection for owned tasks (all data fields + JSON blob) and summary projection for non-owned tasks (task_id, owner, status only). Query API: `getObservedTasks` with ownedOnly/status/sourceType filters, `getTaskById` returning latest event, `getStats` for counts. 8 new tests. 7 positive audit findings, zero corrections, zero Phase 8 patches.
 | 4 | 4.6 | v4.6 | [ ] | Conflict surfacing in retrieval pipeline (describeConflict) |
 | 4 | 4.7 | v4.7 | [ ] | Agnostic extraction trigger (mesh.memory.extract_request + 45-min idle timer) |
 | 4 | 4.8 | v4.8 | [ ] | Daemon health monitor + supervisor (lib/health-check.mjs + bin/health-watch.mjs) |

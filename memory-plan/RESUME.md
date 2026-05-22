@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 4 in progress; Step 4.4 closed.
-**Current version carrier.** `v4.4` (Step 4.4 closed; Block 4: 4 of 9).
-**Streaks.** zero-Phase-4-correction: 1 of 4 (Block 4) · zero-Phase-8-patch: 13 of 13 (Steps 2.1–4.4).
-**Last commit on plan branch.** v4.4 — Add provenance fields (source_type, source_node, source_event_id) to local stores.
+**Workplan status.** Block 4 in progress; Step 4.5 closed.
+**Current version carrier.** `v4.5` (Step 4.5 closed; Block 4: 5 of 9).
+**Streaks.** zero-Phase-4-correction: 2 of 5 (Block 4) · zero-Phase-8-patch: 14 of 14 (Steps 2.1–4.5).
+**Last commit on plan branch.** v4.5 — Always-ingest kanban events into tasks_observed.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -537,18 +537,38 @@ Carry-forwards to Step 4.5: `storeExtractionResult` ready to receive shared prov
 subscriber's `onIngest` callback; provenance indexes ready for retrieval queries;
 `tasks_observed` table (Step 4.5) should include provenance columns in its CREATE TABLE.
 
+### Step 4.5 — Always-ingest kanban events into tasks_observed
+
+Closed at v4.5. Created `lib/kanban-store.mjs` with `createKanbanStore(opts)` factory — opens
+SQLite database and creates `tasks_observed` table with provenance columns from creation
+(no migration needed, per Step 4.4 carry-forward). `projectKanbanEvent(event, nodeId, provenance)`
+provides full projection for owned tasks (`owner === nodeId`: all data fields stored including
+title, priority, and full JSON blob in `data_json`) and summary projection for non-owned tasks
+(`owner !== nodeId`: only task_id, owner, status stored; title, priority, data_json set to null).
+Query API: `getObservedTasks(filters)` supports `ownedOnly`, `status`, and `sourceType` filter
+dimensions; `getTaskById(taskId)` returns latest event by `received_at DESC`;
+`getStats()` returns `{ total, owned, summary, localCount, sharedCount }`. Handles missing
+`owner` field gracefully (defaults to null, treated as non-owned). 8 new tests cover table
+creation with provenance columns, full projection, summary projection, ownedOnly filtering,
+sourceType filtering, latest-event retrieval, stats counts, and missing owner. 7 positive
+audit findings, zero corrections, zero Phase 8 patches.
+Carry-forwards to Step 4.6: `createKanbanStore` exported from `lib/kanban-store.mjs:27`;
+`projectKanbanEvent` matches subscriber's `onIngest(event, parsed, provenance)` signature;
+wiring subscriber to kanban store requires category-routing in `onIngest` callback;
+`tasks_observed` table is in same database as extraction store tables.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               24 / 48
+Steps closed:               25 / 48
 Current block:              Block 4 in progress
-Steps closed in block:      4 / 9 (Block 4)
-Consecutive zero-Phase-4-correction streak:  1 (Block 4)
-Consecutive zero-Phase-8-patch streak:       13
-Test baseline (npm test):   630 tests (553 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 4.4)
+Steps closed in block:      5 / 9 (Block 4)
+Consecutive zero-Phase-4-correction streak:  2 (Block 4)
+Consecutive zero-Phase-8-patch streak:       14
+Test baseline (npm test):   638 tests (561 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 4.5)
 Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 ```
 
@@ -559,6 +579,6 @@ Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v4.4`, no suffix) → start Step 4.5 at Phase 1.
-3. Step 4.5: Always-ingest kanban events into `tasks_observed` table. Subscribe to `kanban.events.>`, project every task event into a local `tasks_observed` table with provenance. Tasks where `owner === NODE_ID` get full projection; others get summary.
-4. Read AUDIT_POST §6 from `memory-plan/audits/step24_provenance_fields/AUDIT_POST.md` for carry-forwards.
+2. Decode VERSION (`v4.5`, no suffix) → start Step 4.6 at Phase 1.
+3. Step 4.6: Conflict surfacing in retrieval pipeline. When local and shared knowledge disagree on a concept, retrieval returns both with provenance and `conflict: true` flag. Implement `describeConflict(localConcept, sharedConcept)` and integrate into the retrieval pipeline.
+4. Read AUDIT_POST §6 from `memory-plan/audits/step25_kanban_events/AUDIT_POST.md` for carry-forwards.
