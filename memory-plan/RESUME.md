@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 4 in progress; Step 4.5 closed.
-**Current version carrier.** `v4.5` (Step 4.5 closed; Block 4: 5 of 9).
-**Streaks.** zero-Phase-4-correction: 2 of 5 (Block 4) · zero-Phase-8-patch: 14 of 14 (Steps 2.1–4.5).
-**Last commit on plan branch.** v4.5 — Always-ingest kanban events into tasks_observed.
+**Workplan status.** Block 4 in progress; Step 4.8 closed.
+**Current version carrier.** `v4.8` (Step 4.8 closed; Block 4: 8 of 9).
+**Streaks.** zero-Phase-4-correction: 0 of 8 (Block 4; reset at Step 4.8) · zero-Phase-8-patch: 0 of 8 (Block 4; reset at Step 4.8).
+**Last commit on plan branch.** v4.8 — Daemon health monitor + supervisor (lib/health-check.mjs + bin/health-watch.mjs).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -577,18 +577,54 @@ injection) — compatible with both extraction store and kanban store databases.
 Carry-forwards to Step 4.7: `surfaceConflicts(db)` and `annotateWithConflicts()` ready for
 pipeline integration; Step 4.7 (agnostic extraction trigger) is independent of conflict surfacing.
 
+### Step 4.7 — Agnostic extraction trigger (mesh.memory.extract_request + 45-min idle timer)
+
+Closed at v4.7. Created `lib/extraction-trigger.mjs` with 4 exports: `EXTRACT_SUBJECT`
+('mesh.memory.extract_request'), `DEFAULT_IDLE_THRESHOLD_SEC` (2700 = 45 min),
+`publishExtractRequest(nc, nodeId, opts)` for NATS event publishing, and
+`createExtractionTrigger(nc, nodeId, opts)` factory returning `{ start(), stop(),
+resetIdleTimer() }` with NATS subscription + idle timer management. Wired into
+memory-daemon: extraction trigger created after NATS connection, onExtract runs
+shouldFlush+runFlush pipeline, idle timer reset on active ticks, stopped on shutdown.
+`.claude/hooks/pre-compact.sh` modification dropped due to tooling constraint — deferred
+to Step 4.9. 9 new tests. 9 positive, 2 negative findings, 1 Phase 8 patch
+(parseInt→parseFloat).
+
+### Step 4.8 — Daemon health monitor + supervisor (lib/health-check.mjs + bin/health-watch.mjs)
+
+Closed at v4.8. Created `lib/health-check.mjs` with 7 exports: `runHealthCheck(opts)` async
+function with dependency-injected 6-component health checks (daemon via launchctl/pgrep, nats
+via monitoring HTTP endpoint, ollama via `/api/tags`, embedder via @huggingface/transformers
+import, sqlite via better-sqlite3 `SELECT 1`, workspace_writable via temp file probe), each
+returning `{ ok, detail, latency_ms }` with 5s timeout via `timedCheck()` wrapper and
+`Promise.allSettled` for parallel execution. `deriveStatus(result)` pure function (all
+ok→'healthy', none→'unhealthy', mixed→'degraded'). `formatHealthReport(result)` markdown
+table formatter. `parseAlertTargets(envValue)` CSV parser for `HEALTH_ALERT_TARGETS` env var
+(validates against Set of 'file','nats','banner'). Constants: `COMPONENT_NAMES` (6),
+`DEFAULT_INTERVAL_SEC` (60), `ALERT_TARGETS_DEFAULT` ('file,nats,banner'). Created
+`bin/health-watch.mjs` with `createHealthWatch(opts)` factory — runs health checks at
+configurable interval (default 60s via `HEALTH_WATCH_INTERVAL_SEC`), fires alerts only on state
+transitions or every 5 min while unhealthy, routes to 3 destinations (file→.daemon-health.md,
+NATS→mesh.health.alerts, macOS banner→memory-plan-notify.sh). Created `bin/openclaw-restart.sh`
+— manual restart script using `launchctl kickstart -k` for managed services + `pgrep/kill`
+fallback for unmanaged processes. 15 new tests. 10 positive, 2 negative findings, 1 Phase 8
+patch (`??`/`||` syntax fix).
+Carry-forwards to Step 4.9: test baseline 671 (594 pass, 77 fail); `runHealthCheck` at
+`lib/health-check.mjs:190`; `createHealthWatch` at `bin/health-watch.mjs:107`;
+`bin/openclaw-restart.sh` needs `chmod +x`; Step 4.9 should add health-watch launchd plist.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               26 / 48
+Steps closed:               28 / 48
 Current block:              Block 4 in progress
-Steps closed in block:      6 / 9 (Block 4)
-Consecutive zero-Phase-4-correction streak:  0 (Block 4; reset at Step 4.6)
-Consecutive zero-Phase-8-patch streak:       15
-Test baseline (npm test):   647 tests (570 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 4.6)
+Steps closed in block:      8 / 9 (Block 4)
+Consecutive zero-Phase-4-correction streak:  0 (Block 4; reset at Step 4.8)
+Consecutive zero-Phase-8-patch streak:       0 (Block 4; reset at Step 4.8)
+Test baseline (npm test):   671 tests (594 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 4.8)
 Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 ```
 
@@ -599,6 +635,6 @@ Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v4.6`, no suffix) → start Step 4.7 at Phase 1.
-3. Step 4.7: Agnostic extraction trigger. New NATS subject `mesh.memory.extract_request`. Memory daemon subscribes; any publisher fires extraction. Replace Claude-Code-specific `.claude/hooks/pre-compact.sh` with a thin publisher. Daemon also runs a time-based fallback: if no extract event in 45 min on an active session, daemon publishes one to itself. Env: `EXTRACTION_IDLE_THRESHOLD_SEC=2700`.
-4. Read AUDIT_POST §6 from `memory-plan/audits/step26_conflict_surfacing/AUDIT_POST.md` for carry-forwards.
+2. Decode VERSION (`v4.8`, no suffix) → start Step 4.9 at Phase 1.
+3. Step 4.9: Frontend publisher pack. Lands in new top-level `hooks/` + `lib/publishers/` directories. Tier 1 (direct hooks): `hooks/claude-code/pre-compact.sh`, `hooks/openwebui/openclaw-publisher-plugin.py`, `hooks/librechat/openclaw-trigger.js`, `hooks/continue/openclaw-config.json`. Tier 2 (SDK wrappers): `lib/publishers/openai-wrapper.mjs`, `lib/publishers/anthropic-wrapper.mjs`, `lib/publishers/gemini-wrapper.mjs`, `lib/publishers/minimax-wrapper.mjs`. Tier 3 (universal fallback): idle timer from Step 4.7 + manual `openclaw extract-now` command. `docs/PUBLISHERS.md` documentation. **This is the last step of Block 4.**
+4. Read AUDIT_POST §6 from `memory-plan/audits/step28_health_monitor/AUDIT_POST.md` for carry-forwards.

@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v4.8 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** step close for Step 4.8: Daemon health monitor + supervisor (lib/health-check.mjs + bin/health-watch.mjs).
+- Final test count: 671 (594 pass, 77 fail — 73 pre-existing + 4 flaky). +15 tests added this step.
+- Audit: `memory-plan/audits/step28_health_monitor/AUDIT_POST.md`.
+- 10 POSITIVE, 2 NEGATIVE findings. 1 Phase 8 patch (`??`/`||` syntax fix). Test count underestimate (planned ~8, delivered 15).
+
+### v4.8-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 4.8.
+- Files changed: `lib/health-check.mjs` (new — runHealthCheck with 6 component checks via dependency injection, deriveStatus for healthy/degraded/unhealthy, formatHealthReport for markdown output, parseAlertTargets for env var parsing, COMPONENT_NAMES/DEFAULT_INTERVAL_SEC/ALERT_TARGETS_DEFAULT constants), `bin/health-watch.mjs` (new — createHealthWatch factory with configurable interval + 3 alert destinations: file/.daemon-health.md, NATS/mesh.health.alerts, macOS banner/memory-plan-notify.sh, state-change-only alerting with 5-min repeat while unhealthy, CLI entry with graceful shutdown), `bin/openclaw-restart.sh` (new — manual graceful restart script using launchctl for managed services + pgrep/kill for unmanaged processes), `test/health-check.test.mjs` (new — 12 tests).
+- Test additions: 12 new tests (6 describe blocks: "COMPONENT_NAMES" with 1 test — count + values; "runHealthCheck" with 3 tests — shape, all-ok, all-fail; "deriveStatus" with 3 tests — healthy/unhealthy/degraded; "formatHealthReport" with 1 test — markdown sections; "parseAlertTargets" with 4 tests — default/custom/invalid/empty; "createHealthWatch" with 1 test — start/stop lifecycle; "constants" with 2 tests — DEFAULT_INTERVAL_SEC, ALERT_TARGETS_DEFAULT). Note: 14 `it()` blocks across 7 describe blocks.
+
+### v4.8-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 4.8.
+- Files planned: `lib/health-check.mjs` (new), `bin/health-watch.mjs` (new), `bin/openclaw-restart.sh` (new), `test/health-check.test.mjs` (new).
+- Audit: `memory-plan/audits/step28_health_monitor/AUDIT_PRE.md`.
+- Test baseline: 656 tests (579 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v4.7 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** step close for Step 4.7: Agnostic extraction trigger (mesh.memory.extract_request + 45-min idle timer).
