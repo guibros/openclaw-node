@@ -117,7 +117,9 @@ Promoter, subscriber, provenance, policy. See REFERENCE_PLAN.md §Phase 4.
 | 4 | 4.3 | v4.3 | [x] | Implement subscriber (bin/memory-subscriber.mjs) |
 
 > **Step 4.3 closed.** Created `bin/memory-subscriber.mjs` — the subscriber daemon that subscribes to the shared NATS JetStream cluster (OPENCLAW_SHARED), evaluates each incoming event via `evaluateIngestionPolicy` (pure function: skip self-originated, accept kanban/concept/lesson/artifact, defer broadcast/offer/accepted to Block 9), parses shared subjects via `parseSharedSubject` (7 category mappings), and projects accepted events with provenance envelope `{ source_type, source_node, source_event_id }` via `onIngest` callback hook. Reuses `createBackoff` from promoter (zero duplication). Handles shared stream unavailability gracefully (degraded no-op subscriber with backoff). CLI entry with SIGINT/SIGTERM graceful shutdown. 14 new tests. 8 positive audit findings, zero corrections, zero Phase 8 patches.
-| 4 | 4.4 | v4.4 | [ ] | Add provenance fields (source_type, source_node, source_event_id) to local stores |
+| 4 | 4.4 | v4.4 | [x] | Add provenance fields (source_type, source_node, source_event_id) to local stores |
+
+> **Step 4.4 closed.** Added provenance columns (`source_type`, `source_node`, `source_event_id`) to all 4 extraction store tables (`entities`, `themes`, `mentions`, `decisions`) via idempotent ALTER TABLE migration. Provenance indexes for retrieval filtering. `storeExtractionResult` accepts optional provenance parameter — existing callers unaffected (defaults to `PROVENANCE_LOCAL`). `PROVENANCE_LOCAL` frozen constant exported. 8 new tests. 7 positive audit findings, zero corrections, zero Phase 8 patches.
 | 4 | 4.5 | v4.5 | [ ] | Always-ingest kanban events into tasks_observed |
 | 4 | 4.6 | v4.6 | [ ] | Conflict surfacing in retrieval pipeline (describeConflict) |
 | 4 | 4.7 | v4.7 | [ ] | Agnostic extraction trigger (mesh.memory.extract_request + 45-min idle timer) |

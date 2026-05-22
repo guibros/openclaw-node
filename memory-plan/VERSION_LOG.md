@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v4.4 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 4.4: Add provenance fields (source_type, source_node, source_event_id) to local stores.
+- Files committed: `lib/extraction-store.mjs` (mod — idempotent ALTER TABLE migration adding source_type/source_node/source_event_id to entities/themes/mentions/decisions, provenance indexes, updated prepared statements with provenance params, storeExtractionResult accepts optional provenance, PROVENANCE_LOCAL frozen constant exported), `test/provenance-fields.test.mjs` (new — 8 tests), audit docs, ledger files.
+- Test count: 630 (553 pass, 77 fail — 73 pre-existing + 4 flaky). +8 tests added this step.
+- V2 audit: 7 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 1-of-4 zero-Phase-4-correction (Block 4).
+
+### v4.4-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 4.4.
+- Files changed: `lib/extraction-store.mjs` (mod — idempotent ALTER TABLE migration adding source_type/source_node/source_event_id to all 4 tables, provenance indexes, updated prepared statements, storeExtractionResult accepts optional provenance param, PROVENANCE_LOCAL constant exported), `test/provenance-fields.test.mjs` (new — 8 tests).
+- Test additions: 8 new tests (1 describe block "provenance fields on extraction store": columns exist on entities, themes, mentions, decisions — 4 tests; storeExtractionResult without provenance defaults to local; storeExtractionResult with shared provenance stores fields; entities queried by source_type; PROVENANCE_LOCAL constant shape).
+
+### v4.4-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 4.4.
+- Files planned: `lib/extraction-store.mjs` (mod), `test/provenance-fields.test.mjs` (new).
+- Audit: `memory-plan/audits/step24_provenance_fields/AUDIT_PRE.md`.
+- Test baseline: 622 tests (545 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v4.3 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 4.3: Implement subscriber (bin/memory-subscriber.mjs).

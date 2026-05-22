@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 4 in progress; Step 4.3 closed.
-**Current version carrier.** `v4.3` (Step 4.3 closed; Block 4: 3 of 9).
-**Streaks.** zero-Phase-4-correction: 0 of 3 (Block 4) · zero-Phase-8-patch: 12 of 12 (Steps 2.1–4.3).
-**Last commit on plan branch.** v4.3 — Implement subscriber (bin/memory-subscriber.mjs).
+**Workplan status.** Block 4 in progress; Step 4.4 closed.
+**Current version carrier.** `v4.4` (Step 4.4 closed; Block 4: 4 of 9).
+**Streaks.** zero-Phase-4-correction: 1 of 4 (Block 4) · zero-Phase-8-patch: 13 of 13 (Steps 2.1–4.4).
+**Last commit on plan branch.** v4.4 — Add provenance fields (source_type, source_node, source_event_id) to local stores.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -521,18 +521,34 @@ Carry-forwards to Step 4.4: `parseSharedSubject` provides category routing for s
 matches the column schema planned for Step 4.4; `createBackoff` lives in promoter — both
 daemons import it.
 
+### Step 4.4 — Add provenance fields (source_type, source_node, source_event_id) to local stores
+
+Closed at v4.4. Added provenance columns (`source_type TEXT DEFAULT 'local'`, `source_node TEXT`,
+`source_event_id TEXT`) to all 4 extraction store tables (`entities`, `themes`, `mentions`,
+`decisions`) via idempotent ALTER TABLE migration with `PRAGMA table_info()` checks.
+Added provenance indexes (`idx_*_source_type`) for efficient retrieval filtering. Updated
+`storeExtractionResult(sessionId, result, provenance)` to accept optional provenance
+parameter — existing callers pass no provenance and get `PROVENANCE_LOCAL` automatically.
+Exported `PROVENANCE_LOCAL` frozen constant with shape `{ source_type: 'local', source_node: null,
+source_event_id: null }`. 8 new tests cover column existence on all 4 tables, default local
+provenance, shared provenance storage, query-by-source filtering, and constant shape.
+7 positive audit findings, zero corrections, zero Phase 8 patches.
+Carry-forwards to Step 4.5: `storeExtractionResult` ready to receive shared provenance from
+subscriber's `onIngest` callback; provenance indexes ready for retrieval queries;
+`tasks_observed` table (Step 4.5) should include provenance columns in its CREATE TABLE.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               23 / 48
+Steps closed:               24 / 48
 Current block:              Block 4 in progress
-Steps closed in block:      3 / 9 (Block 4)
-Consecutive zero-Phase-4-correction streak:  0 (Block 4)
-Consecutive zero-Phase-8-patch streak:       12
-Test baseline (npm test):   622 tests (545 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 4.3)
+Steps closed in block:      4 / 9 (Block 4)
+Consecutive zero-Phase-4-correction streak:  1 (Block 4)
+Consecutive zero-Phase-8-patch streak:       13
+Test baseline (npm test):   630 tests (553 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 4.4)
 Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 ```
 
@@ -543,6 +559,6 @@ Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v4.3`, no suffix) → start Step 4.4 at Phase 1.
-3. Step 4.4: Add provenance fields (source_type, source_node, source_event_id) to local stores. Every table that can receive shared content gets provenance columns. Local-only content keeps `source_type = 'local'`.
-4. Read AUDIT_POST §6 from `memory-plan/audits/step23_subscriber_daemon/AUDIT_POST.md` for carry-forwards.
+2. Decode VERSION (`v4.4`, no suffix) → start Step 4.5 at Phase 1.
+3. Step 4.5: Always-ingest kanban events into `tasks_observed` table. Subscribe to `kanban.events.>`, project every task event into a local `tasks_observed` table with provenance. Tasks where `owner === NODE_ID` get full projection; others get summary.
+4. Read AUDIT_POST §6 from `memory-plan/audits/step24_provenance_fields/AUDIT_POST.md` for carry-forwards.
