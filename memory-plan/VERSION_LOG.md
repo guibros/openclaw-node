@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v3.1 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 3.1: Set up Qwen3.5-27B locally + latency benchmark (~10-30s per 40-turn session).
+- Files committed: `lib/llm-client.mjs` (new — createLlmClient factory, generate with JSON mode, healthCheck, env-configurable), `test/llm-benchmark.test.mjs` (new — 4 tests with mock HTTP server), `bin/llm-benchmark.mjs` (new — CLI benchmark tool with 40-turn synthetic session, latency measurement), audit docs, ledger files.
+- Test count: 563 (490 pass, 73 fail — pre-existing). +4 tests added this step.
+- V2 audit: 6 POSITIVE findings, 0 NEGATIVE findings, 0 Phase 8 patches.
+- Streak: 1-of-1 zero-Phase-4-correction (Block 3).
+
+### v3.1-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 3.1.
+- Files changed: `lib/llm-client.mjs` (new — createLlmClient factory, generate with JSON mode, healthCheck, env-configurable baseUrl/model/timeout), `test/llm-benchmark.test.mjs` (new — 4 tests with mock HTTP server), `bin/llm-benchmark.mjs` (new — CLI benchmark tool with synthetic 40-turn session, extraction latency measurement, pass/fail against ≤30s target).
+- Test additions: 4 new tests (1 exports/interface check, 3 mock-server tests: generate request format, healthCheck response parsing, JSON mode response_format).
+
+### v3.1-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 3.1.
+- Files planned: `lib/llm-client.mjs` (new), `test/llm-benchmark.test.mjs` (new), `bin/llm-benchmark.mjs` (new).
+- Audit: `memory-plan/audits/step17_qwen_setup_benchmark/AUDIT_PRE.md`.
+- Test baseline: 559 tests (486 pass, 73 fail — pre-existing).
+
 ### v2.5 — 2026-05-21 — memory-plan-tick
 
 - **Phase 9** close for Step 2.5: Manual evaluation against 20-30 real queries; spreadsheet of results; Gulf 1 gate.

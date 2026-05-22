@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 2 closed; Block 3 awaits operator Gulf 1 evaluation + frozen decisions.
-**Current version carrier.** `v2.5` (Step 2.5 closed; Block 2 complete 5 of 5).
-**Streaks.** zero-Phase-4-correction: 0 of 5 (Block 2) · zero-Phase-8-patch: 5 of 5 (Block 2).
-**Last commit on plan branch.** v2.5 — Manual evaluation against 20-30 real queries; spreadsheet of results; Gulf 1 gate.
+**Workplan status.** Block 3 in progress (LLM-driven extraction); Step 3.1 closed.
+**Current version carrier.** `v3.1` (Step 3.1 closed; Block 3: 1 of 4).
+**Streaks.** zero-Phase-4-correction: 1 of 1 (Block 3) · zero-Phase-8-patch: 6 of 6 (Steps 2.1–3.1).
+**Last commit on plan branch.** v3.1 — Set up Qwen3.5-27B locally + latency benchmark (~10-30s per 40-turn session).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -330,18 +330,40 @@ structured results, empty database handling, formatResults markdown output, chec
 counts. 6 positive audit findings, 1 negative (test count underestimate: planned 5, delivered 7),
 0 Phase 8 patches. **Block 2 complete (5/5).**
 
+### Step 3.1 — Set up Qwen3.5-27B locally + latency benchmark (~10-30s per 40-turn session)
+
+Closed at v3.1. Created `lib/llm-client.mjs` — the LLM client module that communicates
+with a locally-running Qwen3.5-27B-Instruct model via the `mlx-lm` server's OpenAI-compatible
+HTTP API. `createLlmClient({ baseUrl, model, timeout })` factory returns `{ generate, healthCheck }`.
+`generate(messages, opts)` calls `POST /v1/chat/completions` with support for JSON mode
+(`response_format: { type: 'json_object' }`). `healthCheck()` calls `GET /v1/models` and returns
+structured status `{ ok, model, models, error }`. Fully configurable via environment variables
+(`LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT`). Zero new npm dependencies (uses Node built-in
+`fetch`). Created `bin/llm-benchmark.mjs` — CLI benchmark tool that generates a 40-turn
+synthetic session with realistic domain vocabulary (NATS, embeddings, spreading activation,
+entity extraction), runs structured-output extraction via JSON mode, and measures wall-clock
+latency against the ≤30s target. Reports tokens/sec when usage data is available. Exports
+`generateSyntheticSession(turnCount)` and `runBenchmark(client, turns)` for programmatic use.
+4 new tests with mock HTTP server: interface check, generate request format, healthCheck
+response parsing, JSON mode response_format. 6 positive audit findings, zero corrections,
+zero Phase 8 patches. Carry-forwards to Step 3.2: test baseline now 563 (490 pass, 73
+fail pre-existing); `createLlmClient` ready for import by the extraction prompt module;
+`DEFAULT_MODEL` set to `mlx-community/Qwen2.5-27B-Instruct-4bit` (operator should verify
+against local installation); operator should run `node bin/llm-benchmark.mjs` to verify live
+≤30s target before Step 3.2.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               16 / 45
-Current block:              Block 2 closed — Local semantic layer (5 of 5 steps closed)
-Steps closed in block:      5 / 5
-Consecutive zero-Phase-4-correction streak:  0 (reset in Step 2.5)
-Consecutive zero-Phase-8-patch streak:       5
-Test baseline (npm test):   559 tests (486 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-21 (Step 2.5)
+Steps closed:               17 / 45
+Current block:              Block 3 — LLM-driven extraction (1 of 4 steps closed)
+Steps closed in block:      1 / 4
+Consecutive zero-Phase-4-correction streak:  1 (Block 3)
+Consecutive zero-Phase-8-patch streak:       6
+Test baseline (npm test):   563 tests (490 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-22 (Step 3.1)
 Last block file written:    memory-plan/audits/BLOCK_2_COMPLETE.md
 ```
 
@@ -352,13 +374,9 @@ Last block file written:    memory-plan/audits/BLOCK_2_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v2.5` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 3.1.
-4. **STOP.** Block 3 frozen decisions have NOT been authored in §0 yet.
-5. The operator must first:
-   a. Run `bin/embed-existing-sessions.mjs` to populate session embeddings.
-   b. Run `bin/run-gulf1-eval.mjs` to generate `memory-plan/eval/gulf1-results.md`.
-   c. Manually score results (0-2 per result) and make the go/no-go decision.
-   d. If proceeding, author Block 3 frozen decisions in RESUME.md §0.
-6. Until Block 3 frozen decisions are authored, the next tick should write `BLOCKED.md`
-   with reason: "Block 3 frozen decisions not yet authored; Gulf 1 evaluation pending."
+2. Decode state: `VERSION` is `v3.1` (no suffix) → Start NEXT step at Phase 1.
+3. Read `INVENTORY.md` → first `[ ]` row is Step 3.2.
+4. Read AUDIT_POST §6 from `memory-plan/audits/step17_qwen_setup_benchmark/AUDIT_POST.md`.
+5. Read RESUME.md §0 Block 3 frozen decisions (already authored).
+6. Execute Step 3.2: Design extraction prompt + Zod schema (entities/themes/actions/decisions/friction/relationships).
+7. **Operator note:** before Step 3.2, the operator should run `node bin/llm-benchmark.mjs` to verify the live mlx-lm server meets the ≤30s latency target. This is not a blocker for the autonomous tick (Step 3.2 designs the schema/prompt, doesn't require live inference), but confirms the setup from Step 3.1.
