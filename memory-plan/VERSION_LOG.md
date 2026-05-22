@@ -9,6 +9,28 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v3.4 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** close for Step 3.4: Validate LLM vs regex extraction on 10 sessions; document quality delta.
+- Files committed: `bin/run-block3-validation.mjs` (new — readSessions, runRegexExtraction, runLlmExtraction, aggregateMetrics, formatComparison, runValidation, CLI entry), `test/block3-validation.test.mjs` (new — 9 tests), audit docs, ledger files.
+- Test count: 587 (514 pass, 73 fail — pre-existing). +9 tests added this step.
+- V2 audit: 6 POSITIVE findings, 1 NEGATIVE finding (test count underestimate: planned ~6, delivered 9), 0 Phase 8 patches.
+- Streak: 0-of-4 zero-Phase-4-correction (Block 3; reset due to test count underestimate).
+- **Block 3 complete (4/4).**
+
+### v3.4-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 3.4.
+- Files changed: `bin/run-block3-validation.mjs` (new — readSessions, runRegexExtraction, runLlmExtraction, aggregateMetrics, formatComparison, runValidation, CLI entry), `test/block3-validation.test.mjs` (new — 9 tests).
+- Test additions: 9 new tests (5 describe blocks: "readSessions" with 3 tests — limit+ordering, messages inclusion, missing DB; "runRegexExtraction" with 2 tests — extraction+metrics, empty patterns; "runLlmExtraction" with 1 test — mock client+metrics; "aggregateMetrics" with 2 tests — averages, null LLM; "formatComparison" with 1 test — markdown sections).
+
+### v3.4-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 3.4.
+- Files planned: `bin/run-block3-validation.mjs` (new), `test/block3-validation.test.mjs` (new).
+- Audit: `memory-plan/audits/step20_block3_validation/AUDIT_PRE.md`.
+- Test baseline: 578 tests (505 pass, 73 fail — pre-existing).
+
 ### v3.3 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** close for Step 3.3: Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite.

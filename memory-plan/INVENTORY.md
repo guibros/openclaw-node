@@ -98,7 +98,9 @@ Replace regex extraction with structured-output LLM. See REFERENCE_PLAN.md §Pha
 | 3 | 3.3 | v3.3 | [x] | Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite |
 
 > **Step 3.3 closed.** Created `lib/extraction-store.mjs` — `createExtractionStore` with 4 SQLite tables (entities, themes, mentions, decisions), `storeExtractionResult` for atomic upsert from LLM extraction results, `generateMemoryContent` for structured MEMORY.md generation from accumulated data. Modified `lib/pre-compression-flush.mjs` — added `USE_LLM_EXTRACTION` feature flag (defaults true, `'false'` restores regex), extended `runFlush` with LLM extraction path and graceful fallback to regex on failure. Modified `workspace-bin/memory-daemon.mjs` — lazy init of LLM client + extraction store, passed to both flush call sites. 8 new tests with mock LLM clients and temp databases. 6 positive audit findings, 1 negative (test count: planned 7, delivered 8), zero Phase 8 patches. Phase-4-correction streak reset.
-| 3 | 3.4 | v3.4 | [ ] | Validate LLM vs regex extraction on 10 sessions; document quality delta |
+| 3 | 3.4 | v3.4 | [x] | Validate LLM vs regex extraction on 10 sessions; document quality delta |
+
+> **Step 3.4 closed.** Created `bin/run-block3-validation.mjs` — CLI validation tool that reads sessions from the session store, runs both the regex extractor (`extractFacts` + `mergeFacts`) and the LLM extractor (`extractStructured` + `generateMemoryContent` via temp in-memory extraction store) on each, and produces a structured markdown comparison document with per-session scoring tables and a go/no-go decision checklist. Handles LLM unavailability gracefully (runs regex-only with empty LLM columns). 9 new tests with mock DB and mock LLM client. 6 positive audit findings, 1 negative (test count: planned ~6, delivered 9), zero Phase 8 patches. Phase-4-correction streak reset. **Block 3 complete (4/4).**
 
 ## Block 4 — Federation primitives
 

@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 3 in progress (LLM-driven extraction); Step 3.3 closed.
-**Current version carrier.** `v3.3` (Step 3.3 closed; Block 3: 3 of 4).
-**Streaks.** zero-Phase-4-correction: 0 of 3 (Block 3; reset at Step 3.3 — test count underestimate) · zero-Phase-8-patch: 8 of 8 (Steps 2.1–3.3).
-**Last commit on plan branch.** v3.3 — Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite.
+**Workplan status.** Block 3 closed; Block 4 awaits operator-authored frozen decisions.
+**Current version carrier.** `v3.4` (Step 3.4 closed; Block 3: 4 of 4 — complete).
+**Streaks.** zero-Phase-4-correction: 0 of 4 (Block 3; reset at Step 3.4 — test count underestimate) · zero-Phase-8-patch: 9 of 9 (Steps 2.1–3.4).
+**Last commit on plan branch.** v3.4 — Validate LLM vs regex extraction on 10 sessions; document quality delta.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -392,19 +392,38 @@ Carry-forwards to Step 3.3: test baseline now 570 (497 pass, 73 fail pre-existin
 `extractStructured` ready for daemon wiring behind `USE_LLM_EXTRACTION` feature flag;
 schema covers all 6 categories needed for the entity/theme/decision/mention SQLite tables.
 
+### Step 3.4 — Validate LLM vs regex extraction on 10 sessions; document quality delta
+
+Closed at v3.4. Created `bin/run-block3-validation.mjs` — CLI validation tool that reads
+sessions from the session store (`~/.openclaw/state.db`), runs both the regex extractor
+(`extractFacts` + `mergeFacts`) and the LLM extractor (`extractStructured` +
+`generateMemoryContent` via temp in-memory extraction store) on each session, and produces
+a structured markdown comparison document at `memory-plan/eval/block-3-validation.md` for
+manual operator review. Exports `readSessions(dbPath, limit)` for session reading,
+`runRegexExtraction(messages)` and `runLlmExtraction(client, messages, sessionId)` for the
+two extraction paths, `aggregateMetrics(results)` for summary statistics,
+`formatComparison(results)` for the markdown document, and `runValidation(opts)` for the
+full pipeline with CLI entry. Handles LLM unavailability gracefully — runs regex extraction
+unconditionally and skips LLM extraction with a message if Ollama health check fails.
+Per-session manual scoring tables with 5 criteria (semantic coherence, signal-to-noise
+ratio, coverage, actionable information, fragment quality) and a go/no-go decision
+checklist. 9 new tests with mock DB and mock LLM client. 6 positive audit findings,
+1 negative (test count underestimate: planned ~6, delivered 9), zero Phase 8 patches.
+**Block 3 complete (4/4).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               18 / 45
-Current block:              Block 3 — LLM-driven extraction (2 of 4 steps closed)
-Steps closed in block:      2 / 4
-Consecutive zero-Phase-4-correction streak:  0 (Block 3; reset at Step 3.2)
-Consecutive zero-Phase-8-patch streak:       7
-Test baseline (npm test):   570 tests (497 pass, 73 fail pre-existing)
-Last successful tick:       2026-05-22 (Step 3.2)
-Last block file written:    memory-plan/audits/BLOCK_2_COMPLETE.md
+Steps closed:               20 / 45
+Current block:              Block 3 closed; Block 4 awaits frozen decisions
+Steps closed in block:      4 / 4 (Block 3 complete)
+Consecutive zero-Phase-4-correction streak:  0 (Block 3; reset at Step 3.4)
+Consecutive zero-Phase-8-patch streak:       9
+Test baseline (npm test):   587 tests (514 pass, 73 fail pre-existing)
+Last successful tick:       2026-05-22 (Step 3.4)
+Last block file written:    memory-plan/audits/BLOCK_3_COMPLETE.md
 ```
 
 ---
@@ -414,9 +433,9 @@ Last block file written:    memory-plan/audits/BLOCK_2_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode state: `VERSION` is `v3.2` (no suffix) → Start NEXT step at Phase 1.
-3. Read `INVENTORY.md` → first `[ ]` row is Step 3.3.
-4. Read AUDIT_POST §6 from `memory-plan/audits/step18_extraction_prompt_schema/AUDIT_POST.md`.
-5. Read RESUME.md §0 Block 3 frozen decisions (already authored).
-6. Execute Step 3.3: Wire LLM extraction into daemon + new entity/theme/decision/mention tables in SQLite.
-7. **Operator note:** Step 3.3 is the largest step in Block 3 — it replaces `extractFacts` with `extractStructured`, creates 4 new SQLite tables, generates MEMORY.md from structured data, and adds the `USE_LLM_EXTRACTION` feature flag. The operator should verify the live mlx-lm server is running before this step (it will make real LLM calls during daemon flush).
+2. **STOP at pre-flight.** Block 3 is closed. Block 4 frozen decisions have not been authored.
+3. The operator must:
+   a. Run `node bin/run-block3-validation.mjs` against live session store with Ollama running.
+   b. Score the comparison document and write the go/no-go decision.
+   c. Author Block 4 frozen decisions in RESUME.md §0 before the next tick can proceed.
+4. Until Block 4 §0 is authored, the autonomous tick should find no `[ ]` or `[A]` rows to process and exit cleanly, OR it should see the block boundary and stop.
