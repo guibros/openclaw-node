@@ -256,6 +256,47 @@ These directives are parsed from the user prompt by a tiny regex in the publishe
 
 **Carry-forward to Block 8:** consolidation cycle (Block 8) is the "sleep" analog that maintains graph health (decay, reinforcement, clustering, summaries, contradiction detection). Block 7 makes memory readable in real-time; Block 8 keeps the graph healthy over time. The two are independent.
 
+### Block 8 frozen decisions
+
+Authored 2026-05-23 by operator (interactive session). Block 7 closed (v7.1–v7.4) but five amendments remain outstanding — captured below as carry-forwards into Block 8 scope so they're FROZEN and not lost.
+
+**Block 7 follow-up carry-forwards** — to be addressed as new Steps 8.5 / 8.6 / 8.7 in inventory, OR as Block 7 follow-on operator chore commits before Block 9. Cluster into ~3 cohesive steps:
+
+- **(A) Wire `analyzeQueryWithLlm` into the production injection path.** `lib/query-analysis.mjs:analyzeQueryWithLlm` exists (committed in `08b0812`) but `createMemoryInjector` only uses it when `llmClient` is passed; no live caller passes one yet. Wire companion-bridge harness (item B) to instantiate `createMemoryInjector({ llmClient: createLlmClient() })` so production traffic benefits from intent / sentiment / disambiguation signals (auto-falls-back to embedding when LLM queue busy, per the contention design just shipped).
+
+- **(B) Companion-bridge harness Tier 0 integration — PRIMARY injection path.** `~/Documents/openclaw infrastructure/companion-bridge/harness.ts` already injects "Tier 1" rules into every prompt traversing the OpenAI-compat adapter on port 8787. Add a new "memory" rule type (Tier 0) that calls `memory-injector.retrieve()` per turn, prepends the `[memory: ...]` block before forwarding to Companion → Claude Code CLI. This makes injection AGNOSTIC across every frontend using companion-bridge as the adapter (Claude Code, OpenClaw, Continue, any OpenAI-compat client) — no per-frontend hooks. Replaces the Block 7 §0 plan that named per-publisher wiring.
+
+- **(C) Human-recall-modeled curation.** Replace the dumb 750-token cap in `lib/memory-injector.mjs:trimToBudget` with cognitive-modeled scoring: `score = recency_weight × frequency × salience × graph_activation × rrf_rank`. Per-category caps (Miller 7±2): `active_concepts:7, recent_decisions:5, related_sessions:3, themes:3, contradictions:2`. Inhibition within each group (top-K survive). **Reconsolidation feedback loop**: when an item is injected, write back `last_recalled = now; salience *= 1.05` (capped 1.0). Token cap demoted to safety ceiling (1500). **Decay half of the loop lives in Block 8 consolidation (Step 8.3 below) — the two halves close the cycle.**
+
+- **(D) Embedding model cached in companion-bridge process.** Currently every analysis pass cold-loads BGE-M3 via `import('./mcp-knowledge/core.mjs')`. In companion-bridge's long-running Bun adapter, the model can be loaded once at startup and reused for all subsequent prompts (~30 ms per query instead of ~150-300 ms cold). New `lib/embedder-cache.mjs` singleton with explicit warmup at adapter startup.
+
+- **(E) Wire memory injection into Block 4.9 SDK wrappers.** `lib/publishers/{openai,anthropic,gemini,minimax}-wrapper.mjs` currently only publish `extract_request` events to NATS. They should ALSO call `memory-injector.retrieve()` and prepend the `[memory: ...]` block to the wrapped `messages` array before forwarding to the upstream provider. This makes injection work for SDK users not going through companion-bridge (fallback / secondary path).
+
+**Block 8 hard scope — Steps 8.1–8.4 per REFERENCE_PLAN:**
+
+- **8.1** — Consolidation jobs library. New `lib/consolidation.mjs` exporting: `decayWeights()`, `reinforceCoOccurrence()`, `detectClusters()`, `regenerateSummaries()`, `detectContradictions()`, `evaluatePromotionCandidates()`. Each is independently runnable + testable. New `bin/consolidate.mjs` orchestrates one full cycle.
+- **8.2** — Scheduler. New `bin/consolidation-scheduler.mjs` run by launchd at 30-min cadence. Triggers a cycle when: no extraction in queue for ≥5 minutes AND no analysis in the last 60 seconds (read via `ollama-queue.getState()`). Skip if queue is busy. Hard cap ~5 minutes per cycle. All consolidation work routes through `ollama-queue.requestExtraction()` (same priority as session extraction — long-running, waits for quiet periods).
+- **8.3** — Decay parameters (operator-authored, applied in 8.1):
+  - Salience decay: half-life 14 days for un-recalled items: `new = old * 0.5^(days_since_recall / 14)`
+  - Drop threshold: salience < 0.05 → move to `entities_archived` table (don't hard delete)
+  - Reinforcement: entities co-occurring in ≥3 recent sessions → `mention_count += 1` and `salience += 0.05` (capped 1.0)
+  - **This is the decay HALF of the reconsolidation loop from Block 7 amendment (C).** Reconsolidation boosts on each recall (Block 7); decay runs in batch here (Block 8). Together they implement biological forgetting + reinforcement.
+- **8.4** — Cluster detection: simple co-occurrence threshold (entities appearing in same session ≥5 times → candidate for new theme note). NOT k-means / DBSCAN — too heavy for our scale; deterministic + transparent is preferred over ML clustering.
+
+**Validation gate before Block 9:** consolidation cycle runs cleanly 3 times on the operator's machine without errors, AND a measurable change in graph state (≥10 items decayed OR ≥1 cluster detected) is verified.
+
+**Test baseline for Block 8:** continues from v7.4. Each step adds 4-8 tests. Block 8 total expected: +20-30 tests.
+
+**Next-tick checklist (rev — fixes prior loop bug):**
+
+When Block 8 closes, the next tick will attempt Step 9.1 (broadcast protocol). Per framework:
+
+1. Read `RESUME.md §0` to find Block 9 frozen decisions.
+2. If `### Block 9 frozen decisions` section is ABSENT → **write `BLOCKED.md`** with reason "Block 9 frozen decisions not authored" and exit. **DO NOT** exit cleanly without `BLOCKED.md` — that bypasses the autopause mechanism and causes launchd to poll every 120s indefinitely (the bug that wasted ~5 phantom ticks at the Block 7→8 boundary on 2026-05-23).
+3. The autopause logic in `workspace-bin/memory-plan-tick.sh:maybe_autopause()` requires `BLOCKED.md` presence. Honor the contract.
+
+**This applies to EVERY block boundary going forward.** Line 974 of this file (the now-broken Block 7→8 checklist) updated to match.
+
 ### Carry-forward from Block 0 + Block 1
 
 - **Phase 2 scope must be revisited before Block 2 starts.** `lib/mcp-knowledge/core.mjs` already implements sqlite-vec + embeddings via `@huggingface/transformers` (Xenova/all-MiniLM-L6-v2, 384-dim) and is the registered "knowledge" MCP server in `.mcp.json`. Step 2.1's first deliverable is a written re-scoping decision.
@@ -971,6 +1012,6 @@ The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
 2. Decode VERSION (`v7.4`, no suffix) → next step is Step 8.1.
-3. **IMPORTANT:** Block 8 frozen decisions must be authored by the operator BEFORE the next tick can proceed. The tick should check for Block 8 §0 in RESUME.md. If absent → exit cleanly (no BLOCKED.md).
+3. **IMPORTANT:** Block 8 frozen decisions must be authored by the operator BEFORE the next tick can proceed. The tick should check for Block 8 §0 in RESUME.md. If absent → **write `BLOCKED.md`** with reason "Block 8 frozen decisions not authored" and exit non-zero. **DO NOT** exit cleanly without `BLOCKED.md` — that bypasses the autopause mechanism (`workspace-bin/memory-plan-tick.sh:maybe_autopause()`) and causes launchd to poll every 120s indefinitely. The autopause contract depends on `BLOCKED.md` presence. (Fixed retroactively from the prior loop bug on 2026-05-23 — 5 phantom ticks wasted before detection.)
 4. Step 8.1 is: "Implement consolidation jobs (embed/extract/update/refresh/decay/reinforce/cluster/summary/contradict/promote)".
 5. Read AUDIT_POST §6 from `memory-plan/audits/step42_runtime_control/AUDIT_POST.md` for carry-forwards.
