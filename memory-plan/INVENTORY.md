@@ -143,7 +143,9 @@ Per-node Obsidian vault + wikilink graph + adjacency cache. See REFERENCE_PLAN.m
 | 5 | 5.1 | v5.1 | [x] | Set up per-node Obsidian vault structure under ~/.openclaw/obsidian-local/ |
 
 > **Step 5.1 closed.** Created `lib/obsidian-vault.mjs` — per-node Obsidian vault setup module with `DEFAULT_VAULT_PATH` (resolves `~/.openclaw/obsidian-local/` via `os.homedir()` + `path.join()`), `VAULT_SUBDIRS` (`['concepts', 'decisions', 'sessions', 'themes', 'daily']`), `getVaultPath(opts)` with `OBSIDIAN_VAULT_PATH` env override, and `ensureVaultStructure(vaultPath)` for idempotent directory creation. No external dependencies (Node.js built-ins only). 8 new tests. 8 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
-| 5 | 5.2 | v5.2 | [ ] | Auto-generate concept notes from entity store (frontmatter + body via LLM) |
+| 5 | 5.2 | v5.2 | [x] | Auto-generate concept notes from entity store (frontmatter + body via LLM) |
+
+> **Step 5.2 closed.** Created `lib/obsidian-summarizer.mjs` — concept note auto-generation from extraction store. Exports `DEFAULT_CONCEPT_THRESHOLD` (5), `getConceptThreshold` with env override, `slugifyName` for filesystem-safe filenames, `buildConceptFrontmatter` with data-driven YAML (type, entity_type, created, last_seen, mention_count, salience, related wikilinks), `buildConceptBody` with LLM summary + data-only fallback, `generateConceptSummary` via Ollama/Qwen3 with `/no_think` directive, `queryConceptData` for extraction store queries (entities + co-mentions + decisions), `generateConceptNotes` main orchestrator. 12 new tests. 10 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
 | 5 | 5.3 | v5.3 | [ ] | Build wikilink graph parser (lib/obsidian-graph.mjs) |
 | 5 | 5.4 | v5.4 | [ ] | Cache adjacency in SQLite + periodic refresh job (fsevents/10-min) |
 | 5 | 5.5 | v5.5 | [ ] | Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/) |

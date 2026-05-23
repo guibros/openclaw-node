@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v5.2 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** step close for Step 5.2: Auto-generate concept notes from entity store (frontmatter + body via LLM).
+- Final test count: 705 (628 pass, 77 fail — 73 pre-existing + 4 flaky). +12 tests added this step.
+- Audit: `memory-plan/audits/step31_concept_note_generation/AUDIT_POST.md`.
+- 10 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v5.2-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 5.2.
+- Files changed: `lib/obsidian-summarizer.mjs` (new — DEFAULT_CONCEPT_THRESHOLD constant, getConceptThreshold with env override, slugifyName for filesystem-safe names, buildConceptFrontmatter with YAML data-driven frontmatter, buildConceptBody with LLM summary + fallback, generateConceptSummary with LLM client, queryConceptData for extraction store queries, generateConceptNotes main orchestrator), `test/obsidian-summarizer.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v5.2-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 5.2.
+- Files planned: `lib/obsidian-summarizer.mjs` (new), `test/obsidian-summarizer.test.mjs` (new).
+- Audit: `memory-plan/audits/step31_concept_note_generation/AUDIT_PRE.md`.
+- Test baseline: 693 tests (616 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v5.1 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** step close for Step 5.1: Set up per-node Obsidian vault structure under ~/.openclaw/obsidian-local/.

@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 5 in progress; Step 5.1 closed.
-**Current version carrier.** `v5.1` (Step 5.1 closed; Block 5: 1 of 5).
-**Streaks.** zero-Phase-4-correction: 0 of 1 (Block 5; reset at Step 5.1) · zero-Phase-8-patch: 1 of 1 (Block 5; Step 5.1 had 0 patches).
-**Last commit on plan branch.** v5.1 — Set up per-node Obsidian vault structure under ~/.openclaw/obsidian-local/.
+**Workplan status.** Block 5 in progress; Step 5.2 closed.
+**Current version carrier.** `v5.2` (Step 5.2 closed; Block 5: 2 of 5).
+**Streaks.** zero-Phase-4-correction: 0 of 2 (Block 5; reset at Step 5.2) · zero-Phase-8-patch: 2 of 2 (Block 5; Steps 5.1–5.2 had 0 patches).
+**Last commit on plan branch.** v5.2 — Auto-generate concept notes from entity store (frontmatter + body via LLM).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -696,18 +696,36 @@ built-ins: `node:os`, `node:path`, `node:fs/promises`). 8 new tests cover consta
 path resolution, directory creation, and idempotency. 8 positive audit findings, 1 negative
 (test count underestimate: planned ~6, delivered 8), zero Phase 8 patches.
 
+### Step 5.2 — Auto-generate concept notes from entity store (frontmatter + body via LLM)
+
+Closed at v5.2. Created `lib/obsidian-summarizer.mjs` — the concept note auto-generation module.
+`DEFAULT_CONCEPT_THRESHOLD` constant (5) with env override via `OBSIDIAN_CONCEPT_THRESHOLD`.
+`slugifyName(name)` sanitizes entity names for filesystem-safe filenames (lowercase, special
+chars replaced with hyphens). `buildConceptFrontmatter(entity, relatedEntities, avgSalience)`
+produces YAML frontmatter with type (always `concept`), entity_type, created, last_seen,
+mention_count, salience, and related wikilinks to co-mentioned entities. `buildConceptBody`
+formats markdown body with LLM summary (or `_Summary not yet generated._` fallback), decisions
+section, and recent activity section with session wikilinks. `generateConceptSummary` calls
+LLM with `/no_think` system prompt for 2-3 sentence summary; returns null on any failure.
+`queryConceptData(db, threshold)` queries extraction store for entities above threshold with
+co-mentioned entities (via mentions JOIN), average salience, related decisions (via
+mentions→decisions JOIN), and recent sessions. `generateConceptNotes(opts)` orchestrates:
+queries store, ensures vault structure, writes notes to `<vault>/concepts/<slug>.md`.
+12 new tests. 10 positive audit findings, 1 negative (test count underestimate: planned ~7,
+delivered 12), zero Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               30 / 48
+Steps closed:               31 / 48
 Current block:              Block 5 in progress
-Steps closed in block:      1 / 5 (Block 5)
-Consecutive zero-Phase-4-correction streak:  0 (Block 5; reset at Step 5.1)
-Consecutive zero-Phase-8-patch streak:       1 (Block 5; Step 5.1 had 0 patches)
-Test baseline (npm test):   693 tests (616 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 5.1)
+Steps closed in block:      2 / 5 (Block 5)
+Consecutive zero-Phase-4-correction streak:  0 (Block 5; reset at Step 5.2)
+Consecutive zero-Phase-8-patch streak:       2 (Block 5; Steps 5.1–5.2 had 0 patches)
+Test baseline (npm test):   705 tests (628 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 5.2)
 Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 ```
 
@@ -718,6 +736,6 @@ Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v5.1`, no suffix) → next step is Step 5.2.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step30_obsidian_vault_setup/AUDIT_POST.md` for carry-forwards into Step 5.2.
-4. Step 5.2 implements auto-generation of concept notes from the entity store (frontmatter + LLM body with fallback). Requires importing `ensureVaultStructure`, `getVaultPath`, `VAULT_SUBDIRS` from `lib/obsidian-vault.mjs`.
+2. Decode VERSION (`v5.2`, no suffix) → next step is Step 5.3.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step31_concept_note_generation/AUDIT_POST.md` for carry-forwards into Step 5.3.
+4. Step 5.3 builds the wikilink graph parser (`lib/obsidian-graph.mjs`). Should reuse `slugifyName` from `lib/obsidian-summarizer.mjs` for filename↔entity matching. Parses `[[...]]` wikilinks from concept notes written by Step 5.2.
