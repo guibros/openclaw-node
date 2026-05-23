@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 7 in progress (1 of 4 steps closed).
-**Current version carrier.** `v7.1` (Step 7.1 closed; Block 7: 1 of 4).
-**Streaks.** zero-Phase-4-correction: 0 (Block 7; Step 7.1 test count underestimate reset) · zero-Phase-8-patch: 11 (Block 5 all 5 + Block 6 all 4 + Step 7.1).
-**Last commit on plan branch.** v7.1 — Implement query analysis (per-prompt theme/entity extraction, ~50ms).
+**Workplan status.** Block 7 in progress (2 of 4 steps closed).
+**Current version carrier.** `v7.2` (Step 7.2 closed; Block 7: 2 of 4).
+**Streaks.** zero-Phase-4-correction: 0 (Block 7; Step 7.2 test count underestimate) · zero-Phase-8-patch: 12 (Block 5 all 5 + Block 6 all 4 + Steps 7.1–7.2).
+**Last commit on plan branch.** v7.2 — Pre-retrieve and budget ambient memory (cap 500-1000 tokens).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at

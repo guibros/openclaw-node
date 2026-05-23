@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v7.2 — 2026-05-23 — memory-plan-tick
+
+- **Phase 9** step close for Step 7.2: Pre-retrieve and budget ambient memory (cap 500-1000 tokens).
+- Final test count: 808 (731 pass, 77 fail — 73 pre-existing + 4 flaky). +16 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step40_memory_injector/AUDIT_POST.md`.
+- 10 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v7.2-mid — 2026-05-23 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 7.2.
+- Files changed: `lib/memory-injector.mjs` (new — DEFAULT_TOKEN_BUDGET 750, CHARS_PER_TOKEN 4, estimateTokens char-based heuristic, queryRelevantConcepts entities via mentions JOIN by session_id sorted by salience, queryRelevantDecisions by session_id sorted by confidence, trimToBudget greedy budget allocator with concepts→decisions→snippets priority and 30-token overhead, createMemoryInjector factory wiring analyzeQuery + createRetrievalPipeline + extraction store queries + budget trimming), `test/memory-injector.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v7.2-pre — 2026-05-23 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 7.2.
+- Files planned: `lib/memory-injector.mjs` (new), `test/memory-injector.test.mjs` (new).
+- Audit: `memory-plan/audits/step40_memory_injector/AUDIT_PRE.md`.
+- Test baseline: 792 tests (715 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v7.1 — 2026-05-23 — memory-plan-tick
 
 - **Phase 9** step close for Step 7.1: Implement query analysis (per-prompt theme/entity extraction, ~50ms).
