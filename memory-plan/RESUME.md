@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 5 in progress; Step 5.3 closed.
-**Current version carrier.** `v5.3` (Step 5.3 closed; Block 5: 3 of 5).
-**Streaks.** zero-Phase-4-correction: 0 of 3 (Block 5; reset at Step 5.3) · zero-Phase-8-patch: 3 of 3 (Block 5; Steps 5.1–5.3 had 0 patches).
-**Last commit on plan branch.** v5.3 — Build wikilink graph parser (lib/obsidian-graph.mjs).
+**Workplan status.** Block 5 in progress; Step 5.4 closed.
+**Current version carrier.** `v5.4` (Step 5.4 closed; Block 5: 4 of 5).
+**Streaks.** zero-Phase-4-correction: 0 of 4 (Block 5; reset at Step 5.3, still 0 at Step 5.4) · zero-Phase-8-patch: 4 of 4 (Block 5; Steps 5.1–5.4 had 0 patches).
+**Last commit on plan branch.** v5.4 — Cache adjacency in SQLite + periodic refresh job (fsevents/10-min).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -729,18 +729,34 @@ defaults to `mentions`; frontmatter `edge_types` mapping supports `derived_from`
 `contradicts`, `instance_of` per Block 5 §0. 16 new tests. 9 positive audit findings,
 1 negative (test count underestimate), zero Phase 8 patches.
 
+### Step 5.4 — Cache adjacency in SQLite + periodic refresh job (fsevents/10-min)
+
+Closed at v5.4. Created `bin/obsidian-graph-cache.mjs` — the adjacency cache module.
+`createGraphCache(opts)` factory at line 72 returns a queryable API: `refreshCache()`
+calls `buildGraph(vaultPath)` and projects nodes/edges into SQLite tables
+`concept_graph_nodes(id, label, last_activated_at, weight)` and
+`concept_graph_edges(source_id, target_id, edge_type, weight)` via full-replace
+transaction. `queryNeighbors(nodeId, { direction })` supports `outgoing`/`incoming`/`both`
+for spreading activation forward and backward propagation. `getNodes()`, `getEdges()`,
+`getStats()` for inspection. `startWatcher()` sets up 10-min interval timer + optional
+`fs.watch` recursive watcher with 2s debounce (macOS; timer-only fallback elsewhere).
+CLI entry with `--stats`/`--refresh`/daemon modes. `DEFAULT_DB_PATH` at line 27
+resolves to `~/.openclaw/graph-cache.db`. `DEFAULT_REFRESH_INTERVAL_MS` at line 30 =
+600000 (10 min). 10 new tests. 9 positive audit findings, 1 negative (test count
+underestimate), zero Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               32 / 48
+Steps closed:               33 / 48
 Current block:              Block 5 in progress
-Steps closed in block:      3 / 5 (Block 5)
-Consecutive zero-Phase-4-correction streak:  0 (Block 5; reset at Step 5.3)
-Consecutive zero-Phase-8-patch streak:       3 (Block 5; Steps 5.1–5.3 had 0 patches)
-Test baseline (npm test):   721 tests (644 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 5.3)
+Steps closed in block:      4 / 5 (Block 5)
+Consecutive zero-Phase-4-correction streak:  0 (Block 5; reset at Step 5.3, held at Step 5.4)
+Consecutive zero-Phase-8-patch streak:       4 (Block 5; Steps 5.1–5.4 had 0 patches)
+Test baseline (npm test):   731 tests (654 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 5.4)
 Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 ```
 
@@ -751,6 +767,6 @@ Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v5.3`, no suffix) → next step is Step 5.4.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step32_wikilink_graph_parser/AUDIT_POST.md` for carry-forwards into Step 5.4.
-4. Step 5.4 caches the graph adjacency in SQLite tables (`concept_graph_nodes`, `concept_graph_edges`) with a periodic refresh daemon (`bin/obsidian-graph-cache.mjs`). Should call `buildGraph(vaultPath)` and project nodes/edges into indexed tables for fast spreading-activation queries (Block 6 dependency).
+2. Decode VERSION (`v5.4`, no suffix) → next step is Step 5.5.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step33_adjacency_cache/AUDIT_POST.md` for carry-forwards into Step 5.5.
+4. Step 5.5 promotes selected concepts to the shared vault (`projects/arcane-vault/concepts-shared/`). Concepts crossing the promotion threshold (Block 4 policy) generate equivalent notes with `source_node` provenance frontmatter. This is the last step of Block 5 — write `BLOCK_5_COMPLETE.md` at Phase 9e.

@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v5.4 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** step close for Step 5.4: Cache adjacency in SQLite + periodic refresh job (fsevents/10-min).
+- Final test count: 731 (654 pass, 77 fail — 73 pre-existing + 4 flaky). +10 tests added this step.
+- Audit: `memory-plan/audits/step33_adjacency_cache/AUDIT_POST.md`.
+- 9 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v5.4-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 5.4.
+- Files changed: `bin/obsidian-graph-cache.mjs` (new — DEFAULT_DB_PATH constant, DEFAULT_REFRESH_INTERVAL_MS constant, createGraphCache factory with initDb, refreshCache via buildGraph + full-replace transaction, queryNeighbors with direction filtering, getNodes, getEdges, getStats, startWatcher with interval timer + optional fs.watch, stopWatcher, close, CLI entry with --stats/--refresh/daemon modes), `test/obsidian-graph-cache.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v5.4-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 5.4.
+- Files planned: `bin/obsidian-graph-cache.mjs` (new), `test/obsidian-graph-cache.test.mjs` (new).
+- Audit: `memory-plan/audits/step33_adjacency_cache/AUDIT_PRE.md`.
+- Test baseline: 721 tests (644 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v5.3 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** step close for Step 5.3: Build wikilink graph parser (lib/obsidian-graph.mjs).

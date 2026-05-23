@@ -149,7 +149,9 @@ Per-node Obsidian vault + wikilink graph + adjacency cache. See REFERENCE_PLAN.m
 | 5 | 5.3 | v5.3 | [x] | Build wikilink graph parser (lib/obsidian-graph.mjs) |
 
 > **Step 5.3 closed.** Created `lib/obsidian-graph.mjs` — the wikilink graph parser module. Exports `walkVault(vaultPath)` for recursive `.md` file discovery with `{filePath, relativePath, id, subdirectory}` descriptors, `parseNote(content)` for frontmatter+body splitting via `js-yaml`, `extractWikilinks(text)` for `[[target]]` and `[[target|display]]` pattern extraction, and `buildGraph(vaultPath)` returning `{nodes: Map<id, {label, subdirectory, ...frontmatter}>, edges: [{source, target, type}]}`. Edge typing from frontmatter `edge_types` mapping supports `derived_from`, `contradicts`, `instance_of`; defaults to `mentions`. Deduplicates edges from body and frontmatter `related` field. 16 new tests. 9 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
-| 5 | 5.4 | v5.4 | [ ] | Cache adjacency in SQLite + periodic refresh job (fsevents/10-min) |
+| 5 | 5.4 | v5.4 | [x] | Cache adjacency in SQLite + periodic refresh job (fsevents/10-min) |
+
+> **Step 5.4 closed.** Created `bin/obsidian-graph-cache.mjs` — the adjacency cache module. `createGraphCache(opts)` factory returns a queryable API surface: `refreshCache()` calls `buildGraph(vaultPath)` and projects nodes/edges into SQLite tables `concept_graph_nodes` and `concept_graph_edges` via full-replace transaction. `queryNeighbors(nodeId, { direction })` supports outgoing/incoming/both queries for spreading activation. `getNodes()`, `getEdges()`, `getStats()` for inspection. `startWatcher()` sets up 10-min interval timer + optional `fs.watch` recursive watcher with 2s debounce. CLI entry with `--stats`/`--refresh`/daemon modes. 10 new tests. 9 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
 | 5 | 5.5 | v5.5 | [ ] | Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/) |
 
 ## Block 6 — Spreading activation
