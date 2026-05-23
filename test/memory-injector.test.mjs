@@ -96,8 +96,11 @@ function seedTestData(db) {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('constants', () => {
-  it('DEFAULT_TOKEN_BUDGET is 750', () => {
-    assert.equal(DEFAULT_TOKEN_BUDGET, 750);
+  it('DEFAULT_TOKEN_BUDGET is 1500 (safety ceiling, Block 7 amendment C)', () => {
+    // Block 7 amendment (C): token cap demoted to safety ceiling. The primary
+    // curation lever is now Miller 7±2 per-category caps in curateForRecall.
+    // Operators override via INJECTION_TOKEN_BUDGET env.
+    assert.equal(DEFAULT_TOKEN_BUDGET, 1500);
   });
 
   it('CHARS_PER_TOKEN is 4', () => {
