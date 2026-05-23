@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v8.2 — 2026-05-23 — memory-plan-tick
+
+- **Phase 9** step close for Step 8.2: Schedule + budget consolidation cycle (~5 min quiet periods).
+- Final test count: 893 (818 pass, 75 fail — 73 pre-existing + 2 flaky variance). +14 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step44_consolidation_scheduler/AUDIT_POST.md`.
+- 10 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+- **Block 8 complete (2/2).**
+
+### v8.2-mid — 2026-05-23 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 8.2.
+- Files changed: `bin/consolidation-scheduler.mjs` (new — IDLE_THRESHOLD_MS/HARD_CAP_MS/ANALYSIS_QUIET_MS/DEFAULT_INTERVAL_MS constants, isOllamaIdle via HTTP /api/ps, isQueueIdle for in-process queue state, isSystemIdle combined check, runScheduledCycle with AbortController timeout, createConsolidationScheduler factory with start/stop/runOnce), `services/launchd/ai.openclaw.consolidation-scheduler.plist` (new — StartInterval 1800), `test/consolidation-scheduler.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v8.2-pre — 2026-05-23 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 8.2.
+- Files planned: `bin/consolidation-scheduler.mjs` (new), `services/launchd/ai.openclaw.consolidation-scheduler.plist` (new), `test/consolidation-scheduler.test.mjs` (new).
+- Audit: `memory-plan/audits/step44_consolidation_scheduler/AUDIT_PRE.md`.
+- Test baseline: 883 tests (808 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v8.1 — 2026-05-23 — memory-plan-tick
 
 - **Phase 9** step close for Step 8.1: Implement consolidation jobs (embed/extract/update/refresh/decay/reinforce/cluster/summary/contradict/promote).

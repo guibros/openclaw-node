@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>ai.openclaw.consolidation-scheduler</string>
+    <key>Comment</key>
+    <string>OpenClaw Consolidation Scheduler — runs every 30 min, checks idle, triggers cycle</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>${NODE_BIN}</string>
+      <string>${OPENCLAW_WORKSPACE}/bin/consolidation-scheduler.mjs</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>1800</integer>
+    <key>StandardOutPath</key>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/consolidation-scheduler.log</string>
+    <key>StandardErrorPath</key>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/consolidation-scheduler.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key>
+      <string>${HOME}</string>
+      <key>PATH</key>
+      <string>${OPENCLAW_WORKSPACE}/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+      <key>TZ</key>
+      <string>America/Montreal</string>
+      <key>OPENCLAW_WORKSPACE</key>
+      <string>${OPENCLAW_WORKSPACE}</string>
+    </dict>
+  </dict>
+</plist>

@@ -201,7 +201,9 @@ Decay, reinforcement, clustering, summaries. See REFERENCE_PLAN.md §Phase 8.
 | 8 | 8.1 | v8.1 | [x] | Implement consolidation jobs (embed/extract/update/refresh/decay/reinforce/cluster/summary/contradict/promote) |
 
 > **Step 8.1 closed.** Created `lib/consolidation.mjs` — consolidation jobs library with 5 constants and 7 exported functions: `initConsolidationTables` (entities_archived table), `decayWeights` (salience half-life 14d + archival below 0.05), `reinforceCoOccurrence` (co-occurrence join ≥3 sessions → bump salience + mention_count), `detectClusters` (union-find clustering ≥5 co-occurrences → theme candidates), `regenerateSummaries` (wraps obsidian-summarizer with graceful degradation), `detectContradictions` (wraps surfaceConflicts from conflict-surfacing.mjs), `evaluatePromotionCandidates` (entity mention ≥10 + decision confidence ≥0.95 per Block 4 policy). Created `bin/consolidate.mjs` — CLI orchestrator with `runConsolidationCycle` running all jobs in sequence. 14 new tests. 10 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
-| 8 | 8.2 | v8.2 | [ ] | Schedule + budget consolidation cycle (~5 min quiet periods) |
+| 8 | 8.2 | v8.2 | [x] | Schedule + budget consolidation cycle (~5 min quiet periods) |
+
+> **Step 8.2 closed.** Created `bin/consolidation-scheduler.mjs` — consolidation scheduler module with dual idle detection (in-process `ollama-queue.getState()` + Ollama HTTP `/api/ps`), 5-minute hard cap via AbortController timeout, and `createConsolidationScheduler` factory with `start`/`stop`/`runOnce`. Exports 4 constants (`IDLE_THRESHOLD_MS`, `HARD_CAP_MS`, `ANALYSIS_QUIET_MS`, `DEFAULT_INTERVAL_MS`) and 5 functions (`isOllamaIdle`, `isQueueIdle`, `isSystemIdle`, `runScheduledCycle`, `createConsolidationScheduler`). CLI supports single-shot (launchd) and `--daemon` modes. Created `services/launchd/ai.openclaw.consolidation-scheduler.plist` with `StartInterval` 1800 (30 min). 14 new tests. 10 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches. **Block 8 complete (2/2).**
 
 ## Block 9 — Broadcast protocol
 

@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 8 in progress; Step 8.1 closed, Step 8.2 queued.
-**Current version carrier.** `v8.1` (Step 8.1 closed; Block 8: 1 of 2).
-**Streaks.** zero-Phase-4-correction: 0 (Block 8; Step 8.1 test count underestimate) · zero-Phase-8-patch: 15 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 step 1).
-**Last commit on plan branch.** v8.1 — Implement consolidation jobs (embed/extract/update/refresh/decay/reinforce/cluster/summary/contradict/promote).
+**Workplan status.** Block 8 closed; Block 9 awaits frozen decisions.
+**Current version carrier.** `v8.2` (Step 8.2 closed; Block 8: 2 of 2 — complete).
+**Streaks.** zero-Phase-4-correction: 0 (Block 8; Step 8.1 test count underestimate) · zero-Phase-8-patch: 16 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4).
+**Last commit on plan branch.** v8.2 — Schedule + budget consolidation cycle (~5 min quiet periods).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -1015,19 +1015,35 @@ negative (test count underestimate: planned ~8-10, delivered 14), zero Phase 8 p
 Carry-forwards to Step 8.2: `runConsolidationCycle` is the entry point for the scheduler;
 needs integration with `ollama-queue.getState()` for busy detection; test baseline now 883.
 
+### Step 8.2 — Schedule + budget consolidation cycle (~5 min quiet periods)
+
+Closed at v8.2. Created `bin/consolidation-scheduler.mjs` — the consolidation scheduler
+module. Dual idle detection: `isQueueIdle(getStateFn)` reads in-process `ollama-queue.getState()`
+for daemon-embedded use (checks current_job, queue_depth, recent analysis fallbacks within
+`ANALYSIS_QUIET_MS` 60s); `isOllamaIdle(baseUrl)` probes Ollama HTTP `/api/ps` for standalone
+launchd use (returns true when no models running or Ollama unreachable — consolidation jobs
+that don't need LLM still run). `isSystemIdle(opts)` combines both paths. `runScheduledCycle(opts)`
+wraps `runConsolidationCycle` with a 5-minute hard cap via `AbortController` + `Promise.race`.
+`createConsolidationScheduler(opts)` factory returns `{ start, stop, runOnce }` with configurable
+interval (default 30 min). CLI supports single-shot mode (launchd fires → check idle → run →
+exit) and `--daemon` mode (long-running interval). Created `services/launchd/ai.openclaw.consolidation-scheduler.plist`
+with `StartInterval` 1800 (30 min), matching project plist conventions. 14 new tests. 10
+positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
+**Block 8 complete (2/2).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               43 / 49
-Current block:              Block 8 in progress
-Steps closed in block:      1 / 2 (Block 8)
+Steps closed:               44 / 49
+Current block:              Block 8 closed; Block 9 awaits frozen decisions
+Steps closed in block:      2 / 2 (Block 8 — complete)
 Consecutive zero-Phase-4-correction streak:  0 (Block 8; Step 8.1 test count underestimate)
-Consecutive zero-Phase-8-patch streak:       15 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 step 1)
-Test baseline (npm test):   883 tests (808 pass, 75 fail — 73 pre-existing + 2 flaky variance)
-Last successful tick:       2026-05-23 (Step 8.1)
-Last block file written:    memory-plan/audits/BLOCK_7_COMPLETE.md
+Consecutive zero-Phase-8-patch streak:       16 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4)
+Test baseline (npm test):   893 tests (818 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-23 (Step 8.2)
+Last block file written:    memory-plan/audits/BLOCK_8_COMPLETE.md
 ```
 
 ---
@@ -1037,7 +1053,7 @@ Last block file written:    memory-plan/audits/BLOCK_7_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v7.4`, no suffix) → next step is Step 8.1.
-3. **IMPORTANT:** Block 8 frozen decisions must be authored by the operator BEFORE the next tick can proceed. The tick should check for Block 8 §0 in RESUME.md. If absent → **write `BLOCKED.md`** with reason "Block 8 frozen decisions not authored" and exit non-zero. **DO NOT** exit cleanly without `BLOCKED.md` — that bypasses the autopause mechanism (`workspace-bin/memory-plan-tick.sh:maybe_autopause()`) and causes launchd to poll every 120s indefinitely. The autopause contract depends on `BLOCKED.md` presence. (Fixed retroactively from the prior loop bug on 2026-05-23 — 5 phantom ticks wasted before detection.)
-4. Step 8.1 is: "Implement consolidation jobs (embed/extract/update/refresh/decay/reinforce/cluster/summary/contradict/promote)".
-5. Read AUDIT_POST §6 from `memory-plan/audits/step42_runtime_control/AUDIT_POST.md` for carry-forwards.
+2. Decode VERSION (`v8.2`, no suffix) → next step is Step 9.1.
+3. **IMPORTANT:** Block 9 frozen decisions must be authored by the operator BEFORE the next tick can proceed. The tick should check for `### Block 9 frozen decisions` in RESUME.md §0. If absent → **write `BLOCKED.md`** with reason "Block 9 frozen decisions not authored" and exit. **DO NOT** exit cleanly without `BLOCKED.md` — that bypasses the autopause mechanism (`workspace-bin/memory-plan-tick.sh:maybe_autopause()`) and causes launchd to poll every 120s indefinitely.
+4. Step 9.1 is: "Define broadcast/offer/accepted schemas in event-schemas package".
+5. Read AUDIT_POST §6 from `memory-plan/audits/step44_consolidation_scheduler/AUDIT_POST.md` for carry-forwards.
