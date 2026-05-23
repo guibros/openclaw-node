@@ -162,7 +162,9 @@ Associative retrieval algorithm + 5-channel pipeline. See REFERENCE_PLAN.md §Ph
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 6 | 6.1 | v6.1 | [ ] | Implement spreading-activation algorithm (lib/spreading-activation.mjs) |
+| 6 | 6.1 | v6.1 | [x] | Implement spreading-activation algorithm (lib/spreading-activation.mjs) |
+
+> **Step 6.1 closed.** Created `lib/spreading-activation.mjs` — pure spreading activation algorithm module. Exports `spreadingActivation(seeds, graph, opts)` with configurable steps/decay/threshold (env overrides via SPREAD_STEPS/SPREAD_DECAY/SPREAD_THRESHOLD), Math.max merge to prevent hub domination, and generic `edgesFrom` graph interface. Exports `createGraphAdapter(graphCache)` to bridge Step 5.4's adjacency cache. Constants: DEFAULT_STEPS (3), DEFAULT_DECAY (0.7), DEFAULT_THRESHOLD (0.1). 9 new tests with synthetic graphs covering linear chain, hub, diamond merge, threshold filtering, edge weights, Map seeds, and adapter interface. 9 positive audit findings, zero Phase 8 patches.
 | 6 | 6.2 | v6.2 | [ ] | Wire 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF + rerank |
 | 6 | 6.3 | v6.3 | [ ] | Tune decay/steps/threshold on the same evaluation set from Step 2.5 |
 

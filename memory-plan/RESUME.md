@@ -797,18 +797,34 @@ creates shared directory with `mkdir({ recursive: true })`, writes notes as
 `<slug>.md`. 8 new tests. 10 positive audit findings, zero Phase 8 patches.
 **Block 5 complete (5/5).**
 
+### Step 6.1 — Implement spreading-activation algorithm (lib/spreading-activation.mjs)
+
+Closed at v6.1. Created `lib/spreading-activation.mjs` — pure spreading activation algorithm
+module with zero external dependencies. `spreadingActivation(seeds, graph, opts)` at line 32
+accepts seeds as Map or object, a graph with `edgesFrom(nodeId)` interface, and configurable
+`steps` (default 3), `decay` (default 0.7), `threshold` (default 0.1) with env var overrides
+via `SPREAD_STEPS`, `SPREAD_DECAY`, `SPREAD_THRESHOLD`. Uses `Math.max` merge at each target
+per Block 6 §0 to prevent hub domination. `resolveNum` helper at line 17 handles env var
+precedence correctly (explicit > env > default), including edge case where value is 0.
+`createGraphAdapter(graphCache)` at line 73 wraps Step 5.4's `queryNeighbors('outgoing')` into
+the `edgesFrom` interface, mapping `target_id` → `target` and defaulting weight to 1. 9 new
+tests with synthetic graphs covering linear chain decay, hub activation, Math.max diamond merge,
+threshold filtering, empty graph, edge weights, Map seeds, and adapter interface. 9 positive
+audit findings, 1 negative (test count underestimate: planned ~6, delivered 9), zero Phase 8
+patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               34 / 48
-Current block:              Block 5 closed; Block 6 awaits
-Steps closed in block:      5 / 5 (Block 5 — complete)
-Consecutive zero-Phase-4-correction streak:  1 (Block 5; Step 5.5 was exact)
-Consecutive zero-Phase-8-patch streak:       5 (Block 5; all 5 steps had 0 patches)
-Test baseline (npm test):   735 tests (658 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 5.5)
+Steps closed:               35 / 48
+Current block:              Block 6 in progress
+Steps closed in block:      1 / 4 (Block 6)
+Consecutive zero-Phase-4-correction streak:  0 (Block 6; reset — test count underestimate)
+Consecutive zero-Phase-8-patch streak:       6 (Block 5 all 5 + Block 6 Step 6.1)
+Test baseline (npm test):   748 tests (671 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 6.1)
 Last block file written:    memory-plan/audits/BLOCK_5_COMPLETE.md
 ```
 
@@ -819,8 +835,6 @@ Last block file written:    memory-plan/audits/BLOCK_5_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v5.5`, no suffix) → next step is Step 6.1 (first step of Block 6).
-3. **BLOCK GATE:** Block 6 frozen decisions must be authored by the operator in RESUME.md §0 before Step 6.1 can begin. If Block 6 frozen decisions are not present, write `BLOCKED.md` and stop.
-4. **VALIDATION GATE:** Block 5 §0 requires "at least 50 concept nodes and 100 edges" verified by `node bin/obsidian-graph-cache.mjs --stats`. If not met, write `BLOCKED.md`.
-5. Read AUDIT_POST §6 from `memory-plan/audits/step34_shared_vault_promotion/AUDIT_POST.md` for carry-forwards into Step 6.1.
-6. Step 6.1 implements the spreading activation algorithm (`lib/spreading-activation.mjs`).
+2. Decode VERSION (`v6.1`, no suffix) → next step is Step 6.2.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step35_spreading_activation/AUDIT_POST.md` for carry-forwards into Step 6.2.
+4. Step 6.2 wires the 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF combiner into the existing session-store search API.

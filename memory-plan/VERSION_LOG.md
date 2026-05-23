@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v6.1 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** step close for Step 6.1: Implement spreading-activation algorithm (lib/spreading-activation.mjs).
+- Final test count: 748 (671 pass, 77 fail — 73 pre-existing + 4 flaky). +9 `it()` blocks added this step (+13 in node test runner count).
+- Audit: `memory-plan/audits/step35_spreading_activation/AUDIT_POST.md`.
+- 9 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v6.1-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 6.1.
+- Files changed: `lib/spreading-activation.mjs` (new — DEFAULT_STEPS/DEFAULT_DECAY/DEFAULT_THRESHOLD constants, resolveNum helper for env var precedence, spreadingActivation core algorithm with Math.max merge and configurable steps/decay/threshold via SPREAD_STEPS/SPREAD_DECAY/SPREAD_THRESHOLD env vars, createGraphAdapter wrapping queryNeighbors into edgesFrom interface), `test/spreading-activation.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v6.1-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 6.1.
+- Files planned: `lib/spreading-activation.mjs` (new), `test/spreading-activation.test.mjs` (new).
+- Audit: `memory-plan/audits/step35_spreading_activation/AUDIT_PRE.md`.
+- Test baseline: 735 tests (658 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v5.5 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** step close for Step 5.5: Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/).
