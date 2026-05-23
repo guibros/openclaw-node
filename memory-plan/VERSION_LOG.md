@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v6.2 — 2026-05-23 — memory-plan-tick
+
+- **Phase 9** step close for Step 6.2: Wire 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF + rerank.
+- Final test count: 766 (689 pass, 77 fail — 73 pre-existing + 4 flaky). +18 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step36_retrieval_pipeline/AUDIT_POST.md`.
+- 10 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v6.2-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 6.2.
+- Files changed: `lib/retrieval-pipeline.mjs` (new — DEFAULT_CHANNEL_WEIGHTS constant, parseWeights for RETRIEVAL_WEIGHTS env var, findMatchingEntities and findMatchingThemes for INSTR-based substring matching, getChunksForSessions helper for cross-DB session chunk lookup, entitySearch for Channel 3 entity→mentions→chunks pipeline, themeEntitySearch for Channel 4 theme→decisions + entity→mentions→chunks pipeline, buildSeeds for spreading activation seed extraction via slugifyName, activationSearch for Channel 5 seed→activation→entity→chunks pipeline, weightedRRF for weighted Reciprocal Rank Fusion combining all channels, createRetrievalPipeline factory returning retrieve method that runs all available channels), `test/retrieval-pipeline.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v6.2-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 6.2.
+- Files planned: `lib/retrieval-pipeline.mjs` (new), `test/retrieval-pipeline.test.mjs` (new).
+- Audit: `memory-plan/audits/step36_retrieval_pipeline/AUDIT_PRE.md`.
+- Test baseline: 748 tests (671 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v6.1 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** step close for Step 6.1: Implement spreading-activation algorithm (lib/spreading-activation.mjs).

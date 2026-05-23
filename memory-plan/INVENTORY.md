@@ -165,7 +165,9 @@ Associative retrieval algorithm + 5-channel pipeline. See REFERENCE_PLAN.md §Ph
 | 6 | 6.1 | v6.1 | [x] | Implement spreading-activation algorithm (lib/spreading-activation.mjs) |
 
 > **Step 6.1 closed.** Created `lib/spreading-activation.mjs` — pure spreading activation algorithm module. Exports `spreadingActivation(seeds, graph, opts)` with configurable steps/decay/threshold (env overrides via SPREAD_STEPS/SPREAD_DECAY/SPREAD_THRESHOLD), Math.max merge to prevent hub domination, and generic `edgesFrom` graph interface. Exports `createGraphAdapter(graphCache)` to bridge Step 5.4's adjacency cache. Constants: DEFAULT_STEPS (3), DEFAULT_DECAY (0.7), DEFAULT_THRESHOLD (0.1). 9 new tests with synthetic graphs covering linear chain, hub, diamond merge, threshold filtering, edge weights, Map seeds, and adapter interface. 9 positive audit findings, zero Phase 8 patches.
-| 6 | 6.2 | v6.2 | [ ] | Wire 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF + rerank |
+| 6 | 6.2 | v6.2 | [x] | Wire 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF + rerank |
+
+> **Step 6.2 closed.** Created `lib/retrieval-pipeline.mjs` — the 5-channel retrieval pipeline module. Channel 1: FTS5 keyword via `searchSessionsFts`. Channel 2: vector/semantic via `searchSessions`. Channel 3: entity exact match via `findMatchingEntities` → mentions → session chunks. Channel 4: theme/entity seed via `findMatchingThemes` + decision text search → session chunks. Channel 5: spreading activation via `buildSeeds` + `createGraphAdapter` + `spreadingActivation` → activated nodes → entity reverse lookup → session chunks. Combined via `weightedRRF` with per-channel weights (`DEFAULT_CHANNEL_WEIGHTS`, configurable via `RETRIEVAL_WEIGHTS` env var). Factory `createRetrievalPipeline({ knowledgeDb, extractionDb, graphCache })` returns `{ retrieve(query, opts) }` with graceful degradation when databases are absent. 18 new tests. 10 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
 | 6 | 6.3 | v6.3 | [ ] | Tune decay/steps/threshold on the same evaluation set from Step 2.5 |
 
 ## Block 7 — Proactive injection

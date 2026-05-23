@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 5 closed; Block 6 awaits operator authoring of frozen decisions.
-**Current version carrier.** `v5.5` (Step 5.5 closed; Block 5: 5 of 5 — complete).
-**Streaks.** zero-Phase-4-correction: 1 of 5 (Block 5; Steps 5.1–5.4 had underestimates, Step 5.5 was exact) · zero-Phase-8-patch: 5 of 5 (Block 5; all steps had 0 patches).
-**Last commit on plan branch.** v5.5 — Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/).
+**Workplan status.** Block 6 in progress (2 of 4 steps closed).
+**Current version carrier.** `v6.2` (Step 6.2 closed; Block 6: 2 of 4).
+**Streaks.** zero-Phase-4-correction: 0 (Block 6; reset — test count underestimate in both 6.1 and 6.2) · zero-Phase-8-patch: 8 (Block 5 all 5 + Block 6 Steps 6.1–6.2).
+**Last commit on plan branch.** v6.2 — Wire 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF + rerank.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -813,18 +813,35 @@ threshold filtering, empty graph, edge weights, Map seeds, and adapter interface
 audit findings, 1 negative (test count underestimate: planned ~6, delivered 9), zero Phase 8
 patches.
 
+### Step 6.2 — Wire 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF + rerank
+
+Closed at v6.2. Created `lib/retrieval-pipeline.mjs` — the 5-channel retrieval pipeline module.
+Channel 1: FTS5 keyword via `searchSessionsFts` from mcp-knowledge. Channel 2: vector/semantic
+via `searchSessions` from mcp-knowledge. Channel 3: entity exact match via `findMatchingEntities`
+→ mentions → session chunks (`entitySearch` at line 141). Channel 4: theme/entity seed via
+`findMatchingThemes` + decision text search → session chunks (`themeEntitySearch` at line 179).
+Channel 5: spreading activation via `buildSeeds` + `createGraphAdapter` + `spreadingActivation`
+→ activated nodes → entity reverse lookup → session chunks (`activationSearch` at line 259).
+Combined via `weightedRRF` (line 323) with per-channel weights (`DEFAULT_CHANNEL_WEIGHTS`,
+configurable via `RETRIEVAL_WEIGHTS` env var). Factory `createRetrievalPipeline({knowledgeDb,
+extractionDb, graphCache})` (line 362) returns `{ retrieve(query, opts) }` with graceful
+degradation when databases are absent. Cross-database joins handled at application level:
+extraction DB → session_ids → knowledge DB → chunks. Channel 5 excludes seed nodes from results
+to avoid duplication with Channels 3/4. 18 new tests. 10 positive audit findings, 1 negative
+(test count underestimate: planned ~8, delivered 18), zero Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               35 / 48
+Steps closed:               36 / 48
 Current block:              Block 6 in progress
-Steps closed in block:      1 / 4 (Block 6)
-Consecutive zero-Phase-4-correction streak:  0 (Block 6; reset — test count underestimate)
-Consecutive zero-Phase-8-patch streak:       6 (Block 5 all 5 + Block 6 Step 6.1)
-Test baseline (npm test):   748 tests (671 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 6.1)
+Steps closed in block:      2 / 4 (Block 6)
+Consecutive zero-Phase-4-correction streak:  0 (Block 6; reset — test count underestimate in 6.1 and 6.2)
+Consecutive zero-Phase-8-patch streak:       8 (Block 5 all 5 + Block 6 Steps 6.1–6.2)
+Test baseline (npm test):   766 tests (689 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-23 (Step 6.2)
 Last block file written:    memory-plan/audits/BLOCK_5_COMPLETE.md
 ```
 
@@ -835,6 +852,6 @@ Last block file written:    memory-plan/audits/BLOCK_5_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v6.1`, no suffix) → next step is Step 6.2.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step35_spreading_activation/AUDIT_POST.md` for carry-forwards into Step 6.2.
-4. Step 6.2 wires the 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF combiner into the existing session-store search API.
+2. Decode VERSION (`v6.2`, no suffix) → next step is Step 6.3.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step36_retrieval_pipeline/AUDIT_POST.md` for carry-forwards into Step 6.3.
+4. Step 6.3 tunes decay/steps/threshold on the same Gulf-1 evaluation set from Step 2.5. Uses `createRetrievalPipeline` with varying `SPREAD_STEPS`/`SPREAD_DECAY`/`SPREAD_THRESHOLD`/`RETRIEVAL_WEIGHTS` env vars to find optimal settings.
