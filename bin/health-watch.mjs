@@ -91,6 +91,105 @@ async function alertBanner(status) {
 }
 
 // ---------------------------------------------------------------------------
+// Queue health + auto-restart
+// ---------------------------------------------------------------------------
+
+let _queueModule = null;
+async function getQueueModule() {
+  if (_queueModule) return _queueModule;
+  try {
+    _queueModule = await import('../lib/ollama-queue.mjs');
+    return _queueModule;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read the ollama-queue's current state. Returns null if the module
+ * isn't loaded or can't be imported.
+ */
+export async function getQueueHealth() {
+  const mod = await getQueueModule();
+  if (!mod) return null;
+  return mod.getState();
+}
+
+/**
+ * Detect stuck Ollama (>=3 consecutive timeouts) and attempt recovery by
+ * running `ollama stop <model>`. The next request will reload the model.
+ * Returns true if a restart was attempted.
+ */
+export async function maybeAutoRestartOllama() {
+  const mod = await getQueueModule();
+  if (!mod) return false;
+  if (!mod.isStuck()) return false;
+
+  const state = mod.getState();
+  const model = state.current_job?.model || process.env.LLM_MODEL || 'qwen3:8b';
+
+  console.warn(`[health-watch] Ollama appears stuck (consecutive_timeouts=${JSON.stringify(state.consecutive_timeouts)}). Attempting model unload via 'ollama stop ${model}'.`);
+
+  try {
+    await new Promise((resolve) => {
+      execFile('ollama', ['stop', model], { timeout: 5000 }, () => resolve());
+    });
+    mod.recordAutoRestart(`stuck-recovery: ${JSON.stringify(state.consecutive_timeouts)}`);
+    return true;
+  } catch (err) {
+    console.error(`[health-watch] ollama stop failed: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Format the queue-state section appended to the health report.
+ */
+export function formatQueueSection(qs) {
+  if (!qs) return '';
+  const lines = ['', '## Queue State', ''];
+  if (qs.current_job) {
+    const ela = (qs.current_job.elapsed_ms / 1000).toFixed(1);
+    const eta = qs.current_job.eta_ms ? `, ETA ~${Math.round(qs.current_job.eta_ms / 60000)}min` : '';
+    lines.push(`- **In flight:** ${qs.current_job.type} (${ela}s elapsed${eta}, model=${qs.current_job.model || 'unknown'})`);
+  } else {
+    lines.push('- **In flight:** none (queue idle)');
+  }
+  lines.push(`- **Queue depth:** ${qs.queue_depth} pending`);
+  lines.push(`- **History (rolling 10):** extraction avg=${qs.history.extraction.avg_ms}ms (n=${qs.history.extraction.count}); analysis avg=${qs.history.analysis.avg_ms}ms (n=${qs.history.analysis.count})`);
+  lines.push(`- **Consecutive timeouts:** extraction=${qs.consecutive_timeouts.extraction}, analysis=${qs.consecutive_timeouts.analysis}`);
+  lines.push(`- **Totals:** runs=${qs.totals.runs}, timeouts=${qs.totals.timeouts}, retries=${qs.totals.retries}, fallbacks=${qs.totals.fallbacks}, slow-alarms=${qs.totals.slowAlarms}`);
+  if (qs.recent_slow_alarms.length > 0) {
+    const a = qs.recent_slow_alarms[qs.recent_slow_alarms.length - 1];
+    lines.push(`- **Last slow alarm:** ${a.type} ran ${a.ratio.toFixed(1)}× avg (${a.ms}ms vs ${a.avg_ms}ms baseline)`);
+  }
+  if (qs.recent_fallbacks.length > 0) {
+    const f = qs.recent_fallbacks[qs.recent_fallbacks.length - 1];
+    lines.push(`- **Last fallback:** ${f.reason} at ${new Date(f.ts).toISOString()}`);
+  }
+  if (qs.recent_restarts.length > 0) {
+    const r = qs.recent_restarts[qs.recent_restarts.length - 1];
+    lines.push(`- **Last auto-restart:** ${r.reason} at ${new Date(r.ts).toISOString()}`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Derive a queue-level status for the watcher's overall alerting.
+ *   stuck      — auto-restart was attempted; warn loudly
+ *   degraded   — recent fallbacks or slow alarms
+ *   healthy    — no recent issues
+ */
+export function deriveQueueStatus(qs) {
+  if (!qs) return 'healthy';
+  if (qs.consecutive_timeouts.extraction >= 3 || qs.consecutive_timeouts.analysis >= 3) return 'stuck';
+  const recentFallback = qs.recent_fallbacks.find(f => Date.now() - f.ts < 5 * 60 * 1000);
+  const recentSlow = qs.recent_slow_alarms.find(a => Date.now() - a.ts < 5 * 60 * 1000);
+  if (recentFallback || recentSlow) return 'degraded';
+  return 'healthy';
+}
+
+// ---------------------------------------------------------------------------
 // Health watcher factory
 // ---------------------------------------------------------------------------
 
@@ -119,15 +218,31 @@ export function createHealthWatch(opts = {}) {
 
   async function tick() {
     const result = await checkFn(opts.checkOpts || {});
-    const status = deriveStatus(result);
-    const now = Date.now();
+    const componentStatus = deriveStatus(result);
 
+    // Augment with queue health
+    const queueState = await getQueueHealth();
+    const queueStatus = deriveQueueStatus(queueState);
+
+    // Stuck queue → attempt auto-restart of Ollama (best-effort)
+    if (queueStatus === 'stuck') {
+      await maybeAutoRestartOllama();
+    }
+
+    // Compose overall status: stuck queue > unhealthy component > degraded queue > healthy
+    let status;
+    if (queueStatus === 'stuck') status = 'stuck';
+    else if (componentStatus !== 'healthy') status = componentStatus;
+    else if (queueStatus === 'degraded') status = 'degraded';
+    else status = 'healthy';
+
+    const now = Date.now();
     const statusChanged = status !== previousStatus;
     const repeatDue = status !== 'healthy'
       && (now - lastAlertTime) >= REPEAT_ALERT_SEC * 1000;
 
     if (statusChanged || repeatDue) {
-      const report = formatHealthReport(result);
+      const report = formatHealthReport(result) + formatQueueSection(queueState);
 
       const alertPromises = [];
       if (targets.includes('file')) alertPromises.push(alertFile(report));
@@ -140,7 +255,7 @@ export function createHealthWatch(opts = {}) {
     }
 
     previousStatus = status;
-    if (onTick) onTick(status, result);
+    if (onTick) onTick(status, result, queueState);
   }
 
   function start() {

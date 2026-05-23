@@ -71,7 +71,14 @@ describe('llm-client module exports', () => {
 });
 
 describe('llm-client with mock server', () => {
-  let mock, baseUrl, client;
+  let mock, baseUrl, client, prevNativeFlag;
+
+  // Force OpenAI-compat mode for this suite — the mock implements /v1/chat/completions
+  // and /v1/models (OpenAI shape). The client's default switched to Ollama native
+  // /api/chat after we added the queue + Qwen3 thinking-mode bypass. Set the env
+  // var to keep this test exercising the OpenAI-compat path the mock provides.
+  before(() => { prevNativeFlag = process.env.LLM_NATIVE_API; process.env.LLM_NATIVE_API = 'false'; });
+  after(()  => { if (prevNativeFlag === undefined) delete process.env.LLM_NATIVE_API; else process.env.LLM_NATIVE_API = prevNativeFlag; });
 
   before(async () => {
     mock = createMockServer();
