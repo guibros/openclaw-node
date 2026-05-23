@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 6 in progress (3 of 4 steps closed).
-**Current version carrier.** `v6.3` (Step 6.3 closed; Block 6: 3 of 4).
-**Streaks.** zero-Phase-4-correction: 1 (Block 6; Step 6.3 correct count) · zero-Phase-8-patch: 9 (Block 5 all 5 + Block 6 Steps 6.1–6.3).
-**Last commit on plan branch.** v6.3 — Tune decay/steps/threshold on the same evaluation set from Step 2.5.
+**Workplan status.** Block 6 closed; Block 7 awaits.
+**Current version carrier.** `v6.4` (Step 6.4 closed; Block 6: 4 of 4).
+**Streaks.** zero-Phase-4-correction: 0 (Block 6; Step 6.4 test count underestimate reset) · zero-Phase-8-patch: 10 (Block 5 all 5 + Block 6 all 4).
+**Last commit on plan branch.** v6.4 — Historical session backfill (bin/extract-existing-sessions.mjs).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -848,19 +848,38 @@ runs all queries, resets env vars. Reuses `parseQuerySet` from Step 2.5 and
 `createRetrievalPipeline` from Step 6.2. 6 new tests. 9 positive audit findings, zero
 corrections, zero Phase 8 patches.
 
+### Step 6.4 — Historical session backfill (bin/extract-existing-sessions.mjs)
+
+Closed at v6.4. Created `bin/extract-existing-sessions.mjs` — resumable LLM extraction backfill
+script. `runExtraction(opts)` at line 88 opens the session-store DB read-only, iterates all
+sessions, forms a 20-message tail per session (reduced from 40 per Block 3 carry-forward to
+avoid LLM timeout), calls `extractStructured(client, tail)` for each, and stores results via
+`storeExtractionResult(sessionId, result)`. Checkpoint file at
+`~/.openclaw/.extract-migration-checkpoint.json` tracks completed and failed session IDs for
+crash resumability. Per-session try/catch ensures individual LLM failures don't abort the run —
+failures are recorded in `checkpoint.failed` and skipped on resume. SIGINT handler for graceful
+shutdown. LLM health check at startup prevents running against an unreachable server. Post-
+extraction hooks: optional concept note regeneration (`generateConceptNotes` from
+obsidian-summarizer) and graph cache refresh (`createGraphCache().refreshCache()` from
+obsidian-graph-cache), both gated on `processed > 0` and individually try/caught. CLI entry
+with `--session-db`, `--extraction-db`, `--checkpoint`, `--tail`, `--skip-notes`, `--skip-graph`
+flags. 9 new tests with mock LLM client and mock extraction store. 9 positive audit findings,
+1 negative (test count underestimate: planned ~7, delivered 9), zero Phase 8 patches.
+**Block 6 complete (4/4).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               37 / 48
-Current block:              Block 6 in progress
-Steps closed in block:      3 / 4 (Block 6)
-Consecutive zero-Phase-4-correction streak:  1 (Block 6; Step 6.3 correct count)
-Consecutive zero-Phase-8-patch streak:       9 (Block 5 all 5 + Block 6 Steps 6.1–6.3)
-Test baseline (npm test):   772 tests (695 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-23 (Step 6.3)
-Last block file written:    memory-plan/audits/BLOCK_5_COMPLETE.md
+Steps closed:               38 / 49
+Current block:              Block 6 closed; Block 7 awaits
+Steps closed in block:      4 / 4 (Block 6)
+Consecutive zero-Phase-4-correction streak:  0 (Block 6; Step 6.4 test count underestimate)
+Consecutive zero-Phase-8-patch streak:       10 (Block 5 all 5 + Block 6 all 4)
+Test baseline (npm test):   781 tests (704 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-23 (Step 6.4)
+Last block file written:    memory-plan/audits/BLOCK_6_COMPLETE.md
 ```
 
 ---
@@ -870,6 +889,7 @@ Last block file written:    memory-plan/audits/BLOCK_5_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v6.3`, no suffix) → next step is Step 6.4.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step37_parameter_tuning/AUDIT_POST.md` for carry-forwards into Step 6.4.
-4. Step 6.4 is the historical session backfill: `bin/extract-existing-sessions.mjs` runs the LLM extractor over all sessions in `~/.openclaw/state.db`, populates entity store, regenerates concept notes, refreshes adjacency cache. Resumable via checkpoint file. This is the last step of Block 6.
+2. Decode VERSION (`v6.4`, no suffix) → next step is Step 7.1.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step38_session_backfill/AUDIT_POST.md` for carry-forwards into Step 7.1.
+4. Step 7.1 begins Block 7 (Proactive injection). **Block 7 frozen decisions must be authored by the operator before this tick runs.** If Block 7 §0 is missing from RESUME.md, the worker must write BLOCKED.md and stop.
+5. Step 7.1 is: "Implement query analysis (per-prompt theme/entity extraction, ~50ms)".

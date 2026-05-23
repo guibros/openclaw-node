@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v6.4 — 2026-05-23 — memory-plan-tick
+
+- **Phase 9** step close for Step 6.4: Historical session backfill (bin/extract-existing-sessions.mjs).
+- Final test count: 781 (704 pass, 77 fail — 73 pre-existing + 4 flaky). +9 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step38_session_backfill/AUDIT_POST.md`.
+- 9 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+- **Block 6 complete (4/4).**
+
+### v6.4-mid — 2026-05-23 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 6.4.
+- Files changed: `bin/extract-existing-sessions.mjs` (new — DEFAULT_SESSION_DB, DEFAULT_EXTRACTION_DB, DEFAULT_CHECKPOINT, DEFAULT_TAIL_COUNT constants, loadCheckpoint/saveCheckpoint for resumable state, runExtraction main orchestrator with per-session try/catch, 20-message tail per Block 3 carry-forward, post-extraction concept note regeneration and graph cache refresh, CLI entry with --session-db/--extraction-db/--checkpoint/--tail/--skip-notes/--skip-graph flags), `test/extract-existing-sessions.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v6.4-pre — 2026-05-23 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 6.4.
+- Files planned: `bin/extract-existing-sessions.mjs` (new), `test/extract-existing-sessions.test.mjs` (new).
+- Audit: `memory-plan/audits/step38_session_backfill/AUDIT_PRE.md`.
+- Test baseline: 772 tests (695 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v6.3 — 2026-05-23 — memory-plan-tick
 
 - **Phase 9** step close for Step 6.3: Tune decay/steps/threshold on the same evaluation set from Step 2.5.

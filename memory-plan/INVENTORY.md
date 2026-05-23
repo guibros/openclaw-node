@@ -171,6 +171,9 @@ Associative retrieval algorithm + 5-channel pipeline. See REFERENCE_PLAN.md §Ph
 | 6 | 6.3 | v6.3 | [x] | Tune decay/steps/threshold on the same evaluation set from Step 2.5 |
 
 > **Step 6.3 closed.** Created `bin/run-tuning-harness.mjs` — CLI parameter tuning harness that runs the 25-query Gulf-1 evaluation set through `createRetrievalPipeline` with 12 named parameter configurations (varying spreading activation decay/steps/threshold and channel weights). Exports `DEFAULT_CONFIGS` (12 configs), `applyConfig`/`resetConfig` for env var management, `runConfigQueries` for per-query execution, `formatTuningReport` for markdown comparison (summary table, delta vs baseline, per-query hit matrix), and `runTuningHarness` orchestrator. Reuses `parseQuerySet` from Step 2.5 and `createRetrievalPipeline` from Step 6.2. 6 new tests. 9 positive audit findings, zero corrections, zero Phase 8 patches.
+| 6 | 6.4 | v6.4 | [x] | Historical session backfill (bin/extract-existing-sessions.mjs) |
+
+> **Step 6.4 closed.** Created `bin/extract-existing-sessions.mjs` — resumable LLM extraction backfill script that reads all sessions from `~/.openclaw/state.db`, runs `extractStructured()` on the last 20 messages of each session (reduced from 40 per Block 3 carry-forward to avoid LLM timeout), stores results in the extraction store (entities, themes, mentions, decisions) via `storeExtractionResult()`. Checkpoint file at `~/.openclaw/.extract-migration-checkpoint.json` tracks completed and failed session IDs for crash resumability. SIGINT handling for graceful shutdown. Per-session try/catch ensures individual LLM failures don't abort the entire run. Post-extraction hooks: optional concept note regeneration (`generateConceptNotes`) and graph cache refresh (`createGraphCache().refreshCache()`). CLI supports `--session-db`, `--extraction-db`, `--checkpoint`, `--tail`, `--skip-notes`, `--skip-graph` flags. 9 new tests. 9 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches. **Block 6 complete (4/4).**
 
 ## Block 7 — Proactive injection
 
@@ -216,10 +219,10 @@ context.broadcast/offer/accepted. See REFERENCE_PLAN.md §Phase 9.
 | 3 | 4 | 20 |
 | 4 | 9 | 29 |
 | 5 | 5 | 34 |
-| 6 | 3 | 37 |
-| 7 | 4 | 41 |
-| 8 | 2 | 43 |
-| 9 | 5 | 48 |
+| 6 | 4 | 38 |
+| 7 | 4 | 42 |
+| 8 | 2 | 44 |
+| 9 | 5 | 49 |
 
-**48 atomic steps total** across 10 blocks (updated from 45 after Block 4 expanded from 6 to 9 steps per frozen decisions). Per the framework, each block ends with a
+**49 atomic steps total** across 10 blocks (updated from 48 after Block 6 expanded from 3 to 4 steps per frozen decisions — Step 6.4 historical session backfill added by operator). Per the framework, each block ends with a
 `BLOCK_<N>_COMPLETE.md` sentinel doc + a top-level milestone marker.
