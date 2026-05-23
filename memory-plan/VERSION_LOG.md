@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v7.1 — 2026-05-23 — memory-plan-tick
+
+- **Phase 9** step close for Step 7.1: Implement query analysis (per-prompt theme/entity extraction, ~50ms).
+- Final test count: 792 (715 pass, 77 fail — 73 pre-existing + 4 flaky). +11 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step39_query_analysis/AUDIT_POST.md`.
+- 9 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v7.1-mid — 2026-05-23 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 7.1.
+- Files changed: `lib/query-analysis.mjs` (new — extractStructuredCues pure regex for filePaths/versionRefs/codeRefs with deduplication, embedPrompt async wrapper with null-on-failure, analyzeQuery main entry combining embedding + structured cues), `test/query-analysis.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v7.1-pre — 2026-05-23 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 7.1.
+- Files planned: `lib/query-analysis.mjs` (new), `test/query-analysis.test.mjs` (new).
+- Audit: `memory-plan/audits/step39_query_analysis/AUDIT_PRE.md`.
+- Test baseline: 781 tests (704 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v6.4 — 2026-05-23 — memory-plan-tick
 
 - **Phase 9** step close for Step 6.4: Historical session backfill (bin/extract-existing-sessions.mjs).

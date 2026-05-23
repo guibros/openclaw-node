@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 6 closed; Block 7 awaits.
-**Current version carrier.** `v6.4` (Step 6.4 closed; Block 6: 4 of 4).
-**Streaks.** zero-Phase-4-correction: 0 (Block 6; Step 6.4 test count underestimate reset) · zero-Phase-8-patch: 10 (Block 5 all 5 + Block 6 all 4).
-**Last commit on plan branch.** v6.4 — Historical session backfill (bin/extract-existing-sessions.mjs).
+**Workplan status.** Block 7 in progress (1 of 4 steps closed).
+**Current version carrier.** `v7.1` (Step 7.1 closed; Block 7: 1 of 4).
+**Streaks.** zero-Phase-4-correction: 0 (Block 7; Step 7.1 test count underestimate reset) · zero-Phase-8-patch: 11 (Block 5 all 5 + Block 6 all 4 + Step 7.1).
+**Last commit on plan branch.** v7.1 — Implement query analysis (per-prompt theme/entity extraction, ~50ms).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -911,18 +911,35 @@ flags. 9 new tests with mock LLM client and mock extraction store. 9 positive au
 1 negative (test count underestimate: planned ~7, delivered 9), zero Phase 8 patches.
 **Block 6 complete (4/4).**
 
+### Step 7.1 — Implement query analysis (per-prompt theme/entity extraction, ~50ms)
+
+Closed at v7.1. Created `lib/query-analysis.mjs` — per-prompt analysis module using
+embedding-based approach (BGE-M3, not LLM call per Block 7 frozen decisions) plus regex
+fallback for structured cues. `analyzeQuery(prompt, opts)` at line 104 is the main entry
+returning `{ rawQuery, embedding, structuredCues }`. `extractStructuredCues(text)` at
+line 36 is a pure regex function extracting file paths (`lib/foo.mjs` patterns),
+version/step references (`v6.4`, `Step 7.1`), and backtick code identifiers
+(`spreadingActivation`), with deduplication via Set. `embedPrompt(prompt, embedFn)` at
+line 76 is an async wrapper around mcp-knowledge's `embed()` with null-on-failure
+graceful degradation. Dynamic `import()` at line 81 lazy-loads the embedder to avoid
+pulling `@huggingface/transformers` at startup. 11 new tests with mock embedder. 9
+positive audit findings, 1 negative (test count underestimate: planned ~6, delivered 11),
+zero Phase 8 patches. Carry-forwards to Step 7.2: `analyzeQuery` at
+`lib/query-analysis.mjs:104` ready for consumption; `@memory` directive parsing deferred
+to Step 7.4; test baseline now 792 (715 pass, 77 fail).
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               38 / 49
-Current block:              Block 6 closed; Block 7 awaits
-Steps closed in block:      4 / 4 (Block 6)
-Consecutive zero-Phase-4-correction streak:  0 (Block 6; Step 6.4 test count underestimate)
-Consecutive zero-Phase-8-patch streak:       10 (Block 5 all 5 + Block 6 all 4)
-Test baseline (npm test):   781 tests (704 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-23 (Step 6.4)
+Steps closed:               39 / 49
+Current block:              Block 7 in progress
+Steps closed in block:      1 / 4 (Block 7)
+Consecutive zero-Phase-4-correction streak:  0 (Block 7; Step 7.1 test count underestimate)
+Consecutive zero-Phase-8-patch streak:       11 (Block 5 all 5 + Block 6 all 4 + Step 7.1)
+Test baseline (npm test):   792 tests (715 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-23 (Step 7.1)
 Last block file written:    memory-plan/audits/BLOCK_6_COMPLETE.md
 ```
 
@@ -933,7 +950,7 @@ Last block file written:    memory-plan/audits/BLOCK_6_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v6.4`, no suffix) → next step is Step 7.1.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step38_session_backfill/AUDIT_POST.md` for carry-forwards into Step 7.1.
-4. Step 7.1 begins Block 7 (Proactive injection). **Block 7 frozen decisions must be authored by the operator before this tick runs.** If Block 7 §0 is missing from RESUME.md, the worker must write BLOCKED.md and stop.
-5. Step 7.1 is: "Implement query analysis (per-prompt theme/entity extraction, ~50ms)".
+2. Decode VERSION (`v7.1`, no suffix) → next step is Step 7.2.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step39_query_analysis/AUDIT_POST.md` for carry-forwards into Step 7.2.
+4. Step 7.2 is: "Pre-retrieve and budget ambient memory (cap 500-1000 tokens)".
+5. Step 7.2 consumes `analyzeQuery` from `lib/query-analysis.mjs:104` and `createRetrievalPipeline` from `lib/retrieval-pipeline.mjs:362`. New deliverable: `lib/memory-injector.mjs`.

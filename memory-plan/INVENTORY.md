@@ -181,7 +181,9 @@ Per-turn ambient memory in prompts. See REFERENCE_PLAN.md §Phase 7.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 7 | 7.1 | v7.1 | [ ] | Implement query analysis (per-prompt theme/entity extraction, ~50ms) |
+| 7 | 7.1 | v7.1 | [x] | Implement query analysis (per-prompt theme/entity extraction, ~50ms) |
+
+> **Step 7.1 closed.** Created `lib/query-analysis.mjs` — per-prompt analysis module using embedding-based approach (BGE-M3, not LLM call) plus regex fallback for structured cues. Exports `analyzeQuery(prompt, opts)` returning `{ rawQuery, embedding, structuredCues }`, `extractStructuredCues(text)` for pure regex extraction of file paths, version/step refs, and backtick code identifiers with deduplication, and `embedPrompt(prompt, embedFn)` async wrapper with null-on-failure graceful degradation. Dynamic import of mcp-knowledge for lazy embedder loading. 11 new tests. 9 positive audit findings, 1 negative (test count underestimate: planned ~6, delivered 11), zero Phase 8 patches.
 | 7 | 7.2 | v7.2 | [ ] | Pre-retrieve and budget ambient memory (cap 500-1000 tokens) |
 | 7 | 7.3 | v7.3 | [ ] | Inject as system-message prefix with [memory: ...] delimiters |
 | 7 | 7.4 | v7.4 | [ ] | Runtime control: @memory off/deep/none |
