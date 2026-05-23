@@ -130,6 +130,54 @@ Authored 2026-05-22 by operator (interactive session). Block 3 LLM extraction wo
 
 **Carry-forward to Block 5:** thematic substrate (Obsidian vault) needs to consume promoted concepts. The shared vault path `projects/arcane-vault/concepts-shared/` is where Block 4's subscriber writes promoted-from-others content. Block 5 reads from there.
 
+### Block 5 frozen decisions
+
+Authored 2026-05-22 by operator. Block 4 closed cleanly (v4.1–v4.9). The 24-hour health-watch validation gate from Block 4 §0 is **explicitly waived** — daemons launched clean, KeepAlive verified, no spurious warnings in initial runs; "fix-forward if issues surface" is the policy. Block 5 starts immediately.
+
+**Vault location — `~/.openclaw/obsidian-local/`** (per-node, outside the repo, gitignored). NOT the existing `obsidian-vault/` at repo root (that's project lore, distinct from this concept graph). Operators override via `OBSIDIAN_VAULT_PATH` env var. Subdirectory layout:
+- `concepts/` — one note per entity from Block 3's extraction store (mention_count >= threshold)
+- `decisions/` — one note per significant decision
+- `sessions/` — one note per session (auto-linked from concepts/decisions touched)
+- `themes/` — high-level thematic indexes
+- `daily/` — daily logs (existing pattern, moved here for unified vault)
+
+**Concept-note threshold — `mention_count >= 5`** per REFERENCE_PLAN §5.2 baseline. Operators tune via `OBSIDIAN_CONCEPT_THRESHOLD` env var. Start conservative; raise if the graph becomes noisy. Decisions and themes have no threshold — every distinct one gets a note.
+
+**Body generation — hybrid data + LLM**:
+- Frontmatter is fully data-driven (`type`, `created`, `last_seen`, `mention_count`, `themes`, `related` wikilinks, `salience`).
+- Body is LLM-generated 2-3 sentence summary via the same Ollama/Qwen3 stack from Block 3. New helper `lib/obsidian-summarizer.mjs` calls `extractStructured`-style prompt but with a summary-focused schema. **Falls back to data-only body** (just frontmatter + auto-listed related sessions) if LLM is unavailable — graph still works without summaries.
+- Regenerated on the consolidation cycle (Block 8) or on-demand via `bin/openclaw-vault rebuild`.
+
+**Wikilink graph parser — standard Obsidian `[[...]]` convention.** New `lib/obsidian-graph.mjs` exports `buildGraph(vaultPath)` returning `{nodes, edges}`. Edges typed: `mentions` (default), `derived_from`, `contradicts`, `instance_of` — directive parsed from frontmatter when present.
+
+**Adjacency cache — SQLite tables**:
+- `concept_graph_nodes(id, label, last_activated_at, weight)`
+- `concept_graph_edges(source_id, target_id, edge_type, weight)`
+- Indexed both directions for fast spreading-activation queries (Block 6 dependency).
+- Refresh cadence: every 10 min OR on filesystem change via fsevents/inotify. New `bin/obsidian-graph-cache.mjs` daemon.
+
+**Shared vault promotion — concepts that pass Block 4's promotion policy** get a copy at `projects/arcane-vault/concepts-shared/<slugified-name>.md` with provenance frontmatter:
+```yaml
+source_node: <NODE_ID>
+source_event_id: <event-id>
+original_path: ~/.openclaw/obsidian-local/concepts/<name>.md
+promoted_at: <iso-ts>
+```
+The shared vault path is fixed; the operator's actual Obsidian app reads BOTH the local AND shared vaults (configurable as two roots in Obsidian).
+
+**Block 5 hard scope — Steps 5.1–5.5** per REFERENCE_PLAN:
+- **5.1** — Set up per-node vault (mkdir, gitignore, README in each subdir).
+- **5.2** — Auto-generate concept notes from entity store (data-driven frontmatter; LLM body with fallback).
+- **5.3** — Wikilink graph parser (`lib/obsidian-graph.mjs`).
+- **5.4** — Adjacency cache + refresh daemon (`bin/obsidian-graph-cache.mjs`).
+- **5.5** — Shared vault promotion path (writes to `projects/arcane-vault/concepts-shared/`).
+
+**Validation gate before Block 6:** spreading activation (Block 6) needs a populated adjacency cache. Gate: after Block 5 closes, the operator's actual concept graph must have **at least 50 concept nodes and 100 edges** (verified by `node bin/obsidian-graph-cache.mjs --stats`). If lower, more session activity is needed before Block 6 starts.
+
+**Test baseline for Block 5:** continues from v4.9 baseline. Each step adds 3-6 tests. Block 5 total expected: +20-30 tests.
+
+**Carry-forward to Block 6:** spreading activation algorithm consumes `concept_graph_nodes` + `concept_graph_edges` directly. Block 5 must ensure the cache is queryable via library API (not just CLI).
+
 ### Carry-forward from Block 0 + Block 1
 
 - **Phase 2 scope must be revisited before Block 2 starts.** `lib/mcp-knowledge/core.mjs` already implements sqlite-vec + embeddings via `@huggingface/transformers` (Xenova/all-MiniLM-L6-v2, 384-dim) and is the registered "knowledge" MCP server in `.mcp.json`. Step 2.1's first deliverable is a written re-scoping decision.
