@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 6 in progress (2 of 4 steps closed).
-**Current version carrier.** `v6.2` (Step 6.2 closed; Block 6: 2 of 4).
-**Streaks.** zero-Phase-4-correction: 0 (Block 6; reset — test count underestimate in both 6.1 and 6.2) · zero-Phase-8-patch: 8 (Block 5 all 5 + Block 6 Steps 6.1–6.2).
-**Last commit on plan branch.** v6.2 — Wire 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF + rerank.
+**Workplan status.** Block 6 in progress (3 of 4 steps closed).
+**Current version carrier.** `v6.3` (Step 6.3 closed; Block 6: 3 of 4).
+**Streaks.** zero-Phase-4-correction: 1 (Block 6; Step 6.3 correct count) · zero-Phase-8-patch: 9 (Block 5 all 5 + Block 6 Steps 6.1–6.3).
+**Last commit on plan branch.** v6.3 — Tune decay/steps/threshold on the same evaluation set from Step 2.5.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -830,18 +830,36 @@ extraction DB → session_ids → knowledge DB → chunks. Channel 5 excludes se
 to avoid duplication with Channels 3/4. 18 new tests. 10 positive audit findings, 1 negative
 (test count underestimate: planned ~8, delivered 18), zero Phase 8 patches.
 
+### Step 6.3 — Tune decay/steps/threshold on the same evaluation set from Step 2.5
+
+Closed at v6.3. Created `bin/run-tuning-harness.mjs` — CLI parameter tuning harness that runs
+the 25-query Gulf-1 evaluation set through `createRetrievalPipeline` with 12 named parameter
+configurations. `DEFAULT_CONFIGS` (line 28) defines 12 configs: baseline (all defaults),
+low-decay (0.3), high-decay (0.9), short-steps (1), long-steps (5), low-threshold (0.01),
+high-threshold (0.2), fts-heavy (fts:3), vec-heavy (vec:3), spread-heavy (spread:3),
+no-spread (spread:0), aggressive (steps=5, decay=0.9, threshold=0.01). `applyConfig` (line 100)
+and `resetConfig` (line 117) manage env var lifecycle with save/restore pattern.
+`runConfigQueries` (line 136) executes all queries through a pipeline instance with graceful
+error handling. `formatTuningReport` (line 162) produces a structured markdown report with
+three analysis sections: configuration summary table, delta vs baseline comparison, and
+per-query hit count matrix across all configs. `runTuningHarness` (line 252) orchestrates the
+full pipeline: for each config, sets env vars, creates a fresh `createRetrievalPipeline`,
+runs all queries, resets env vars. Reuses `parseQuerySet` from Step 2.5 and
+`createRetrievalPipeline` from Step 6.2. 6 new tests. 9 positive audit findings, zero
+corrections, zero Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               36 / 48
+Steps closed:               37 / 48
 Current block:              Block 6 in progress
-Steps closed in block:      2 / 4 (Block 6)
-Consecutive zero-Phase-4-correction streak:  0 (Block 6; reset — test count underestimate in 6.1 and 6.2)
-Consecutive zero-Phase-8-patch streak:       8 (Block 5 all 5 + Block 6 Steps 6.1–6.2)
-Test baseline (npm test):   766 tests (689 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-23 (Step 6.2)
+Steps closed in block:      3 / 4 (Block 6)
+Consecutive zero-Phase-4-correction streak:  1 (Block 6; Step 6.3 correct count)
+Consecutive zero-Phase-8-patch streak:       9 (Block 5 all 5 + Block 6 Steps 6.1–6.3)
+Test baseline (npm test):   772 tests (695 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-23 (Step 6.3)
 Last block file written:    memory-plan/audits/BLOCK_5_COMPLETE.md
 ```
 
@@ -852,6 +870,6 @@ Last block file written:    memory-plan/audits/BLOCK_5_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v6.2`, no suffix) → next step is Step 6.3.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step36_retrieval_pipeline/AUDIT_POST.md` for carry-forwards into Step 6.3.
-4. Step 6.3 tunes decay/steps/threshold on the same Gulf-1 evaluation set from Step 2.5. Uses `createRetrievalPipeline` with varying `SPREAD_STEPS`/`SPREAD_DECAY`/`SPREAD_THRESHOLD`/`RETRIEVAL_WEIGHTS` env vars to find optimal settings.
+2. Decode VERSION (`v6.3`, no suffix) → next step is Step 6.4.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step37_parameter_tuning/AUDIT_POST.md` for carry-forwards into Step 6.4.
+4. Step 6.4 is the historical session backfill: `bin/extract-existing-sessions.mjs` runs the LLM extractor over all sessions in `~/.openclaw/state.db`, populates entity store, regenerates concept notes, refreshes adjacency cache. Resumable via checkpoint file. This is the last step of Block 6.

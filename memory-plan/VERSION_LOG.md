@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v6.3 — 2026-05-23 — memory-plan-tick
+
+- **Phase 9** step close for Step 6.3: Tune decay/steps/threshold on the same evaluation set from Step 2.5.
+- Final test count: 772 (695 pass, 77 fail — 73 pre-existing + 4 flaky). +6 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step37_parameter_tuning/AUDIT_POST.md`.
+- 9 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v6.3-mid — 2026-05-23 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 6.3.
+- Files changed: `bin/run-tuning-harness.mjs` (new — DEFAULT_CONFIGS 12 named parameter configs, applyConfig/resetConfig for env var management, runConfigQueries for per-query pipeline execution, formatTuningReport for markdown comparison report with summary table + delta vs baseline + per-query hit matrix, runTuningHarness main orchestrator, CLI entry with --queries/--db/--extraction-db/--graph-db/--out/--limit flags), `test/tuning-harness.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v6.3-pre — 2026-05-23 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 6.3.
+- Files planned: `bin/run-tuning-harness.mjs` (new), `test/tuning-harness.test.mjs` (new).
+- Audit: `memory-plan/audits/step37_parameter_tuning/AUDIT_PRE.md`.
+- Test baseline: 766 tests (689 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v6.2 — 2026-05-23 — memory-plan-tick
 
 - **Phase 9** step close for Step 6.2: Wire 5-channel retrieval pipeline (FTS5/vector/entity/theme/activation) + RRF + rerank.
