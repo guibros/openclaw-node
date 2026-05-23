@@ -146,7 +146,9 @@ Per-node Obsidian vault + wikilink graph + adjacency cache. See REFERENCE_PLAN.m
 | 5 | 5.2 | v5.2 | [x] | Auto-generate concept notes from entity store (frontmatter + body via LLM) |
 
 > **Step 5.2 closed.** Created `lib/obsidian-summarizer.mjs` — concept note auto-generation from extraction store. Exports `DEFAULT_CONCEPT_THRESHOLD` (5), `getConceptThreshold` with env override, `slugifyName` for filesystem-safe filenames, `buildConceptFrontmatter` with data-driven YAML (type, entity_type, created, last_seen, mention_count, salience, related wikilinks), `buildConceptBody` with LLM summary + data-only fallback, `generateConceptSummary` via Ollama/Qwen3 with `/no_think` directive, `queryConceptData` for extraction store queries (entities + co-mentions + decisions), `generateConceptNotes` main orchestrator. 12 new tests. 10 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
-| 5 | 5.3 | v5.3 | [ ] | Build wikilink graph parser (lib/obsidian-graph.mjs) |
+| 5 | 5.3 | v5.3 | [x] | Build wikilink graph parser (lib/obsidian-graph.mjs) |
+
+> **Step 5.3 closed.** Created `lib/obsidian-graph.mjs` — the wikilink graph parser module. Exports `walkVault(vaultPath)` for recursive `.md` file discovery with `{filePath, relativePath, id, subdirectory}` descriptors, `parseNote(content)` for frontmatter+body splitting via `js-yaml`, `extractWikilinks(text)` for `[[target]]` and `[[target|display]]` pattern extraction, and `buildGraph(vaultPath)` returning `{nodes: Map<id, {label, subdirectory, ...frontmatter}>, edges: [{source, target, type}]}`. Edge typing from frontmatter `edge_types` mapping supports `derived_from`, `contradicts`, `instance_of`; defaults to `mentions`. Deduplicates edges from body and frontmatter `related` field. 16 new tests. 9 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
 | 5 | 5.4 | v5.4 | [ ] | Cache adjacency in SQLite + periodic refresh job (fsevents/10-min) |
 | 5 | 5.5 | v5.5 | [ ] | Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/) |
 

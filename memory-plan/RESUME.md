@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 5 in progress; Step 5.2 closed.
-**Current version carrier.** `v5.2` (Step 5.2 closed; Block 5: 2 of 5).
-**Streaks.** zero-Phase-4-correction: 0 of 2 (Block 5; reset at Step 5.2) · zero-Phase-8-patch: 2 of 2 (Block 5; Steps 5.1–5.2 had 0 patches).
-**Last commit on plan branch.** v5.2 — Auto-generate concept notes from entity store (frontmatter + body via LLM).
+**Workplan status.** Block 5 in progress; Step 5.3 closed.
+**Current version carrier.** `v5.3` (Step 5.3 closed; Block 5: 3 of 5).
+**Streaks.** zero-Phase-4-correction: 0 of 3 (Block 5; reset at Step 5.3) · zero-Phase-8-patch: 3 of 3 (Block 5; Steps 5.1–5.3 had 0 patches).
+**Last commit on plan branch.** v5.3 — Build wikilink graph parser (lib/obsidian-graph.mjs).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -714,18 +714,33 @@ queries store, ensures vault structure, writes notes to `<vault>/concepts/<slug>
 12 new tests. 10 positive audit findings, 1 negative (test count underestimate: planned ~7,
 delivered 12), zero Phase 8 patches.
 
+### Step 5.3 — Build wikilink graph parser (lib/obsidian-graph.mjs)
+
+Closed at v5.3. Created `lib/obsidian-graph.mjs` — the wikilink graph parser module.
+`walkVault(vaultPath)` at line 24 recursively discovers `.md` files across all vault
+subdirectories, returning `{filePath, relativePath, id, subdirectory}` descriptors.
+`parseNote(content)` at line 63 splits YAML frontmatter (via `js-yaml`) from body,
+handles malformed YAML gracefully. `extractWikilinks(text)` at line 86 finds all
+`[[target]]` and `[[target|display]]` patterns, returning target strings.
+`buildGraph(vaultPath)` at line 119 orchestrates: walks vault, parses each note, collects
+nodes into a Map keyed by file ID with label + subdirectory + frontmatter fields, and
+edges from body wikilinks + frontmatter `related` field with deduplication. Edge type
+defaults to `mentions`; frontmatter `edge_types` mapping supports `derived_from`,
+`contradicts`, `instance_of` per Block 5 §0. 16 new tests. 9 positive audit findings,
+1 negative (test count underestimate), zero Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               31 / 48
+Steps closed:               32 / 48
 Current block:              Block 5 in progress
-Steps closed in block:      2 / 5 (Block 5)
-Consecutive zero-Phase-4-correction streak:  0 (Block 5; reset at Step 5.2)
-Consecutive zero-Phase-8-patch streak:       2 (Block 5; Steps 5.1–5.2 had 0 patches)
-Test baseline (npm test):   705 tests (628 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 5.2)
+Steps closed in block:      3 / 5 (Block 5)
+Consecutive zero-Phase-4-correction streak:  0 (Block 5; reset at Step 5.3)
+Consecutive zero-Phase-8-patch streak:       3 (Block 5; Steps 5.1–5.3 had 0 patches)
+Test baseline (npm test):   721 tests (644 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 5.3)
 Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 ```
 
@@ -736,6 +751,6 @@ Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v5.2`, no suffix) → next step is Step 5.3.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step31_concept_note_generation/AUDIT_POST.md` for carry-forwards into Step 5.3.
-4. Step 5.3 builds the wikilink graph parser (`lib/obsidian-graph.mjs`). Should reuse `slugifyName` from `lib/obsidian-summarizer.mjs` for filename↔entity matching. Parses `[[...]]` wikilinks from concept notes written by Step 5.2.
+2. Decode VERSION (`v5.3`, no suffix) → next step is Step 5.4.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step32_wikilink_graph_parser/AUDIT_POST.md` for carry-forwards into Step 5.4.
+4. Step 5.4 caches the graph adjacency in SQLite tables (`concept_graph_nodes`, `concept_graph_edges`) with a periodic refresh daemon (`bin/obsidian-graph-cache.mjs`). Should call `buildGraph(vaultPath)` and project nodes/edges into indexed tables for fast spreading-activation queries (Block 6 dependency).

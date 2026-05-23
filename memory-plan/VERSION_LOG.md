@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v5.3 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** step close for Step 5.3: Build wikilink graph parser (lib/obsidian-graph.mjs).
+- Final test count: 721 (644 pass, 77 fail — 73 pre-existing + 4 flaky). +16 tests added this step.
+- Audit: `memory-plan/audits/step32_wikilink_graph_parser/AUDIT_POST.md`.
+- 9 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v5.3-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 5.3.
+- Files changed: `lib/obsidian-graph.mjs` (new — walkVault for recursive .md discovery, parseNote for frontmatter+body split via js-yaml, extractWikilinks for `[[...]]` pattern extraction, resolveEdgeType for frontmatter-driven edge typing, buildGraph main entry returning `{nodes: Map, edges: []}`), `test/obsidian-graph.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v5.3-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 5.3.
+- Files planned: `lib/obsidian-graph.mjs` (new), `test/obsidian-graph.test.mjs` (new).
+- Audit: `memory-plan/audits/step32_wikilink_graph_parser/AUDIT_PRE.md`.
+- Test baseline: 705 tests (628 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v5.2 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** step close for Step 5.2: Auto-generate concept notes from entity store (frontmatter + body via LLM).
