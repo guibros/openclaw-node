@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v8.1 — 2026-05-23 — memory-plan-tick
+
+- **Phase 9** step close for Step 8.1: Implement consolidation jobs (embed/extract/update/refresh/decay/reinforce/cluster/summary/contradict/promote).
+- Final test count: 883 (808 pass, 75 fail — 73 pre-existing + 2 flaky variance). +14 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step43_consolidation_jobs/AUDIT_POST.md`.
+- 10 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v8.1-mid — 2026-05-23 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 8.1.
+- Files changed: `lib/consolidation.mjs` (new — DECAY_HALF_LIFE_DAYS/DECAY_DROP_THRESHOLD/REINFORCEMENT_COOCCURRENCE_MIN/REINFORCEMENT_SALIENCE_BOOST/CLUSTER_COOCCURRENCE_MIN constants, initConsolidationTables for entities_archived table, decayWeights with half-life formula + archival, reinforceCoOccurrence via co-occurrence join + salience bump, detectClusters with union-find clustering, regenerateSummaries wrapping obsidian-summarizer, detectContradictions wrapping surfaceConflicts, evaluatePromotionCandidates for entity + decision threshold queries), `bin/consolidate.mjs` (new — runConsolidationCycle orchestrator with CLI entry + --db/--vault-path/--dry-run flags), `test/consolidation.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v8.1-pre — 2026-05-23 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 8.1.
+- Files planned: `lib/consolidation.mjs` (new), `bin/consolidate.mjs` (new), `test/consolidation.test.mjs` (new).
+- Audit: `memory-plan/audits/step43_consolidation_jobs/AUDIT_PRE.md`.
+- Test baseline: 869 tests (792 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v7.4 — 2026-05-23 — memory-plan-tick
 
 - **Phase 9** step close for Step 7.4: Runtime control: @memory off/deep/none.

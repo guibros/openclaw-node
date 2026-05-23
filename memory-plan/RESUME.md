@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 7 closed; Block 8 awaits operator-authored frozen decisions.
-**Current version carrier.** `v7.4` (Step 7.4 closed; Block 7: 4 of 4 — COMPLETE).
-**Streaks.** zero-Phase-4-correction: 0 (Block 7; Step 7.4 test count underestimate) · zero-Phase-8-patch: 14 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4).
-**Last commit on plan branch.** v7.4 — Runtime control: @memory off/deep/none.
+**Workplan status.** Block 8 in progress; Step 8.1 closed, Step 8.2 queued.
+**Current version carrier.** `v8.1` (Step 8.1 closed; Block 8: 1 of 2).
+**Streaks.** zero-Phase-4-correction: 0 (Block 8; Step 8.1 test count underestimate) · zero-Phase-8-patch: 15 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 step 1).
+**Last commit on plan branch.** v8.1 — Implement consolidation jobs (embed/extract/update/refresh/decay/reinforce/cluster/summary/contradict/promote).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -991,18 +991,42 @@ helper) before the LLM API call. Error isolation preserved via empty `catch {}`.
 tests across 11 describe blocks. 10 positive audit findings, 1 negative (test count
 underestimate: planned ~12-15, delivered 33), zero Phase 8 patches. **Block 7 complete (4/4).**
 
+### Step 8.1 — Implement consolidation jobs (embed/extract/update/refresh/decay/reinforce/cluster/summary/contradict/promote)
+
+Closed at v8.1. Created `lib/consolidation.mjs` — the consolidation jobs library implementing
+all 6 functions from Block 8 frozen decisions §0. Constants: `DECAY_HALF_LIFE_DAYS` (14),
+`DECAY_DROP_THRESHOLD` (0.05), `REINFORCEMENT_COOCCURRENCE_MIN` (3),
+`REINFORCEMENT_SALIENCE_BOOST` (0.05), `CLUSTER_COOCCURRENCE_MIN` (5).
+`initConsolidationTables(db)` creates `entities_archived` table idempotently.
+`decayWeights(db, opts)` applies half-life formula `new = old * 0.5^(days/14)`, archives
+entities below 0.05 threshold to `entities_archived`, decays decisions similarly without
+archival. `reinforceCoOccurrence(db, opts)` finds entity pairs co-occurring in ≥3 sessions
+via mentions join, bumps `mention_count + 1` and `salience + 0.05` (capped 1.0), each entity
+bumped at most once per cycle. `detectClusters(db, opts)` uses union-find on entity pairs
+co-occurring in ≥5 sessions to form cluster candidates with suggested theme labels.
+`regenerateSummaries(opts)` wraps `generateConceptNotes` from `obsidian-summarizer.mjs` with
+graceful degradation. `detectContradictions(db)` wraps `surfaceConflicts` from
+`conflict-surfacing.mjs`. `evaluatePromotionCandidates(db, opts)` queries entities with
+`mention_count ≥ 10` and decisions with `confidence ≥ 0.95` (Block 4 §0 thresholds).
+Created `bin/consolidate.mjs` — CLI orchestrator with `runConsolidationCycle(opts)` running
+all 7 jobs in sequence, returning per-job results with total `durationMs`. CLI supports
+`--db`, `--vault-path`, `--dry-run` flags. 14 new tests. 10 positive audit findings, 1
+negative (test count underestimate: planned ~8-10, delivered 14), zero Phase 8 patches.
+Carry-forwards to Step 8.2: `runConsolidationCycle` is the entry point for the scheduler;
+needs integration with `ollama-queue.getState()` for busy detection; test baseline now 883.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               42 / 49
-Current block:              Block 7 complete; Block 8 awaiting frozen decisions
-Steps closed in block:      4 / 4 (Block 7 — COMPLETE)
-Consecutive zero-Phase-4-correction streak:  0 (Block 7; Step 7.4 test count underestimate)
-Consecutive zero-Phase-8-patch streak:       14 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4)
-Test baseline (npm test):   869 tests (792 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-23 (Step 7.4)
+Steps closed:               43 / 49
+Current block:              Block 8 in progress
+Steps closed in block:      1 / 2 (Block 8)
+Consecutive zero-Phase-4-correction streak:  0 (Block 8; Step 8.1 test count underestimate)
+Consecutive zero-Phase-8-patch streak:       15 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 step 1)
+Test baseline (npm test):   883 tests (808 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-23 (Step 8.1)
 Last block file written:    memory-plan/audits/BLOCK_7_COMPLETE.md
 ```
 
