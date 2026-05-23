@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 5 in progress; Step 5.4 closed.
-**Current version carrier.** `v5.4` (Step 5.4 closed; Block 5: 4 of 5).
-**Streaks.** zero-Phase-4-correction: 0 of 4 (Block 5; reset at Step 5.3, still 0 at Step 5.4) · zero-Phase-8-patch: 4 of 4 (Block 5; Steps 5.1–5.4 had 0 patches).
-**Last commit on plan branch.** v5.4 — Cache adjacency in SQLite + periodic refresh job (fsevents/10-min).
+**Workplan status.** Block 5 closed; Block 6 awaits operator authoring of frozen decisions.
+**Current version carrier.** `v5.5` (Step 5.5 closed; Block 5: 5 of 5 — complete).
+**Streaks.** zero-Phase-4-correction: 1 of 5 (Block 5; Steps 5.1–5.4 had underestimates, Step 5.5 was exact) · zero-Phase-8-patch: 5 of 5 (Block 5; all steps had 0 patches).
+**Last commit on plan branch.** v5.5 — Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/).
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -745,19 +745,37 @@ resolves to `~/.openclaw/graph-cache.db`. `DEFAULT_REFRESH_INTERVAL_MS` at line 
 600000 (10 min). 10 new tests. 9 positive audit findings, 1 negative (test count
 underestimate), zero Phase 8 patches.
 
+### Step 5.5 — Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/)
+
+Closed at v5.5. Created `lib/obsidian-promoter.mjs` — the shared vault promotion module.
+`SHARED_CONCEPTS_DIR` constant at line 25 resolves to `<repo>/projects/arcane-vault/concepts-shared/`.
+`getNodeId()` at line 33 returns `process.env.OPENCLAW_NODE_ID || hostname()`.
+`buildPromotedFrontmatter(entity, nodeId, relatedEntities, avgSalience)` at line 47 builds
+YAML frontmatter with standard concept fields (type, entity_type, created, last_seen,
+mention_count, salience, related wikilinks) plus provenance fields per Block 5 §0:
+`source_node`, `original_path` (local vault path), `promoted_at` (ISO timestamp).
+`queryPromotableConcepts(db, threshold)` at line 85 delegates to `queryConceptData` from
+obsidian-summarizer — zero code duplication. `promoteConceptNotes(opts)` at line 100
+orchestrates the full promotion pipeline: loads promotion policy (or accepts pre-loaded
+policy), queries concepts meeting `concept_mention_count >= threshold` (default 10 per
+Block 4 frozen decisions), builds notes with provenance frontmatter and optional LLM body,
+creates shared directory with `mkdir({ recursive: true })`, writes notes as
+`<slug>.md`. 8 new tests. 10 positive audit findings, zero Phase 8 patches.
+**Block 5 complete (5/5).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               33 / 48
-Current block:              Block 5 in progress
-Steps closed in block:      4 / 5 (Block 5)
-Consecutive zero-Phase-4-correction streak:  0 (Block 5; reset at Step 5.3, held at Step 5.4)
-Consecutive zero-Phase-8-patch streak:       4 (Block 5; Steps 5.1–5.4 had 0 patches)
-Test baseline (npm test):   731 tests (654 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 5.4)
-Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
+Steps closed:               34 / 48
+Current block:              Block 5 closed; Block 6 awaits
+Steps closed in block:      5 / 5 (Block 5 — complete)
+Consecutive zero-Phase-4-correction streak:  1 (Block 5; Step 5.5 was exact)
+Consecutive zero-Phase-8-patch streak:       5 (Block 5; all 5 steps had 0 patches)
+Test baseline (npm test):   735 tests (658 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 5.5)
+Last block file written:    memory-plan/audits/BLOCK_5_COMPLETE.md
 ```
 
 ---
@@ -767,6 +785,8 @@ Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v5.4`, no suffix) → next step is Step 5.5.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step33_adjacency_cache/AUDIT_POST.md` for carry-forwards into Step 5.5.
-4. Step 5.5 promotes selected concepts to the shared vault (`projects/arcane-vault/concepts-shared/`). Concepts crossing the promotion threshold (Block 4 policy) generate equivalent notes with `source_node` provenance frontmatter. This is the last step of Block 5 — write `BLOCK_5_COMPLETE.md` at Phase 9e.
+2. Decode VERSION (`v5.5`, no suffix) → next step is Step 6.1 (first step of Block 6).
+3. **BLOCK GATE:** Block 6 frozen decisions must be authored by the operator in RESUME.md §0 before Step 6.1 can begin. If Block 6 frozen decisions are not present, write `BLOCKED.md` and stop.
+4. **VALIDATION GATE:** Block 5 §0 requires "at least 50 concept nodes and 100 edges" verified by `node bin/obsidian-graph-cache.mjs --stats`. If not met, write `BLOCKED.md`.
+5. Read AUDIT_POST §6 from `memory-plan/audits/step34_shared_vault_promotion/AUDIT_POST.md` for carry-forwards into Step 6.1.
+6. Step 6.1 implements the spreading activation algorithm (`lib/spreading-activation.mjs`).

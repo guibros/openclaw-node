@@ -152,7 +152,9 @@ Per-node Obsidian vault + wikilink graph + adjacency cache. See REFERENCE_PLAN.m
 | 5 | 5.4 | v5.4 | [x] | Cache adjacency in SQLite + periodic refresh job (fsevents/10-min) |
 
 > **Step 5.4 closed.** Created `bin/obsidian-graph-cache.mjs` — the adjacency cache module. `createGraphCache(opts)` factory returns a queryable API surface: `refreshCache()` calls `buildGraph(vaultPath)` and projects nodes/edges into SQLite tables `concept_graph_nodes` and `concept_graph_edges` via full-replace transaction. `queryNeighbors(nodeId, { direction })` supports outgoing/incoming/both queries for spreading activation. `getNodes()`, `getEdges()`, `getStats()` for inspection. `startWatcher()` sets up 10-min interval timer + optional `fs.watch` recursive watcher with 2s debounce. CLI entry with `--stats`/`--refresh`/daemon modes. 10 new tests. 9 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
-| 5 | 5.5 | v5.5 | [ ] | Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/) |
+| 5 | 5.5 | v5.5 | [x] | Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/) |
+
+> **Step 5.5 closed.** Created `lib/obsidian-promoter.mjs` — the shared vault promotion module. Exports `SHARED_CONCEPTS_DIR` (resolves to `<repo>/projects/arcane-vault/concepts-shared/`), `getNodeId()` (env or hostname), `buildPromotedFrontmatter()` with standard concept fields plus provenance (source_node, original_path, promoted_at), `queryPromotableConcepts()` reusing `queryConceptData` from obsidian-summarizer, and `promoteConceptNotes()` main orchestrator loading promotion policy, filtering by `concept_mention_count >= 10` threshold, writing promoted notes with provenance frontmatter. 8 new tests. 10 positive audit findings, zero Phase 8 patches. **Block 5 complete (5/5).**
 
 ## Block 6 — Spreading activation
 

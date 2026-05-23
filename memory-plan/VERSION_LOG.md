@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v5.5 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** step close for Step 5.5: Promote selected concepts to shared vault (projects/arcane-vault/concepts-shared/).
+- Final test count: 735 (658 pass, 77 fail — 73 pre-existing + 4 flaky). +8 tests added this step.
+- Audit: `memory-plan/audits/step34_shared_vault_promotion/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+- **Block 5 complete (5/5).**
+
+### v5.5-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 5.5.
+- Files changed: `lib/obsidian-promoter.mjs` (new — SHARED_CONCEPTS_DIR constant, getNodeId helper, buildPromotedFrontmatter with provenance fields, queryPromotableConcepts reusing queryConceptData, promoteConceptNotes main orchestrator with policy-driven threshold filtering, shared dir creation, note writing), `test/obsidian-promoter.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v5.5-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 5.5.
+- Files planned: `lib/obsidian-promoter.mjs` (new), `test/obsidian-promoter.test.mjs` (new).
+- Audit: `memory-plan/audits/step34_shared_vault_promotion/AUDIT_PRE.md`.
+- Test baseline: 731 tests (654 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v5.4 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** step close for Step 5.4: Cache adjacency in SQLite + periodic refresh job (fsevents/10-min).
