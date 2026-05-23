@@ -1149,6 +1149,25 @@ async function main() {
     log(`NATS unavailable (${e.message}) — continuing without compaction subscription`);
   }
 
+  // ── Memory injection HTTP endpoint (Block 7 amendment B+D) ──────────
+  // Loopback-only HTTP server at :7893 that companion-bridge calls per
+  // prompt to fetch the [memory: ...] block. Shares the daemon's loaded
+  // BGE-M3 model + SQLite handles + ollama-queue state, so BGE-M3 stays
+  // warm across thousands of prompts (solves amendment D for free).
+  // Opt out by setting MEMORY_INJECT_DISABLED=1.
+  let injectionServer = null;
+  if (process.env.MEMORY_INJECT_DISABLED !== '1') {
+    try {
+      const { startInjectionServer } = await import('../lib/memory-inject-server.mjs');
+      injectionServer = await startInjectionServer(
+        { llmClient: getLlmClient(), extractionDb: getExtractionStore()?.db },
+        { log: (m) => log(`[inject-server] ${m}`) },
+      );
+    } catch (injErr) {
+      log(`Memory inject server unavailable (${injErr.message}) — companion-bridge injection will be silent`);
+    }
+  }
+
   // Graceful shutdown
   let running = true;
   const shutdown = async (signal) => {
@@ -1158,6 +1177,9 @@ async function main() {
       extractionTrigger.stop();
     }
     saveDaemonState(sm);
+    if (injectionServer) {
+      try { await injectionServer.close(); } catch (_) {}
+    }
     if (natsConn) {
       try { await natsConn.drain(); } catch (_) {}
     }
