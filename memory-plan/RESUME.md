@@ -212,6 +212,50 @@ Authored 2026-05-22 by operator. Block 5 closed cleanly (v5.1–v5.5) but the **
 
 **Carry-forward to Block 7:** proactive injection (Block 7) consumes the 5-channel retrieval pipeline directly. Empty results from any channel are acceptable; injection just shows less context. Block 7 doesn't gate on graph density.
 
+### Block 7 frozen decisions
+
+Authored 2026-05-23 by operator. Block 6 closed clean (v6.1–v6.4 including the historical-session backfill step). Block 7 makes memory "come to mind" automatically on every prompt without explicit recall.
+
+**Query analysis — embedding-based, NOT a per-prompt LLM call.** REFERENCE_PLAN §7.1 proposes a small LLM call (~50ms) to extract themes/entities from each user prompt. Reject: adds 200-300ms per turn on consumer hardware (the small LLM call still routes through Ollama → too slow). Instead:
+- Embed the user prompt via the existing BGE-M3 stack (one embedding pass, ~50-150ms on M4, ~250-400ms on a CPU-only consumer machine).
+- Use that embedding as the seed for the 5-channel retrieval pipeline from Block 6. The pipeline's entity-match and theme-seed channels handle named-entity surfacing without needing a separate LLM call.
+- A simple regex fallback runs alongside for trivial structured cues (e.g. `lib/foo.mjs`, `STEP-123`) — cheap, captures things the embedding-based path might miss.
+
+**Pre-retrieval token budget — `INJECTION_TOKEN_BUDGET=750` (default).** REFERENCE_PLAN §7.2 says cap at 500–1000 tokens; 750 is the midpoint. Configurable via env. Tokenization uses the same model-agnostic char-based heuristic the daemon already uses (~4 chars/token estimate).
+
+**Injection format — REFERENCE_PLAN §7.3 verbatim:**
+```
+[memory: recent relevant context]
+Active concepts in this conversation: <list>
+Recent decisions:
+- <date>: <decision> (<confidence>)
+Related sessions: <links>
+[end memory]
+
+<user prompt here>
+```
+Markdown-readable; clearly delimited so the model knows where injected context ends and the actual prompt begins.
+
+**Runtime control — REFERENCE_PLAN §7.4 verbatim:**
+- `@memory off` — disable injection for the current turn only
+- `@memory deep` — increase injection budget to 2× default for current turn
+- `@memory none` — hard disable for the entire session (until session restart)
+- New addition: `@memory only:<theme>` — constrain injection to a specific theme/entity (operator override for focused work)
+
+These directives are parsed from the user prompt by a tiny regex in the publisher (no LLM call needed); when matched, the directive is stripped from the prompt before injection logic runs.
+
+**Block 7 hard scope — Steps 7.1–7.4** per REFERENCE_PLAN:
+- **7.1** — Query analysis: embedding + regex fallback (no LLM call). Lives in `lib/query-analysis.mjs`.
+- **7.2** — Pre-retrieve via 5-channel pipeline; trim to token budget. New `lib/memory-injector.mjs`.
+- **7.3** — Inject as system-message prefix using the format above. Wires into each publisher (`hooks/claude-code/pre-compact.sh`, etc.) and the API wrappers (`lib/publishers/*-wrapper.mjs`).
+- **7.4** — Runtime control directive parser. Lives in `lib/memory-directives.mjs`.
+
+**Validation gate before Block 8:** injection adds <500ms to average prompt round-trip (measured via `bin/inject-benchmark.mjs` on 100 synthetic prompts). On the empty-graph case (current state, before backfill completes), injection should still complete cleanly with an empty context block — no errors.
+
+**Test baseline for Block 7:** continues from v6.4. Each step adds 3-5 tests. Block 7 total expected: +12-20 tests.
+
+**Carry-forward to Block 8:** consolidation cycle (Block 8) is the "sleep" analog that maintains graph health (decay, reinforcement, clustering, summaries, contradiction detection). Block 7 makes memory readable in real-time; Block 8 keeps the graph healthy over time. The two are independent.
+
 ### Carry-forward from Block 0 + Block 1
 
 - **Phase 2 scope must be revisited before Block 2 starts.** `lib/mcp-knowledge/core.mjs` already implements sqlite-vec + embeddings via `@huggingface/transformers` (Xenova/all-MiniLM-L6-v2, 384-dim) and is the registered "knowledge" MCP server in `.mcp.json`. Step 2.1's first deliverable is a written re-scoping decision.
