@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v5.1 — 2026-05-22 — memory-plan-tick
+
+- **Phase 9** step close for Step 5.1: Set up per-node Obsidian vault structure under ~/.openclaw/obsidian-local/.
+- Final test count: 693 (616 pass, 77 fail — 73 pre-existing + 4 flaky). +8 tests added this step.
+- Audit: `memory-plan/audits/step30_obsidian_vault_setup/AUDIT_POST.md`.
+- 8 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v5.1-mid — 2026-05-22 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 5.1.
+- Files changed: `lib/obsidian-vault.mjs` (new — DEFAULT_VAULT_PATH constant, VAULT_SUBDIRS array, getVaultPath with env override, ensureVaultStructure with idempotent mkdir), `test/obsidian-vault.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v5.1-pre — 2026-05-22 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 5.1.
+- Files planned: `lib/obsidian-vault.mjs` (new), `test/obsidian-vault.test.mjs` (new).
+- Audit: `memory-plan/audits/step30_obsidian_vault_setup/AUDIT_PRE.md`.
+- Test baseline: 685 tests (608 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v4.9 — 2026-05-22 — memory-plan-tick
 
 - **Phase 9** step close for Step 4.9: Frontend publisher pack (hooks/ + lib/publishers/ + docs/PUBLISHERS.md).

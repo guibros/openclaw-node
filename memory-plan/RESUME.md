@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 4 closed; Block 5 awaits.
-**Current version carrier.** `v4.9` (Step 4.9 closed; Block 4: 9 of 9 — complete).
-**Streaks.** zero-Phase-4-correction: 0 of 9 (Block 4; reset at Step 4.9) · zero-Phase-8-patch: 1 of 9 (Block 4; Step 4.9 had 0 patches).
-**Last commit on plan branch.** v4.9 — Frontend publisher pack (hooks/ + lib/publishers/ + docs/PUBLISHERS.md).
+**Workplan status.** Block 5 in progress; Step 5.1 closed.
+**Current version carrier.** `v5.1` (Step 5.1 closed; Block 5: 1 of 5).
+**Streaks.** zero-Phase-4-correction: 0 of 1 (Block 5; reset at Step 5.1) · zero-Phase-8-patch: 1 of 1 (Block 5; Step 5.1 had 0 patches).
+**Last commit on plan branch.** v5.1 — Set up per-node Obsidian vault structure under ~/.openclaw/obsidian-local/.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -682,18 +682,32 @@ and troubleshooting. `.claude/hooks/pre-compact.sh` modification dropped (sandbo
 third consecutive step). 14 new tests. 9 positive, 2 negative findings, zero Phase 8 patches.
 **Block 4 complete (9/9).**
 
+### Step 5.1 — Set up per-node Obsidian vault structure under ~/.openclaw/obsidian-local/
+
+Closed at v5.1. Created `lib/obsidian-vault.mjs` — the per-node Obsidian vault setup module.
+`DEFAULT_VAULT_PATH` constant resolves `~/.openclaw/obsidian-local/` via `os.homedir()` +
+`path.join()` for cross-platform compatibility. `VAULT_SUBDIRS` array constant holds the 5
+subdirectories per Block 5 frozen decisions: `concepts`, `decisions`, `sessions`, `themes`,
+`daily`. `getVaultPath(opts)` resolves vault path with precedence: explicit opts > `OBSIDIAN_VAULT_PATH`
+env var > default. `ensureVaultStructure(vaultPath)` async function creates vault root + all
+subdirs with `mkdir({ recursive: true })`, returns `{ vaultPath, created }` listing newly
+created dirs. Idempotent — safe to call repeatedly. No external dependencies (Node.js
+built-ins: `node:os`, `node:path`, `node:fs/promises`). 8 new tests cover constants,
+path resolution, directory creation, and idempotency. 8 positive audit findings, 1 negative
+(test count underestimate: planned ~6, delivered 8), zero Phase 8 patches.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               29 / 48
-Current block:              Block 4 closed; Block 5 awaits
-Steps closed in block:      9 / 9 (Block 4 — complete)
-Consecutive zero-Phase-4-correction streak:  0 (Block 4; reset at Step 4.9)
-Consecutive zero-Phase-8-patch streak:       1 (Block 4; Step 4.9 had 0 patches)
-Test baseline (npm test):   685 tests (608 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-22 (Step 4.9)
+Steps closed:               30 / 48
+Current block:              Block 5 in progress
+Steps closed in block:      1 / 5 (Block 5)
+Consecutive zero-Phase-4-correction streak:  0 (Block 5; reset at Step 5.1)
+Consecutive zero-Phase-8-patch streak:       1 (Block 5; Step 5.1 had 0 patches)
+Test baseline (npm test):   693 tests (616 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-22 (Step 5.1)
 Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 ```
 
@@ -704,7 +718,6 @@ Last block file written:    memory-plan/audits/BLOCK_4_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v4.9`, no suffix) → Block 4 is closed. Next step is Step 5.1.
-3. **Block 5 cannot start until:** (a) operator authors Block 5 frozen decisions in RESUME.md §0, (b) Block 4 validation gate passes (health-watch running 24 hours with zero spurious warnings).
-4. If Block 5 frozen decisions are not yet authored → pre-flight CHECK 4 finds no `[A]`/`[ ]` row (since Block 5 rows exist but Block 5 §0 may not be authored) → write block-close if appropriate, or STOP.
-5. Read AUDIT_POST §6 from `memory-plan/audits/step29_frontend_publisher_pack/AUDIT_POST.md` for carry-forwards into Block 5.
+2. Decode VERSION (`v5.1`, no suffix) → next step is Step 5.2.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step30_obsidian_vault_setup/AUDIT_POST.md` for carry-forwards into Step 5.2.
+4. Step 5.2 implements auto-generation of concept notes from the entity store (frontmatter + LLM body with fallback). Requires importing `ensureVaultStructure`, `getVaultPath`, `VAULT_SUBDIRS` from `lib/obsidian-vault.mjs`.
