@@ -178,6 +178,40 @@ The shared vault path is fixed; the operator's actual Obsidian app reads BOTH th
 
 **Carry-forward to Block 6:** spreading activation algorithm consumes `concept_graph_nodes` + `concept_graph_edges` directly. Block 5 must ensure the cache is queryable via library API (not just CLI).
 
+### Block 6 frozen decisions
+
+Authored 2026-05-22 by operator. Block 5 closed cleanly (v5.1–v5.5) but the **Block 5 validation gate is explicitly waived**: `bin/obsidian-graph-cache.mjs --stats` reports `Nodes: 0  Edges: 0  Last refresh: never`. The vault is empty because the LLM extractor (Block 3) has not yet been run against the 225 historical sessions — that's a ~19-37 hour Ollama backfill, impractical as a blocker. The chain has been building infrastructure faster than real session activity can fill it. **Policy:** Block 6 builds the spreading-activation algorithm on synthetic test graphs (mathematically valid on empty real graphs — returns nothing, caller falls back to other channels). Real-world tuning happens organically as session activity populates the graph.
+
+**Algorithm parameters — REFERENCE_PLAN §6.1 defaults:**
+- `steps = 3` — propagate activation 3 hops from seed nodes
+- `decay = 0.7` — each hop multiplies activation by 0.7
+- `threshold = 0.1` — drop nodes with activation below this
+- Activation uses `Math.max` at each target (not sum) — prevents one well-connected hub from dominating
+- All defaults configurable via env: `SPREAD_STEPS`, `SPREAD_DECAY`, `SPREAD_THRESHOLD`
+
+**5-channel retrieval pipeline (REFERENCE_PLAN §6.2):**
+1. FTS5 keyword (k=10)
+2. Vector / semantic via BGE-M3 (k=10)
+3. Entity exact match (k=10)
+4. Theme seed → query for any themes/entities mentioned
+5. Spreading activation from seeds (top 20 activated nodes)
+
+**Reranking — Reciprocal Rank Fusion (RRF) only, no BGE-reranker-v2-m3.** REFERENCE_PLAN §6.2 names BGE-reranker-v2-m3, but it adds a 568M-param model dependency, ~150-300ms/query latency, and is overkill at this scale. RRF (constant 60, no model) combines the 5 channels well enough for shipping; cross-encoder upgrade can be a Block 7+ tuning step if retrieval quality demands it.
+
+**Channel weights — equal start, tunable per env var.** Each channel contributes 1/5 of the combined score initially. Operators tune via `RETRIEVAL_WEIGHTS=fts:1,vec:1,entity:1,theme:1,spread:1` (CSV of channel:weight pairs).
+
+**Block 6 hard scope — Steps 6.1–6.4** (REFERENCE_PLAN's 6.1–6.3 plus one operator-added step):
+- **6.1** — Implement spreading activation algorithm (`lib/spreading-activation.mjs`, ~50 lines per REFERENCE_PLAN spec).
+- **6.2** — Wire 5-channel retrieval pipeline (RRF combiner) into the existing session-store search API.
+- **6.3** — Parameter tuning harness — same 25-query Gulf-1 set, run with varying decay/steps/threshold, report deltas. No formal scoring required (operator may eyeball).
+- **6.4** (new) — **Historical session backfill**: `bin/extract-existing-sessions.mjs` runs the LLM extractor over all sessions in `~/.openclaw/state.db`, populates entity store, regenerates concept notes, refreshes adjacency cache. Resumable via checkpoint file (same pattern as `embed-existing-sessions`). Long-running (19-37 hours); can run in background while later blocks proceed.
+
+**Validation gate before Block 7:** spreading activation must return non-empty results for at least 5 of the Gulf-1 25 queries when run against the populated graph (i.e., backfill from 6.4 must have created enough nodes/edges to make activation meaningful).
+
+**Test baseline for Block 6:** continues from v5.5. Each step adds 2-5 tests. Block 6 total expected: +10-15 tests. Algorithm tests use synthetic graphs (the math is provable independent of real data).
+
+**Carry-forward to Block 7:** proactive injection (Block 7) consumes the 5-channel retrieval pipeline directly. Empty results from any channel are acceptable; injection just shows less context. Block 7 doesn't gate on graph density.
+
 ### Carry-forward from Block 0 + Block 1
 
 - **Phase 2 scope must be revisited before Block 2 starts.** `lib/mcp-knowledge/core.mjs` already implements sqlite-vec + embeddings via `@huggingface/transformers` (Xenova/all-MiniLM-L6-v2, 384-dim) and is the registered "knowledge" MCP server in `.mcp.json`. Step 2.1's first deliverable is a written re-scoping decision.
