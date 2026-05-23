@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 7 in progress (3 of 4 steps closed).
-**Current version carrier.** `v7.3` (Step 7.3 closed; Block 7: 3 of 4).
-**Streaks.** zero-Phase-4-correction: 0 (Block 7; Step 7.3 test count discrepancy) · zero-Phase-8-patch: 13 (Block 5 all 5 + Block 6 all 4 + Steps 7.1–7.3).
-**Last commit on plan branch.** v7.3 — Inject as system-message prefix with [memory: ...] delimiters.
+**Workplan status.** Block 7 closed; Block 8 awaits operator-authored frozen decisions.
+**Current version carrier.** `v7.4` (Step 7.4 closed; Block 7: 4 of 4 — COMPLETE).
+**Streaks.** zero-Phase-4-correction: 0 (Block 7; Step 7.4 test count underestimate) · zero-Phase-8-patch: 14 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4).
+**Last commit on plan branch.** v7.4 — Runtime control: @memory off/deep/none.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -928,19 +928,39 @@ zero Phase 8 patches. Carry-forwards to Step 7.2: `analyzeQuery` at
 `lib/query-analysis.mjs:104` ready for consumption; `@memory` directive parsing deferred
 to Step 7.4; test baseline now 792 (715 pass, 77 fail).
 
+### Step 7.4 — Runtime control: @memory off/deep/none
+
+Closed at v7.4. Created `lib/memory-directives.mjs` — runtime control directive parser
+with `DIRECTIVE_REGEX` at line 22 (case-insensitive pattern matching
+`@memory off/deep/none/only:<theme>`), `DIRECTIVE_TYPES` Set constant at line 24,
+`parseMemoryDirective(text)` at line 42 returning `{ type, param, cleanedText }` (first
+match wins; strips matched directive from text, collapses whitespace), and
+`replaceLastUserContent(messages, newContent)` at line 79 for non-mutating OpenAI-compatible
+message replacement. Modified all 4 SDK wrappers (`openai-wrapper.mjs`,
+`anthropic-wrapper.mjs`, `gemini-wrapper.mjs`, `minimax-wrapper.mjs`) to parse directives
+before injection: `off` skips injection for the current turn, `deep` passes
+`DEFAULT_TOKEN_BUDGET * 2` (1500) to injector's `tokenBudget` option, `none` sets a
+`memoryDisabledForSession` closure flag that persists across all subsequent calls within
+the same wrapper instance, `only:<theme>` uses the theme name as the retrieval query
+instead of the full prompt text. Directives are stripped from user prompt text via
+`replaceLastUserContent` (OpenAI-compatible) or `replaceGeminiPromptText` (Gemini internal
+helper) before the LLM API call. Error isolation preserved via empty `catch {}`. 33 new
+tests across 11 describe blocks. 10 positive audit findings, 1 negative (test count
+underestimate: planned ~12-15, delivered 33), zero Phase 8 patches. **Block 7 complete (4/4).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               39 / 49
-Current block:              Block 7 in progress
-Steps closed in block:      3 / 4 (Block 7)
-Consecutive zero-Phase-4-correction streak:  0 (Block 7; Step 7.3 test count discrepancy)
-Consecutive zero-Phase-8-patch streak:       13 (Block 5 all 5 + Block 6 all 4 + Steps 7.1–7.3)
-Test baseline (npm test):   836 tests (759 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-23 (Step 7.3)
-Last block file written:    memory-plan/audits/BLOCK_6_COMPLETE.md
+Steps closed:               42 / 49
+Current block:              Block 7 complete; Block 8 awaiting frozen decisions
+Steps closed in block:      4 / 4 (Block 7 — COMPLETE)
+Consecutive zero-Phase-4-correction streak:  0 (Block 7; Step 7.4 test count underestimate)
+Consecutive zero-Phase-8-patch streak:       14 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4)
+Test baseline (npm test):   869 tests (792 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-23 (Step 7.4)
+Last block file written:    memory-plan/audits/BLOCK_7_COMPLETE.md
 ```
 
 ---
@@ -950,7 +970,7 @@ Last block file written:    memory-plan/audits/BLOCK_6_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v7.1`, no suffix) → next step is Step 7.2.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step39_query_analysis/AUDIT_POST.md` for carry-forwards into Step 7.2.
-4. Step 7.2 is: "Pre-retrieve and budget ambient memory (cap 500-1000 tokens)".
-5. Step 7.2 consumes `analyzeQuery` from `lib/query-analysis.mjs:104` and `createRetrievalPipeline` from `lib/retrieval-pipeline.mjs:362`. New deliverable: `lib/memory-injector.mjs`.
+2. Decode VERSION (`v7.4`, no suffix) → next step is Step 8.1.
+3. **IMPORTANT:** Block 8 frozen decisions must be authored by the operator BEFORE the next tick can proceed. The tick should check for Block 8 §0 in RESUME.md. If absent → exit cleanly (no BLOCKED.md).
+4. Step 8.1 is: "Implement consolidation jobs (embed/extract/update/refresh/decay/reinforce/cluster/summary/contradict/promote)".
+5. Read AUDIT_POST §6 from `memory-plan/audits/step42_runtime_control/AUDIT_POST.md` for carry-forwards.

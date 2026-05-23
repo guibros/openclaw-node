@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v7.4 — 2026-05-23 — memory-plan-tick
+
+- **Phase 9** step close for Step 7.4: Runtime control: @memory off/deep/none.
+- Final test count: 869 (792 pass, 77 fail — 73 pre-existing + 4 flaky). +33 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step42_runtime_control/AUDIT_POST.md`.
+- 10 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+- **Block 7 complete (4/4).**
+
+### v7.4-mid — 2026-05-23 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 7.4.
+- Files changed: `lib/memory-directives.mjs` (new — DIRECTIVE_REGEX, DIRECTIVE_TYPES, parseMemoryDirective returning {type, param, cleanedText}, replaceLastUserContent for OpenAI-compatible message arrays), `lib/publishers/openai-wrapper.mjs` (mod — imports parseMemoryDirective + replaceLastUserContent + DEFAULT_TOKEN_BUDGET, memoryDisabledForSession closure flag, directive parsing before injection with off/deep/none/only handling), `lib/publishers/anthropic-wrapper.mjs` (mod — same directive pattern), `lib/publishers/gemini-wrapper.mjs` (mod — imports parseMemoryDirective + DEFAULT_TOKEN_BUDGET, internal replaceGeminiPromptText helper, directive parsing), `lib/publishers/minimax-wrapper.mjs` (mod — same pattern as openai-wrapper), `test/memory-directives.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v7.4-pre — 2026-05-23 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 7.4.
+- Files planned: `lib/memory-directives.mjs` (new), `lib/publishers/openai-wrapper.mjs` (mod), `lib/publishers/anthropic-wrapper.mjs` (mod), `lib/publishers/gemini-wrapper.mjs` (mod), `lib/publishers/minimax-wrapper.mjs` (mod), `test/memory-directives.test.mjs` (new).
+- Audit: `memory-plan/audits/step42_runtime_control/AUDIT_PRE.md`.
+- Test baseline: 836 tests (759 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v7.3 — 2026-05-23 — memory-plan-tick
 
 - **Phase 9** step close for Step 7.3: Inject as system-message prefix with [memory: ...] delimiters.
