@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 7 in progress (2 of 4 steps closed).
-**Current version carrier.** `v7.2` (Step 7.2 closed; Block 7: 2 of 4).
-**Streaks.** zero-Phase-4-correction: 0 (Block 7; Step 7.2 test count underestimate) · zero-Phase-8-patch: 12 (Block 5 all 5 + Block 6 all 4 + Steps 7.1–7.2).
-**Last commit on plan branch.** v7.2 — Pre-retrieve and budget ambient memory (cap 500-1000 tokens).
+**Workplan status.** Block 7 in progress (3 of 4 steps closed).
+**Current version carrier.** `v7.3` (Step 7.3 closed; Block 7: 3 of 4).
+**Streaks.** zero-Phase-4-correction: 0 (Block 7; Step 7.3 test count discrepancy) · zero-Phase-8-patch: 13 (Block 5 all 5 + Block 6 all 4 + Steps 7.1–7.3).
+**Last commit on plan branch.** v7.3 — Inject as system-message prefix with [memory: ...] delimiters.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
@@ -935,11 +935,11 @@ to Step 7.4; test baseline now 792 (715 pass, 77 fail).
 ```
 Steps closed:               39 / 49
 Current block:              Block 7 in progress
-Steps closed in block:      1 / 4 (Block 7)
-Consecutive zero-Phase-4-correction streak:  0 (Block 7; Step 7.1 test count underestimate)
-Consecutive zero-Phase-8-patch streak:       11 (Block 5 all 5 + Block 6 all 4 + Step 7.1)
-Test baseline (npm test):   792 tests (715 pass, 77 fail — 73 pre-existing + 4 flaky)
-Last successful tick:       2026-05-23 (Step 7.1)
+Steps closed in block:      3 / 4 (Block 7)
+Consecutive zero-Phase-4-correction streak:  0 (Block 7; Step 7.3 test count discrepancy)
+Consecutive zero-Phase-8-patch streak:       13 (Block 5 all 5 + Block 6 all 4 + Steps 7.1–7.3)
+Test baseline (npm test):   836 tests (759 pass, 77 fail — 73 pre-existing + 4 flaky)
+Last successful tick:       2026-05-23 (Step 7.3)
 Last block file written:    memory-plan/audits/BLOCK_6_COMPLETE.md
 ```
 

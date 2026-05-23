@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v7.3 — 2026-05-23 — memory-plan-tick
+
+- **Phase 9** step close for Step 7.3: Inject as system-message prefix with [memory: ...] delimiters.
+- Final test count: 836 (759 pass, 77 fail — 73 pre-existing + 4 flaky). +28 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step41_system_message_injection/AUDIT_POST.md`.
+- 10 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+
+### v7.3-mid — 2026-05-23 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 7.3.
+- Files changed: `lib/memory-formatter.mjs` (new — formatConceptList, formatDecisionList, formatSnippetSummaries, formatMemoryBlock composing `[memory: ...]` block, injectIntoSystemMessage, extractLastUserPrompt, injectIntoMessages for OpenAI-compatible message injection), `lib/publishers/openai-wrapper.mjs` (mod — optional `opts.injector` param, memory injection before API call via formatMemoryBlock + injectIntoMessages), `lib/publishers/anthropic-wrapper.mjs` (mod — optional `opts.injector`, injection into Anthropic `system` param via injectIntoSystemMessage), `lib/publishers/gemini-wrapper.mjs` (mod — optional `opts.injector`, Gemini-specific content injection via extractGeminiPrompt + injectIntoGeminiContent), `lib/publishers/minimax-wrapper.mjs` (mod — optional `opts.injector`, same OpenAI-compatible pattern as openai-wrapper), `test/memory-formatter.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v7.3-pre — 2026-05-23 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 7.3.
+- Files planned: `lib/memory-formatter.mjs` (new), `lib/publishers/openai-wrapper.mjs` (mod), `lib/publishers/anthropic-wrapper.mjs` (mod), `lib/publishers/gemini-wrapper.mjs` (mod), `lib/publishers/minimax-wrapper.mjs` (mod), `test/memory-formatter.test.mjs` (new).
+- Audit: `memory-plan/audits/step41_system_message_injection/AUDIT_PRE.md`.
+- Test baseline: 808 tests (731 pass, 77 fail — 73 pre-existing + 4 flaky).
+
 ### v7.2 — 2026-05-23 — memory-plan-tick
 
 - **Phase 9** step close for Step 7.2: Pre-retrieve and budget ambient memory (cap 500-1000 tokens).

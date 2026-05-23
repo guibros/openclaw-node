@@ -185,7 +185,9 @@ Per-turn ambient memory in prompts. See REFERENCE_PLAN.md §Phase 7.
 
 > **Step 7.1 closed.** Created `lib/query-analysis.mjs` — per-prompt analysis module using embedding-based approach (BGE-M3, not LLM call) plus regex fallback for structured cues. Exports `analyzeQuery(prompt, opts)` returning `{ rawQuery, embedding, structuredCues }`, `extractStructuredCues(text)` for pure regex extraction of file paths, version/step refs, and backtick code identifiers with deduplication, and `embedPrompt(prompt, embedFn)` async wrapper with null-on-failure graceful degradation. Dynamic import of mcp-knowledge for lazy embedder loading. 11 new tests. 9 positive audit findings, 1 negative (test count underestimate: planned ~6, delivered 11), zero Phase 8 patches.
 | 7 | 7.2 | v7.2 | [x] | Pre-retrieve and budget ambient memory (cap 500-1000 tokens) |
-| 7 | 7.3 | v7.3 | [ ] | Inject as system-message prefix with [memory: ...] delimiters |
+| 7 | 7.3 | v7.3 | [x] | Inject as system-message prefix with [memory: ...] delimiters |
+
+> **Step 7.3 closed.** Created `lib/memory-formatter.mjs` — memory formatting module with 7 exports: `formatConceptList` (comma-separated "Name (type)" list), `formatDecisionList` (bullet list with date + confidence), `formatSnippetSummaries` (session-deduped snippet references), `formatMemoryBlock` (composes full `[memory: ...]` block per Block 7 §0 format; empty string when all arrays empty), `injectIntoSystemMessage` (prepends to system content), `extractLastUserPrompt` (scans messages array for last user text), `injectIntoMessages` (OpenAI-compatible message injection). Modified all 4 SDK wrappers (`openai-wrapper.mjs`, `anthropic-wrapper.mjs`, `gemini-wrapper.mjs`, `minimax-wrapper.mjs`) to accept optional `opts.injector` — when provided, pre-retrieves memory via injector and injects formatted block before API call; injection failures caught silently. 28 new tests. 10 positive audit findings, 1 negative (test count discrepancy), zero Phase 8 patches.
 | 7 | 7.4 | v7.4 | [ ] | Runtime control: @memory off/deep/none |
 
 ## Block 8 — Consolidation cycle
