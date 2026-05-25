@@ -7,6 +7,9 @@ import { ConceptMentionedSchema } from './memory/concept-mentioned.js';
 import { SnapshotTakenSchema } from './memory/snapshot-taken.js';
 import { CompactionTriggeredSchema } from './memory/compaction-triggered.js';
 import { ArtifactAttachedSchema } from './memory/artifact-attached.js';
+import { ContextBroadcastSchema } from './broadcast/context-broadcast.js';
+import { ContextOfferSchema } from './broadcast/context-offer.js';
+import { ContextAcceptedSchema } from './broadcast/context-accepted.js';
 
 export const MemoryEventSchema = z.discriminatedUnion('event_type', [
   SessionStartedSchema,
@@ -20,3 +23,11 @@ export const MemoryEventSchema = z.discriminatedUnion('event_type', [
 ]);
 
 export type MemoryEvent = z.infer<typeof MemoryEventSchema>;
+
+export const BroadcastEventSchema = z.discriminatedUnion('event_type', [
+  ContextBroadcastSchema,
+  ContextOfferSchema,
+  ContextAcceptedSchema,
+]);
+
+export type BroadcastEvent = z.infer<typeof BroadcastEventSchema>;

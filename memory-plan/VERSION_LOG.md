@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v9.1 — 2026-05-25 — memory-plan-tick
+
+- **Phase 9** step close for Step 9.1: Define broadcast/offer/accepted schemas in event-schemas package.
+- Final test count: 905 (830 pass, 75 fail — 73 pre-existing + 2 flaky variance). +12 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step45_broadcast_schemas/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v9.1-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 9.1.
+- Files changed: `packages/event-schemas/src/broadcast/context-broadcast.ts` (new — ContextBroadcastSchema with themes/entities/problem_class/intensity/ttl_minutes/dedup_key), `packages/event-schemas/src/broadcast/context-offer.ts` (new — ContextOfferSchema with responding_to/offerer_node_id/artifacts/expires_at), `packages/event-schemas/src/broadcast/context-accepted.ts` (new — ContextAcceptedSchema with responding_to/accepted_artifacts/feedback), `packages/event-schemas/src/broadcast/index.ts` (new — barrel re-export), `packages/event-schemas/src/events.ts` (modified — added BroadcastEventSchema discriminated union), `packages/event-schemas/src/index.ts` (modified — re-export broadcast schemas + BroadcastEventSchema), `test/broadcast-schemas.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v9.1-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 9.1.
+- Files planned: `packages/event-schemas/src/broadcast/context-broadcast.ts` (new), `packages/event-schemas/src/broadcast/context-offer.ts` (new), `packages/event-schemas/src/broadcast/context-accepted.ts` (new), `packages/event-schemas/src/broadcast/index.ts` (new), `packages/event-schemas/src/events.ts` (modify), `packages/event-schemas/src/index.ts` (modify), `test/broadcast-schemas.test.mjs` (new).
+- Audit: `memory-plan/audits/step45_broadcast_schemas/AUDIT_PRE.md`.
+- Test baseline: 893 tests (818 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v8.2 — 2026-05-23 — memory-plan-tick
 
 - **Phase 9** step close for Step 8.2: Schedule + budget consolidation cycle (~5 min quiet periods).

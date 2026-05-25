@@ -211,7 +211,9 @@ context.broadcast/offer/accepted. See REFERENCE_PLAN.md §Phase 9.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 9 | 9.1 | v9.1 | [ ] | Define broadcast/offer/accepted schemas in event-schemas package |
+| 9 | 9.1 | v9.1 | [x] | Define broadcast/offer/accepted schemas in event-schemas package |
+
+> **Step 9.1 closed.** Added three broadcast protocol schemas (`ContextBroadcastSchema`, `ContextOfferSchema`, `ContextAcceptedSchema`) to `packages/event-schemas` as a new `src/broadcast/` directory, following the same `EventEnvelopeSchema.extend()` pattern as Block 1's memory event schemas. `BroadcastEventSchema` discriminated union provides type-safe routing by `event_type` literal. All schemas match RESUME.md §0 Block 9 frozen decisions field-for-field: broadcast has `dedup_key`, offer has `expires_at` + `provenance`, accepted has optional `feedback`. 12 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
 | 9 | 9.2 | v9.2 | [ ] | Implement broadcaster (consolidation-driven, with TTL + de-dup) |
 | 9 | 9.3 | v9.3 | [ ] | Implement offerer (local retrieve → score → publish offer) |
 | 9 | 9.4 | v9.4 | [ ] | Implement acceptor + inject offers into agent prompt + emit context.accepted |

@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 8 closed at `v8.2`; **Block 9 frozen decisions authored** (see §0). Chain ready to start Step 9.1 on next launchd tick — but launchd job is currently UNLOADED (autopause from prior boundary). Resume via workplan viewer "Load" button at http://localhost:7892.
-**Current version carrier.** `v8.2` (Step 8.2 closed; Block 8: 2 of 2 — complete).
-**Streaks.** zero-Phase-4-correction: 0 (Block 8; Step 8.1 test count underestimate) · zero-Phase-8-patch: 16 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4).
-**Last commit on plan branch.** `2a4b4d0` feat(queue): OLLAMA_QUEUE_RETRIES env + tighten isTransient on HTTP 500 (parser/queue hardening from 2026-05-25 backfill session).
+**Workplan status.** Block 9 in progress; Step 9.1 closed at `v9.1`. Steps 9.2–9.5 remain.
+**Current version carrier.** `v9.1` (Step 9.1 closed; Block 9: 1 of 5).
+**Streaks.** zero-Phase-4-correction: 1 (Block 9; Step 9.1 clean) · zero-Phase-8-patch: 17 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Step 9.1).
+**Last commit on plan branch.** `<pending>` v9.1 — Define broadcast/offer/accepted schemas in event-schemas package.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -1179,18 +1179,39 @@ with `StartInterval` 1800 (30 min), matching project plist conventions. 14 new t
 positive audit findings, 1 negative (test count underestimate), zero Phase 8 patches.
 **Block 8 complete (2/2).**
 
+### Step 9.1 — Define broadcast/offer/accepted schemas in event-schemas package
+
+Closed at v9.1. Added three broadcast protocol schemas to `packages/event-schemas` in a new
+`src/broadcast/` directory, following the established `EventEnvelopeSchema.extend()` pattern
+from Block 1. `ContextBroadcastSchema` (`event_type: 'context.broadcast'`) with data payload:
+`themes`, `entities`, `problem_class` (optional enum), `intensity` (enum), `ttl_minutes`,
+`dedup_key`. `ContextOfferSchema` (`event_type: 'context.offer'`) with data payload:
+`responding_to` (uuid), `offerer_node_id`, `artifacts` (array of `{ artifact_ref,
+relevance_score, provenance: { source_node, source_type }, summary }`), `expires_at`
+(datetime). `ContextAcceptedSchema` (`event_type: 'context.accepted'`) with data payload:
+`responding_to` (uuid), `accepted_artifacts` (string[]), `feedback` (optional `{ useful,
+note? }`). `BroadcastEventSchema` discriminated union over all three. All re-exported from
+package root `index.ts`. 12 new tests. 10 positive audit findings, zero corrections, zero
+Phase 8 patches.
+
+Carry-forwards to Step 9.2: schemas available via `import { ContextBroadcastSchema, ... }
+from 'event-schemas'` (dist build verified); broadcaster should validate against
+`ContextBroadcastSchema` before publishing to `context.broadcast.>` on shared stream;
+`dedup_key` field enables offerer-side dedup without re-parsing; `expires_at` in offer
+enables broadcaster to ignore stale offers.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               44 / 49
-Current block:              Block 8 closed; Block 9 awaits frozen decisions
-Steps closed in block:      2 / 2 (Block 8 — complete)
-Consecutive zero-Phase-4-correction streak:  0 (Block 8; Step 8.1 test count underestimate)
-Consecutive zero-Phase-8-patch streak:       16 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4)
-Test baseline (npm test):   893 tests (818 pass, 75 fail — 73 pre-existing + 2 flaky variance)
-Last successful tick:       2026-05-23 (Step 8.2)
+Steps closed:               45 / 49
+Current block:              Block 9 in progress
+Steps closed in block:      1 / 5 (Block 9)
+Consecutive zero-Phase-4-correction streak:  1 (Block 9; Step 9.1 clean)
+Consecutive zero-Phase-8-patch streak:       17 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Step 9.1)
+Test baseline (npm test):   905 tests (830 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-25 (Step 9.1)
 Last block file written:    memory-plan/audits/BLOCK_8_COMPLETE.md
 ```
 
@@ -1201,7 +1222,9 @@ Last block file written:    memory-plan/audits/BLOCK_8_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v8.2`, no suffix) → next step is Step 9.1.
-3. **IMPORTANT:** Block 9 frozen decisions must be authored by the operator BEFORE the next tick can proceed. The tick should check for `### Block 9 frozen decisions` in RESUME.md §0. If absent → **write `BLOCKED.md`** with reason "Block 9 frozen decisions not authored" and exit. **DO NOT** exit cleanly without `BLOCKED.md` — that bypasses the autopause mechanism (`workspace-bin/memory-plan-tick.sh:maybe_autopause()`) and causes launchd to poll every 120s indefinitely.
+2. Decode VERSION (`v9.1`, no suffix) → next step is Step 9.2.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step45_broadcast_schemas/AUDIT_POST.md` for carry-forwards.
+4. Read Block 9 frozen decisions in RESUME.md §0 for Step 9.2 specifics (broadcaster, consolidation-driven, TTL + dedup).
+5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9.
 4. Step 9.1 is: "Define broadcast/offer/accepted schemas in event-schemas package".
 5. Read AUDIT_POST §6 from `memory-plan/audits/step44_consolidation_scheduler/AUDIT_POST.md` for carry-forwards.

@@ -2,7 +2,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { MemoryEventSchema } from './events.js';
 
 export { EventEnvelopeSchema, type EventEnvelope } from './envelope.js';
-export { MemoryEventSchema, type MemoryEvent } from './events.js';
+export { MemoryEventSchema, type MemoryEvent, BroadcastEventSchema, type BroadcastEvent } from './events.js';
 export {
   SessionStartedSchema, type SessionStartedEvent,
   SessionEndedSchema, type SessionEndedEvent,
@@ -13,6 +13,11 @@ export {
   CompactionTriggeredSchema, type CompactionTriggeredEvent,
   ArtifactAttachedSchema, type ArtifactAttachedEvent,
 } from './memory/index.js';
+export {
+  ContextBroadcastSchema, type ContextBroadcastEvent,
+  ContextOfferSchema, type ContextOfferEvent,
+  ContextAcceptedSchema, type ContextAcceptedEvent,
+} from './broadcast/index.js';
 
 export function toJsonSchema() {
   // Cast needed: the root node_modules has Zod 4.x while this package targets 3.x.
