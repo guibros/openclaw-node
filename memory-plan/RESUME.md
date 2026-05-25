@@ -299,6 +299,54 @@ When Block 8 closes, the next tick will attempt Step 9.1 (broadcast protocol). P
 
 **This applies to EVERY block boundary going forward.** Line 974 of this file (the now-broken Block 7→8 checklist) updated to match.
 
+### Block 9 frozen decisions
+
+Authored 2026-05-24 by operator (interactive session). Block 8 closed at `v8.2` — consolidation library + scheduler + decay parameters + co-occurrence cluster detection all landed cleanly. Block 9 implements the cross-soul broadcast protocol per REFERENCE_PLAN §9.
+
+**Transport (settled in Block 4, no change):** NATS shared stream `OPENCLAW_SHARED` (R=3, subject filter already covers `context.broadcast.>`, `context.offer.>`, `context.accepted.>`). All three new schemas live in `packages/event-schemas`.
+
+**Block 9 hard scope — Steps 9.1–9.6 (REFERENCE_PLAN 9.1–9.5 + operator-added 9.6):**
+
+- **9.1** — Schema definitions in `packages/event-schemas`. All three event types extend `EventEnvelopeSchema` (event_id, ts, source_node_id, schema_version):
+  - `ContextBroadcastSchema.data`: `{ themes: string[], entities: string[], problem_class?: 'debug'|'design'|'research'|'implement', intensity: 'passive'|'interested'|'actively_seeking', ttl_minutes: number, dedup_key: string }`. **`dedup_key`** (added beyond REFERENCE_PLAN) = SHA-256 of canonicalized `themes ∪ entities` set; offerer drops duplicates without re-parsing.
+  - `ContextOfferSchema.data`: `{ responding_to: uuid, offerer_node_id: string, artifacts: Array<{ artifact_ref, relevance_score, provenance, summary }>, expires_at: ISO timestamp }`. **`expires_at`** added — broadcaster ignores offers arriving after broadcast TTL expired.
+  - `ContextAcceptedSchema.data`: `{ responding_to: uuid (offer's event_id), accepted_artifacts: string[] (artifact_refs), feedback?: { useful: boolean, note?: string } }`.
+
+- **9.2** — Broadcaster (`lib/broadcast-emitter.mjs`), wired into both `consolidation-scheduler.mjs` (Block 8.2) AND `memory-daemon.mjs` per-prompt path. **Aggressive cadence** (operator decision):
+  - Fires on every user turn where query-analysis (Block 7A) detects ≥3 themes
+  - Also fires at end of every consolidation cycle (for the slow-cooked theme set)
+  - Per-session cap: **1 broadcast per 60 sec** (rate limit, not deep silence)
+  - Per-node cap: **unbounded** (no per-hour throttle — let the offerer side filter on relevance)
+  - Dedup window: 15 min — same `dedup_key` within 15 min is suppressed at the broadcaster (prevents echo when same themes repeat in a turn cluster)
+  - TTL default `ttl_minutes: 60`. Operator override via env `OPENCLAW_BROADCAST_TTL_MIN`
+  - Intensity inference: query-analysis output drives it — question marks / "how do I" / "stuck" / "blocked" → `actively_seeking`; exploration verbs ("explore", "think about", "what if") → `interested`; descriptive/declarative → `passive`. Skip broadcast if `passive` AND theme set unchanged from prior 5 turns (truly idle)
+
+- **9.3** — Offerer (`lib/broadcast-offerer.mjs`) runs inside `memory-daemon.mjs` (uses existing shared-stream connection). Wakes on every `context.broadcast.>` from any node except self:
+  - Routes through `ollama-queue.requestAnalysis()` for `generateRelevanceSummary()` — short timeout, falls back to embedding-only summary if Ollama busy (same pattern as injection per Block 7B)
+  - Relevance threshold: **`RELEVANCE_THRESHOLD = 0.55`** (RRF-combined score from the 5-channel retrieval pipeline). Below threshold = silent (don't offer noise)
+  - Top-K artifacts per offer: **3** (Miller-style cap; same family as Block 7C curation caps)
+  - Privacy filter: hard pre-filter on `private = 1` items per 9.5 — these never enter retrieval results that feed the offerer
+
+- **9.4** — Acceptor (`lib/broadcast-acceptor.mjs`) inside `memory-daemon.mjs`. Wakes on `context.offer.>` events where `responding_to` matches a broadcast this node emitted:
+  - Offers scored against current session's recall state (last 5 turns); top 1 surfaces via the **companion-bridge injection path** (Block 7B) as a `[peer-memory: ...]` block prepended after the local `[memory: ...]` block
+  - Auto-emit `context.accepted` when the user's next prompt references the offered content (heuristic: token overlap ≥ 0.3 with the offer's summary). Feedback field stays optional — wired explicitly later if useful
+
+- **9.5** — Privacy implementation (**default-private** per operator decision, matches REFERENCE_PLAN §9.5 recommendation):
+  - ALTER TABLE migration: add `private INTEGER DEFAULT 1` to `entities`, `decisions`, `themes`. Default = private
+  - New table `published_items (item_id, item_type, published_at, published_by_session)` — explicit allowlist
+  - Promotion to public via: (1) `@publish` directive in chat (parsed like `@memory`), (2) operator-curated `bin/publish-item.mjs` CLI
+  - Retrieval pipeline gains `respect_privacy: true` flag (default true). Offerer always passes true; local injection always passes false (your own private memory is fair game for your own sessions)
+
+- **9.6** — Cross-node integration test (**operator-added** beyond REFERENCE_PLAN). New `test/broadcast-cross-node.test.mjs` spins up two in-process NATS clients (ephemeral stream), simulates a peer node, asserts full round-trip: emit broadcast → peer offers → acceptor injects → accepted event flows back. This becomes the deterministic equivalent of Block 8's "3 clean cycles" gate. Without it, regressions in Block 10/11/12 could silently break the loop with no automated guard.
+
+**Validation gate before Block 10:** Step 9.6 test passes AND a real broadcast from this node has produced ≥1 offer from a (simulated or real) peer AND an accepted offer was injected into the next session prompt.
+
+**Test baseline for Block 9:** continues from v8.2. Each step adds 4-8 tests. Block 9 total expected: +25-35 tests (9.6 cross-node fixture alone is ~8 tests).
+
+**Next-tick checklist (Block 9→10 boundary):**
+
+When Block 9 closes, the next tick will attempt Step 10.1. Per framework: read `### Block 10 frozen decisions` in §0; if absent → **write `BLOCKED.md`** with reason "Block 10 frozen decisions not authored" and exit. Do not exit cleanly without `BLOCKED.md` (see Block 7→8 lesson at lines 296–298 above).
+
 ### Carry-forward from Block 0 + Block 1
 
 - **Phase 2 scope must be revisited before Block 2 starts.** `lib/mcp-knowledge/core.mjs` already implements sqlite-vec + embeddings via `@huggingface/transformers` (Xenova/all-MiniLM-L6-v2, 384-dim) and is the registered "knowledge" MCP server in `.mcp.json`. Step 2.1's first deliverable is a written re-scoping decision.
