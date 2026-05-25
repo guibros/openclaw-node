@@ -1,14 +1,114 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 8 closed; Block 9 awaits frozen decisions.
+**Workplan status.** Block 8 closed at `v8.2`; **Block 9 frozen decisions authored** (see §0). Chain ready to start Step 9.1 on next launchd tick — but launchd job is currently UNLOADED (autopause from prior boundary). Resume via workplan viewer "Load" button at http://localhost:7892.
 **Current version carrier.** `v8.2` (Step 8.2 closed; Block 8: 2 of 2 — complete).
 **Streaks.** zero-Phase-4-correction: 0 (Block 8; Step 8.1 test count underestimate) · zero-Phase-8-patch: 16 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4).
-**Last commit on plan branch.** v8.2 — Schedule + budget consolidation cycle (~5 min quiet periods).
+**Last commit on plan branch.** `2a4b4d0` feat(queue): OLLAMA_QUEUE_RETRIES env + tighten isTransient on HTTP 500 (parser/queue hardening from 2026-05-25 backfill session).
+**Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
 conversational context. The Framework that governs how steps are executed is at
 [FRAMEWORK.md](FRAMEWORK.md). The full implementation plan is at
 [REFERENCE_PLAN.md](REFERENCE_PLAN.md). The step list is at [INVENTORY.md](INVENTORY.md).
+
+---
+
+## Handoff log — 2026-05-25 12:00 (pre-reboot)
+
+The operator session that ran from 2026-05-23 evening through 2026-05-25 noon
+hit a Mac perf wall while running the historical-session backfill
+(`bin/extract-existing-sessions.mjs` over `~/.openclaw/state.db`). User is about
+to reboot the Mac to recover GPU performance. This section captures everything
+the next Claude session needs to pick up cleanly.
+
+### Backfill state (Step 6.4 carry-forward work)
+
+- **120 of 228** historical sessions extracted into the entity_store + concepts
+- Checkpoint: `~/.openclaw/.extract-migration-checkpoint.json` — `{ok: 120, fail: <varies>}`
+- After reboot the operator wants to resume — most or all of the remaining
+  ~108 sessions should succeed at normal Mac speed (~30 sec per session vs the
+  5-15 min that was happening pre-reboot).
+
+### Mac perf root cause (DIAGNOSED, not fixed)
+
+- Qwen3-8B on Ollama running at **~1.3 sec/token** vs normal **0.03-0.05 sec/token**
+  (14-50× slower than baseline). System load avg 4-7, 67k accumulated swapouts,
+  GPU contention with Discord/Claude Code/WindowServer.
+- Ollama has a **5m01s per-request hard wall** (not configurable in 0.24.0 —
+  `OLLAMA_LOAD_TIMEOUT=3600s` extended one test request to 10 min but the wall
+  STILL hit large-input sessions. Internal runner watchdog, no escape hatch).
+- The combination: rich sessions need >5 min of output at degraded speed,
+  hit the wall, fail. **Reboot solves the perf issue, which makes the wall
+  irrelevant.**
+
+### Code patches landed in this session (3 commits + 1 tag)
+
+All three proven by 10+ hours of live backfill traffic on 2026-05-25:
+
+1. **`47b6719` feat(extraction): tolerant parser**
+   - `coerceExtractionResult()` — maps fuzzy enum values like `"Security"→"technology"`,
+     `"research"→"researching"` instead of failing the whole 1-15 min LLM call
+   - `extractJsonFromText()` — strips markdown fences + brace-matches outermost
+     `{...}` for free-form LLM output (paired with LLM_FORCE_FREE_FORM env)
+
+2. **`51adf2c` feat(llm-client): LLM_FORCE_FREE_FORM=1**
+   - Disables Ollama `format: "json"` grammar constraint when set
+   - Hypothesis (didn't pan out) that constrained decoder stalls on contended HW
+   - Kept because pairs naturally with the tolerant parser + helpful for non-Ollama backends
+
+3. **`2a4b4d0` feat(queue): retry control + isTransient tightened**
+   - `OLLAMA_QUEUE_RETRIES=none` disables retries (3 retries × 5 min per failure
+     was wasting 15 hr of wall time on a 228-session backfill)
+   - `isTransient` no longer treats HTTP 500 + "fetch failed" as retryable —
+     deterministic Ollama deadline failures retry-amplified to no benefit
+
+Plus the earlier `f45e7b2 chore: LLM_MAX_TOKENS env var` from this session window.
+
+### Reboot recovery procedure
+
+1. **Reboot Mac** (~3 min)
+2. Open fresh Claude Code session, say "resume the backfill"
+3. The new Claude should:
+   - Verify `git log` shows tag `pre-reboot-2026-05-25` and last commit `2a4b4d0`
+   - Verify checkpoint: `jq '{ok:(.completed|length),fail:(.failed|length)}' ~/.openclaw/.extract-migration-checkpoint.json` → ok≥120
+   - Verify Ollama running: `curl -s http://localhost:11434/api/tags` (launchd auto-restarts the macOS Ollama app)
+   - Optionally relaunch Ollama manually with extended timeouts (only needed if hitting walls again):
+     ```bash
+     launchctl bootout gui/$(id -u)/com.ollama.ollama
+     pkill -f "Ollama.app"
+     nohup env OLLAMA_LOAD_TIMEOUT=3600s OLLAMA_KEEP_ALIVE=24h OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 \
+       /Applications/Ollama.app/Contents/Resources/ollama serve > ~/.openclaw/logs/ollama-manual.log 2>&1 & disown
+     ```
+   - Reset failed list (give them a fresh shot):
+     ```bash
+     node -e 'const fs=require("fs"),p=require("os").homedir()+"/.openclaw/.extract-migration-checkpoint.json";const c=JSON.parse(fs.readFileSync(p,"utf8"));c.failed=[];fs.writeFileSync(p,JSON.stringify(c,null,2)+"\n")'
+     ```
+   - Resume backfill with default-good settings:
+     ```bash
+     cd /Users/moltymac/openclaw-nodedev
+     nohup env LLM_TIMEOUT=86400000 LLM_MAX_TOKENS=4096 OLLAMA_QUEUE_RETRIES=none \
+       node bin/extract-existing-sessions.mjs --tail 20 > /tmp/extract-backfill.log 2>&1 & disown
+     ```
+   - Monitor: `tail -F /tmp/extract-backfill.log` + `watch -n 30 'jq . ~/.openclaw/.extract-migration-checkpoint.json'`
+4. **Chain (Block 9)**: separate from backfill. To resume the workplan chain at
+   Step 9.1, click "Load" in the workplan viewer at http://localhost:7892, or:
+   ```bash
+   launchctl enable gui/$(id -u)/com.openclaw.memory-plan-tick
+   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.openclaw.memory-plan-tick.plist
+   ```
+
+### Open / deferred items
+
+- **Item F** (workspace deploy script) still queued — see Block 8 §0 line ~275
+- Backfill failed-list (whatever it shows on resume) → run a 2nd pass with
+  `--tail 8 LLM_MAX_TOKENS=1500` if any sessions still fail post-reboot
+- 119+ entities/decisions/themes in DB but **no concept notes regenerated yet** —
+  backfill script does this in post-extraction phase (lines 220+) only if processed > 0;
+  on full reboot run it'll run. To force now: `node -e 'import("./lib/obsidian-summarizer.mjs").then(m=>m.generateConceptNotes({}))'`
+- **Block 9 ready to start** — frozen decisions in §0 below cover Steps 9.1–9.6
+  (broadcast/offer/accepted schemas, broadcaster, offerer, acceptor, privacy
+  with default-private items, cross-node integration test). User chose
+  "aggressive" cadence + "default-private" + "add 9.6 cross-node test".
 
 ---
 
