@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v10.4 — 2026-05-26 — memory-plan-tick
+
+- **Phase 9** step close for Step 10.4: Node identity + ed25519 signing infrastructure (`lib/node-identity.mjs`); STRICT verification.
+- Final test count: 1064 (989 pass, 75 fail — 73 pre-existing + 2 flaky variance). +12 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step54_node_identity_signing/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v10.4-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 10.4.
+- Files changed: `lib/node-identity.mjs` (new — ed25519 keypair management, `signEvent`, `verifyEvent`, `canonicalizeEvent`), `packages/event-schemas/src/envelope.ts` + `dist/envelope.js` + `dist/envelope.d.ts` (modified — added optional `signature` + `signer_pubkey` fields), `lib/local-event-log.mjs` (modified — accepts `opts.identity` parameter, signs events before publishing), `lib/broadcast-offerer.mjs` (modified — STRICT signature verification in `processBroadcast`, `signatureRejected` stat), `lib/broadcast-acceptor.mjs` (modified — STRICT signature verification in `processOffer`, `signatureRejected` stat), `test/node-identity.test.mjs` (new — 12 `it()` blocks).
+- Test additions: 12 `it()` blocks in `test/node-identity.test.mjs`.
+
+### v10.4-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 10.4.
+- Files planned: `lib/node-identity.mjs` (new), `packages/event-schemas/src/envelope.ts` (modify), `lib/local-event-log.mjs` (modify), `lib/broadcast-offerer.mjs` (modify), `lib/broadcast-acceptor.mjs` (modify), `test/node-identity.test.mjs` (new).
+- Audit: `memory-plan/audits/step54_node_identity_signing/AUDIT_PRE.md`.
+- Test baseline: 1048 tests (973 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v10.3 — 2026-05-25 — memory-plan-tick
 
 - **Phase 9** step close for Step 10.3: Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates.

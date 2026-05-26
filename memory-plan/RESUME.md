@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 10 in progress; Step 10.3 closed. 6 steps remain (v10.4–v10.9).
-**Current version carrier.** `v10.3` (Step 10.3 closed; Block 10: 3 of 9).
-**Streaks.** zero-Phase-4-correction: 9 (Block 9 all 6 + Steps 10.1–10.3 clean) · zero-Phase-8-patch: 29 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.3).
-**Last commit on plan branch.** `<pending>` v10.3 — Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates.
+**Workplan status.** Block 10 in progress; Step 10.4 closed. 5 steps remain (v10.5–v10.9).
+**Current version carrier.** `v10.4` (Step 10.4 closed; Block 10: 4 of 9).
+**Streaks.** zero-Phase-4-correction: 10 (Block 9 all 6 + Steps 10.1–10.4 clean) · zero-Phase-8-patch: 30 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.4).
+**Last commit on plan branch.** `<pending>` v10.4 — Node identity + ed25519 signing infrastructure (`lib/node-identity.mjs`); STRICT verification.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no

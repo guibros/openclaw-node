@@ -15,6 +15,8 @@ export const EventEnvelopeSchema = z.object({
   }),
   node_id: z.string(),
   idempotency_key: z.string(),
+  signature: z.string().optional(),
+  signer_pubkey: z.string().optional(),
 });
 
 export type EventEnvelope = z.infer<typeof EventEnvelopeSchema>;
