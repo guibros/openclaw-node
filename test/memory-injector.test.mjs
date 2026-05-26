@@ -9,6 +9,8 @@ import {
   queryRelevantDecisions,
   trimToBudget,
   createMemoryInjector,
+  recallScore,
+  writeBackReconsolidation,
 } from '../lib/memory-injector.mjs';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -30,7 +32,11 @@ function createTestExtractionDb() {
       embedding BLOB,
       source_type TEXT DEFAULT 'local',
       source_node TEXT,
-      source_event_id TEXT
+      source_event_id TEXT,
+      -- Block 7C reconsolidation + Block 9 privacy columns (added via migration in production)
+      salience REAL DEFAULT 0.5,
+      last_recalled TEXT,
+      private INTEGER DEFAULT 1
     );
     CREATE TABLE themes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,7 +70,11 @@ function createTestExtractionDb() {
       created_at TEXT NOT NULL,
       source_type TEXT DEFAULT 'local',
       source_node TEXT,
-      source_event_id TEXT
+      source_event_id TEXT,
+      -- Block 7C reconsolidation + Block 9 privacy columns
+      salience REAL DEFAULT 0.5,
+      last_recalled TEXT,
+      private INTEGER DEFAULT 1
     );
     CREATE INDEX idx_mentions_entity ON mentions(entity_id);
     CREATE INDEX idx_mentions_session ON mentions(session_id);
@@ -269,5 +279,114 @@ describe('createMemoryInjector', () => {
       tokenBudget: 200,
     });
     assert.equal(result.budget, 200);
+  });
+});
+
+// ─── Cluster C regression tests (F-C8/C9/C10/C11) ──────────────────────────
+
+describe('queryRelevantConcepts — returns id + salience + last_recalled (F-C8/C10)', () => {
+  it('includes id, mention_count (snake), salience, last_seen, last_recalled', () => {
+    const db = createTestExtractionDb();
+    seedTestData(db);
+    const result = queryRelevantConcepts(db, ['session-1']);
+    assert.ok(result.length > 0);
+    assert.equal(typeof result[0].id, 'number', 'id should be present');
+    assert.equal(typeof result[0].mention_count, 'number', 'mention_count (snake) for recallScore');
+    assert.equal(typeof result[0].mentionCount, 'number', 'mentionCount (camel) for backward compat');
+    assert.equal(typeof result[0].salience, 'number');
+    assert.ok('last_seen' in result[0]);
+    assert.ok('last_recalled' in result[0]);
+    db.close();
+  });
+
+  it('respectPrivacy:true filters private entities', () => {
+    const db = createTestExtractionDb();
+    seedTestData(db);
+    // Mark all entities private
+    db.exec(`UPDATE entities SET private = 1`);
+    const filtered = queryRelevantConcepts(db, ['session-1'], 10, { respectPrivacy: true });
+    assert.equal(filtered.length, 0, 'private entities should be filtered');
+    // Without privacy flag, everything returns
+    const unfiltered = queryRelevantConcepts(db, ['session-1'], 10, { respectPrivacy: false });
+    assert.ok(unfiltered.length > 0);
+    db.close();
+  });
+});
+
+describe('queryRelevantDecisions — returns id + session_id + salience (F-C8/C10)', () => {
+  it('includes id, session_id, salience, last_recalled', () => {
+    const db = createTestExtractionDb();
+    seedTestData(db);
+    const result = queryRelevantDecisions(db, ['session-1', 'session-2']);
+    assert.ok(result.length > 0);
+    assert.equal(typeof result[0].id, 'number');
+    assert.equal(typeof result[0].session_id, 'string');
+    assert.equal(typeof result[0].salience, 'number');
+    assert.ok('last_recalled' in result[0]);
+    db.close();
+  });
+
+  it('respectPrivacy:true filters private decisions', () => {
+    const db = createTestExtractionDb();
+    seedTestData(db);
+    db.exec(`UPDATE decisions SET private = 1`);
+    const filtered = queryRelevantDecisions(db, ['session-1', 'session-2'], 10, { respectPrivacy: true });
+    assert.equal(filtered.length, 0);
+    db.close();
+  });
+});
+
+describe('recallScore — reads correct field names (F-C9, F-C11)', () => {
+  it('reads mention_count (snake_case) from concept items', () => {
+    const item = { mention_count: 100, salience: 0.5 };
+    const score = recallScore(item);
+    // log1p(100) * 0.5 * 1 * (1+0) * (1+0) ≈ 4.615 * 0.5 = 2.307
+    assert.ok(score > 2 && score < 3, `expected ~2.3, got ${score}`);
+  });
+
+  it('falls back to mentionCount (camelCase) for legacy callers', () => {
+    const item = { mentionCount: 100, salience: 0.5 };
+    const score = recallScore(item);
+    assert.ok(score > 2 && score < 3, `legacy field should work, got ${score}`);
+  });
+
+  it('reads score field from snippet items (F-C11 — RRF feedback)', () => {
+    // Snippets carry RRF score in `.score` per retrieval-pipeline output
+    const lowScore = recallScore({ mention_count: 1, salience: 0.5, score: 0.1 });
+    const highScore = recallScore({ mention_count: 1, salience: 0.5, score: 0.9 });
+    assert.ok(highScore > lowScore, 'higher RRF score should produce higher recall score');
+  });
+
+  it('rrf_score field still works (backward compat)', () => {
+    const a = recallScore({ mention_count: 1, salience: 0.5, rrf_score: 0.9 });
+    const b = recallScore({ mention_count: 1, salience: 0.5, score: 0.9 });
+    assert.ok(Math.abs(a - b) < 0.001, 'rrf_score and score should produce same result');
+  });
+});
+
+describe('writeBackReconsolidation — actually writes (F-C8)', () => {
+  it('bumps salience + sets last_recalled when entityIds populated', () => {
+    const db = createTestExtractionDb();
+    seedTestData(db);
+    // Find an entity ID to recall
+    const entityRow = db.prepare('SELECT id, salience FROM entities WHERE name = ?').get('NATS');
+    const before = entityRow.salience ?? 0.5;
+    writeBackReconsolidation(db, { entityIds: [entityRow.id], decisionIds: [] });
+    const after = db.prepare('SELECT salience, last_recalled FROM entities WHERE id = ?').get(entityRow.id);
+    // Salience should be bumped (× 1.05 capped at 1.0)
+    assert.ok(after.salience >= before, `salience should not decrease, before=${before} after=${after.salience}`);
+    // last_recalled should be set
+    assert.ok(after.last_recalled, 'last_recalled should be set');
+    db.close();
+  });
+
+  it('does nothing when entityIds is empty (F-C8 baseline behavior preserved)', () => {
+    const db = createTestExtractionDb();
+    seedTestData(db);
+    writeBackReconsolidation(db, { entityIds: [], decisionIds: [] });
+    // Should not throw, should not modify rows
+    const row = db.prepare('SELECT last_recalled FROM entities WHERE name = ?').get('NATS');
+    assert.equal(row.last_recalled, null);
+    db.close();
   });
 });
