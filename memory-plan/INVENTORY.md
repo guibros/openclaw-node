@@ -230,6 +230,22 @@ context.broadcast/offer/accepted. See REFERENCE_PLAN.md §Phase 9.
 
 > **Step 9.6 closed.** Created `test/broadcast-cross-node.test.mjs` — deterministic two-node integration test using mock NATS connections with a shared message bus (no external broker). 9 describe blocks and 10 `it()` blocks covering: full round-trip (broadcast → offer → accept → context.accepted), TTL-expired broadcasts skipped by offerer, private items filtered by offerer (in-memory SQLite with privacy migration), offer expires_at respected by acceptor, artifact_refs flow correctly through context.accepted, self-originated broadcasts skipped by offerer, below-threshold results produce no offer, non-matching responding_to skipped by acceptor, and buildOfferFromResults → formatPeerMemoryBlock pipeline rendering. 10 positive audit findings, zero corrections, zero Phase 8 patches. **Block 9 complete (6/6).**
 
+## Block 10 — Federation validation in the real world
+
+Real multi-node deployment, ed25519-signed events, 3-node council, dogfood harness. See RESUME.md §0 Block 10 frozen decisions.
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 10 | 10.1 | v10.1 | [ ] | `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/` |
+| 10 | 10.2 | v10.2 | [ ] | NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`) |
+| 10 | 10.3 | v10.3 | [ ] | Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates |
+| 10 | 10.4 | v10.4 | [ ] | Node identity + ed25519 signing infrastructure (`lib/node-identity.mjs`); STRICT verification |
+| 10 | 10.5 | v10.5 | [ ] | Two-node integration test (`test/federation-2node.test.mjs`) — real NATS, real round-trip |
+| 10 | 10.6 | v10.6 | [ ] | Three-node council test (`test/federation-3node.test.mjs`) — A broadcasts, B+C offer, A picks |
+| 10 | 10.7 | v10.7 | [ ] | Network resilience: peer-offline + reconnect + dead-peer detection + TTL cleanup |
+| 10 | 10.8 | v10.8 | [ ] | `docs/MULTI_NODE_DEPLOY.md` — soup-to-nuts deployment guide for real-hardware council |
+| 10 | 10.9 | v10.9 | [ ] | Dogfood harness (`bin/dogfood-council.mjs` + `docs/DOGFOOD_PROTOCOL.md`) |
+
 ---
 
 ## Totals
@@ -246,6 +262,7 @@ context.broadcast/offer/accepted. See REFERENCE_PLAN.md §Phase 9.
 | 7 | 4 | 42 |
 | 8 | 2 | 44 |
 | 9 | 6 | 50 |
+| 10 | 9 | 59 |
 
-**50 atomic steps total** across 10 blocks. (Updated 2026-05-25: Block 6 grew 3→4 with operator-added Step 6.4 historical session backfill; Block 9 grew 5→6 with operator-added Step 9.6 cross-node integration test per Block 9 frozen decisions.) Per the framework, each block ends with a
+**59 atomic steps total** across 11 blocks. (Updated 2026-05-25: Block 6 grew 3→4 with operator-added Step 6.4 historical session backfill; Block 9 grew 5→6 with operator-added Step 9.6 cross-node integration test; Block 10 added entirely per Block 10 frozen decisions — federation validation theme, 9 steps.) Per the framework, each block ends with a
 `BLOCK_<N>_COMPLETE.md` sentinel doc + a top-level milestone marker.
