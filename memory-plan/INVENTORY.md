@@ -242,7 +242,9 @@ Real multi-node deployment, ed25519-signed events, 3-node council, dogfood harne
 | 10 | 10.2 | v10.2 | [x] | NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`) |
 
 > **Step 10.2 closed.** Created `services/nats/` directory with 3 NATS server config files (`nats-{1,2,3}.conf`) forming a full-mesh cluster on ports 4222–4224 (client), 6222–6224 (cluster), 8222–8224 (monitor) with JetStream enabled and per-node data directories. Three launchd plists (`ai.openclaw.nats-{1,2,3}.plist`) with KeepAlive for auto-restart. Comprehensive `docs/NATS_CLUSTER.md` covering local dev (launchd), multi-machine (systemd), and Tailscale deployment paths with verification steps and troubleshooting. Infrastructure-only step, zero new tests, zero code logic changes. 10 positive audit findings, zero corrections, zero Phase 8 patches.
-| 10 | 10.3 | v10.3 | [ ] | Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates |
+| 10 | 10.3 | v10.3 | [x] | Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates |
+
+> **Step 10.3 closed.** Wired `ensureSharedStream(nc)` and `inspectSharedStream(nc)` into the memory daemon startup sequence after NATS connection. Added `verifySharedStreamConfig(streamInfo)` pure validation function to `lib/shared-event-stream.mjs` — checks `num_replicas === 3` and `storage === File`, returns `{ valid, reasons }`. Daemon refuses to start (`process.exit(1)`) if shared stream exists with wrong config; gracefully continues without federation stream if NATS cluster unavailable or stream creation fails (<3 nodes). 11 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
 | 10 | 10.4 | v10.4 | [ ] | Node identity + ed25519 signing infrastructure (`lib/node-identity.mjs`); STRICT verification |
 | 10 | 10.5 | v10.5 | [ ] | Two-node integration test (`test/federation-2node.test.mjs`) — real NATS, real round-trip |
 | 10 | 10.6 | v10.6 | [ ] | Three-node council test (`test/federation-3node.test.mjs`) — A broadcasts, B+C offer, A picks |

@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 10 in progress; Step 10.2 closed. 7 steps remain (v10.3–v10.9).
-**Current version carrier.** `v10.2` (Step 10.2 closed; Block 10: 2 of 9).
-**Streaks.** zero-Phase-4-correction: 8 (Block 9 all 6 + Steps 10.1–10.2 clean) · zero-Phase-8-patch: 28 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.2).
-**Last commit on plan branch.** `<pending>` v10.2 — NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`).
+**Workplan status.** Block 10 in progress; Step 10.3 closed. 6 steps remain (v10.4–v10.9).
+**Current version carrier.** `v10.3` (Step 10.3 closed; Block 10: 3 of 9).
+**Streaks.** zero-Phase-4-correction: 9 (Block 9 all 6 + Steps 10.1–10.3 clean) · zero-Phase-8-patch: 29 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.3).
+**Last commit on plan branch.** `<pending>` v10.3 — Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -1364,28 +1364,44 @@ requiring substitution before installation. Cluster must be running before Step 
 R=3 propagation. `nats-server` confirmed at `/opt/homebrew/bin/nats-server`. JetStream data dirs
 must be created by operator. `@publish` directive still deferred. Item F still queued.
 
+### Step 10.3 — Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates
+
+Closed at v10.3. Added `verifySharedStreamConfig(streamInfo)` pure validation function to
+`lib/shared-event-stream.mjs` — checks `config.num_replicas === 3` and `config.storage === File`,
+returns `{ valid: boolean, reasons: string[] }`. Added `EXPECTED_REPLICAS` named constant (3).
+Wired `ensureSharedStream(natsConn)` → `inspectSharedStream(natsConn)` → `verifySharedStreamConfig()`
+into `workspace-bin/memory-daemon.mjs` startup sequence, positioned after NATS connection + local
+event log init and before extraction trigger init. On invalid config → `process.exit(1)` (refuse
+to start). On stream creation failure (e.g. <3 nodes) → log warning, continue without federation
+stream (existing graceful degradation pattern). 11 new tests. 10 positive audit findings, zero
+corrections, zero Phase 8 patches.
+
+Carry-forwards: Shared stream verified at daemon startup (R=3, File storage). `@publish` directive
+still deferred. Step 10.4 adds ed25519 signing — signed events will flow through the verified
+shared stream.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               50 / 50
-Current block:              Block 9 closed; Block 10 awaits frozen decisions
-Steps closed in block:      6 / 6 (Block 9)
-Consecutive zero-Phase-4-correction streak:  6 (Block 9; Steps 9.1–9.6 clean)
-Consecutive zero-Phase-8-patch streak:       26 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6)
-Test baseline (npm test):   1024 tests (949 pass, 75 fail — 73 pre-existing + 2 flaky variance)
-Last successful tick:       2026-05-25 (Step 9.6)
-Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md (updated for 9.6)
+Steps closed:               53 / 59
+Current block:              Block 10 in progress (3 of 9)
+Steps closed in block:      3 / 9 (Block 10)
+Consecutive zero-Phase-4-correction streak:  9 (Block 9 all 6 + Steps 10.1–10.3 clean)
+Consecutive zero-Phase-8-patch streak:       29 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.3)
+Test baseline (npm test):   1048 tests (973 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-25 (Step 10.3)
+Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md
 ```
 
 ---
 
 ## Next-tick checklist
 
-Block 9 is complete. The next scheduled tick should:
+Block 10 is in progress. The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v9.6`, no suffix) → no `[A]` or `[ ]` rows remain in INVENTORY.
-3. All 50 steps are closed. If Block 10 frozen decisions exist in §0, start Block 10.
-4. If `### Block 10 frozen decisions` section is ABSENT → **write `BLOCKED.md`** with reason "Block 10 frozen decisions not authored" and exit. Do not exit cleanly without `BLOCKED.md`.
+2. Decode VERSION (`v10.3`, no suffix) → next step is 10.4 (first `[ ]` row).
+3. Read Block 10 frozen decisions in §0 for Step 10.4 scope.
+4. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 10.4.

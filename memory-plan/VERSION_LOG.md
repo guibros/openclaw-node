@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v10.3 — 2026-05-25 — memory-plan-tick
+
+- **Phase 9** step close for Step 10.3: Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates.
+- Final test count: 1048 (973 pass, 75 fail — 73 pre-existing + 2 flaky variance). +11 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step53_wire_shared_stream_startup/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v10.3-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 10.3.
+- Files changed: `lib/shared-event-stream.mjs` (modified — added `verifySharedStreamConfig` export + `EXPECTED_REPLICAS` constant), `workspace-bin/memory-daemon.mjs` (modified — import + shared stream wiring block after NATS connection), `test/shared-stream-startup.test.mjs` (new — 10 `it()` blocks covering verification + pipeline).
+- Test additions: 10 `it()` blocks in `test/shared-stream-startup.test.mjs`.
+
+### v10.3-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 10.3.
+- Files planned: `lib/shared-event-stream.mjs` (modify — add `verifySharedStreamConfig`), `workspace-bin/memory-daemon.mjs` (modify — wire shared stream at startup), `test/shared-stream-startup.test.mjs` (new — verification tests).
+- Audit: `memory-plan/audits/step53_wire_shared_stream_startup/AUDIT_PRE.md`.
+- Test baseline: 1037 tests (962 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v10.2 — 2026-05-25 — memory-plan-tick
 
 - **Phase 9** step close for Step 10.2: NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`).

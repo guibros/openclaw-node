@@ -45,6 +45,7 @@ import { createLocalEventLog } from '../lib/local-event-log.mjs';
 import { createLlmClient } from '../lib/llm-client.mjs';
 import { createExtractionStore } from '../lib/extraction-store.mjs';
 import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
+import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -1106,6 +1107,20 @@ async function main() {
       log(`Local event log initialized (stream: ${localEventLog.streamName})`);
     } catch (evtErr) {
       log(`Local event log unavailable (${evtErr.message}) — continuing without event log`);
+    }
+
+    // Ensure shared federation stream (OPENCLAW_SHARED, R=3)
+    try {
+      await ensureSharedStream(natsConn);
+      const streamInfo = await inspectSharedStream(natsConn);
+      const verification = verifySharedStreamConfig(streamInfo);
+      if (!verification.valid) {
+        log(`FATAL: Shared stream config mismatch: ${verification.reasons.join('; ')}`);
+        process.exit(1);
+      }
+      log(`Shared stream OPENCLAW_SHARED verified (R=${streamInfo.config.num_replicas}, storage=${streamInfo.config.storage})`);
+    } catch (streamErr) {
+      log(`Shared stream unavailable (${streamErr.message}) — continuing without federation stream`);
     }
 
     // Initialize agnostic extraction trigger (mesh.memory.extract_request)
