@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 10 in progress; Step 10.4 closed. 5 steps remain (v10.5–v10.9).
-**Current version carrier.** `v10.4` (Step 10.4 closed; Block 10: 4 of 9).
-**Streaks.** zero-Phase-4-correction: 10 (Block 9 all 6 + Steps 10.1–10.4 clean) · zero-Phase-8-patch: 30 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.4).
-**Last commit on plan branch.** `<pending>` v10.4 — Node identity + ed25519 signing infrastructure (`lib/node-identity.mjs`); STRICT verification.
+**Workplan status.** Block 10 in progress; Step 10.5 closed. 4 steps remain (v10.6–v10.9).
+**Current version carrier.** `v10.5` (Step 10.5 closed; Block 10: 5 of 9).
+**Streaks.** zero-Phase-4-correction: 11 (Block 9 all 6 + Steps 10.1–10.5 clean) · zero-Phase-8-patch: 31 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.5).
+**Last commit on plan branch.** `<pending>` v10.5 — Two-node integration test (`test/federation-2node.test.mjs`) — real NATS, real round-trip.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -1380,18 +1380,52 @@ Carry-forwards: Shared stream verified at daemon startup (R=3, File storage). `@
 still deferred. Step 10.4 adds ed25519 signing — signed events will flow through the verified
 shared stream.
 
+### Step 10.4 — Node identity + ed25519 signing infrastructure (`lib/node-identity.mjs`); STRICT verification
+
+Closed at v10.4. Created `lib/node-identity.mjs` — per-node ed25519 identity keypair management
+and event signing module. `getOrCreateIdentity(identityDir?)` generates/loads ed25519 keypair PEM
+at `<dir>/identity.key` (mode 0o600). `signEvent(event, privateKey)` adds `signature` (base64)
+and `signer_pubkey` (base64 raw 32-byte ed25519 public key) fields via canonical JSON serialization
+(recursive key sorting excluding signature fields). `verifyEvent(event)` implements STRICT mode:
+unsigned events → true (backward compat), signed events → verify or reject. Added optional
+`signature` + `signer_pubkey` fields to `EventEnvelopeSchema`. Wired signing into
+`createLocalEventLog` via `opts.identity`. Added STRICT verification to `broadcast-offerer.mjs`
+and `broadcast-acceptor.mjs` with `signatureRejected` stats. 12 new tests. 10 positive findings,
+zero corrections, zero Phase 8 patches.
+
+Carry-forwards: Test baseline 1064. `getOrCreateIdentity()` creates keypair at `<dir>/identity.key`.
+Step 10.5's two-node test verifies distinct identities + signed event traversal. `@publish` still deferred.
+
+### Step 10.5 — Two-node integration test (`test/federation-2node.test.mjs`) — real NATS, real round-trip
+
+Closed at v10.5. Created `test/federation-2node.test.mjs` — two-node integration test with real
+NATS JetStream. Starts an actual `nats-server` process (via `child_process.spawn`), spawns 2
+isolated openclaw node trees in a temp directory with distinct ed25519 identities, and validates
+the full federation round-trip (broadcast signed by A → offerer on B verifies signature → B offers
+→ acceptor on A verifies signature → A accepts → `context.accepted` emitted to JetStream).
+11 `it()` blocks: distinct identities, JetStream persistence, full signed round-trip, cross-node
+signature verification, tampered broadcast rejection (offerer), tampered offer rejection (acceptor),
+self-originated skip, TTL-expired skip, JetStream consumer read, timing (<5s), context.accepted
+persistence. Graceful skip when `nats-server` not on PATH. 10 positive findings, zero corrections,
+zero Phase 8 patches.
+
+Carry-forwards: Test baseline 1075. `startNatsServer`/`stopNatsServer` + `createTestSharedStream`
+helpers can be extracted to shared utility for Step 10.6 (3-node council test). Step 10.6 needs 3
+NATS servers for R=3 replication. `@publish` still deferred. Dist files for event-schemas still
+need full tsc rebuild when toolchain available.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               53 / 59
-Current block:              Block 10 in progress (3 of 9)
-Steps closed in block:      3 / 9 (Block 10)
-Consecutive zero-Phase-4-correction streak:  9 (Block 9 all 6 + Steps 10.1–10.3 clean)
-Consecutive zero-Phase-8-patch streak:       29 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.3)
-Test baseline (npm test):   1048 tests (973 pass, 75 fail — 73 pre-existing + 2 flaky variance)
-Last successful tick:       2026-05-25 (Step 10.3)
+Steps closed:               55 / 59
+Current block:              Block 10 in progress (5 of 9)
+Steps closed in block:      5 / 9 (Block 10)
+Consecutive zero-Phase-4-correction streak:  11 (Block 9 all 6 + Steps 10.1–10.5 clean)
+Consecutive zero-Phase-8-patch streak:       31 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.5)
+Test baseline (npm test):   1075 tests (1000 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-26 (Step 10.5)
 Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md
 ```
 
@@ -1402,6 +1436,6 @@ Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md
 Block 10 is in progress. The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v10.3`, no suffix) → next step is 10.4 (first `[ ]` row).
-3. Read Block 10 frozen decisions in §0 for Step 10.4 scope.
-4. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 10.4.
+2. Decode VERSION (`v10.5`, no suffix) → next step is 10.6 (first `[ ]` row).
+3. Read Block 10 frozen decisions in §0 for Step 10.6 scope.
+4. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 10.6.

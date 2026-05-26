@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v10.5 — 2026-05-26 — memory-plan-tick
+
+- **Phase 9** step close for Step 10.5: Two-node integration test (`test/federation-2node.test.mjs`) — real NATS, real round-trip.
+- Final test count: 1075 (1000 pass, 75 fail — 73 pre-existing + 2 flaky variance). +11 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step55_federation_2node_test/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v10.5-mid — 2026-05-26 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 10.5.
+- Files changed: `test/federation-2node.test.mjs` (new — two-node integration test with real NATS, 11 `it()` blocks).
+- Test additions: 11 `it()` blocks covering distinct identities, JetStream persistence, full signed round-trip, cross-node signature verification, tampered broadcast rejection, tampered offer rejection, self-skip, TTL-expired skip, JetStream consumer read, timing assertions, context.accepted persistence.
+
+### v10.5-pre — 2026-05-26 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 10.5.
+- Files planned: `test/federation-2node.test.mjs` (new — two-node integration test with real NATS, real JetStream, real ed25519 signing).
+- Audit: `memory-plan/audits/step55_federation_2node_test/AUDIT_PRE.md`.
+- Test baseline: 1064 tests (989 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v10.4 — 2026-05-26 — memory-plan-tick
 
 - **Phase 9** step close for Step 10.4: Node identity + ed25519 signing infrastructure (`lib/node-identity.mjs`); STRICT verification.
