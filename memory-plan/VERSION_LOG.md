@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v10.8 — 2026-05-26 — memory-plan-tick
+
+- **Phase 9** step close for Step 10.8: `docs/MULTI_NODE_DEPLOY.md` — soup-to-nuts deployment guide for real-hardware council.
+- Final test count: 1102 (1027 pass, 75 fail — 73 pre-existing + 2 flaky variance). 0 tests added this step (documentation-only).
+- Audit: `memory-plan/audits/step58_multi_node_deploy_guide/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v10.8-mid — 2026-05-26 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 10.8.
+- Files changed: `docs/MULTI_NODE_DEPLOY.md` (new — comprehensive deployment guide covering prerequisites, architecture, single-machine dev setup, multi-machine deployment, NATS cluster config, identity keypairs, shared stream verification, daemon startup, end-to-end round-trip testing, environment variables reference, troubleshooting, and rollback).
+- Test additions: 0 (documentation-only step).
+
+### v10.8-pre — 2026-05-26 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 10.8.
+- Files planned: `docs/MULTI_NODE_DEPLOY.md` (new — comprehensive deployment guide for real-hardware 3-node council).
+- Audit: `memory-plan/audits/step58_multi_node_deploy_guide/AUDIT_PRE.md`.
+- Test baseline: 1102 tests (1027 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v10.7 — 2026-05-26 — memory-plan-tick
 
 - **Phase 9** step close for Step 10.7: Network resilience: peer-offline + reconnect + dead-peer detection + TTL cleanup.

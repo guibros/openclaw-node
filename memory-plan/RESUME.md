@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 10 in progress; Step 10.7 closed. 2 steps remain (v10.8–v10.9).
-**Current version carrier.** `v10.7` (Step 10.7 closed; Block 10: 7 of 9).
-**Streaks.** zero-Phase-4-correction: 13 (Block 9 all 6 + Steps 10.1–10.7 clean) · zero-Phase-8-patch: 33 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.7).
-**Last commit on plan branch.** `<pending>` v10.7 — Network resilience: peer-offline + reconnect + dead-peer detection + TTL cleanup.
+**Workplan status.** Block 10 in progress; Step 10.8 closed. 1 step remains (v10.9).
+**Current version carrier.** `v10.8` (Step 10.8 closed; Block 10: 8 of 9).
+**Streaks.** zero-Phase-4-correction: 14 (Block 9 all 6 + Steps 10.1–10.8 clean) · zero-Phase-8-patch: 34 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.8).
+**Last commit on plan branch.** `<pending>` v10.8 — `docs/MULTI_NODE_DEPLOY.md` — soup-to-nuts deployment guide for real-hardware council.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -1414,18 +1414,49 @@ helpers can be extracted to shared utility for Step 10.6 (3-node council test). 
 NATS servers for R=3 replication. `@publish` still deferred. Dist files for event-schemas still
 need full tsc rebuild when toolchain available.
 
+### Step 10.6 — Three-node council test (`test/federation-3node.test.mjs`) — A broadcasts, B+C offer, A picks
+
+Closed at v10.6. Created `test/federation-3node.test.mjs` — three-node council test with real
+3-node NATS cluster (R=3 replication). Starts 3 `nats-server` processes with full-mesh cluster
+routing on ephemeral ports, spawns 3 isolated openclaw node trees (A/B/C) with distinct ed25519
+identities. Validates full council pattern: A broadcasts → B and C independently offer → A picks
+higher-scored → context.accepted. 12 `it()` blocks. 10 positive findings, zero corrections, zero
+Phase 8 patches.
+
+### Step 10.7 — Network resilience: peer-offline + reconnect + dead-peer detection + TTL cleanup
+
+Closed at v10.7. Created `lib/federation-resilience.mjs` — peer liveness tracker, expired offer
+cleanup, NATS reconnect options. Modified offerer (dead-peer logging), acceptor (dead-peer
+filtering, periodic cleanup), and daemon (NATS reconnect + status logging). 15 tests. 10 positive
+findings, zero corrections, zero Phase 8 patches.
+
+### Step 10.8 — `docs/MULTI_NODE_DEPLOY.md` — soup-to-nuts deployment guide for real-hardware council
+
+Closed at v10.8. Created `docs/MULTI_NODE_DEPLOY.md` — comprehensive 654-line deployment guide
+for standing up a 3-node OpenClaw council on real hardware. Covers prerequisites, architecture
+diagram, single-machine dev setup (NATS cluster + spawn-node + identity keypairs + shared stream
+verification + daemon startup + end-to-end round-trip), multi-machine deployment (per-machine
+prep + NATS config + firewall + Tailscale + systemd), verification (cluster health + R=3 stream
++ identity + integration tests), environment variables reference (17 vars), troubleshooting (7
+failure modes), and rollback. Documentation-only step, zero code changes, zero tests added.
+10 positive findings, zero corrections, zero Phase 8 patches.
+
+Carry-forwards: Test baseline 1102 (1027 pass, 75 fail). `@publish` still deferred. Dist files
+for event-schemas still need tsc rebuild. `docs/MULTI_NODE_DEPLOY.md` should be referenced by
+the dogfood harness (Step 10.9).
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               55 / 59
-Current block:              Block 10 in progress (5 of 9)
-Steps closed in block:      5 / 9 (Block 10)
-Consecutive zero-Phase-4-correction streak:  11 (Block 9 all 6 + Steps 10.1–10.5 clean)
-Consecutive zero-Phase-8-patch streak:       31 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.5)
-Test baseline (npm test):   1075 tests (1000 pass, 75 fail — 73 pre-existing + 2 flaky variance)
-Last successful tick:       2026-05-26 (Step 10.5)
+Steps closed:               58 / 59
+Current block:              Block 10 in progress (8 of 9)
+Steps closed in block:      8 / 9 (Block 10)
+Consecutive zero-Phase-4-correction streak:  14 (Block 9 all 6 + Steps 10.1–10.8 clean)
+Consecutive zero-Phase-8-patch streak:       34 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.8)
+Test baseline (npm test):   1102 tests (1027 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-26 (Step 10.8)
 Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md
 ```
 
@@ -1436,6 +1467,7 @@ Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md
 Block 10 is in progress. The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v10.5`, no suffix) → next step is 10.6 (first `[ ]` row).
-3. Read Block 10 frozen decisions in §0 for Step 10.6 scope.
-4. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 10.6.
+2. Decode VERSION (`v10.8`, no suffix) → next step is 10.9 (first `[ ]` row).
+3. Read Block 10 frozen decisions in §0 for Step 10.9 scope.
+4. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 10.9.
+5. Step 10.9 is the LAST step in Block 10. Phase 9 must include the block-close ceremony (§7).
