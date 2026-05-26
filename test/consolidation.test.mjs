@@ -215,6 +215,50 @@ describe('decayWeights', () => {
 
     db.close();
   });
+
+  // F-C16 regression: archival used to throw SQLITE_CONSTRAINT_FOREIGNKEY
+  // because mentions FK-reference entities and `foreign_keys = ON`. Whole
+  // transaction rolled back silently → archival never happened.
+  it('archives entity WITH mentions when foreign_keys=ON (no FK violation)', () => {
+    const db = createTestDb();
+    initConsolidationTables(db);
+    db.pragma('foreign_keys = ON');
+
+    // Insert an entity old enough to trip the drop threshold
+    const longAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+    const idVeryOld = insertEntity(db, 'long-decayed', 'concept', {
+      sessions: ['session-old'],
+      salience: 0.5,             // will decay below 0.05 with 365 days at half-life 14d
+      lastSeen: longAgo,         // helper uses camelCase opts
+      lastRecalled: longAgo,
+    });
+    // Sanity: there IS a mention referencing this entity
+    const mentions = db.prepare('SELECT * FROM mentions WHERE entity_id = ?').all(idVeryOld);
+    assert.ok(mentions.length > 0, 'precondition: entity has mentions');
+
+    // This used to throw silently (transaction rollback). Now it should succeed.
+    let threw = null;
+    let result;
+    try {
+      result = decayWeights(db);
+    } catch (err) {
+      threw = err;
+    }
+    assert.equal(threw, null, `decayWeights should not throw, got ${threw}`);
+    assert.ok(result.archivedEntities >= 1, `expected ≥1 archival, got ${result.archivedEntities}`);
+
+    // Entity row should be gone
+    const remaining = db.prepare('SELECT * FROM entities WHERE id = ?').get(idVeryOld);
+    assert.equal(remaining, undefined);
+    // And mentions should be cleaned up (no orphans)
+    const orphanMentions = db.prepare('SELECT * FROM mentions WHERE entity_id = ?').all(idVeryOld);
+    assert.equal(orphanMentions.length, 0);
+    // And archived table should have it
+    const archived = db.prepare('SELECT * FROM entities_archived WHERE id = ?').get(idVeryOld);
+    assert.ok(archived, 'entity should be in archive');
+
+    db.close();
+  });
 });
 
 describe('reinforceCoOccurrence', () => {

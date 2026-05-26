@@ -35,6 +35,10 @@ export const DEFAULT_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
  * @param {import('better-sqlite3').Database} db
  */
 function initDb(db) {
+  // F-M20 fix: enable WAL so concurrent processes (daemon + --refresh CLI)
+  // don't block each other.
+  db.pragma('journal_mode = WAL');
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS concept_graph_nodes (
       id TEXT PRIMARY KEY,
@@ -52,6 +56,11 @@ function initDb(db) {
 
     CREATE INDEX IF NOT EXISTS idx_edges_source ON concept_graph_edges(source_id);
     CREATE INDEX IF NOT EXISTS idx_edges_target ON concept_graph_edges(target_id);
+    -- F-C17 fix: dedupe edges so multiple wikilinks to same target don't
+    -- accumulate duplicate rows that distort weight aggregations. Use
+    -- INSERT OR REPLACE on top of this constraint (see insertEdge below).
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique
+      ON concept_graph_edges(source_id, target_id, edge_type);
 
     CREATE TABLE IF NOT EXISTS graph_cache_meta (
       key TEXT PRIMARY KEY,
@@ -81,8 +90,10 @@ export function createGraphCache(opts = {}) {
   const insertNode = db.prepare(
     'INSERT OR REPLACE INTO concept_graph_nodes (id, label, last_activated_at, weight) VALUES (?, ?, ?, ?)'
   );
+  // F-C17: use INSERT OR REPLACE so dedupe is enforced even if buildGraph
+  // emits the same edge twice; weight is taken from the latest insert.
   const insertEdge = db.prepare(
-    'INSERT INTO concept_graph_edges (source_id, target_id, edge_type, weight) VALUES (?, ?, ?, ?)'
+    'INSERT OR REPLACE INTO concept_graph_edges (source_id, target_id, edge_type, weight) VALUES (?, ?, ?, ?)'
   );
   const clearNodes = db.prepare('DELETE FROM concept_graph_nodes');
   const clearEdges = db.prepare('DELETE FROM concept_graph_edges');
