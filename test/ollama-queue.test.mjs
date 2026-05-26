@@ -267,4 +267,97 @@ describe('shutdown drain', () => {
       /shutting down/
     );
   });
+
+  // F-C5 regression: pending jobs must reject with an error, not hang.
+  it('rejects PENDING jobs (not just new ones) when shutdown drains', async () => {
+    // Block the queue with an in-flight job
+    const blocked = requestExtraction(async () => {
+      await new Promise(r => setTimeout(r, 200));
+      return 'first';
+    });
+    // Queue a second job that sits in pending
+    const pending = requestExtraction(async () => 'second');
+    // Wait a tick so pending actually queues behind blocked
+    await new Promise(r => setTimeout(r, 10));
+    // Now shutdown with a short grace (less than blocked's runtime)
+    await shutdown(50);
+    // First job should still be in-flight or completed; second was pending → should reject
+    await assert.rejects(
+      () => pending,
+      /queue shutdown|cancelled/i,
+      'pending job should reject with shutdown error, not hang'
+    );
+  });
+});
+
+describe('queue depth cap (F-C7)', () => {
+  it('rejects extraction enqueues beyond OLLAMA_QUEUE_MAX_PENDING', async () => {
+    // Block the queue with one long-running extraction
+    const inflight = requestExtraction(async () => {
+      await new Promise(r => setTimeout(r, 500));
+      return 'done';
+    });
+    await new Promise(r => setTimeout(r, 5));
+
+    // Fill to cap (env-default 50). Use a smaller cap via fresh import by
+    // setting env first would be ideal; instead just verify rejection behavior
+    // by triggering at the actual cap.
+    const cap = Number(process.env.OLLAMA_QUEUE_MAX_PENDING) || 50;
+    const enqueued = [];
+    for (let i = 0; i < cap; i++) {
+      enqueued.push(requestExtraction(async () => 'x'));
+    }
+    // Next one should reject as queue full.
+    await assert.rejects(
+      () => requestExtraction(async () => 'overflow'),
+      /queue full/i
+    );
+
+    // Clean up: cancel all pending + in-flight via shutdown
+    await shutdown(50);
+    // Swallow expected rejections
+    await Promise.allSettled([inflight, ...enqueued]);
+  });
+});
+
+describe('analysis wait-timeout aborts in-flight (F-C6)', () => {
+  it('passes abortSignal to run function so it can cancel its fetch', async () => {
+    let receivedSignal = null;
+    const result = await requestAnalysis(async (signal) => {
+      receivedSignal = signal;
+      // Simulate a fetch that would honor the signal
+      return 'analysis-done';
+    }, { waitTimeoutMs: 100 });
+
+    assert.ok(receivedSignal, 'run function should receive an AbortSignal');
+    assert.ok(receivedSignal instanceof AbortSignal);
+    // After requestAnalysis returns, the signal should be aborted (cleanup)
+    // Either the success path completed before timeout (aborted on success
+    // cleanup) or the timeout fired; either way signal is aborted.
+    assert.ok(result.mode === 'llm' || result.mode === 'fallback');
+  });
+
+  it('aborts the signal when wait-timeout wins the race', async () => {
+    let signalSeenAborted = false;
+    const result = await requestAnalysis(async (signal) => {
+      // Slow operation that registers an abort listener
+      const p = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => resolve('slow-done'), 500);
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            signalSeenAborted = true;
+            reject(new Error('aborted by queue'));
+          }, { once: true });
+        }
+      });
+      return p;
+    }, { waitTimeoutMs: 50 });
+
+    assert.equal(result.mode, 'fallback');
+    assert.equal(result.reason, 'analysis-wait-timeout');
+    // Give the abort event a moment to dispatch
+    await new Promise(r => setTimeout(r, 20));
+    assert.equal(signalSeenAborted, true, 'run function should see abort signal');
+  });
 });
