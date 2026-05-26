@@ -272,6 +272,19 @@ describe('federation-resilience: integration with real NATS', { skip: SKIP_INTEG
     const broadcast = signEvent({
       event_id: crypto.randomUUID(),
       event_type: 'context.broadcast',
+      entity_id: crypto.randomUUID(),
+
+      entity_type: 'session',
+
+      event_version: 1,
+
+      causation_id: null,
+
+      correlation_id: null,
+
+      actor: { type: 'system', id: 'test' },
+
+      idempotency_key: crypto.randomUUID(),
       node_id: NODE_A,
       timestamp: new Date().toISOString(),
       schema_version: '1.0.0',
@@ -286,6 +299,19 @@ describe('federation-resilience: integration with real NATS', { skip: SKIP_INTEG
     const broadcast2 = signEvent({
       event_id: crypto.randomUUID(),
       event_type: 'context.broadcast',
+      entity_id: crypto.randomUUID(),
+
+      entity_type: 'session',
+
+      event_version: 1,
+
+      causation_id: null,
+
+      correlation_id: null,
+
+      actor: { type: 'system', id: 'test' },
+
+      idempotency_key: crypto.randomUUID(),
       node_id: NODE_A,
       timestamp: new Date().toISOString(),
       schema_version: '1.0.0',
@@ -300,7 +326,7 @@ describe('federation-resilience: integration with real NATS', { skip: SKIP_INTEG
 
   it('acceptor getTopOffer filters offers from dead peers', async () => {
     const tracker = createPeerTracker({ timeoutMs: 100 });
-    const ownBroadcasts = new Set(['bc-1']);
+    const ownBroadcasts = new Set(['00000000-0000-4000-8000-000000010001']);
 
     const acceptor = createAcceptor(ncA, NODE_A, {
       peerTracker: tracker,
@@ -311,15 +337,28 @@ describe('federation-resilience: integration with real NATS', { skip: SKIP_INTEG
     // Record NODE_B as seen, queue an offer
     tracker.recordSeen(NODE_B);
     const offer = {
-      event_id: 'offer-1',
+      event_id: '00000000-0000-4000-8000-000000000001',
       event_type: 'context.offer',
+      entity_id: '00000000-0000-4000-8000-000000000001',
+
+      entity_type: 'session',
+
+      event_version: 1,
+
+      causation_id: null,
+
+      correlation_id: null,
+
+      actor: { type: 'system', id: 'test' },
+
+      idempotency_key: '00000000-0000-4000-8000-000000000001',
       node_id: NODE_B,
       timestamp: new Date().toISOString(),
       schema_version: '1.0.0',
       data: {
-        responding_to: 'bc-1',
+        responding_to: '00000000-0000-4000-8000-000000010001',
         offerer_node_id: NODE_B,
-        artifacts: [{ artifact_ref: 'session:s1:chunk:c1', relevance_score: 0.9, provenance: 'local', summary: 'test summary' }],
+        artifacts: [{ artifact_ref: 'session:s1:chunk:c1', relevance_score: 0.9, provenance: { source_node: 'peer-node', source_type: 'local_retrieval' }, summary: 'test summary' }],
         expires_at: new Date(Date.now() + 300_000).toISOString(),
       },
     };
@@ -345,7 +384,7 @@ describe('federation-resilience: integration with real NATS', { skip: SKIP_INTEG
   });
 
   it('acceptor periodic cleanup removes expired pending offers', async () => {
-    const ownBroadcasts = new Set(['bc-2']);
+    const ownBroadcasts = new Set(['00000000-0000-4000-8000-000000010002']);
     const logs = [];
 
     const acceptor = createAcceptor(ncA, NODE_A, {
@@ -356,15 +395,28 @@ describe('federation-resilience: integration with real NATS', { skip: SKIP_INTEG
 
     // Queue an offer that expires very soon
     const offer = {
-      event_id: 'offer-exp-1',
+      event_id: '00000000-0000-4000-8000-00000ff00001',
       event_type: 'context.offer',
+      entity_id: '00000000-0000-4000-8000-00000ff00001',
+
+      entity_type: 'session',
+
+      event_version: 1,
+
+      causation_id: null,
+
+      correlation_id: null,
+
+      actor: { type: 'system', id: 'test' },
+
+      idempotency_key: '00000000-0000-4000-8000-00000ff00001',
       node_id: NODE_B,
       timestamp: new Date().toISOString(),
       schema_version: '1.0.0',
       data: {
-        responding_to: 'bc-2',
+        responding_to: '00000000-0000-4000-8000-000000010002',
         offerer_node_id: NODE_B,
-        artifacts: [{ artifact_ref: 'session:s2:chunk:c2', relevance_score: 0.8, provenance: 'local', summary: 'expiring' }],
+        artifacts: [{ artifact_ref: 'session:s2:chunk:c2', relevance_score: 0.8, provenance: { source_node: 'peer-node', source_type: 'local_retrieval' }, summary: 'expiring' }],
         expires_at: new Date(Date.now() + 100).toISOString(), // expires in 100ms
       },
     };
@@ -470,6 +522,19 @@ describe('federation-resilience: integration with real NATS', { skip: SKIP_INTEG
     const broadcastEvent = signEvent({
       event_id: crypto.randomUUID(),
       event_type: 'context.broadcast',
+      entity_id: crypto.randomUUID(),
+
+      entity_type: 'session',
+
+      event_version: 1,
+
+      causation_id: null,
+
+      correlation_id: null,
+
+      actor: { type: 'system', id: 'test' },
+
+      idempotency_key: crypto.randomUUID(),
       node_id: NODE_A,
       timestamp: new Date().toISOString(),
       schema_version: '1.0.0',
@@ -505,16 +570,24 @@ describe('federation-resilience: integration with real NATS', { skip: SKIP_INTEG
     });
 
     // Manually queue an offer from B
+    const offerEventId = crypto.randomUUID();
     const offerEvent = {
-      event_id: crypto.randomUUID(),
+      event_id: offerEventId,
       event_type: 'context.offer',
+      entity_id: offerEventId,
+      entity_type: 'session',
+      event_version: 1,
+      causation_id: broadcastEvent.event_id,
+      correlation_id: null,
+      actor: { type: 'system', id: 'test' },
+      idempotency_key: offerEventId,
       node_id: NODE_B,
       timestamp: new Date().toISOString(),
       schema_version: '1.0.0',
       data: {
         responding_to: broadcastEvent.event_id,
         offerer_node_id: NODE_B,
-        artifacts: [{ artifact_ref: 'session:s1:chunk:c1', relevance_score: 0.85, provenance: 'local', summary: 'resilience content' }],
+        artifacts: [{ artifact_ref: 'session:s1:chunk:c1', relevance_score: 0.85, provenance: { source_node: 'peer-node', source_type: 'local_retrieval' }, summary: 'resilience content' }],
         expires_at: new Date(Date.now() + 300_000).toISOString(),
       },
     };
