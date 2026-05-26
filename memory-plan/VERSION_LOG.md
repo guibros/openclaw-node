@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v9.5 — 2026-05-25 — memory-plan-tick
+
+- **Phase 9** step close for Step 9.5: Privacy markers (private: true) + default-private retrieval policy.
+- Final test count: 1014 (939 pass, 75 fail — 73 pre-existing + 2 flaky variance). +30 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step49_privacy_markers/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v9.5-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 9.5.
+- Files changed: `lib/extraction-store.mjs` (modify — privacy migration + published_items table + publish/unpublish/isItemPublished/getPublishedItems API), `lib/memory-directives.mjs` (modify — @publish directive), `bin/publish-item.mjs` (new — CLI tool), `lib/retrieval-pipeline.mjs` (modify — filterPrivateResults + respect_privacy flag), `test/privacy-markers.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v9.5-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 9.5.
+- Files planned: `lib/extraction-store.mjs` (modify), `lib/memory-directives.mjs` (modify), `bin/publish-item.mjs` (new), `lib/retrieval-pipeline.mjs` (modify), `test/privacy-markers.test.mjs` (new).
+- Audit: `memory-plan/audits/step49_privacy_markers/AUDIT_PRE.md`.
+- Test baseline: 984 tests (909 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v9.4 — 2026-05-25 — memory-plan-tick
 
 - **Phase 9** step close for Step 9.4: Implement acceptor + inject offers into agent prompt + emit context.accepted.

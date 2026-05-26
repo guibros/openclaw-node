@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 9 in progress; Step 9.4 closed at `v9.4`. Step 9.5 remains.
-**Current version carrier.** `v9.4` (Step 9.4 closed; Block 9: 4 of 5).
-**Streaks.** zero-Phase-4-correction: 4 (Block 9; Steps 9.1–9.4 clean) · zero-Phase-8-patch: 20 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.4).
-**Last commit on plan branch.** `<pending>` v9.4 — Implement acceptor + inject offers into agent prompt + emit context.accepted.
+**Workplan status.** Block 9 closed; all 5 steps (v9.1–v9.5) complete. Block 10 awaits frozen decisions.
+**Current version carrier.** `v9.5` (Step 9.5 closed; Block 9: 5 of 5).
+**Streaks.** zero-Phase-4-correction: 5 (Block 9; Steps 9.1–9.5 clean) · zero-Phase-8-patch: 25 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.5).
+**Last commit on plan branch.** `<pending>` v9.5 — Privacy markers (private: true) + default-private retrieval policy.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -1235,30 +1235,60 @@ published to `context.offer.<nodeId>` with `data.responding_to` matching the ori
 broadcast's `event_id`; artifact refs use `session:<id>:chunk:<id>` format (acceptor must
 parse); `filterPrivateItems` ready for Step 9.5's `private` column migration.
 
+### Step 9.4 — Implement acceptor + inject offers into agent prompt + emit context.accepted
+
+Closed at v9.4. Created `lib/broadcast-acceptor.mjs` — the context acceptor module.
+`createAcceptor(nc, nodeId, opts)` factory returns `{ start, stop, stats, getPendingOffers,
+getTopOffer, checkAcceptance, _processOffer }`. Subscribes to `context.offer.>` on the
+shared stream, filters to offers where `responding_to` matches this node's own broadcast IDs,
+checks TTL expiry via `expires_at`, queues valid offers in a capped pending list
+(MAX_PENDING_OFFERS=10). `getTopOffer()` returns formatted `[peer-memory: ...]` block for
+injection. `checkAcceptance(prompt)` computes token overlap (TOKEN_OVERLAP_THRESHOLD=0.3)
+between user prompt and offer summaries; on match, emits `context.accepted` with artifact
+refs and causation chain. 28 new tests. 10 positive audit findings, zero corrections, zero
+Phase 8 patches.
+
+### Step 9.5 — Privacy markers (private: true) + default-private retrieval policy
+
+Closed at v9.5. Added `private INTEGER DEFAULT 1` column to `entities`, `decisions`,
+`themes` tables in `lib/extraction-store.mjs` via idempotent ALTER TABLE migration. Created
+`published_items` allowlist table with UNIQUE index on `(item_id, item_type)`. Added
+`publishItem`/`unpublishItem`/`isItemPublished`/`getPublishedItems` API functions to the
+extraction store. Added `@publish` directive parsing to `lib/memory-directives.mjs` —
+`parsePublishDirective(text)` with `PUBLISH_DIRECTIVE_REGEX` supporting quoted and unquoted
+names. Created `bin/publish-item.mjs` CLI tool with `--name`/`--type`/`--unpublish`/`--list`
+flags and `lookupItem` export for programmatic use. Added `filterPrivateResults` to
+`lib/retrieval-pipeline.mjs` and `respect_privacy` option (default true) to
+`createRetrievalPipeline`. 30 new tests. 10 positive audit findings, zero corrections,
+zero Phase 8 patches. **Block 9 complete (5/5).**
+
+Carry-forwards: `@publish` directive parsed but not wired into SDK wrappers' per-prompt
+path (CLI is primary mechanism). Offerer's `filterPrivateItems` now active. Local injection
+should pass `respect_privacy: false`. Step 9.6 cross-node test per frozen decisions belongs
+to a future block or operator chore commit.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               47 / 49
-Current block:              Block 9 in progress
-Steps closed in block:      3 / 5 (Block 9)
-Consecutive zero-Phase-4-correction streak:  3 (Block 9; Steps 9.1–9.3 clean)
-Consecutive zero-Phase-8-patch streak:       19 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.3)
-Test baseline (npm test):   956 tests (881 pass, 75 fail — 73 pre-existing + 2 flaky variance)
-Last successful tick:       2026-05-25 (Step 9.3)
-Last block file written:    memory-plan/audits/BLOCK_8_COMPLETE.md
+Steps closed:               49 / 49
+Current block:              Block 9 closed; Block 10 awaits frozen decisions
+Steps closed in block:      5 / 5 (Block 9)
+Consecutive zero-Phase-4-correction streak:  5 (Block 9; Steps 9.1–9.5 clean)
+Consecutive zero-Phase-8-patch streak:       25 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.5)
+Test baseline (npm test):   1014 tests (939 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-25 (Step 9.5)
+Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md
 ```
 
 ---
 
 ## Next-tick checklist
 
-The next scheduled tick should:
+Block 9 is complete. The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v9.3`, no suffix) → next step is Step 9.4.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step47_offerer/AUDIT_POST.md` for carry-forwards.
-4. Read Block 9 frozen decisions in RESUME.md §0 for Step 9.4 specifics (acceptor, offer scoring, peer-memory injection, context.accepted emission).
-5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9.
-5. Read AUDIT_POST §6 from `memory-plan/audits/step44_consolidation_scheduler/AUDIT_POST.md` for carry-forwards.
+2. Decode VERSION (`v9.5`, no suffix) → no `[A]` or `[ ]` rows remain in INVENTORY.
+3. All 49 steps are closed. If Block 10 frozen decisions exist in §0, start Block 10.
+4. If `### Block 10 frozen decisions` section is ABSENT → **write `BLOCKED.md`** with reason "Block 10 frozen decisions not authored" and exit. Do not exit cleanly without `BLOCKED.md`.

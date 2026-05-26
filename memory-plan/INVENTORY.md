@@ -223,7 +223,9 @@ context.broadcast/offer/accepted. See REFERENCE_PLAN.md §Phase 9.
 | 9 | 9.4 | v9.4 | [x] | Implement acceptor + inject offers into agent prompt + emit context.accepted |
 
 > **Step 9.4 closed.** Created `lib/broadcast-acceptor.mjs` — the context acceptor module. Exports `createAcceptor(nc, nodeId, opts)` factory returning `{ start, stop, stats, getPendingOffers, getTopOffer, checkAcceptance, _processOffer }`. Subscribes to `context.offer.>` on the shared stream, filters to offers where `responding_to` matches this node's own broadcast IDs, checks TTL expiry via `expires_at`, queues valid offers in a capped pending list (MAX_PENDING_OFFERS=10). `getTopOffer()` returns formatted `[peer-memory: ...]` block for injection. `checkAcceptance(prompt)` computes token overlap (TOKEN_OVERLAP_THRESHOLD=0.3) between user prompt and offer summaries; on match, emits `context.accepted` with artifact refs and causation chain. `parseArtifactRef` parses `session:<id>:chunk:<id>` format. `computeTokenOverlap` uses Unicode-aware tokenization. 28 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
-| 9 | 9.5 | v9.5 | [ ] | Privacy markers (private: true) + default-private retrieval policy |
+| 9 | 9.5 | v9.5 | [x] | Privacy markers (private: true) + default-private retrieval policy |
+
+> **Step 9.5 closed.** Added `private INTEGER DEFAULT 1` column to `entities`, `decisions`, `themes` tables via idempotent ALTER TABLE migration. Created `published_items` allowlist table with unique index on `(item_id, item_type)`. Added `publishItem`/`unpublishItem`/`isItemPublished`/`getPublishedItems` API to extraction store. Added `@publish` directive parsing (`parsePublishDirective`, `PUBLISH_DIRECTIVE_REGEX`) to memory-directives. Created `bin/publish-item.mjs` CLI tool with `--name`/`--type`/`--unpublish`/`--list`/`--db-path` flags. Added `filterPrivateResults` to retrieval pipeline and `respect_privacy` option (default true) to `createRetrievalPipeline`. 30 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches. **Block 9 complete (5/5).**
 
 ---
 
