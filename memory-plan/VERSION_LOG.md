@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v9.3 — 2026-05-25 — memory-plan-tick
+
+- **Phase 9** step close for Step 9.3: Implement offerer (local retrieve → score → publish offer).
+- Final test count: 956 (881 pass, 75 fail — 73 pre-existing + 2 flaky variance). +24 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step47_offerer/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v9.3-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 9.3.
+- Files changed: `lib/broadcast-offerer.mjs` (new — createOfferer factory, generateRelevanceSummary with LLM/fallback, buildOfferFromResults, filterPrivateItems privacy pre-filter, RELEVANCE_THRESHOLD 0.55, MAX_ARTIFACTS_PER_OFFER 3, TTL expiry check, self-skip), `test/broadcast-offerer.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v9.3-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 9.3.
+- Files planned: `lib/broadcast-offerer.mjs` (new), `test/broadcast-offerer.test.mjs` (new).
+- Audit: `memory-plan/audits/step47_offerer/AUDIT_PRE.md`.
+- Test baseline: 932 tests (857 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v9.2 — 2026-05-25 — memory-plan-tick
 
 - **Phase 9** step close for Step 9.2: Implement broadcaster (consolidation-driven, with TTL + de-dup).

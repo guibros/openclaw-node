@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 9 in progress; Step 9.2 closed at `v9.2`. Steps 9.3–9.5 remain.
-**Current version carrier.** `v9.2` (Step 9.2 closed; Block 9: 2 of 5).
-**Streaks.** zero-Phase-4-correction: 2 (Block 9; Steps 9.1–9.2 clean) · zero-Phase-8-patch: 18 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.2).
-**Last commit on plan branch.** `<pending>` v9.2 — Implement broadcaster (consolidation-driven, with TTL + de-dup).
+**Workplan status.** Block 9 in progress; Step 9.3 closed at `v9.3`. Steps 9.4–9.5 remain.
+**Current version carrier.** `v9.3` (Step 9.3 closed; Block 9: 3 of 5).
+**Streaks.** zero-Phase-4-correction: 3 (Block 9; Steps 9.1–9.3 clean) · zero-Phase-8-patch: 19 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.3).
+**Last commit on plan branch.** `<pending>` v9.3 — Implement offerer (local retrieve → score → publish offer).
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -1200,18 +1200,53 @@ from 'event-schemas'` (dist build verified); broadcaster should validate against
 `dedup_key` field enables offerer-side dedup without re-parsing; `expires_at` in offer
 enables broadcaster to ignore stale offers.
 
+### Step 9.2 — Implement broadcaster (consolidation-driven, with TTL + de-dup)
+
+Closed at v9.2. Created `lib/broadcast-emitter.mjs` — the context broadcaster module.
+`createBroadcaster(nc, nodeId, opts)` factory returns `{ maybeBroadcast,
+broadcastFromConsolidation, stop, stats }`. `inferIntensity(prompt)` classifies prompts as
+`actively_seeking`/`interested`/`passive`. `computeDedupKey(themes, entities)` produces
+deterministic SHA-256 from canonicalized theme∪entity set. `inferProblemClass(prompt)` maps
+to schema enum. Per-prompt path gates on ≥3 themes, 60s rate limit, 15-min dedup window, and
+passive+unchanged skip. Consolidation path bypasses rate limit but respects dedup. Validates
+against `ContextBroadcastSchema` before publishing to `context.broadcast.<nodeId>`. 23 new
+tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
+
+Carry-forwards to Step 9.3: `createBroadcaster` at `lib/broadcast-emitter.mjs:141`;
+`inferIntensity` and `computeDedupKey` exported for reuse by offerer; events published to
+`context.broadcast.<nodeId>` on shared stream; offerer subscribes to `context.broadcast.>`
+from any node except self.
+
+### Step 9.3 — Implement offerer (local retrieve → score → publish offer)
+
+Closed at v9.3. Created `lib/broadcast-offerer.mjs` — the context offerer module.
+`createOfferer(nc, nodeId, opts)` factory returns `{ start, stop, stats, _processBroadcast }`.
+Subscribes to `context.broadcast.>` on the shared stream. On each broadcast: skips
+self-originated (`node_id === nodeId`), checks TTL expiry, builds composite query from
+themes+entities, retrieves via 5-channel retrieval pipeline, applies privacy pre-filter
+(`filterPrivateItems` — forward-compatible with Step 9.5's `private` column), filters by
+`RELEVANCE_THRESHOLD` (0.55), caps at `MAX_ARTIFACTS_PER_OFFER` (3), generates relevance
+summaries via `generateRelevanceSummary` (LLM via `requestAnalysis` with data-only fallback),
+validates against `ContextOfferSchema`, publishes to `context.offer.<nodeId>`. 24 new tests.
+10 positive audit findings, zero corrections, zero Phase 8 patches.
+
+Carry-forwards to Step 9.4: `createOfferer` at `lib/broadcast-offerer.mjs:214`; offers
+published to `context.offer.<nodeId>` with `data.responding_to` matching the originating
+broadcast's `event_id`; artifact refs use `session:<id>:chunk:<id>` format (acceptor must
+parse); `filterPrivateItems` ready for Step 9.5's `private` column migration.
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               45 / 49
+Steps closed:               47 / 49
 Current block:              Block 9 in progress
-Steps closed in block:      1 / 5 (Block 9)
-Consecutive zero-Phase-4-correction streak:  1 (Block 9; Step 9.1 clean)
-Consecutive zero-Phase-8-patch streak:       17 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Step 9.1)
-Test baseline (npm test):   905 tests (830 pass, 75 fail — 73 pre-existing + 2 flaky variance)
-Last successful tick:       2026-05-25 (Step 9.1)
+Steps closed in block:      3 / 5 (Block 9)
+Consecutive zero-Phase-4-correction streak:  3 (Block 9; Steps 9.1–9.3 clean)
+Consecutive zero-Phase-8-patch streak:       19 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.3)
+Test baseline (npm test):   956 tests (881 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-25 (Step 9.3)
 Last block file written:    memory-plan/audits/BLOCK_8_COMPLETE.md
 ```
 
@@ -1222,9 +1257,8 @@ Last block file written:    memory-plan/audits/BLOCK_8_COMPLETE.md
 The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v9.1`, no suffix) → next step is Step 9.2.
-3. Read AUDIT_POST §6 from `memory-plan/audits/step45_broadcast_schemas/AUDIT_POST.md` for carry-forwards.
-4. Read Block 9 frozen decisions in RESUME.md §0 for Step 9.2 specifics (broadcaster, consolidation-driven, TTL + dedup).
+2. Decode VERSION (`v9.3`, no suffix) → next step is Step 9.4.
+3. Read AUDIT_POST §6 from `memory-plan/audits/step47_offerer/AUDIT_POST.md` for carry-forwards.
+4. Read Block 9 frozen decisions in RESUME.md §0 for Step 9.4 specifics (acceptor, offer scoring, peer-memory injection, context.accepted emission).
 5. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9.
-4. Step 9.1 is: "Define broadcast/offer/accepted schemas in event-schemas package".
 5. Read AUDIT_POST §6 from `memory-plan/audits/step44_consolidation_scheduler/AUDIT_POST.md` for carry-forwards.

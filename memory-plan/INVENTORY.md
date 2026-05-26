@@ -217,7 +217,9 @@ context.broadcast/offer/accepted. See REFERENCE_PLAN.md §Phase 9.
 | 9 | 9.2 | v9.2 | [x] | Implement broadcaster (consolidation-driven, with TTL + de-dup) |
 
 > **Step 9.2 closed.** Created `lib/broadcast-emitter.mjs` — the context broadcaster module. Exports `createBroadcaster(nc, nodeId, opts)` factory returning `{ maybeBroadcast, broadcastFromConsolidation, stop, stats }`. `inferIntensity(prompt)` pure function classifies prompts as `actively_seeking`/`interested`/`passive` via pattern matching. `computeDedupKey(themes, entities)` produces deterministic SHA-256 from canonicalized theme∪entity set. `inferProblemClass(prompt)` maps to schema enum. Per-prompt path gates on ≥3 themes, 60s rate limit, 15-min dedup window, and passive+unchanged skip. Consolidation path bypasses rate limit but respects dedup. Validates against `ContextBroadcastSchema` before publishing to `context.broadcast.<nodeId>`. 23 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
-| 9 | 9.3 | v9.3 | [ ] | Implement offerer (local retrieve → score → publish offer) |
+| 9 | 9.3 | v9.3 | [x] | Implement offerer (local retrieve → score → publish offer) |
+
+> **Step 9.3 closed.** Created `lib/broadcast-offerer.mjs` — the context offerer module. Exports `createOfferer(nc, nodeId, opts)` factory returning `{ start, stop, stats, _processBroadcast }`. Subscribes to `context.broadcast.>` on the shared stream, skips self-originated and TTL-expired broadcasts, retrieves locally relevant content via the 5-channel retrieval pipeline, filters by `RELEVANCE_THRESHOLD` (0.55), caps at `MAX_ARTIFACTS_PER_OFFER` (3), generates relevance summaries via LLM with data-only fallback, validates against `ContextOfferSchema`, and publishes to `context.offer.<nodeId>`. Privacy pre-filter via `filterPrivateItems` forward-compatible with Step 9.5's `private` column migration. 24 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
 | 9 | 9.4 | v9.4 | [ ] | Implement acceptor + inject offers into agent prompt + emit context.accepted |
 | 9 | 9.5 | v9.5 | [ ] | Privacy markers (private: true) + default-private retrieval policy |
 
