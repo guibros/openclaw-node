@@ -128,13 +128,30 @@ export async function maybeAutoRestartOllama() {
   const state = mod.getState();
   const model = state.current_job?.model || process.env.LLM_MODEL || 'qwen3:8b';
 
+  // F-H16 fix: honor recordAutoRestart's rate-limit signal. If we've restarted
+  // N times in the last window, abstain — a deeper Ollama failure (disk full,
+  // corrupt model) would otherwise trigger an infinite restart cascade.
+  // recordAutoRestart returns { recorded, rateLimited, restartsInWindow }.
+  // We check the count BEFORE issuing the stop command, by peeking via getState.
+  const recentRestarts = (state.recent_restarts || []).filter(
+    r => Date.now() - r.ts < 15 * 60 * 1000
+  );
+  if (recentRestarts.length >= 3) {
+    console.warn(`[health-watch] Ollama stuck but restart rate-limited (${recentRestarts.length} restarts in last 15min) — abstaining`);
+    return false;
+  }
+
   console.warn(`[health-watch] Ollama appears stuck (consecutive_timeouts=${JSON.stringify(state.consecutive_timeouts)}). Attempting model unload via 'ollama stop ${model}'.`);
 
   try {
     await new Promise((resolve) => {
       execFile('ollama', ['stop', model], { timeout: 5000 }, () => resolve());
     });
-    mod.recordAutoRestart(`stuck-recovery: ${JSON.stringify(state.consecutive_timeouts)}`);
+    const result = mod.recordAutoRestart(`stuck-recovery: ${JSON.stringify(state.consecutive_timeouts)}`);
+    if (result && result.rateLimited) {
+      console.warn(`[health-watch] restart was rate-limited by queue module (${result.restartsInWindow} in window)`);
+      return false;
+    }
     return true;
   } catch (err) {
     console.error(`[health-watch] ollama stop failed: ${err.message}`);

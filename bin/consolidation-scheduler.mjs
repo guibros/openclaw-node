@@ -147,13 +147,19 @@ export async function runScheduledCycle(opts = {}) {
   const runCycle = opts.runCycle || (await import('./consolidate.mjs')).runConsolidationCycle;
 
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), hardCap);
+  const timer = setTimeout(() => ac.abort(new Error('hard cap')), hardCap);
 
   try {
+    // F-H19 fix: pass ac.signal into runCycle so the work can actually be
+    // cancelled when the hard cap fires. Previously the timeout fired,
+    // Promise.race rejected, the function returned — but runCycle kept
+    // running in the background. Repeated 30-min ticks then stacked
+    // overlapping cycles racing on the same DB.
     const cyclePromise = runCycle({
       dbPath: opts.dbPath,
       vaultPath: opts.vaultPath,
       db: opts.db,
+      signal: ac.signal,
     });
 
     const result = await Promise.race([
@@ -169,6 +175,8 @@ export async function runScheduledCycle(opts = {}) {
     return { ...result, durationMs: Date.now() - startMs };
   } catch (err) {
     clearTimeout(timer);
+    // F-H19: ensure abort fires so the runCycle promise sees cancellation
+    if (!ac.signal.aborted) ac.abort(err);
     return { ok: false, error: err.message, durationMs: Date.now() - startMs };
   }
 }
