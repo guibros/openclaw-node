@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 9 in progress; Step 9.1 closed at `v9.1`. Steps 9.2–9.5 remain.
-**Current version carrier.** `v9.1` (Step 9.1 closed; Block 9: 1 of 5).
-**Streaks.** zero-Phase-4-correction: 1 (Block 9; Step 9.1 clean) · zero-Phase-8-patch: 17 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Step 9.1).
-**Last commit on plan branch.** `<pending>` v9.1 — Define broadcast/offer/accepted schemas in event-schemas package.
+**Workplan status.** Block 9 in progress; Step 9.2 closed at `v9.2`. Steps 9.3–9.5 remain.
+**Current version carrier.** `v9.2` (Step 9.2 closed; Block 9: 2 of 5).
+**Streaks.** zero-Phase-4-correction: 2 (Block 9; Steps 9.1–9.2 clean) · zero-Phase-8-patch: 18 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.2).
+**Last commit on plan branch.** `<pending>` v9.2 — Implement broadcaster (consolidation-driven, with TTL + de-dup).
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no

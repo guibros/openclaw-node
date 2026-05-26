@@ -214,7 +214,9 @@ context.broadcast/offer/accepted. See REFERENCE_PLAN.md §Phase 9.
 | 9 | 9.1 | v9.1 | [x] | Define broadcast/offer/accepted schemas in event-schemas package |
 
 > **Step 9.1 closed.** Added three broadcast protocol schemas (`ContextBroadcastSchema`, `ContextOfferSchema`, `ContextAcceptedSchema`) to `packages/event-schemas` as a new `src/broadcast/` directory, following the same `EventEnvelopeSchema.extend()` pattern as Block 1's memory event schemas. `BroadcastEventSchema` discriminated union provides type-safe routing by `event_type` literal. All schemas match RESUME.md §0 Block 9 frozen decisions field-for-field: broadcast has `dedup_key`, offer has `expires_at` + `provenance`, accepted has optional `feedback`. 12 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
-| 9 | 9.2 | v9.2 | [ ] | Implement broadcaster (consolidation-driven, with TTL + de-dup) |
+| 9 | 9.2 | v9.2 | [x] | Implement broadcaster (consolidation-driven, with TTL + de-dup) |
+
+> **Step 9.2 closed.** Created `lib/broadcast-emitter.mjs` — the context broadcaster module. Exports `createBroadcaster(nc, nodeId, opts)` factory returning `{ maybeBroadcast, broadcastFromConsolidation, stop, stats }`. `inferIntensity(prompt)` pure function classifies prompts as `actively_seeking`/`interested`/`passive` via pattern matching. `computeDedupKey(themes, entities)` produces deterministic SHA-256 from canonicalized theme∪entity set. `inferProblemClass(prompt)` maps to schema enum. Per-prompt path gates on ≥3 themes, 60s rate limit, 15-min dedup window, and passive+unchanged skip. Consolidation path bypasses rate limit but respects dedup. Validates against `ContextBroadcastSchema` before publishing to `context.broadcast.<nodeId>`. 23 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
 | 9 | 9.3 | v9.3 | [ ] | Implement offerer (local retrieve → score → publish offer) |
 | 9 | 9.4 | v9.4 | [ ] | Implement acceptor + inject offers into agent prompt + emit context.accepted |
 | 9 | 9.5 | v9.5 | [ ] | Privacy markers (private: true) + default-private retrieval policy |

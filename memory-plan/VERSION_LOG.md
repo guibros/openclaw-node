@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v9.2 — 2026-05-25 — memory-plan-tick
+
+- **Phase 9** step close for Step 9.2: Implement broadcaster (consolidation-driven, with TTL + de-dup).
+- Final test count: 932 (857 pass, 75 fail — 73 pre-existing + 2 flaky variance). +27 test entries added this step (23 `it()` blocks).
+- Audit: `memory-plan/audits/step46_broadcaster/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v9.2-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 9.2.
+- Files changed: `lib/broadcast-emitter.mjs` (new — createBroadcaster factory, inferIntensity, computeDedupKey, inferProblemClass, maybeBroadcast per-prompt path, broadcastFromConsolidation hook, rate limit 60s, dedup 15-min window, TTL env override), `test/broadcast-emitter.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v9.2-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 9.2.
+- Files planned: `lib/broadcast-emitter.mjs` (new), `test/broadcast-emitter.test.mjs` (new).
+- Audit: `memory-plan/audits/step46_broadcaster/AUDIT_PRE.md`.
+- Test baseline: 905 tests (830 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v9.1 — 2026-05-25 — memory-plan-tick
 
 - **Phase 9** step close for Step 9.1: Define broadcast/offer/accepted schemas in event-schemas package.
