@@ -175,8 +175,11 @@ describe('filterPrivateItems', () => {
     assert.equal(filtered.length, 2);
   });
 
-  it('returns all results when private column does not exist', () => {
-    // Mock DB where pragma_table_info returns no 'private' column
+  it('fails CLOSED (returns []) when private column does not exist', () => {
+    // F-H6 fix: when privacy column is missing we cannot distinguish private
+    // from public — for a peer-facing filter, that means refuse to ship
+    // anything. The old behavior (return unfiltered) was a leak when running
+    // against a pre-migration DB.
     const mockDb = {
       prepare(sql) {
         return {
@@ -190,7 +193,7 @@ describe('filterPrivateItems', () => {
     };
     const results = [makeResult(0.8), makeResult(0.6)];
     const filtered = filterPrivateItems(results, mockDb);
-    assert.equal(filtered.length, 2);
+    assert.equal(filtered.length, 0, 'should refuse to ship to peers when privacy column missing');
   });
 
   it('returns empty array when results are empty', () => {
