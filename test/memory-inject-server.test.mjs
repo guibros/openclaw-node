@@ -139,29 +139,36 @@ describe('Authentication', () => {
 });
 
 describe('POST /memory/inject — request validation', () => {
-  it('returns 400 when prompt is missing', async () => {
+  // F-M12: empty/missing prompts now return 200 with noop, matching the
+  // library-layer contract. Library callers get a graceful empty result;
+  // HTTP callers used to get a 400 — inconsistent. Now both 200/noop.
+  it('returns 200 + noop when prompt is missing', async () => {
     const r = await req('POST', '/memory/inject', {
       body: { session_id: 's' },
       headers: { Authorization: `Bearer ${token}` },
     });
-    assert.equal(r.status, 400);
-    assert.match(r.json.error, /missing prompt/);
+    assert.equal(r.status, 200);
+    assert.equal(r.json.block, '');
+    assert.equal(r.json.analysis.mode, 'noop');
+    assert.match(r.json.analysis.skip_reason, /empty_prompt/);
   });
 
-  it('returns 400 when prompt is empty string', async () => {
+  it('returns 200 + noop when prompt is empty string', async () => {
     const r = await req('POST', '/memory/inject', {
       body: { prompt: '' },
       headers: { Authorization: `Bearer ${token}` },
     });
-    assert.equal(r.status, 400);
+    assert.equal(r.status, 200);
+    assert.equal(r.json.block, '');
   });
 
-  it('returns 400 when prompt is wrong type', async () => {
+  it('returns 200 + noop when prompt is wrong type', async () => {
     const r = await req('POST', '/memory/inject', {
       body: { prompt: 42 },
       headers: { Authorization: `Bearer ${token}` },
     });
-    assert.equal(r.status, 400);
+    assert.equal(r.status, 200);
+    assert.equal(r.json.block, '');
   });
 
   it('returns 400 on invalid JSON body', async () => {
