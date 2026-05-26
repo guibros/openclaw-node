@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v10.1 — 2026-05-25 — memory-plan-tick
+
+- **Phase 9** step close for Step 10.1: `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/`.
+- Final test count: 1037 (962 pass, 75 fail — 73 pre-existing + 2 flaky variance). +13 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step51_spawn_node/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v10.1-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 10.1.
+- Files changed: `bin/spawn-node.mjs` (new — CLI tool + `spawnNode` library function for creating isolated node trees), `test/spawn-node.test.mjs` (new — 10 `it()` blocks covering validation, resolution, creation, idempotency, config, and readback).
+- Test additions: see Phase 5.
+
+### v10.1-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 10.1.
+- Files planned: `bin/spawn-node.mjs` (new), `test/spawn-node.test.mjs` (new).
+- Audit: `memory-plan/audits/step51_spawn_node/AUDIT_PRE.md`.
+- Test baseline: 1024 tests (949 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v9.6 — 2026-05-25 — memory-plan-tick
 
 - **Phase 9** step close for Step 9.6: Cross-node integration test for broadcast → offer → accepted round-trip.

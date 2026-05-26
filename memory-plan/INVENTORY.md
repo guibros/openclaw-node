@@ -236,7 +236,9 @@ Real multi-node deployment, ed25519-signed events, 3-node council, dogfood harne
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 10 | 10.1 | v10.1 | [ ] | `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/` |
+| 10 | 10.1 | v10.1 | [x] | `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/` |
+
+> **Step 10.1 closed.** Created `bin/spawn-node.mjs` — CLI tool and library for spawning isolated openclaw node trees at `~/.openclaw-<nodeid>/`. Exports `spawnNode(opts)` (async, idempotent node creation with subdirs, config/node.json, WAL-mode state.db), `validateNodeId(id)` (lowercase alphanumeric + hyphens, 1-32 chars), `resolveNodeRoot(nodeId, opts)` (flexible path resolution), `readNodeConfig(nodeId, opts)` (JSON config readback). CLI accepts `--id`, `--port`, `--nats-url`, `--base-dir` flags. NODE_SUBDIRS matches production layout (workspace, config, obsidian-local with 5 subdirs, artifacts, logs, state). 13 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
 | 10 | 10.2 | v10.2 | [ ] | NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`) |
 | 10 | 10.3 | v10.3 | [ ] | Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates |
 | 10 | 10.4 | v10.4 | [ ] | Node identity + ed25519 signing infrastructure (`lib/node-identity.mjs`); STRICT verification |

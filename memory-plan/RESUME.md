@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 9 closed; all 6 steps (v9.1–v9.6) complete. Block 10 awaits frozen decisions.
-**Current version carrier.** `v9.6` (Step 9.6 closed; Block 9: 6 of 6).
-**Streaks.** zero-Phase-4-correction: 6 (Block 9; Steps 9.1–9.6 clean) · zero-Phase-8-patch: 26 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6).
-**Last commit on plan branch.** `<pending>` v9.6 — Cross-node integration test for broadcast → offer → accepted round-trip.
+**Workplan status.** Block 10 in progress; Step 10.1 closed. 8 steps remain (v10.2–v10.9).
+**Current version carrier.** `v10.1` (Step 10.1 closed; Block 10: 1 of 9).
+**Streaks.** zero-Phase-4-correction: 7 (Block 9 all 6 + Step 10.1 clean) · zero-Phase-8-patch: 27 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Step 10.1).
+**Last commit on plan branch.** `<pending>` v10.1 — `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/`.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -1329,6 +1329,22 @@ findings, zero corrections, zero Phase 8 patches. **Block 9 complete (6/6).**
 
 Carry-forwards: Block 10 frozen decisions must be authored by the operator. `@publish`
 directive still deferred. Item F (workspace deploy script) still queued from Block 8.
+
+### Step 10.1 — `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/`
+
+Closed at v10.1. Created `bin/spawn-node.mjs` — CLI tool and library for spawning isolated
+openclaw node trees at `~/.openclaw-<nodeid>/`. Exports `spawnNode(opts)` (async, idempotent
+creation with full subdirectory tree, `config/node.json`, WAL-mode state.db), `validateNodeId`
+(lowercase alphanumeric + hyphens, 1-32 chars), `resolveNodeRoot` (path resolution supporting
+both prefix-append and parent-directory patterns), `readNodeConfig` (JSON config readback).
+CLI accepts `--id`, `--port`, `--nats-url`, `--base-dir` flags. `NODE_SUBDIRS` matches
+production layout: workspace, workspace/memory, config, obsidian-local (5 subdirs), artifacts,
+logs, state. 13 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
+
+Carry-forwards: `spawnNode` creates the directory tree but does NOT generate identity keys
+(Step 10.4) or start NATS (Step 10.2). `resolveNodeRoot` and `readNodeConfig` utilities
+available for Steps 10.5/10.6 integration tests. `@publish` directive still deferred. Item F
+(workspace deploy script) still queued.
 
 ---
 
