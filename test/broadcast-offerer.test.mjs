@@ -129,6 +129,65 @@ describe('generateRelevanceSummary', () => {
     const summary = await generateRelevanceSummary(broadcast, result, { requestAnalysis: mockAnalysis });
     assert.ok(summary.includes('Relevant to:'));
   });
+
+  // F-M6 regression: stats counters and fallback visibility
+  it('F-M6: increments summariesLlm on LLM success', async () => {
+    const broadcast = { themes: ['memory'], entities: ['NATS'] };
+    const result = { snippet: 'snip', session_id: 's1', score: 0.8 };
+    const stats = { summariesLlm: 0, summariesFallback: 0 };
+
+    const mockAnalysis = async (run) => {
+      const value = await run({ generate: async () => 'LLM-generated summary text' });
+      return { mode: 'llm', value };
+    };
+    await generateRelevanceSummary(broadcast, result, { requestAnalysis: mockAnalysis, stats });
+    assert.equal(stats.summariesLlm, 1);
+    assert.equal(stats.summariesFallback, 0);
+  });
+
+  it('F-M6: increments summariesFallback on queue fallback mode', async () => {
+    const broadcast = { themes: ['memory'], entities: [] };
+    const result = { snippet: 'snip', session_id: 's1', score: 0.6 };
+    const stats = { summariesLlm: 0, summariesFallback: 0 };
+
+    const mockAnalysis = async () => ({ mode: 'fallback', reason: 'ollama-busy' });
+    await generateRelevanceSummary(broadcast, result, { requestAnalysis: mockAnalysis, stats });
+    assert.equal(stats.summariesLlm, 0);
+    assert.equal(stats.summariesFallback, 1);
+  });
+
+  it('F-M6: increments summariesFallback on analysis error', async () => {
+    const broadcast = { themes: ['t'], entities: [] };
+    const result = { snippet: 'snip', session_id: 's1', score: 0.5 };
+    const stats = { summariesLlm: 0, summariesFallback: 0 };
+
+    const mockAnalysis = async () => { throw new Error('queue crash'); };
+    await generateRelevanceSummary(broadcast, result, { requestAnalysis: mockAnalysis, stats });
+    assert.equal(stats.summariesLlm, 0);
+    assert.equal(stats.summariesFallback, 1);
+  });
+
+  it('F-M6: increments summariesFallback when no requestAnalysis provided', async () => {
+    const broadcast = { themes: ['t'], entities: [] };
+    const result = { snippet: 'snip', session_id: 's1', score: 0.5 };
+    const stats = { summariesLlm: 0, summariesFallback: 0 };
+
+    await generateRelevanceSummary(broadcast, result, { stats });
+    assert.equal(stats.summariesLlm, 0);
+    assert.equal(stats.summariesFallback, 1);
+  });
+
+  it('F-M6: log dep receives a fallback reason string', async () => {
+    const broadcast = { themes: ['t'], entities: [] };
+    const result = { snippet: 'snip', session_id: 's1', score: 0.5 };
+    const logged = [];
+    const log = (msg) => logged.push(msg);
+
+    const mockAnalysis = async () => ({ mode: 'fallback', reason: 'ollama-busy-extraction' });
+    await generateRelevanceSummary(broadcast, result, { requestAnalysis: mockAnalysis, log });
+    assert.ok(logged.some(m => m.includes('ollama-busy-extraction')),
+      `expected a log entry mentioning the fallback reason; got: ${JSON.stringify(logged)}`);
+  });
 });
 
 // ─── buildOfferFromResults ──────────────────────────────────────────────────
