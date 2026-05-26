@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v10.9 — 2026-05-26 — memory-plan-tick
+
+- **Phase 9** step close for Step 10.9: Dogfood harness (`bin/dogfood-council.mjs` + `docs/DOGFOOD_PROTOCOL.md`).
+- Final test count: 1124 (1049 pass, 75 fail — 73 pre-existing + 2 flaky variance). +22 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step59_dogfood_harness/AUDIT_POST.md`.
+- 10 POSITIVE, 1 NEGATIVE findings. 0 Phase 8 patches.
+- **Block 10 complete (9/9).**
+
+### v10.9-mid — 2026-05-26 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 10.9.
+- Files changed: `bin/dogfood-council.mjs` (new — dogfood harness CLI + library with metric recording, aggregation, NATS collection, stats formatting), `docs/DOGFOOD_PROTOCOL.md` (new — comprehensive dogfood protocol documentation covering metrics reference, healthy federation thresholds, interpretation guide, troubleshooting), `test/dogfood-council.test.mjs` (new — 15 `it()` blocks).
+- Test additions: 15 `it()` blocks in `test/dogfood-council.test.mjs`.
+
+### v10.9-pre — 2026-05-26 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 10.9.
+- Files planned: `bin/dogfood-council.mjs` (new — dogfood harness CLI + library), `docs/DOGFOOD_PROTOCOL.md` (new — protocol documentation), `test/dogfood-council.test.mjs` (new — ~12 `it()` blocks).
+- Audit: `memory-plan/audits/step59_dogfood_harness/AUDIT_PRE.md`.
+- Test baseline: 1102 tests (1027 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v10.8 — 2026-05-26 — memory-plan-tick
 
 - **Phase 9** step close for Step 10.8: `docs/MULTI_NODE_DEPLOY.md` — soup-to-nuts deployment guide for real-hardware council.

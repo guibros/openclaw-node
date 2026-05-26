@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 10 in progress; Step 10.8 closed. 1 step remains (v10.9).
-**Current version carrier.** `v10.8` (Step 10.8 closed; Block 10: 8 of 9).
-**Streaks.** zero-Phase-4-correction: 14 (Block 9 all 6 + Steps 10.1–10.8 clean) · zero-Phase-8-patch: 34 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.8).
-**Last commit on plan branch.** `<pending>` v10.8 — `docs/MULTI_NODE_DEPLOY.md` — soup-to-nuts deployment guide for real-hardware council.
+**Workplan status.** Block 10 closed; Step 10.9 closed. All 59 steps through Block 10 complete. Block 11 awaits frozen decisions.
+**Current version carrier.** `v10.9` (Step 10.9 closed; Block 10: 9 of 9 — COMPLETE).
+**Streaks.** zero-Phase-4-correction: 15 (Block 9 all 6 + Steps 10.1–10.9 clean) · zero-Phase-8-patch: 35 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.9).
+**Last commit on plan branch.** `<pending>` v10.9 — Dogfood harness (`bin/dogfood-council.mjs` + `docs/DOGFOOD_PROTOCOL.md`).
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -1445,29 +1445,48 @@ Carry-forwards: Test baseline 1102 (1027 pass, 75 fail). `@publish` still deferr
 for event-schemas still need tsc rebuild. `docs/MULTI_NODE_DEPLOY.md` should be referenced by
 the dogfood harness (Step 10.9).
 
+### Step 10.9 — Dogfood harness (`bin/dogfood-council.mjs` + `docs/DOGFOOD_PROTOCOL.md`)
+
+Closed at v10.9. Created `bin/dogfood-council.mjs` — dogfood harness CLI + library for 3-node
+federation council observation. Exports `createDogfoodHarness` (spawns nodes, connects NATS,
+starts metric collection), `createMetricCollector` (subscribes to `context.broadcast/offer/accepted`
++ `mesh.health.alerts`, classifies into 7 metric types, writes JSONL), `aggregateFromLines`/
+`aggregateMetrics` (broadcast count, offer count, accepted count, offer-to-acceptance ratio,
+avg round-trip ms, signature failures, dead-peer events, per-node breakdown, duration),
+`formatStatsReport` (markdown table output). CLI supports `--node-ids`, `--nats-url`,
+`--metrics-path`, `--duration`, `--stats` flags with SIGINT graceful shutdown. Created
+`docs/DOGFOOD_PROTOCOL.md` — comprehensive documentation with metrics reference, green/yellow/red
+health thresholds, interpretation guide, troubleshooting. 22 new tests. 10 positive findings,
+1 negative (test count underestimate), zero corrections, zero Phase 8 patches.
+
+Carry-forwards to Block 11: Test baseline 1124 (1049 pass, 75 fail). `@publish` still deferred.
+Dist files for event-schemas still need tsc rebuild. Shared peerTracker instantiation deferred.
+24h dogfood RUN happens between Block 10 close and Block 11. Block 11 frozen decisions must be
+authored by operator before next tick.
+
+**Block 10 complete (9/9).**
+
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               58 / 59
-Current block:              Block 10 in progress (8 of 9)
-Steps closed in block:      8 / 9 (Block 10)
-Consecutive zero-Phase-4-correction streak:  14 (Block 9 all 6 + Steps 10.1–10.8 clean)
-Consecutive zero-Phase-8-patch streak:       34 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.8)
-Test baseline (npm test):   1102 tests (1027 pass, 75 fail — 73 pre-existing + 2 flaky variance)
-Last successful tick:       2026-05-26 (Step 10.8)
-Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md
+Steps closed:               59 / 59
+Current block:              Block 10 closed; Block 11 awaits frozen decisions
+Steps closed in block:      9 / 9 (Block 10 COMPLETE)
+Consecutive zero-Phase-4-correction streak:  15 (Block 9 all 6 + Steps 10.1–10.9 clean)
+Consecutive zero-Phase-8-patch streak:       35 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.9)
+Test baseline (npm test):   1124 tests (1049 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-26 (Step 10.9)
+Last block file written:    memory-plan/audits/BLOCK_10_COMPLETE.md
 ```
 
 ---
 
 ## Next-tick checklist
 
-Block 10 is in progress. The next scheduled tick should:
+Block 10 is closed. The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v10.8`, no suffix) → next step is 10.9 (first `[ ]` row).
-3. Read Block 10 frozen decisions in §0 for Step 10.9 scope.
-4. Execute Phases 1 → 4 → 5 → 7 → 8 → 8.5 → 9 for Step 10.9.
-5. Step 10.9 is the LAST step in Block 10. Phase 9 must include the block-close ceremony (§7).
+2. Read `### Block 11 frozen decisions` in §0 — **if absent → write `BLOCKED.md`** with reason "Block 11 frozen decisions not authored" and exit.
+3. The dogfood results (Step 10.9) should inform Block 11 scope — likely council coordination primitives, supercluster prep, or further federation refinement. Author Block 11 decisions only AFTER reviewing dogfood metrics.
