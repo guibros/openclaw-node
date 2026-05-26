@@ -159,8 +159,8 @@ describe('formatPeerMemoryBlock', () => {
   it('formats multiple artifacts', () => {
     const offer = makeOffer({
       artifacts: [
-        { artifact_ref: 'session:s1:chunk:0', relevance_score: 0.8, summary: 'First artifact' },
-        { artifact_ref: 'session:s2:chunk:1', relevance_score: 0.65, summary: 'Second artifact' },
+        { artifact_ref: 'session:s1:chunk:0', relevance_score: 0.8, provenance: { source_node: 'peer-node', source_type: 'local_retrieval' }, summary: 'First artifact' },
+        { artifact_ref: 'session:s2:chunk:1', relevance_score: 0.65, provenance: { source_node: 'peer-node', source_type: 'local_retrieval' }, summary: 'Second artifact' },
       ],
     });
     const block = formatPeerMemoryBlock(offer);
@@ -226,7 +226,12 @@ describe('createAcceptor._processOffer', () => {
     offer.data.responding_to = undefined;
     const result = await acceptor._processOffer(offer);
     assert.equal(result.action, 'skip');
-    assert.equal(result.reason, 'no_responding_to');
+    // After F-H2 fix, schema validation catches missing responding_to at the
+    // boundary (returns 'bad_schema') rather than later in flow ('no_responding_to').
+    assert.ok(
+      result.reason === 'no_responding_to' || result.reason === 'bad_schema',
+      `expected no_responding_to or bad_schema, got ${result.reason}`
+    );
   });
 
   it('evicts oldest when maxPending exceeded', async () => {
@@ -234,9 +239,13 @@ describe('createAcceptor._processOffer', () => {
     ownBroadcastIds.add(broadcastId);
     const acceptor = createAcceptor(nc, 'my-node', { ownBroadcastIds, maxPending: 2 });
 
-    const offer1 = makeOffer({ responding_to: broadcastId, event_id: 'offer-1' });
-    const offer2 = makeOffer({ responding_to: broadcastId, event_id: 'offer-2' });
-    const offer3 = makeOffer({ responding_to: broadcastId, event_id: 'offer-3' });
+    // Schema requires UUID-format event_id; use deterministic UUIDs for tracking.
+    const id1 = '00000000-0000-4000-8000-000000000001';
+    const id2 = '00000000-0000-4000-8000-000000000002';
+    const id3 = '00000000-0000-4000-8000-000000000003';
+    const offer1 = makeOffer({ responding_to: broadcastId, event_id: id1 });
+    const offer2 = makeOffer({ responding_to: broadcastId, event_id: id2 });
+    const offer3 = makeOffer({ responding_to: broadcastId, event_id: id3 });
 
     await acceptor._processOffer(offer1);
     await acceptor._processOffer(offer2);
@@ -244,8 +253,8 @@ describe('createAcceptor._processOffer', () => {
 
     const pending = acceptor.getPendingOffers();
     assert.equal(pending.length, 2);
-    assert.equal(pending[0].event_id, 'offer-2');
-    assert.equal(pending[1].event_id, 'offer-3');
+    assert.equal(pending[0].event_id, id2);
+    assert.equal(pending[1].event_id, id3);
   });
 
   it('supports ownBroadcastIds as a function', async () => {
@@ -273,13 +282,15 @@ describe('createAcceptor.getTopOffer', () => {
     const ownBroadcastIds = new Set([broadcastId]);
     const acceptor = createAcceptor(nc, 'my-node', { ownBroadcastIds });
 
+    // Schema requires provenance on each artifact; supply minimal valid shape.
+    const prov = { source_node: 'peer-node', source_type: 'local_retrieval' };
     const offer1 = makeOffer({
       responding_to: broadcastId,
-      artifacts: [{ artifact_ref: 'session:s1:chunk:0', relevance_score: 0.6, summary: 'Low score' }],
+      artifacts: [{ artifact_ref: 'session:s1:chunk:0', relevance_score: 0.6, provenance: prov, summary: 'Low score' }],
     });
     const offer2 = makeOffer({
       responding_to: broadcastId,
-      artifacts: [{ artifact_ref: 'session:s2:chunk:1', relevance_score: 0.9, summary: 'High score' }],
+      artifacts: [{ artifact_ref: 'session:s2:chunk:1', relevance_score: 0.9, provenance: prov, summary: 'High score' }],
     });
 
     await acceptor._processOffer(offer1);
@@ -304,7 +315,7 @@ describe('createAcceptor.checkAcceptance', () => {
     const offer = makeOffer({
       responding_to: broadcastId,
       artifacts: [
-        { artifact_ref: 'session:s1:chunk:0', relevance_score: 0.8, summary: 'NATS federation architecture and event-driven messaging' },
+        { artifact_ref: 'session:s1:chunk:0', relevance_score: 0.8, provenance: { source_node: 'peer-node', source_type: 'local_retrieval' }, summary: 'NATS federation architecture and event-driven messaging' },
       ],
     });
     await acceptor._processOffer(offer);
@@ -322,7 +333,7 @@ describe('createAcceptor.checkAcceptance', () => {
     const offer = makeOffer({
       responding_to: broadcastId,
       artifacts: [
-        { artifact_ref: 'session:s1:chunk:0', relevance_score: 0.8, summary: 'NATS federation architecture and event-driven messaging patterns for distributed systems' },
+        { artifact_ref: 'session:s1:chunk:0', relevance_score: 0.8, provenance: { source_node: 'peer-node', source_type: 'local_retrieval' }, summary: 'NATS federation architecture and event-driven messaging patterns for distributed systems' },
       ],
     });
     await acceptor._processOffer(offer);
@@ -353,7 +364,7 @@ describe('createAcceptor.checkAcceptance', () => {
     const offer = makeOffer({
       responding_to: broadcastId,
       artifacts: [
-        { artifact_ref: 'session:s1:chunk:0', relevance_score: 0.8, summary: 'NATS federation architecture' },
+        { artifact_ref: 'session:s1:chunk:0', relevance_score: 0.8, provenance: { source_node: 'peer-node', source_type: 'local_retrieval' }, summary: 'NATS federation architecture' },
       ],
     });
     await acceptor._processOffer(offer);

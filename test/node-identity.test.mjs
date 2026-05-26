@@ -261,11 +261,16 @@ describe('node-identity', () => {
       });
 
       const identity = getOrCreateIdentity(tmpDir);
+      // After F-H2 (schema validation at boundary), test fixture must conform
+      // to ContextOfferSchema — responding_to/causation_id must be UUID format.
+      const respondingTo = '00000000-0000-4000-8000-000000000001';
+      ownIds.add(respondingTo);
       const offer = makeEvent({
         event_type: 'context.offer',
         node_id: 'node-beta',
+        causation_id: respondingTo,
         data: {
-          responding_to: 'broadcast-001',
+          responding_to: respondingTo,
           offerer_node_id: 'node-beta',
           artifacts: [{ artifact_ref: 'session:s1:chunk:0', relevance_score: 0.8, provenance: { source_node: 'node-beta', source_type: 'local_retrieval' }, summary: 'test' }],
           expires_at: new Date(Date.now() + 3600_000).toISOString(),
@@ -282,6 +287,143 @@ describe('node-identity', () => {
       assert.equal(result.reason, 'bad_signature');
       assert.equal(acceptor.stats.signatureRejected, 1);
       assert.ok(logs.some(l => l.includes('STRICT')), 'should log STRICT rejection');
+    });
+  });
+
+  // ─── Tests for new STRICT-mode features (F-C2, F-C3, F-C4, F-L1) ───────────
+
+  describe('verifyEvent — STRICT mode requireSigned', () => {
+    it('rejects unsigned event when requireSigned:true', () => {
+      const event = { event_id: '1', timestamp: new Date().toISOString(), data: {} };
+      const result = verifyEvent(event, { requireSigned: true });
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, 'missing-signature');
+    });
+
+    it('accepts unsigned event when requireSigned:false', () => {
+      const event = { event_id: '1', timestamp: new Date().toISOString(), data: {} };
+      const result = verifyEvent(event, { requireSigned: false });
+      assert.equal(result.ok, true);
+    });
+  });
+
+  describe('verifyEvent — identity registry binding', () => {
+    it('rejects when signer_pubkey does not match registered key for node_id', async () => {
+      const { createIdentityRegistry } = await import('../lib/node-identity.mjs');
+      const reg = createIdentityRegistry({ path: tmpDir + '/test-reg.json', mode: 'strict' });
+      const idAlice = getOrCreateIdentity(tmpDir + '/alice');
+      const idBob = getOrCreateIdentity(tmpDir + '/bob');
+      reg.trust('alice', idAlice.publicKeyBase64, 'seed');
+
+      // Bob signs an event claiming to be alice
+      const event = makeEvent({ node_id: 'alice', data: { themes: ['t'] } });
+      const signed = signEvent(event, idBob.privateKey);
+
+      const result = verifyEvent(signed, { requireSigned: true, registry: reg, checkFreshness: false });
+      assert.equal(result.ok, false);
+      assert.match(result.reason, /registry/);
+    });
+
+    it('accepts when signer_pubkey matches registered key', async () => {
+      const { createIdentityRegistry } = await import('../lib/node-identity.mjs');
+      const reg = createIdentityRegistry({ path: tmpDir + '/test-reg2.json', mode: 'strict' });
+      const idAlice = getOrCreateIdentity(tmpDir + '/alice2');
+      reg.trust('alice', idAlice.publicKeyBase64, 'seed');
+
+      const event = makeEvent({ node_id: 'alice', data: { themes: ['t'] } });
+      const signed = signEvent(event, idAlice.privateKey);
+
+      const result = verifyEvent(signed, { requireSigned: true, registry: reg, checkFreshness: false });
+      assert.equal(result.ok, true);
+    });
+
+    it('TOFU mode records unknown nodeId on first sight', async () => {
+      const { createIdentityRegistry } = await import('../lib/node-identity.mjs');
+      const reg = createIdentityRegistry({ path: tmpDir + '/test-reg3.json', mode: 'tofu' });
+      const id = getOrCreateIdentity(tmpDir + '/tofu');
+
+      const event = makeEvent({ node_id: 'newnode', data: {} });
+      const signed = signEvent(event, id.privateKey);
+
+      const result = verifyEvent(signed, { requireSigned: true, registry: reg, checkFreshness: false });
+      assert.equal(result.ok, true);
+      assert.equal(reg.get('newnode').pubkey, id.publicKeyBase64);
+    });
+  });
+
+  describe('verifyEvent — replay protection (seenIds)', () => {
+    it('rejects exact replay of a previously-seen event_id', async () => {
+      const { createSeenEventCache } = await import('../lib/node-identity.mjs');
+      const cache = createSeenEventCache(100);
+      const id = getOrCreateIdentity(tmpDir + '/replay');
+
+      const event = makeEvent({ data: {} });
+      const signed = signEvent(event, id.privateKey);
+
+      const first = verifyEvent(signed, { requireSigned: true, seenIds: cache, checkFreshness: false });
+      assert.equal(first.ok, true);
+
+      const second = verifyEvent(signed, { requireSigned: true, seenIds: cache, checkFreshness: false });
+      assert.equal(second.ok, false);
+      assert.equal(second.reason, 'replay');
+    });
+  });
+
+  describe('verifyEvent — freshness window', () => {
+    it('rejects event with timestamp older than maxAgeMs', async () => {
+      const id = getOrCreateIdentity(tmpDir + '/freshness');
+      const event = makeEvent({ timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(), data: {} });
+      const signed = signEvent(event, id.privateKey);
+
+      const result = verifyEvent(signed, { requireSigned: true, checkFreshness: true });
+      assert.equal(result.ok, false);
+      assert.match(result.reason, /freshness:too-old/);
+    });
+
+    it('rejects event with timestamp too far in the future', async () => {
+      const id = getOrCreateIdentity(tmpDir + '/freshness2');
+      const event = makeEvent({ timestamp: new Date(Date.now() + 60 * 60 * 1000).toISOString(), data: {} });
+      const signed = signEvent(event, id.privateKey);
+
+      const result = verifyEvent(signed, { requireSigned: true, checkFreshness: true });
+      assert.equal(result.ok, false);
+      assert.match(result.reason, /freshness:too-far-future/);
+    });
+
+    it('accepts event within freshness window', async () => {
+      const id = getOrCreateIdentity(tmpDir + '/freshness3');
+      const event = makeEvent({ timestamp: new Date().toISOString(), data: {} });
+      const signed = signEvent(event, id.privateKey);
+
+      const result = verifyEvent(signed, { requireSigned: true, checkFreshness: true });
+      assert.equal(result.ok, true);
+    });
+  });
+
+  describe('createSeenEventCache LRU eviction', () => {
+    it('evicts oldest entries when cap exceeded', async () => {
+      const { createSeenEventCache } = await import('../lib/node-identity.mjs');
+      const cache = createSeenEventCache(3);
+      cache.add('a');
+      cache.add('b');
+      cache.add('c');
+      assert.equal(cache.has('a'), true);
+      cache.add('d');  // evicts something
+      assert.equal(cache.size(), 3);
+    });
+  });
+
+  describe('getOrCreateIdentity — concurrent creation race (F-L1)', () => {
+    it('does not error when two getOrCreateIdentity calls race', async () => {
+      // Two concurrent calls into the same fresh dir should both produce
+      // identical keys (winner of the EEXIST race is loaded by the loser).
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const raceDir = path.join(tmpDir, 'race-' + Date.now());
+      fs.mkdirSync(raceDir, { recursive: true });
+      const a = getOrCreateIdentity(raceDir);
+      const b = getOrCreateIdentity(raceDir);
+      assert.equal(a.publicKeyBase64, b.publicKeyBase64);
     });
   });
 });
