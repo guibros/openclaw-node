@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v10.6 — 2026-05-26 — memory-plan-tick
+
+- **Phase 9** step close for Step 10.6: Three-node council test (`test/federation-3node.test.mjs`) — A broadcasts, B+C offer, A picks.
+- Final test count: 1087 (1012 pass, 75 fail — 73 pre-existing + 2 flaky variance). +12 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step56_federation_3node_council_test/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v10.6-mid — 2026-05-26 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 10.6.
+- Files changed: `test/federation-3node.test.mjs` (new — three-node council test with real 3-node NATS cluster, R=3 replication, 3 spawned openclaw nodes with distinct ed25519 identities, 12 `it()` blocks covering: distinct identities, R=3 stream, broadcast persistence across cluster, full council round-trip with multi-offer selection, dedup_key independence, expired offer handling, tampered broadcast rejection by both offerers, self-originated skip, below-threshold filtering, relevance scoring picks better offer, context.accepted references correct offer, timing within 10s).
+- Test additions: 12 `it()` blocks in `test/federation-3node.test.mjs`.
+
+### v10.6-pre — 2026-05-26 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 10.6.
+- Files planned: `test/federation-3node.test.mjs` (new — three-node council test with real 3-node NATS cluster, R=3, 3 distinct ed25519 identities, ~12 `it()` blocks).
+- Audit: `memory-plan/audits/step56_federation_3node_council_test/AUDIT_PRE.md`.
+- Test baseline: 1075 tests (1000 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v10.5 — 2026-05-26 — memory-plan-tick
 
 - **Phase 9** step close for Step 10.5: Two-node integration test (`test/federation-2node.test.mjs`) — real NATS, real round-trip.
