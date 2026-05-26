@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 9 closed; all 5 steps (v9.1–v9.5) complete. Block 10 awaits frozen decisions.
-**Current version carrier.** `v9.5` (Step 9.5 closed; Block 9: 5 of 5).
-**Streaks.** zero-Phase-4-correction: 5 (Block 9; Steps 9.1–9.5 clean) · zero-Phase-8-patch: 25 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.5).
-**Last commit on plan branch.** `<pending>` v9.5 — Privacy markers (private: true) + default-private retrieval policy.
+**Workplan status.** Block 9 closed; all 6 steps (v9.1–v9.6) complete. Block 10 awaits frozen decisions.
+**Current version carrier.** `v9.6` (Step 9.6 closed; Block 9: 6 of 6).
+**Streaks.** zero-Phase-4-correction: 6 (Block 9; Steps 9.1–9.6 clean) · zero-Phase-8-patch: 26 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6).
+**Last commit on plan branch.** `<pending>` v9.6 — Cross-node integration test for broadcast → offer → accepted round-trip.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -445,7 +445,55 @@ Authored 2026-05-24 by operator (interactive session). Block 8 closed at `v8.2` 
 
 **Next-tick checklist (Block 9→10 boundary):**
 
-When Block 9 closes, the next tick will attempt Step 10.1. Per framework: read `### Block 10 frozen decisions` in §0; if absent → **write `BLOCKED.md`** with reason "Block 10 frozen decisions not authored" and exit. Do not exit cleanly without `BLOCKED.md` (see Block 7→8 lesson at lines 296–298 above).
+When Block 9 closes (Step 9.6 = cross-node integration test), the next tick will attempt Step 10.1. Per framework: read `### Block 10 frozen decisions` in §0 — **now present below**.
+
+### Block 10 frozen decisions
+
+Authored 2026-05-25 by operator (interactive session). Block 9 closing at v9.6 (federation primitives implemented + cross-node test via ephemeral NATS). Block 10 validates those primitives with REAL multi-node deployment.
+
+**Theme.** Federation validation in the real world — Block 9 is code-on-disk with unit tests; nobody has actually federated yet. Block 10 stands up real multi-node deployment, validates the council pattern, and produces reusable infrastructure for new nodes.
+
+**Architectural decisions (operator-frozen):**
+
+- **Single-machine dev nodes FIRST, real VMs SECOND.** Most steps use N isolated openclaw instances on one machine (separate config trees + state.dbs + ports). Final step deploys to actual separate machines/VMs as smoke test.
+- **NATS cluster size: 3** (minimum for R=3 federation; matches "council of nodes" architectural premise).
+- **Node identity = ed25519 keypair** per node at `~/.openclaw/identity.key` — used to sign broadcast/offer/accepted events. Peers verify on receive.
+- **Auth strictness: STRICT** — reject events with bad signatures (drop silently + log warning). No "warn-only" migration path; this is the security stance from day one.
+- **Council size = 3 nodes** for this block. Multi-council / supercluster coordination is Block 11+.
+- **Real NATS, not ephemeral in-process** — Step 9.6 used ephemeral NATS for unit testing; Block 10 uses actual `nats-server` instances (launchd-managed for dev, documented for VM deployment).
+- **Dogfood IN the block as a harness step** — Step 10.9 builds the dogfood harness (3-node council + metrics capture). The actual 24h dogfood RUN happens between Block 10 close and Block 11 start (operator-paced), with results captured for Block 11 frozen decisions.
+
+**Block 10 hard scope — Steps 10.1–10.9 (LARGE block, 9 steps):**
+
+- **10.1** — `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/` with its own state.db, config, identity key. Lets us run N nodes on one dev machine without containers. CLI: `spawn-node --id alpha --port 7900` etc. Idempotent.
+
+- **10.2** — NATS cluster setup. New `services/nats/` directory with launchd plists for 3 NATS server instances (`nats-server-1.plist`, etc.) forming a cluster on ports 4222/4223/4224 with R=3 replication. Plus `docs/NATS_CLUSTER.md` documenting the same setup for real-VM deployment (replacing localhost with actual peer addresses).
+
+- **10.3** — Wire `ensureSharedStream(nc)` (Block 1.4) to actually run at memory-daemon startup, not just be available as a helper. Verify R=3 propagates by reading stream info on each node. Refuse to start if shared stream config doesn't match expected R=3 / file storage.
+
+- **10.4** — Node identity + signing infrastructure. New `lib/node-identity.mjs` exporting `getOrCreateIdentity()` (generates ed25519 keypair if absent), `signEvent(event, privateKey)` (returns event with `signature` + `signer_pubkey` fields), `verifyEvent(event, expectedPubkey)` (returns boolean). Wire into `local-event-log.publishLocal` (signs outgoing) and broadcast-offerer/acceptor subscribers (verifies incoming, drops bad-sig events with warning log). Update event-schemas to include optional `signature` + `signer_pubkey` fields.
+
+- **10.5** — Two-node integration test. `test/federation-2node.test.mjs` — spawns real `nats-server` + 2 spawned openclaw node processes (using 10.1's spawn-node), runs broadcast → offer round-trip across the cluster, asserts via NATS message capture that signatures verified, content matched, and timing was within bounds. Real network, not in-process.
+
+- **10.6** — Three-node council test. `test/federation-3node.test.mjs` — 3 spawned nodes (A/B/C), A broadcasts on a theme, B and C BOTH produce offers, A's acceptor receives both, selects top via relevance score, accepts one. Validates: dedup_key collision handling when B and C generate independent dedup_keys for the same broadcast; expires_at respected; relevance scoring chooses sensibly.
+
+- **10.7** — Network resilience. Peer goes offline mid-offer (test via `nats-server` SIGKILL), NATS reconnect handling in `memory-daemon.mjs` (auto-reconnect with backoff), dead-peer detection (broadcasts to a peer that's been silent >N min get logged + ignored for offer scoring), broadcast TTL cleanup on receive side (expire pending offers whose source broadcast TTL elapsed).
+
+- **10.8** — `docs/MULTI_NODE_DEPLOY.md` — comprehensive guide for spinning up a 3-node council on real hardware. Covers: prerequisites (Node.js + nats-server), per-node setup (spawn-node CLI usage, identity key generation, NATS config), cluster startup ordering, verification steps (curl shared stream R=3 status, run a test broadcast end-to-end), troubleshooting (common firewall + DNS issues, signature mismatch debugging), and rollback procedure. Targets any combination of macOS/Linux nodes.
+
+- **10.9** — Dogfood harness. New `bin/dogfood-council.mjs` — spawns 3 nodes locally (or accepts 3 remote node configs), wires this Claude Code's prompts through one of them, captures metrics (broadcast emit rate, offer-to-acceptance ratio, average round-trip time, signature failures, dead-peer events) to `~/.openclaw/dogfood-metrics.jsonl`. New `docs/DOGFOOD_PROTOCOL.md` documents how to interpret the metrics and what "healthy federation" looks like. **The 24h dogfood RUN happens between Block 10 close and Block 11 — results inform Block 11 frozen decisions.**
+
+**Validation gate before Block 11:**
+1. Step 10.5 and 10.6 integration tests pass cleanly (3 runs each)
+2. At least 1 real broadcast → offer → accept round-trip observed on a 3-node dev cluster
+3. Signature verification rejects a forged event in unit test
+4. Dogfood harness emits metrics correctly
+
+**Test baseline for Block 10:** continues from v9.6. Each step adds 4-12 tests, especially 10.5/10.6/10.7 which are integration-heavy. Block 10 total expected: +50-70 tests. Final baseline target: ~950+ tests.
+
+**Next-tick checklist (Block 10→11 boundary):**
+
+When Block 10 closes, the next tick will attempt Step 11.1. Per framework: read `### Block 11 frozen decisions` in §0; if absent → **write `BLOCKED.md`** with reason "Block 11 frozen decisions not authored" and exit. The dogfood results (10.9) should inform Block 11 scope — likely council coordination primitives (voting/quorum) per the architecture vision, or supercluster prep, or Neo4j savant cluster prototype. Author Block 11 decisions only AFTER reviewing dogfood metrics.
 
 ### Carry-forward from Block 0 + Block 1
 
@@ -1260,26 +1308,41 @@ names. Created `bin/publish-item.mjs` CLI tool with `--name`/`--type`/`--unpubli
 flags and `lookupItem` export for programmatic use. Added `filterPrivateResults` to
 `lib/retrieval-pipeline.mjs` and `respect_privacy` option (default true) to
 `createRetrievalPipeline`. 30 new tests. 10 positive audit findings, zero corrections,
-zero Phase 8 patches. **Block 9 complete (5/5).**
+zero Phase 8 patches.
 
 Carry-forwards: `@publish` directive parsed but not wired into SDK wrappers' per-prompt
 path (CLI is primary mechanism). Offerer's `filterPrivateItems` now active. Local injection
-should pass `respect_privacy: false`. Step 9.6 cross-node test per frozen decisions belongs
-to a future block or operator chore commit.
+should pass `respect_privacy: false`.
+
+### Step 9.6 — Cross-node integration test for broadcast → offer → accepted round-trip
+
+Closed at v9.6. Created `test/broadcast-cross-node.test.mjs` — deterministic two-node
+integration test using mock NATS connections with a shared message bus. 9 `describe` blocks
+and 10 `it()` blocks cover: full round-trip (node A broadcasts → node B offers → node A
+accepts → context.accepted with artifact_refs), TTL-expired broadcasts skipped by offerer,
+private items filtered by offerer (in-memory SQLite extraction store with privacy migration),
+offer `expires_at` respected by acceptor, accepted `artifact_refs` flow correctly through
+`context.accepted`, self-originated broadcasts skipped by offerer, below-threshold results
+produce no offer, non-matching `responding_to` skipped by acceptor, and
+`buildOfferFromResults` → `formatPeerMemoryBlock` pipeline rendering. 10 positive audit
+findings, zero corrections, zero Phase 8 patches. **Block 9 complete (6/6).**
+
+Carry-forwards: Block 10 frozen decisions must be authored by the operator. `@publish`
+directive still deferred. Item F (workspace deploy script) still queued from Block 8.
 
 ---
 
 ## §N+1 — Progress tracker
 
 ```
-Steps closed:               49 / 49
+Steps closed:               50 / 50
 Current block:              Block 9 closed; Block 10 awaits frozen decisions
-Steps closed in block:      5 / 5 (Block 9)
-Consecutive zero-Phase-4-correction streak:  5 (Block 9; Steps 9.1–9.5 clean)
-Consecutive zero-Phase-8-patch streak:       25 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.5)
-Test baseline (npm test):   1014 tests (939 pass, 75 fail — 73 pre-existing + 2 flaky variance)
-Last successful tick:       2026-05-25 (Step 9.5)
-Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md
+Steps closed in block:      6 / 6 (Block 9)
+Consecutive zero-Phase-4-correction streak:  6 (Block 9; Steps 9.1–9.6 clean)
+Consecutive zero-Phase-8-patch streak:       26 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6)
+Test baseline (npm test):   1024 tests (949 pass, 75 fail — 73 pre-existing + 2 flaky variance)
+Last successful tick:       2026-05-25 (Step 9.6)
+Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md (updated for 9.6)
 ```
 
 ---
@@ -1289,6 +1352,6 @@ Last block file written:    memory-plan/audits/BLOCK_9_COMPLETE.md
 Block 9 is complete. The next scheduled tick should:
 
 1. Run pre-flight (Framework §8).
-2. Decode VERSION (`v9.5`, no suffix) → no `[A]` or `[ ]` rows remain in INVENTORY.
-3. All 49 steps are closed. If Block 10 frozen decisions exist in §0, start Block 10.
+2. Decode VERSION (`v9.6`, no suffix) → no `[A]` or `[ ]` rows remain in INVENTORY.
+3. All 50 steps are closed. If Block 10 frozen decisions exist in §0, start Block 10.
 4. If `### Block 10 frozen decisions` section is ABSENT → **write `BLOCKED.md`** with reason "Block 10 frozen decisions not authored" and exit. Do not exit cleanly without `BLOCKED.md`.

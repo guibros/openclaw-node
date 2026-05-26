@@ -9,6 +9,27 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v9.6 — 2026-05-25 — memory-plan-tick
+
+- **Phase 9** step close for Step 9.6: Cross-node integration test for broadcast → offer → accepted round-trip.
+- Final test count: 1024 (949 pass, 75 fail — 73 pre-existing + 2 flaky variance). +10 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step50_cross_node_integration_test/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+- **Block 9 complete (6/6).**
+
+### v9.6-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 9.6.
+- Files changed: `test/broadcast-cross-node.test.mjs` (new — two-node integration test with 8 describe blocks covering full round-trip, TTL expiry, privacy filtering, offer expiry, artifact ref flow, self-skip, below-threshold, non-matching responding_to, and offer building + formatting).
+- Test additions: see Phase 5.
+
+### v9.6-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 9.6.
+- Files planned: `test/broadcast-cross-node.test.mjs` (new).
+- Audit: `memory-plan/audits/step50_cross_node_integration_test/AUDIT_PRE.md`.
+- Test baseline: 1014 tests (939 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v9.5 — 2026-05-25 — memory-plan-tick
 
 - **Phase 9** step close for Step 9.5: Privacy markers (private: true) + default-private retrieval policy.
