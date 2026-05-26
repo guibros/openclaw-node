@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v10.7 — 2026-05-26 — memory-plan-tick
+
+- **Phase 9** step close for Step 10.7: Network resilience: peer-offline + reconnect + dead-peer detection + TTL cleanup.
+- Final test count: 1102 (1027 pass, 75 fail — 73 pre-existing + 2 flaky variance). +15 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step57_network_resilience/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v10.7-mid — 2026-05-26 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 10.7.
+- Files changed: `lib/federation-resilience.mjs` (new — peer tracker, TTL cleanup, NATS reconnect opts), `lib/broadcast-offerer.mjs` (modified — peer tracker integration, deadPeerLogged stat), `lib/broadcast-acceptor.mjs` (modified — peer tracker, periodic cleanup, dead-peer filtering in getTopOffer, import of cleanupExpiredOffers), `workspace-bin/memory-daemon.mjs` (modified — NATS reconnect opts + status event logging), `test/federation-resilience.test.mjs` (new — 14 `it()` blocks).
+- Test additions: 14 `it()` blocks in `test/federation-resilience.test.mjs`.
+
+### v10.7-pre — 2026-05-26 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 10.7.
+- Files planned: `lib/federation-resilience.mjs` (new — peer tracker, TTL cleanup, NATS reconnect opts), `lib/broadcast-offerer.mjs` (modify — peer tracking), `lib/broadcast-acceptor.mjs` (modify — periodic cleanup, dead-peer filtering), `workspace-bin/memory-daemon.mjs` (modify — NATS reconnect opts + status logging), `test/federation-resilience.test.mjs` (new — ~14 `it()` blocks).
+- Audit: `memory-plan/audits/step57_network_resilience/AUDIT_PRE.md`.
+- Test baseline: 1087 tests (1012 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v10.6 — 2026-05-26 — memory-plan-tick
 
 - **Phase 9** step close for Step 10.6: Three-node council test (`test/federation-3node.test.mjs`) — A broadcasts, B+C offer, A picks.

@@ -46,6 +46,7 @@ import { createLlmClient } from '../lib/llm-client.mjs';
 import { createExtractionStore } from '../lib/extraction-store.mjs';
 import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
+import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -1089,7 +1090,21 @@ async function main() {
   try {
     const { connect: natsConnect } = require('nats');
     const { natsConnectOpts } = require('../lib/nats-resolve');
-    natsConn = await natsConnect(natsConnectOpts({ name: 'memory-daemon', timeout: 5000 }));
+    natsConn = await natsConnect(natsConnectOpts({ name: 'memory-daemon', timeout: 5000, ...NATS_RECONNECT_OPTS }));
+
+    // Monitor NATS connection status events (reconnect, disconnect, etc.)
+    (async () => {
+      for await (const s of natsConn.status()) {
+        if (s.type === 'reconnect') {
+          log(`[nats] reconnected to ${s.data || 'server'}`);
+        } else if (s.type === 'disconnect') {
+          log(`[nats] disconnected — will auto-reconnect`);
+        } else if (s.type === 'error') {
+          log(`[nats] connection error: ${s.data}`);
+        }
+      }
+    })().catch(() => {}); // status iterator ends on close
+
     const sub = natsConn.subscribe('mesh.memory.compaction_completed');
     (async () => {
       for await (const msg of sub) {
@@ -1099,7 +1114,7 @@ async function main() {
         }
       }
     })().catch(() => {}); // subscription ends on drain/close
-    log(`NATS connected — subscribed to mesh.memory.compaction_completed`);
+    log(`NATS connected (reconnect: infinite, wait: ${NATS_RECONNECT_OPTS.reconnectTimeWait}ms) — subscribed to mesh.memory.compaction_completed`);
 
     // Initialize local event log for dual-write shadow mode
     try {

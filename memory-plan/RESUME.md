@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 10 in progress; Step 10.6 closed. 3 steps remain (v10.7–v10.9).
-**Current version carrier.** `v10.6` (Step 10.6 closed; Block 10: 6 of 9).
-**Streaks.** zero-Phase-4-correction: 12 (Block 9 all 6 + Steps 10.1–10.6 clean) · zero-Phase-8-patch: 32 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.6).
-**Last commit on plan branch.** `<pending>` v10.6 — Three-node council test (`test/federation-3node.test.mjs`) — A broadcasts, B+C offer, A picks.
+**Workplan status.** Block 10 in progress; Step 10.7 closed. 2 steps remain (v10.8–v10.9).
+**Current version carrier.** `v10.7` (Step 10.7 closed; Block 10: 7 of 9).
+**Streaks.** zero-Phase-4-correction: 13 (Block 9 all 6 + Steps 10.1–10.7 clean) · zero-Phase-8-patch: 33 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.7).
+**Last commit on plan branch.** `<pending>` v10.7 — Network resilience: peer-offline + reconnect + dead-peer detection + TTL cleanup.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
