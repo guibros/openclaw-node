@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v9.4 — 2026-05-25 — memory-plan-tick
+
+- **Phase 9** step close for Step 9.4: Implement acceptor + inject offers into agent prompt + emit context.accepted.
+- Final test count: 984 (909 pass, 75 fail — 73 pre-existing + 2 flaky variance). +28 `it()` blocks added this step.
+- Audit: `memory-plan/audits/step48_acceptor/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v9.4-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 9.4.
+- Files changed: `lib/broadcast-acceptor.mjs` (new — createAcceptor factory, parseArtifactRef, computeTokenOverlap, formatPeerMemoryBlock, auto-acceptance with context.accepted emission), `test/broadcast-acceptor.test.mjs` (new — tests).
+- Test additions: see Phase 5.
+
+### v9.4-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 9.4.
+- Files planned: `lib/broadcast-acceptor.mjs` (new), `test/broadcast-acceptor.test.mjs` (new).
+- Audit: `memory-plan/audits/step48_acceptor/AUDIT_PRE.md`.
+- Test baseline: 956 tests (881 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v9.3 — 2026-05-25 — memory-plan-tick
 
 - **Phase 9** step close for Step 9.3: Implement offerer (local retrieve → score → publish offer).

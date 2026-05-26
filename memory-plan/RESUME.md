@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 9 in progress; Step 9.3 closed at `v9.3`. Steps 9.4–9.5 remain.
-**Current version carrier.** `v9.3` (Step 9.3 closed; Block 9: 3 of 5).
-**Streaks.** zero-Phase-4-correction: 3 (Block 9; Steps 9.1–9.3 clean) · zero-Phase-8-patch: 19 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.3).
-**Last commit on plan branch.** `<pending>` v9.3 — Implement offerer (local retrieve → score → publish offer).
+**Workplan status.** Block 9 in progress; Step 9.4 closed at `v9.4`. Step 9.5 remains.
+**Current version carrier.** `v9.4` (Step 9.4 closed; Block 9: 4 of 5).
+**Streaks.** zero-Phase-4-correction: 4 (Block 9; Steps 9.1–9.4 clean) · zero-Phase-8-patch: 20 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.4).
+**Last commit on plan branch.** `<pending>` v9.4 — Implement acceptor + inject offers into agent prompt + emit context.accepted.
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
