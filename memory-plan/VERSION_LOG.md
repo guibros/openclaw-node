@@ -9,6 +9,26 @@ Each entry must answer: when, who, what files, why.
 
 ---
 
+### v10.2 — 2026-05-25 — memory-plan-tick
+
+- **Phase 9** step close for Step 10.2: NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`).
+- Final test count: 1037 (962 pass, 75 fail — 73 pre-existing + 2 flaky variance). No tests added this step (infrastructure-only).
+- Audit: `memory-plan/audits/step52_nats_cluster_setup/AUDIT_POST.md`.
+- 10 POSITIVE, 0 NEGATIVE findings. 0 Phase 8 patches.
+
+### v10.2-mid — 2026-05-25 — memory-plan-tick
+
+- **Phase 4** V1 implementation for Step 10.2.
+- Files changed: `services/nats/nats-{1,2,3}.conf` (new — NATS config files for 3-node cluster, ports 4222–4224 client, 6222–6224 cluster, 8222–8224 monitor, JetStream enabled), `services/nats/ai.openclaw.nats-{1,2,3}.plist` (new — launchd plists with KeepAlive), `docs/NATS_CLUSTER.md` (new — deployment documentation for local dev + multi-machine + Tailscale setups).
+- Test additions: none (infrastructure-only step, no code logic).
+
+### v10.2-pre — 2026-05-25 — memory-plan-tick
+
+- **Phase 1** audit-pre + version carrier bump for Step 10.2.
+- Files planned: `services/nats/nats-{1,2,3}.conf` (new), `services/nats/ai.openclaw.nats-{1,2,3}.plist` (new), `docs/NATS_CLUSTER.md` (new).
+- Audit: `memory-plan/audits/step52_nats_cluster_setup/AUDIT_PRE.md`.
+- Test baseline: 1037 tests (962 pass, 75 fail — 73 pre-existing + 2 flaky variance).
+
 ### v10.1 — 2026-05-25 — memory-plan-tick
 
 - **Phase 9** step close for Step 10.1: `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/`.

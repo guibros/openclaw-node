@@ -1,9 +1,9 @@
 # OpenClaw Memory Plan — Resume Doc
 
-**Workplan status.** Block 10 in progress; Step 10.1 closed. 8 steps remain (v10.2–v10.9).
-**Current version carrier.** `v10.1` (Step 10.1 closed; Block 10: 1 of 9).
-**Streaks.** zero-Phase-4-correction: 7 (Block 9 all 6 + Step 10.1 clean) · zero-Phase-8-patch: 27 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Step 10.1).
-**Last commit on plan branch.** `<pending>` v10.1 — `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/`.
+**Workplan status.** Block 10 in progress; Step 10.2 closed. 7 steps remain (v10.3–v10.9).
+**Current version carrier.** `v10.2` (Step 10.2 closed; Block 10: 2 of 9).
+**Streaks.** zero-Phase-4-correction: 8 (Block 9 all 6 + Steps 10.1–10.2 clean) · zero-Phase-8-patch: 28 (Block 5 all 5 + Block 6 all 4 + Block 7 all 4 + Block 8 both 2 + 1 from Block 4 + Steps 9.1–9.6 + Steps 10.1–10.2).
+**Last commit on plan branch.** `<pending>` v10.2 — NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`).
 **Last tag.** `pre-reboot-2026-05-25` — snapshot before Mac reboot to recover Ollama performance.
 
 A fresh worker reading only this file should be able to resume the workplan with no
@@ -1345,6 +1345,24 @@ Carry-forwards: `spawnNode` creates the directory tree but does NOT generate ide
 (Step 10.4) or start NATS (Step 10.2). `resolveNodeRoot` and `readNodeConfig` utilities
 available for Steps 10.5/10.6 integration tests. `@publish` directive still deferred. Item F
 (workspace deploy script) still queued.
+
+### Step 10.2 — NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`)
+
+Closed at v10.2. Created `services/nats/` directory with 3 NATS server config files
+(`nats-{1,2,3}.conf`) forming a full-mesh cluster on ports 4222–4224 (client), 6222–6224
+(cluster), 8222–8224 (monitor). Each config has a unique `server_name`, JetStream enabled
+with per-node data directory under `~/.openclaw/nats/jetstream-N/`, and 256MB mem / 1GB file
+limits. Three launchd plists (`ai.openclaw.nats-{1,2,3}.plist`) with `KeepAlive: true` for
+auto-restart and `RunAtLoad: false` for explicit operator control. Comprehensive
+`docs/NATS_CLUSTER.md` covering local dev (launchd with placeholder substitution), multi-machine
+(systemd + firewall rules), and Tailscale deployment paths with verification steps and
+troubleshooting. Infrastructure-only step — no code logic changes, no new tests. 10 positive
+audit findings, zero corrections, zero Phase 8 patches.
+
+Carry-forwards: NATS cluster configs have `${OPENCLAW_REPO}` and `${HOME}` placeholders
+requiring substitution before installation. Cluster must be running before Step 10.3 can verify
+R=3 propagation. `nats-server` confirmed at `/opt/homebrew/bin/nats-server`. JetStream data dirs
+must be created by operator. `@publish` directive still deferred. Item F still queued.
 
 ---
 

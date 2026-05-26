@@ -239,7 +239,9 @@ Real multi-node deployment, ed25519-signed events, 3-node council, dogfood harne
 | 10 | 10.1 | v10.1 | [x] | `bin/spawn-node.mjs` — create isolated openclaw node tree at `~/.openclaw-<nodeid>/` |
 
 > **Step 10.1 closed.** Created `bin/spawn-node.mjs` — CLI tool and library for spawning isolated openclaw node trees at `~/.openclaw-<nodeid>/`. Exports `spawnNode(opts)` (async, idempotent node creation with subdirs, config/node.json, WAL-mode state.db), `validateNodeId(id)` (lowercase alphanumeric + hyphens, 1-32 chars), `resolveNodeRoot(nodeId, opts)` (flexible path resolution), `readNodeConfig(nodeId, opts)` (JSON config readback). CLI accepts `--id`, `--port`, `--nats-url`, `--base-dir` flags. NODE_SUBDIRS matches production layout (workspace, config, obsidian-local with 5 subdirs, artifacts, logs, state). 13 new tests. 10 positive audit findings, zero corrections, zero Phase 8 patches.
-| 10 | 10.2 | v10.2 | [ ] | NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`) |
+| 10 | 10.2 | v10.2 | [x] | NATS cluster setup (`services/nats/` plists + `docs/NATS_CLUSTER.md`) |
+
+> **Step 10.2 closed.** Created `services/nats/` directory with 3 NATS server config files (`nats-{1,2,3}.conf`) forming a full-mesh cluster on ports 4222–4224 (client), 6222–6224 (cluster), 8222–8224 (monitor) with JetStream enabled and per-node data directories. Three launchd plists (`ai.openclaw.nats-{1,2,3}.plist`) with KeepAlive for auto-restart. Comprehensive `docs/NATS_CLUSTER.md` covering local dev (launchd), multi-machine (systemd), and Tailscale deployment paths with verification steps and troubleshooting. Infrastructure-only step, zero new tests, zero code logic changes. 10 positive audit findings, zero corrections, zero Phase 8 patches.
 | 10 | 10.3 | v10.3 | [ ] | Wire `ensureSharedStream` at memory-daemon startup; verify R=3 propagates |
 | 10 | 10.4 | v10.4 | [ ] | Node identity + ed25519 signing infrastructure (`lib/node-identity.mjs`); STRICT verification |
 | 10 | 10.5 | v10.5 | [ ] | Two-node integration test (`test/federation-2node.test.mjs`) — real NATS, real round-trip |
