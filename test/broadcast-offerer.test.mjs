@@ -1,3 +1,7 @@
+// F-N4/F-N51 fixture compatibility — see test/broadcast-acceptor.test.mjs header.
+// Unit tests of handler logic flip STRICT off; auth-boundary tests live separately.
+process.env.OPENCLAW_REQUIRE_SIGNED = '0';
+
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 

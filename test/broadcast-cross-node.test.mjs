@@ -14,6 +14,12 @@
  * Step 9.6 (operator-added beyond REFERENCE_PLAN).
  */
 
+// F-N4/F-N51 fixture compatibility — see test/broadcast-acceptor.test.mjs header.
+// This is a deterministic two-node integration with mock NATS and unsigned
+// fixtures. Tier-3 auth-boundary tests (federation-2node, federation-3node)
+// run with STRICT default ON and sign their fixtures.
+process.env.OPENCLAW_REQUIRE_SIGNED = '0';
+
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

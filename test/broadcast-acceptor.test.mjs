@@ -1,3 +1,11 @@
+// F-N4/F-N51 fixture compatibility: these unit tests exercise handler logic
+// (skip/accept/cleanup), not the auth boundary. With STRICT signing now
+// the production default, unsigned fixtures would all be rejected as
+// 'bad_signature' before reaching the handler under test. Per TESTING_PROTOCOL.md
+// §2 + Appendix A, flip OPENCLAW_REQUIRE_SIGNED=0 here. Tier-2 auth-boundary
+// tests live separately and run with the default ON.
+process.env.OPENCLAW_REQUIRE_SIGNED = '0';
+
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 

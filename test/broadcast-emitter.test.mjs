@@ -1,3 +1,9 @@
+// F-N4/F-N51 fixture compatibility — see test/broadcast-acceptor.test.mjs header.
+// Unit tests of emitter logic flip STRICT off because the broadcaster
+// instances here aren't given an identity option (they test rate-limiting,
+// dedup, intensity inference — not signing). Auth-boundary tests live separately.
+process.env.OPENCLAW_REQUIRE_SIGNED = '0';
+
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {

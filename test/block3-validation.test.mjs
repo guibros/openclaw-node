@@ -71,7 +71,9 @@ describe('readSessions', () => {
   });
 
   it('reads sessions ordered by most recent, respecting limit', () => {
-    const sessions = readSessions(dbPath, 2);
+    // readSessions default was changed to ORDER BY message_count DESC; pass
+    // {recent: true} to restore the start-time ordering this test asserts on.
+    const sessions = readSessions(dbPath, 2, { recent: true });
     assert.equal(sessions.length, 2);
     // Most recent first
     assert.equal(sessions[0].id, 'sess-3');
