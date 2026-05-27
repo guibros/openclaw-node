@@ -219,7 +219,11 @@ describe('wrapOpenAI with directives', () => {
     assert.equal(capturedOpts.tokenBudget, DEFAULT_TOKEN_BUDGET * 2);
   });
 
-  it('disables injection for session after @memory none', async () => {
+  it('regression_F-P301: @memory none is per-turn only, no cross-call state', async () => {
+    // F-P301 fix: previous behavior of "kill memory for the session" was a
+    // process-wide closure variable that leaked across users when the SDK
+    // client was shared. F-H21 specifies per-turn semantics. `none` is now
+    // equivalent to `off` (skip injection for THIS call only).
     const { wrapOpenAI } = await import('../lib/publishers/openai-wrapper.mjs');
     let retrieveCount = 0;
     const injector = {
@@ -228,25 +232,32 @@ describe('wrapOpenAI with directives', () => {
     const client = createMockClient();
     wrapOpenAI(client, createMockPublisher(), { injector });
 
-    // First call with @memory none
+    // First call with @memory none — skips injection
     await client.chat.completions.create({
       messages: [{ role: 'user', content: '@memory none' }],
     });
-    assert.equal(retrieveCount, 0);
+    assert.equal(retrieveCount, 0, 'first call (with @memory none) skips retrieve');
 
-    // Second call without any directive — should still be disabled
+    // Second call without any directive — should NOT remain disabled (per-turn semantics)
     await client.chat.completions.create({
       messages: [{ role: 'user', content: 'another question' }],
     });
-    assert.equal(retrieveCount, 0);
+    assert.equal(retrieveCount, 1,
+      'second call (no directive) MUST re-enable retrieve — @memory none is per-turn only');
   });
 
-  it('uses theme as retrieval query for @memory only:<theme>', async () => {
+  it('regression_F-P302: @memory only:X uses cleanedText as query + themeFilter', async () => {
+    // F-P302/F-N70 fix: previously the wrapper used the bare theme as the
+    // retrieval query (semantic search on a single token), divergent from
+    // the inject-server which uses cleanedText as query + themeFilter for
+    // post-retrieval filter. Now both paths produce identical injection.
     const { wrapOpenAI } = await import('../lib/publishers/openai-wrapper.mjs');
     let capturedQuery = null;
+    let capturedOpts = null;
     const injector = {
-      retrieve: async (query) => {
+      retrieve: async (query, opts) => {
         capturedQuery = query;
+        capturedOpts = opts;
         return { concepts: [], decisions: [], snippets: [] };
       },
     };
@@ -255,7 +266,10 @@ describe('wrapOpenAI with directives', () => {
     await client.chat.completions.create({
       messages: [{ role: 'user', content: '@memory only:federation help me' }],
     });
-    assert.equal(capturedQuery, 'federation');
+    assert.equal(capturedQuery, 'help me',
+      'query is the directive-stripped prompt, not the bare theme');
+    assert.equal(capturedOpts?.themeFilter, 'federation',
+      'theme passes through as a themeFilter option for post-retrieval filter');
   });
 
   it('strips directive from messages sent to LLM', async () => {
