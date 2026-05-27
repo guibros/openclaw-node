@@ -42,90 +42,111 @@ async function main() {
 
   log(`[daemon] starting node=${nodeId}, nats=${natsUrl}, dbDir=${dbDir}`);
 
-  // NATS
-  const { connect } = _require('nats');
-  const nc = await connect({ servers: natsUrl, reconnect: true, maxReconnectAttempts: -1 });
-  log(`[daemon] NATS connected`);
-
-  // Open the DBs that federation + subscriber need.
-  // Federation needs both extraction-store (concepts/decisions/themes) AND
-  // the knowledge DB (session_chunks for FTS / semantic retrieval).
-  const Database = _require('better-sqlite3');
-  const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || join(dbDir, 'knowledge.db');
-  const extractionDbPath = process.env.OPENCLAW_EXTRACTION_DB || join(dbDir, 'extraction.db');
-  const knowledgeDb = existsSync(knowledgeDbPath) ? new Database(knowledgeDbPath) : null;
-  const extractionDb = existsSync(extractionDbPath) ? new Database(extractionDbPath) : null;
-  if (!knowledgeDb || !extractionDb) {
-    log(`[daemon] WARNING: knowledge.db or extraction.db missing — federation will run in broadcast-only mode (no offerer/acceptor)`);
-  }
-
-  // Federation (F-N1/N2/N3). Strict mode by default; operator must trust
-  // peers via bin/openclaw-trust-peer before they're accepted.
-  const federation = await startFederation(nc, nodeId, {
-    extractionDb,
-    knowledgeDb,
-    log,
-  });
-
-  // Memory subscriber — consumes shared-stream events.
-  // F-P107/F-P113 fix: previously this had a logging-only onIngest that acked
-  // events into the void (the exact F-N107 evaporation pattern with a log
-  // line). Until Block 11 lands the shared-knowledge projection path, the
-  // safest behavior is to NOT subscribe at all so events accumulate in
-  // JetStream for the eventual real consumer (the durable consumer's
-  // deliver_policy:'new' bound matters here — once subscribed, only events
-  // from the join point forward are delivered).
-  //
-  // Operators that want the subscriber active right now (e.g. for testing
-  // shared-stream wiring) set OPENCLAW_SUBSCRIBER_PROJECTION=stub. The stub
-  // mode is explicit and noisy: every ingest logs at INFO so the operator
-  // sees that events are being CONSUMED but not projected.
+  // F-P102/F-P103 fix: cleanup-closure pattern + early signal handlers.
+  // Previously the SIGINT/SIGTERM handlers registered AFTER all startup
+  // awaits, so a signal arriving during startup left NATS subs, DBs, and
+  // timers leaked. And the outer .catch did process.exit(1) without any
+  // cleanup. Now: handlers register FIRST, and `cleanup` grows as resources
+  // are acquired. A signal at any point triggers full teardown of what
+  // exists so far.
+  let nc = null;
+  let knowledgeDb = null;
+  let extractionDb = null;
+  let federation = null;
   let subscriber = null;
-  const subscriberMode = process.env.OPENCLAW_SUBSCRIBER_PROJECTION;
-  if (subscriberMode === 'stub') {
-    const { createSubscriber } = await import('./memory-subscriber.mjs');
-    subscriber = await createSubscriber(nc, nodeId, {
-      onIngest: (event, parsed) => {
-        log(`[daemon] SUBSCRIBER-STUB acked-without-projection ${parsed.category} ${event.event_id}`);
-      },
-      onSkip: (_event, result) => {
-        if (result.reason !== 'deferred_to_block_9') {
-          log(`[daemon] subscriber skipped (${result.reason})`);
-        }
-      },
-      onError: (ctx, err) => log(`[daemon] subscriber error in ${ctx}: ${err.message}`),
-    });
-    log(`[daemon] subscriber started in STUB mode — events will be ACKED WITHOUT PROJECTION`);
-  } else {
-    log(`[daemon] subscriber DISABLED (Block 11 projection not yet implemented). ` +
-        `Events accumulate in JetStream until a real projection is wired. ` +
-        `Set OPENCLAW_SUBSCRIBER_PROJECTION=stub to ack-without-project for testing.`);
-  }
+  let scheduler = null;
+  let shuttingDown = false;
 
-  // Consolidation scheduler — periodic memory consolidation cycle with hard-cap.
-  // F-N100: signal propagates through runConsolidationCycle to each step.
-  const { createConsolidationScheduler } = await import('./consolidation-scheduler.mjs');
-  const scheduler = createConsolidationScheduler({
-    dbPath: extractionDbPath,
-    log,
-  });
-  if (extractionDb) {
-    scheduler.start();
-    log(`[daemon] consolidation scheduler started`);
-  }
-
-  // Graceful shutdown
-  const shutdown = async (sig) => {
-    log(`[daemon] received ${sig} — shutting down...`);
-    try { scheduler.stop?.(); } catch {}
-    try { if (subscriber) await subscriber.stop(); } catch {}
-    try { await federation.stop(); } catch {}
-    try { await nc.drain(); } catch {}
+  const cleanup = async (sig) => {
+    if (shuttingDown) {
+      // Re-entry guard: a second SIGTERM during shutdown is a no-op.
+      log(`[daemon] ${sig || 'cleanup'} ignored: already shutting down`);
+      return;
+    }
+    shuttingDown = true;
+    if (sig) log(`[daemon] received ${sig} — shutting down...`);
+    try { scheduler?.stop?.(); } catch (e) { log(`[daemon] scheduler.stop error: ${e.message}`); }
+    try { if (subscriber) await subscriber.stop(); } catch (e) { log(`[daemon] subscriber.stop error: ${e.message}`); }
+    try { if (federation) await federation.stop(); } catch (e) { log(`[daemon] federation.stop error: ${e.message}`); }
+    try { if (nc) await nc.drain(); } catch (e) { log(`[daemon] nc.drain error: ${e.message}`); }
+    try { knowledgeDb?.close(); } catch { /* ignore */ }
+    try { extractionDb?.close(); } catch { /* ignore */ }
     log(`[daemon] stopped`);
-    process.exit(0);
   };
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+  // Register signal handlers BEFORE any await. SIGTERM during startup
+  // now runs cleanup against whatever has been built so far.
+  process.on('SIGINT',  () => { cleanup('SIGINT').then(() => process.exit(0)).catch(() => process.exit(1)); });
+  process.on('SIGTERM', () => { cleanup('SIGTERM').then(() => process.exit(0)).catch(() => process.exit(1)); });
+
+  try {
+    // NATS
+    const { connect } = _require('nats');
+    nc = await connect({ servers: natsUrl, reconnect: true, maxReconnectAttempts: -1 });
+    log(`[daemon] NATS connected`);
+
+    // Open the DBs that federation + subscriber need.
+    // Federation needs both extraction-store (concepts/decisions/themes) AND
+    // the knowledge DB (session_chunks for FTS / semantic retrieval).
+    const Database = _require('better-sqlite3');
+    const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || join(dbDir, 'knowledge.db');
+    const extractionDbPath = process.env.OPENCLAW_EXTRACTION_DB || join(dbDir, 'extraction.db');
+    knowledgeDb = existsSync(knowledgeDbPath) ? new Database(knowledgeDbPath) : null;
+    extractionDb = existsSync(extractionDbPath) ? new Database(extractionDbPath) : null;
+    if (!knowledgeDb || !extractionDb) {
+      log(`[daemon] WARNING: knowledge.db or extraction.db missing — federation will run in broadcast-only mode (no offerer/acceptor)`);
+    }
+
+    // Federation (F-N1/N2/N3). Strict mode by default; operator must trust
+    // peers via bin/openclaw-trust-peer before they're accepted.
+    federation = await startFederation(nc, nodeId, {
+      extractionDb,
+      knowledgeDb,
+      log,
+    });
+
+    // Memory subscriber — consumes shared-stream events.
+    // F-P107/F-P113 fix: subscriber DISABLED by default until Block 11
+    // projection lands. See header comment for the reasoning.
+    const subscriberMode = process.env.OPENCLAW_SUBSCRIBER_PROJECTION;
+    if (subscriberMode === 'stub') {
+      const { createSubscriber } = await import('./memory-subscriber.mjs');
+      subscriber = await createSubscriber(nc, nodeId, {
+        onIngest: (event, parsed) => {
+          log(`[daemon] SUBSCRIBER-STUB acked-without-projection ${parsed.category} ${event.event_id}`);
+        },
+        onSkip: (_event, result) => {
+          if (result.reason !== 'deferred_to_block_9') {
+            log(`[daemon] subscriber skipped (${result.reason})`);
+          }
+        },
+        onError: (ctx, err) => log(`[daemon] subscriber error in ${ctx}: ${err.message}`),
+      });
+      log(`[daemon] subscriber started in STUB mode — events will be ACKED WITHOUT PROJECTION`);
+    } else {
+      log(`[daemon] subscriber DISABLED (Block 11 projection not yet implemented). ` +
+          `Events accumulate in JetStream until a real projection is wired. ` +
+          `Set OPENCLAW_SUBSCRIBER_PROJECTION=stub to ack-without-project for testing.`);
+    }
+
+    // Consolidation scheduler — periodic memory consolidation cycle with hard-cap.
+    // F-N100: signal propagates through runConsolidationCycle to each step.
+    const { createConsolidationScheduler } = await import('./consolidation-scheduler.mjs');
+    scheduler = createConsolidationScheduler({
+      dbPath: extractionDbPath,
+      log,
+    });
+    if (extractionDb) {
+      scheduler.start();
+      log(`[daemon] consolidation scheduler started`);
+    }
+
+    log(`[daemon] startup complete`);
+  } catch (err) {
+    log(`[daemon] startup failed: ${err?.message || err}`);
+    await cleanup();  // F-P102: run cleanup against whatever was built
+    throw err;
+  }
 }
 
 const isMain =
