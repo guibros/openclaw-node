@@ -168,21 +168,31 @@ describe('node-identity', () => {
       assert.equal(verifyEvent(signed), false, 'tampered event should fail verification');
     });
 
-    it('returns true for an unsigned event (backward compatibility)', () => {
+    it('regression_F-P408: rejects unsigned event by default (was the F-N13 bug)', () => {
       const event = makeEvent();
       // No signature or signer_pubkey fields
-
-      assert.equal(verifyEvent(event), true, 'unsigned event should be allowed (backward compat)');
+      // F-P408 fix: legacy 1-arg shape now follows OPENCLAW_REQUIRE_SIGNED
+      // (default '1' = true). Previously this returned true unconditionally,
+      // which silently trusted unsigned data for any caller using the
+      // natural `if (verifyEvent(evt))` API.
+      assert.equal(verifyEvent(event), false,
+        'unsigned event must be rejected when REQUIRE_SIGNED is on (now the default)');
     });
 
-    it('returns false when signature is present but signer_pubkey is missing', () => {
+    it('regression_F-P408: explicit opt-out for tests that exercise pre-sig handler logic', () => {
+      const event = makeEvent();
+      const result = verifyEvent(event, { requireSigned: false });
+      assert.equal(result?.ok, true,
+        'callers can still opt out via {requireSigned: false} for handler-only tests');
+    });
+
+    it('regression_F-P408: missing signer_pubkey is treated as missing-signature', () => {
       const identity = getOrCreateIdentity(tmpDir);
       const event = makeEvent();
       const signed = signEvent(event, identity.privateKey);
-
       delete signed.signer_pubkey;
-
-      assert.equal(verifyEvent(signed), true, 'missing signer_pubkey with signature should pass (no pubkey to verify against)');
+      assert.equal(verifyEvent(signed), false,
+        'sig without pubkey is unverifiable — must reject under default-strict');
     });
 
     it('returns false when signed with a different key', () => {
