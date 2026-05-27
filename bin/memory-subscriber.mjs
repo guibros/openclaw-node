@@ -114,14 +114,28 @@ export function evaluateIngestionPolicy(event, nodeId, parsed) {
  *
  * @param {object} nc - NATS connection
  * @param {string} nodeId - Node identifier
- * @param {object} [opts]
+ * @param {object} opts
+ * @param {function} opts.onIngest - REQUIRED. Callback(event, parsed, provenance)
+ *   invoked for every accepted event. Without this, accepted events are acked
+ *   from JetStream's redelivery queue with no projection — events evaporate.
+ *   F-N107 fix: was optional, which made an entire class of "subscriber wired
+ *   but no consumer" bugs silent. Throw early so the misconfiguration is
+ *   visible at startup.
  * @param {object} [opts.backoffOpts] - Backoff controller options
- * @param {function} [opts.onIngest] - Callback(event, parsed, provenance) on accepted event
  * @param {function} [opts.onSkip] - Callback(event, result) on skipped event
  * @param {function} [opts.onError] - Callback(context, err) on errors
  * @returns {Promise<{ stop: function, backoff: object, stats: object }>}
  */
 export async function createSubscriber(nc, nodeId, opts = {}) {
+  // F-N107: fail fast on missing onIngest. Caller must provide a projection
+  // handler — otherwise messages get permanently acked into the void.
+  if (typeof opts.onIngest !== 'function') {
+    throw new Error(
+      'createSubscriber: opts.onIngest is required. ' +
+      'Without it, accepted events are acked from JetStream with no projection. ' +
+      'See F-N107.'
+    );
+  }
   const { StringCodec } = _require('nats');
   const sc = StringCodec();
 
@@ -192,7 +206,8 @@ export async function createSubscriber(nc, nodeId, opts = {}) {
         };
 
         try {
-          if (opts.onIngest) opts.onIngest(event, parsed, provenance);
+          // F-N107: opts.onIngest is validated as required at factory init.
+          opts.onIngest(event, parsed, provenance);
           backoff.reset();
           stats.ingested++;
         } catch (err) {

@@ -187,13 +187,32 @@ export async function runExtraction(opts = {}) {
         completedSet.add(session.id);
         checkpoint.completed.push(session.id);
       } catch (err) {
-        process.stderr.write(
-          `[extract-backfill] WARN: session ${session.id} failed: ${err.message}\n`
-        );
-        failed++;
+        // F-N106 fix: distinguish transient from permanent failures. Old code
+        // pushed every error into checkpoint.failed → permanent skip on next
+        // run. Queue-full (F-C7 pressure), DB-locked, Ollama-busy, and
+        // network blips are all transient — they should retry next run.
+        // Only schema/parse failures + structural data errors are permanent.
+        const msg = err?.message || '';
+        const isTransient =
+          /queue full|queue is shutting down|SQLITE_BUSY|EAGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|fetch failed/i.test(msg) ||
+          err?.name === 'AbortError' ||
+          err?.code === 'ETIMEDOUT';
 
-        failedSet.add(session.id);
-        checkpoint.failed.push(session.id);
+        if (isTransient) {
+          process.stderr.write(
+            `[extract-backfill] TRANSIENT: session ${session.id} skipped (will retry next run): ${msg}\n`
+          );
+          // Do NOT add to failedSet — leave the session unmarked so the
+          // next run picks it up. Count as failed for this run's progress.
+          failed++;
+        } else {
+          process.stderr.write(
+            `[extract-backfill] PERMANENT: session ${session.id} failed: ${msg}\n`
+          );
+          failed++;
+          failedSet.add(session.id);
+          checkpoint.failed.push(session.id);
+        }
       }
 
       saveCheckpoint(checkpointPath, checkpoint);
