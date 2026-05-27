@@ -52,9 +52,11 @@ async function main() {
   let nc = null;
   let knowledgeDb = null;
   let extractionDb = null;
+  let graphCache = null;            // STUB_AUDIT fix: Channel 5 now wired
   let federation = null;
   let subscriber = null;
   let scheduler = null;
+  let extractionTrigger = null;     // STUB_AUDIT fix: real-time extraction now wired
   let shuttingDown = false;
 
   const cleanup = async (sig) => {
@@ -65,9 +67,11 @@ async function main() {
     }
     shuttingDown = true;
     if (sig) log(`[daemon] received ${sig} — shutting down...`);
+    try { extractionTrigger?.stop?.(); } catch (e) { log(`[daemon] extractionTrigger.stop error: ${e.message}`); }
     try { scheduler?.stop?.(); } catch (e) { log(`[daemon] scheduler.stop error: ${e.message}`); }
     try { if (subscriber) await subscriber.stop(); } catch (e) { log(`[daemon] subscriber.stop error: ${e.message}`); }
     try { if (federation) await federation.stop(); } catch (e) { log(`[daemon] federation.stop error: ${e.message}`); }
+    try { graphCache?.close?.(); } catch { /* ignore */ }
     try { if (nc) await nc.drain(); } catch (e) { log(`[daemon] nc.drain error: ${e.message}`); }
     try { knowledgeDb?.close(); } catch { /* ignore */ }
     try { extractionDb?.close(); } catch { /* ignore */ }
@@ -97,11 +101,34 @@ async function main() {
       log(`[daemon] WARNING: knowledge.db or extraction.db missing — federation will run in broadcast-only mode (no offerer/acceptor)`);
     }
 
+    // STUB_AUDIT fix: Channel 5 (spreading activation) was inert in the
+    // daemon because we didn't construct a graphCache to pass through to
+    // federation-startup → retrieval pipeline. Now constructed and threaded.
+    // The cache reads the Obsidian vault and persists to ~/.openclaw/graph-cache.db.
+    // If the vault doesn't exist (no notes yet), createGraphCache still works —
+    // queryNeighbors returns empty edges, Channel 5 just contributes nothing.
+    try {
+      const { createGraphCache } = await import('./obsidian-graph-cache.mjs');
+      graphCache = createGraphCache();
+      // Build the initial cache so the first retrieval has data. Async; the
+      // watcher (if started) will keep it in sync as the vault changes.
+      if (graphCache.refreshCache) {
+        await graphCache.refreshCache().catch(err =>
+          log(`[daemon] graphCache initial refresh failed (non-fatal): ${err.message}`));
+      }
+      if (graphCache.startWatcher) graphCache.startWatcher();
+      log(`[daemon] graph cache constructed (Channel 5 active)`);
+    } catch (err) {
+      log(`[daemon] graphCache unavailable (${err.message}) — Channel 5 will be inert`);
+      graphCache = null;
+    }
+
     // Federation (F-N1/N2/N3). Strict mode by default; operator must trust
     // peers via bin/openclaw-trust-peer before they're accepted.
     federation = await startFederation(nc, nodeId, {
       extractionDb,
       knowledgeDb,
+      graphCache,
       log,
     });
 
@@ -127,6 +154,69 @@ async function main() {
       log(`[daemon] subscriber DISABLED (Block 11 projection not yet implemented). ` +
           `Events accumulate in JetStream until a real projection is wired. ` +
           `Set OPENCLAW_SUBSCRIBER_PROJECTION=stub to ack-without-project for testing.`);
+    }
+
+    // STUB_AUDIT fix: real-time extraction trigger. Previously the
+    // PreCompact hooks fired `mesh.memory.extract_request` events that
+    // had no subscriber — entire real-time extraction flow was dead.
+    // Now the daemon subscribes, finds the active session's JSONL, and
+    // calls runFlush. The idle-timer fallback also runs (publishing a
+    // self-extraction every 45 min if nothing else has fired).
+    try {
+      const { createExtractionTrigger } = await import('../lib/extraction-trigger.mjs');
+      const { runFlush } = await import('../lib/pre-compression-flush.mjs');
+      const { createExtractionStore } = await import('../lib/extraction-store.mjs');
+      const { createLlmClient } = await import('../lib/llm-client.mjs');
+
+      // Resolve runtime deps for the extract handler. extractionDb opened
+      // above; we need an extraction-store interface (the writer side) and
+      // an LLM client (for structured extraction).
+      const extractionStore = extractionDb ? createExtractionStore({ db: extractionDb }) : null;
+      let llmClient = null;
+      try { llmClient = createLlmClient(); }
+      catch (e) { log(`[daemon] LLM client unavailable: ${e.message}`); }
+
+      // Find the active session's JSONL — same convention as heartbeat-detect:
+      // scan ~/.openclaw/agents/main/sessions/ for the newest .jsonl.
+      const findActiveTranscript = () => {
+        const sessionsDir = join(homedir(), '.openclaw/agents/main/sessions');
+        if (!existsSync(sessionsDir)) return null;
+        const { readdirSync, statSync } = _require('fs');
+        try {
+          const files = readdirSync(sessionsDir).filter(f => f.endsWith('.jsonl'));
+          if (!files.length) return null;
+          const newest = files
+            .map(f => ({ f, mtime: statSync(join(sessionsDir, f)).mtimeMs }))
+            .sort((a, b) => b.mtime - a.mtime)[0];
+          return join(sessionsDir, newest.f);
+        } catch { return null; }
+      };
+
+      extractionTrigger = createExtractionTrigger(nc, nodeId, {
+        onExtract: async (payload) => {
+          const jsonlPath = findActiveTranscript();
+          if (!jsonlPath) {
+            log(`[daemon] extract requested by ${payload.triggered_by} but no active transcript found — skipping`);
+            return;
+          }
+          const memoryMdPath = jsonlPath.replace(/\.jsonl$/, '.memory.md');
+          log(`[daemon] running flush for ${jsonlPath} (triggered_by=${payload.triggered_by})`);
+          try {
+            const result = await runFlush(jsonlPath, memoryMdPath, {
+              llmClient,
+              extractionStore,
+            });
+            log(`[daemon] flush complete: mode=${result.mode}, facts=${result.facts}, added=${result.added}, merged=${result.merged}`);
+          } catch (err) {
+            log(`[daemon] flush failed: ${err.message}`);
+          }
+        },
+      });
+      await extractionTrigger.start();
+      log(`[daemon] extraction trigger active on ${join('mesh.memory.extract_request')}`);
+    } catch (err) {
+      log(`[daemon] extraction trigger startup failed (non-fatal): ${err.message}`);
+      extractionTrigger = null;
     }
 
     // Consolidation scheduler — periodic memory consolidation cycle with hard-cap.
