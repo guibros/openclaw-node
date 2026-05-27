@@ -200,8 +200,22 @@ export function createConsolidationScheduler(opts = {}) {
   const intervalMs = opts.intervalMs ?? DEFAULT_INTERVAL_MS;
   const log = opts.log || console.log;
   let timer = null;
+  // F-P215 fix: track the in-flight cycle so overlapping intervals can't
+  // stack. Previously `setInterval` would fire a new cycle every 30 min
+  // regardless of whether the previous one had finished. With F-N100's
+  // cooperative hard-cap (SQLite steps run to completion), a cycle that
+  // overruns can still be alive when the next interval fires → two
+  // runCycle calls touch the same SQLite handle concurrently. Skip the
+  // new interval if `currentRun` is non-null.
+  let currentRun = null;
 
   async function runOnce() {
+    // F-P215 stack guard
+    if (currentRun) {
+      log(`[consolidation-scheduler] skipping: previous cycle still running`);
+      return { skipped: true, reason: 'previous_cycle_running' };
+    }
+
     const idleCheck = await isSystemIdle({
       getStateFn: opts.getStateFn,
       ollamaBaseUrl: opts.ollamaBaseUrl,
@@ -213,11 +227,17 @@ export function createConsolidationScheduler(opts = {}) {
     }
 
     log('[consolidation-scheduler] system idle — starting consolidation cycle');
-    const result = await runScheduledCycle({
+    currentRun = runScheduledCycle({
       dbPath: opts.dbPath,
       vaultPath: opts.vaultPath,
       hardCapMs: opts.hardCapMs,
     });
+    let result;
+    try {
+      result = await currentRun;
+    } finally {
+      currentRun = null;
+    }
 
     if (result.ok) {
       log(`[consolidation-scheduler] cycle complete (${result.durationMs}ms)`);

@@ -108,6 +108,14 @@ export async function runConsolidationCycle(opts = {}) {
         signal,
         maxConcepts: opts.maxConcepts,
       });
+      // F-P208 fix: regenerateSummaries' per-concept loop checks the signal
+      // and returns { aborted: true } when interrupted mid-loop. Before this
+      // fix, the cycle continued running detectContradictions and
+      // evaluatePromotionCandidates after a mid-summary abort, and reported
+      // `aborted: false` to the caller — masking the partial state.
+      if (summaryResult?.aborted) {
+        abortInfo = { aborted: true, abortedAt: 'summaries-midloop' };
+      }
     }
 
     // 6. Detect contradictions

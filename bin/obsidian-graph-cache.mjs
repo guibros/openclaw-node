@@ -38,6 +38,13 @@ function initDb(db) {
   // F-M20 fix: enable WAL so concurrent processes (daemon + --refresh CLI)
   // don't block each other.
   db.pragma('journal_mode = WAL');
+  // F-P206 fix (F-N158 partial): without busy_timeout, a concurrent reader
+  // (inject-server keeps its own handle) can cause the rebuild txn to throw
+  // SQLITE_BUSY immediately. The startWatcher catch swallows that, but
+  // until the next interval the cache reflects pre-failure state — the
+  // same silent-disable failure mode F-N158 set out to fix. 5s matches
+  // the rest of the codebase's busy_timeout convention.
+  db.pragma('busy_timeout = 5000');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS concept_graph_nodes (
