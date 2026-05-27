@@ -315,19 +315,39 @@ describe('filterPrivateResults', () => {
     assert.equal(filtered.length, 0, 'all sessions with private-only entities are filtered');
   });
 
-  it('keeps sessions with at least one public entity', () => {
-    // Publish one entity in session-1
+  it('regression_F-N51: drops chunk when ANY private entity at that turn', () => {
+    // Publish one entity in session-1 (NATS). OpenClaw remains private.
+    // Old session-grain code would keep session-1 because it has one public
+    // entity. New chunk-grain code: a turn that mentions OpenClaw (private)
+    // is dropped, even if NATS (public) is mentioned at a different turn.
     const entity = store.db.prepare('SELECT id FROM entities WHERE name = ?').get('NATS');
     store.publishItem(entity.id, 'entity');
 
+    // Without turn_index in the test fixture, the filter falls back to
+    // session-grain. seedStore writes both NATS (now public) and OpenClaw
+    // (still private) without explicit turn_index, so they collapse onto
+    // turn_index = -1 in mentions. That turn has BOTH public and private
+    // mentions → private rule wins (fail-safe).
     const results = [
       { chunk_id: 1, session_id: 'session-1', score: 0.9, snippet: 'test' },
       { chunk_id: 2, session_id: 'session-2', score: 0.8, snippet: 'test2' },
     ];
-
     const filtered = filterPrivateResults(results, store.db);
-    assert.equal(filtered.length, 1, 'session with public entity kept');
-    assert.equal(filtered[0].session_id, 'session-1');
+    assert.equal(filtered.length, 0,
+      'session-1 dropped because OpenClaw (private) is at the same turn as NATS (public); session-2 dropped because Ollama is private');
+  });
+
+  it('regression_F-N51: keeps chunk when only public entities at that turn', () => {
+    // Publish ALL entities in session-1.
+    for (const name of ['NATS', 'OpenClaw']) {
+      const e = store.db.prepare('SELECT id FROM entities WHERE name = ?').get(name);
+      store.publishItem(e.id, 'entity');
+    }
+    const results = [
+      { chunk_id: 1, session_id: 'session-1', score: 0.9, snippet: 'all public' },
+    ];
+    const filtered = filterPrivateResults(results, store.db);
+    assert.equal(filtered.length, 1, 'turn with only public entities is kept');
   });
 
   it('keeps sessions with no entity mentions at all', () => {
@@ -339,10 +359,12 @@ describe('filterPrivateResults', () => {
     assert.equal(filtered.length, 1, 'session with no mentions is kept');
   });
 
-  it('returns all results when extractionDb is null', () => {
+  it('regression_F-N51: fails CLOSED when extractionDb is null', () => {
     const results = [{ chunk_id: 1, session_id: 's1', score: 0.5, snippet: 'x' }];
     const filtered = filterPrivateResults(results, null);
-    assert.equal(filtered.length, 1);
+    // OLD behavior: returned `results` unfiltered (fail-OPEN). NEW: refuses.
+    assert.equal(filtered.length, 0,
+      'no db means we cannot verify privacy — must refuse rather than leak');
   });
 
   it('returns empty array for empty results', () => {

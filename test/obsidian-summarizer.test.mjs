@@ -142,6 +142,9 @@ describe('queryConceptData + generateConceptNotes integration', () => {
   function seedDb() {
     const db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
+    // Schema includes the `private` column (F-C15 migration) — entities/decisions/themes
+    // are default-private; the seed rows below publish via private=0 so they
+    // surface in queryConceptData under F-N102's privacy filter.
     db.exec(`
       CREATE TABLE entities (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,6 +155,7 @@ describe('queryConceptData + generateConceptNotes integration', () => {
         last_seen TEXT NOT NULL,
         mention_count INTEGER NOT NULL DEFAULT 1,
         embedding BLOB,
+        private INTEGER DEFAULT 1,
         source_type TEXT DEFAULT 'local',
         source_node TEXT,
         source_event_id TEXT
@@ -164,6 +168,7 @@ describe('queryConceptData + generateConceptNotes integration', () => {
         first_seen TEXT NOT NULL,
         last_seen TEXT NOT NULL,
         mention_count INTEGER NOT NULL DEFAULT 1,
+        private INTEGER DEFAULT 1,
         source_type TEXT DEFAULT 'local',
         source_node TEXT,
         source_event_id TEXT
@@ -186,6 +191,7 @@ describe('queryConceptData + generateConceptNotes integration', () => {
         rationale TEXT NOT NULL,
         confidence REAL NOT NULL DEFAULT 0.5,
         created_at TEXT NOT NULL,
+        private INTEGER DEFAULT 1,
         source_type TEXT DEFAULT 'local',
         source_node TEXT,
         source_event_id TEXT
@@ -220,6 +226,13 @@ describe('queryConceptData + generateConceptNotes integration', () => {
     db.prepare(`INSERT INTO decisions (session_id, decision, rationale, confidence, created_at) VALUES (?, ?, ?, ?, ?)`).run(
       'session-001', 'Use NATS over RabbitMQ', 'Simpler ops model', 0.95, '2026-05-10'
     );
+
+    // F-N102: queryConceptData filters private entities + decisions by default.
+    // The test exercises a successful-vault-generation path, so publish all
+    // seeded rows. (A separate test below asserts that private rows ARE
+    // filtered.)
+    db.exec(`UPDATE entities  SET private = 0`);
+    db.exec(`UPDATE decisions SET private = 0`);
 
     return db;
   }
@@ -292,6 +305,52 @@ describe('queryConceptData + generateConceptNotes integration', () => {
 
       assert.equal(result.generated, 0);
       assert.deepEqual(result.notes, []);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('regression_F-N102: private entities are excluded from the vault', async () => {
+    const db = seedDb();
+    // Re-flip NATS JetStream back to private. Spreading Activation stays public.
+    db.exec(`UPDATE entities SET private = 1 WHERE name = 'NATS JetStream'`);
+    // Also private-ify the decision so it doesn't slip through coMentioned wikilinks.
+    db.exec(`UPDATE decisions SET private = 1`);
+    const vaultPath = join(tmpDir, 'vault-privacy');
+
+    try {
+      const result = await generateConceptNotes({ db, vaultPath, threshold: 5, client: null });
+
+      // Only Spreading Activation should land in the vault.
+      assert.equal(result.generated, 1, 'private entity must not become a vault note');
+      assert.ok(result.notes.includes('spreading-activation.md'));
+      assert.ok(!result.notes.includes('nats-jetstream.md'),
+        'NATS is private — must NOT appear in vault');
+
+      // The remaining public note should not wikilink to the private NATS entity.
+      const spreadingContent = await readFile(
+        join(vaultPath, 'concepts', 'spreading-activation.md'), 'utf-8');
+      assert.ok(!spreadingContent.includes('[[NATS JetStream]]'),
+        'public note must not wikilink to a private entity');
+      assert.ok(!spreadingContent.includes('Use NATS over RabbitMQ'),
+        'private decision text must not leak into public note body');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('regression_F-N102: respectPrivacy:false opts out (for local-only debug vault)', async () => {
+    const db = seedDb();
+    // Mark NATS private again — but pass respectPrivacy: false.
+    db.exec(`UPDATE entities SET private = 1 WHERE name = 'NATS JetStream'`);
+    const vaultPath = join(tmpDir, 'vault-optout');
+
+    try {
+      const result = await generateConceptNotes({
+        db, vaultPath, threshold: 5, client: null, respectPrivacy: false,
+      });
+      assert.equal(result.generated, 2,
+        'respectPrivacy:false surfaces private entities for local-only audit use');
     } finally {
       db.close();
     }

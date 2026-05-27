@@ -17,6 +17,9 @@ import {
 
 function createTestDb() {
   const db = new Database(':memory:');
+  // Schema matches the F-C15 privacy migration: entities/decisions/themes
+  // have a `private` column defaulting to 1. seedConceptData publishes
+  // (private=0) so the test fixtures surface under F-N102's filter.
   db.exec(`
     CREATE TABLE entities (
       id INTEGER PRIMARY KEY,
@@ -25,6 +28,7 @@ function createTestDb() {
       first_seen TEXT,
       last_seen TEXT,
       mention_count INTEGER DEFAULT 0,
+      private INTEGER DEFAULT 1,
       source_type TEXT DEFAULT 'local',
       source_node TEXT,
       source_event_id TEXT
@@ -46,6 +50,7 @@ function createTestDb() {
       session_id TEXT NOT NULL,
       confidence REAL DEFAULT 0.5,
       created_at TEXT DEFAULT '2026-01-01T00:00:00Z',
+      private INTEGER DEFAULT 1,
       source_type TEXT DEFAULT 'local',
       source_node TEXT,
       source_event_id TEXT
@@ -54,6 +59,7 @@ function createTestDb() {
       id INTEGER PRIMARY KEY,
       label TEXT NOT NULL,
       session_id TEXT,
+      private INTEGER DEFAULT 1,
       source_type TEXT DEFAULT 'local',
       source_node TEXT,
       source_event_id TEXT
@@ -63,9 +69,10 @@ function createTestDb() {
 }
 
 function seedConceptData(db, name, mentionCount, type = 'concept') {
+  // F-N102: published (private=0) so the seed surfaces under the vault filter.
   const entityId = db.prepare(`
-    INSERT INTO entities (name, type, first_seen, last_seen, mention_count)
-    VALUES (?, ?, '2026-01-01T00:00:00Z', '2026-05-22T00:00:00Z', ?)
+    INSERT INTO entities (name, type, first_seen, last_seen, mention_count, private)
+    VALUES (?, ?, '2026-01-01T00:00:00Z', '2026-05-22T00:00:00Z', ?, 0)
   `).run(name, type, mentionCount).lastInsertRowid;
 
   // Add mentions
