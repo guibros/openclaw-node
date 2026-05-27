@@ -191,31 +191,66 @@ export async function runExtraction(opts = {}) {
         completedSet.add(session.id);
         checkpoint.completed.push(session.id);
       } catch (err) {
-        // F-N106 fix: distinguish transient from permanent failures. Old code
-        // pushed every error into checkpoint.failed → permanent skip on next
-        // run. Queue-full (F-C7 pressure), DB-locked, Ollama-busy, and
-        // network blips are all transient — they should retry next run.
-        // Only schema/parse failures + structural data errors are permanent.
+        // F-N106 / F-Q303 / F-Q304 fix: classify transient vs permanent
+        // failures. Old transient regex matched "fetch failed" anywhere in
+        // the message — including inside HTTP 500 body slices from Ollama
+        // when the runner watchdog hits (permanent for that input — same
+        // size will repeat the failure next run). Now: structured signals
+        // only, and `LLM server returned 5xx:` is permanent regardless of
+        // body content. Per-session attempt counter caps even legitimate
+        // transient failures so a sticky-permanent doesn't infinite-loop.
         const msg = err?.message || '';
-        const isTransient =
-          /queue full|queue is shutting down|SQLITE_BUSY|EAGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|fetch failed/i.test(msg) ||
-          err?.name === 'AbortError' ||
-          err?.code === 'ETIMEDOUT';
+        const code = err?.code || err?.cause?.code || '';
 
-        if (isTransient) {
+        // Queue-shutdown means the daemon is being torn down — this run
+        // should END, not get retried piecemeal next run. Surface as
+        // permanent for this run; the session will be picked up on next
+        // boot since it was never marked complete.
+        const isQueueShutdown = /queue is shutting down|queue shutdown/i.test(msg);
+
+        // Permanent: HTTP 5xx (Ollama runner death, OOM, etc.) and schema/
+        // parse failures. Structured.
+        const isHttp5xx = /^LLM server returned 5\d\d/i.test(msg);
+        const isSchemaError = /Zod|invalid_type|JSON\.parse|invalid extraction/i.test(msg);
+
+        // Transient: real network blips + real timeouts only.
+        const isTransient = !isHttp5xx && !isSchemaError && (
+          err?.name === 'AbortError' ||
+          code === 'ETIMEDOUT' ||
+          code === 'ECONNRESET' ||
+          code === 'ECONNREFUSED' ||
+          code === 'EAGAIN' ||
+          code === 'EPIPE' ||
+          code === 'ENETUNREACH' ||
+          /SQLITE_BUSY|queue full/i.test(msg)
+        );
+
+        // Per-session attempt counter to escape sticky-transient loops.
+        checkpoint.attempts = checkpoint.attempts || {};
+        const attemptCount = (checkpoint.attempts[session.id] || 0) + 1;
+        checkpoint.attempts[session.id] = attemptCount;
+        const tooManyAttempts = attemptCount >= 5;
+
+        if (isQueueShutdown) {
           process.stderr.write(
-            `[extract-backfill] TRANSIENT: session ${session.id} skipped (will retry next run): ${msg}\n`
+            `[extract-backfill] STOPPING: queue shutdown during session ${session.id}\n`
           );
-          // Do NOT add to failedSet — leave the session unmarked so the
-          // next run picks it up. Count as failed for this run's progress.
+          stopped = true;  // exit the outer loop
+          break;
+        } else if (isTransient && !tooManyAttempts) {
+          process.stderr.write(
+            `[extract-backfill] TRANSIENT (attempt ${attemptCount}): session ${session.id}: ${msg}\n`
+          );
           failed++;
         } else {
+          const reason = tooManyAttempts ? `PERMANENT-AFTER-${attemptCount}-ATTEMPTS` : 'PERMANENT';
           process.stderr.write(
-            `[extract-backfill] PERMANENT: session ${session.id} failed: ${msg}\n`
+            `[extract-backfill] ${reason}: session ${session.id}: ${msg}\n`
           );
           failed++;
           failedSet.add(session.id);
           checkpoint.failed.push(session.id);
+          delete checkpoint.attempts[session.id];  // clean up after final
         }
       }
 

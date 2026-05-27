@@ -467,7 +467,11 @@ describe('runConsolidationCycle', () => {
     // depending on scheduling — both are valid. The key assertion: when
     // aborted, abortedAt is set and downstream steps didn't run.
     if (result.aborted) {
+      // F-Q307 added 'summaries-midloop' as a valid abortedAt value when the
+      // per-concept summary loop catches the signal mid-iteration (vs. the
+      // between-step checkpoints).
       assert.ok(['decay', 'reinforce', 'clusters', 'summaries',
+                 'summaries-midloop',
                  'contradictions', 'promotion'].includes(result.abortedAt),
         `abortedAt should be a known step, got: ${result.abortedAt}`);
     }

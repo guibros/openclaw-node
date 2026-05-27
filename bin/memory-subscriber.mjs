@@ -127,8 +127,12 @@ export function evaluateIngestionPolicy(event, nodeId, parsed) {
  * @returns {Promise<{ stop: function, backoff: object, stats: object }>}
  */
 export async function createSubscriber(nc, nodeId, opts = {}) {
-  // F-N107: fail fast on missing onIngest. Caller must provide a projection
-  // handler — otherwise messages get permanently acked into the void.
+  // F-N107: fail fast on missing onIngest.
+  // F-Q302: type check alone is paper-thin (`onIngest: () => {}` passes!).
+  // Detect trivial stub patterns at startup and log a loud warning so
+  // operators see what they're getting. The deeper fix — requiring a
+  // discriminated return-value contract — is documented but not yet
+  // enforced via type system here (would break existing callers).
   if (typeof opts.onIngest !== 'function') {
     throw new Error(
       'createSubscriber: opts.onIngest is required. ' +
@@ -136,6 +140,20 @@ export async function createSubscriber(nc, nodeId, opts = {}) {
       'See F-N107.'
     );
   }
+  // F-Q302 stub detector: an onIngest source body < 40 chars almost always
+  // means a no-op or pure log. Surface it loudly so the daemon's "started
+  // in STUB mode" warning isn't the only signal that events evaporate.
+  try {
+    const src = opts.onIngest.toString();
+    if (src.length < 40 || /^\s*\(?\s*[a-z_,\s]*\)?\s*=>\s*\{?\s*\}?\s*$/i.test(src)) {
+      const warn = '[subscriber] WARNING: onIngest appears to be a stub ' +
+        `(source: ${JSON.stringify(src.slice(0, 80))}). ` +
+        'Events will be acked from JetStream without projection. ' +
+        'See F-Q302.';
+      if (opts.onError) opts.onError('stub_detected', new Error(warn));
+      else process.stderr.write(warn + '\n');
+    }
+  } catch { /* toString may fail on bound/native fns — ignore */ }
   const { StringCodec } = _require('nats');
   const sc = StringCodec();
 
