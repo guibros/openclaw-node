@@ -144,19 +144,27 @@ describe('queryRelevantConcepts', () => {
   it('returns entities mentioned in given sessions sorted by salience', () => {
     const db = createTestExtractionDb();
     seedTestData(db);
+    // F-N52: queryRelevantConcepts now reads entities.salience (global per
+    // entity, updated by reconsolidation + decay), not AVG(mentions.salience)
+    // (per-session, never updated). The test seeds entities without explicit
+    // salience so both default to 0.5; bump them to distinguish ordering
+    // in the way the test expects.
+    db.exec(`UPDATE entities SET salience = 0.8 WHERE name = 'NATS'`);
+    db.exec(`UPDATE entities SET salience = 0.7 WHERE name = 'Obsidian'`);
 
-    // Query session-1 only — should return NATS (salience 0.9)
+    // Query session-1 only — only NATS is mentioned there.
     const result1 = queryRelevantConcepts(db, ['session-1']);
     assert.equal(result1.length, 1);
     assert.equal(result1[0].name, 'NATS');
     assert.equal(result1[0].type, 'technology');
     assert.equal(result1[0].mentionCount, 15);
 
-    // Query session-2 — should return Obsidian first (0.7) then NATS (0.5)
+    // Query session-2 — both NATS (0.8) and Obsidian (0.7) are mentioned.
+    // New semantic ranks by entity-global salience, so NATS comes first.
     const result2 = queryRelevantConcepts(db, ['session-2']);
     assert.equal(result2.length, 2);
-    assert.equal(result2[0].name, 'Obsidian');
-    assert.equal(result2[1].name, 'NATS');
+    assert.equal(result2[0].name, 'NATS');
+    assert.equal(result2[1].name, 'Obsidian');
 
     db.close();
   });
