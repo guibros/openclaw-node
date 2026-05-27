@@ -67,25 +67,40 @@ async function main() {
     log,
   });
 
-  // Memory subscriber — consumes shared-stream events with onIngest projection
-  // (F-N107: now required). For now project no-op so we don't double-write —
-  // a real projection layer is Block 11 territory. This wiring exists so the
-  // subscriber's stats counters are observable.
-  const { createSubscriber } = await import('./memory-subscriber.mjs');
-  const subscriber = await createSubscriber(nc, nodeId, {
-    onIngest: (event, parsed, _provenance) => {
-      // Block 9: shared snapshots / artifacts. Projection logic added when
-      // Block 11 lands the shared-knowledge merge path.
-      log(`[daemon] subscriber ingested ${parsed.category} ${event.event_id}`);
-    },
-    onSkip: (_event, result) => {
-      // Don't log every skip — too noisy in normal operation.
-      if (result.reason !== 'deferred_to_block_9') {
-        log(`[daemon] subscriber skipped (${result.reason})`);
-      }
-    },
-    onError: (ctx, err) => log(`[daemon] subscriber error in ${ctx}: ${err.message}`),
-  });
+  // Memory subscriber — consumes shared-stream events.
+  // F-P107/F-P113 fix: previously this had a logging-only onIngest that acked
+  // events into the void (the exact F-N107 evaporation pattern with a log
+  // line). Until Block 11 lands the shared-knowledge projection path, the
+  // safest behavior is to NOT subscribe at all so events accumulate in
+  // JetStream for the eventual real consumer (the durable consumer's
+  // deliver_policy:'new' bound matters here — once subscribed, only events
+  // from the join point forward are delivered).
+  //
+  // Operators that want the subscriber active right now (e.g. for testing
+  // shared-stream wiring) set OPENCLAW_SUBSCRIBER_PROJECTION=stub. The stub
+  // mode is explicit and noisy: every ingest logs at INFO so the operator
+  // sees that events are being CONSUMED but not projected.
+  let subscriber = null;
+  const subscriberMode = process.env.OPENCLAW_SUBSCRIBER_PROJECTION;
+  if (subscriberMode === 'stub') {
+    const { createSubscriber } = await import('./memory-subscriber.mjs');
+    subscriber = await createSubscriber(nc, nodeId, {
+      onIngest: (event, parsed) => {
+        log(`[daemon] SUBSCRIBER-STUB acked-without-projection ${parsed.category} ${event.event_id}`);
+      },
+      onSkip: (_event, result) => {
+        if (result.reason !== 'deferred_to_block_9') {
+          log(`[daemon] subscriber skipped (${result.reason})`);
+        }
+      },
+      onError: (ctx, err) => log(`[daemon] subscriber error in ${ctx}: ${err.message}`),
+    });
+    log(`[daemon] subscriber started in STUB mode — events will be ACKED WITHOUT PROJECTION`);
+  } else {
+    log(`[daemon] subscriber DISABLED (Block 11 projection not yet implemented). ` +
+        `Events accumulate in JetStream until a real projection is wired. ` +
+        `Set OPENCLAW_SUBSCRIBER_PROJECTION=stub to ack-without-project for testing.`);
+  }
 
   // Consolidation scheduler — periodic memory consolidation cycle with hard-cap.
   // F-N100: signal propagates through runConsolidationCycle to each step.
@@ -103,7 +118,7 @@ async function main() {
   const shutdown = async (sig) => {
     log(`[daemon] received ${sig} — shutting down...`);
     try { scheduler.stop?.(); } catch {}
-    try { await subscriber.stop(); } catch {}
+    try { if (subscriber) await subscriber.stop(); } catch {}
     try { await federation.stop(); } catch {}
     try { await nc.drain(); } catch {}
     log(`[daemon] stopped`);
