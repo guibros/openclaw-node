@@ -21,6 +21,7 @@ import { homedir } from 'node:os';
 import { watch } from 'node:fs';
 import Database from 'better-sqlite3';
 import { buildGraph } from '../lib/obsidian-graph.mjs';
+import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 import { getVaultPath } from '../lib/obsidian-vault.mjs';
 
 /** Default database path */
@@ -223,14 +224,30 @@ export function createGraphCache(opts = {}) {
    * @param {boolean} [watchOpts.watchFs] — enable filesystem watching (default: true on macOS)
    */
   function startWatcher(watchOpts = {}) {
+    // F-Q217 fix: validate intervalMs to defend against NaN-via-bad-env.
+    const envInterval = Number(process.env.GRAPH_CACHE_INTERVAL_MS);
     const intervalMs = watchOpts.intervalMs
-      || (process.env.GRAPH_CACHE_INTERVAL_MS ? parseInt(process.env.GRAPH_CACHE_INTERVAL_MS, 10) : DEFAULT_REFRESH_INTERVAL_MS);
+      || (Number.isFinite(envInterval) && envInterval > 0
+            ? envInterval
+            : DEFAULT_REFRESH_INTERVAL_MS);
     const watchFs = watchOpts.watchFs !== undefined ? watchOpts.watchFs : (process.platform === 'darwin');
+
+    // F-Q406 fix: wrap refreshCache in a concurrency guard so the interval
+    // timer + the fs-watch debounce can never trigger overlapping rebuilds.
+    // Both fire `guardedRefresh` instead of `refreshCache` directly. The
+    // 10-minute maxAgeMs lets us recover if a rebuild ever deadlocks.
+    const guardedRefresh = createConcurrencyGuard(refreshCache, {
+      maxAgeMs: 10 * 60_000,
+      log: (m) => process.stderr.write(`[graph-cache] ${m}\n`),
+    });
 
     // Periodic timer
     intervalHandle = setInterval(async () => {
       try {
-        await refreshCache();
+        const r = await guardedRefresh();
+        if (r?.skipped) {
+          process.stderr.write(`[graph-cache] periodic refresh skipped: ${r.reason}\n`);
+        }
       } catch (err) {
         // Log but don't crash — daemon must stay up
         process.stderr.write(`[graph-cache] refresh error: ${err.message}\n`);
@@ -246,7 +263,10 @@ export function createGraphCache(opts = {}) {
           if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
           refreshDebounceTimer = setTimeout(async () => {
             try {
-              await refreshCache();
+              const r = await guardedRefresh();
+              if (r?.skipped) {
+                process.stderr.write(`[graph-cache] fs-triggered refresh skipped: ${r.reason}\n`);
+              }
             } catch (err) {
               process.stderr.write(`[graph-cache] fs-triggered refresh error: ${err.message}\n`);
             }

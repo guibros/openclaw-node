@@ -19,10 +19,11 @@
  */
 
 import Database from 'better-sqlite3';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { parseArgs } from 'node:util';
+import { atomicWriteFileSync } from '../lib/atomic-write.mjs';
 
 import { createLlmClient } from '../lib/llm-client.mjs';
 import { extractStructured } from '../lib/extraction-prompt.mjs';
@@ -58,14 +59,17 @@ export function loadCheckpoint(path) {
 }
 
 export function saveCheckpoint(cpPath, checkpoint) {
-  const dir = dirname(cpPath);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(cpPath, JSON.stringify({
+  // F-Q313/Q410 fix: use shared atomicWriteFileSync helper. The previous
+  // writeFileSync was non-atomic; SIGKILL or disk-full mid-write left a
+  // truncated checkpoint.json, and the next run's JSON.parse caught the
+  // error and silently "started fresh" — re-extracting every session. On
+  // a 19-37 hour backfill this matters.
+  atomicWriteFileSync(cpPath, JSON.stringify({
     completed: checkpoint.completed,
     failed: checkpoint.failed,
     startedAt: checkpoint.startedAt,
     lastUpdated: new Date().toISOString(),
-  }, null, 2) + '\n');
+  }, null, 2) + '\n', { mkdirp: true });
 }
 
 // ─── Extraction core ─────────────────────────────────────────────────────────

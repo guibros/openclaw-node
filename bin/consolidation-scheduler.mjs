@@ -18,6 +18,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import os from 'os';
 import path from 'path';
+import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -200,22 +201,24 @@ export function createConsolidationScheduler(opts = {}) {
   const intervalMs = opts.intervalMs ?? DEFAULT_INTERVAL_MS;
   const log = opts.log || console.log;
   let timer = null;
-  // F-P215 fix: track the in-flight cycle so overlapping intervals can't
-  // stack. Previously `setInterval` would fire a new cycle every 30 min
-  // regardless of whether the previous one had finished. With F-N100's
-  // cooperative hard-cap (SQLite steps run to completion), a cycle that
-  // overruns can still be alive when the next interval fires → two
-  // runCycle calls touch the same SQLite handle concurrently. Skip the
-  // new interval if `currentRun` is non-null.
-  let currentRun = null;
+  // F-P215 fix: shared createConcurrencyGuard helper. Replaces inline tracking.
+  // F-Q306 addition: maxAgeMs caps how long a wedged cycle can lock out the
+  // scheduler. After hardCapMs + 60s, force-clear so the next interval can
+  // try again. The orphan resolves into the void.
+  const hardCapMs = opts.hardCapMs ?? HARD_CAP_MS;
+  const guardedCycle = createConcurrencyGuard(
+    () => runScheduledCycle({
+      dbPath: opts.dbPath,
+      vaultPath: opts.vaultPath,
+      hardCapMs: opts.hardCapMs,
+    }),
+    {
+      maxAgeMs: hardCapMs + 60_000,
+      log: (m) => log(`[consolidation-scheduler] ${m}`),
+    }
+  );
 
   async function runOnce() {
-    // F-P215 stack guard
-    if (currentRun) {
-      log(`[consolidation-scheduler] skipping: previous cycle still running`);
-      return { skipped: true, reason: 'previous_cycle_running' };
-    }
-
     const idleCheck = await isSystemIdle({
       getStateFn: opts.getStateFn,
       ollamaBaseUrl: opts.ollamaBaseUrl,
@@ -227,16 +230,10 @@ export function createConsolidationScheduler(opts = {}) {
     }
 
     log('[consolidation-scheduler] system idle — starting consolidation cycle');
-    currentRun = runScheduledCycle({
-      dbPath: opts.dbPath,
-      vaultPath: opts.vaultPath,
-      hardCapMs: opts.hardCapMs,
-    });
-    let result;
-    try {
-      result = await currentRun;
-    } finally {
-      currentRun = null;
+    const result = await guardedCycle();
+    if (result?.skipped) {
+      log(`[consolidation-scheduler] skipping: ${result.reason}`);
+      return result;
     }
 
     if (result.ok) {
