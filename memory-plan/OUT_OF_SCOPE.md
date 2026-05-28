@@ -24,4 +24,13 @@ This file is always-writeable (the PreToolUse hook exempts it).
 - **Severity guess:** LOW (cosmetic).
 - **Who-touches-next:** whoever next touches the viewer or the registry format. Could give 6.1 a roll-up status or split it per-DB.
 
+## 2026-05-28 — Viewer's redesign-plan detection isn't durable across relaunch
+
+- **Observed while:** wiring memory-plan/redesign into the workplan-viewer.
+- **Area:** how the viewer is launched + its ROOTS resolution (`workplan-viewer.mjs` reads `WORKPLAN_ROOTS`, defaults to cwd only).
+- **Problem:** the redesign plan is only detected because the viewer was manually relaunched with `WORKPLAN_ROOTS=repo:repo/memory-plan`. The viewer has no launchd plist; a future manual restart without that env var drops the redesign plan (the legacy plan survives because it's an immediate subdir of the repo root). The setting lives only in the running process.
+- **Why it matters:** the redesign plan silently disappears from the dashboard on restart — exactly the kind of invisible-state problem this whole effort is fighting.
+- **Severity guess:** MEDIUM.
+- **Who-touches-next:** whoever next touches the viewer. Options: add `memory-plan` to the viewer's default ROOTS, or give the viewer a launch script / plist that sets the env. (Viewer code is out of the current scope's files.)
+
 ---

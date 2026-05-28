@@ -1,8 +1,13 @@
 # SCOPE — Today's Work Contract
 
 **Status:** done
-**Goal:** Lock the operator's 6 redesign decisions into DECISIONS.md, and write the local-first memory redesign plan (MEMORY_REDESIGN.md) derived from them. Planning/doc work — no code yet.
-**Closed:** 2026-05-28 — DECISIONS.md (6 decisions + watcher-UI sub-decision), MEMORY_REDESIGN.md (L0–G phases) written; operator aligned (phase order accepted, watcher→mission-control).
+**Goal:** Build the concrete redesign workplan: a viewer-trackable plan at memory-plan/redesign/ (WORKFLOW.md + INVENTORY.md + VERSION) decomposing every L0–G item into atomic 9-phase steps, plus the workflow that chains MASTER_PLAN → roadmap → inventory → 9-phase execution → viewer. Wire it into the running viewer.
+**Closed:** 2026-05-28 — WORKFLOW.md + INVENTORY.md (33 steps, 29 local + 4 deferred) + VERSION v0.0 written; viewer relaunched (PID 39732), /api/plans lists "redesign" 0/33 next-step 0.1, legacy intact 58/58. Viewer-launch durability gap → OUT_OF_SCOPE.
+**Set by:** operator ("update a concrete plan for every item ... within the workplan viewer work frame ... 9 phase protocol ... devising a workflow from master plan to implementation")
+**Set at:** 2026-05-28T00:40:00-04:00 (Montreal)
+**Expires:** 2026-05-28T12:00:00Z
+
+> Prior scope closed + committed: redesign decisions + roadmap (aca225a). Viewer tab (67f263a). Discipline bootstrap (9b81fbd).
 **Set by:** operator (answered all 6 §7 questions 2026-05-28)
 **Set at:** 2026-05-28T00:10:00-04:00 (Montreal)
 **Expires:** 2026-05-28T12:00:00Z
@@ -20,15 +25,19 @@
 ## Files allowed to touch (this session)
 
 ```files
-memory-plan/MEMORY_REDESIGN.md
-memory-plan/DECISIONS.md
+memory-plan/redesign/WORKFLOW.md
+memory-plan/redesign/INVENTORY.md
+memory-plan/redesign/VERSION
 memory-plan/SCOPE.md
 memory-plan/OUT_OF_SCOPE.md
 ```
 
 ## Runtime evidence required for "done"
 
-Planning/doc scope — no runtime code. "Done" = (1) DECISIONS.md records all 6 decisions verbatim-faithful to the operator's answers; (2) MEMORY_REDESIGN.md exists with local-first phases derived from those decisions; (3) operator reviews and aligns (or redirects).
+1. `memory-plan/redesign/INVENTORY.md` exists, viewer-parseable, with an atomic step for every COMPONENT_REGISTRY gap (L0–G).
+2. `memory-plan/redesign/WORKFLOW.md` documents the MASTER_PLAN → roadmap → inventory → 9-phase → viewer chain + the per-step lifecycle.
+3. `memory-plan/redesign/VERSION` = v0.0.
+4. Viewer relaunched with WORKPLAN_ROOTS including memory-plan; `curl http://localhost:7892/api/plans` lists a plan id "redesign". Legacy "memory-plan" still listed (no regression).
 
 ## What this scope will do (implementation contract)
 
