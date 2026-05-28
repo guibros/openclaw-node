@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-28 — Step 0.2 closed: daemon binary symlinked + restarted; code half of deploy gap CLOSED
+
+Runtime `~/.openclaw/workspace/bin/memory-daemon.mjs` is now a symlink → repo `workspace-bin/memory-daemon.mjs`, and the daemon was restarted onto it (launchd kickstart). **First time new-bin + new-lib ran together** — and they run clean. New PID 51216 (≠ old 869), executing the symlinked repo file, stable 2:48+ past the 10s ThrottleInterval, `:7893` → 401. The code half of the deploy gap is closed: the running daemon IS repo HEAD. Only NATS remains (0.3/0.4).
+
+**Done-evidence refinement (the planned substitution, now confirmed necessary).** INVENTORY 0.2 done-evidence said "after restart a log line only current code emits appears." Verified impossible at 0.2: old/new startup banners are byte-identical, and *every* new-only log line is gated behind a successful NATS connection ("Shared stream OPENCLAW_SHARED verified" etc.), which won't happen until NATS is up (0.4). Substituted per MASTER_PLAN §5 — "a process state visible in ps/launchctl that only the new code creates": the symlink target + new PID executing the repo file + crash-loop-free stability. The NATS-gated lines become deferred confirming evidence at 0.4.
+
+**Restart-instant native crash investigated, ruled benign.** Two lines hit `.err` at the exact restart instant (mtime 16:34:10): `libc++abi: … mutex lock failed: Invalid argument` (count 1) and `[memory-daemon] PID check failed (process not alive): kill ESRCH`. Both belong to the **old** process (869) being torn down: its better-sqlite3 native binding hit a mutex while SIGTERM killed it mid-operation; the watchdog then saw 869 gone. *Proof they're not the new code:* after these lines, new PID 51216 ran 2:48+ adding zero further `.err` lines with the inject server responding — the `.err` size/mtime are frozen at the restart instant. Not a regression; a one-time shutdown artifact of the dying old process.
+
+*Consequences:* (1) COMPONENT_REGISTRY Family 8 → CODE CLOSED (both `lib/` and binary are live symlinks; remaining gap is NATS only, not code). (2) Rollback binary `bin/memory-daemon.mjs.bak-2026-05-23` retained; full data security copy at `~/.openclaw/backups/pre-step-0.2-2026-05-28/`. (3) Pre-existing Zod extraction-validation errors (`Invalid option: expected one of "depends_on"|…`) persist as the known baseline — unrelated to the deploy gap, a separate extraction-schema issue to triage (OUT_OF_SCOPE candidate). (4) Next: 0.3 install local NATS (JetStream) as a launchd service.
+
+---
+
 ## 2026-05-28 — Step 0.1 closed: lib/ deploy gap closed via symlink; mcp-knowledge deps = "move the box"
 
 First executable redesign step. Runtime `~/.openclaw/workspace/lib` is now a symlink → repo `lib/`. The `lib/` deploy gap is permanently closed (repo IS runtime for libraries; drift cannot reopen).

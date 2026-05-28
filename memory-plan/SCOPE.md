@@ -1,9 +1,9 @@
 # SCOPE — Today's Work Contract
 
 **Status:** done
-**Goal:** Redesign step 0.1 — close the `lib/` deploy gap: make runtime `~/.openclaw/workspace/lib` a symlink to repo `lib/`, preserving mcp-knowledge's native deps (DECISIONS: node_modules Option A — move the box). **CLOSED 2026-05-28** — see DECISIONS + audits/step01_lib_symlink/AUDIT_POST.md. Next: step 0.2.
+**Goal:** Redesign step 0.2 — symlink runtime daemon binary `~/.openclaw/workspace/bin/memory-daemon.mjs` → repo `workspace-bin/memory-daemon.mjs`, restart via launchd, confirm the current code runs cleanly (new-bin + new-lib together, first time).
 **Set at:** 2026-05-28
-**Expires:** 2026-05-29T05:00:00Z
+**Expires:** 2026-05-29T06:00:00Z
 
 > Step 0.1 per `redesign/INVENTORY.md` (Block 0). Filesystem ops (mv/ln) are
 > Bash, not gated. The files below are the step's paperwork: the AUDIT_PRE/POST,
@@ -11,24 +11,32 @@
 
 ## Done-evidence (runtime-observable, MASTER_PLAN §5)
 
-- Runtime `~/.openclaw/workspace/lib` IS a symlink → repo `lib/`.
-- `diff -rq lib/ ~/.openclaw/workspace/lib/` returns empty.
-- Daemon (PID 869) still alive; :7893 still responds; one retrieval still
-  returns through the symlinked mcp-knowledge (proves native deps intact).
-- No restart in 0.1 (restart belongs to 0.2). "Still boots" = running daemon
-  undisturbed + new wiring proven correct.
+- Runtime `~/.openclaw/workspace/bin/memory-daemon.mjs` IS a symlink → repo
+  `workspace-bin/memory-daemon.mjs`.
+- Daemon restarted: new PID (≠ 869), executing the symlinked repo file, stable
+  past the 10s ThrottleInterval (no crash-loop; launchctl shows it loaded).
+- Clean boot: no NEW error classes in `.tmp/memory-daemon.err` beyond the known
+  pre-existing Zod extraction baseline; :7893 responds.
+- **Done-evidence refinement (logged in DECISIONS):** the binaries' startup
+  banners are byte-identical and every new-only log line is NATS-gated — so a
+  "current-code-only log line" is not observable until NATS is up (0.4). Substitute
+  per §5: process executes the repo file via symlink (a state only the new code
+  creates). The NATS-gated lines ("Shared stream OPENCLAW_SHARED verified") become
+  confirming evidence at 0.4.
 
-## Plan (filesystem ops, shown before each runs)
+## Plan (shown before each runs)
 
-1. `mv` runtime `lib/mcp-knowledge/node_modules` → repo (same-FS instant rename).
-2. `mv` runtime `lib` → `lib.bak-2026-05-28` (intact rollback snapshot).
-3. `ln -s` repo `lib` → runtime `lib` (the switch).
-4. Verify: PID alive, :7893 answers, a retrieval returns.
+1. `mv` runtime binary → `bin/memory-daemon.mjs.bak-2026-05-23` (in-place rollback;
+   also already in the security copy).
+2. `ln -s` repo `workspace-bin/memory-daemon.mjs` → runtime `bin/memory-daemon.mjs`.
+3. `launchctl kickstart -k` the daemon; capture new PID.
+4. Verify: new PID stable >10s, executes repo file, :7893 answers, no new errors.
 
-Rollback: `rm` the symlink; `mv` the backup back; `mv` node_modules back if needed.
+Rollback: `rm` the symlink; `mv` the backup binary back; `launchctl kickstart -k`.
+Full data rollback available in `~/.openclaw/backups/pre-step-0.2-2026-05-28/`.
 
 ```files
-memory-plan/redesign/audits/step01_lib_symlink/**
+memory-plan/redesign/audits/step02_daemon_symlink/**
 memory-plan/redesign/INVENTORY.md
 memory-plan/COMPONENT_REGISTRY.md
 memory-plan/DECISIONS.md
