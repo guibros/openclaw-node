@@ -1,45 +1,43 @@
 #!/usr/bin/env bash
-# memory-plan-notify.sh — macOS notification helper for memory-plan / redesign ticks
-# and the workplan-viewer.
+# memory-plan-notify.sh — top-right Notification Center banners for the
+# memory-plan / redesign ticks and the workplan-viewer.
 #
-# PERSISTENT alerts (operator decision 2026-05-28, "both persist"): each kind pops
-# a `display alert` WINDOW that stays on screen until the operator clicks Dismiss —
-# no auto-dismiss. The window is launched detached so the caller returns immediately
-# and the window survives independently. A sound (afplay) plays alongside.
+# Posts a real top-right NC banner via terminal-notifier (preferred), with an
+# osascript `display notification` fallback. NOT a center-screen modal.
+#
+# PERSISTENCE: whether a banner stays until dismissed (Alerts style) or
+# auto-dismisses after ~5s (Banners style) is a per-app macOS setting, NOT
+# controllable from a script. To make these STAY until you discard them:
+#   System Settings → Notifications → terminal-notifier → "Alerts"
+# (one-time toggle; applies to every workplan banner thereafter).
 #
 # Usage:
 #   memory-plan-notify.sh closed  <version> <step-description>   # forward → Glass
-#   memory-plan-notify.sh blocked <version> <one-line-reason>    # block   → Sosumi (critical)
-#   memory-plan-notify.sh skipped <reason>                       # quiet (no notification)
-#   memory-plan-notify.sh test                                   # smoke test (both; dismiss them)
+#   memory-plan-notify.sh blocked <version> <one-line-reason>    # block   → Sosumi
+#   memory-plan-notify.sh skipped <reason>                       # quiet
+#   memory-plan-notify.sh test                                   # both (top-right)
 #
 # Disable globally with MEMORY_PLAN_NOTIFY=off.
 
 set -u
-
 [ "${MEMORY_PLAN_NOTIFY:-on}" = "off" ] && exit 0
-command -v osascript >/dev/null 2>&1 || exit 0
 
-SOUNDS="/System/Library/Sounds"
+# Locate terminal-notifier (PATH can be minimal under launchd).
+TN="$(command -v terminal-notifier 2>/dev/null || true)"
+[ -z "${TN}" ] && [ -x /opt/homebrew/bin/terminal-notifier ] && TN=/opt/homebrew/bin/terminal-notifier
+[ -z "${TN}" ] && [ -x /usr/local/bin/terminal-notifier ]   && TN=/usr/local/bin/terminal-notifier
 
-# Play a system sound in the background (best-effort).
-play() {  # play <SoundName>
-  local f="${SOUNDS}/$1.aiff"
-  if command -v afplay >/dev/null 2>&1 && [ -f "${f}" ]; then
-    ( afplay "${f}" >/dev/null 2>&1 & )
+# Post a top-right Notification Center banner.
+banner() {  # banner <title> <subtitle> <message> <sound>
+  local title="$1" subtitle="$2" message="$3" sound="$4"
+  if [ -n "${TN}" ]; then
+    "${TN}" -title "${title}" -subtitle "${subtitle}" -message "${message}" -sound "${sound}" >/dev/null 2>&1 || true
+  elif command -v osascript >/dev/null 2>&1; then
+    local m s
+    m=$(printf '%s' "${message}"  | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-200)
+    s=$(printf '%s' "${subtitle}" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-100)
+    osascript -e "display notification \"${m}\" with title \"${title}\" subtitle \"${s}\" sound name \"${sound}\"" >/dev/null 2>&1 || true
   fi
-}
-
-# Persistent alert WINDOW — stays until the user clicks. Detached (nohup &) so the
-# caller returns immediately and the window survives the script exiting. No
-# `giving up after`, so it never auto-dismisses.
-persist_alert() {  # persist_alert <title> <message> [critical]
-  local title msg crit=""
-  title=$(printf '%s' "$1" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-150)
-  msg=$(printf '%s' "$2"   | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-400)
-  [ "${3:-}" = "critical" ] && crit=" as critical"
-  nohup osascript -e "display alert \"${title}\" message \"${msg}\"${crit}" >/dev/null 2>&1 &
-  disown 2>/dev/null || true
 }
 
 KIND="${1:-}"
@@ -47,24 +45,18 @@ shift || true
 
 case "${KIND}" in
   closed)
-    VERSION="${1:-}"; DESC="${2:-step closed}"
-    play Glass
-    persist_alert "Workplan — step forward · ${VERSION}" "${DESC}"
+    banner "Workplan — step forward" "${1:-}" "${2:-step closed}" "Glass"
     ;;
   blocked)
-    VERSION="${1:-}"; REASON="${2:-see BLOCKED.md}"
-    play Sosumi
-    persist_alert "Workplan — BLOCKED · ${VERSION}" "${REASON}" critical
+    banner "Workplan — BLOCKED" "${1:-}" "${2:-see BLOCKED.md}" "Sosumi"
     ;;
   skipped)
-    # Intentionally quiet — no notification for pre-flight skips.
     exit 0
     ;;
   test)
-    play Glass
-    persist_alert "Workplan — step forward · v0.0-test" "smoke test: forward notification (click to dismiss)"
-    play Sosumi
-    persist_alert "Workplan — BLOCKED · v0.0-test" "smoke test: blocked notification (click to dismiss)" critical
+    banner "Workplan — step forward" "v0.0-test" "smoke test: forward (top-right banner)" "Glass"
+    sleep 1
+    banner "Workplan — BLOCKED" "v0.0-test" "smoke test: blocked (top-right banner)" "Sosumi"
     ;;
   *)
     echo "usage: memory-plan-notify.sh {closed|blocked|skipped|test} [args]" >&2

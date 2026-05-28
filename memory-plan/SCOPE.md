@@ -1,8 +1,13 @@
 # SCOPE — Today's Work Contract
 
 **Status:** done
-**Goal:** Add a runtime on/off switch for notifications in the workplan-viewer: a header toggle button + GET/POST /api/notify-config endpoints + a mutable, persisted (~/.openclaw/config/workplan-viewer.json) enabled flag that fireNotify honors. Survives viewer restart.
-**Closed:** 2026-05-28 — header 🔔/🔕 toggle + /api/notify-config get/set + persisted flag. Verified: default true; disable→enabled:false + notify-test no-ops; re-enable works; persistence survives a real restart (loaded false, restored to ON); button id in served HTML.
+**Goal:** Fix notifications to be real top-right Notification Center banners (not center-modal display alert). Install terminal-notifier and rewrite memory-plan-notify.sh to post via it (top-right NC banner, -sound Glass/Sosumi), with an osascript `display notification` fallback. Persistence remains a one-time System Settings "Alerts" toggle for the terminal-notifier app — document it.
+**Closed:** 2026-05-28 — terminal-notifier 2.0.0 installed; notify.sh posts top-right NC banners (Glass/Sosumi), `display alert` count 0; direct + viewer-path calls fire top-right; persistence toggle + first-run permission documented in DECISIONS.
+**Set by:** operator ("I want a top-right NC banner, not a modal" → "install terminal-notifier")
+**Set at:** 2026-05-28T16:45:00-04:00 (Montreal)
+**Expires:** 2026-05-29T04:00:00Z
+
+> Prior scope closed + committed: notify on/off toggle (e4d4422).
 **Set by:** operator ("add a switch in workplan viewer to activate or deactivate the notification")
 **Set at:** 2026-05-28T16:25:00-04:00 (Montreal)
 **Expires:** 2026-05-29T04:00:00Z
@@ -50,7 +55,7 @@
 ## Files allowed to touch (this session)
 
 ```files
-workspace-bin/workplan-viewer.mjs
+workspace-bin/memory-plan-notify.sh
 memory-plan/SCOPE.md
 memory-plan/OUT_OF_SCOPE.md
 memory-plan/DECISIONS.md
@@ -58,11 +63,12 @@ memory-plan/DECISIONS.md
 
 ## Runtime evidence required for "done"
 
-1. Viewer relaunched; `curl '…/api/notify-config'` returns `{enabled:true}` (default).
-2. `curl -X POST '…/api/notify-config?enabled=0'` → `{enabled:false}`; a subsequent `…/api/notify-test?kind=forward` reports `enabled:false` and pops NO window (fireNotify no-ops).
-3. `curl -X POST '…/api/notify-config?enabled=1'` → `{enabled:true}`; notify-test fires again.
-4. The toggle persists: `~/.openclaw/config/workplan-viewer.json` written; after a viewer restart `/api/notify-config` reflects the saved value.
-5. Header toggle button present in served HTML (`id="notify-toggle"`).
+1. `command -v terminal-notifier` resolves (installed).
+2. `memory-plan-notify.sh closed v-test "fwd"` posts a TOP-RIGHT Notification Center banner (not a center modal) with Glass sound — operator confirms position.
+3. `memory-plan-notify.sh blocked v-test "blk"` posts a top-right banner with Sosumi sound.
+4. `grep -c "display alert" memory-plan-notify.sh` == 0 (the center-modal is gone).
+5. Viewer path still drives it: `curl '…/api/notify-test?kind=forward'` posts the top-right banner.
+6. README/doc: the one-time persistence toggle (System Settings → Notifications → terminal-notifier → Alerts) is captured in DECISIONS.
 
 ## What this scope will do (implementation contract)
 

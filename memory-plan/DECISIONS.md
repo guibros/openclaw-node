@@ -64,6 +64,10 @@ The workplan-viewer now fires the existing `memory-plan-notify.sh` server-side o
 
 **Added 2026-05-28 (operator: "add a switch to activate/deactivate"):** the workplan-viewer has a runtime on/off switch — a header 🔔/🔕 toggle button + `GET|POST /api/notify-config?enabled=0|1`. The flag is mutable (`notifyEnabled`, honored by `fireNotify`) and persisted to `~/.openclaw/config/workplan-viewer.json`, so it survives viewer restarts (boot value = persisted file, else the MEMORY_PLAN_NOTIFY env default). Verified: get/set/persist + a real restart loads the saved value; disabled → notify-test no-ops (no window).
 
+**Corrected 2026-05-28 (operator: "I want a top-right Notification Center banner, not a modal"):** the `display alert` modal window was WRONG — it's center-screen and focus-grabbing. `memory-plan-notify.sh` now posts a real **top-right NC banner** via **terminal-notifier** (`brew install terminal-notifier`, 2.0.0), with an `osascript display notification` fallback (also top-right). Glass for forward, Sosumi for block. No `display alert` remains.
+- **Persistence is a macOS System Setting, not scriptable:** to make banners STAY until dismissed (vs auto-dismiss ~5s), set **System Settings → Notifications → terminal-notifier → "Alerts"** (one-time). Default install style is "Banners" (auto-dismiss).
+- **First-run permission:** macOS may require granting terminal-notifier permission to send notifications before banners appear.
+
 ---
 
 ## 2026-05-27 — Master-plan discipline is intentionally repo-scoped to openclaw-nodedev
