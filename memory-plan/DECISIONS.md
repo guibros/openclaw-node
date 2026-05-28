@@ -70,6 +70,8 @@ The workplan-viewer now fires the existing `memory-plan-notify.sh` server-side o
 
 **Enriched 2026-05-28 (operator: "can it show the step?"):** the banner message now names the step, not just the version. The viewer looks up the inventory row matching the new version → forward = "step X.Y closed — <desc>" (or "(pre/mid)" while in-flight); block = "blocked at step X.Y — <desc>" (the step it's stuck on). `/api/notify-test?kind=&plan=` renders the real message for a named plan and returns it in JSON; the poller logs it. Verified: forward/block test messages name step 0.1 + its description; a real induced block logged "blocked at step 0.1 — Symlink runtime lib/ → repo lib/".
 
+**Time added 2026-05-28 (operator: "could it show time as well?"):** `memory-plan-notify.sh banner()` appends Montreal-local `HH:MM` to the subtitle (`<version> · HH:MM`), so every banner shows when it fired — applies to all callers (viewer poller, test endpoint, tick) and both the terminal-notifier and osascript paths. Verified: subtitle renders "v0.1 · 14:16".
+
 ---
 
 ## 2026-05-27 — Master-plan discipline is intentionally repo-scoped to openclaw-nodedev

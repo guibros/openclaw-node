@@ -27,9 +27,12 @@ TN="$(command -v terminal-notifier 2>/dev/null || true)"
 [ -z "${TN}" ] && [ -x /opt/homebrew/bin/terminal-notifier ] && TN=/opt/homebrew/bin/terminal-notifier
 [ -z "${TN}" ] && [ -x /usr/local/bin/terminal-notifier ]   && TN=/usr/local/bin/terminal-notifier
 
-# Post a top-right Notification Center banner.
+# Post a top-right Notification Center banner. The current time (Montreal local,
+# HH:MM) is appended to the subtitle so the banner shows when it fired.
 banner() {  # banner <title> <subtitle> <message> <sound>
   local title="$1" subtitle="$2" message="$3" sound="$4"
+  local now; now=$(TZ=America/Montreal date '+%H:%M' 2>/dev/null || date '+%H:%M')
+  subtitle="${subtitle:+${subtitle} · }${now}"
   if [ -n "${TN}" ]; then
     "${TN}" -title "${title}" -subtitle "${subtitle}" -message "${message}" -sound "${sound}" >/dev/null 2>&1 || true
   elif command -v osascript >/dev/null 2>&1; then

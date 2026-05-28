@@ -1,8 +1,13 @@
 # SCOPE — Today's Work Contract
 
 **Status:** done
-**Goal:** Enrich the notification message to include the step (number + description), not just version→version. Forward: look up the inventory row matching the new version → "step X.Y closed — <desc>" (or "(pre/mid)" for in-flight). Block: name the step it's stuck on. Make /api/notify-test return the rendered message so it's verifiable, and the poller log it.
-**Closed:** 2026-05-28 — stepRowForVersion + forwardMessage/blockMessage helpers; poller + /api/notify-test use them. Verified: forward/block test JSON names "step 0.1 closed/blocked — Symlink runtime lib/…"; real induced block logged the step+desc; both plans listed (no regression).
+**Goal:** Add the time to the notification banner. Done in memory-plan-notify.sh's banner() so every caller benefits: append Montreal-local HH:MM to the subtitle (alongside the version) for both terminal-notifier and the osascript fallback.
+**Closed:** 2026-05-28 — banner() appends `TZ=America/Montreal HH:MM` to subtitle (`<version> · HH:MM`). Verified: subtitle renders "v0.1 · 14:16"; empty-version degrades to just the time; bash -n OK; both notifier paths share the subtitle var.
+**Set by:** operator ("could it show time as well?")
+**Set at:** 2026-05-28T17:25:00-04:00 (Montreal)
+**Expires:** 2026-05-29T04:00:00Z
+
+> Prior scope closed + committed: notifications name the step (4aff347).
 **Set by:** operator ("can it show more info than forward? like the step?")
 **Set at:** 2026-05-28T17:05:00-04:00 (Montreal)
 **Expires:** 2026-05-29T04:00:00Z
@@ -60,7 +65,7 @@
 ## Files allowed to touch (this session)
 
 ```files
-workspace-bin/workplan-viewer.mjs
+workspace-bin/memory-plan-notify.sh
 memory-plan/SCOPE.md
 memory-plan/OUT_OF_SCOPE.md
 memory-plan/DECISIONS.md
@@ -68,10 +73,10 @@ memory-plan/DECISIONS.md
 
 ## Runtime evidence required for "done"
 
-1. `curl '…/api/notify-test?kind=forward&plan=redesign'` returns JSON whose `message` contains the step number AND its description (e.g. "step 0.1 … Symlink runtime lib/").
-2. `?kind=block&plan=redesign` returns a message naming the step it would be stuck on.
-3. Real induced block (touch redesign/BLOCKED.md): the poller's `[notify]` log line includes the step number + desc (not just the version); then remove BLOCKED.md.
-4. Viewer relaunched, both plans listed (no regression).
+1. notify.sh computes a Montreal-local HH:MM and includes it in the subtitle — verified by a debug echo of the constructed subtitle showing "<version> · HH:MM".
+2. `memory-plan-notify.sh closed v0.1 "..."` posts a top-right banner whose subtitle shows the version AND the current time (operator confirms).
+3. The osascript fallback path also includes the time (code inspection — same subtitle var).
+4. bash -n passes.
 
 ## What this scope will do (implementation contract)
 
