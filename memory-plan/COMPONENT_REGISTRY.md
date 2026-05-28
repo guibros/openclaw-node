@@ -337,21 +337,24 @@ Status legend:
 
 | | |
 |---|---|
-| **Status** | INERT (not running) |
-| **Verified** | `lsof -iTCP:4222 -sTCP:LISTEN` empty; no `nats-server` process |
+| **Status** | LOCAL NODE RUNNING (step 0.3, 2026-05-28) — single-node, loopback, JetStream on, launchd-managed. Streams not yet created (0.4). |
+| **Verified** | `lsof :4222` → `nats-server` on `127.0.0.1:4222` (+ monitor `:8222`); `launchctl list` → `ai.openclaw.nats` live PID; survives `kickstart -k`; `curl :8222/jsz` returns JetStream stats (api lvl 3, max_mem 128MB, max_file 1GB) |
+| **Service** | `~/Library/LaunchAgents/ai.openclaw.nats.plist` → `nats-server -c ~/.openclaw/nats/nats.conf`; KeepAlive, RunAtLoad, ThrottleInterval 10; logs `~/.openclaw/nats/nats.{log,err}`; store `~/.openclaw/nats/jetstream/` |
 | **Required by** | extraction-trigger (mesh.memory.extract_request), MemoryBudget publishLocal, federation (broadcast/offer/accepted), mesh.* subjects, mesh.memory.compaction_completed |
 
 **Target:** Local NATS server running (single-node dev). For federation: 3-node cluster with R=3. JetStream enabled. `local-events-<NODE_ID>` stream + `OPENCLAW_SHARED` stream both reachable.
 
-**Gap:**
-- Not running. The single biggest blocker for ~40% of the architecture.
-- `services/nats/` directory exists in repo with launchd plists for a 3-node cluster (Step 10.2 deliverable), but none installed in `~/Library/LaunchAgents/`.
+**Local vs mesh:** the local node (0.3) is loopback-only and separate from the remote mesh (`OPENCLAW_NATS=nats://100.91.131.61:4222` in `~/.openclaw/openclaw.env`, Tailscale, currently down — the federation layer D4 keeps dormant). The repo `services/nats/` 3-node cluster plists are the G-phase / step 10.2 deliverable, NOT used for local-first; a single loopback node is correct for L0.
+
+**Gap (remaining):**
+- Streams `local-events-<NODE_ID>` / `OPENCLAW_SHARED` not yet created (0.4 / federation).
+- Daemon not yet wired to the local node (still resolves to the remote mesh IP via `openclaw.env`; logs `NATS unavailable (TIMEOUT)`). 0.4 sets `OPENCLAW_NATS=nats://127.0.0.1:4222` in the daemon's launchd plist (highest-priority override) without touching `openclaw.env`.
 
 **Done-criteria for closure:**
-- At minimum: single NATS server running locally with JetStream enabled.
-- Both streams (`local-events-<NODE_ID>`, `OPENCLAW_SHARED`) created.
-- Memory daemon connects on startup (log line confirms).
-- One memory event observed in `local-events-<NODE_ID>` after a session start.
+- ~~single NATS server running locally with JetStream enabled~~ ✓ (0.3)
+- Both streams (`local-events-<NODE_ID>`, `OPENCLAW_SHARED`) created. (0.4 / G)
+- Memory daemon connects on startup (log line confirms). (0.4)
+- One memory event observed in `local-events-<NODE_ID>` after a session start. (0.4)
 
 ---
 

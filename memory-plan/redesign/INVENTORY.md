@@ -17,7 +17,7 @@ Blocks 0–6 = **local-first**, run in order. Block 7 = **DEFERRED** (DECISIONS 
 |-------|------|---------|--------|-------------|
 | 0 | 0.1 | v0.1 | [x] | Symlink runtime lib/ → repo lib/ (close lib drift) |
 | 0 | 0.2 | v0.2 | [x] | Symlink runtime daemon file → repo; restart; confirm current code runs |
-| 0 | 0.3 | v0.3 | [ ] | Install local NATS server (JetStream) as a launchd service |
+| 0 | 0.3 | v0.3 | [x] | Install local NATS server (JetStream) as a launchd service |
 | 0 | 0.4 | v0.4 | [ ] | Daemon connects to NATS and creates the local-events stream |
 
 > **0.1:** `diff -rq lib/ ~/.openclaw/workspace/lib/` empty (or runtime lib is a symlink to repo); daemon still boots.
@@ -157,7 +157,7 @@ Nothing here starts until Blocks 0–6 close and local is observably healthy. Fe
 | 6 | L6 health | 5 | 36 |
 | 7 | G multi-node (deferred) | 4 | 40 |
 
-**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **0.3**.
+**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **0.4**.
 
 ### Atomicity revision log (vs the prior 33-step draft)
 - Block 0: 0.1 split into lib-symlink (0.1) + daemon-symlink/restart (0.2); old 0.3 split into NATS-install (0.3) + daemon↔NATS-wire (0.4).

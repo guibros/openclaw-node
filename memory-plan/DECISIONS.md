@@ -4,6 +4,22 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-28 — Step 0.3 closed: local NATS (JetStream, loopback) running as launchd service
+
+A single-node `nats-server` (homebrew v2.12.6) now runs under launchd (`ai.openclaw.nats`), bound to `127.0.0.1:4222` (monitor `:8222`), JetStream enabled (store `~/.openclaw/nats/jetstream/`, caps 128MB mem / 1GB file). Self-healing (KeepAlive) and verified to survive `kickstart -k` (PID 58563 → 58591). This is the local event-log substrate (D3) the watcher (L2) will read.
+
+**Finding — "you already have NATS" was the remote mesh, not a local server.** `~/.openclaw/openclaw.env` sets `OPENCLAW_NATS=nats://100.91.131.61:4222` (Ubuntu worker's Tailscale IP, currently down) — that's why the daemon logged `NATS unavailable (TIMEOUT)`. The resolver chain ([lib/nats-resolve.js](redesign/../../lib/nats-resolve.js)) is env var → `openclaw.env` → `~/openclaw/.mesh-config` → `127.0.0.1:4222` fallback, so the remote IP wins. That remote mesh is the federation layer D4 keeps dormant — NOT the local piece 0.3 needs.
+
+**Decision — install local NATS (operator chose "follow the plan" over reusing the remote mesh).** *Why:* the whole redesign is local-first; the event log is meant to be a local substrate; D4 explicitly defers federation until the local core is solid; and reusing the remote depends on a remote box staying up. The local node is loopback-only (no off-box exposure, no auth needed for 127.0.0.1) and is a separate interface from the remote — no conflict.
+
+**Decision — single loopback node, NOT the repo `services/nats/` 3-node cluster.** Those cluster plists are the G-phase / step 10.2 deliverable (R=3 federation). For L0, a single node is correct (MEMORY_REDESIGN L0: "single-node for local; the 3-node cluster is a G-phase concern").
+
+**Decision — 0.4 will point the daemon at local via its launchd `OPENCLAW_NATS` env var, NOT by editing `openclaw.env`.** The env var is resolution step 1 (highest priority); the resolver's own comment names launchd as the intended override. This keeps mission-control + all `mesh-*` scripts pointed where they are (at the remote mesh config) while the memory daemon uses the local node — clean separation, no collateral.
+
+*Consequences:* (1) COMPONENT_REGISTRY 7.1 → LOCAL NODE RUNNING (streams not yet created). (2) `openclaw.env` and the `mesh-*` launchd jobs left untouched (D4 dormant). (3) Disk is at 94% (12 GiB free) → JetStream file store capped at 1GB; revisit if the event log grows. (4) Rollback: `launchctl bootout gui/501/ai.openclaw.nats` + `rm` the plist. (5) Next: 0.4 — daemon ↔ local NATS, create the `local-events-<nodeId>` stream, confirm a test publish lands.
+
+---
+
 ## 2026-05-28 — Step 0.2 closed: daemon binary symlinked + restarted; code half of deploy gap CLOSED
 
 Runtime `~/.openclaw/workspace/bin/memory-daemon.mjs` is now a symlink → repo `workspace-bin/memory-daemon.mjs`, and the daemon was restarted onto it (launchd kickstart). **First time new-bin + new-lib ran together** — and they run clean. New PID 51216 (≠ old 869), executing the symlinked repo file, stable 2:48+ past the 10s ThrottleInterval, `:7893` → 401. The code half of the deploy gap is closed: the running daemon IS repo HEAD. Only NATS remains (0.3/0.4).
