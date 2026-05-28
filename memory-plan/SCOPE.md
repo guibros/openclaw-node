@@ -1,8 +1,13 @@
 # SCOPE — Today's Work Contract
 
 **Status:** done
-**Goal:** Capture the old-corpus design synthesis into memory-plan/DESIGN_INPUTS.md (Karpathy LLM-Wiki north star, one-hop taste, reliability scars, ambition-vs-taste tension) as the starting point for the memory redesign. Plus the lossy-daily-log finding already logged to OUT_OF_SCOPE.md.
-**Closed:** 2026-05-27T23:50 — DESIGN_INPUTS.md (7 sections) + OUT_OF_SCOPE.md (2 entries) written.
+**Goal:** Lock the operator's 6 redesign decisions into DECISIONS.md, and write the local-first memory redesign plan (MEMORY_REDESIGN.md) derived from them. Planning/doc work — no code yet.
+**Closed:** 2026-05-28 — DECISIONS.md (6 decisions + watcher-UI sub-decision), MEMORY_REDESIGN.md (L0–G phases) written; operator aligned (phase order accepted, watcher→mission-control).
+**Set by:** operator (answered all 6 §7 questions 2026-05-28)
+**Set at:** 2026-05-28T00:10:00-04:00 (Montreal)
+**Expires:** 2026-05-28T12:00:00Z
+
+> Prior scopes closed: viewer Master Plan tab (2026-05-27T23:30), design-inputs capture (2026-05-27T23:50). Both committed (9b81fbd, 67f263a).
 **Set by:** operator ("yes yes" to both DESIGN_INPUTS.md + OUT_OF_SCOPE.md capture)
 **Set at:** 2026-05-27T23:45:00-04:00 (Montreal)
 **Expires:** 2026-05-28T08:00:00Z
@@ -15,11 +20,15 @@
 ## Files allowed to touch (this session)
 
 ```files
-memory-plan/DESIGN_INPUTS.md
+memory-plan/MEMORY_REDESIGN.md
+memory-plan/DECISIONS.md
 memory-plan/SCOPE.md
 memory-plan/OUT_OF_SCOPE.md
-memory-plan/DECISIONS.md
 ```
+
+## Runtime evidence required for "done"
+
+Planning/doc scope — no runtime code. "Done" = (1) DECISIONS.md records all 6 decisions verbatim-faithful to the operator's answers; (2) MEMORY_REDESIGN.md exists with local-first phases derived from those decisions; (3) operator reviews and aligns (or redirects).
 
 ## What this scope will do (implementation contract)
 
