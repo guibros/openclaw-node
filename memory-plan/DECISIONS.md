@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-28 — Step 0.1 closed: lib/ deploy gap closed via symlink; mcp-knowledge deps = "move the box"
+
+First executable redesign step. Runtime `~/.openclaw/workspace/lib` is now a symlink → repo `lib/`. The `lib/` deploy gap is permanently closed (repo IS runtime for libraries; drift cannot reopen).
+
+**Sub-decision — mcp-knowledge native deps: Option A (move the box).** The daemon's inject server dynamically imports `lib/mcp-knowledge/core.mjs`, which needs 580 MB of compiled native deps (better-sqlite3 + BGE-M3 stack) that existed ONLY in the runtime copy. A naive symlink would have yanked them and broken retrieval. Chosen: move the existing, already-working node_modules into repo `lib/mcp-knowledge/node_modules` (same-FS instant rename; already gitignored) BEFORE flipping the symlink. *Why over the alternatives:* reuses deps proven to load under the daemon's exact node (zero ABI/rebuild risk vs. a fresh `npm install`); keeps a clean single source vs. symlinking node_modules back into the retired runtime dir.
+
+**No restart in 0.1** (by design — restart is 0.2). The running daemon (PID 869) keeps its in-memory modules; the swap doesn't disturb it. "Still boots" verified as: daemon alive + :7893 up + better-sqlite3 loads/runs through the symlink under `~/.openclaw/bin/node`.
+
+*Consequences:* (1) daemon binary still drifted until 0.2 — first new-bin+new-lib run happens at 0.2 restart; watch boot log for missing-import/signature errors against the 11 repo-only lib files. (2) Rollback snapshot `~/.openclaw/workspace/lib.bak-2026-05-28` retained until 0.2 confirms a clean restart. (3) COMPONENT_REGISTRY Family 8 now PARTIALLY CLOSED.
+
+---
+
 ## 2026-05-28 — Session boundary (handoff)
 
 This session built the entire discipline + planning + tooling layer; **no memory-pipeline code was changed.** Committed work (git log): audit (AUDIT_2026-05-27) → discipline bootstrap (MASTER_PLAN, scope-check hook, COMPONENT_REGISTRY, CLAUDE.md) → DESIGN_INPUTS → redesign roadmap (MEMORY_REDESIGN) + 40-step atomic INVENTORY + 9-phase WORKFLOW + Re-Orient Loop → viewer Master Plan tab → redesign-tick automation (built, not loaded) → viewer transition notifications (top-right NC banner via terminal-notifier, Glass/Sosumi, names the step + time, mute toggle).

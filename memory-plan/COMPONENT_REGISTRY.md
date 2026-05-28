@@ -373,10 +373,11 @@ Status legend:
 
 | | |
 |---|---|
-| **Status** | OPEN (the dominant operational issue) |
-| **Owner** | nobody — no automated process syncs repo → workspace |
-| **Last sync** | manual, 2026-05-23 14:48 (file mtimes in `~/.openclaw/workspace/bin/`) |
-| **Drift** | 16 lib/ files differ; 11+ lib/ files exist only in repo |
+| **Status** | PARTIALLY CLOSED — `lib/` synced (step 0.1, 2026-05-28); daemon binary still drifted (step 0.2 pending) |
+| **Owner** | symlink (`lib/`); nobody yet for the daemon binary |
+| **Last sync** | `lib/` now a live symlink → repo (no drift possible); `bin/memory-daemon.mjs` still manual 2026-05-23 14:48 |
+| **Drift** | `lib/`: ZERO (`~/.openclaw/workspace/lib` → repo `lib/`, `diff -rq` empty). Daemon binary: still May-23 copy, differs from repo `workspace-bin/memory-daemon.mjs` |
+| **0.1 evidence** | `readlink` shows symlink; `diff -rq` empty; better-sqlite3 loads via symlink under daemon node; mcp-knowledge node_modules (580MB) moved into repo `lib/mcp-knowledge/` (gitignored); rollback snapshot at `~/.openclaw/workspace/lib.bak-2026-05-28` |
 
 **Target:** Either (a) `bin/deploy-to-workspace.sh` exists and is invoked on every commit-to-main, OR (b) `~/.openclaw/workspace/bin/memory-daemon.mjs` and `~/.openclaw/workspace/lib/` are symlinks into the repo (Decision 0c from the audit). Either way: zero drift between repo HEAD and runtime tree.
 
