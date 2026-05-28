@@ -4,6 +4,14 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-28 — Session boundary (handoff)
+
+This session built the entire discipline + planning + tooling layer; **no memory-pipeline code was changed.** Committed work (git log): audit (AUDIT_2026-05-27) → discipline bootstrap (MASTER_PLAN, scope-check hook, COMPONENT_REGISTRY, CLAUDE.md) → DESIGN_INPUTS → redesign roadmap (MEMORY_REDESIGN) + 40-step atomic INVENTORY + 9-phase WORKFLOW + Re-Orient Loop → viewer Master Plan tab → redesign-tick automation (built, not loaded) → viewer transition notifications (top-right NC banner via terminal-notifier, Glass/Sosumi, names the step + time, mute toggle).
+
+**Next action: redesign step 0.1** (deploy gap: symlink runtime→repo, start NATS), run **interactively**. No active scope — a fresh session sets one per redesign/WORKFLOW.md §6. Passation protocol is in CLAUDE.md (the auto-loaded entry point) + this ledger.
+
+---
+
 ## 2026-05-28 — Memory redesign: 6 foundational decisions (local-first)
 
 Operator answered the six DESIGN_INPUTS §7 open questions. Locked:

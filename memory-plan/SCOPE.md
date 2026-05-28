@@ -1,117 +1,37 @@
 # SCOPE — Today's Work Contract
 
-**Status:** done
-**Goal:** Add the time to the notification banner. Done in memory-plan-notify.sh's banner() so every caller benefits: append Montreal-local HH:MM to the subtitle (alongside the version) for both terminal-notifier and the osascript fallback.
-**Closed:** 2026-05-28 — banner() appends `TZ=America/Montreal HH:MM` to subtitle (`<version> · HH:MM`). Verified: subtitle renders "v0.1 · 14:16"; empty-version degrades to just the time; bash -n OK; both notifier paths share the subtitle var.
-**Set by:** operator ("could it show time as well?")
-**Set at:** 2026-05-28T17:25:00-04:00 (Montreal)
-**Expires:** 2026-05-29T04:00:00Z
+**Status:** idle
+**Goal:** (none — between tasks)
+**Set at:** 2026-05-28 (handoff)
+**Expires:** —
 
-> Prior scope closed + committed: notifications name the step (4aff347).
-**Set by:** operator ("can it show more info than forward? like the step?")
-**Set at:** 2026-05-28T17:05:00-04:00 (Montreal)
-**Expires:** 2026-05-29T04:00:00Z
+> **No active scope.** A fresh session must set one before editing anything (the
+> PreToolUse hook blocks Edit/Write while Status is not `active`). To start work:
+> set Status `active`, a Goal, an `Expires`, a ```files block, and the runtime
+> evidence required — per `redesign/WORKFLOW.md §6`.
 
-> Prior scope closed + committed: top-right banner via terminal-notifier (846ed50).
-**Set by:** operator ("I want a top-right NC banner, not a modal" → "install terminal-notifier")
-**Set at:** 2026-05-28T16:45:00-04:00 (Montreal)
-**Expires:** 2026-05-29T04:00:00Z
+## Next up
 
-> Prior scope closed + committed: notify on/off toggle (e4d4422).
-**Set by:** operator ("add a switch in workplan viewer to activate or deactivate the notification")
-**Set at:** 2026-05-28T16:25:00-04:00 (Montreal)
-**Expires:** 2026-05-29T04:00:00Z
+**Redesign step 0.1** — close the deploy gap (symlink runtime `lib/` + daemon →
+repo; then 0.2 start local NATS). See `redesign/INVENTORY.md` (Block 0) for the
+step + its done-evidence, and `redesign/WORKFLOW.md` for the per-step lifecycle.
+Run **interactively** (runtime-heavy — DECISIONS 2026-05-28 redesign-tick entry).
 
-> Prior scope closed + committed: persistent alert windows (907c1f3).
-**Set by:** operator ("leave the banner until I discard it" → "both persist")
-**Set at:** 2026-05-28T16:05:00-04:00 (Montreal)
-**Expires:** 2026-05-29T04:00:00Z
+## Where the whole effort stands
 
-> Prior scope closed + committed: viewer transition notifications (ac52b46).
-**Set by:** operator ("viewer emit a sound when a step moves forward, another when blocked, with banner notif")
-**Set at:** 2026-05-28T02:05:00-04:00 (Montreal)
-**Expires:** 2026-05-28T23:00:00Z
-
-> Prior scope closed + committed: redesign-tick wiring (3c09d07).
-**Set by:** operator (chose "Build redesign-tick wiring first")
-**Set at:** 2026-05-28T01:40:00-04:00 (Montreal)
-**Expires:** 2026-05-28T13:00:00Z
-
-> Prior scope closed + committed: atomicity revision + Re-Orient Loop (f5b5841).
-**Set by:** operator ("review steps at most atomic level" + "hook a loop for a global view to counter the attention span deficit")
-**Set at:** 2026-05-28T01:10:00-04:00 (Montreal)
-**Expires:** 2026-05-28T12:00:00Z
-
-> Prior scope closed + committed: concrete redesign workplan (624babd).
-**Set by:** operator ("update a concrete plan for every item ... within the workplan viewer work frame ... 9 phase protocol ... devising a workflow from master plan to implementation")
-**Set at:** 2026-05-28T00:40:00-04:00 (Montreal)
-**Expires:** 2026-05-28T12:00:00Z
-
-> Prior scope closed + committed: redesign decisions + roadmap (aca225a). Viewer tab (67f263a). Discipline bootstrap (9b81fbd).
-**Set by:** operator (answered all 6 §7 questions 2026-05-28)
-**Set at:** 2026-05-28T00:10:00-04:00 (Montreal)
-**Expires:** 2026-05-28T12:00:00Z
-
-> Prior scopes closed: viewer Master Plan tab (2026-05-27T23:30), design-inputs capture (2026-05-27T23:50). Both committed (9b81fbd, 67f263a).
-**Set by:** operator ("yes yes" to both DESIGN_INPUTS.md + OUT_OF_SCOPE.md capture)
-**Set at:** 2026-05-27T23:45:00-04:00 (Montreal)
-**Expires:** 2026-05-28T08:00:00Z
-
-> Prior scope (viewer Master Plan tab) CLOSED 2026-05-27T23:30 — all 6 runtime-evidence criteria verified. PID 2514→30633, /scope + /registry + /decisions endpoints live, data-tab="plan" + pane-plan in served HTML, legacy /inventory intact (58 rows). Family-8 parser gap caught + fixed mid-verification.
-**Set by:** operator (chose "Add new view alongside legacy")
-**Set at:** 2026-05-27T23:05:00-04:00 (Montreal)
-**Expires:** 2026-05-28T08:00:00Z
-
-## Files allowed to touch (this session)
+This session built the discipline + planning + tooling; **no memory-pipeline code
+changed yet.** Full picture: read `MASTER_PLAN.md` → `COMPONENT_REGISTRY.md` →
+`DECISIONS.md` → `MEMORY_REDESIGN.md` → `redesign/WORKFLOW.md` + `redesign/INVENTORY.md`.
+`git log --oneline -20` shows what landed. Everything is committed (local; not pushed).
 
 ```files
-workspace-bin/memory-plan-notify.sh
-memory-plan/SCOPE.md
-memory-plan/OUT_OF_SCOPE.md
-memory-plan/DECISIONS.md
 ```
-
-## Runtime evidence required for "done"
-
-1. notify.sh computes a Montreal-local HH:MM and includes it in the subtitle — verified by a debug echo of the constructed subtitle showing "<version> · HH:MM".
-2. `memory-plan-notify.sh closed v0.1 "..."` posts a top-right banner whose subtitle shows the version AND the current time (operator confirms).
-3. The osascript fallback path also includes the time (code inspection — same subtitle var).
-4. bash -n passes.
-
-## What this scope will do (implementation contract)
-
-1. **Server side** — add new read-only endpoints to `workplan-viewer.mjs`:
-   - `/api/plans/<id>/scope` → parsed SCOPE.md: `{ status, goal, set_at, expires, expired (bool), files[], evidence[], override }`
-   - `/api/plans/<id>/registry` → parsed COMPONENT_REGISTRY.md: families + components with status badges (LIVE/DEGRADED/STALE/INERT/ABSENT)
-   - `/api/plans/<id>/decisions` → DECISIONS.md entries (date + title + body)
-   - `/api/plans/<id>/out-of-scope` → OUT_OF_SCOPE.md captured items (or empty if file absent)
-   - Each fails gracefully (returns `{present:false}`) when the doc doesn't exist, so legacy plans without these files don't break.
-
-2. **Frontend** — add one tab + one pane:
-   - New tab button `data-tab="plan"` labeled "Master Plan", placed first (before "Live")
-   - New `<div id="pane-plan" class="pane">` with sections: SCOPE status banner (active/expired, goal, files, evidence checklist), COMPONENT_REGISTRY status grid, DECISIONS ledger, OUT_OF_SCOPE list
-   - Client JS to fetch the 4 endpoints and render. Reuse existing markdown/styling where present.
-
-3. **Legacy untouched** — Live/Progress/Steps/Automation/Block/Documents/History tabs unchanged.
-
-## Runtime evidence required for "done"
-
-1. Viewer restarted (kill PID 2514, relaunch) — verified by new PID in `lsof -iTCP:7892`.
-2. `curl http://localhost:7892/api/plans/memory-plan/scope` returns parsed SCOPE.md with `status: "active"`.
-3. `curl .../registry` returns the 8 families.
-4. `curl .../decisions` returns the 2026-05-27 repo-scoped decision.
-5. The "Master Plan" tab is present in the served HTML (`curl http://localhost:7892/ | grep 'data-tab="plan"'`).
-6. No regression: `/api/plans/memory-plan/inventory` still returns the legacy step rows.
-
-## Notes
-
-- The viewer lives in `workspace-bin/` but is NOT the deployed `~/.openclaw/workspace/bin/` runtime — it's a dev tool run directly from the repo. So "deploy gap" (MASTER_PLAN §4.1) doesn't apply here; the runtime IS this file. Restart = relaunch the node process.
-- Prior scope (bootstrap: MASTER_PLAN/REGISTRY/hook/CLAUDE.md/SCOPE) is COMPLETE but UNCOMMITTED. Recommend committing it as its own commit before or after this viewer work. Operator's call on commit timing.
-- The bootstrap files (MASTER_PLAN.md, COMPONENT_REGISTRY.md, CLAUDE.md, .claude/*) are intentionally NOT in this scope's files block — this session is viewer-only. If a bootstrap doc needs fixing, that's a scope change.
 
 ## How this file works
 
-- **Status:** must be `active` for the hook to allow edits. Set to `done`/`abandoned` when closing.
-- **Expires:** ISO-8601 UTC. If now > expires, the hook blocks. Refresh before continuing.
-- **`files` block:** one path per line, repo-relative. Exact or shell-glob. `#` comments.
-- **Override:** add `**Override:** true` to bypass the hook (operator emergency escape).
+- **Status:** must be `active` for the hook to allow edits to listed files.
+  `idle` / `done` / anything else → the hook blocks (forces a fresh scope).
+- **Expires:** ISO-8601 UTC. Past `Expires` → blocked. Refresh before continuing.
+- **`files` block:** one repo-relative path per line; exact or shell-glob; `#` comments.
+  Empty (as now) → nothing is editable except SCOPE.md and OUT_OF_SCOPE.md.
+- **Override:** `**Override:** true` bypasses the hook (operator emergency escape).

@@ -3,10 +3,20 @@
 **Read these BEFORE any tool use, in this order:**
 
 1. [`memory-plan/MASTER_PLAN.md`](memory-plan/MASTER_PLAN.md) — north star architecture + non-negotiable working principles + done-contract. The doc that governs everything you do in this repo.
-2. [`memory-plan/SCOPE.md`](memory-plan/SCOPE.md) — today's work contract. If absent or `Status` is not `active`, you MUST set scope with the operator before editing anything.
-3. [`memory-plan/COMPONENT_REGISTRY.md`](memory-plan/COMPONENT_REGISTRY.md) — current state of every ~/.openclaw service. Reality, not aspiration.
+2. [`memory-plan/COMPONENT_REGISTRY.md`](memory-plan/COMPONENT_REGISTRY.md) — current state of every ~/.openclaw service. Reality, not aspiration.
+3. [`memory-plan/DECISIONS.md`](memory-plan/DECISIONS.md) — append-only ledger of every architectural decision. This is the fastest way to absorb what was decided and why.
+4. [`memory-plan/MEMORY_REDESIGN.md`](memory-plan/MEMORY_REDESIGN.md) — the local-first redesign roadmap (phases L0–G).
+5. [`memory-plan/redesign/WORKFLOW.md`](memory-plan/redesign/WORKFLOW.md) + [`redesign/INVENTORY.md`](memory-plan/redesign/INVENTORY.md) — the per-step 9-phase lifecycle (incl. the Re-Orient Loop) and the 40-step plan. The first `[ ]` row is the next action.
+6. [`memory-plan/SCOPE.md`](memory-plan/SCOPE.md) — today's work contract. If absent or `Status` is not `active`, you MUST set scope with the operator before editing anything.
+7. [`memory-plan/OUT_OF_SCOPE.md`](memory-plan/OUT_OF_SCOPE.md) — captured drift awaiting triage.
 
-The most recent verified ground-truth audit is [`memory-plan/AUDIT_2026-05-27.md`](memory-plan/AUDIT_2026-05-27.md). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them.
+The most recent verified ground-truth audit is [`memory-plan/AUDIT_2026-05-27.md`](memory-plan/AUDIT_2026-05-27.md). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them. `git log --oneline -20` shows the recent committed work.
+
+## Where we are / next action
+
+As of 2026-05-28: the working-discipline layer (MASTER_PLAN + scope-check hook + COMPONENT_REGISTRY + DECISIONS), the redesign plan (MEMORY_REDESIGN + redesign/ 40-step inventory + the 9-phase WORKFLOW + the re-orient loop), the workplan-viewer (Master Plan tab + transition notifications), and the redesign-tick automation (built, BLOCK-not-fake, NOT auto-loaded) are all committed. **No code in the actual memory pipeline has been changed yet.**
+
+**The next action is redesign step 0.1** (close the deploy gap: symlink runtime→repo, start NATS). It is intentionally to be run **interactively** (runtime-heavy; see DECISIONS 2026-05-28 redesign-tick entry). There is no active scope — set one per `redesign/WORKFLOW.md §6` before editing.
 
 ## The forcing function
 
