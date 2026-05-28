@@ -117,6 +117,31 @@ function fireNotify(kind, version, message) {
   } catch { /* best-effort; never block the viewer */ }
 }
 
+// Find the inventory row for a version (ignoring any -pre/-mid suffix).
+function stepRowForVersion(plan, version) {
+  const base = String(version || '').replace(/-(pre|mid)$/, '');
+  try { return (inventoryRows(plan) || []).find(r => r.version === base) || null; }
+  catch { return null; }
+}
+function clip(s, n = 90) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+// Message for a forward transition: name the step + its description.
+function forwardMessage(plan, version, prevVersion) {
+  const row = stepRowForVersion(plan, version);
+  const suffix = (/-(pre|mid)$/.exec(version) || [])[1];
+  if (row) {
+    return suffix
+      ? `step ${row.step} (${suffix}) — ${clip(row.desc)}`
+      : `step ${row.step} closed — ${clip(row.desc)}`;
+  }
+  return `${prevVersion} → ${version}`;
+}
+// Message for a block: name the step it's stuck on (the current/next step).
+function blockMessage(summary) {
+  const cs = summary.current_step;
+  return cs ? `blocked at step ${cs.step} — ${clip(cs.desc)}` : 'plan BLOCKED — see BLOCKED.md';
+}
+
 // Track last-seen {version, blocked, closed} per plan; fire only on transitions.
 // First sight of a plan seeds silently (no notification storm on viewer start).
 const notifyState = new Map();
@@ -129,11 +154,13 @@ function pollNotifications() {
     notifyState.set(plan.id, cur);
     if (!prev) continue; // seed silently
     if (cur.blocked && !prev.blocked) {
-      fireNotify('blocked', cur.version, `${plan.id}: plan BLOCKED — see BLOCKED.md`);
-      console.log(`[notify] ${plan.id} BLOCKED at ${cur.version}`);
+      const msg = blockMessage(s);
+      fireNotify('blocked', cur.version, `${plan.id}: ${msg}`);
+      console.log(`[notify] ${plan.id} BLOCKED at ${cur.version} — ${msg}`);
     } else if (cur.closed > prev.closed || cur.version !== prev.version) {
-      fireNotify('closed', cur.version, `${plan.id}: ${prev.version} → ${cur.version}`);
-      console.log(`[notify] ${plan.id} forward ${prev.version}→${cur.version} (${prev.closed}→${cur.closed})`);
+      const msg = forwardMessage(plan, cur.version, prev.version);
+      fireNotify('closed', cur.version, `${plan.id}: ${msg}`);
+      console.log(`[notify] ${plan.id} forward ${prev.version}→${cur.version} — ${msg}`);
     }
   }
 }
@@ -2246,8 +2273,17 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/api/notify-test') {
     const kind = url.searchParams.get('kind') === 'block' ? 'blocked' : 'closed';
-    fireNotify(kind, 'v-test', kind === 'blocked' ? 'notify-test: BLOCKED' : 'notify-test: step forward');
-    return json(res, { fired: kind, enabled: notifyEnabled, script: NOTIFY_SCRIPT });
+    const plan = findPlan(url.searchParams.get('plan') || '') || PLANS[0] || null;
+    let version = 'v-test', message = kind === 'blocked' ? 'notify-test: BLOCKED' : 'notify-test: step forward';
+    if (plan) {
+      const s = planSummary(plan);
+      version = s.version;
+      message = kind === 'blocked'
+        ? `${plan.id}: ${blockMessage(s)}`
+        : `${plan.id}: ${forwardMessage(plan, s.current_step ? s.current_step.version : s.version, s.version)}`;
+    }
+    fireNotify(kind, version, message);
+    return json(res, { fired: kind, enabled: notifyEnabled, plan: plan?.id || null, version, message });
   }
 
   if (req.method === 'GET' && url.pathname === '/api/plans') {

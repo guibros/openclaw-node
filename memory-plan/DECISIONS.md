@@ -68,6 +68,8 @@ The workplan-viewer now fires the existing `memory-plan-notify.sh` server-side o
 - **Persistence is a macOS System Setting, not scriptable:** to make banners STAY until dismissed (vs auto-dismiss ~5s), set **System Settings → Notifications → terminal-notifier → "Alerts"** (one-time). Default install style is "Banners" (auto-dismiss).
 - **First-run permission:** macOS may require granting terminal-notifier permission to send notifications before banners appear.
 
+**Enriched 2026-05-28 (operator: "can it show the step?"):** the banner message now names the step, not just the version. The viewer looks up the inventory row matching the new version → forward = "step X.Y closed — <desc>" (or "(pre/mid)" while in-flight); block = "blocked at step X.Y — <desc>" (the step it's stuck on). `/api/notify-test?kind=&plan=` renders the real message for a named plan and returns it in JSON; the poller logs it. Verified: forward/block test messages name step 0.1 + its description; a real induced block logged "blocked at step 0.1 — Symlink runtime lib/ → repo lib/".
+
 ---
 
 ## 2026-05-27 — Master-plan discipline is intentionally repo-scoped to openclaw-nodedev
