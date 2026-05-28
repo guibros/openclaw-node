@@ -78,6 +78,46 @@ function findPlan(id) {
   return PLANS.find(p => p.id === id) || null;
 }
 
+// ── State-transition notifications (server-side banner + sound) ────────────────
+// Fires the shared memory-plan-notify.sh on plan transitions, so the operator
+// hears/sees them whether or not a browser tab is open:
+//   forward (step closed / version advanced) → 'closed' → Glass chime
+//   plan became BLOCKED                       → 'blocked' → Sosumi alert
+// Disable with MEMORY_PLAN_NOTIFY=off.
+const HERE = path.dirname(new URL(import.meta.url).pathname);
+const NOTIFY_SCRIPT = path.join(HERE, 'memory-plan-notify.sh');
+const NOTIFY_ENABLED = (process.env.MEMORY_PLAN_NOTIFY ?? 'on') !== 'off' && fs.existsSync(NOTIFY_SCRIPT);
+
+function fireNotify(kind, version, message) {
+  // kind: 'closed' (forward, Glass) | 'blocked' (Sosumi)
+  if (!NOTIFY_ENABLED) return;
+  try {
+    execFile(NOTIFY_SCRIPT, [kind, String(version || ''), String(message || '')], { timeout: 10_000 }, () => {});
+  } catch { /* best-effort; never block the viewer */ }
+}
+
+// Track last-seen {version, blocked, closed} per plan; fire only on transitions.
+// First sight of a plan seeds silently (no notification storm on viewer start).
+const notifyState = new Map();
+function pollNotifications() {
+  for (const plan of PLANS) {
+    let s;
+    try { s = planSummary(plan); } catch { continue; }
+    const cur = { version: s.version, blocked: !!s.blocked, closed: s.closed_steps };
+    const prev = notifyState.get(plan.id);
+    notifyState.set(plan.id, cur);
+    if (!prev) continue; // seed silently
+    if (cur.blocked && !prev.blocked) {
+      fireNotify('blocked', cur.version, `${plan.id}: plan BLOCKED — see BLOCKED.md`);
+      console.log(`[notify] ${plan.id} BLOCKED at ${cur.version}`);
+    } else if (cur.closed > prev.closed || cur.version !== prev.version) {
+      fireNotify('closed', cur.version, `${plan.id}: ${prev.version} → ${cur.version}`);
+      console.log(`[notify] ${plan.id} forward ${prev.version}→${cur.version} (${prev.closed}→${cur.closed})`);
+    }
+  }
+}
+setInterval(pollNotifications, 12_000);
+
 // ── Plan-state probes ─────────────────────────────────────────────────────────
 
 const planTickLogDir = (p) => path.join(p.dir, 'tick-logs');
@@ -2142,6 +2182,12 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(HTML);
     return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/notify-test') {
+    const kind = url.searchParams.get('kind') === 'block' ? 'blocked' : 'closed';
+    fireNotify(kind, 'v-test', kind === 'blocked' ? 'notify-test: BLOCKED' : 'notify-test: step forward');
+    return json(res, { fired: kind, enabled: NOTIFY_ENABLED, script: NOTIFY_SCRIPT });
   }
 
   if (req.method === 'GET' && url.pathname === '/api/plans') {

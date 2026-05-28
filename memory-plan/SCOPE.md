@@ -1,8 +1,13 @@
 # SCOPE — Today's Work Contract
 
 **Status:** done
-**Goal:** Build the redesign-tick automation wiring — a tick script + launchd plist + redesign TICK_PROMPT that encodes the WORKFLOW (9-phase + runtime-evidence gate + re-orient loop + BLOCKED protocol), designed to BLOCK-not-fake when it can't produce runtime evidence. Installed but NOT auto-loaded (enabling it stays an operator decision). Fix redesign/automation.json paths to match.
-**Closed:** 2026-05-28 — redesign-tick.sh (+--preflight verified: next step 0.1, no claude invoked), TICK_PROMPT.md (BLOCK-not-fake + Runtime-Evidence trailer), plist (plutil OK, installed, NOT loaded), automation.json paths fixed (viewer sees plist_exists+tick_command_exists). Decision logged.
+**Goal:** Make the workplan-viewer emit a banner+sound on plan state transitions — Glass (step moving forward: version advanced / step closed) and Sosumi (a plan became BLOCKED) — by detecting transitions server-side and firing the existing memory-plan-notify.sh. Works whether or not a browser tab is open. Add a notify-test endpoint for verification.
+**Closed:** 2026-05-28 — server-side 12s transition poller + fireNotify + /api/notify-test added to workplan-viewer.mjs; restarted (PID 12797), both plans listed (no regression); both test kinds fired (enabled:true); real induced block transition logged `[notify] redesign BLOCKED at v0.0`; first-sight seeds silently.
+**Set by:** operator ("viewer emit a sound when a step moves forward, another when blocked, with banner notif")
+**Set at:** 2026-05-28T02:05:00-04:00 (Montreal)
+**Expires:** 2026-05-28T23:00:00Z
+
+> Prior scope closed + committed: redesign-tick wiring (3c09d07).
 **Set by:** operator (chose "Build redesign-tick wiring first")
 **Set at:** 2026-05-28T01:40:00-04:00 (Montreal)
 **Expires:** 2026-05-28T13:00:00Z
@@ -35,10 +40,7 @@
 ## Files allowed to touch (this session)
 
 ```files
-workspace-bin/redesign-tick.sh
-memory-plan/redesign/TICK_PROMPT.md
-services/launchd/com.openclaw.redesign-tick.plist
-memory-plan/redesign/automation.json
+workspace-bin/workplan-viewer.mjs
 memory-plan/SCOPE.md
 memory-plan/OUT_OF_SCOPE.md
 memory-plan/DECISIONS.md
@@ -46,11 +48,10 @@ memory-plan/DECISIONS.md
 
 ## Runtime evidence required for "done"
 
-1. `redesign-tick.sh --preflight` (a non-invoking dry-run mode) reads redesign/VERSION + INVENTORY, correctly reports next step = 0.1, and prints the prompt path — WITHOUT invoking headless claude.
-2. The TICK_PROMPT encodes: read MASTER_PLAN+WORKFLOW+phase; micro re-orient; 9-phase; runtime-evidence gate; BLOCK-not-fake rule; macro re-orient at block close; BLOCKED.md first-check.
-3. `plutil -lint` passes on the plist; plist ProgramArguments points at the real redesign-tick.sh.
-4. Plist installed in ~/Library/LaunchAgents but **NOT loaded** — `launchctl list | grep redesign-tick` returns nothing (built, not running).
-5. redesign/automation.json tick_command + plist_path point at the real existing files.
+1. Viewer relaunched with the feature; still serves :7892 and lists both plans (no regression).
+2. `curl 'http://localhost:7892/api/notify-test?kind=forward'` and `?kind=block` fire the banner+sound (osascript/afplay rc 0; operator confirms audibly/visually).
+3. A real induced transition: `touch memory-plan/redesign/BLOCKED.md` → the server-side poller detects blocked false→true and fires the block notification (viewer log line + banner); then remove BLOCKED.md.
+4. First-sight of a plan does NOT fire (state seeded silently) — no notification storm on viewer start.
 
 ## What this scope will do (implementation contract)
 

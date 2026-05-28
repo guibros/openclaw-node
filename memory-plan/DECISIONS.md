@@ -52,6 +52,16 @@ Operator chose "build redesign-tick wiring first" (over running L0 interactively
 
 ---
 
+## 2026-05-28 — Viewer emits banner+sound on plan state transitions
+
+The workplan-viewer now fires the existing `memory-plan-notify.sh` server-side on plan transitions (a 12s poller diffs each plan's {version, blocked, closed_steps}):
+- **Forward** (step closed / version advanced) → `closed` → **Glass** chime + banner.
+- **Blocked** (a plan's BLOCKED.md appears) → `blocked` → **Sosumi** alert + banner.
+
+*Why server-side:* it fires whether or not a browser tab is open — the right behavior for an operator monitoring autonomous ticks. *Why reuse notify.sh:* one source of truth for sounds/banners shared with the tick wrapper. First-sight of a plan seeds silently (no startup storm); `MEMORY_PLAN_NOTIFY=off` disables. A `/api/notify-test?kind=forward|block` endpoint verifies the wiring. Verified: both test kinds fire (enabled:true); a real induced block transition (touch redesign/BLOCKED.md) produced `[notify] redesign BLOCKED at v0.0` and the banner, then cleared.
+
+---
+
 ## 2026-05-27 — Master-plan discipline is intentionally repo-scoped to openclaw-nodedev
 
 **Decision:** The master plan, the scope-check hook, and the SCOPE.md contract govern work done **inside the `openclaw-nodedev` repo only.** They are deliberately NOT propagated to other repos (companion-bridge, mission-control) or to the global `~/.claude/CLAUDE.md`. Other Claude Code sessions working in other repos are unbound by this discipline.
