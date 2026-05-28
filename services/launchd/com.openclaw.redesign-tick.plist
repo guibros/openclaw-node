@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.openclaw.redesign-tick</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/moltymac/openclaw-nodedev/workspace-bin/redesign-tick.sh</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <!-- Built but NOT auto-run. Operator enables via the viewer (Automation tab) or
+       `launchctl enable gui/$UID/com.openclaw.redesign-tick && launchctl bootstrap …`.
+       Enabling, and for which steps, is a deliberate decision (memory-plan/DECISIONS.md). -->
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/moltymac/openclaw-nodedev/memory-plan/redesign/tick-logs/launchd.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/moltymac/openclaw-nodedev/memory-plan/redesign/tick-logs/launchd.stderr.log</string>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/moltymac/openclaw-nodedev</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/moltymac</string>
+    <key>WORKPLAN_AUTOPAUSE</key>
+    <string>1</string>
+    <key>WORKPLAN_PLIST_LABEL</key>
+    <string>com.openclaw.redesign-tick</string>
+  </dict>
+
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+</dict>
+</plist>

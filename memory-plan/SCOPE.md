@@ -1,8 +1,13 @@
 # SCOPE — Today's Work Contract
 
 **Status:** done
-**Goal:** (a) Re-decompose the redesign INVENTORY to true atomic grain (one verifiable runtime outcome per step), fixing over-bundled steps + the event-log ordering. (b) Add a Re-Orient Loop to the 9-phase workflow (micro per-step + macro per-block) to counter the attention-span deficit when digging deep.
-**Closed:** 2026-05-28 — INVENTORY 33→40 atomic steps (with revision log); WORKFLOW §7 Re-Orient Loop (micro+macro+tripwire) wired into the lifecycle table + checklist; DECISIONS logged; viewer re-parses 40 steps, next 0.1.
+**Goal:** Build the redesign-tick automation wiring — a tick script + launchd plist + redesign TICK_PROMPT that encodes the WORKFLOW (9-phase + runtime-evidence gate + re-orient loop + BLOCKED protocol), designed to BLOCK-not-fake when it can't produce runtime evidence. Installed but NOT auto-loaded (enabling it stays an operator decision). Fix redesign/automation.json paths to match.
+**Closed:** 2026-05-28 — redesign-tick.sh (+--preflight verified: next step 0.1, no claude invoked), TICK_PROMPT.md (BLOCK-not-fake + Runtime-Evidence trailer), plist (plutil OK, installed, NOT loaded), automation.json paths fixed (viewer sees plist_exists+tick_command_exists). Decision logged.
+**Set by:** operator (chose "Build redesign-tick wiring first")
+**Set at:** 2026-05-28T01:40:00-04:00 (Montreal)
+**Expires:** 2026-05-28T13:00:00Z
+
+> Prior scope closed + committed: atomicity revision + Re-Orient Loop (f5b5841).
 **Set by:** operator ("review steps at most atomic level" + "hook a loop for a global view to counter the attention span deficit")
 **Set at:** 2026-05-28T01:10:00-04:00 (Montreal)
 **Expires:** 2026-05-28T12:00:00Z
@@ -30,8 +35,10 @@
 ## Files allowed to touch (this session)
 
 ```files
-memory-plan/redesign/WORKFLOW.md
-memory-plan/redesign/INVENTORY.md
+workspace-bin/redesign-tick.sh
+memory-plan/redesign/TICK_PROMPT.md
+services/launchd/com.openclaw.redesign-tick.plist
+memory-plan/redesign/automation.json
 memory-plan/SCOPE.md
 memory-plan/OUT_OF_SCOPE.md
 memory-plan/DECISIONS.md
@@ -39,10 +46,11 @@ memory-plan/DECISIONS.md
 
 ## Runtime evidence required for "done"
 
-1. Every INVENTORY step passes the atomicity test: one verifiable runtime outcome, one commit. No step bundles ≥2 independently-verifiable changes. (Manual review per step + recorded rationale.)
-2. WORKFLOW.md documents the Re-Orient Loop: micro (per-step Phase-1 re-orient header) + macro (per-block Global Review), wired into the per-step lifecycle.
-3. Viewer re-parses the revised inventory: `curl http://localhost:7892/api/plans/redesign/state` shows the new step total and next-step still 0.1.
-4. DECISIONS.md logs the atomicity revision + the loop addition.
+1. `redesign-tick.sh --preflight` (a non-invoking dry-run mode) reads redesign/VERSION + INVENTORY, correctly reports next step = 0.1, and prints the prompt path — WITHOUT invoking headless claude.
+2. The TICK_PROMPT encodes: read MASTER_PLAN+WORKFLOW+phase; micro re-orient; 9-phase; runtime-evidence gate; BLOCK-not-fake rule; macro re-orient at block close; BLOCKED.md first-check.
+3. `plutil -lint` passes on the plist; plist ProgramArguments points at the real redesign-tick.sh.
+4. Plist installed in ~/Library/LaunchAgents but **NOT loaded** — `launchctl list | grep redesign-tick` returns nothing (built, not running).
+5. redesign/automation.json tick_command + plist_path point at the real existing files.
 
 ## What this scope will do (implementation contract)
 

@@ -40,6 +40,18 @@ Operator asked to (a) re-decompose steps to their most atomic level, and (b) hoo
 
 ---
 
+## 2026-05-28 — Redesign-tick automation: built, BLOCK-not-fake, NOT auto-loaded
+
+Operator chose "build redesign-tick wiring first" (over running L0 interactively now). Built the autonomous tick for the redesign plan: `workspace-bin/redesign-tick.sh` + `memory-plan/redesign/TICK_PROMPT.md` + `services/launchd/com.openclaw.redesign-tick.plist`, plus fixed `redesign/automation.json` paths.
+
+**Safety design (resolves the standing concern that a headless tick re-creates the original "59 closed, 0 working" disaster):** the TICK_PROMPT's overriding rule is **done = runtime-observable; if you cannot produce the step's runtime evidence, BLOCK — do not fake-close.** The commit format requires a `Runtime-Evidence:` trailer citing an observed runtime proof; no trailer → no commit → BLOCK. A Phase-4 sprawl tripwire forces a BLOCK-and-split when a step turns out non-atomic. So the tick can safely *attempt* steps: it self-pauses (BLOCKED.md) on anything it can't verify, surfacing it for the operator.
+
+**NOT auto-loaded.** The plist is installed in `~/Library/LaunchAgents` but deliberately not bootstrapped (`launchctl list` shows nothing). `RunAtLoad=false`. Enabling autonomous ticks — and *for which steps* — remains a separate operator decision. Recommendation still stands (DESIGN_INPUTS / prior analysis): run the foundation phases L0–L2 interactively (runtime-heavy, need a live environment + operator judgment); reconsider the tick for mechanical/test-verifiable steps only after the watcher (L2) provides observability.
+
+*Consequence:* the automation exists and is verifiable (`redesign-tick.sh --preflight` reports next step without invoking claude) but inert until explicitly enabled. The viewer's Automation tab can load it when the operator decides.
+
+---
+
 ## 2026-05-27 — Master-plan discipline is intentionally repo-scoped to openclaw-nodedev
 
 **Decision:** The master plan, the scope-check hook, and the SCOPE.md contract govern work done **inside the `openclaw-nodedev` repo only.** They are deliberately NOT propagated to other repos (companion-bridge, mission-control) or to the global `~/.claude/CLAUDE.md`. Other Claude Code sessions working in other repos are unbound by this discipline.
