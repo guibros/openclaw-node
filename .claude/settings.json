@@ -1,0 +1,16 @@
+{
+  "$comment": "Team-shared Claude Code settings for openclaw-nodedev. Personal overrides go in settings.local.json. The scope-check hook enforces memory-plan/MASTER_PLAN.md §6.2 — every Edit/Write/MultiEdit/NotebookEdit is gated by memory-plan/SCOPE.md. See memory-plan/MASTER_PLAN.md for the discipline; .claude/hooks/scope-check.sh for the implementation.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/scope-check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
