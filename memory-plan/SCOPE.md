@@ -1,8 +1,13 @@
 # SCOPE — Today's Work Contract
 
 **Status:** done
-**Goal:** Make the notifications persist until dismissed (operator chose "both persist"). Change memory-plan-notify.sh to render a detached `display alert` WINDOW (no auto-dismiss) for both forward (Glass) and block (Sosumi, critical), keeping the afplay chime. Viewer needs no change (calls notify.sh by path).
-**Closed:** 2026-05-28 — notify.sh rewritten to detached persistent `display alert` windows (no `giving up after`); forward=Glass, block=Sosumi+critical. Verified: direct + viewer-path calls return in ms and leave windows that stay until clicked; grep confirms no auto-dismiss.
+**Goal:** Add a runtime on/off switch for notifications in the workplan-viewer: a header toggle button + GET/POST /api/notify-config endpoints + a mutable, persisted (~/.openclaw/config/workplan-viewer.json) enabled flag that fireNotify honors. Survives viewer restart.
+**Closed:** 2026-05-28 — header 🔔/🔕 toggle + /api/notify-config get/set + persisted flag. Verified: default true; disable→enabled:false + notify-test no-ops; re-enable works; persistence survives a real restart (loaded false, restored to ON); button id in served HTML.
+**Set by:** operator ("add a switch in workplan viewer to activate or deactivate the notification")
+**Set at:** 2026-05-28T16:25:00-04:00 (Montreal)
+**Expires:** 2026-05-29T04:00:00Z
+
+> Prior scope closed + committed: persistent alert windows (907c1f3).
 **Set by:** operator ("leave the banner until I discard it" → "both persist")
 **Set at:** 2026-05-28T16:05:00-04:00 (Montreal)
 **Expires:** 2026-05-29T04:00:00Z
@@ -45,7 +50,7 @@
 ## Files allowed to touch (this session)
 
 ```files
-workspace-bin/memory-plan-notify.sh
+workspace-bin/workplan-viewer.mjs
 memory-plan/SCOPE.md
 memory-plan/OUT_OF_SCOPE.md
 memory-plan/DECISIONS.md
@@ -53,10 +58,11 @@ memory-plan/DECISIONS.md
 
 ## Runtime evidence required for "done"
 
-1. `memory-plan-notify.sh closed v-test "forward"` pops a persistent alert WINDOW (Glass chime) that stays until clicked — the command returns immediately (detached), window does not auto-close.
-2. `memory-plan-notify.sh blocked v-test "blocked"` pops a persistent critical alert window (Sosumi).
-3. Via the viewer: `curl '…/api/notify-test?kind=forward'` and `?kind=block` produce persistent windows (no viewer restart needed — notify.sh is exec'd by path).
-4. No `giving up after` anywhere in notify.sh (grep) — nothing auto-dismisses. Operator confirms a window stays until they click it.
+1. Viewer relaunched; `curl '…/api/notify-config'` returns `{enabled:true}` (default).
+2. `curl -X POST '…/api/notify-config?enabled=0'` → `{enabled:false}`; a subsequent `…/api/notify-test?kind=forward` reports `enabled:false` and pops NO window (fireNotify no-ops).
+3. `curl -X POST '…/api/notify-config?enabled=1'` → `{enabled:true}`; notify-test fires again.
+4. The toggle persists: `~/.openclaw/config/workplan-viewer.json` written; after a viewer restart `/api/notify-config` reflects the saved value.
+5. Header toggle button present in served HTML (`id="notify-toggle"`).
 
 ## What this scope will do (implementation contract)
 

@@ -86,11 +86,32 @@ function findPlan(id) {
 // Disable with MEMORY_PLAN_NOTIFY=off.
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const NOTIFY_SCRIPT = path.join(HERE, 'memory-plan-notify.sh');
-const NOTIFY_ENABLED = (process.env.MEMORY_PLAN_NOTIFY ?? 'on') !== 'off' && fs.existsSync(NOTIFY_SCRIPT);
+const NOTIFY_SCRIPT_OK = fs.existsSync(NOTIFY_SCRIPT);
+const NOTIFY_CONFIG_FILE = path.join(os.homedir(), '.openclaw', 'config', 'workplan-viewer.json');
+
+// Runtime on/off switch (toggled from the header button, persisted across restarts).
+// Boot value: the persisted file if present, else the MEMORY_PLAN_NOTIFY env default.
+function loadNotifyEnabled() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(NOTIFY_CONFIG_FILE, 'utf8'));
+    if (typeof cfg.notify === 'boolean') return cfg.notify;
+  } catch { /* no file / bad json → fall through to env default */ }
+  return (process.env.MEMORY_PLAN_NOTIFY ?? 'on') !== 'off';
+}
+let notifyEnabled = loadNotifyEnabled();
+
+function saveNotifyEnabled(v) {
+  notifyEnabled = !!v;
+  try {
+    fs.mkdirSync(path.dirname(NOTIFY_CONFIG_FILE), { recursive: true });
+    fs.writeFileSync(NOTIFY_CONFIG_FILE, JSON.stringify({ notify: notifyEnabled }, null, 2) + '\n');
+  } catch { /* best-effort persist */ }
+  return notifyEnabled;
+}
 
 function fireNotify(kind, version, message) {
   // kind: 'closed' (forward, Glass) | 'blocked' (Sosumi)
-  if (!NOTIFY_ENABLED) return;
+  if (!notifyEnabled || !NOTIFY_SCRIPT_OK) return;
   try {
     execFile(NOTIFY_SCRIPT, [kind, String(version || ''), String(message || '')], { timeout: 10_000 }, () => {});
   } catch { /* best-effort; never block the viewer */ }
@@ -912,6 +933,7 @@ const HTML = String.raw`<!doctype html>
     <span class="badge" id="h-block-wrap"><span class="key">block</span><span class="val" id="h-block">—</span></span>
     <span class="spacer"></span>
     <span class="step" id="h-step"></span>
+    <button class="pause-btn" id="notify-toggle" title="Toggle step/block notifications">🔔 Notify</button>
     <button class="pause-btn" id="header-pause-btn" title="Pause future ticks">⏸ Pause</button>
   </div>
 
@@ -1182,6 +1204,33 @@ $('header-pause-btn').addEventListener('click', async () => {
     if (trigger == null) return;
     await doBlock({ trigger, detail: '' });
   }
+});
+
+// ── Notification toggle ─────────────────────────────────────────────────────
+async function refreshNotifyToggle() {
+  try {
+    const r = await fetch('/api/notify-config');
+    const d = await r.json();
+    applyNotifyToggle(d.enabled);
+  } catch { /* ignore */ }
+}
+function applyNotifyToggle(enabled) {
+  const btn = $('notify-toggle');
+  if (!btn) return;
+  btn.textContent = enabled ? '🔔 Notify' : '🔕 Muted';
+  btn.classList.toggle('paused', !enabled);
+  btn.title = enabled
+    ? 'Notifications ON (step=Glass, block=Sosumi). Click to mute.'
+    : 'Notifications MUTED. Click to enable.';
+  btn.dataset.enabled = enabled ? '1' : '0';
+}
+$('notify-toggle').addEventListener('click', async () => {
+  const cur = $('notify-toggle').dataset.enabled === '1';
+  try {
+    const r = await fetch('/api/notify-config?enabled=' + (cur ? '0' : '1'), { method: 'POST' });
+    const d = await r.json();
+    applyNotifyToggle(d.enabled);
+  } catch { /* ignore */ }
 });
 
 async function doBlock({ trigger, detail }) {
@@ -1935,7 +1984,9 @@ async function renderHistory() {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 refreshPlans();
+refreshNotifyToggle();
 setInterval(refreshPlans, 10000);
+setInterval(refreshNotifyToggle, 15000);
 </script>
 </body>
 </html>
@@ -2184,10 +2235,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/notify-config') {
+    if (req.method === 'POST') {
+      const raw = url.searchParams.get('enabled');
+      const v = (raw === '1' || raw === 'true' || raw === 'on');
+      saveNotifyEnabled(v);
+    }
+    return json(res, { enabled: notifyEnabled, persisted_to: NOTIFY_CONFIG_FILE });
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/notify-test') {
     const kind = url.searchParams.get('kind') === 'block' ? 'blocked' : 'closed';
     fireNotify(kind, 'v-test', kind === 'blocked' ? 'notify-test: BLOCKED' : 'notify-test: step forward');
-    return json(res, { fired: kind, enabled: NOTIFY_ENABLED, script: NOTIFY_SCRIPT });
+    return json(res, { fired: kind, enabled: notifyEnabled, script: NOTIFY_SCRIPT });
   }
 
   if (req.method === 'GET' && url.pathname === '/api/plans') {

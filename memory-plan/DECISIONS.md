@@ -62,6 +62,8 @@ The workplan-viewer now fires the existing `memory-plan-notify.sh` server-side o
 
 **Amended 2026-05-28 (operator: "leave the banner until I discard it" → "both persist"):** transient `display notification` banners auto-dismiss and their persistence is only a per-app System-Settings toggle (not script-controllable). So `memory-plan-notify.sh` now renders a **detached `display alert` WINDOW** that stays until the operator clicks Dismiss — for BOTH forward (Glass) and block (Sosumi, `as critical`) — with no `giving up after`. Launched `nohup … &` so the caller returns immediately and the window survives independently; the afplay chime still plays. Trade-off accepted: a focus-grabbing window pops per transition (operator chose this over the System-Settings route). Viewer needs no change (execs notify.sh by path). Verified: direct + viewer-path calls return in ms and leave persistent windows; grep confirms no auto-dismiss.
 
+**Added 2026-05-28 (operator: "add a switch to activate/deactivate"):** the workplan-viewer has a runtime on/off switch — a header 🔔/🔕 toggle button + `GET|POST /api/notify-config?enabled=0|1`. The flag is mutable (`notifyEnabled`, honored by `fireNotify`) and persisted to `~/.openclaw/config/workplan-viewer.json`, so it survives viewer restarts (boot value = persisted file, else the MEMORY_PLAN_NOTIFY env default). Verified: get/set/persist + a real restart loads the saved value; disabled → notify-test no-ops (no window).
+
 ---
 
 ## 2026-05-27 — Master-plan discipline is intentionally repo-scoped to openclaw-nodedev
