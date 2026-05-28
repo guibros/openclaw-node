@@ -60,6 +60,8 @@ The workplan-viewer now fires the existing `memory-plan-notify.sh` server-side o
 
 *Why server-side:* it fires whether or not a browser tab is open — the right behavior for an operator monitoring autonomous ticks. *Why reuse notify.sh:* one source of truth for sounds/banners shared with the tick wrapper. First-sight of a plan seeds silently (no startup storm); `MEMORY_PLAN_NOTIFY=off` disables. A `/api/notify-test?kind=forward|block` endpoint verifies the wiring. Verified: both test kinds fire (enabled:true); a real induced block transition (touch redesign/BLOCKED.md) produced `[notify] redesign BLOCKED at v0.0` and the banner, then cleared.
 
+**Amended 2026-05-28 (operator: "leave the banner until I discard it" → "both persist"):** transient `display notification` banners auto-dismiss and their persistence is only a per-app System-Settings toggle (not script-controllable). So `memory-plan-notify.sh` now renders a **detached `display alert` WINDOW** that stays until the operator clicks Dismiss — for BOTH forward (Glass) and block (Sosumi, `as critical`) — with no `giving up after`. Launched `nohup … &` so the caller returns immediately and the window survives independently; the afplay chime still plays. Trade-off accepted: a focus-grabbing window pops per transition (operator chose this over the System-Settings route). Viewer needs no change (execs notify.sh by path). Verified: direct + viewer-path calls return in ms and leave persistent windows; grep confirms no auto-dismiss.
+
 ---
 
 ## 2026-05-27 — Master-plan discipline is intentionally repo-scoped to openclaw-nodedev
