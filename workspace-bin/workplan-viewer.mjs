@@ -163,6 +163,112 @@ function planDocuments(plan) {
     });
 }
 
+// ── Master-plan structured parsers (post-2026-05-27 docs) ──────────────────────
+// Read SCOPE.md / COMPONENT_REGISTRY.md / DECISIONS.md / OUT_OF_SCOPE.md. Each
+// returns {present:false} when its doc is absent, so legacy plans (INVENTORY.md +
+// VERSION only) don't break.
+
+function readPlanFile(plan, name) {
+  try { return fs.readFileSync(path.join(plan.dir, name), 'utf8'); }
+  catch { return null; }
+}
+
+function parseScope(plan) {
+  const raw = readPlanFile(plan, 'SCOPE.md');
+  if (raw == null) return { present: false };
+  const field = (label) => {
+    const m = raw.match(new RegExp('^\\*\\*' + label + ':\\*\\*\\s*(.+)$', 'mi'));
+    return m ? m[1].trim() : null;
+  };
+  const status = (field('Status') || '').toLowerCase();
+  const expires = field('Expires');
+  let expired = false;
+  if (expires && expires.toLowerCase() !== 'no-expiry') {
+    const t = Date.parse(expires);
+    if (!Number.isNaN(t)) expired = Date.now() > t;
+  }
+  const files = [];
+  const fm = raw.match(/```files\s*\n([\s\S]*?)\n```/);
+  if (fm) {
+    for (const line of fm[1].split('\n')) {
+      const t = line.trim();
+      if (t && !t.startsWith('#')) files.push(t);
+    }
+  }
+  const evidence = [];
+  const em = raw.match(/##+\s*Runtime evidence required[^\n]*\n([\s\S]*?)(?:\n## |\n---|$)/);
+  if (em) {
+    for (const line of em[1].split('\n')) {
+      const m = line.match(/^\s*(?:\d+\.|[-*])\s+(.*\S)/);
+      if (m) evidence.push(m[1].trim());
+    }
+  }
+  return {
+    present: true,
+    status,
+    goal: field('Goal'),
+    set_at: field('Set at'),
+    expires,
+    expired,
+    override: (field('Override') || '').toLowerCase() === 'true',
+    files,
+    evidence,
+  };
+}
+
+function parseRegistry(plan) {
+  const raw = readPlanFile(plan, 'COMPONENT_REGISTRY.md');
+  if (raw == null) return { present: false };
+  const families = [];
+  let curFamily = null;
+  let curComp = null;
+  for (const line of raw.split('\n')) {
+    const fam = line.match(/^##\s+(Family\s+\d+:.+)$/);
+    if (fam) {
+      curFamily = { family: fam[1].trim(), components: [] };
+      families.push(curFamily);
+      curComp = null;
+      continue;
+    }
+    const comp = line.match(/^###\s+(.+)$/);
+    if (comp && curFamily) {
+      curComp = { title: comp[1].trim(), status: null };
+      curFamily.components.push(curComp);
+      continue;
+    }
+    const st = line.match(/^\|\s*\*\*Status\*\*\s*\|\s*(.+?)\s*\|/);
+    if (st && curFamily) {
+      if (curComp && !curComp.status) {
+        curComp.status = st[1].trim();
+      } else if (!curComp) {
+        // Family-level status table with no ### component (e.g. Family 8).
+        curComp = { title: '(overall)', status: st[1].trim() };
+        curFamily.components.push(curComp);
+      }
+    }
+  }
+  return { present: true, families };
+}
+
+function parseDecisions(plan) {
+  const raw = readPlanFile(plan, 'DECISIONS.md');
+  if (raw == null) return { present: false };
+  const entries = [];
+  for (const part of raw.split(/^##\s+/m).slice(1)) {
+    const nl = part.indexOf('\n');
+    const title = (nl === -1 ? part : part.slice(0, nl)).trim();
+    const body = (nl === -1 ? '' : part.slice(nl + 1)).replace(/\n*---\s*$/, '').trim();
+    if (title) entries.push({ title, body });
+  }
+  return { present: true, entries };
+}
+
+function parseOutOfScope(plan) {
+  const raw = readPlanFile(plan, 'OUT_OF_SCOPE.md');
+  if (raw == null) return { present: false };
+  return { present: true, raw };
+}
+
 function planAudits(plan) {
   const dir = planAuditsDir(plan);
   if (!fs.existsSync(dir)) return {};
@@ -595,6 +701,20 @@ const HTML = String.raw`<!doctype html>
   .tabs .controls { padding: 6px 0; display: flex; gap: 12px; align-items: center; font-size: 11px; color: var(--dim); }
   .tabs .controls label { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
   .tabs .controls select { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-family: inherit; font-size: 11px; }
+  .plan-view { padding: 20px; overflow-y: auto; height: 100%; }
+  .plan-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; }
+  .plan-card h2 { font-size: 14px; margin: 0 0 10px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .plan-goal { font-size: 13px; color: var(--text); margin-bottom: 6px; }
+  .plan-metaline { font-size: 11px; color: var(--dim); margin-bottom: 10px; }
+  .plan-sub { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--dim); margin: 10px 0 4px; }
+  .plan-files, .plan-evidence { margin: 0; padding-left: 18px; }
+  .plan-files li { font-family: var(--mono, monospace); font-size: 12px; color: var(--text-2); }
+  .plan-evidence li { font-size: 12px; color: var(--text-2); margin-bottom: 2px; }
+  .reg-family { font-size: 12px; font-weight: bold; color: var(--accent); margin: 12px 0 6px; }
+  .reg-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .reg-name { color: var(--text-2); }
+  .dec summary { cursor: pointer; font-size: 12px; color: var(--text); padding: 6px 0; }
+  .dec-body, .oos-body { white-space: pre-wrap; font-size: 12px; color: var(--text-2); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px; overflow-x: auto; }
   /* Panes */
   .pane { overflow: hidden; display: none; }
   .pane.active { display: grid; }
@@ -756,7 +876,8 @@ const HTML = String.raw`<!doctype html>
   </div>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="live">Live</button>
+    <button class="tab-btn active" data-tab="plan">Master Plan</button>
+    <button class="tab-btn" data-tab="live">Live</button>
     <button class="tab-btn" data-tab="progress" id="tab-progress">Progress</button>
     <button class="tab-btn" data-tab="steps">Steps</button>
     <button class="tab-btn" data-tab="auto" id="tab-auto">Automation</button>
@@ -771,7 +892,11 @@ const HTML = String.raw`<!doctype html>
     </div>
   </div>
 
-  <div id="pane-live" class="pane active">
+  <div id="pane-plan" class="pane active">
+    <div class="plan-view" id="plan-view"><div class="empty">loading…</div></div>
+  </div>
+
+  <div id="pane-live" class="pane">
     <div id="log"><div class="empty">select a plan…</div></div>
   </div>
 
@@ -811,7 +936,7 @@ const $ = (id) => document.getElementById(id);
 
 const state = {
   planId: null,
-  tab: 'live',
+  tab: 'plan',
   evtSource: null,
   userPaused: false,
   selectedStep: null,
@@ -899,13 +1024,80 @@ async function selectPlan(id) {
   document.querySelectorAll('aside .plan-list li').forEach(li =>
     li.classList.toggle('active', li.dataset.id === id));
   await refreshState();
-  if (state.tab === 'live') reconnectStream();
+  if (state.tab === 'plan') renderPlan();
+  else if (state.tab === 'live') reconnectStream();
   else if (state.tab === 'steps') renderSteps();
   else if (state.tab === 'docs') renderDocList();
   else if (state.tab === 'history') renderHistory();
   else if (state.tab === 'block') renderBlock();
   else if (state.tab === 'auto') renderAutomation();
   else if (state.tab === 'progress') connectProgressStream();
+}
+
+// ── Master Plan tab ─────────────────────────────────────────────────────────────
+async function renderPlan() {
+  if (!state.planId) return;
+  const view = $('plan-view');
+  const base = '/api/plans/' + state.planId;
+  const safe = (p) => fetch(base + p).then(r => r.json()).catch(() => ({ present: false }));
+  const [scope, registry, decisions, oos] = await Promise.all([
+    safe('/scope'), safe('/registry'), safe('/decisions'), safe('/out-of-scope'),
+  ]);
+  let html = '';
+
+  if (scope.present) {
+    const cls = scope.expired ? 'bad' : (scope.status === 'active' ? 'ok' : 'warn');
+    const txt = scope.expired ? 'EXPIRED' : (scope.status || '—').toUpperCase();
+    html += '<section class="plan-card"><h2>Current Scope <span class="badge ' + cls + '">' + esc(txt) + '</span>' +
+      (scope.override ? ' <span class="badge warn">OVERRIDE</span>' : '') + '</h2>';
+    html += '<div class="plan-goal">' + esc(scope.goal || '(no goal set)') + '</div>';
+    html += '<div class="plan-metaline">set: ' + esc(scope.set_at || '—') + '  ·  expires: ' + esc(scope.expires || '—') + '</div>';
+    if (scope.files && scope.files.length) {
+      html += '<div class="plan-sub">Files allowed (' + scope.files.length + ')</div><ul class="plan-files">';
+      for (const f of scope.files) html += '<li>' + esc(f) + '</li>';
+      html += '</ul>';
+    }
+    if (scope.evidence && scope.evidence.length) {
+      html += '<div class="plan-sub">Runtime evidence required</div><ul class="plan-evidence">';
+      for (const e of scope.evidence) html += '<li>' + esc(e) + '</li>';
+      html += '</ul>';
+    }
+    html += '</section>';
+  } else {
+    html += '<section class="plan-card"><h2>Current Scope <span class="badge warn">NONE</span></h2>' +
+      '<div class="empty">No SCOPE.md — legacy plan, or scope unset.</div></section>';
+  }
+
+  if (registry.present && registry.families) {
+    html += '<section class="plan-card"><h2>Component Registry</h2>';
+    for (const fam of registry.families) {
+      html += '<div class="reg-family">' + esc(fam.family) + '</div>';
+      for (const c of fam.components) {
+        const s = (c.status || '').toUpperCase();
+        let cls = 'idle';
+        if (s.includes('ABSENT') || s.includes('INERT')) cls = 'bad';
+        else if (s.includes('STALE') || s.includes('DEGRADED')) cls = 'warn';
+        else if (s.includes('LIVE')) cls = 'ok';
+        html += '<div class="reg-row"><span class="reg-name">' + esc(c.title) + '</span>' +
+          '<span class="badge ' + cls + '">' + esc(c.status || '?') + '</span></div>';
+      }
+    }
+    html += '</section>';
+  }
+
+  if (decisions.present && decisions.entries && decisions.entries.length) {
+    html += '<section class="plan-card"><h2>Decisions (' + decisions.entries.length + ')</h2>';
+    for (const d of decisions.entries) {
+      html += '<details class="dec"><summary>' + esc(d.title) + '</summary><pre class="dec-body">' + esc(d.body) + '</pre></details>';
+    }
+    html += '</section>';
+  }
+
+  if (oos.present) {
+    html += '<section class="plan-card"><h2>Out of Scope (captured)</h2><pre class="oos-body">' + esc(oos.raw) + '</pre></section>';
+  }
+
+  view.innerHTML = html || '<div class="empty">no master-plan docs found</div>';
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -983,7 +1175,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
     document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + state.tab));
     $('live-controls').style.display = state.tab === 'live' ? '' : 'none';
-    if (state.tab === 'live') reconnectStream();
+    if (state.tab === 'plan') renderPlan();
+    else if (state.tab === 'live') reconnectStream();
     else if (state.tab === 'steps') renderSteps();
     else if (state.tab === 'docs') renderDocList();
     else if (state.tab === 'history') renderHistory();
@@ -1971,6 +2164,10 @@ const server = http.createServer(async (req, res) => {
     if (sub === '/logs')  return json(res, tickLogs(plan));
     if (sub === '/inventory') return json(res, inventoryRows(plan));
     if (sub === '/docs')  return json(res, planDocuments(plan));
+    if (sub === '/scope')        return json(res, parseScope(plan));
+    if (sub === '/registry')     return json(res, parseRegistry(plan));
+    if (sub === '/decisions')    return json(res, parseDecisions(plan));
+    if (sub === '/out-of-scope') return json(res, parseOutOfScope(plan));
 
     if (sub === '/blocked' && req.method === 'GET') {
       const file = path.join(plan.dir, 'BLOCKED.md');
