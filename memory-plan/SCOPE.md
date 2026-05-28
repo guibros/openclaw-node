@@ -1,8 +1,13 @@
 # SCOPE — Today's Work Contract
 
 **Status:** done
-**Goal:** Build the concrete redesign workplan: a viewer-trackable plan at memory-plan/redesign/ (WORKFLOW.md + INVENTORY.md + VERSION) decomposing every L0–G item into atomic 9-phase steps, plus the workflow that chains MASTER_PLAN → roadmap → inventory → 9-phase execution → viewer. Wire it into the running viewer.
-**Closed:** 2026-05-28 — WORKFLOW.md + INVENTORY.md (33 steps, 29 local + 4 deferred) + VERSION v0.0 written; viewer relaunched (PID 39732), /api/plans lists "redesign" 0/33 next-step 0.1, legacy intact 58/58. Viewer-launch durability gap → OUT_OF_SCOPE.
+**Goal:** (a) Re-decompose the redesign INVENTORY to true atomic grain (one verifiable runtime outcome per step), fixing over-bundled steps + the event-log ordering. (b) Add a Re-Orient Loop to the 9-phase workflow (micro per-step + macro per-block) to counter the attention-span deficit when digging deep.
+**Closed:** 2026-05-28 — INVENTORY 33→40 atomic steps (with revision log); WORKFLOW §7 Re-Orient Loop (micro+macro+tripwire) wired into the lifecycle table + checklist; DECISIONS logged; viewer re-parses 40 steps, next 0.1.
+**Set by:** operator ("review steps at most atomic level" + "hook a loop for a global view to counter the attention span deficit")
+**Set at:** 2026-05-28T01:10:00-04:00 (Montreal)
+**Expires:** 2026-05-28T12:00:00Z
+
+> Prior scope closed + committed: concrete redesign workplan (624babd).
 **Set by:** operator ("update a concrete plan for every item ... within the workplan viewer work frame ... 9 phase protocol ... devising a workflow from master plan to implementation")
 **Set at:** 2026-05-28T00:40:00-04:00 (Montreal)
 **Expires:** 2026-05-28T12:00:00Z
@@ -27,17 +32,17 @@
 ```files
 memory-plan/redesign/WORKFLOW.md
 memory-plan/redesign/INVENTORY.md
-memory-plan/redesign/VERSION
 memory-plan/SCOPE.md
 memory-plan/OUT_OF_SCOPE.md
+memory-plan/DECISIONS.md
 ```
 
 ## Runtime evidence required for "done"
 
-1. `memory-plan/redesign/INVENTORY.md` exists, viewer-parseable, with an atomic step for every COMPONENT_REGISTRY gap (L0–G).
-2. `memory-plan/redesign/WORKFLOW.md` documents the MASTER_PLAN → roadmap → inventory → 9-phase → viewer chain + the per-step lifecycle.
-3. `memory-plan/redesign/VERSION` = v0.0.
-4. Viewer relaunched with WORKPLAN_ROOTS including memory-plan; `curl http://localhost:7892/api/plans` lists a plan id "redesign". Legacy "memory-plan" still listed (no regression).
+1. Every INVENTORY step passes the atomicity test: one verifiable runtime outcome, one commit. No step bundles ≥2 independently-verifiable changes. (Manual review per step + recorded rationale.)
+2. WORKFLOW.md documents the Re-Orient Loop: micro (per-step Phase-1 re-orient header) + macro (per-block Global Review), wired into the per-step lifecycle.
+3. Viewer re-parses the revised inventory: `curl http://localhost:7892/api/plans/redesign/state` shows the new step total and next-step still 0.1.
+4. DECISIONS.md logs the atomicity revision + the loop addition.
 
 ## What this scope will do (implementation contract)
 

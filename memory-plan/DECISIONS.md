@@ -26,6 +26,20 @@ These six are the foundation of MEMORY_REDESIGN.md. Local-first ordering, federa
 
 ---
 
+## 2026-05-28 — Atomicity revision + the Re-Orient Loop
+
+Operator asked to (a) re-decompose steps to their most atomic level, and (b) hook a "global-view loop" into the 9-phase framework to counter the attention-span deficit when digging deep.
+
+**Atomicity revision:** redesign INVENTORY re-decomposed 33 → 40 steps (36 local + 4 deferred). Rule applied: one step = one independently-verifiable runtime outcome. Notable splits — Block 0 deploy/NATS into 4; Block 2 watcher core vs classification, API vs UI; Block 4 (synthesis, the heart) into 9 (concept vs session notes, two triggers separated, consolidation deploy vs schedule, digest-build vs retire-old); Block 6 route vs migrate. **Ordering fix:** event-log emission for each operation is folded into the step that *builds* that operation (synthesize/decay/promote events now live in Block 4 build-steps), not front-loaded in Block 1 — Block 1 only wires events for ops that already exist (ingest/extract/inject/error).
+
+**The Re-Orient Loop (WORKFLOW §7):** two mandatory cadences embedded in the per-step lifecycle. *Why:* deep implementation work makes the global picture fade → drift; willpower doesn't fix it, structure does.
+- **Micro (every step):** Phase 1 AUDIT_PRE opens with a ≤6-line `§0 Re-orient` (where am I / last change / this step's contribution / north-star link / still-right-next?). Forces a look-up before every dig.
+- **Macro (every block close):** a Global Review — re-read MASTER_PLAN+DESIGN_INPUTS, update COMPONENT_REGISTRY via runtime probes, re-atomicity-check the next block, drift check, log course-corrections. Re-establishes the whole picture ≥1×/block.
+- **Tripwire:** Phase-4 sprawl or ≥2 mid-implementation findings = the step wasn't atomic → stop, re-orient, split.
+*Consequence:* "the deeper you dig, the more often you must surface" is now a framework rule, not a hope. The viewer's Master Plan tab is the re-orient surface.
+
+---
+
 ## 2026-05-27 — Master-plan discipline is intentionally repo-scoped to openclaw-nodedev
 
 **Decision:** The master plan, the scope-check hook, and the SCOPE.md contract govern work done **inside the `openclaw-nodedev` repo only.** They are deliberately NOT propagated to other repos (companion-bridge, mission-control) or to the global `~/.claude/CLAUDE.md`. Other Claude Code sessions working in other repos are unbound by this discipline.
