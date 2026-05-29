@@ -76,7 +76,7 @@ The `Runtime-Evidence:` trailer is mandatory and must cite something observed in
 - Working tree unexpectedly dirty on a clean VERSION.
 - The step is in deferred Block 7.
 
-Use the block template shape from `memory-plan/BLOCK_TEMPLATE.md` (or `../../BLOCK_TEMPLATE.md`). Name precisely what's needed from the operator.
+Use the block template shape from `BLOCK_TEMPLATE.md` (this plan's own copy). Name precisely what's needed from the operator.
 
 ## What you must NOT do
 

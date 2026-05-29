@@ -29,9 +29,7 @@ skills/dist/
 # Workspace package build artifacts
 packages/*/dist/
 .claude/worktrees/
-memory-plan/tick-logs/*.log
-memory-plan/tick-logs/*.jsonl
-memory-plan/tick-logs/test-*
-memory-plan/.tick.lock/
-memory-plan/TIMELINE.md
+memory-plan/plans/*/tick-logs/
+memory-plan/plans/*/.tick.lock/
+memory-plan/plans/*/TIMELINE.md
 automation.json

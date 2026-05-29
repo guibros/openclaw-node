@@ -1,6 +1,6 @@
 # Memory Redesign — Step Inventory (local-first)
 
-Every L0–G phase from `../MEMORY_REDESIGN.md` decomposed to **true atomic grain**. **One step = one independently-verifiable runtime outcome = one 9-phase cycle = one commit** (see `WORKFLOW.md`). Each carries done-evidence that must be *runtime-observable* (MASTER_PLAN §5), not just tests-green.
+Every L0–G phase from `MEMORY_REDESIGN.md` decomposed to **true atomic grain**. **One step = one independently-verifiable runtime outcome = one 9-phase cycle = one commit** (see `WORKFLOW.md`). Each carries done-evidence that must be *runtime-observable* (MASTER_PLAN §5), not just tests-green.
 
 **Atomicity test (applied to every step):** does it produce exactly one verifiable behavior change? If a step needed "and" to describe two independently-testable outcomes, it was split. Event-log emission for an operation is folded into the step that *builds* that operation (not front-loaded), so each step's event is part of its own done-evidence.
 
@@ -8,6 +8,8 @@ Every L0–G phase from `../MEMORY_REDESIGN.md` decomposed to **true atomic grai
 **Version:** `v<block>.<step>`. Blocks: 0=L0, 1=L1, 2=L2, 3=L3, 4=L4, 5=L5, 6=L6, 7=G. Carrier starts at `v0.0`.
 
 Blocks 0–6 = **local-first**, run in order. Block 7 = **DEFERRED** (DECISIONS D4). Every block boundary triggers the **macro Re-Orient** (WORKFLOW §7); every step opens with the **micro Re-Orient**.
+
+> **Flow-process view:** every step here is also expressed as a loop (connects-with · purpose · residue · produces-for · testable goal + WIN/FAIL threshold) in [`LOOPS.md`](LOOPS.md). This table is canonical for status/done-evidence; LOOPS.md is canonical for the flow framing.
 
 ---
 

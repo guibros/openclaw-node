@@ -10,12 +10,12 @@ If you only read one thing before working a redesign step: read this, then the s
 
 ```
 ┌─ LAYER 1 — GOVERNANCE ────────────────────────────────────────────────────┐
-│ ../MASTER_PLAN.md   principles · done-contract (runtime evidence) · forbidden│
-│ ../DESIGN_INPUTS.md the taste check (Karpathy LLM-Wiki · one-hop · no bullshit)│
+│ MASTER_PLAN.md   principles · done-contract (runtime evidence) · forbidden│
+│ DESIGN_INPUTS.md the taste check (Karpathy LLM-Wiki · one-hop · no bullshit)│
 └───────────────────────────────────────┬───────────────────────────────────┘
                                          │ constrains
 ┌─ LAYER 2 — ROADMAP ─────────────────────▼──────────────────────────────────┐
-│ ../MEMORY_REDESIGN.md   phases L0..G (the "blocks") · derived from ../DECISIONS│
+│ MEMORY_REDESIGN.md   phases L0..G (the "blocks") · derived from DECISIONS│
 └───────────────────────────────────────┬───────────────────────────────────┘
                                          │ decomposes into
 ┌─ LAYER 3 — STEP LIST ───────────────────▼──────────────────────────────────┐
@@ -23,13 +23,13 @@ If you only read one thing before working a redesign step: read this, then the s
 └───────────────────────────────────────┬───────────────────────────────────┘
                                          │ executed by
 ┌─ LAYER 4 — EXECUTION ───────────────────▼──────────────────────────────────┐
-│ ../FRAMEWORK.md (the 9 phases) + ../SCOPE.md + .claude/hooks/scope-check.sh   │
+│ FRAMEWORK.md (the 9 phases) + SCOPE.md + .claude/hooks/scope-check.sh   │
 │ each step: AUDIT_PRE → implement → VERIFY(tests + runtime) → AUDIT_POST →     │
 │            Deep Review Gate (+runtime-evidence) → commit                      │
 └───────────────────────────────────────┬───────────────────────────────────┘
                                          │ reflected in
 ┌─ LAYER 5 — TRUTH & OBSERVABILITY ───────▼──────────────────────────────────┐
-│ ../COMPONENT_REGISTRY.md (current state) · ../DECISIONS.md (choices) ·        │
+│ COMPONENT_REGISTRY.md (current state) · DECISIONS.md (choices) ·        │
 │ workplan-viewer :7892 (renders inventory + audits + Master Plan tab) ·        │
 │ the memory-watcher (Block 2 — once built, watches the system it tracks)       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -59,10 +59,10 @@ For each `INVENTORY.md` step, in order. **Bold = added by the new discipline on 
 | Phase | Action | Source |
 |---|---|---|
 | Pre-flight | Pick next `[ ]` step. Clean tree. Read MASTER_PLAN + the step's MEMORY_REDESIGN phase + prior step's AUDIT_POST §6. | FRAMEWORK §8 |
-| **Scope** | **Open/refresh `../SCOPE.md`: goal = this step; files = this step's deltas; runtime-evidence = this step's done-evidence. The hook now physically blocks edits outside the file set.** | **MASTER_PLAN §6** |
+| **Scope** | **Open/refresh `SCOPE.md`: goal = this step; files = this step's deltas; runtime-evidence = this step's done-evidence. The hook now physically blocks edits outside the file set.** | **MASTER_PLAN §6** |
 | **1·§0** | **MICRO RE-ORIENT (≤6 lines, first thing in AUDIT_PRE) — see §7. Zoom out before digging in.** | **§7** |
 | 1 | **AUDIT_PRE** — intent, design decisions (consume carry-forwards), risk register, file-delta outline. | FRAMEWORK |
-| 4 | Implement every §6 delta. No scope creep — surprises go to `../OUT_OF_SCOPE.md`, not silent expansion. | FRAMEWORK + **MASTER_PLAN §4.3** |
+| 4 | Implement every §6 delta. No scope creep — surprises go to `OUT_OF_SCOPE.md`, not silent expansion. | FRAMEWORK + **MASTER_PLAN §4.3** |
 | 5 | **VERIFY = (a) tests green at baseline [old] + (b) RUNTIME EVIDENCE [new]: deploy to `~/.openclaw/workspace/`, restart the service, observe the new behavior in logs / the watcher / a DB query / an HTTP probe.** | FRAMEWORK + **MASTER_PLAN §4.1, §5** |
 | 7 | **AUDIT_POST** — files-vs-plan ledger, greppable deltas, cross-refs, findings, carry-forwards. | FRAMEWORK |
 | 8 | Corrections (usually none). Architectural choice needed → BLOCK + log in DECISIONS. | FRAMEWORK |
@@ -86,7 +86,7 @@ The old framework closed 59 steps with zero gate failures — and produced ~0 wo
 
 The workplan-viewer (:7892) makes the whole chain visible:
 - **Legacy tabs** (Live / Steps / Documents / History) render this plan's `INVENTORY.md` + the per-step `audits/` exactly as they did for the old framework.
-- **Master Plan tab** (built 2026-05-27) renders `../SCOPE.md` + `../COMPONENT_REGISTRY.md` + `../DECISIONS.md` + `../OUT_OF_SCOPE.md`.
+- **Master Plan tab** (built 2026-05-27) renders `SCOPE.md` + `COMPONENT_REGISTRY.md` + `DECISIONS.md` + `OUT_OF_SCOPE.md`.
 - Once **Block 2 (memory-watcher)** ships, the system being tracked also reports its own live operations — the viewer shows the plan, the watcher shows the running reality.
 
 One glance = where we are (version), what's next (first `[ ]` step), what's broken (registry badges), what we decided (decisions), what's deferred (out-of-scope).
@@ -95,8 +95,8 @@ One glance = where we are (version), what's next (first `[ ]` step), what's brok
 
 ```
 [ ] git tree clean; on main
-[ ] read ../MASTER_PLAN.md + this step's phase in ../MEMORY_REDESIGN.md
-[ ] open ../SCOPE.md: goal=step, files=deltas, evidence=step's done-evidence, status=active
+[ ] read MASTER_PLAN.md + this step's phase in MEMORY_REDESIGN.md
+[ ] open SCOPE.md: goal=step, files=deltas, evidence=step's done-evidence, status=active
 [ ] Phase 1 §0 MICRO RE-ORIENT (≤6 lines — see §7)
 [ ] Phase 1 AUDIT_PRE in redesign/audits/stepNN_<slug>/
 [ ] Phase 4 implement (only files in SCOPE; surprises → OUT_OF_SCOPE)

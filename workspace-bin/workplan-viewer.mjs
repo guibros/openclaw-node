@@ -42,7 +42,7 @@ function exec(cmd, args, opts = {}) {
 const PORT = Number(process.env.WORKPLAN_VIEWER_PORT || 7892);
 const ROOTS = (process.env.WORKPLAN_ROOTS
   ? process.env.WORKPLAN_ROOTS.split(':')
-  : [process.cwd()])
+  : [path.join(process.cwd(), 'memory-plan', 'plans')])
   .map(p => path.resolve(p))
   .filter(p => fs.existsSync(p));
 
@@ -240,15 +240,21 @@ function latestLog(plan) {
   return logs.length ? path.join(dir, logs[0].name) : null;
 }
 
+// Plans are FULLY SILOED. Every doc the viewer renders — MASTER_PLAN, SCOPE,
+// DECISIONS, COMPONENT_REGISTRY, OUT_OF_SCOPE, MEMORY_REDESIGN, INVENTORY, VERSION,
+// WORKFLOW, audits, tick-logs, automation, and the Live/Progress/History streams —
+// resolves ONLY from the plan's own dir. The viewer never reaches outside <root>/<id>/.
+// Canonical docs (the cross-plan north star) are authored in memory-plan/canonical/
+// and copied into each plan by workspace-bin/sync-canonical.sh, so each silo carries
+// its own working copy and is portable on its own.
+
 function planDocuments(plan) {
-  return fs.readdirSync(plan.dir)
-    .filter(f => f.endsWith('.md'))
-    .sort()
-    .map(f => {
-      const full = path.join(plan.dir, f);
-      const stat = fs.statSync(full);
-      return { name: f, size: stat.size, mtime: stat.mtimeMs };
-    });
+  const out = [];
+  for (const f of fs.readdirSync(plan.dir).filter(f => f.endsWith('.md')).sort()) {
+    const stat = fs.statSync(path.join(plan.dir, f));
+    out.push({ name: f, size: stat.size, mtime: stat.mtimeMs, scope: 'plan' });
+  }
+  return out;
 }
 
 // ── Master-plan structured parsers (post-2026-05-27 docs) ──────────────────────
@@ -256,6 +262,8 @@ function planDocuments(plan) {
 // returns {present:false} when its doc is absent, so legacy plans (INVENTORY.md +
 // VERSION only) don't break.
 
+// Read a doc for a plan — STRICTLY from the plan's own dir. A plan never borrows
+// another plan's docs, nor reaches outside its silo.
 function readPlanFile(plan, name) {
   try { return fs.readFileSync(path.join(plan.dir, name), 'utf8'); }
   catch { return null; }
@@ -688,8 +696,15 @@ const HTML = String.raw`<!doctype html>
     font-size: 13px;
     display: grid;
     grid-template-columns: 240px 1fr;
-    grid-template-rows: 100vh;
+    grid-template-rows: 1fr clamp(170px, 34vh, 460px);
+    grid-template-areas:
+      "sidebar main"
+      "dock dock";
+    height: 100vh;
   }
+  aside { grid-area: sidebar; }
+  main { grid-area: main; }
+  #activity-dock { grid-area: dock; }
   /* Sidebar */
   aside { background: var(--bg-2); border-right: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
   aside .brand { padding: 14px 16px; font-weight: 600; border-bottom: 1px solid var(--border); color: var(--accent); display: flex; align-items: center; justify-content: space-between; }
@@ -789,6 +804,23 @@ const HTML = String.raw`<!doctype html>
   .tabs .controls { padding: 6px 0; display: flex; gap: 12px; align-items: center; font-size: 11px; color: var(--dim); }
   .tabs .controls label { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
   .tabs .controls select { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-family: inherit; font-size: 11px; }
+  /* View modes: per-plan vs global Activity */
+  /* Activity dock — full-width horizontal panel under the plans window */
+  #activity-dock { position: relative; display: flex; flex-direction: column; background: var(--bg-2); border-top: 1px solid var(--border); overflow: hidden; }
+  #activity-dock .dock-resize { height: 6px; flex-shrink: 0; cursor: row-resize; background: var(--border); }
+  #activity-dock .dock-resize:hover, #activity-dock .dock-resize.dragging { background: var(--accent); }
+  #activity-dock .dock-bar { display: flex; align-items: center; gap: 4px; padding: 0 20px; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+  #activity-dock .dock-title { font-weight: 600; color: var(--accent); margin-right: 14px; font-size: 12px; }
+  #activity-dock .dock-title .dock-sub { color: var(--dim); font-weight: 400; font-size: 11px; margin-left: 4px; }
+  #activity-dock .gtab-btn { background: none; border: none; color: var(--dim); padding: 9px 16px; cursor: pointer; font-family: inherit; font-size: 13px; border-bottom: 2px solid transparent; }
+  #activity-dock .gtab-btn:hover { color: var(--text-2); }
+  #activity-dock .gtab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  #activity-dock .spacer { flex: 1; }
+  #activity-dock .controls { display: flex; gap: 12px; align-items: center; font-size: 11px; color: var(--dim); }
+  #activity-dock .controls label { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  #activity-dock .controls .pause-btn { padding: 3px 10px; font-size: 11px; }
+  .dock-pane { flex: 1; min-height: 0; display: none; }
+  .dock-pane.active { display: block; }
   .plan-view { padding: 20px; overflow-y: auto; height: 100%; }
   .plan-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; }
   .plan-card h2 { font-size: 14px; margin: 0 0 10px; color: var(--text); display: flex; align-items: center; gap: 8px; }
@@ -806,8 +838,7 @@ const HTML = String.raw`<!doctype html>
   /* Panes */
   .pane { overflow: hidden; display: none; }
   .pane.active { display: grid; }
-  #pane-live { grid-template-rows: 1fr; }
-  #log { overflow-y: scroll; padding: 12px 20px; white-space: pre-wrap; word-break: break-word; font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace; font-size: 12px; line-height: 1.55; }
+  #log { height: 100%; box-sizing: border-box; overflow-y: scroll; padding: 12px 20px; white-space: pre-wrap; word-break: break-word; font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace; font-size: 12px; line-height: 1.55; }
   #log .empty { color: var(--dim); font-style: italic; }
   /* ANSI */
   .a-dim { color: var(--dim); } .a-bold { font-weight: 700; }
@@ -913,8 +944,8 @@ const HTML = String.raw`<!doctype html>
   .auto-view .toast { background: rgba(86, 211, 100, 0.15); border-left: 3px solid var(--green); padding: 8px 12px; margin: 10px 0; font-size: 12px; color: var(--green); }
   .auto-view .toast.err { background: rgba(248, 81, 73, 0.15); border-left-color: var(--red); color: var(--red); }
   /* Progress pane — one human-readable line per agent action */
-  #pane-progress { grid-template-rows: 1fr; }
   #progress-list {
+    height: 100%; box-sizing: border-box;
     overflow-y: scroll;
     padding: 12px 20px;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', monospace;
@@ -935,11 +966,15 @@ const HTML = String.raw`<!doctype html>
   #progress-list .pl-row.r-error    .pl-verb { color: var(--red); }
   #progress-list .pl-row.r-end      { background: rgba(86,211,100,0.08); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   #progress-list .pl-row.r-end      .pl-verb { color: var(--green); }
+  #progress-list .pl-plan { flex-shrink: 0; align-self: center; font-size: 10px; font-weight: 600; line-height: 16px; padding: 0 6px; border-radius: 7px; background: rgba(255,255,255,0.07); color: var(--dim); }
+  #progress-list .pl-row.me .pl-plan { background: var(--accent); color: #0a0a0a; }
+  #progress-list .pl-source { font-family: 'SF Mono', monospace; font-size: 11px; color: var(--dim); padding: 4px 2px 6px; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  #progress-list .pl-source.session { color: var(--cyan); }
   #progress-list .pl-row.r-tick-start { background: rgba(88,166,255,0.08); border-top: 1px solid var(--border); }
   #progress-list .pl-row.r-tick-start .pl-verb { color: var(--accent); }
   #progress-list .pl-row.r-rate     .pl-verb { color: var(--yellow); }
   /* Pause banner */
-  #pause-banner { display: none; background: var(--yellow); color: #000; padding: 4px 20px; font-size: 12px; font-weight: 500; cursor: pointer; text-align: center; position: absolute; bottom: 0; left: 240px; right: 0; }
+  #pause-banner { display: none; background: var(--yellow); color: #000; padding: 4px 20px; font-size: 12px; font-weight: 500; cursor: pointer; text-align: center; position: absolute; bottom: 0; left: 0; right: 0; }
   #pause-banner.visible { display: block; }
 </style>
 </head>
@@ -964,33 +999,17 @@ const HTML = String.raw`<!doctype html>
     <button class="pause-btn" id="header-pause-btn" title="Pause future ticks">⏸ Pause</button>
   </div>
 
-  <div class="tabs">
+  <div class="tabs" id="plan-tabs">
     <button class="tab-btn active" data-tab="plan">Master Plan</button>
-    <button class="tab-btn" data-tab="live">Live</button>
-    <button class="tab-btn" data-tab="progress" id="tab-progress">Progress</button>
     <button class="tab-btn" data-tab="steps">Steps</button>
     <button class="tab-btn" data-tab="auto" id="tab-auto">Automation</button>
     <button class="tab-btn" data-tab="block" id="tab-block">Block</button>
     <button class="tab-btn" data-tab="docs">Documents</button>
     <button class="tab-btn" data-tab="history">History</button>
-    <span class="spacer"></span>
-    <div class="controls" id="live-controls">
-      <label><input type="checkbox" id="autoscroll" checked> auto-scroll</label>
-      <label><input type="checkbox" id="follow-new" checked> follow new tick</label>
-      <select id="log-picker"></select>
-    </div>
   </div>
 
   <div id="pane-plan" class="pane active">
     <div class="plan-view" id="plan-view"><div class="empty">loading…</div></div>
-  </div>
-
-  <div id="pane-live" class="pane">
-    <div id="log"><div class="empty">select a plan…</div></div>
-  </div>
-
-  <div id="pane-progress" class="pane">
-    <div id="progress-list"><div class="empty" style="padding:20px;color:var(--dim);">connecting…</div></div>
   </div>
 
   <div id="pane-steps" class="pane">
@@ -1018,7 +1037,30 @@ const HTML = String.raw`<!doctype html>
   </div>
 </main>
 
-<div id="pause-banner">⏸ scroll paused — click to resume auto-scroll</div>
+<section id="activity-dock">
+  <div class="dock-resize" id="dock-resize" title="Drag to resize"></div>
+  <div class="dock-bar">
+    <span class="dock-title">📡 Activity <span class="dock-sub">live across all plans</span></span>
+    <button class="gtab-btn active" data-gtab="glive">Live</button>
+    <button class="gtab-btn" data-gtab="gprogress">Progress</button>
+    <span class="spacer"></span>
+    <div class="controls" id="live-controls">
+      <label><input type="checkbox" id="autoscroll" checked> auto-scroll</label>
+      <label><input type="checkbox" id="follow-new" checked> follow new tick</label>
+      <button class="pause-btn" id="unpin-log" title="Return to live across all plans" style="display:none;">⟲ back to live</button>
+    </div>
+  </div>
+
+  <div id="pane-live" class="dock-pane active">
+    <div id="log"><div class="empty">connecting…</div></div>
+  </div>
+
+  <div id="pane-progress" class="dock-pane">
+    <div id="progress-list"><div class="empty" style="padding:20px;color:var(--dim);">connecting…</div></div>
+  </div>
+
+  <div id="pause-banner">⏸ scroll paused — click to resume auto-scroll</div>
+</section>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -1026,7 +1068,10 @@ const $ = (id) => document.getElementById(id);
 const state = {
   planId: null,
   tab: 'plan',
+  gtab: 'glive',         // dock sub-tab: 'glive' | 'gprogress'
+  glivePin: null,        // { planId, log } when viewing a pinned historical tick log
   evtSource: null,
+  progressSource: null,
   userPaused: false,
   selectedStep: null,
   selectedDoc: null,
@@ -1103,24 +1148,53 @@ async function refreshPlans() {
   }
   $('discovery-info').textContent =
     data.plans.length + ' plan(s) · roots: ' + data.roots.map(r => r.split('/').pop()).join(', ');
-  if (!state.planId && data.plans.length) selectPlan(data.plans[0].id);
+  if (!state.planId && data.plans.length) {
+    // Default to the plan that actually needs eyes — not the alphabetically-first
+    // (which is the completed legacy plan). Prefer the operator's last choice, then
+    // a blocked plan, then the first incomplete (active) plan, then anything.
+    let pick = null;
+    try {
+      const saved = localStorage.getItem('workplan.planId');
+      if (saved && data.plans.some(p => p.id === saved)) pick = saved;
+    } catch { /* no localStorage */ }
+    if (!pick) {
+      const active = data.plans.find(p => p.blocked)
+        || data.plans.find(p => p.closed_steps < p.total_steps)
+        || data.plans[0];
+      pick = active.id;
+    }
+    selectPlan(pick);
+  }
 }
 
 async function selectPlan(id) {
   state.planId = id;
+  try { localStorage.setItem('workplan.planId', id); } catch { /* no localStorage */ }
   state.selectedStep = null;
   state.selectedDoc = null;
   document.querySelectorAll('aside .plan-list li').forEach(li =>
     li.classList.toggle('active', li.dataset.id === id));
   await refreshState();
+  renderPlanTab();
+}
+
+// Render whichever per-plan tab is currently selected.
+function renderPlanTab() {
   if (state.tab === 'plan') renderPlan();
-  else if (state.tab === 'live') reconnectStream();
   else if (state.tab === 'steps') renderSteps();
   else if (state.tab === 'docs') renderDocList();
   else if (state.tab === 'history') renderHistory();
   else if (state.tab === 'block') renderBlock();
   else if (state.tab === 'auto') renderAutomation();
-  else if (state.tab === 'progress') connectProgressStream();
+}
+
+// ── Activity dock (always-on bottom panel; independent of plan selection) ───────
+function showDock() {
+  document.querySelectorAll('.dock-pane').forEach(p =>
+    p.classList.toggle('active', p.id === (state.gtab === 'gprogress' ? 'pane-progress' : 'pane-live')));
+  $('live-controls').style.display = state.gtab === 'glive' ? '' : 'none';
+  if (state.gtab === 'glive') connectActivityLive();
+  else connectActivityProgress();
 }
 
 // ── Master Plan tab ─────────────────────────────────────────────────────────────
@@ -1154,7 +1228,7 @@ async function renderPlan() {
     html += '</section>';
   } else {
     html += '<section class="plan-card"><h2>Current Scope <span class="badge warn">NONE</span></h2>' +
-      '<div class="empty">No SCOPE.md — legacy plan, or scope unset.</div></section>';
+      '<div class="empty">No SCOPE.md found in this plan.</div></section>';
   }
 
   if (registry.present && registry.families) {
@@ -1284,23 +1358,54 @@ async function doUnblock() {
   return data;
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// ── Per-plan tabs ───────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     state.tab = btn.dataset.tab;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + state.tab));
-    $('live-controls').style.display = state.tab === 'live' ? '' : 'none';
-    if (state.tab === 'plan') renderPlan();
-    else if (state.tab === 'live') reconnectStream();
-    else if (state.tab === 'steps') renderSteps();
-    else if (state.tab === 'docs') renderDocList();
-    else if (state.tab === 'history') renderHistory();
-    else if (state.tab === 'block') renderBlock();
-    else if (state.tab === 'auto') renderAutomation();
-    else if (state.tab === 'progress') connectProgressStream();
+    document.querySelectorAll('main .pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + state.tab));
+    renderPlanTab();
   });
 });
+
+// ── Activity dock sub-tabs (Live | Progress) ────────────────────────────────────
+document.querySelectorAll('.gtab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.gtab = btn.dataset.gtab;
+    document.querySelectorAll('.gtab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    showDock();
+  });
+});
+
+$('unpin-log').addEventListener('click', () => {
+  state.glivePin = null;
+  $('unpin-log').style.display = 'none';
+  $('follow-new').checked = true;
+  connectActivityLive();
+});
+
+// Global Live: per-plan pinned historical log when state.glivePin is set,
+// otherwise the live cross-plan source (/api/global/stream).
+function connectActivityLive() {
+  if (state.evtSource) { state.evtSource.close(); state.evtSource = null; }
+  logEl.innerHTML = '<div class="empty">connecting…</div>';
+  $('unpin-log').style.display = state.glivePin ? '' : 'none';
+  const url = state.glivePin
+    ? '/api/plans/' + state.glivePin.planId + '/stream?log=' + encodeURIComponent(state.glivePin.log)
+    : '/api/global/stream';
+  const es = new EventSource(url);
+  state.evtSource = es;
+  es.addEventListener('append', (e) => { try { appendText(JSON.parse(e.data)); } catch {} });
+  es.addEventListener('switch', () => {
+    if (!state.glivePin && $('follow-new').checked) logEl.innerHTML = '';
+  });
+}
+
+function connectActivityProgress() {
+  if (state.progressSource) { state.progressSource.close(); state.progressSource = null; }
+  progressEl.innerHTML = '<div class="empty" style="padding:20px;color:var(--dim);">connecting…</div>';
+  state.progressSource = openProgressStream('/api/global/activity-stream');
+}
 
 // ── Live transcript ───────────────────────────────────────────────────────────
 const logEl = $('log');
@@ -1319,22 +1424,6 @@ function appendText(text) {
   }
 }
 
-function reconnectStream() {
-  if (state.evtSource) { state.evtSource.close(); state.evtSource = null; }
-  logEl.innerHTML = '<div class="empty">connecting…</div>';
-  if (!state.planId) return;
-  refreshLogPicker();
-  const pinned = $('log-picker').dataset.pinned || '';
-  const url = '/api/plans/' + state.planId + '/stream' + (pinned ? '?log=' + encodeURIComponent(pinned) : '');
-  state.evtSource = new EventSource(url);
-  state.evtSource.addEventListener('append', (e) => {
-    try { appendText(JSON.parse(e.data)); } catch {}
-  });
-  state.evtSource.addEventListener('switch', () => {
-    if ($('follow-new').checked) logEl.innerHTML = '';
-  });
-}
-
 logEl.addEventListener('scroll', () => {
   const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 20;
   if (!atBottom && $('autoscroll').checked) {
@@ -1351,56 +1440,56 @@ $('pause-banner').addEventListener('click', () => {
   logEl.scrollTop = logEl.scrollHeight;
 });
 
-async function refreshLogPicker() {
-  if (!state.planId) return;
-  const r = await fetch('/api/plans/' + state.planId + '/logs');
-  if (!r.ok) return;
-  const logs = await r.json();
-  const sel = $('log-picker');
-  const current = sel.dataset.pinned || '';
-  sel.innerHTML = '<option value="">(newest, auto-follow)</option>' + logs.map(l => {
-    const kb = (l.size / 1024).toFixed(1);
-    return '<option value="' + l.name + '">' + l.name + ' (' + kb + ' KB)</option>';
-  }).join('');
-  if (current) sel.value = current;
-}
-
-$('log-picker').addEventListener('change', (e) => {
-  $('log-picker').dataset.pinned = e.target.value;
-  $('follow-new').checked = !e.target.value;
-  reconnectStream();
-});
-
 // ── Progress stream (brief activity lines) ────────────────────────────────────
 const progressEl = $('progress-list');
+
+// Sticky autoscroll: pinned to the bottom until the user scrolls up, then it
+// re-pins once they scroll back down. (A plain "are we at bottom?" check fails on
+// the initial burst — once content overflows while scrollTop is still 0 it reads
+// "not at bottom" and never scrolls again.)
+let progressPinned = true;
+progressEl.addEventListener('scroll', () => {
+  progressPinned = progressEl.scrollHeight - progressEl.scrollTop - progressEl.clientHeight < 40;
+});
 
 function appendProgress(act) {
   if (progressEl.firstElementChild && progressEl.firstElementChild.classList.contains('empty')) {
     progressEl.innerHTML = '';
   }
   const row = document.createElement('div');
-  row.className = 'pl-row r-' + (act.kind || 'info');
+  // Global feed: every plan shown at full strength; the last-opened plan's lines
+  // get an accent chip so they're easy to pick out of the cross-plan stream.
+  const planCls = act.plan && act.plan === state.planId ? ' me' : '';
+  row.className = 'pl-row r-' + (act.kind || 'info') + planCls;
+  const planChip = act.plan ? '<span class="pl-plan">' + esc(act.plan) + '</span>' : '';
   row.innerHTML =
     '<span class="pl-time">' + esc(act.time || '') + '</span>' +
     '<span class="pl-icon">' + (act.icon || '·') + '</span>' +
+    planChip +
     '<span class="pl-body">' +
       (act.verb ? '<span class="pl-verb">' + esc(act.verb) + '</span>' : '') +
       '<span class="pl-obj">' + esc(act.body || '') + '</span>' +
     '</span>';
   progressEl.appendChild(row);
-  // Auto-scroll if user is at bottom.
-  const atBottom = progressEl.scrollHeight - progressEl.scrollTop - progressEl.clientHeight < 40;
-  if (atBottom) progressEl.scrollTop = progressEl.scrollHeight;
+  if (progressPinned) progressEl.scrollTop = progressEl.scrollHeight;
 }
 
-function connectProgressStream() {
-  if (state.progressSource) { state.progressSource.close(); state.progressSource = null; }
-  if (!state.planId) return;
-  progressEl.innerHTML = '<div class="empty" style="padding:20px;color:var(--dim);">connecting…</div>';
-  const es = new EventSource('/api/plans/' + state.planId + '/activity-stream');
-  state.progressSource = es;
-  es.addEventListener('reset', () => {
+function openProgressStream(url) {
+  const es = new EventSource(url);
+  es.addEventListener('reset', (e) => {
     progressEl.innerHTML = '';
+    progressPinned = true;
+    try {
+      const d = JSON.parse(e.data);
+      const note = document.createElement('div');
+      note.className = 'pl-source ' + (d.kind || '');
+      note.textContent = d.kind === 'session'
+        ? '▶ interactive session · ' + (d.source || '') + ' — no autonomous tick has run; each line is tagged with the plan it touches'
+        : d.kind === 'tick'
+          ? '▶ autonomous tick · ' + (d.source || '')
+          : (d.source || '');
+      progressEl.appendChild(note);
+    } catch {}
   });
   es.addEventListener('activity', (e) => {
     try { appendProgress(JSON.parse(e.data)); } catch {}
@@ -1411,6 +1500,7 @@ function connectProgressStream() {
       progressEl.innerHTML = '<div class="empty" style="padding:20px;color:var(--dim);">' + esc(d.msg || '') + '</div>';
     } catch {}
   });
+  return es;
 }
 
 // ── Steps ─────────────────────────────────────────────────────────────────────
@@ -1995,23 +2085,48 @@ async function renderHistory() {
       '<div class="size">' + kb + ' KB</div>' +
       '<div class="time">' + esc(when) + '</div>';
     div.addEventListener('click', () => {
-      $('log-picker').dataset.pinned = l.name;
+      // Pin this historical tick log into the dock's Live feed.
+      state.glivePin = { planId: state.planId, log: l.name };
+      state.gtab = 'glive';
       $('follow-new').checked = false;
-      state.tab = 'live';
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'live'));
-      document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-live'));
-      $('live-controls').style.display = '';
-      reconnectStream();
-      setTimeout(() => { $('log-picker').value = l.name; }, 200);
+      document.querySelectorAll('.gtab-btn').forEach(b => b.classList.toggle('active', b.dataset.gtab === 'glive'));
+      showDock();
     });
     list.appendChild(div);
   }
-  if (!logs.length) list.innerHTML = '<div class="empty">no tick logs yet</div>';
+  if (!logs.length) list.innerHTML = '<div class="empty">No tick logs — this plan is run interactively (no scheduler ticks recorded). Load the scheduler in the Automation tab to record runs here.</div>';
 }
+
+// ── Dock resize (drag the top edge to expand / shrink the panel) ────────────────
+(function () {
+  const handle = $('dock-resize');
+  const apply = (px) => { document.body.style.gridTemplateRows = '1fr ' + px + 'px'; };
+  const clamp = (px) => Math.max(70, Math.min(window.innerHeight - 140, px));
+  try { const s = parseInt(localStorage.getItem('workplan.dockH'), 10); if (s) apply(clamp(s)); } catch {}
+  let dragging = false;
+  const onMove = (e) => { if (dragging) apply(clamp(window.innerHeight - e.clientY)); };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    try {
+      const h = parseInt(document.body.style.gridTemplateRows.split(' ')[1], 10);
+      if (h) localStorage.setItem('workplan.dockH', String(h));
+    } catch {}
+  };
+  handle.addEventListener('mousedown', (e) => {
+    dragging = true; handle.classList.add('dragging');
+    document.body.style.userSelect = 'none'; e.preventDefault();
+  });
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+})();
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 refreshPlans();
 refreshNotifyToggle();
+showDock();
 setInterval(refreshPlans, 10000);
 setInterval(refreshNotifyToggle, 15000);
 </script>
@@ -2109,9 +2224,25 @@ function truncMid(s, max = 110) {
 // One JSON event → zero-or-more activity lines. Each line is:
 //   { time, icon, verb, body, kind }
 // kind ∈ {tick-start, tool, asst, thinking, rate, error, end, info}
+// Parse one stream-json event into activity lines, then stamp each line with the
+// plan it belongs to. A tool action that names a plan path wins (attributePlan);
+// otherwise we fall back to ctx.plan — the plan that OWNS the source feed. A tick
+// runs exactly one plan, so passing that plan as ctx.plan tags *every* line
+// (including thinking/text/result lines that carry no path). This is what makes a
+// future plan's tick auto-label its progress lines: globalActivitySource hands
+// the running tick's plan id in as ctx.plan, no per-plan wiring required.
 function eventToActivity(evt, ctx) {
+  const out = eventToActivityRaw(evt);
+  const def = ctx && ctx.plan;
+  if (def) for (const a of out) { if (a.plan == null) a.plan = def; }
+  return out;
+}
+
+function eventToActivityRaw(evt) {
   const out = [];
-  const t = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  const t = evt.timestamp
+    ? new Date(evt.timestamp).toLocaleTimeString('en-GB', { hour12: false })
+    : new Date().toLocaleTimeString('en-GB', { hour12: false });
 
   if (evt.type === 'system') {
     const model = evt.model || '?';
@@ -2133,7 +2264,7 @@ function eventToActivity(evt, ctx) {
         if (text) out.push({ time: t, icon: '💭', verb: 'thinking', body: text, kind: 'thinking' });
       } else if (c.type === 'tool_use') {
         const desc = describeToolCall(c.name, c.input || {});
-        out.push({ time: t, icon: desc.icon, verb: desc.verb, body: desc.body, kind: 'tool', tool_id: c.id });
+        out.push({ time: t, icon: desc.icon, verb: desc.verb, body: desc.body, kind: 'tool', tool_id: c.id, plan: attributePlan(c.input || {}) });
       }
     }
     return out;
@@ -2170,6 +2301,14 @@ function eventToActivity(evt, ctx) {
   }
 
   return out;
+}
+
+// Render one activity line as plain pretty text (for the Live tab when it falls
+// back to an interactive session — there's no wrapper-formatted .log to tail).
+function prettyActivityLine(act) {
+  const planTag = act.plan ? `[${act.plan}] ` : '';
+  const verb = act.verb ? act.verb + ' ' : '';
+  return `${act.time}  ${act.icon || '·'} ${planTag}${verb}${act.body || ''}`;
 }
 
 function describeToolCall(name, input) {
@@ -2251,6 +2390,270 @@ function jsonlPathFor(logPath) {
   return resolved + '.jsonl';
 }
 
+// ── Activity source resolution ──────────────────────────────────────────────
+// A plan's Live/Progress feed comes from its autonomous tick logs when any have
+// run. Otherwise it falls back to the newest interactive Claude Code session for
+// this repo, so the tabs reflect interactive work too (each line is attributed
+// to the plan it touches — see attributePlan). Tick always wins once one fires.
+const SESSION_DIR = path.join(os.homedir(), '.claude', 'projects',
+  process.cwd().replace(/[/.]/g, '-'));
+
+function newestSessionJsonl() {
+  try {
+    const picks = fs.readdirSync(SESSION_DIR)
+      .filter(f => f.endsWith('.jsonl'))
+      .map(f => { const fp = path.join(SESSION_DIR, f); return { fp, m: fs.statSync(fp).mtimeMs }; })
+      .sort((a, b) => b.m - a.m);
+    return picks.length ? picks[0].fp : null;
+  } catch { return null; }
+}
+
+// A tick log only counts as the *live* source while it's actively being
+// written. A finished plan's last tick log (e.g. legacy's) is static history —
+// it must NOT pin the Live/Progress tabs, or they'd show a frozen old run
+// forever. Fresh = modified within this window (a running tick streams
+// continuously, so its log mtime stays well inside it). Past runs live in the
+// History tab; when no tick is running we fall back to the live session.
+const TICK_FRESH_MS = 120000;
+function freshTickLog(plan) {
+  const lg = latestLog(plan);
+  if (!lg || !fs.existsSync(lg)) return null;
+  try {
+    if (Date.now() - fs.statSync(lg).mtimeMs <= TICK_FRESH_MS) return lg;
+  } catch {}
+  return null;
+}
+
+// Progress source: the raw stream-json (.jsonl) to parse into activity lines.
+function activitySource(plan) {
+  const tick = jsonlPathFor(freshTickLog(plan));
+  if (tick && fs.existsSync(tick)) return { path: tick, kind: 'tick', plan: plan.id };
+  const sess = newestSessionJsonl();
+  if (sess) return { path: sess, kind: 'session' };
+  return { path: null, kind: 'none' };
+}
+
+// Which plan (if any) a tool action touches — matched by the plan-silo marker in
+// any path-bearing field. Lets the project-global session stream attribute each
+// line to its plan, so a plan tab shows what's actually happening to it.
+function attributePlan(input) {
+  if (!input) return null;
+  let blob = '';
+  for (const k of ['file_path', 'path', 'notebook_path', 'command', 'pattern', 'glob']) {
+    if (input[k]) blob += ' ' + input[k];
+  }
+  if (!blob) return null;
+  for (const p of PLANS) {
+    if (blob.includes(p.dir) || blob.includes('plans/' + p.id + '/')) return p.id;
+  }
+  return null;
+}
+
+// Live source (pretty .log to tail) for one plan: pinned log, else the actively
+// running tick, else the interactive session rendered from its raw .jsonl.
+function planLiveSource(plan, pinned) {
+  if (pinned) return { path: path.join(planTickLogDir(plan), pinned), mode: 'raw' };
+  const tickLog = freshTickLog(plan);
+  if (tickLog) return { path: tickLog, mode: 'raw' };
+  const sess = newestSessionJsonl();
+  if (sess) return { path: sess, mode: 'pretty' };
+  return { path: null, mode: 'none' };
+}
+
+// Global (plan-independent) sources: the Activity view shows whatever is running
+// NOW across all plans — any actively-running tick wins; otherwise the live
+// interactive session. Per-line plan attribution disambiguates inside the feed.
+function globalActivitySource() {
+  for (const p of PLANS) {
+    const j = jsonlPathFor(freshTickLog(p));
+    if (j && fs.existsSync(j)) return { path: j, kind: 'tick', plan: p.id };
+  }
+  const sess = newestSessionJsonl();
+  if (sess) return { path: sess, kind: 'session' };
+  return { path: null, kind: 'none' };
+}
+function globalLiveSource() {
+  for (const p of PLANS) {
+    const lg = freshTickLog(p);
+    if (lg) return { path: lg, mode: 'raw' };
+  }
+  const sess = newestSessionJsonl();
+  if (sess) return { path: sess, mode: 'pretty' };
+  return { path: null, mode: 'none' };
+}
+
+const SSE_HEADERS = {
+  'Content-Type': 'text/event-stream',
+  'Cache-Control': 'no-cache',
+  'Connection': 'keep-alive',
+  'X-Accel-Buffering': 'no',
+};
+const SESSION_TAIL_BYTES = 131072;
+
+// Progress stream (parsed activity lines). `resolve()` returns {path,kind} and is
+// re-polled so a freshly-fired tick supersedes the interactive session live.
+function sseActivity(req, res, resolve) {
+  res.writeHead(200, SSE_HEADERS);
+  res.write(':ok\n\n');
+  let src = resolve();
+  let currentJsonl = src.path;
+  let sourceKind = src.kind;
+  let sourcePlan = src.plan || null;
+  let position = 0, closed = false, buffer = '';
+
+  const send = (event, data) => {
+    if (closed) return;
+    res.write('event: ' + event + '\n' + 'data: ' + JSON.stringify(data) + '\n\n');
+  };
+  const processChunk = (chunk) => {
+    buffer += chunk;
+    let nl;
+    while ((nl = buffer.indexOf('\n')) !== -1) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line) continue;
+      let evt; try { evt = JSON.parse(line); } catch { continue; }
+      for (const act of eventToActivity(evt, { plan: sourcePlan })) send('activity', act);
+    }
+  };
+  const emitFull = () => {
+    if (!currentJsonl || !fs.existsSync(currentJsonl)) {
+      send('info', { msg: 'No activity yet — no tick is running, and no interactive session was found for this repo.' });
+      return;
+    }
+    buffer = '';
+    send('reset', { source: path.basename(currentJsonl), kind: sourceKind });
+    const stat = fs.statSync(currentJsonl);
+    if (sourceKind === 'session' && stat.size > SESSION_TAIL_BYTES) {
+      const start = stat.size - SESSION_TAIL_BYTES;
+      const fd = fs.openSync(currentJsonl, 'r');
+      const buf = Buffer.alloc(SESSION_TAIL_BYTES);
+      fs.readSync(fd, buf, 0, SESSION_TAIL_BYTES, start);
+      fs.closeSync(fd);
+      position = stat.size;
+      let s = buf.toString('utf8');
+      const i = s.indexOf('\n'); if (i !== -1) s = s.slice(i + 1);
+      processChunk(s);
+      return;
+    }
+    const data = fs.readFileSync(currentJsonl, 'utf8');
+    position = Buffer.byteLength(data, 'utf8');
+    processChunk(data);
+  };
+  emitFull();
+
+  const interval = setInterval(() => {
+    if (closed) return;
+    try {
+      const ns = resolve();
+      if (ns.path && ns.path !== currentJsonl) {
+        currentJsonl = ns.path; sourceKind = ns.kind; sourcePlan = ns.plan || null; position = 0; buffer = '';
+        emitFull(); return;
+      }
+      if (!currentJsonl || !fs.existsSync(currentJsonl)) return;
+      const stat = fs.statSync(currentJsonl);
+      if (stat.size > position) {
+        const fd = fs.openSync(currentJsonl, 'r');
+        const buf = Buffer.alloc(stat.size - position);
+        fs.readSync(fd, buf, 0, buf.length, position);
+        fs.closeSync(fd);
+        position = stat.size;
+        processChunk(buf.toString('utf8'));
+      } else if (stat.size < position) {
+        position = 0; buffer = ''; emitFull();
+      }
+    } catch {}
+  }, 500);
+  const heartbeat = setInterval(() => { if (!closed) res.write(':hb\n\n'); }, 15000);
+  req.on('close', () => { closed = true; clearInterval(interval); clearInterval(heartbeat); try { res.end(); } catch {} });
+}
+
+// Live stream (raw pretty .log, or session .jsonl rendered to pretty lines).
+// `allowSwitch` is false when a specific log is pinned (History view).
+function sseLive(req, res, resolve, allowSwitch) {
+  res.writeHead(200, SSE_HEADERS);
+  res.write(':ok\n\n');
+  let cur = resolve();
+  let currentPath = cur.path;
+  let mode = cur.mode;
+  let position = 0, closed = false, buffer = '';
+
+  const send = (event, data) => {
+    if (closed) return;
+    res.write('event: ' + event + '\n' + 'data: ' + (typeof data === 'string' ? data : JSON.stringify(data)) + '\n\n');
+  };
+  const renderJsonl = (chunk) => {
+    buffer += chunk;
+    let nl, lines = '';
+    while ((nl = buffer.indexOf('\n')) !== -1) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line) continue;
+      let evt; try { evt = JSON.parse(line); } catch { continue; }
+      for (const act of eventToActivity(evt)) lines += prettyActivityLine(act) + '\n';
+    }
+    if (lines) send('append', JSON.stringify(lines));
+  };
+  const emitFull = () => {
+    if (!currentPath || !fs.existsSync(currentPath)) {
+      send('file', '— no activity yet');
+      send('append', JSON.stringify('No tick is running, and no interactive session was found for this repo.\n'));
+      return;
+    }
+    buffer = '';
+    if (mode === 'pretty') {
+      const stat = fs.statSync(currentPath);
+      const start = stat.size > SESSION_TAIL_BYTES ? stat.size - SESSION_TAIL_BYTES : 0;
+      const len = stat.size - start;
+      const fd = fs.openSync(currentPath, 'r');
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, start);
+      fs.closeSync(fd);
+      position = stat.size;
+      let s = buf.toString('utf8');
+      if (start > 0) { const i = s.indexOf('\n'); if (i !== -1) s = s.slice(i + 1); }
+      send('file', path.basename(currentPath) + ' · interactive session');
+      renderJsonl(s);
+      return;
+    }
+    const buf = fs.readFileSync(currentPath, 'utf8');
+    position = Buffer.byteLength(buf, 'utf8');
+    send('file', path.basename(currentPath));
+    send('append', JSON.stringify(buf));
+  };
+  emitFull();
+
+  const interval = setInterval(() => {
+    if (closed) return;
+    try {
+      if (allowSwitch) {
+        const ns = resolve();
+        if (ns.path && ns.path !== currentPath) {
+          currentPath = ns.path; mode = ns.mode; position = 0; buffer = '';
+          send('switch', path.basename(currentPath));
+          emitFull(); return;
+        }
+      }
+      if (!currentPath || !fs.existsSync(currentPath)) return;
+      const stat = fs.statSync(currentPath);
+      if (stat.size > position) {
+        const fd = fs.openSync(currentPath, 'r');
+        const buf = Buffer.alloc(stat.size - position);
+        fs.readSync(fd, buf, 0, buf.length, position);
+        fs.closeSync(fd);
+        position = stat.size;
+        if (mode === 'pretty') renderJsonl(buf.toString('utf8'));
+        else send('append', JSON.stringify(buf.toString('utf8')));
+      } else if (stat.size < position) {
+        send('switch', path.basename(currentPath));
+        position = 0; buffer = ''; emitFull();
+      }
+    } catch {}
+  }, 400);
+  const heartbeat = setInterval(() => { if (!closed) res.write(':hb\n\n'); }, 15000);
+  req.on('close', () => { closed = true; clearInterval(interval); clearInterval(heartbeat); try { res.end(); } catch {} });
+}
+
 const PLAN_PATH_RE = /^\/api\/plans\/([^/]+)(\/.*)?$/;
 
 const server = http.createServer(async (req, res) => {
@@ -2294,6 +2697,13 @@ const server = http.createServer(async (req, res) => {
       return { ...summary, scheduler_loaded: loadedLabels.has(cfg.plist_label) };
     });
     return json(res, { roots: ROOTS, plans });
+  }
+
+  if (url.pathname === '/api/global/activity-stream') {
+    return sseActivity(req, res, globalActivitySource);
+  }
+  if (url.pathname === '/api/global/stream') {
+    return sseLive(req, res, globalLiveSource, true);
   }
 
   const m = url.pathname.match(PLAN_PATH_RE);
@@ -2503,6 +2913,7 @@ const server = http.createServer(async (req, res) => {
     if (sub === '/doc') {
       const rel = url.searchParams.get('path');
       if (!rel) return json(res, { error: 'missing ?path=' }, 400);
+      // Fully siloed: resolve ONLY within the plan's own dir (no path traversal).
       const full = safeJoin(plan.dir, rel);
       if (!full || !fs.existsSync(full)) return json(res, { error: 'not found' }, 404);
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -2533,178 +2944,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (sub === '/activity-stream') {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      });
-      res.write(':ok\n\n');
-
-      const logLink = latestLog(plan);
-      let currentJsonl = jsonlPathFor(logLink);
-      let position = 0;
-      let closed = false;
-      let buffer = '';
-
-      const send = (event, data) => {
-        if (closed) return;
-        res.write('event: ' + event + '\n' + 'data: ' + JSON.stringify(data) + '\n\n');
-      };
-
-      const processChunk = (chunk) => {
-        buffer += chunk;
-        let nl;
-        while ((nl = buffer.indexOf('\n')) !== -1) {
-          const line = buffer.slice(0, nl).trim();
-          buffer = buffer.slice(nl + 1);
-          if (!line) continue;
-          let evt;
-          try { evt = JSON.parse(line); } catch { continue; }
-          for (const act of eventToActivity(evt)) {
-            send('activity', act);
-          }
-        }
-      };
-
-      const emitFull = () => {
-        if (!currentJsonl || !fs.existsSync(currentJsonl)) {
-          send('info', { msg: '(no events yet — waiting for tick to start)' });
-          return;
-        }
-        const data = fs.readFileSync(currentJsonl, 'utf8');
-        position = Buffer.byteLength(data, 'utf8');
-        buffer = '';
-        send('reset', { source: path.basename(currentJsonl) });
-        processChunk(data);
-      };
-
-      emitFull();
-
-      const interval = setInterval(() => {
-        if (closed) return;
-        try {
-          // Detect symlink target swap → new tick started → reset.
-          const newLink = latestLog(plan);
-          const newJsonl = jsonlPathFor(newLink);
-          if (newJsonl && newJsonl !== currentJsonl) {
-            currentJsonl = newJsonl;
-            position = 0;
-            buffer = '';
-            send('reset', { source: path.basename(currentJsonl) });
-            emitFull();
-            return;
-          }
-          if (!currentJsonl || !fs.existsSync(currentJsonl)) return;
-          const stat = fs.statSync(currentJsonl);
-          if (stat.size > position) {
-            const fd = fs.openSync(currentJsonl, 'r');
-            const buf = Buffer.alloc(stat.size - position);
-            fs.readSync(fd, buf, 0, buf.length, position);
-            fs.closeSync(fd);
-            position = stat.size;
-            processChunk(buf.toString('utf8'));
-          } else if (stat.size < position) {
-            position = 0;
-            buffer = '';
-            send('reset', { source: path.basename(currentJsonl) });
-            emitFull();
-          }
-        } catch {}
-      }, 500);
-
-      const heartbeat = setInterval(() => {
-        if (!closed) res.write(':hb\n\n');
-      }, 15000);
-
-      req.on('close', () => {
-        closed = true;
-        clearInterval(interval);
-        clearInterval(heartbeat);
-        try { res.end(); } catch {}
-      });
-      return;
+      return sseActivity(req, res, () => activitySource(plan));
     }
 
     if (sub === '/stream') {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      });
-      res.write(':ok\n\n');
-
       const pinned = url.searchParams.get('log');
-      let currentPath = pinned ? path.join(planTickLogDir(plan), pinned) : latestLog(plan);
-      let position = 0;
-      let closed = false;
-
-      const send = (event, data) => {
-        if (closed) return;
-        res.write('event: ' + event + '\n' + 'data: ' + (typeof data === 'string' ? data : JSON.stringify(data)) + '\n\n');
-      };
-
-      const emitFull = () => {
-        if (!currentPath || !fs.existsSync(currentPath)) {
-          send('file', '(no tick logs yet)');
-          return;
-        }
-        const buf = fs.readFileSync(currentPath, 'utf8');
-        position = Buffer.byteLength(buf, 'utf8');
-        send('file', path.basename(currentPath));
-        send('append', JSON.stringify(buf));
-      };
-
-      emitFull();
-
-      const interval = setInterval(() => {
-        if (closed) return;
-        try {
-          if (!pinned) {
-            const newest = latestLog(plan);
-            if (newest && newest !== currentPath) {
-              currentPath = newest;
-              position = 0;
-              send('switch', path.basename(newest));
-              send('file', path.basename(newest));
-              const buf = fs.readFileSync(currentPath, 'utf8');
-              position = Buffer.byteLength(buf, 'utf8');
-              send('append', JSON.stringify(buf));
-              return;
-            }
-          }
-          if (!currentPath || !fs.existsSync(currentPath)) return;
-          const stat = fs.statSync(currentPath);
-          if (stat.size > position) {
-            const fd = fs.openSync(currentPath, 'r');
-            const buf = Buffer.alloc(stat.size - position);
-            fs.readSync(fd, buf, 0, buf.length, position);
-            fs.closeSync(fd);
-            position = stat.size;
-            send('append', JSON.stringify(buf.toString('utf8')));
-          } else if (stat.size < position) {
-            // Size shrank → almost always means current.log's symlink target
-            // swapped to a fresh tick log. Tell the client to clear its
-            // buffer, then re-emit the new file from the beginning.
-            send('switch', path.basename(currentPath));
-            position = 0;
-            emitFull();
-          }
-        } catch {}
-      }, 400);
-
-      const heartbeat = setInterval(() => {
-        if (!closed) res.write(':hb\n\n');
-      }, 15000);
-
-      req.on('close', () => {
-        closed = true;
-        clearInterval(interval);
-        clearInterval(heartbeat);
-        try { res.end(); } catch {}
-      });
-      return;
+      return sseLive(req, res, () => planLiveSource(plan, pinned), !pinned);
     }
   }
 

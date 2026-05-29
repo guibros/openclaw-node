@@ -1,37 +1,41 @@
 # openclaw-nodedev — Agent Bootstrap
 
+**Plans are siloed.** `memory-plan/MASTER_PLAN.md` is the ONE shared doc. Every other
+plan doc lives inside a self-contained plan dir under `memory-plan/plans/<id>/`:
+- [`memory-plan/plans/redesign/`](memory-plan/plans/redesign/) — the **active** plan (local-first memory redesign, Blocks 0–6).
+- [`memory-plan/plans/legacy/`](memory-plan/plans/legacy/) — the **completed** 58-step framework plan (archive / reference).
+
 **Read these BEFORE any tool use, in this order:**
 
-1. [`memory-plan/MASTER_PLAN.md`](memory-plan/MASTER_PLAN.md) — north star architecture + non-negotiable working principles + done-contract. The doc that governs everything you do in this repo.
-2. [`memory-plan/COMPONENT_REGISTRY.md`](memory-plan/COMPONENT_REGISTRY.md) — current state of every ~/.openclaw service. Reality, not aspiration.
-3. [`memory-plan/DECISIONS.md`](memory-plan/DECISIONS.md) — append-only ledger of every architectural decision. This is the fastest way to absorb what was decided and why.
-4. [`memory-plan/MEMORY_REDESIGN.md`](memory-plan/MEMORY_REDESIGN.md) — the local-first redesign roadmap (phases L0–G).
-5. [`memory-plan/redesign/WORKFLOW.md`](memory-plan/redesign/WORKFLOW.md) + [`redesign/INVENTORY.md`](memory-plan/redesign/INVENTORY.md) — the per-step 9-phase lifecycle (incl. the Re-Orient Loop) and the 40-step plan. The first `[ ]` row is the next action.
-6. [`memory-plan/SCOPE.md`](memory-plan/SCOPE.md) — today's work contract. If absent or `Status` is not `active`, you MUST set scope with the operator before editing anything.
-7. [`memory-plan/OUT_OF_SCOPE.md`](memory-plan/OUT_OF_SCOPE.md) — captured drift awaiting triage.
+1. [`memory-plan/MASTER_PLAN.md`](memory-plan/MASTER_PLAN.md) — north star architecture + non-negotiable working principles + done-contract. The shared doc that governs everything you do in this repo.
+2. [`memory-plan/plans/redesign/MEMORY_REDESIGN.md`](memory-plan/plans/redesign/MEMORY_REDESIGN.md) — the local-first redesign roadmap (phases L0–G).
+3. [`memory-plan/plans/redesign/COMPONENT_REGISTRY.md`](memory-plan/plans/redesign/COMPONENT_REGISTRY.md) — current state of every ~/.openclaw service. Reality, not aspiration.
+4. [`memory-plan/plans/redesign/DECISIONS.md`](memory-plan/plans/redesign/DECISIONS.md) — append-only ledger of every architectural decision. The fastest way to absorb what was decided and why.
+5. [`memory-plan/plans/redesign/WORKFLOW.md`](memory-plan/plans/redesign/WORKFLOW.md) + [`INVENTORY.md`](memory-plan/plans/redesign/INVENTORY.md) — the per-step 9-phase lifecycle (incl. the Re-Orient Loop) and the 40-step plan. The first `[ ]` row is the next action.
+6. [`memory-plan/plans/redesign/SCOPE.md`](memory-plan/plans/redesign/SCOPE.md) — the active plan's work contract. If `Status` is not `active`, you MUST set scope with the operator before editing anything.
+7. [`memory-plan/plans/redesign/OUT_OF_SCOPE.md`](memory-plan/plans/redesign/OUT_OF_SCOPE.md) — captured drift awaiting triage.
 
-The most recent verified ground-truth audit is [`memory-plan/AUDIT_2026-05-27.md`](memory-plan/AUDIT_2026-05-27.md). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them. `git log --oneline -20` shows the recent committed work.
+The most recent verified ground-truth audit is [`memory-plan/plans/legacy/AUDIT_2026-05-27.md`](memory-plan/plans/legacy/AUDIT_2026-05-27.md). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them. `git log --oneline -20` shows the recent committed work.
 
 ## Where we are / next action
 
-As of 2026-05-28: the working-discipline layer (MASTER_PLAN + scope-check hook + COMPONENT_REGISTRY + DECISIONS), the redesign plan (MEMORY_REDESIGN + redesign/ 40-step inventory + the 9-phase WORKFLOW + the re-orient loop), the workplan-viewer (Master Plan tab + transition notifications), and the redesign-tick automation (built, BLOCK-not-fake, NOT auto-loaded) are all committed. **No code in the actual memory pipeline has been changed yet.**
+As of 2026-05-28: plans are now siloed under `memory-plan/plans/` (`redesign/` active, `legacy/` archived), with only `MASTER_PLAN.md` shared at `memory-plan/`. The scope-check hook is per-plan; the workplan-viewer roots at `memory-plan/plans`. Block 0 of the redesign (deploy gap + local NATS) is steps 0.1–0.3 done; step 0.4 (daemon ↔ local NATS) is mid-flight.
 
-**The next action is redesign step 0.1** (close the deploy gap: symlink runtime→repo, start NATS). It is intentionally to be run **interactively** (runtime-heavy; see DECISIONS 2026-05-28 redesign-tick entry). There is no active scope — set one per `redesign/WORKFLOW.md §6` before editing.
+**The next action is redesign step 0.4** — the daemon plist already carries `OPENCLAW_NATS` + `OPENCLAW_NODE_ID=daedalus` (backup `.bak-2026-05-28`); reload it (bootout+bootstrap), verify the `local-events-daedalus` stream + a test publish, and close Block 0. Runtime-heavy → run **interactively**. Set the redesign scope active per `plans/redesign/WORKFLOW.md §6` before editing.
 
 ## The forcing function
 
-`.claude/settings.json` registers a PreToolUse hook (`.claude/hooks/scope-check.sh`) on `Edit | Write | MultiEdit | NotebookEdit`. The hook will **block you** if:
+`.claude/settings.json` registers a PreToolUse hook (`.claude/hooks/scope-check.sh`) on `Edit | Write | MultiEdit | NotebookEdit`. The hook is **per-plan**: it scans every `memory-plan/plans/*/SCOPE.md`, keeps those whose `Status` is `active` and not past `Expires`, and unions their ` ```files ` blocks into the allow-list. It will **block you** if:
 
-- `memory-plan/SCOPE.md` doesn't exist
-- Its `Status` is not `active`
-- Its `Expires` timestamp has passed
-- The file you're trying to edit is not in its ` ```files ` block
+- no active scope exists (no `plans/*/SCOPE.md` with `Status: active`)
+- the active scope's `Expires` timestamp has passed
+- the file you're trying to edit is not in any active scope's ` ```files ` block
 
-Always-writeable exceptions: `memory-plan/OUT_OF_SCOPE.md` (the agnostic-spec capture mechanism — MASTER_PLAN §4.3 addendum) and `memory-plan/SCOPE.md` itself (so the operator can refresh scope without first blocking themselves).
+Keep exactly **one** scope active at a time (one-scope-per-session discipline). Always-writeable exceptions: every plan's own `SCOPE.md` and `OUT_OF_SCOPE.md` (so the operator can refresh scope, and so drift capture is never blocked). A scope carrying `**Override:** true` disables enforcement for that scope.
 
 If the hook blocks you, **do not work around it**. Either:
-- Update `SCOPE.md` with the operator's approval, or
-- Write your observation to `memory-plan/OUT_OF_SCOPE.md` and proceed with the original scope, or
+- Update the relevant plan's `SCOPE.md` with the operator's approval, or
+- Write your observation to that plan's `OUT_OF_SCOPE.md` and proceed with the original scope, or
 - Stop.
 
 ## Why this exists

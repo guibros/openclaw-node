@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # redesign-tick.sh — one autonomous tick of the OpenClaw memory-REDESIGN workplan.
 #
-# Targets memory-plan/redesign/ (NOT the legacy memory-plan/ root). Adapted from
+# Targets memory-plan/plans/redesign/ (the siloed active plan). Adapted from
 # workspace-bin/memory-plan-tick.sh. The redesign TICK_PROMPT enforces the new
 # discipline: runtime-evidence done-contract, the Re-Orient Loop, BLOCK-not-fake.
 #
@@ -14,13 +14,13 @@
 #
 # NOTE: this script is built but its launchd plist is intentionally NOT loaded.
 # Enabling autonomous ticks (and for which steps) is a separate operator decision
-# — see memory-plan/DECISIONS.md. The runtime-evidence gate in the TICK_PROMPT
+# — see memory-plan/plans/redesign/DECISIONS.md. The runtime-evidence gate in the TICK_PROMPT
 # makes it safe to attempt steps: it BLOCKS rather than fake-closes.
 
 set -euo pipefail
 
 REPO="/Users/moltymac/openclaw-nodedev"
-PLAN_DIR="${REPO}/memory-plan/redesign"
+PLAN_DIR="${REPO}/memory-plan/plans/redesign"
 TICK_LOG_DIR="${PLAN_DIR}/tick-logs"
 PROMPT_FILE="${PLAN_DIR}/TICK_PROMPT.md"
 BLOCK_FILE="${PLAN_DIR}/BLOCKED.md"
