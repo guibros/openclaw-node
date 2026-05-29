@@ -20,12 +20,12 @@ Blocks 0–6 = **local-first**, run in order. Block 7 = **DEFERRED** (DECISIONS 
 | 0 | 0.1 | v0.1 | [x] | Symlink runtime lib/ → repo lib/ (close lib drift) |
 | 0 | 0.2 | v0.2 | [x] | Symlink runtime daemon file → repo; restart; confirm current code runs |
 | 0 | 0.3 | v0.3 | [x] | Install local NATS server (JetStream) as a launchd service |
-| 0 | 0.4 | v0.4 | [ ] | Daemon connects to NATS and creates the local-events stream |
+| 0 | 0.4 | v0.4 | [x] | Daemon connects to NATS and creates the local-events stream |
 
 > **0.1:** `diff -rq lib/ ~/.openclaw/workspace/lib/` empty (or runtime lib is a symlink to repo); daemon still boots.
 > **0.2:** runtime daemon file is the repo file (symlink or identical); after restart a log line only current code emits appears.
 > **0.3:** `lsof -iTCP:4222 -sTCP:LISTEN` shows nats-server; survives `launchctl kickstart`; JetStream enabled.
-> **0.4:** `~/.openclaw/local-events/` exists; daemon log shows NATS-connected; a test publish lands.
+> **0.4:** JetStream stream `local-events-daedalus` exists (`nats stream ls`); daemon log shows NATS-connected + `Local event log initialized`; a test publish lands (`stream info` messages ≥ 1). [DONE 2026-05-29 — closes Block 0.]
 
 ## Block 1 — Event log spine (L1) · DECISIONS D3
 

@@ -42,4 +42,13 @@ This file is always-writeable (the PreToolUse hook exempts it).
 - **Severity guess:** MEDIUM.
 - **Who-touches-next:** whoever owns the installer. Durable fix: move the canonical-sync call into the version-controlled `.claude/hooks/validate-commit.sh` (consistent with the existing delegate pattern) or have the installer write the hook block.
 
+## 2026-05-29 — Memory daemon: boot-time native worker crash + live extraction Zod rejections
+
+- **Observed while:** bootstrapping `ai.openclaw.memory-daemon` for redesign step 0.4 (its only 0.4 job — connect to NATS + create the stream — succeeded cleanly).
+- **Area:** the daemon's extraction worker/child path + its Zod extraction schema (`memory-daemon.mjs` runtime; `~/.openclaw/workspace/.tmp/memory-daemon.err`).
+- **Problem:** at this boot the stderr shows (1) a one-time `libc++abi: terminating … mutex lock failed: Invalid argument` native crash followed by `[memory-daemon] PID check failed (process not alive): kill ESRCH` watchdog lines — a worker/child died while the main daemon survived; (2) an extraction Zod dump rejecting LLM output (`Invalid option: expected one of "person"|"project"|"technology"|"file"|"concept"|"company"` for entity `type`, and `depends_on"|"contradicts"|"instance_of"|"causes"|"follows"` for relationship `type`) — i.e. the model emitted entity/relationship types outside the enum and the whole extraction was rejected to stderr.
+- **Why it matters:** (2) is exactly the silent-extraction-failure class the redesign targets — concrete live evidence in the running daemon that valid-ish extractions are being dropped on strict enum mismatch. (1) suggests an unstable native worker path under that failure (mutex crash on the error route), even though the main process recovers. Both are signal for the observability + tolerant-extraction work.
+- **Severity guess:** MEDIUM (main daemon stable; data loss is silent, not crashing).
+- **Who-touches-next:** redesign Block 2 (L2 watcher / dedicated silent-failures view — would surface this) and Block 3 (3.4 tolerant extraction coercion — would stop dropping these). Inventory steps 2.x and 3.4.
+
 ---

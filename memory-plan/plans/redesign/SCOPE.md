@@ -1,28 +1,28 @@
 # SCOPE — redesign plan
 
-**Status:** active
-**Goal:** INFRA REMASTER — make every workplan fully siloed/independent. (1) Introduce a
-`memory-plan/canonical/` folder holding the canonical `MASTER_PLAN.md`; add
-`workspace-bin/sync-canonical.sh` that recopies canonical docs into each `plans/*/`.
-(2) Recopy `MASTER_PLAN.md` into each plan silo; copy `FRAMEWORK.md`+`DESIGN_INPUTS.md`
-into redesign; rewrite every `../X.md` doc-pointer in plan docs to same-dir.
-(3) Viewer: remove the `SHARED_DOCS`/`sharedRoot` reach-up so every tab resolves only
-from `plan.dir`. (4) Plumbing: viewer launchd plist (reboot-durable); resolve the dead
-`redesign-tick` automation; bump the stale redesign `VERSION`.
+**Status:** done
+**Goal:** STEP 0.4 — Daemon ↔ local NATS; create the `local-events-daedalus` JetStream
+stream (closes Block 0). Point the memory daemon at `nats://127.0.0.1:4222` with
+`OPENCLAW_NODE_ID=daedalus`, reload the service (bootout + bootstrap), and verify the
+node event-log stream exists and is writable. Daemon env wiring + reload + verification
++ step paperwork only. Driven **interactively** (runtime-heavy step).
 **Set at:** 2026-05-29
 **Expires:** 2026-05-30T23:59:00Z
 
-This is infrastructure, not a redesign execution step. Step-0.4 execution stays paused.
-After this closes, reset SCOPE to the 0.4 file-deltas per `WORKFLOW.md §6`.
+Done-evidence (per AUDIT_PRE §4): boot log `NATS connected …` +
+`Local event log initialized (stream: local-events-daedalus)`; `nats stream ls` lists
+`local-events-daedalus`; test publish → `stream info` messages ≥ 1; `Shared stream
+unavailable … continuing` (federation dormant, no crash).
+
+Filesystem actions (daemon plist edit, `launchctl bootout/bootstrap`, `nats` CLI) are
+Bash — not gated. The gated repo paperwork is the `files` block below.
 
 ```files
-.gitignore
-workspace-bin/workplan-viewer.mjs
-workspace-bin/sync-canonical.sh
-memory-plan/MASTER_PLAN.md
-memory-plan/canonical/*
-memory-plan/plans/redesign/*
-memory-plan/plans/legacy/*
+memory-plan/plans/redesign/audits/step04_daemon_nats_wire/*
+memory-plan/plans/redesign/INVENTORY.md
+memory-plan/plans/redesign/COMPONENT_REGISTRY.md
+memory-plan/plans/redesign/DECISIONS.md
+memory-plan/plans/redesign/VERSION
 ```
 
 ## How this file works

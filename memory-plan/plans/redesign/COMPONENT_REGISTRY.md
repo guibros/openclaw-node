@@ -170,17 +170,17 @@ Status legend:
 
 | | |
 |---|---|
-| **Status** | LIVE-DEGRADED (broken silently) |
+| **Status** | SUBSTRATE LIVE (0.4) — stream up; producer wiring pending Block 1 |
 | **Owner file (repo)** | `lib/memory-budget.mjs`, `lib/local-event-log.mjs`, `packages/event-schemas/` |
 | **Owner file (runtime)** | `~/.openclaw/workspace/lib/memory-budget.mjs`, `local-event-log.mjs` (May 21) |
-| **Verified** | Deployed `memory-budget.mjs` calls `eventLog.publishLocal()` at lines 82, 128, 188 (fire-and-forget) |
-| **Storage** | `~/.openclaw/local-events/` directory does NOT exist on disk |
+| **Verified** | Deployed `memory-budget.mjs` calls `eventLog.publishLocal()` at lines 82, 128, 188 (fire-and-forget); daemon connects + creates the stream (0.4) |
+| **Storage** | JetStream stream `local-events-daedalus` LIVE (subjects `local.>`, R=1, file-backed under `~/.openclaw/nats/jetstream/`); created 2026-05-29 (0.4). CLI test publish lands. |
 
 **Target:** Every `MemoryBudget.startSession/endSession/addEntry` publishes a signed memory.* event to the per-node JetStream stream `local-events-<NODE_ID>`. The stream is R=1, file-backed, durable. Consolidation + federation observe it (eventually).
 
 **Gap:**
-- NATS not running → publishLocal silently fails (fire-and-forget catches the error) → events lost.
-- 5 of 8 memory.* event schemas have no producer anywhere (`turn_recorded`, `concept_mentioned`, `snapshot_taken`, `artifact_attached`, `compaction_triggered`) — defined as types, never instantiated.
+- ~~NATS not running → publishLocal silently fails~~ CLOSED 0.4: local NATS up + daemon connected + `local-events-daedalus` stream live and writable. publishLocal now has a real broker.
+- 5 of 8 memory.* event schemas have no producer anywhere (`turn_recorded`, `concept_mentioned`, `snapshot_taken`, `artifact_attached`, `compaction_triggered`) — defined as types, never instantiated. (Block 1.)
 - No reader verifies signatures on local events (F-N17 still open) — signing is security theater on the local path.
 
 **Done-criteria for closure:**
@@ -337,7 +337,7 @@ Status legend:
 
 | | |
 |---|---|
-| **Status** | LOCAL NODE RUNNING (step 0.3, 2026-05-28) — single-node, loopback, JetStream on, launchd-managed. Streams not yet created (0.4). |
+| **Status** | LOCAL NODE RUNNING + DAEMON WIRED (0.3 + 0.4) — single-node, loopback, JetStream on, launchd-managed; `local-events-daedalus` stream live (2026-05-29). |
 | **Verified** | `lsof :4222` → `nats-server` on `127.0.0.1:4222` (+ monitor `:8222`); `launchctl list` → `ai.openclaw.nats` live PID; survives `kickstart -k`; `curl :8222/jsz` returns JetStream stats (api lvl 3, max_mem 128MB, max_file 1GB) |
 | **Service** | `~/Library/LaunchAgents/ai.openclaw.nats.plist` → `nats-server -c ~/.openclaw/nats/nats.conf`; KeepAlive, RunAtLoad, ThrottleInterval 10; logs `~/.openclaw/nats/nats.{log,err}`; store `~/.openclaw/nats/jetstream/` |
 | **Required by** | extraction-trigger (mesh.memory.extract_request), MemoryBudget publishLocal, federation (broadcast/offer/accepted), mesh.* subjects, mesh.memory.compaction_completed |
@@ -347,8 +347,8 @@ Status legend:
 **Local vs mesh:** the local node (0.3) is loopback-only and separate from the remote mesh (`OPENCLAW_NATS=nats://100.91.131.61:4222` in `~/.openclaw/openclaw.env`, Tailscale, currently down — the federation layer D4 keeps dormant). The repo `services/nats/` 3-node cluster plists are the G-phase / step 10.2 deliverable, NOT used for local-first; a single loopback node is correct for L0.
 
 **Gap (remaining):**
-- Streams `local-events-<NODE_ID>` / `OPENCLAW_SHARED` not yet created (0.4 / federation).
-- Daemon not yet wired to the local node (still resolves to the remote mesh IP via `openclaw.env`; logs `NATS unavailable (TIMEOUT)`). 0.4 sets `OPENCLAW_NATS=nats://127.0.0.1:4222` in the daemon's launchd plist (highest-priority override) without touching `openclaw.env`.
+- ~~`local-events-<NODE_ID>` not created; daemon not wired~~ CLOSED 0.4: daemon plist sets `OPENCLAW_NATS=nats://127.0.0.1:4222` + `OPENCLAW_NODE_ID=daedalus` (highest-priority override, `openclaw.env` untouched); daemon connects and creates `local-events-daedalus`. Boot log: `NATS connected` + `Local event log initialized (stream: local-events-daedalus)`.
+- `OPENCLAW_SHARED` (federation, R=3) stays dormant on one node — `Shared stream unavailable (replicas > 1 …) — continuing` (D4, intended). G-phase / 3-node cluster.
 
 **Done-criteria for closure:**
 - ~~single NATS server running locally with JetStream enabled~~ ✓ (0.3)

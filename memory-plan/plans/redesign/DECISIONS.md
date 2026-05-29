@@ -4,6 +4,24 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-29 — Step 0.4 closed → Block 0 (L0) COMPLETE
+
+**Decision.** The memory daemon is wired to the local NATS node and its per-node event-log stream `local-events-daedalus` is live and writable. Block 0 (L0: deploy gap + local NATS substrate) is done; VERSION `v0.3 → v0.4`. Next is Block 1 (emit `memory.*` events at the ingest/extract/inject boundaries), inventory step 1.1.
+
+**Why / how.** The daemon plist already carried `OPENCLAW_NATS=nats://127.0.0.1:4222` + `OPENCLAW_NODE_ID=daedalus` (a launchd-plist override, highest-priority in the resolution order, leaving `~/.openclaw/openclaw.env` and the mesh consumers pointed at the remote IP). The daemon was simply **not loaded**; `launchctl bootstrap` started it (PID 42661). Evidence: `NATS connected`, `Local event log initialized (stream: local-events-daedalus)`, `nats stream ls` shows the stream, CLI test publish → `stream info` messages = 1, and `Shared stream unavailable … continuing` (federation D4 dormant, no crash).
+
+**Node-id decision.** `OPENCLAW_NODE_ID=daedalus` is mandatory, not cosmetic: the default `os.hostname()` (`MoltyMacs-Virtual-Machine.local`) contains dots, which are illegal in a JetStream stream name (`local-events-<id>`). Set in the plist; `.daemon-state-<hostname>.md` regenerates each poll, old one inert.
+
+**Done-evidence refinement (MASTER_PLAN §5).** INVENTORY 0.4 said "`~/.openclaw/local-events/` exists" — stale. The event log is a JetStream stream (`local-events-daedalus`, store under `~/.openclaw/nats/jetstream/`), not a loose directory. INVENTORY note + registry 1.7/7.1 updated to the real observable.
+
+**Macro re-orient (Block 0 close, WORKFLOW §7.2).** Block 0 served the north star by closing the deploy gap (0.1 lib symlink, 0.2 daemon-binary symlink — runtime now runs repo code) and standing up the local-first event substrate (0.3 NATS node, 0.4 daemon↔stream). The D3 local event log the L2 watcher will consume now exists. Carry-forward: Block 1 has a real broker to publish to. Note: the running daemon emits silent extraction Zod rejections + a native worker crash at boot (captured in OUT_OF_SCOPE 2026-05-29) — live targets for Block 2 (watcher) + step 3.4 (tolerant extraction).
+
+**Consequences.**
+- `MemoryBudget.publishLocal()` now has a live broker (was silently failing). Producer wiring for the 5 unproduced `memory.*` schemas is still Block 1.
+- The autonomous redesign tick chain is currently **unloaded** (operator chose to drive 0.4 interactively). Re-enable via the viewer Automation tab when Block 1's lighter steps are ready for autonomous ticking.
+
+---
+
 ## 2026-05-28 — RESTRUCTURE: fully siloed `plans/` tree (supersedes the six-shared-doc model below)
 
 **Problem (operator directive).** The "six governance docs shared at `memory-plan/`" boundary (entry directly below) was still operator-rejected: the viewer kept centering on the completed `memory-plan` plan and the shared docs blurred plan boundaries. Directive, verbatim: *"RESTRUCTURE: EVERYTHING IS SILOED, AND IF NECESSARY THE DIFFERENT DOCUMENT WILL BE SHARED."* Chosen layout (via AskUserQuestion): a new `plans/` tree.
