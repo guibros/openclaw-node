@@ -1,13 +1,15 @@
 # openclaw-nodedev — Agent Bootstrap
 
-**Plans are siloed.** `memory-plan/MASTER_PLAN.md` is the ONE shared doc. Every other
-plan doc lives inside a self-contained plan dir under `memory-plan/plans/<id>/`:
+**Plans are siloed.** The shared sources live in [`memory-plan/canonical/`](memory-plan/canonical/)
+(`MASTER_PLAN.md`, `COWORK_MODEL.md`) and are copied into every plan silo by
+`sync-canonical.sh`. Every plan doc lives inside a self-contained plan dir under
+`memory-plan/plans/<id>/` (each carries its own synced copy of the canonical docs):
 - [`memory-plan/plans/redesign/`](memory-plan/plans/redesign/) — the **active** plan (local-first memory redesign, Blocks 0–6).
 - [`memory-plan/plans/legacy/`](memory-plan/plans/legacy/) — the **completed** 58-step framework plan (archive / reference).
 
 **Read these BEFORE any tool use, in this order:**
 
-1. [`memory-plan/MASTER_PLAN.md`](memory-plan/MASTER_PLAN.md) — north star architecture + non-negotiable working principles + done-contract. The shared doc that governs everything you do in this repo.
+1. [`memory-plan/canonical/MASTER_PLAN.md`](memory-plan/canonical/MASTER_PLAN.md) — north star architecture + non-negotiable working principles + done-contract. The shared doc that governs everything you do in this repo (synced copy also at `memory-plan/plans/redesign/MASTER_PLAN.md`).
 2. [`memory-plan/plans/redesign/MEMORY_REDESIGN.md`](memory-plan/plans/redesign/MEMORY_REDESIGN.md) — the local-first redesign roadmap (phases L0–G).
 3. [`memory-plan/plans/redesign/COMPONENT_REGISTRY.md`](memory-plan/plans/redesign/COMPONENT_REGISTRY.md) — current state of every ~/.openclaw service. Reality, not aspiration.
 4. [`memory-plan/plans/redesign/DECISIONS.md`](memory-plan/plans/redesign/DECISIONS.md) — append-only ledger of every architectural decision. The fastest way to absorb what was decided and why.
@@ -19,9 +21,9 @@ The most recent verified ground-truth audit is [`memory-plan/plans/legacy/AUDIT_
 
 ## Where we are / next action
 
-As of 2026-05-28: plans are now siloed under `memory-plan/plans/` (`redesign/` active, `legacy/` archived), with only `MASTER_PLAN.md` shared at `memory-plan/`. The scope-check hook is per-plan; the workplan-viewer roots at `memory-plan/plans`. Block 0 of the redesign (deploy gap + local NATS) is steps 0.1–0.3 done; step 0.4 (daemon ↔ local NATS) is mid-flight.
+As of 2026-05-29: plans are siloed under `memory-plan/plans/` (`redesign/` active, `legacy/` archived); shared sources live in `memory-plan/canonical/` and are synced into each silo. The scope-check hook is per-plan; the workplan-viewer roots at `memory-plan/plans`. **Block 0 (deploy gap + local NATS substrate) is COMPLETE** — steps 0.1–0.4 done; the daemon is wired to local NATS (`nats://127.0.0.1:4222`, `OPENCLAW_NODE_ID=daedalus`) with the per-node stream `local-events-daedalus` live and writable, federation dormant.
 
-**The next action is redesign step 0.4** — the daemon plist already carries `OPENCLAW_NATS` + `OPENCLAW_NODE_ID=daedalus` (backup `.bak-2026-05-28`); reload it (bootout+bootstrap), verify the `local-events-daedalus` stream + a test publish, and close Block 0. Runtime-heavy → run **interactively**. Set the redesign scope active per `plans/redesign/WORKFLOW.md §6` before editing.
+**The next action is redesign step 1.1** — "Define memory.* event vocabulary in `packages/event-schemas`" (first `[ ]` row in `plans/redesign/INVENTORY.md`). Block 1 emits `memory.*` events at the ingest/extract/inject boundaries. This is schema work, not runtime-heavy, so it is **safe for the autonomous tick chain**. The redesign tick (`com.openclaw.redesign-tick`, chain mode) walks one INVENTORY step per tick and self-sets its per-step scope.
 
 ## The forcing function
 

@@ -1,16 +1,16 @@
 # SCOPE — redesign plan
 
 **Status:** done
-**Goal:** Chain-restart prep — fix stale pre-restructure paths in TICK_PROMPT.md so
-autonomous Block 1 ticks resolve the right files. Rewrite every `memory-plan/X` →
-`memory-plan/plans/redesign/X` EXCEPT `memory-plan/MASTER_PLAN.md` (the one shared doc).
-Infra/automation prep only — no INVENTORY step advance.
+**Goal:** Doc-consistency fix — the project `CLAUDE.md` points to the non-existent
+top-level `memory-plan/MASTER_PLAN.md` (now lives in `memory-plan/canonical/` + copied
+into each silo), causing every autonomous tick to waste a recovery loop. Fix the
+MASTER_PLAN path refs and refresh the stale "Where we are / next action" section
+(0.4 is done, Block 0 complete, next is step 1.1). Docs only.
 **Set at:** 2026-05-29
 **Expires:** 2026-05-30T23:59:00Z
 
 ```files
-memory-plan/plans/redesign/TICK_PROMPT.md
-/Users/moltymac/.claude/projects/-Users-moltymac-openclaw-nodedev/memory/*
+CLAUDE.md
 ```
 
 ## How this file works
