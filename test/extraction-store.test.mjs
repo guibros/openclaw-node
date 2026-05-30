@@ -69,6 +69,26 @@ describe('createExtractionStore', () => {
     assert.equal(stats.decisionCount, 1);
   });
 
+  it('storeExtractionResult populates turn_index when opts.turnIndex is provided', () => {
+    store.storeExtractionResult('session-001', mockExtractionResult, undefined, { turnIndex: 42 });
+
+    const mentions = store.db.prepare('SELECT turn_index FROM mentions WHERE session_id = ?').all('session-001');
+    assert.equal(mentions.length, 2);
+    for (const m of mentions) {
+      assert.equal(m.turn_index, 42);
+    }
+  });
+
+  it('storeExtractionResult leaves turn_index NULL when no opts provided', () => {
+    store.storeExtractionResult('session-001', mockExtractionResult);
+
+    const mentions = store.db.prepare('SELECT turn_index FROM mentions WHERE session_id = ?').all('session-001');
+    assert.equal(mentions.length, 2);
+    for (const m of mentions) {
+      assert.equal(m.turn_index, null);
+    }
+  });
+
   it('storeExtractionResult upserts entities and increments mention_count', () => {
     store.storeExtractionResult('session-001', mockExtractionResult);
     store.storeExtractionResult('session-002', mockExtractionResult);
@@ -140,6 +160,35 @@ describe('runFlush with LLM extraction', () => {
     // Verify MEMORY.md was written with structured content
     const memoryContent = fs.readFileSync(memoryMdPath, 'utf-8');
     assert.ok(memoryContent.includes('NATS JetStream'));
+  });
+
+  it('populates turn_index on mentions via runFlush pipeline', async () => {
+    const jsonlPath = path.join(tmpDir, 'turn-idx-session.jsonl');
+    const memoryMdPath = path.join(tmpDir, 'MEMORY.md');
+    const messages = [
+      { type: 'user', message: { role: 'user', content: 'Message one' }, timestamp: '2026-05-29T10:00:00Z' },
+      { type: 'assistant', message: { role: 'assistant', content: 'Reply one' }, timestamp: '2026-05-29T10:00:05Z' },
+      { type: 'user', message: { role: 'user', content: 'Message two' }, timestamp: '2026-05-29T10:00:10Z' },
+    ];
+    fs.writeFileSync(jsonlPath, messages.map(m => JSON.stringify(m)).join('\n'));
+
+    const mockClient = {
+      async generate() {
+        return { content: JSON.stringify(mockExtractionResult), usage: null, finishReason: 'stop' };
+      },
+    };
+
+    await runFlush(jsonlPath, memoryMdPath, {
+      charBudget: 2200,
+      llmClient: mockClient,
+      extractionStore: store,
+    });
+
+    const mentions = store.db.prepare('SELECT turn_index FROM mentions').all();
+    assert.equal(mentions.length, 2);
+    for (const m of mentions) {
+      assert.equal(m.turn_index, 3);
+    }
   });
 
   it('falls back to regex when LLM extraction fails', async () => {
