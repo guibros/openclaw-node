@@ -12,6 +12,14 @@ import {
   SnapshotTakenSchema,
   CompactionTriggeredSchema,
   ArtifactAttachedSchema,
+  MemoryIngestedSchema,
+  MemoryExtractedSchema,
+  MemoryRetrievedSchema,
+  MemoryInjectedSchema,
+  MemorySynthesizedSchema,
+  MemoryDecayedSchema,
+  MemoryPromotedSchema,
+  MemoryErrorSchema,
   toJsonSchema,
 } from '../packages/event-schemas/dist/index.js';
 
@@ -159,6 +167,134 @@ describe('Memory event schemas', () => {
     });
     const result = ArtifactAttachedSchema.parse(event);
     assert.equal(result.data.artifact_ref, 'sha256:abcdef123456');
+  });
+});
+
+describe('Boundary event schemas (Block 1 vocabulary)', () => {
+  function makeMemEvent(eventType, data) {
+    return {
+      ...makeEnvelope({ event_type: eventType, entity_type: 'memory' }),
+      data,
+    };
+  }
+
+  it('validates memory.ingested', () => {
+    const event = makeMemEvent('memory.ingested', {
+      session_id: 'sess-001',
+      source: '~/.claude/projects/-Users-moltymac-openclaw-workspace/',
+      messages_added: 12,
+      total_messages: 42,
+    });
+    const result = MemoryIngestedSchema.parse(event);
+    assert.equal(result.data.messages_added, 12);
+    assert.equal(result.data.source, '~/.claude/projects/-Users-moltymac-openclaw-workspace/');
+  });
+
+  it('validates memory.extracted', () => {
+    const event = makeMemEvent('memory.extracted', {
+      session_id: 'sess-001',
+      entities_count: 5,
+      themes_count: 3,
+      mentions_count: 8,
+      decisions_count: 2,
+      model: 'qwen3:8b',
+      duration_ms: 4200,
+    });
+    const result = MemoryExtractedSchema.parse(event);
+    assert.equal(result.data.entities_count, 5);
+    assert.equal(result.data.model, 'qwen3:8b');
+  });
+
+  it('validates memory.retrieved', () => {
+    const event = makeMemEvent('memory.retrieved', {
+      query_hash: 'sha256-abc123',
+      channels_hit: 4,
+      results_count: 15,
+      duration_ms: 87,
+    });
+    const result = MemoryRetrievedSchema.parse(event);
+    assert.equal(result.data.channels_hit, 4);
+    assert.equal(result.data.results_count, 15);
+  });
+
+  it('validates memory.injected', () => {
+    const event = makeMemEvent('memory.injected', {
+      request_id: 'req-001',
+      token_count: 1200,
+      blocks_count: 3,
+      duration_ms: 45,
+    });
+    const result = MemoryInjectedSchema.parse(event);
+    assert.equal(result.data.token_count, 1200);
+    assert.equal(result.data.blocks_count, 3);
+  });
+
+  it('validates memory.synthesized', () => {
+    const event = makeMemEvent('memory.synthesized', {
+      trigger: 'session_end',
+      artifacts_written: ['MEMORY.md', 'concepts/nats-jetstream.md'],
+      duration_ms: 3500,
+    });
+    const result = MemorySynthesizedSchema.parse(event);
+    assert.equal(result.data.trigger, 'session_end');
+    assert.equal(result.data.artifacts_written.length, 2);
+  });
+
+  it('validates memory.decayed', () => {
+    const event = makeMemEvent('memory.decayed', {
+      entities_decayed: 14,
+      duration_ms: 230,
+    });
+    const result = MemoryDecayedSchema.parse(event);
+    assert.equal(result.data.entities_decayed, 14);
+  });
+
+  it('validates memory.promoted', () => {
+    const event = makeMemEvent('memory.promoted', {
+      entities_promoted: 3,
+      duration_ms: 150,
+    });
+    const result = MemoryPromotedSchema.parse(event);
+    assert.equal(result.data.entities_promoted, 3);
+  });
+
+  it('validates memory.error', () => {
+    const event = makeMemEvent('memory.error', {
+      boundary: 'extract',
+      error_code: 'ZOD_VALIDATION',
+      error_message: 'Missing required field: actions',
+      session_id: 'sess-001',
+    });
+    const result = MemoryErrorSchema.parse(event);
+    assert.equal(result.data.boundary, 'extract');
+    assert.equal(result.data.error_code, 'ZOD_VALIDATION');
+  });
+
+  it('memory.error accepts optional session_id', () => {
+    const event = makeMemEvent('memory.error', {
+      boundary: 'retrieve',
+      error_code: 'TIMEOUT',
+      error_message: 'Channel 2 timed out',
+    });
+    const result = MemoryErrorSchema.parse(event);
+    assert.equal(result.data.session_id, undefined);
+  });
+
+  it('all 8 boundary events route through MemoryEventSchema discriminated union', () => {
+    const events = [
+      makeMemEvent('memory.ingested', { session_id: 's', source: 'x', messages_added: 0, total_messages: 0 }),
+      makeMemEvent('memory.extracted', { session_id: 's', entities_count: 0, themes_count: 0, mentions_count: 0, decisions_count: 0, model: 'm', duration_ms: 0 }),
+      makeMemEvent('memory.retrieved', { query_hash: 'h', channels_hit: 0, results_count: 0, duration_ms: 0 }),
+      makeMemEvent('memory.injected', { request_id: 'r', token_count: 0, blocks_count: 0, duration_ms: 0 }),
+      makeMemEvent('memory.synthesized', { trigger: 'manual', artifacts_written: [], duration_ms: 0 }),
+      makeMemEvent('memory.decayed', { entities_decayed: 0, duration_ms: 0 }),
+      makeMemEvent('memory.promoted', { entities_promoted: 0, duration_ms: 0 }),
+      makeMemEvent('memory.error', { boundary: 'ingest', error_code: 'E', error_message: 'msg' }),
+    ];
+    for (const event of events) {
+      const result = MemoryEventSchema.safeParse(event);
+      assert.equal(result.success, true, `Failed for ${event.event_type}: ${JSON.stringify(result.error?.issues)}`);
+    }
   });
 });
 

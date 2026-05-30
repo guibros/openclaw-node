@@ -170,7 +170,7 @@ Status legend:
 
 | | |
 |---|---|
-| **Status** | SUBSTRATE LIVE (0.4) — stream up; producer wiring pending Block 1 |
+| **Status** | SUBSTRATE LIVE (0.4) + SCHEMAS DEFINED (1.1) — stream up; 8 boundary-event schemas in `packages/event-schemas`; producer wiring pending steps 1.2–1.5 |
 | **Owner file (repo)** | `lib/memory-budget.mjs`, `lib/local-event-log.mjs`, `packages/event-schemas/` |
 | **Owner file (runtime)** | `~/.openclaw/workspace/lib/memory-budget.mjs`, `local-event-log.mjs` (May 21) |
 | **Verified** | Deployed `memory-budget.mjs` calls `eventLog.publishLocal()` at lines 82, 128, 188 (fire-and-forget); daemon connects + creates the stream (0.4) |
@@ -180,7 +180,8 @@ Status legend:
 
 **Gap:**
 - ~~NATS not running → publishLocal silently fails~~ CLOSED 0.4: local NATS up + daemon connected + `local-events-daedalus` stream live and writable. publishLocal now has a real broker.
-- 5 of 8 memory.* event schemas have no producer anywhere (`turn_recorded`, `concept_mentioned`, `snapshot_taken`, `artifact_attached`, `compaction_triggered`) — defined as types, never instantiated. (Block 1.)
+- 8 new boundary-event schemas defined (1.1: `memory.ingested`, `memory.extracted`, `memory.retrieved`, `memory.injected`, `memory.synthesized`, `memory.decayed`, `memory.promoted`, `memory.error`) — validated in tests + round-trip against live stream. Producers wired in steps 1.2–1.5.
+- 5 of the original 8 memory.* event schemas still have no producer (`turn_recorded`, `concept_mentioned`, `snapshot_taken`, `artifact_attached`, `compaction_triggered`) — separate from the new boundary schemas.
 - No reader verifies signatures on local events (F-N17 still open) — signing is security theater on the local path.
 
 **Done-criteria for closure:**

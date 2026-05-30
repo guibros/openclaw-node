@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-29 — Step 1.1 closed: memory.* event vocabulary defined
+
+**Decision.** 8 boundary-event Zod schemas added to `packages/event-schemas`: `memory.ingested`, `memory.extracted`, `memory.retrieved`, `memory.injected`, `memory.synthesized`, `memory.decayed`, `memory.promoted`, `memory.error`. These are operation-boundary events (one per pipeline run) designed for the Block 2 memory-watcher to consume. VERSION `v0.4 → v1.1`.
+
+**Design.** Each schema extends `EventEnvelopeSchema` with `entity_type: 'memory'` and operation-specific `data` fields (counts, durations, trigger types). The `MemoryEventSchema` discriminated union now has 16 members (8 original + 8 new). Existing schemas untouched — backward compatible. No architectural decision needed; this is pure schema work.
+
+**Evidence.** Unit tests: 1376/1376 pass (10 new cases for the boundary schemas). NATS round-trip: `nats pub` → 472B `memory.ingested` event → `nats stream get local-events-daedalus 2` → all fields intact.
+
+**Consequences.** Steps 1.2–1.5 wire `publishLocal(buildMemoryEvent('memory.<type>', ...))` at each boundary. The 5 original unproduced schemas (`turn_recorded`, `concept_mentioned`, `snapshot_taken`, `artifact_attached`, `compaction_triggered`) remain — their fate is a separate decision, not Block 1's concern.
+
+---
+
 ## 2026-05-29 — Step 0.4 closed → Block 0 (L0) COMPLETE
 
 **Decision.** The memory daemon is wired to the local NATS node and its per-node event-log stream `local-events-daedalus` is live and writable. Block 0 (L0: deploy gap + local NATS substrate) is done; VERSION `v0.3 → v0.4`. Next is Block 1 (emit `memory.*` events at the ingest/extract/inject boundaries), inventory step 1.1.

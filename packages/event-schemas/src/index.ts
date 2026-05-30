@@ -12,6 +12,14 @@ export {
   SnapshotTakenSchema, type SnapshotTakenEvent,
   CompactionTriggeredSchema, type CompactionTriggeredEvent,
   ArtifactAttachedSchema, type ArtifactAttachedEvent,
+  MemoryIngestedSchema, type MemoryIngestedEvent,
+  MemoryExtractedSchema, type MemoryExtractedEvent,
+  MemoryRetrievedSchema, type MemoryRetrievedEvent,
+  MemoryInjectedSchema, type MemoryInjectedEvent,
+  MemorySynthesizedSchema, type MemorySynthesizedEvent,
+  MemoryDecayedSchema, type MemoryDecayedEvent,
+  MemoryPromotedSchema, type MemoryPromotedEvent,
+  MemoryErrorSchema, type MemoryErrorEvent,
 } from './memory/index.js';
 export {
   ContextBroadcastSchema, type ContextBroadcastEvent,
