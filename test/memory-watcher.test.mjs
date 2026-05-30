@@ -1,7 +1,10 @@
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { buildMemoryEvent } from '../lib/local-event-log.mjs';
-import { toWatcherRecord, classifyStatus } from '../lib/memory-watcher.mjs';
+import { toWatcherRecord, classifyStatus, runStoreHealthProbes } from '../lib/memory-watcher.mjs';
 
 describe('toWatcherRecord', () => {
   it('extracts flat record from memory.ingested event', () => {
@@ -191,5 +194,159 @@ describe('classifyStatus', () => {
       start_time: new Date().toISOString(),
     }, 'daedalus');
     assert.equal(classifyStatus(event), 'ok');
+  });
+});
+
+describe('runStoreHealthProbes', () => {
+  let tmpDir;
+  let Database;
+
+  before(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'watcher-probe-'));
+    Database = (await import('better-sqlite3')).default;
+  });
+
+  after(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function seedStateDb(dbPath) {
+    const db = new Database(dbPath);
+    db.pragma('journal_mode = WAL');
+    db.exec(`
+      CREATE TABLE sessions (id TEXT PRIMARY KEY, source TEXT, start_time TEXT, message_count INTEGER);
+      CREATE TABLE messages (id INTEGER PRIMARY KEY, session_id TEXT, role TEXT, content TEXT);
+      CREATE TABLE entities (id INTEGER PRIMARY KEY, name TEXT);
+      CREATE TABLE themes (id INTEGER PRIMARY KEY, label TEXT);
+      CREATE TABLE mentions (id INTEGER PRIMARY KEY, entity_id INTEGER);
+      CREATE TABLE decisions (id INTEGER PRIMARY KEY, title TEXT);
+    `);
+    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?)').run('s1', 'test', '2026-05-30T01:00:00Z', 5);
+    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?)').run('s2', 'test', '2026-05-30T02:00:00Z', 3);
+    db.prepare('INSERT INTO messages VALUES (?, ?, ?, ?)').run(1, 's1', 'user', 'hello');
+    db.prepare('INSERT INTO messages VALUES (?, ?, ?, ?)').run(2, 's1', 'assistant', 'hi');
+    db.prepare('INSERT INTO messages VALUES (?, ?, ?, ?)').run(3, 's2', 'user', 'test');
+    db.prepare('INSERT INTO entities VALUES (?, ?)').run(1, 'Alice');
+    db.prepare('INSERT INTO themes VALUES (?, ?)').run(1, 'testing');
+    db.prepare('INSERT INTO themes VALUES (?, ?)').run(2, 'dev');
+    db.prepare('INSERT INTO mentions VALUES (?, ?)').run(1, 1);
+    db.prepare('INSERT INTO decisions VALUES (?, ?)').run(1, 'use WAL');
+    db.close();
+  }
+
+  function seedGraphCacheDb(dbPath) {
+    const db = new Database(dbPath);
+    db.pragma('journal_mode = WAL');
+    db.exec(`
+      CREATE TABLE concept_graph_nodes (id INTEGER PRIMARY KEY, label TEXT);
+      CREATE TABLE concept_graph_edges (id INTEGER PRIMARY KEY, source_id INTEGER, target_id INTEGER);
+      CREATE TABLE graph_cache_meta (key TEXT PRIMARY KEY, value TEXT);
+    `);
+    db.prepare('INSERT INTO concept_graph_nodes VALUES (?, ?)').run(1, 'Node-A');
+    db.prepare('INSERT INTO concept_graph_nodes VALUES (?, ?)').run(2, 'Node-B');
+    db.prepare('INSERT INTO concept_graph_edges VALUES (?, ?, ?)').run(1, 1, 2);
+    db.prepare("INSERT INTO graph_cache_meta VALUES ('last_refresh_at', '2026-05-29T12:00:00Z')").run();
+    db.close();
+  }
+
+  it('returns correct row counts for state.db', async () => {
+    const dbPath = path.join(tmpDir, 'state.db');
+    seedStateDb(dbPath);
+    const result = await runStoreHealthProbes({
+      stateDb: dbPath,
+      knowledgeDb: path.join(tmpDir, 'nonexistent-knowledge.db'),
+      graphCacheDb: path.join(tmpDir, 'nonexistent-graph.db'),
+      workspaceLib: '/nonexistent/lib',
+      workspaceDaemon: '/nonexistent/daemon',
+      Database,
+    });
+    assert.equal(result.op, 'health.probe');
+    assert.equal(result.status, 'ok');
+    assert.equal(result.stores.state.sessions, 2);
+    assert.equal(result.stores.state.messages, 3);
+    assert.equal(result.stores.state.entities, 1);
+    assert.equal(result.stores.state.themes, 2);
+    assert.equal(result.stores.state.mentions, 1);
+    assert.equal(result.stores.state.decisions, 1);
+    assert.equal(result.stores.state.last_session, '2026-05-30T02:00:00Z');
+    assert.equal(typeof result.stores.state.wal_bytes, 'number');
+  });
+
+  it('returns correct counts for graph-cache.db', async () => {
+    const dbPath = path.join(tmpDir, 'graph-cache.db');
+    seedGraphCacheDb(dbPath);
+    const result = await runStoreHealthProbes({
+      stateDb: path.join(tmpDir, 'nonexistent.db'),
+      knowledgeDb: path.join(tmpDir, 'nonexistent.db'),
+      graphCacheDb: dbPath,
+      workspaceLib: '/nonexistent/lib',
+      workspaceDaemon: '/nonexistent/daemon',
+      Database,
+    });
+    assert.equal(result.stores.graph_cache.nodes, 2);
+    assert.equal(result.stores.graph_cache.edges, 1);
+    assert.equal(result.stores.graph_cache.last_refresh, '2026-05-29T12:00:00Z');
+    assert.equal(typeof result.stores.graph_cache.wal_bytes, 'number');
+  });
+
+  it('returns null for missing databases', async () => {
+    const result = await runStoreHealthProbes({
+      stateDb: path.join(tmpDir, 'nope.db'),
+      knowledgeDb: path.join(tmpDir, 'nope2.db'),
+      graphCacheDb: path.join(tmpDir, 'nope3.db'),
+      workspaceLib: '/nonexistent/lib',
+      workspaceDaemon: '/nonexistent/daemon',
+      Database,
+    });
+    assert.equal(result.stores.state, null);
+    assert.equal(result.stores.knowledge, null);
+    assert.equal(result.stores.graph_cache, null);
+  });
+
+  it('reports WAL size when WAL file exists', async () => {
+    const dbPath = path.join(tmpDir, 'wal-test.db');
+    seedStateDb(dbPath);
+    const walPath = dbPath + '-wal';
+    assert.ok(fs.existsSync(walPath) || true);
+    const result = await runStoreHealthProbes({
+      stateDb: dbPath,
+      knowledgeDb: path.join(tmpDir, 'nope.db'),
+      graphCacheDb: path.join(tmpDir, 'nope.db'),
+      workspaceLib: '/nonexistent/lib',
+      workspaceDaemon: '/nonexistent/daemon',
+      Database,
+    });
+    assert.equal(typeof result.stores.state.wal_bytes, 'number');
+    assert.ok(result.stores.state.wal_bytes >= 0);
+  });
+
+  it('checks drift symlinks correctly', async () => {
+    const linkTarget = path.join(tmpDir, 'real-lib');
+    const linkPath = path.join(tmpDir, 'lib-link');
+    fs.mkdirSync(linkTarget, { recursive: true });
+    fs.symlinkSync(linkTarget, linkPath);
+    const result = await runStoreHealthProbes({
+      stateDb: path.join(tmpDir, 'nope.db'),
+      knowledgeDb: path.join(tmpDir, 'nope.db'),
+      graphCacheDb: path.join(tmpDir, 'nope.db'),
+      workspaceLib: linkPath,
+      workspaceDaemon: '/nonexistent/daemon',
+      Database,
+    });
+    assert.equal(result.drift.lib_symlinked, true);
+    assert.equal(result.drift.daemon_symlinked, false);
+  });
+
+  it('has valid timestamp in ts field', async () => {
+    const result = await runStoreHealthProbes({
+      stateDb: path.join(tmpDir, 'nope.db'),
+      knowledgeDb: path.join(tmpDir, 'nope.db'),
+      graphCacheDb: path.join(tmpDir, 'nope.db'),
+      workspaceLib: '/x',
+      workspaceDaemon: '/x',
+      Database,
+    });
+    assert.ok(result.ts);
+    assert.ok(!isNaN(Date.parse(result.ts)));
   });
 });

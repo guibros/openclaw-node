@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-30 — Step 2.3 closed: store-health probes (row counts, last-write, WAL size, drift)
+
+**Decision.** `runStoreHealthProbes(opts)` added to `lib/memory-watcher.mjs`. Probes 3 SQLite databases readonly (state.db, knowledge.db, graph-cache.db) for row counts of key tables, WAL file sizes, and last-write timestamps. Also checks repo↔runtime symlink integrity (lib + daemon binary). Wired into the daemon on a 5-minute interval with an immediate initial run. Results written to `watcher.jsonl` as `op: 'health.probe'` records alongside event records. VERSION `v2.2 → v2.3`.
+
+**Design.** `probeStore(Database, dbPath, queries)` is a generic helper: opens DB readonly, runs named SQL queries, appends WAL size, returns structured object (or null if DB missing). Fully injectable — Database constructor, all paths overridable via opts (same DI pattern as `runHealthCheck`). Probe records share watcher.jsonl but are distinguishable by `op` field. Timer cleared on shutdown alongside watcher stop.
+
+**Evidence.** Tests: 1406/0 (6 new: row counts, graph-cache, missing DBs, WAL, symlinks, timestamp). Runtime: daemon log shows `[watcher] health probe: 3 stores checked`; watcher.jsonl probe record shows state.db sessions=233/entities=1039, knowledge.db session_docs=225, graph-cache nodes=65/edges=317, WAL sizes (state=4.5MB, knowledge=4.7MB, graph-cache=33KB), drift symlinks both true.
+
+**Consequences.** Step 2.4 (mission-control API endpoint) can serve probe records from watcher.jsonl — read the most recent `op: 'health.probe'` line. The `last_indexed` field in knowledge.db returns epoch-ms (not ISO) due to the knowledge module's schema convention — normalize at the API layer if needed.
+
+---
+
 ## 2026-05-29 — Step 2.1 closed: watcher core subscribes to event log, persists per-op JSONL
 
 **Decision.** `lib/memory-watcher.mjs` created with `createMemoryWatcher(nc, nodeId, opts)` and `toWatcherRecord(event)`. Wired into the daemon after `localEventLog` initialization, conditional on `localEventLog` being available. Durable JetStream consumer `watcher-<nodeId>` on `local-events-<nodeId>` with `deliver_policy: All`. Each event is parsed and written as one JSONL line to `~/.openclaw/watcher.jsonl`. Shutdown calls `watcher.stop()` before NATS drain. VERSION `v1.5 → v2.1`.

@@ -199,17 +199,17 @@ Status legend:
 
 | | |
 |---|---|
-| **Status** | LIVE (v2.2) — core subscribe-and-persist loop with per-op classification (ok/noop/error) running inside the daemon. Durable JetStream consumer `watcher-daedalus` on `local-events-daedalus`, writing per-op JSONL records to `~/.openclaw/watcher.jsonl`. Each record carries `{ts,op,status,actor,session,duration_ms}`. |
+| **Status** | LIVE (v2.3) — core subscribe-and-persist loop with per-op classification (ok/noop/error) + periodic store-health probes running inside the daemon. Durable JetStream consumer `watcher-daedalus` on `local-events-daedalus`, writing per-op JSONL records to `~/.openclaw/watcher.jsonl`. Each event record carries `{ts,op,status,actor,session,duration_ms}`. Health probe records carry `{ts,op:'health.probe',status,stores:{state,knowledge,graph_cache},drift}` every 5 minutes. |
 | **Owner file (repo)** | `lib/memory-watcher.mjs` |
 | **Owner file (runtime)** | `~/.openclaw/workspace/lib/memory-watcher.mjs` (symlinked to repo) |
-| **Verified** | Daemon log: `[watcher] Memory watcher initialized`; `watcher.jsonl` has 12 records; record shape `{ts, op, status, actor, session, duration_ms}` — status classifies ok/noop/error per event type. |
-| **Output** | `~/.openclaw/watcher.jsonl` — one JSON line per memory operation. |
+| **Verified** | Daemon log: `[watcher] Memory watcher initialized` + `[watcher] health probe: 3 stores checked`; `watcher.jsonl` has event records + health probe records; probe shows state.db sessions=233/entities=1039, knowledge.db session_docs=225, graph-cache nodes=65/edges=317, WAL sizes, drift symlinks=true. |
+| **Output** | `~/.openclaw/watcher.jsonl` — one JSON line per memory operation + periodic health probes. |
 
 **Target:** Full observability lens over the memory pipeline — who/where/how/when of every operation, classification (ok/noop/error), health probes, anomaly alerts, mission-control panel.
 
 **Gap:**
 - ~~No classification (ok/noop/error)~~ CLOSED 2.2: `classifyStatus()` in `lib/memory-watcher.mjs` classifies each event as ok/noop/error based on output counts. Verified: zero-count extraction → `status:noop`, nonzero → `status:ok`, memory.error → `status:error`.
-- No health probes (row counts, WAL size, drift) — step 2.3.
+- ~~No health probes (row counts, WAL size, drift)~~ CLOSED 2.3: `runStoreHealthProbes()` in `lib/memory-watcher.mjs` queries 3 stores readonly every 5 min. Verified: probe output shows row counts, WAL sizes (state=4.3MB, knowledge=4.5MB, graph-cache=32KB), and drift symlinks.
 - No API endpoint — step 2.4.
 - No mission-control panel — step 2.5.
 - No anomaly alerts — step 2.6.

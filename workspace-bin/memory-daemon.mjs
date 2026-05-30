@@ -47,7 +47,7 @@ import { createExtractionStore } from '../lib/extraction-store.mjs';
 import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
 import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
-import { createMemoryWatcher } from '../lib/memory-watcher.mjs';
+import { createMemoryWatcher, runStoreHealthProbes } from '../lib/memory-watcher.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -1192,6 +1192,22 @@ async function main() {
       }
     }
 
+    // Store-health probes — periodic snapshots of DB row counts, WAL sizes, drift
+    const HEALTH_PROBE_INTERVAL = 5 * 60 * 1000;
+    const watcherOutputPath = path.join(os.homedir(), '.openclaw', 'watcher.jsonl');
+    let healthProbeTimer = null;
+    const runProbe = async () => {
+      try {
+        const probe = await runStoreHealthProbes();
+        fs.appendFileSync(watcherOutputPath, JSON.stringify(probe) + '\n');
+        log(`[watcher] health probe: ${Object.entries(probe.stores).filter(([,v]) => v).length} stores checked`);
+      } catch (err) {
+        log(`[watcher] health probe failed: ${err.message}`);
+      }
+    };
+    runProbe();
+    healthProbeTimer = setInterval(runProbe, HEALTH_PROBE_INTERVAL);
+
     // Ensure shared federation stream (OPENCLAW_SHARED, R=3)
     try {
       await ensureSharedStream(natsConn);
@@ -1278,6 +1294,7 @@ async function main() {
       extractionTrigger.stop();
     }
     saveDaemonState(sm);
+    if (healthProbeTimer) clearInterval(healthProbeTimer);
     if (memoryWatcher) {
       try { await memoryWatcher.stop(); } catch (_) {}
     }
