@@ -178,6 +178,17 @@ function readVersion(plan) {
 
 const isBlocked = (p) => fs.existsSync(path.join(p.dir, 'BLOCKED.md'));
 const isLocked  = (p) => fs.existsSync(path.join(p.dir, '.tick.lock'));
+// Newest-content signal for the plan: max mtime across its top-level *.md +
+// VERSION, plus the tick-logs/audits dir mtimes (file add/remove). The client
+// re-renders the active panel only when this changes — live updates, no flicker.
+const planDocsMtime = (p) => {
+  let max = 0;
+  const bump = (full) => { try { const m = fs.statSync(full).mtimeMs; if (m > max) max = m; } catch { /* gone */ } };
+  try { for (const f of fs.readdirSync(p.dir)) if (f.endsWith('.md') || f === 'VERSION') bump(path.join(p.dir, f)); } catch { /* dir gone */ }
+  bump(planTickLogDir(p));
+  bump(planAuditsDir(p));
+  return max;
+};
 
 function inventoryRows(plan) {
   let raw;
@@ -397,6 +408,7 @@ function planSummary(plan) {
     total_steps: rows.length,
     current_step: (rows.find(r => r.state === 'A') || rows.find(r => r.state === ' ') || null),
     latest_log: latestLog(plan)?.split('/').pop() || null,
+    docs_mtime: planDocsMtime(plan),
   };
 }
 
@@ -1172,6 +1184,7 @@ async function selectPlan(id) {
   try { localStorage.setItem('workplan.planId', id); } catch { /* no localStorage */ }
   state.selectedStep = null;
   state.selectedDoc = null;
+  state.lastDocsMtime = undefined; // re-baseline the content signal for the new plan
   document.querySelectorAll('aside .plan-list li').forEach(li =>
     li.classList.toggle('active', li.dataset.id === id));
   await refreshState();
@@ -1288,9 +1301,15 @@ async function refreshState() {
     : 'Pause future ticks by writing BLOCKED.md';
   state.lastBlocked = s.blocked;
   state.lastLocked = s.locked;
-  // If user is on Block tab, refresh its content too.
+  // Block/auto reflect tick-lock state (not *.md files) — refresh every poll.
+  // Plan/steps/docs/history reflect *.md content — re-render only when a plan
+  // file actually changed, so the panel live-updates without 10s flicker and
+  // keeps scroll/selection (renderSteps/renderDocList re-apply the selection).
+  const prevDocsMtime = state.lastDocsMtime;
+  state.lastDocsMtime = s.docs_mtime;
   if (state.tab === 'block') renderBlock();
-  if (state.tab === 'auto') renderAutomation();
+  else if (state.tab === 'auto') renderAutomation();
+  else if (prevDocsMtime !== undefined && s.docs_mtime !== prevDocsMtime) renderPlanTab();
 }
 setInterval(refreshState, 10000);
 
