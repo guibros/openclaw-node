@@ -407,6 +407,19 @@ function emitExtractEvent(sessionId, extraction) {
   );
 }
 
+function emitErrorEvent(boundary, err, sessionId) {
+  if (!localEventLog) return;
+  const event = buildMemoryEvent('memory.error', sessionId || 'unknown', 'memory', {
+    boundary,
+    error_code: err.code || err.constructor?.name || 'UNKNOWN',
+    error_message: (err.message || String(err)).slice(0, 500),
+    ...(sessionId ? { session_id: sessionId } : {}),
+  }, NODE_ID);
+  localEventLog.publishLocal(event).catch(emitErr =>
+    log(`[event] memory.error emit failed: ${emitErr.message}`)
+  );
+}
+
 function initMemoryBudget(config) {
   if (memoryBudget) return memoryBudget;
   memoryBudget = createBudget(config.workspace || WORKSPACE, {
@@ -538,7 +551,7 @@ async function runPhase0Bootstrap(sessionId, config) {
       }
       if (totalImported > 0) log(`  session-store: imported ${totalImported} sessions`);
     }
-  } catch (e) { log(`  session-store import failed: ${e.message}`); }
+  } catch (e) { log(`  session-store import failed: ${e.message}`); emitErrorEvent('ingest', e); }
 
   log('Phase 0: Bootstrap complete');
 }
@@ -757,7 +770,7 @@ async function runPhase2ThrottledWork(config) {
             totalImported += result.imported;
           }
           if (totalImported > 0) log(`  Phase 2: session-store imported ${totalImported} sessions`);
-        } catch (e) { log(`  Phase 2: session-import failed: ${e.message}`); }
+        } catch (e) { log(`  Phase 2: session-import failed: ${e.message}`); emitErrorEvent('ingest', e); }
       })()
     );
   }
@@ -912,7 +925,7 @@ async function handleTransitions(transitions, config) {
               log('  memory-budget: snapshot reloaded after flush');
             }
           }
-        } catch (e) { log(`  pre-compression flush failed: ${e.message}`); }
+        } catch (e) { log(`  pre-compression flush failed: ${e.message}`); emitErrorEvent('extract', e, path.basename(currentJsonl, '.jsonl')); }
       }
 
       const tasks = [];
@@ -956,7 +969,7 @@ async function handleTransitions(transitions, config) {
               log('  memory-budget: snapshot reloaded after end-of-session flush');
             }
           }
-        } catch (e) { log(`  end-of-session flush failed: ${e.message}`); }
+        } catch (e) { log(`  end-of-session flush failed: ${e.message}`); emitErrorEvent('extract', e, path.basename(currentJsonl, '.jsonl')); }
       }
 
       // 0b. Archive current session to SQLite
@@ -975,7 +988,7 @@ async function handleTransitions(transitions, config) {
               emitIngestEvent(result.sessionId, activity.newestSource || 'unknown', result.messageCount);
             }
           }
-        } catch (e) { log(`  session-store archive failed: ${e.message}`); }
+        } catch (e) { log(`  session-store archive failed: ${e.message}`); emitErrorEvent('ingest', e); }
       }
 
       // 0c. Release frozen MEMORY.md snapshot
@@ -1212,7 +1225,7 @@ async function main() {
                 log('  memory-budget: snapshot reloaded after nats-triggered flush');
               }
             }
-          } catch (e) { log(`  nats-triggered flush failed: ${e.message}`); }
+          } catch (e) { log(`  nats-triggered flush failed: ${e.message}`); emitErrorEvent('extract', e, path.basename(currentJsonl, '.jsonl')); }
         },
       });
       await extractionTrigger.start();

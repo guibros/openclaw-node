@@ -373,6 +373,36 @@ describe('buildMemoryEvent produces valid boundary events (Block 1 producers)', 
     assert.equal(result.data.data.duration_ms, 120);
     assert.equal(result.data.node_id, 'daedalus');
   });
+
+  it('buildMemoryEvent("memory.error") passes MemoryErrorSchema', () => {
+    const event = buildMemoryEvent('memory.error', 'sess-err-001', 'memory', {
+      boundary: 'extract',
+      error_code: 'FLUSH_FAILED',
+      error_message: 'LLM timeout after 30s',
+      session_id: 'sess-err-001',
+    }, 'daedalus');
+    const result = MemoryErrorSchema.safeParse(event);
+    assert.equal(result.success, true, `Validation failed: ${JSON.stringify(result.error?.issues)}`);
+    assert.equal(result.data.data.boundary, 'extract');
+    assert.equal(result.data.data.error_code, 'FLUSH_FAILED');
+    assert.equal(result.data.data.error_message, 'LLM timeout after 30s');
+    assert.equal(result.data.data.session_id, 'sess-err-001');
+    assert.equal(result.data.node_id, 'daedalus');
+  });
+
+  it('buildMemoryEvent("memory.error") without session_id passes MemoryErrorSchema', () => {
+    const event = buildMemoryEvent('memory.error', 'unknown', 'memory', {
+      boundary: 'ingest',
+      error_code: 'IMPORT_FAILED',
+      error_message: 'SQLITE_BUSY',
+    }, 'daedalus');
+    const result = MemoryErrorSchema.safeParse(event);
+    assert.equal(result.success, true, `Validation failed: ${JSON.stringify(result.error?.issues)}`);
+    assert.equal(result.data.data.boundary, 'ingest');
+    assert.equal(result.data.data.error_code, 'IMPORT_FAILED');
+    assert.equal(result.data.data.session_id, undefined);
+    assert.equal(result.data.node_id, 'daedalus');
+  });
 });
 
 describe('MemoryEventSchema discriminated union', () => {

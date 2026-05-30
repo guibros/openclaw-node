@@ -4,6 +4,22 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-29 — Step 1.5 closed: memory.error wired at all caught boundaries → Block 1 COMPLETE
+
+**Decision.** `emitErrorEvent(boundary, err, sessionId)` added to the memory daemon. Wired at all 7 catch-block boundaries: 3 ingest (Phase 0 bootstrap, Phase 2 throttled, end-of-session archive), 3 extract (ACTIVE→IDLE flush, IDLE→ENDED flush, NATS-triggered flush), 1 retrieve (inject server HTTP 500). Follows the same fire-and-forget pattern as existing emitters. Inject server uses its closure `eventLog`/`nodeId` (from step 1.4). VERSION `v1.4 → v1.5`.
+
+**Design.** One new helper `emitErrorEvent(boundary, err, sessionId)` parallels `emitIngestEvent`/`emitExtractEvent`. `error_code` derived from `err.code || err.constructor?.name || 'UNKNOWN'`; `error_message` truncated to 500 chars; `session_id` optional (available at extract boundaries via `path.basename(currentJsonl, '.jsonl')`; absent at batch-ingest boundaries). Inject server emits inline without the helper (closure access to `eventLog`/`nodeId`).
+
+**Evidence.** Tests: 1383/0 (2 new: `buildMemoryEvent('memory.error')` validates against `MemoryErrorSchema` with and without `session_id`). Stream: `nats stream get local-events-daedalus 9` → 432B `memory.error` event with `boundary=ingest`/`error_code=TEST_INDUCED`/`error_message=Step 1.5 runtime verification`/`session_id=test-1-5`/`node_id=daedalus`. Daemon: PID 66385 running with NATS connected, zero new errors.
+
+**Block 1 close.** This is the last step of Block 1 (L1 event log spine). All 5 steps closed: 1.1 (schemas), 1.2 (ingest producer), 1.3 (extract producer), 1.4 (retrieve/inject producers), 1.5 (error producer). The event log spine is complete — every wired boundary now reports both success and failure events to `local-events-daedalus`. Block 2 (memory-watcher) can consume these to classify op outcomes.
+
+**Macro re-orient (Block 1 close, WORKFLOW §7.2).** Block 1 served the north star by making every memory operation observable via structured events — the prerequisite for D6 (the watcher). The block produced 8 boundary-event schemas + 4 producer types (ingested, extracted, retrieved+injected, error) covering all active pipeline boundaries. Carry-forward: Block 2 has a real event stream to subscribe to, with error events distinguishing failures from silent no-ops. The 5 original unproduced schemas (`turn_recorded`, `concept_mentioned`, etc.) remain — their fate is a Block 2 or later decision; they are not boundary events and aren't needed for the watcher's op classification.
+
+**Consequences.** Block 2 step 2.1 (watcher core: subscribe to event log, persist per-op records) is the next step. The watcher subscribes to `local.>` on `local-events-daedalus` and classifies each event by its `event_type`.
+
+---
+
 ## 2026-05-29 — Step 1.3 closed: memory.extracted producer wired at extract boundary
 
 **Decision.** `emitExtractEvent(sessionId, extraction)` added to the memory daemon. It calls `buildMemoryEvent('memory.extracted', ...)` → `localEventLog.publishLocal()` (fire-and-forget with catch). Wired at all 3 flush boundaries: ACTIVE→IDLE pre-compression flush, IDLE→ENDED end-of-session flush, NATS-triggered extraction. Fires only on LLM extractions (`result.extraction` present, mode='llm'), not regex fallback. VERSION `v1.2 → v1.3`.

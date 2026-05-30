@@ -37,7 +37,7 @@ Events for ops that *already exist* (ingest/extract/inject). Synthesize/decay/pr
 | 1 | 1.2 | v1.2 | [x] | Emit memory.ingested at the ingest boundary |
 | 1 | 1.3 | v1.3 | [x] | Emit memory.extracted at the extract boundary |
 | 1 | 1.4 | v1.4 | [x] | Emit memory.retrieved + memory.injected in the inject server |
-| 1 | 1.5 | v1.5 | [ ] | Emit memory.error on caught failures across the wired boundaries |
+| 1 | 1.5 | v1.5 | [x] | Emit memory.error on caught failures across the wired boundaries |
 
 > **1.1:** schemas validate in a unit test AND one round-trip publish/read against the live stream succeeds.
 > **1.2 / 1.3 / 1.4:** trigger the op; the matching event appears in `local-events-<nodeId>` with who/op/session/ts.
@@ -159,7 +159,7 @@ Nothing here starts until Blocks 0–6 close and local is observably healthy. Fe
 | 6 | L6 health | 5 | 36 |
 | 7 | G multi-node (deferred) | 4 | 40 |
 
-**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **1.4**.
+**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **2.1**.
 
 ### Atomicity revision log (vs the prior 33-step draft)
 - Block 0: 0.1 split into lib-symlink (0.1) + daemon-symlink/restart (0.2); old 0.3 split into NATS-install (0.3) + daemon↔NATS-wire (0.4).
