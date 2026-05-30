@@ -319,6 +319,28 @@ describe('buildMemoryEvent produces valid boundary events (Block 1 producers)', 
     assert.equal(result.data.node_id, 'daedalus');
     assert.equal(result.data.actor.type, 'system');
   });
+
+  it('buildMemoryEvent("memory.extracted") passes MemoryExtractedSchema', () => {
+    const event = buildMemoryEvent('memory.extracted', 'sess-test-002', 'memory', {
+      session_id: 'sess-test-002',
+      entities_count: 5,
+      themes_count: 3,
+      mentions_count: 5,
+      decisions_count: 2,
+      model: 'qwen3:8b',
+      duration_ms: 12345,
+    }, 'daedalus');
+    const result = MemoryExtractedSchema.safeParse(event);
+    assert.equal(result.success, true, `Validation failed: ${JSON.stringify(result.error?.issues)}`);
+    assert.equal(result.data.data.session_id, 'sess-test-002');
+    assert.equal(result.data.data.entities_count, 5);
+    assert.equal(result.data.data.themes_count, 3);
+    assert.equal(result.data.data.mentions_count, 5);
+    assert.equal(result.data.data.decisions_count, 2);
+    assert.equal(result.data.data.model, 'qwen3:8b');
+    assert.equal(result.data.data.duration_ms, 12345);
+    assert.equal(result.data.node_id, 'daedalus');
+  });
 });
 
 describe('MemoryEventSchema discriminated union', () => {

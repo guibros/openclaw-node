@@ -42,7 +42,7 @@ import { shouldFlush, runFlush, USE_LLM_EXTRACTION } from '../lib/pre-compressio
 import { createBudget } from '../lib/memory-budget.mjs';
 import { createSessionTraceEmitter } from './session-trace-emitter.mjs';
 import { createLocalEventLog, buildMemoryEvent } from '../lib/local-event-log.mjs';
-import { createLlmClient } from '../lib/llm-client.mjs';
+import { createLlmClient, DEFAULT_MODEL } from '../lib/llm-client.mjs';
 import { createExtractionStore } from '../lib/extraction-store.mjs';
 import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
@@ -388,6 +388,22 @@ function emitIngestEvent(sessionId, source, messageCount) {
   }, NODE_ID);
   localEventLog.publishLocal(event).catch(err =>
     log(`[event] memory.ingested emit failed: ${err.message}`)
+  );
+}
+
+function emitExtractEvent(sessionId, extraction) {
+  if (!localEventLog) return;
+  const event = buildMemoryEvent('memory.extracted', sessionId, 'memory', {
+    session_id: sessionId,
+    entities_count: extraction.entities_count,
+    themes_count: extraction.themes_count,
+    mentions_count: extraction.mentions_count,
+    decisions_count: extraction.decisions_count,
+    model: DEFAULT_MODEL,
+    duration_ms: extraction.duration_ms,
+  }, NODE_ID);
+  localEventLog.publishLocal(event).catch(err =>
+    log(`[event] memory.extracted emit failed: ${err.message}`)
   );
 }
 
@@ -888,6 +904,9 @@ async function handleTransitions(transitions, config) {
               extractionStore: getExtractionStore(),
             });
             log(`  flush [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped`);
+            if (result.extraction) {
+              emitExtractEvent(result.extraction.session_id, result.extraction);
+            }
             if (memoryBudget && (result.added > 0 || result.merged > 0)) {
               memoryBudget.reload();
               log('  memory-budget: snapshot reloaded after flush');
@@ -927,6 +946,9 @@ async function handleTransitions(transitions, config) {
             llmClient: getLlmClient(),
             extractionStore: getExtractionStore(),
           });
+          if (result.extraction) {
+            emitExtractEvent(result.extraction.session_id, result.extraction);
+          }
           if (result.added > 0 || result.merged > 0) {
             log(`  end-of-session flush [${result.mode || 'regex'}]: ${result.added} added, ${result.merged} merged`);
             if (memoryBudget) {
@@ -1182,6 +1204,9 @@ async function main() {
                 extractionStore: getExtractionStore(),
               });
               log(`  nats-triggered flush [${result.mode || 'regex'}]: ${result.facts} facts, ${result.added} added, ${result.merged} merged`);
+              if (result.extraction) {
+                emitExtractEvent(result.extraction.session_id, result.extraction);
+              }
               if (memoryBudget && (result.added > 0 || result.merged > 0)) {
                 memoryBudget.reload();
                 log('  memory-budget: snapshot reloaded after nats-triggered flush');

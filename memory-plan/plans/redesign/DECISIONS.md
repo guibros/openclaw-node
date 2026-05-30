@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-29 — Step 1.3 closed: memory.extracted producer wired at extract boundary
+
+**Decision.** `emitExtractEvent(sessionId, extraction)` added to the memory daemon. It calls `buildMemoryEvent('memory.extracted', ...)` → `localEventLog.publishLocal()` (fire-and-forget with catch). Wired at all 3 flush boundaries: ACTIVE→IDLE pre-compression flush, IDLE→ENDED end-of-session flush, NATS-triggered extraction. Fires only on LLM extractions (`result.extraction` present, mode='llm'), not regex fallback. VERSION `v1.2 → v1.3`.
+
+**Design.** Two-layer change: (1) `runFlush` in `lib/pre-compression-flush.mjs` extended to return an `extraction` detail object (session_id, per-type counts, duration_ms) on the LLM path — additive, no existing callers affected. (2) Daemon's `emitExtractEvent` consumes the detail + adds `DEFAULT_MODEL` (imported from `llm-client.mjs`) as the `model` field.
+
+**Evidence.** Tests: 1379/0 (1 new: `buildMemoryEvent('memory.extracted')` validates against `MemoryExtractedSchema`). Stream: `nats pub` → 465B event → `nats stream get local-events-daedalus 4` → full `memory.extracted` event with session_id/entities_count=7/themes_count=3/mentions_count=7/decisions_count=2/model=qwen3:8b/duration_ms=8500/node_id=daedalus. Daemon: PID 62081 running with NATS connected, zero new errors.
+
+**Consequences.** Step 1.4 follows the same pattern for `memory.retrieved` + `memory.injected` at the inject server boundary (`lib/memory-inject-server.mjs`). `DEFAULT_MODEL` import is now established in the daemon.
+
+---
+
 ## 2026-05-29 — Step 1.2 closed: memory.ingested producer wired at ingest boundary
 
 **Decision.** `emitIngestEvent(sessionId, source, messageCount)` added to the memory daemon. It calls `buildMemoryEvent('memory.ingested', ...)` → `localEventLog.publishLocal()` (fire-and-forget with catch). Wired at all 3 session-import boundaries: Phase 0 Bootstrap (`importDirectory` onImported callback), Phase 2 Throttled Work (same), IDLE→ENDED transition (inline after `importSession`). VERSION `v1.1 → v1.2`.

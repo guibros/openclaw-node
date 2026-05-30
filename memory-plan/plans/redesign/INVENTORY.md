@@ -35,7 +35,7 @@ Events for ops that *already exist* (ingest/extract/inject). Synthesize/decay/pr
 |-------|------|---------|--------|-------------|
 | 1 | 1.1 | v1.1 | [x] | Define memory.* event vocabulary in packages/event-schemas |
 | 1 | 1.2 | v1.2 | [x] | Emit memory.ingested at the ingest boundary |
-| 1 | 1.3 | v1.3 | [ ] | Emit memory.extracted at the extract boundary |
+| 1 | 1.3 | v1.3 | [x] | Emit memory.extracted at the extract boundary |
 | 1 | 1.4 | v1.4 | [ ] | Emit memory.retrieved + memory.injected in the inject server |
 | 1 | 1.5 | v1.5 | [ ] | Emit memory.error on caught failures across the wired boundaries |
 
@@ -159,7 +159,7 @@ Nothing here starts until Blocks 0–6 close and local is observably healthy. Fe
 | 6 | L6 health | 5 | 36 |
 | 7 | G multi-node (deferred) | 4 | 40 |
 
-**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **1.3**.
+**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **1.4**.
 
 ### Atomicity revision log (vs the prior 33-step draft)
 - Block 0: 0.1 split into lib-symlink (0.1) + daemon-symlink/restart (0.2); old 0.3 split into NATS-install (0.3) + daemon↔NATS-wire (0.4).
