@@ -52,6 +52,7 @@ class MockKV {
     if (this.failOnPut) throw new Error('JetStream KV write failed: max value size exceeded');
     this.store.set(key, { value });
   }
+  async update(key, value) { return this.put(key, value); }
   async get(key) { return this.store.get(key) || null; }
   async delete(key) { this.store.delete(key); }
   async keys() { return this.store.keys(); }

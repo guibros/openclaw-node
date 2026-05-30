@@ -436,6 +436,7 @@ describe('federation-3node: council test with real NATS cluster', { skip: SKIP ?
       ]),
       relevanceThreshold: 0.55,
       maxArtifacts: 3,
+      identity: identityB,
     });
 
     const offerResultB = await offererB._processBroadcast(signedBroadcast);
@@ -450,6 +451,7 @@ describe('federation-3node: council test with real NATS cluster', { skip: SKIP ?
       ]),
       relevanceThreshold: 0.55,
       maxArtifacts: 3,
+      identity: identityC,
     });
 
     const offerResultC = await offererC._processBroadcast(signedBroadcast);
@@ -484,6 +486,7 @@ describe('federation-3node: council test with real NATS cluster', { skip: SKIP ?
     const acceptor = createAcceptor(ncA, NODE_A, {
       ownBroadcastIds,
       overlapThreshold: 0.2,
+      identity: identityA,
     });
 
     const queueResultB = await acceptor._processOffer(signedOfferB);
@@ -714,6 +717,7 @@ describe('federation-3node: council test with real NATS cluster', { skip: SKIP ?
         { snippet: 'Specialized niche content about rare-entity', session_id: 'sess-niche', chunk_id: 0, score: 0.88 },
       ]),
       relevanceThreshold: 0.55,
+      identity: identityB,
     });
 
     // Node C has nothing relevant (below threshold)
@@ -798,6 +802,7 @@ describe('federation-3node: council test with real NATS cluster', { skip: SKIP ?
     const acceptor = createAcceptor(ncA, NODE_A, {
       ownBroadcastIds: new Set([broadcastId]),
       overlapThreshold: 0.15,
+      identity: identityA,
     });
 
     await acceptor._processOffer(signedOffer);
@@ -855,12 +860,14 @@ describe('federation-3node: council test with real NATS cluster', { skip: SKIP ?
         { snippet: 'Timing benchmark data', session_id: 'sess-timing-b', chunk_id: 0, score: 0.80 },
       ]),
       relevanceThreshold: 0.55,
+      identity: identityB,
     });
     const offererC = createOfferer(ncC, NODE_C, {
       retrievalPipeline: mockRetrieval([
         { snippet: 'Performance metrics collection', session_id: 'sess-timing-c', chunk_id: 0, score: 0.75 },
       ]),
       relevanceThreshold: 0.55,
+      identity: identityC,
     });
 
     const [resultB, resultC] = await Promise.all([
@@ -891,6 +898,7 @@ describe('federation-3node: council test with real NATS cluster', { skip: SKIP ?
     const acceptor = createAcceptor(ncA, NODE_A, {
       ownBroadcastIds: new Set([broadcastId]),
       overlapThreshold: 0.2,
+      identity: identityA,
     });
 
     await acceptor._processOffer(signedOfferB);

@@ -17,6 +17,7 @@ const decoder = new TextDecoder();
 class MockKV {
   constructor() { this.store = new Map(); }
   async put(key, value) { this.store.set(key, { value }); }
+  async update(key, value) { return this.put(key, value); }
   async get(key) { return this.store.get(key) || null; }
   async delete(key) { this.store.delete(key); }
   async keys() {

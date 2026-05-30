@@ -251,6 +251,7 @@ describe('federation-2node: real NATS integration', { skip: SKIP ? 'nats-server 
     const broadcaster = createBroadcaster(ncA, NODE_A, {
       rateLimitMs: 0,
       dedupWindowMs: 0,
+      identity: identityA,
     });
 
     const result = await broadcaster.maybeBroadcast(
@@ -322,6 +323,7 @@ describe('federation-2node: real NATS integration', { skip: SKIP ? 'nats-server 
       retrievalPipeline: mockRetrieval(offererResults),
       relevanceThreshold: 0.55,
       maxArtifacts: 3,
+      identity: identityB,
     });
 
     // Offerer processes the signed broadcast — should VERIFY the signature
@@ -351,8 +353,8 @@ describe('federation-2node: real NATS integration', { skip: SKIP ? 'nats-server 
     assert.equal(offerEvent.data.offerer_node_id, NODE_B);
     assert.equal(offerEvent.data.artifacts.length, 2);
 
-    // 4. Sign the offer with node B's identity (simulate what a production offerer would do)
-    const signedOffer = signEvent(offerEvent, identityB.privateKey);
+    // 4. The offerer signed the offer before publishing (real production path)
+    const signedOffer = offerEvent;
     assert.ok(signedOffer.signature, 'offer should be signed');
     assert.equal(signedOffer.signer_pubkey, identityB.publicKeyBase64);
 
@@ -361,6 +363,7 @@ describe('federation-2node: real NATS integration', { skip: SKIP ? 'nats-server 
     const acceptor = createAcceptor(ncA, NODE_A, {
       ownBroadcastIds,
       overlapThreshold: 0.2,
+      identity: identityA,
     });
 
     const queueResult = await acceptor._processOffer(signedOffer);
@@ -679,6 +682,7 @@ describe('federation-2node: real NATS integration', { skip: SKIP ? 'nats-server 
         { snippet: 'Latency measurement data', session_id: 'sess-timing', chunk_id: 0, score: 0.80 },
       ]),
       relevanceThreshold: 0.55,
+      identity: identityB,
     });
 
     const offerResult = await offerer._processBroadcast(signed);
@@ -688,6 +692,7 @@ describe('federation-2node: real NATS integration', { skip: SKIP ? 'nats-server 
     const acceptor = createAcceptor(ncA, NODE_A, {
       ownBroadcastIds: new Set([broadcastId]),
       overlapThreshold: 0.2,
+      identity: identityA,
     });
 
     // Build a signed offer to feed to acceptor
@@ -735,9 +740,11 @@ describe('federation-2node: real NATS integration', { skip: SKIP ? 'nats-server 
     const acceptor = createAcceptor(ncA, NODE_A, {
       ownBroadcastIds: new Set([broadcastId]),
       overlapThreshold: 0.15,
+      identity: identityA,
     });
 
-    await acceptor._processOffer(offerEvent);
+    const signedOffer = signEvent(offerEvent, identityB.privateKey);
+    await acceptor._processOffer(signedOffer);
 
     // Trigger acceptance
     const result = await acceptor.checkAcceptance(
