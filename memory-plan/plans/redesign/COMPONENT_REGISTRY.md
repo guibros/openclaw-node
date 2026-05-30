@@ -211,7 +211,7 @@ Status legend:
 - ~~No classification (ok/noop/error)~~ CLOSED 2.2: `classifyStatus()` in `lib/memory-watcher.mjs` classifies each event as ok/noop/error based on output counts. Verified: zero-count extraction → `status:noop`, nonzero → `status:ok`, memory.error → `status:error`.
 - ~~No health probes (row counts, WAL size, drift)~~ CLOSED 2.3: `runStoreHealthProbes()` in `lib/memory-watcher.mjs` queries 3 stores readonly every 5 min. Verified: probe output shows row counts, WAL sizes (state=4.3MB, knowledge=4.5MB, graph-cache=32KB), and drift symlinks.
 - ~~No API endpoint~~ CLOSED 2.4: `GET /api/watcher` on mission-control (:3000) serves event records + latest health probe from watcher.jsonl. Supports `?limit`, `?status`, `?op` filters. `last_indexed` epoch-ms normalized to ISO in health response.
-- No mission-control panel — step 2.5.
+- ~~No mission-control panel~~ CLOSED 2.5: `/watcher` page at `:3000/watcher` with live stream (SWR 3s poll of `GET /api/watcher`) + silent-failures tab (noop+error filter). Health card shows store metrics + drift. Deployed as file copy to runtime. Verified: HTTP 200, events render, failures populate.
 - No anomaly alerts — step 2.6.
 - JSONL grows unbounded (no rotation).
 

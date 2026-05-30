@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-29 — Step 2.5 closed: mission-control panel UI (live op stream + silent-failures view)
+
+**Decision.** `/watcher` page added to mission-control at `mission-control/src/app/watcher/page.tsx`. A `useWatcher(limit, status?)` SWR hook added to `src/lib/hooks.ts`. Page has two tab views: "Stream" (all events, 3s poll) and "Silent Failures" (merged noop+error events). Health card at top shows store row counts, WAL sizes, and drift status from the latest health probe. Follows the observability page pattern (terminal-style, monospace, status-colored). VERSION `v2.4 → v2.5`.
+
+**Design.** Tab-based client-side filtering — no new API routes needed. Three parallel `useWatcher()` calls (all, noop, error) merged client-side for the failures view. Event rows show timestamp, status badge (green/yellow/red), operation label (stripped `memory.` prefix), session snippet, and duration. Health card is a 4-column grid (state.db, knowledge.db, graph-cache, drift). Dark-mode Tailwind consistent with existing pages. Deployed via file copy to runtime (same model as step 2.4).
+
+**Evidence.** Tests: 1406/0 (baseline, no test files changed). Runtime: `curl http://localhost:3000/watcher` → 200; API returns 5+ events with status classification; `?status=noop` returns 1 noop event (empty extraction); `?status=error` returns 1 error event; health probe shows all 3 stores.
+
+**Consequences.** Step 2.6 (anomaly alerts) will add threshold-based alerting on top of this view — either a third tab or inline annotations. The 3-parallel-request pattern is fine at current scale; can be collapsed to single-request+client-filter if event volume grows.
+
+---
+
 ## 2026-05-29 — Step 2.4 closed: mission-control API endpoint serving watcher records + health
 
 **Decision.** `GET /api/watcher` added to mission-control as a Next.js API route at `mission-control/src/app/api/watcher/route.ts`. Reads `~/.openclaw/watcher.jsonl` (path derived from `WORKSPACE_ROOT` parent), parses JSONL, separates event records (`memory.*`) from health probes (`health.probe`), returns `{ events, health, source }`. Supports `?limit` (default 50, max 500), `?status` (ok/noop/error), `?op` (operation type) query params. Events returned most-recent-first. Health probe's `last_indexed` epoch-ms normalized to ISO via `last_indexed_iso` field. VERSION `v2.3 → v2.4`.

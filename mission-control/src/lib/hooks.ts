@@ -830,6 +830,65 @@ export async function updateMeshTask(
   return data;
 }
 
+// --- Watcher ---
+
+export interface WatcherEvent {
+  ts: string;
+  op: string;
+  status?: string;
+  actor?: string | null;
+  session?: string | null;
+  duration_ms?: number | null;
+  [key: string]: unknown;
+}
+
+export interface WatcherHealthStore {
+  sessions?: number;
+  entities?: number;
+  session_docs?: number;
+  nodes?: number;
+  edges?: number;
+  wal_size?: number;
+  last_indexed?: number;
+  last_indexed_iso?: string;
+  [key: string]: unknown;
+}
+
+export interface WatcherHealth {
+  ts: string;
+  op: string;
+  status?: string;
+  stores?: {
+    state?: WatcherHealthStore | null;
+    knowledge?: WatcherHealthStore | null;
+    graph_cache?: WatcherHealthStore | null;
+  };
+  drift?: { lib_symlink?: boolean; daemon_symlink?: boolean };
+  [key: string]: unknown;
+}
+
+export function useWatcher(limit = 50, status?: string) {
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
+  if (status) params.set("status", status);
+
+  const { data, error, isLoading } = useSWR<{
+    events: WatcherEvent[];
+    health: WatcherHealth | null;
+    source: string;
+  }>(`/api/watcher?${params.toString()}`, fetcher, {
+    refreshInterval: 3000,
+  });
+
+  return {
+    events: data?.events ?? [],
+    health: data?.health ?? null,
+    source: data?.source ?? "",
+    error,
+    isLoading,
+  };
+}
+
 // --- Scheduler ---
 
 export function useSchedulerTick(intervalMs = 30_000) {
