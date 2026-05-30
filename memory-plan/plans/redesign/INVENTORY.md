@@ -36,7 +36,7 @@ Events for ops that *already exist* (ingest/extract/inject). Synthesize/decay/pr
 | 1 | 1.1 | v1.1 | [x] | Define memory.* event vocabulary in packages/event-schemas |
 | 1 | 1.2 | v1.2 | [x] | Emit memory.ingested at the ingest boundary |
 | 1 | 1.3 | v1.3 | [x] | Emit memory.extracted at the extract boundary |
-| 1 | 1.4 | v1.4 | [ ] | Emit memory.retrieved + memory.injected in the inject server |
+| 1 | 1.4 | v1.4 | [x] | Emit memory.retrieved + memory.injected in the inject server |
 | 1 | 1.5 | v1.5 | [ ] | Emit memory.error on caught failures across the wired boundaries |
 
 > **1.1:** schemas validate in a unit test AND one round-trip publish/read against the live stream succeeds.

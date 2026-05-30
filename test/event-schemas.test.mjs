@@ -341,6 +341,38 @@ describe('buildMemoryEvent produces valid boundary events (Block 1 producers)', 
     assert.equal(result.data.data.duration_ms, 12345);
     assert.equal(result.data.node_id, 'daedalus');
   });
+
+  it('buildMemoryEvent("memory.retrieved") passes MemoryRetrievedSchema', () => {
+    const event = buildMemoryEvent('memory.retrieved', 'req-test-003', 'memory', {
+      query_hash: 'a1b2c3d4e5f6a7b8',
+      channels_hit: 3,
+      results_count: 12,
+      duration_ms: 87,
+    }, 'daedalus');
+    const result = MemoryRetrievedSchema.safeParse(event);
+    assert.equal(result.success, true, `Validation failed: ${JSON.stringify(result.error?.issues)}`);
+    assert.equal(result.data.data.query_hash, 'a1b2c3d4e5f6a7b8');
+    assert.equal(result.data.data.channels_hit, 3);
+    assert.equal(result.data.data.results_count, 12);
+    assert.equal(result.data.data.duration_ms, 87);
+    assert.equal(result.data.node_id, 'daedalus');
+  });
+
+  it('buildMemoryEvent("memory.injected") passes MemoryInjectedSchema', () => {
+    const event = buildMemoryEvent('memory.injected', 'req-test-004', 'memory', {
+      request_id: 'req-test-004',
+      token_count: 450,
+      blocks_count: 8,
+      duration_ms: 120,
+    }, 'daedalus');
+    const result = MemoryInjectedSchema.safeParse(event);
+    assert.equal(result.success, true, `Validation failed: ${JSON.stringify(result.error?.issues)}`);
+    assert.equal(result.data.data.request_id, 'req-test-004');
+    assert.equal(result.data.data.token_count, 450);
+    assert.equal(result.data.data.blocks_count, 8);
+    assert.equal(result.data.data.duration_ms, 120);
+    assert.equal(result.data.node_id, 'daedalus');
+  });
 });
 
 describe('MemoryEventSchema discriminated union', () => {
