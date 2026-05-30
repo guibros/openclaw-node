@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-29 — Step 2.4 closed: mission-control API endpoint serving watcher records + health
+
+**Decision.** `GET /api/watcher` added to mission-control as a Next.js API route at `mission-control/src/app/api/watcher/route.ts`. Reads `~/.openclaw/watcher.jsonl` (path derived from `WORKSPACE_ROOT` parent), parses JSONL, separates event records (`memory.*`) from health probes (`health.probe`), returns `{ events, health, source }`. Supports `?limit` (default 50, max 500), `?status` (ok/noop/error), `?op` (operation type) query params. Events returned most-recent-first. Health probe's `last_indexed` epoch-ms normalized to ISO via `last_indexed_iso` field. VERSION `v2.3 → v2.4`.
+
+**Design.** Single-file route, no new dependencies. `parseJsonlTail(path, maxLines)` reads the file and takes the last N lines (acceptable at current scale; revisit if JSONL grows beyond thousands of lines). `normalizeHealth()` adds `last_indexed_iso` via `structuredClone` (no mutation). Deployed to runtime via file copy to `~/.openclaw/workspace/projects/mission-control/src/app/api/watcher/`; Next.js hot-reloaded.
+
+**Evidence.** Tests: 1406/0 (baseline, no test files changed — this is a mission-control route, not a library). Runtime: `curl http://localhost:3000/api/watcher` → 200 with 12 event records + health probe showing state.db sessions=233/entities=1039, knowledge.db session_docs=225, graph-cache nodes=65/edges=317, WAL sizes, drift symlinks=true. Filters verified: `?status=error` → 1 event, `?op=memory.ingested&limit=2` → 2 events.
+
+**Consequences.** Step 2.5 (mission-control panel UI) can consume this endpoint via SWR polling. The `{ events, health }` shape is the data contract. The panel needs to render the event stream (with status badges) and a dedicated silent-failures view (filter `status=noop` or `status=error`).
+
+---
+
 ## 2026-05-30 — Step 2.3 closed: store-health probes (row counts, last-write, WAL size, drift)
 
 **Decision.** `runStoreHealthProbes(opts)` added to `lib/memory-watcher.mjs`. Probes 3 SQLite databases readonly (state.db, knowledge.db, graph-cache.db) for row counts of key tables, WAL file sizes, and last-write timestamps. Also checks repo↔runtime symlink integrity (lib + daemon binary). Wired into the daemon on a 5-minute interval with an immediate initial run. Results written to `watcher.jsonl` as `op: 'health.probe'` records alongside event records. VERSION `v2.2 → v2.3`.

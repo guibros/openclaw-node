@@ -1,16 +1,14 @@
 # SCOPE — redesign plan
 
 **Status:** done
-**Goal:** Step 2.3 — Store-health probes: row counts, last-write, WAL size, repo↔runtime drift. Add `runStoreHealthProbes(opts)` to the watcher module. Wire into daemon on a periodic timer. Output written to watcher.jsonl as `op: 'health.probe'` records. Done when probe output matches a direct SQL count and WAL size is shown.
-**Set at:** 2026-05-30
-**Expires:** 2026-05-30T12:00:00Z
+**Goal:** Step 2.4 — Mission-control API endpoint serving watcher records + health. Add a Next.js API route at `mission-control/src/app/api/watcher/route.ts` that reads `~/.openclaw/watcher.jsonl` and returns recent event records + latest health probe as JSON. Done when `curl` the endpoint → current watcher records as JSON.
+**Set at:** 2026-05-29
+**Expires:** 2026-05-30T06:00:00Z
 
 ```files
-lib/memory-watcher.mjs
-test/memory-watcher.test.mjs
-workspace-bin/memory-daemon.mjs
-memory-plan/plans/redesign/audits/step23_store_health_probes/AUDIT_PRE.md
-memory-plan/plans/redesign/audits/step23_store_health_probes/AUDIT_POST.md
+mission-control/src/app/api/watcher/route.ts
+memory-plan/plans/redesign/audits/step24_mc_watcher_api/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step24_mc_watcher_api/AUDIT_POST.md
 memory-plan/plans/redesign/INVENTORY.md
 memory-plan/plans/redesign/VERSION
 memory-plan/plans/redesign/COMPONENT_REGISTRY.md
