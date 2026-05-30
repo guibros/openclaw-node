@@ -148,6 +148,7 @@ ln -sfn "$(basename "${TICK_LOG}")" "${CURRENT_LINK}"
   cat "${PROMPT_FILE}" | claude \
     --print \
     --permission-mode acceptEdits \
+    --allowedTools "Bash(nats:*),Bash(curl:*),Bash(lsof:*),Bash(npm:*),Bash(git:*),Bash(jq:*),Bash(launchctl:*)" \
     --add-dir "/Users/moltymac/.openclaw/workspace" \
     --add-dir "/Users/moltymac/.openclaw" \
     --output-format stream-json \
