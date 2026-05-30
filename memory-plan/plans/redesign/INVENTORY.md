@@ -72,12 +72,12 @@ Each fix confirmed in the watcher.
 | 3 | 3.1 | v3.1 | [x] | Fix skipIfExists truncation — re-import + append-delta for mid-stream sessions |
 | 3 | 3.2 | v3.2 | [x] | Stop dropping tool_result / tool-call entries in the gateway transcript adapter |
 | 3 | 3.3 | v3.3 | [x] | Populate mentions.turn_index (last-turn-of-tail stamp) |
-| 3 | 3.4 | v3.4 | [ ] | Make tolerant extraction coercion the running path |
+| 3 | 3.4 | v3.4 | [x] | Make tolerant extraction coercion the running path |
 
 > **3.1:** an active session's later turns land in state.db (row count grows as turns arrive).
 > **3.2:** tool messages present in state.db for a session that had them. [DONE 2026-05-29 — removed `tool_result` from GATEWAY_SKIP_TYPES; gateway adapter now handles `toolCall` content blocks (rendered as `[tool_call: name(args)]`) and maps `toolResult` role → `"tool"`. Verified: 4-message import includes role=tool + role=assistant with tool-call content.]
 > **3.3:** `SELECT COUNT(turn_index) FROM mentions WHERE created_at > now-1h` > 0. [DONE 2026-05-30 — `storeExtractionResult` accepts `opts.turnIndex`; `runFlush` passes the session `messageCount`. Real extraction via deployed `runFlush` (LLM path) against session `833ea9cf` stamped 14 mentions `turn_index=198` in production state.db (was 0). Tests green.]
-> **3.4:** watcher reports extraction success-rate >95% over a 10-session sample.
+> **3.4:** watcher reports extraction success-rate >95% over a 10-session sample. [DONE 2026-05-30 — `coerceExtractionResult` already wired + schema-complete (coerce→validate can't throw on coerced input); added regression test locking missing-arrays/bad-enum tolerance. Runtime: deployed `extractStructured` over 10 real gateway sessions = 10/10 (100%) succeeded, 0 throws/fallbacks. Closes Block 3.]
 
 ## Block 4 — Synthesis = the Karpathy wiki (L4) · DECISIONS D5, D2 · the heart
 

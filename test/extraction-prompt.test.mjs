@@ -20,6 +20,7 @@ import {
   buildExtractionPrompt,
   extractStructured,
 } from '../lib/extraction-prompt.mjs';
+import { validateExtractionResult } from '../lib/extraction-schema.mjs';
 
 describe('coerceExtractionResult', () => {
   it('returns raw object passthrough for null / non-object input', () => {
@@ -27,6 +28,23 @@ describe('coerceExtractionResult', () => {
     assert.equal(coerceExtractionResult(undefined), undefined);
     assert.equal(coerceExtractionResult('not an object'), 'not an object');
     assert.equal(coerceExtractionResult(42), 42);
+  });
+
+  // Step 3.4 — the load-bearing tolerance property: a model response that omits
+  // arrays and carries a bad enum must coerce into something that validates,
+  // instead of throwing and dumping the whole 1–15 min extraction to regex.
+  it('coerce → validate does not throw when arrays are missing / enums are bad', () => {
+    const raw = { entities: [{ name: 'NATS', type: 'Security', salience: 2 }] }; // no themes/actions/decisions/friction/relationships
+    const coerced = coerceExtractionResult(raw);
+    assert.deepEqual(
+      Object.keys(coerced).sort(),
+      ['actions', 'decisions', 'entities', 'friction_signals', 'relationships', 'themes'],
+    );
+    let validated;
+    assert.doesNotThrow(() => { validated = validateExtractionResult(coerced); });
+    assert.equal(validated.entities[0].salience, 1); // clamped from 2
+    assert.deepEqual(validated.themes, []);          // missing array filled, not rejected
+    assert.deepEqual(validated.actions, []);
   });
 
   it('normalizes valid entity types unchanged', () => {
