@@ -199,16 +199,16 @@ Status legend:
 
 | | |
 |---|---|
-| **Status** | LIVE (v2.1) — core subscribe-and-persist loop running inside the daemon. Durable JetStream consumer `watcher-daedalus` on `local-events-daedalus`, writing per-op JSONL records to `~/.openclaw/watcher.jsonl`. |
+| **Status** | LIVE (v2.2) — core subscribe-and-persist loop with per-op classification (ok/noop/error) running inside the daemon. Durable JetStream consumer `watcher-daedalus` on `local-events-daedalus`, writing per-op JSONL records to `~/.openclaw/watcher.jsonl`. Each record carries `{ts,op,status,actor,session,duration_ms}`. |
 | **Owner file (repo)** | `lib/memory-watcher.mjs` |
 | **Owner file (runtime)** | `~/.openclaw/workspace/lib/memory-watcher.mjs` (symlinked to repo) |
-| **Verified** | Daemon log: `[watcher] Memory watcher initialized`; `watcher.jsonl` has 9 records (8 historical + 1 real-time test publish); record shape `{ts, op, actor, session, duration_ms}` matches spec. |
+| **Verified** | Daemon log: `[watcher] Memory watcher initialized`; `watcher.jsonl` has 12 records; record shape `{ts, op, status, actor, session, duration_ms}` — status classifies ok/noop/error per event type. |
 | **Output** | `~/.openclaw/watcher.jsonl` — one JSON line per memory operation. |
 
 **Target:** Full observability lens over the memory pipeline — who/where/how/when of every operation, classification (ok/noop/error), health probes, anomaly alerts, mission-control panel.
 
 **Gap:**
-- No classification (ok/noop/error) — step 2.2.
+- ~~No classification (ok/noop/error)~~ CLOSED 2.2: `classifyStatus()` in `lib/memory-watcher.mjs` classifies each event as ok/noop/error based on output counts. Verified: zero-count extraction → `status:noop`, nonzero → `status:ok`, memory.error → `status:error`.
 - No health probes (row counts, WAL size, drift) — step 2.3.
 - No API endpoint — step 2.4.
 - No mission-control panel — step 2.5.
