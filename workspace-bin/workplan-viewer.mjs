@@ -239,6 +239,23 @@ function tickLogs(plan, limit = 100) {
     });
 }
 
+// Interactive step closures: one entry per audits/*/AUDIT_POST.md (a step that
+// reached done), so the History tab reflects work done by hand — not only
+// autonomous tick runs. Dir names are stepNN_slug (NN = block+step digits).
+function auditClosures(plan, limit = 100) {
+  const dir = planAuditsDir(plan);
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const d of fs.readdirSync(dir)) {
+    let stat;
+    try { stat = fs.statSync(path.join(dir, d, 'AUDIT_POST.md')); } catch { continue; } // PRE-only / not closed
+    const m = d.match(/^step(\d)(\d+)_(.+)$/);
+    const label = m ? `${m[1]}.${m[2]} ${m[3].replace(/_/g, ' ')}` : d;
+    out.push({ kind: 'step', name: label, mtime: stat.mtimeMs, size: stat.size });
+  }
+  return out.sort((a, b) => b.mtime - a.mtime).slice(0, limit);
+}
+
 function latestLog(plan) {
   // Prefer the wrapper-maintained `current.log` symlink — it always points
   // at the running tick's log and atomically updates when a new tick starts.
@@ -898,6 +915,8 @@ const HTML = String.raw`<!doctype html>
   .history-list .h-item .name { font-family: 'SF Mono', monospace; color: var(--accent); }
   .history-list .h-item .size { color: var(--dim); font-size: 11px; }
   .history-list .h-item .time { color: var(--dim); font-size: 11px; }
+  .history-list .h-item.step { cursor: default; }
+  .history-list .h-item.step .name { color: #3fb950; }
   .history-list .empty { padding: 30px; color: var(--dim); font-style: italic; text-align: center; }
   /* Automation pane */
   #pane-auto { grid-template-rows: 1fr; }
@@ -2096,21 +2115,30 @@ async function renderHistory() {
   list.innerHTML = '';
   for (const l of logs) {
     const div = document.createElement('div');
-    div.className = 'h-item';
-    const kb = (l.size / 1024).toFixed(1);
     const when = new Date(l.mtime).toLocaleString();
-    div.innerHTML =
-      '<div class="name">' + esc(l.name) + '</div>' +
-      '<div class="size">' + kb + ' KB</div>' +
-      '<div class="time">' + esc(when) + '</div>';
-    div.addEventListener('click', () => {
-      // Pin this historical tick log into the dock's Live feed.
-      state.glivePin = { planId: state.planId, log: l.name };
-      state.gtab = 'glive';
-      $('follow-new').checked = false;
-      document.querySelectorAll('.gtab-btn').forEach(b => b.classList.toggle('active', b.dataset.gtab === 'glive'));
-      showDock();
-    });
+    if (l.kind === 'step') {
+      // Step closure (interactive or tick) — informational, not a live log.
+      div.className = 'h-item step';
+      div.innerHTML =
+        '<div class="name">✓ ' + esc(l.name) + '</div>' +
+        '<div class="size">step closed</div>' +
+        '<div class="time">' + esc(when) + '</div>';
+    } else {
+      div.className = 'h-item';
+      const kb = (l.size / 1024).toFixed(1);
+      div.innerHTML =
+        '<div class="name">' + esc(l.name) + '</div>' +
+        '<div class="size">' + kb + ' KB</div>' +
+        '<div class="time">' + esc(when) + '</div>';
+      div.addEventListener('click', () => {
+        // Pin this historical tick log into the dock's Live feed.
+        state.glivePin = { planId: state.planId, log: l.name };
+        state.gtab = 'glive';
+        $('follow-new').checked = false;
+        document.querySelectorAll('.gtab-btn').forEach(b => b.classList.toggle('active', b.dataset.gtab === 'glive'));
+        showDock();
+      });
+    }
     list.appendChild(div);
   }
   if (!logs.length) list.innerHTML = '<div class="empty">No tick logs — this plan is run interactively (no scheduler ticks recorded). Load the scheduler in the Automation tab to record runs here.</div>';
@@ -2732,7 +2760,10 @@ const server = http.createServer(async (req, res) => {
     const sub = m[2] || '/';
 
     if (sub === '/state') return json(res, planSummary(plan));
-    if (sub === '/logs')  return json(res, tickLogs(plan));
+    if (sub === '/logs')  return json(res, [
+      ...tickLogs(plan).map(l => ({ ...l, kind: 'tick' })),
+      ...auditClosures(plan),
+    ].sort((a, b) => b.mtime - a.mtime).slice(0, 100));
     if (sub === '/inventory') return json(res, inventoryRows(plan));
     if (sub === '/docs')  return json(res, planDocuments(plan));
     if (sub === '/scope')        return json(res, parseScope(plan));
