@@ -170,7 +170,7 @@ Status legend:
 
 | | |
 |---|---|
-| **Status** | SUBSTRATE LIVE (0.4) + SCHEMAS DEFINED (1.1) — stream up; 8 boundary-event schemas in `packages/event-schemas`; producer wiring pending steps 1.2–1.5 |
+| **Status** | SUBSTRATE LIVE (0.4) + SCHEMAS DEFINED (1.1) + INGEST PRODUCER WIRED (1.2) — stream up; 8 boundary-event schemas in `packages/event-schemas`; `memory.ingested` emitted at all 3 session-import boundaries; remaining producers pending steps 1.3–1.5 |
 | **Owner file (repo)** | `lib/memory-budget.mjs`, `lib/local-event-log.mjs`, `packages/event-schemas/` |
 | **Owner file (runtime)** | `~/.openclaw/workspace/lib/memory-budget.mjs`, `local-event-log.mjs` (May 21) |
 | **Verified** | Deployed `memory-budget.mjs` calls `eventLog.publishLocal()` at lines 82, 128, 188 (fire-and-forget); daemon connects + creates the stream (0.4) |
@@ -180,7 +180,8 @@ Status legend:
 
 **Gap:**
 - ~~NATS not running → publishLocal silently fails~~ CLOSED 0.4: local NATS up + daemon connected + `local-events-daedalus` stream live and writable. publishLocal now has a real broker.
-- 8 new boundary-event schemas defined (1.1: `memory.ingested`, `memory.extracted`, `memory.retrieved`, `memory.injected`, `memory.synthesized`, `memory.decayed`, `memory.promoted`, `memory.error`) — validated in tests + round-trip against live stream. Producers wired in steps 1.2–1.5.
+- 8 new boundary-event schemas defined (1.1: `memory.ingested`, `memory.extracted`, `memory.retrieved`, `memory.injected`, `memory.synthesized`, `memory.decayed`, `memory.promoted`, `memory.error`) — validated in tests + round-trip against live stream.
+- `memory.ingested` producer wired (1.2): `emitIngestEvent()` called at Phase 0 Bootstrap, Phase 2 Throttled Work, and IDLE→ENDED session archive — all 3 ingest boundaries. Remaining producers: 1.3 (extracted), 1.4 (retrieved+injected), 1.5 (error).
 - 5 of the original 8 memory.* event schemas still have no producer (`turn_recorded`, `concept_mentioned`, `snapshot_taken`, `artifact_attached`, `compaction_triggered`) — separate from the new boundary schemas.
 - No reader verifies signatures on local events (F-N17 still open) — signing is security theater on the local path.
 

@@ -41,7 +41,7 @@ const tracer = createTracer('memory-daemon');
 import { shouldFlush, runFlush, USE_LLM_EXTRACTION } from '../lib/pre-compression-flush.mjs';
 import { createBudget } from '../lib/memory-budget.mjs';
 import { createSessionTraceEmitter } from './session-trace-emitter.mjs';
-import { createLocalEventLog } from '../lib/local-event-log.mjs';
+import { createLocalEventLog, buildMemoryEvent } from '../lib/local-event-log.mjs';
 import { createLlmClient } from '../lib/llm-client.mjs';
 import { createExtractionStore } from '../lib/extraction-store.mjs';
 import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
@@ -378,6 +378,19 @@ let memoryBudget = null;
 let localEventLog = null;
 let extractionTrigger = null;
 
+function emitIngestEvent(sessionId, source, messageCount) {
+  if (!localEventLog) return;
+  const event = buildMemoryEvent('memory.ingested', sessionId, 'memory', {
+    session_id: sessionId,
+    source: source || 'unknown',
+    messages_added: messageCount,
+    total_messages: messageCount,
+  }, NODE_ID);
+  localEventLog.publishLocal(event).catch(err =>
+    log(`[event] memory.ingested emit failed: ${err.message}`)
+  );
+}
+
 function initMemoryBudget(config) {
   if (memoryBudget) return memoryBudget;
   memoryBudget = createBudget(config.workspace || WORKSPACE, {
@@ -501,7 +514,10 @@ async function runPhase0Bootstrap(sessionId, config) {
       let totalImported = 0;
       for (const source of sources) {
         if (!fs.existsSync(source.path)) continue;
-        const result = await store.importDirectory(source.path, { source: source.name, format: source.format });
+        const result = await store.importDirectory(source.path, {
+          source: source.name, format: source.format,
+          onImported: (r) => emitIngestEvent(r.sessionId, source.name, r.messageCount),
+        });
         totalImported += result.imported;
       }
       if (totalImported > 0) log(`  session-store: imported ${totalImported} sessions`);
@@ -718,7 +734,10 @@ async function runPhase2ThrottledWork(config) {
           let totalImported = 0;
           for (const source of sources) {
             if (!fs.existsSync(source.path)) continue;
-            const result = await store.importDirectory(source.path, { source: source.name, format: source.format });
+            const result = await store.importDirectory(source.path, {
+              source: source.name, format: source.format,
+              onImported: (r) => emitIngestEvent(r.sessionId, source.name, r.messageCount),
+            });
             totalImported += result.imported;
           }
           if (totalImported > 0) log(`  Phase 2: session-store imported ${totalImported} sessions`);
@@ -931,6 +950,7 @@ async function handleTransitions(transitions, config) {
             });
             if (result.imported) {
               log(`  session-store: archived ${result.sessionId.slice(0, 8)} (${result.messageCount} msgs)`);
+              emitIngestEvent(result.sessionId, activity.newestSource || 'unknown', result.messageCount);
             }
           }
         } catch (e) { log(`  session-store archive failed: ${e.message}`); }

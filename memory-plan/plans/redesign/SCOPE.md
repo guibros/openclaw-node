@@ -1,25 +1,16 @@
 # SCOPE — redesign plan
 
 **Status:** done
-**Goal:** Step 1.1 — Define memory.* event vocabulary in packages/event-schemas. Add 8 boundary-event schemas (ingested, extracted, retrieved, injected, synthesized, decayed, promoted, error) to the existing event-schemas package. Unit tests validate all schemas. One round-trip publish/read against the live NATS stream succeeds.
+**Goal:** Step 1.2 — Emit memory.ingested at the ingest boundary. Wire `publishLocal(buildMemoryEvent('memory.ingested', ...))` at every session-import call site in the daemon. After restart, triggering an ingest produces a `memory.ingested` event in `local-events-daedalus` with session_id/source/messages_added/total_messages.
 **Set at:** 2026-05-29
 **Expires:** 2026-05-30T06:00:00Z
 
 ```files
-packages/event-schemas/src/memory/ingested.ts
-packages/event-schemas/src/memory/extracted.ts
-packages/event-schemas/src/memory/retrieved.ts
-packages/event-schemas/src/memory/injected.ts
-packages/event-schemas/src/memory/synthesized.ts
-packages/event-schemas/src/memory/decayed.ts
-packages/event-schemas/src/memory/promoted.ts
-packages/event-schemas/src/memory/error.ts
-packages/event-schemas/src/memory/index.ts
-packages/event-schemas/src/events.ts
-packages/event-schemas/src/index.ts
+workspace-bin/memory-daemon.mjs
+lib/session-store.mjs
 test/event-schemas.test.mjs
-memory-plan/plans/redesign/audits/step11_event_vocabulary/AUDIT_PRE.md
-memory-plan/plans/redesign/audits/step11_event_vocabulary/AUDIT_POST.md
+memory-plan/plans/redesign/audits/step12_emit_ingested/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step12_emit_ingested/AUDIT_POST.md
 memory-plan/plans/redesign/INVENTORY.md
 memory-plan/plans/redesign/VERSION
 memory-plan/plans/redesign/COMPONENT_REGISTRY.md

@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-29 — Step 1.2 closed: memory.ingested producer wired at ingest boundary
+
+**Decision.** `emitIngestEvent(sessionId, source, messageCount)` added to the memory daemon. It calls `buildMemoryEvent('memory.ingested', ...)` → `localEventLog.publishLocal()` (fire-and-forget with catch). Wired at all 3 session-import boundaries: Phase 0 Bootstrap (`importDirectory` onImported callback), Phase 2 Throttled Work (same), IDLE→ENDED transition (inline after `importSession`). VERSION `v1.1 → v1.2`.
+
+**Design.** `SessionStore.importDirectory()` gained an opt-in `onImported` callback fired per successfully imported session — existing callers unaffected. The daemon passes `(r) => emitIngestEvent(r.sessionId, source.name, r.messageCount)`. No changes to `importSession` itself; event emission lives at the daemon layer, not the store layer.
+
+**Evidence.** Tests: 1378/0 (2 new: `buildMemoryEvent('memory.ingested')` validates against `MemoryIngestedSchema`). Stream: `nats stream get local-events-daedalus 3` → full `memory.ingested` event with session_id/source/messages_added/total_messages/node_id/actor/timestamp. Daemon: PID 59112 running with NATS connected, zero new errors.
+
+**Consequences.** Steps 1.3–1.5 follow the same pattern: add `emit<Op>Event` + wire at the relevant boundary. The extraction boundary (1.3) is in the flush/extraction code paths, not session-store.
+
+---
+
 ## 2026-05-29 — Step 1.1 closed: memory.* event vocabulary defined
 
 **Decision.** 8 boundary-event Zod schemas added to `packages/event-schemas`: `memory.ingested`, `memory.extracted`, `memory.retrieved`, `memory.injected`, `memory.synthesized`, `memory.decayed`, `memory.promoted`, `memory.error`. These are operation-boundary events (one per pipeline run) designed for the Block 2 memory-watcher to consume. VERSION `v0.4 → v1.1`.

@@ -298,6 +298,29 @@ describe('Boundary event schemas (Block 1 vocabulary)', () => {
   });
 });
 
+describe('buildMemoryEvent produces valid boundary events (Block 1 producers)', () => {
+  let buildMemoryEvent;
+  it('loads buildMemoryEvent', async () => {
+    ({ buildMemoryEvent } = await import('../lib/local-event-log.mjs'));
+  });
+
+  it('buildMemoryEvent("memory.ingested") passes MemoryIngestedSchema', () => {
+    const event = buildMemoryEvent('memory.ingested', 'sess-test-001', 'memory', {
+      session_id: 'sess-test-001',
+      source: 'claude-code',
+      messages_added: 42,
+      total_messages: 42,
+    }, 'daedalus');
+    const result = MemoryIngestedSchema.safeParse(event);
+    assert.equal(result.success, true, `Validation failed: ${JSON.stringify(result.error?.issues)}`);
+    assert.equal(result.data.data.session_id, 'sess-test-001');
+    assert.equal(result.data.data.source, 'claude-code');
+    assert.equal(result.data.data.messages_added, 42);
+    assert.equal(result.data.node_id, 'daedalus');
+    assert.equal(result.data.actor.type, 'system');
+  });
+});
+
 describe('MemoryEventSchema discriminated union', () => {
   it('routes to the correct schema by event_type', () => {
     const event = {
