@@ -100,7 +100,7 @@ describe('importSession', () => {
     assert.equal(second.messageCount, 0);
   });
 
-  it('appends delta turns when session has grown (append-delta)', async () => {
+  it('re-imports in full when a session has grown', async () => {
     // First import: 2 messages
     const p = writeJsonl('growing.jsonl', [
       { type: 'user', message: { content: 'q1' }, timestamp: '2026-01-01T00:00:00Z' },
@@ -119,7 +119,7 @@ describe('importSession', () => {
     ]);
     const second = await store.importSession(p);
     assert.equal(second.imported, true);
-    assert.equal(second.messageCount, 2); // only the delta
+    assert.equal(second.messageCount, 4); // full re-import, not a delta graft
 
     // Verify total messages in DB
     const db = new Database(DB_PATH, { readonly: true });
@@ -133,6 +133,38 @@ describe('importSession', () => {
     const session = db.prepare('SELECT message_count, end_time FROM sessions WHERE id = ?').get('growing');
     assert.equal(session.message_count, 4);
     assert.equal(session.end_time, '2026-01-01T00:00:15Z');
+    db.close();
+  });
+
+  it('re-imports in full when the stored count is stale — parser-change corruption guard', async () => {
+    // Reproduces the v3.1/v3.2 corruption: a session was first stored by an
+    // older parser that produced FEWER, differently-ordered rows. The file on
+    // disk now parses to more rows. The old append-delta logic would keep the
+    // stale rows and graft the tail of the new parse on top. Full-replace must
+    // instead yield exactly the clean current parse — no stale rows, no graft.
+    const p = writeJsonl('reparse.jsonl', [
+      { type: 'user', message: { content: 'q1' }, timestamp: '2026-01-01T00:00:00Z' },
+      { type: 'assistant', message: { content: 'a1' }, timestamp: '2026-01-01T00:00:05Z' },
+      { type: 'user', message: { content: 'q2' }, timestamp: '2026-01-01T00:00:10Z' },
+      { type: 'assistant', message: { content: 'a2' }, timestamp: '2026-01-01T00:00:15Z' },
+    ]);
+
+    // Simulate the old-parser state: 2 stale rows + a stale message_count of 2.
+    const seed = new Database(DB_PATH);
+    seed.prepare("INSERT INTO sessions (id, source, start_time, end_time, message_count) VALUES ('reparse','gateway','2026-01-01T00:00:00Z','2026-01-01T00:00:05Z',2)").run();
+    seed.prepare("INSERT INTO messages (session_id, role, content, timestamp, turn_index) VALUES ('reparse','user','STALE0',null,0)").run();
+    seed.prepare("INSERT INTO messages (session_id, role, content, timestamp, turn_index) VALUES ('reparse','assistant','STALE1',null,1)").run();
+    seed.close();
+
+    const result = await store.importSession(p, { source: 'gateway' });
+    assert.equal(result.imported, true);
+
+    const db = new Database(DB_PATH, { readonly: true });
+    const rows = db.prepare('SELECT turn_index, content FROM messages WHERE session_id = ? ORDER BY turn_index').all('reparse');
+    // Exactly the clean current parse — the STALE rows are gone, nothing grafted.
+    assert.deepEqual(rows.map((r) => r.content), ['q1', 'a1', 'q2', 'a2']);
+    assert.deepEqual(rows.map((r) => r.turn_index), [0, 1, 2, 3]);
+    assert.equal(rows.length, 4);
     db.close();
   });
 
