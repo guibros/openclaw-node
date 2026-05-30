@@ -50,12 +50,13 @@ Status legend:
 | **Verified live data** | 1039 entities, 615 themes, 2074 mentions, 291 decisions in state.db; latest entity at 2026-05-27T07:14Z |
 | **LLM** | Ollama-served, model controlled by `LLM_MODEL` env (default `qwen3:8b`) |
 
-**Target:** Every session that flushes (end-of-session, hook-triggered, or budget-pressure-triggered) produces a structured extraction (entities/themes/mentions/decisions/relationships/friction_signals). Mentions carry `turn_index` so chunk-grain privacy filtering works. Schema validation rate >95%.
+**Target:** Every session that flushes (end-of-session, hook-triggered, or budget-pressure-triggered) produces a structured extraction (entities/themes/mentions/decisions/relationships/friction_signals). Mentions carry `turn_index` so chunk-grain privacy filtering works. Schema validation rate >95%. Synthesis produces MEMORY.md + Obsidian concept notes.
 
 **Gap:**
-- `mentions.turn_index` always NULL (verified: 2074 rows / 0 with turn_idx). Producer never populates the field (F-Q201/Q301). Privacy filter falls back to session-grain.
-- LLM returning extractions missing required arrays (`actions`, `decisions`, `friction_signals`, `relationships`) — Zod rejects, caught silently. Many extractions fail validation. Evidence in `~/.openclaw/workspace/.tmp/memory-daemon.err`.
-- Deployed code is pre-F-Q* fixes; the repo's tolerant parser (`coerceExtractionResult`, `extractJsonFromText` from commit `47b6719`) is in the repo but the runtime copy is older.
+- ~~`mentions.turn_index` always NULL~~ CLOSED 3.3: `storeExtractionResult` accepts `opts.turnIndex`; `runFlush` passes `messageCount`.
+- ~~LLM returning extractions missing required arrays~~ CLOSED 3.4: `coerceExtractionResult` tolerates missing arrays; 10/10 real session success rate.
+- ~~No concept note generation in synthesis path~~ CLOSED 4.2: `runFlush` LLM path calls `generateConceptNotes({ db, client, respectPrivacy:false, maxConcepts:10 })` after MEMORY.md generation; concept note paths included in `artifacts_written`.
+- Deployed code matches repo (symlinks from 0.1/0.2).
 
 **Done-criteria for closure:**
 - `mentions.turn_index` populated on at least the last-turn-of-tail (cheap, structural) OR via per-turn LLM citation (expensive, correct). Verified: SQL `SELECT COUNT(turn_index) FROM mentions WHERE created_at > now-1h` > 0.

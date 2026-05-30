@@ -1,11 +1,20 @@
 # SCOPE — redesign plan
 
-**Status:** idle
-**Goal:** Handed off to the autonomous `redesign-tick` at v4.1 (Block 3 complete; 4.1 closed). No human driver active — the tick self-sets its per-step scope starting at step 4.2 (Generate Obsidian concept notes).
+**Status:** done
+**Goal:** Step 4.2 — Generate Obsidian concept notes (frontmatter + LLM body + wikilinks). Wired `generateConceptNotes` into `runFlush` synthesis path. Concept notes produced alongside MEMORY.md. Runtime verified: concept notes generated from production state.db with YAML frontmatter, `[[wikilinks]]`, and LLM body (qwen3:8b).
 **Set at:** 2026-05-30
-**Expires:** no-expiry
+**Expires:** 2026-05-31T06:00:00Z
 
 ```files
+lib/pre-compression-flush.mjs
+# audit artifacts
+memory-plan/plans/redesign/audits/step42_obsidian_concept_notes/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step42_obsidian_concept_notes/AUDIT_POST.md
+# plan state
+memory-plan/plans/redesign/INVENTORY.md
+memory-plan/plans/redesign/VERSION
+memory-plan/plans/redesign/COMPONENT_REGISTRY.md
+memory-plan/plans/redesign/DECISIONS.md
 ```
 
 ## How this file works
