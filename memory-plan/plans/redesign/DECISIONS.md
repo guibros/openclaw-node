@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-29 — Step 2.1 closed: watcher core subscribes to event log, persists per-op JSONL
+
+**Decision.** `lib/memory-watcher.mjs` created with `createMemoryWatcher(nc, nodeId, opts)` and `toWatcherRecord(event)`. Wired into the daemon after `localEventLog` initialization, conditional on `localEventLog` being available. Durable JetStream consumer `watcher-<nodeId>` on `local-events-<nodeId>` with `deliver_policy: All`. Each event is parsed and written as one JSONL line to `~/.openclaw/watcher.jsonl`. Shutdown calls `watcher.stop()` before NATS drain. VERSION `v1.5 → v2.1`.
+
+**Design.** Record shape per INVENTORY done-evidence: `{ts, op, actor, session, duration_ms}` — flat, minimal, one line per memory operation. Fields extracted from event envelope (`timestamp`, `event_type`, `actor.id`) and data payload (`session_id`, `duration_ms`). `toWatcherRecord` is a pure function exported for testing. Non-JSON messages (1 legacy test string from step 0.4) are caught, logged, acked, and skipped. The watcher init follows the same try/catch-log-continue pattern as every other NATS component in the daemon.
+
+**Evidence.** Tests: 1387/0 (4 new: `toWatcherRecord` for ingested/extracted/error/retrieved). Runtime: PID 68753 with watcher initialized, `watcher.jsonl` has 9 records (8 historical catchup + 1 real-time test publish `nats pub` → record appeared in JSONL within seconds).
+
+**Consequences.** Step 2.2 (classify each op ok/noop/error) extends the record with a `status` field. The watcher's durable consumer means it replays the full stream on each daemon restart — acceptable at current scale (9 messages); consider switching to `deliver_policy: New` or persisting sequence state if the stream grows large.
+
+---
+
 ## 2026-05-29 — Step 1.5 closed: memory.error wired at all caught boundaries → Block 1 COMPLETE
 
 **Decision.** `emitErrorEvent(boundary, err, sessionId)` added to the memory daemon. Wired at all 7 catch-block boundaries: 3 ingest (Phase 0 bootstrap, Phase 2 throttled, end-of-session archive), 3 extract (ACTIVE→IDLE flush, IDLE→ENDED flush, NATS-triggered flush), 1 retrieve (inject server HTTP 500). Follows the same fire-and-forget pattern as existing emitters. Inject server uses its closure `eventLog`/`nodeId` (from step 1.4). VERSION `v1.4 → v1.5`.

@@ -47,6 +47,7 @@ import { createExtractionStore } from '../lib/extraction-store.mjs';
 import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
 import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
+import { createMemoryWatcher } from '../lib/memory-watcher.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -1179,6 +1180,18 @@ async function main() {
       log(`Local event log unavailable (${evtErr.message}) — continuing without event log`);
     }
 
+    // Initialize memory watcher (subscribes to event stream, persists per-op JSONL)
+    let memoryWatcher = null;
+    if (localEventLog) {
+      try {
+        memoryWatcher = await createMemoryWatcher(natsConn, NODE_ID, {
+          log: (m) => log(`[watcher] ${m}`),
+        });
+      } catch (watchErr) {
+        log(`Memory watcher unavailable (${watchErr.message}) — continuing without watcher`);
+      }
+    }
+
     // Ensure shared federation stream (OPENCLAW_SHARED, R=3)
     try {
       await ensureSharedStream(natsConn);
@@ -1265,6 +1278,9 @@ async function main() {
       extractionTrigger.stop();
     }
     saveDaemonState(sm);
+    if (memoryWatcher) {
+      try { await memoryWatcher.stop(); } catch (_) {}
+    }
     if (injectionServer) {
       try { await injectionServer.close(); } catch (_) {}
     }

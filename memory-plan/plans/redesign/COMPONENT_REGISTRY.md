@@ -195,6 +195,28 @@ Status legend:
 
 ---
 
+### 1.8 Memory watcher
+
+| | |
+|---|---|
+| **Status** | LIVE (v2.1) — core subscribe-and-persist loop running inside the daemon. Durable JetStream consumer `watcher-daedalus` on `local-events-daedalus`, writing per-op JSONL records to `~/.openclaw/watcher.jsonl`. |
+| **Owner file (repo)** | `lib/memory-watcher.mjs` |
+| **Owner file (runtime)** | `~/.openclaw/workspace/lib/memory-watcher.mjs` (symlinked to repo) |
+| **Verified** | Daemon log: `[watcher] Memory watcher initialized`; `watcher.jsonl` has 9 records (8 historical + 1 real-time test publish); record shape `{ts, op, actor, session, duration_ms}` matches spec. |
+| **Output** | `~/.openclaw/watcher.jsonl` — one JSON line per memory operation. |
+
+**Target:** Full observability lens over the memory pipeline — who/where/how/when of every operation, classification (ok/noop/error), health probes, anomaly alerts, mission-control panel.
+
+**Gap:**
+- No classification (ok/noop/error) — step 2.2.
+- No health probes (row counts, WAL size, drift) — step 2.3.
+- No API endpoint — step 2.4.
+- No mission-control panel — step 2.5.
+- No anomaly alerts — step 2.6.
+- JSONL grows unbounded (no rotation).
+
+---
+
 ## Family 2: companion-bridge (the harness)
 
 ### 2.1 Companion-bridge HTTP adapter (:8787)

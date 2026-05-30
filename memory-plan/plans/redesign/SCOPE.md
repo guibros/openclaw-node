@@ -1,16 +1,16 @@
 # SCOPE — redesign plan
 
 **Status:** done
-**Goal:** Step 1.5 — Emit memory.error on caught failures across the wired boundaries. Add emitErrorEvent helper in daemon; wire at all 6 daemon catch blocks (3 ingest, 3 extract) and the inject server HTTP 500 catch. After restart, inducing a failure at a wired boundary produces a memory.error event in local-events-daedalus.
+**Goal:** Step 2.1 — Watcher core: subscribe to the event log, persist one record per op to JSONL. Create lib/memory-watcher.mjs that subscribes to local-events-<nodeId> via a durable JetStream consumer and writes one {ts,op,actor,session,duration_ms} JSONL line per event to ~/.openclaw/watcher.jsonl. Wire into daemon after localEventLog init. After restart, trigger an op and verify the JSONL file gets a record.
 **Set at:** 2026-05-29
 **Expires:** 2026-05-30T06:00:00Z
 
 ```files
+lib/memory-watcher.mjs
 workspace-bin/memory-daemon.mjs
-lib/memory-inject-server.mjs
-test/event-schemas.test.mjs
-memory-plan/plans/redesign/audits/step15_emit_error/AUDIT_PRE.md
-memory-plan/plans/redesign/audits/step15_emit_error/AUDIT_POST.md
+test/memory-watcher.test.mjs
+memory-plan/plans/redesign/audits/step21_watcher_core/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step21_watcher_core/AUDIT_POST.md
 memory-plan/plans/redesign/INVENTORY.md
 memory-plan/plans/redesign/VERSION
 memory-plan/plans/redesign/COMPONENT_REGISTRY.md

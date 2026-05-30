@@ -49,7 +49,7 @@ Read-only observability over the whole system. Surface = mission-control panel.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 2 | 2.1 | v2.1 | [ ] | Watcher core: subscribe to the event log, persist one record per op to JSONL |
+| 2 | 2.1 | v2.1 | [x] | Watcher core: subscribe to the event log, persist one record per op to JSONL |
 | 2 | 2.2 | v2.2 | [ ] | Classify each op ok / noop / error (incl. empty-output no-op detection) |
 | 2 | 2.3 | v2.3 | [ ] | Store-health probes: row counts, last-write, WAL size, repo↔runtime drift |
 | 2 | 2.4 | v2.4 | [ ] | Mission-control API endpoint serving watcher records + health |
@@ -159,7 +159,7 @@ Nothing here starts until Blocks 0–6 close and local is observably healthy. Fe
 | 6 | L6 health | 5 | 36 |
 | 7 | G multi-node (deferred) | 4 | 40 |
 
-**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **2.1**.
+**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **2.2**.
 
 ### Atomicity revision log (vs the prior 33-step draft)
 - Block 0: 0.1 split into lib-symlink (0.1) + daemon-symlink/restart (0.2); old 0.3 split into NATS-install (0.3) + daemon↔NATS-wire (0.4).
