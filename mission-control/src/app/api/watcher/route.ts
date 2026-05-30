@@ -54,9 +54,9 @@ function normalizeHealth(record: WatcherRecord): WatcherRecord {
  * Query params:
  *   limit  — max event records (default 50, max 500)
  *   status — filter events by ok|noop|error
- *   op     — filter by operation type (e.g. memory.ingested)
+ *   op     — filter by operation type (e.g. memory.ingested, or watcher.alert)
  *
- * Response: { events: [...], health: {...} | null, source: string }
+ * Response: { events: [...], alerts: [...], health: {...} | null, source: string }
  */
 export async function GET(request: NextRequest) {
   try {
@@ -76,6 +76,11 @@ export async function GET(request: NextRequest) {
         if (!latestHealth || r.ts > latestHealth.ts) latestHealth = r;
       } else if (r.op === "watcher.alert") {
         alerts.push(r);
+        // Alerts have their own field, but also honor an explicit ?op=watcher.alert
+        // so the op filter never silently returns an empty set.
+        if (opFilter === "watcher.alert" && (!statusFilter || r.status === statusFilter)) {
+          events.push(r);
+        }
       } else {
         if (statusFilter && r.status !== statusFilter) continue;
         if (opFilter && r.op !== opFilter) continue;

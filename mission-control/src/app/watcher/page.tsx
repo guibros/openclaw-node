@@ -50,7 +50,7 @@ function opLabel(op: string): string {
 function alertTypeLabel(t: string): string {
   switch (t) {
     case "extraction_failure": return "extraction failure";
-    case "extraction_noop_rate": return "noop rate";
+    case "extraction_failure_rate": return "failure rate";
     case "stalled": return "stalled";
     default: return t;
   }

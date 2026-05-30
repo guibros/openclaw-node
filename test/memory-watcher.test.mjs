@@ -124,6 +124,13 @@ describe('classifyStatus', () => {
     assert.equal(classifyStatus(event), 'ok');
   });
 
+  it('classifies memory.extracted as ok when some count fields are absent (no NaN noop)', () => {
+    // A producer that emits only the counts it has must not cause a real
+    // extraction to misclassify as noop via NaN arithmetic.
+    const event = { event_type: 'memory.extracted', data: { session_id: 's3', entities_count: 3 } };
+    assert.equal(classifyStatus(event), 'ok');
+  });
+
   it('classifies memory.retrieved with results_count=0 as noop', () => {
     const event = buildMemoryEvent('memory.retrieved', 'r1', 'memory', {
       query_hash: 'abc',
@@ -249,6 +256,34 @@ describe('runStoreHealthProbes', () => {
     db.close();
   }
 
+  function seedKnowledgeDb(dbPath) {
+    const db = new Database(dbPath);
+    db.pragma('journal_mode = WAL');
+    db.exec(`
+      CREATE TABLE session_documents (id INTEGER PRIMARY KEY, last_indexed INTEGER);
+      CREATE TABLE session_chunks (id INTEGER PRIMARY KEY, doc_id INTEGER);
+    `);
+    db.prepare('INSERT INTO session_documents VALUES (?, ?)').run(1, 1779000000000);
+    db.prepare('INSERT INTO session_chunks VALUES (?, ?)').run(1, 1);
+    db.close();
+  }
+
+  it('reports status ok only when all three stores are present', async () => {
+    const stateDb = path.join(tmpDir, 'ok-state.db');
+    const knowledgeDb = path.join(tmpDir, 'ok-knowledge.db');
+    const graphCacheDb = path.join(tmpDir, 'ok-graph.db');
+    seedStateDb(stateDb);
+    seedKnowledgeDb(knowledgeDb);
+    seedGraphCacheDb(graphCacheDb);
+    const result = await runStoreHealthProbes({
+      stateDb, knowledgeDb, graphCacheDb,
+      workspaceLib: '/nonexistent/lib', workspaceDaemon: '/nonexistent/daemon',
+      Database,
+    });
+    assert.equal(result.status, 'ok');
+    assert.ok(result.stores.state && result.stores.knowledge && result.stores.graph_cache);
+  });
+
   it('returns correct row counts for state.db', async () => {
     const dbPath = path.join(tmpDir, 'state.db');
     seedStateDb(dbPath);
@@ -261,7 +296,6 @@ describe('runStoreHealthProbes', () => {
       Database,
     });
     assert.equal(result.op, 'health.probe');
-    assert.equal(result.status, 'ok');
     assert.equal(result.stores.state.sessions, 2);
     assert.equal(result.stores.state.messages, 3);
     assert.equal(result.stores.state.entities, 1);
@@ -301,6 +335,7 @@ describe('runStoreHealthProbes', () => {
     assert.equal(result.stores.state, null);
     assert.equal(result.stores.knowledge, null);
     assert.equal(result.stores.graph_cache, null);
+    assert.equal(result.status, 'degraded'); // a dead store must not report 'ok'
   });
 
   it('reports WAL size when WAL file exists', async () => {
@@ -372,19 +407,19 @@ describe('createAnomalyDetector', () => {
     assert.equal(second.length, 0);
   });
 
-  it('fires extraction_noop_rate when threshold crossed', () => {
+  it('fires extraction_failure_rate when threshold crossed', () => {
     const detector = createAnomalyDetector({ extractionRateMinSample: 3, extractionRateThreshold: 0.5 });
     detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'noop' });
     detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'noop' });
     const alerts = detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'ok' });
     assert.equal(alerts.length, 1);
-    assert.equal(alerts[0].alert_type, 'extraction_noop_rate');
+    assert.equal(alerts[0].alert_type, 'extraction_failure_rate');
     assert.ok(alerts[0].window);
     assert.equal(alerts[0].window.total, 3);
     assert.equal(alerts[0].window.failures, 2);
   });
 
-  it('does not fire extraction_noop_rate below threshold', () => {
+  it('does not fire extraction_failure_rate below threshold', () => {
     const detector = createAnomalyDetector({ extractionRateMinSample: 3, extractionRateThreshold: 0.5 });
     detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'ok' });
     detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'ok' });
