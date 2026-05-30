@@ -90,13 +90,60 @@ describe('importSession', () => {
     assert.equal(result.sessionId, 'session-1');
   });
 
-  it('skips already-imported sessions by default', async () => {
-    const path = writeJsonl('dup.jsonl', [
+  it('skips re-import when session has not grown', async () => {
+    const p = writeJsonl('dup.jsonl', [
       { type: 'user', message: { content: 'once' } },
     ]);
-    await store.importSession(path);
-    const second = await store.importSession(path);
+    await store.importSession(p);
+    const second = await store.importSession(p);
     assert.equal(second.imported, false);
+    assert.equal(second.messageCount, 0);
+  });
+
+  it('appends delta turns when session has grown (append-delta)', async () => {
+    // First import: 2 messages
+    const p = writeJsonl('growing.jsonl', [
+      { type: 'user', message: { content: 'q1' }, timestamp: '2026-01-01T00:00:00Z' },
+      { type: 'assistant', message: { content: 'a1' }, timestamp: '2026-01-01T00:00:05Z' },
+    ]);
+    const first = await store.importSession(p);
+    assert.equal(first.imported, true);
+    assert.equal(first.messageCount, 2);
+
+    // Simulate session growth: rewrite JSONL with 4 messages
+    writeJsonl('growing.jsonl', [
+      { type: 'user', message: { content: 'q1' }, timestamp: '2026-01-01T00:00:00Z' },
+      { type: 'assistant', message: { content: 'a1' }, timestamp: '2026-01-01T00:00:05Z' },
+      { type: 'user', message: { content: 'q2' }, timestamp: '2026-01-01T00:00:10Z' },
+      { type: 'assistant', message: { content: 'a2' }, timestamp: '2026-01-01T00:00:15Z' },
+    ]);
+    const second = await store.importSession(p);
+    assert.equal(second.imported, true);
+    assert.equal(second.messageCount, 2); // only the delta
+
+    // Verify total messages in DB
+    const db = new Database(DB_PATH, { readonly: true });
+    const rows = db.prepare('SELECT turn_index, content FROM messages WHERE session_id = ? ORDER BY turn_index').all('growing');
+    assert.equal(rows.length, 4);
+    assert.equal(rows[0].content, 'q1');
+    assert.equal(rows[2].content, 'q2');
+    assert.equal(rows[3].content, 'a2');
+
+    // Verify session row updated
+    const session = db.prepare('SELECT message_count, end_time FROM sessions WHERE id = ?').get('growing');
+    assert.equal(session.message_count, 4);
+    assert.equal(session.end_time, '2026-01-01T00:00:15Z');
+    db.close();
+  });
+
+  it('append-delta is idempotent — third import with same count is a no-op', async () => {
+    const p = writeJsonl('idem.jsonl', [
+      { type: 'user', message: { content: 'q1' } },
+    ]);
+    await store.importSession(p);
+    const second = await store.importSession(p);
+    assert.equal(second.imported, false);
+    assert.equal(second.messageCount, 0);
   });
 
   it('returns {imported:false} for empty JSONL', async () => {

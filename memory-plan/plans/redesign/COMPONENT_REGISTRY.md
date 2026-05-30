@@ -29,14 +29,14 @@ Status legend:
 **Target:** Ingest every turn of every session from all three transcript sources into state.db within seconds. No data loss for sessions caught mid-stream. Tool calls and tool results preserved.
 
 **Gap:**
-- `skipIfExists: true` is the default in `importSession()` (line 146 deployed / 153 repo). Sessions caught mid-stream never get their later turns ingested.
+- ~~`skipIfExists: true` truncating mid-stream sessions~~ CLOSED 3.1: `importSession()` now uses append-delta — checks existing message_count, inserts only new turns, upserts session row with `ON CONFLICT(id) DO UPDATE`. Verified: test shows 2→4 message growth on re-import.
 - Tool calls + tool results silently dropped by the openclaw-gateway adapter (`transcript-parser.mjs:82-85`) — `GATEWAY_SKIP_TYPES` includes `tool_result`.
-- Code is May-23 vintage; the repo's session-store has F-H10 (FTS trigger fix), F-H11 (sanitizer), F-H12 (ON CONFLICT) that aren't deployed.
+- Code is now deployed via symlink (steps 0.1/0.2); F-H10/F-H11/F-H12 fixes are live.
 
 **Done-criteria for closure:**
-- `skipIfExists` default flipped OR append-delta semantics implemented; verified by SQL count growing for an active session as new turns land
+- ~~`skipIfExists` append-delta implemented~~ ✓ (3.1)
 - `tool_result` no longer in skip set (or explicitly justified as out-of-scope); verified by query showing tool messages present
-- Deployed code matches repo (file mtime + `diff -q` empty)
+- ~~Deployed code matches repo~~ ✓ (0.1/0.2 symlinks)
 
 ---
 

@@ -1,18 +1,15 @@
 # SCOPE — redesign plan
 
 **Status:** done
-**Goal:** Step 2.6 — Anomaly alerts: extraction validation-failure rate, empty-output ops, stalled jobs. Add anomaly detection to the memory-watcher that fires alert records on extraction errors, high noop rates, and stalled event streams. Surface alerts in the mission-control watcher panel and watcher.jsonl. Done when an induced Zod validation failure triggers an alert visible in both panel + log.
+**Goal:** Step 3.1 — Fix skipIfExists truncation: re-import + append-delta for mid-stream sessions. Change importSession() to detect existing sessions with fewer messages than the JSONL source and insert only the delta turns, instead of skipping entirely. Done when an active session's later turns land in state.db (row count grows as turns arrive).
 **Set at:** 2026-05-29
-**Expires:** 2026-05-30T06:00:00Z
+**Expires:** 2026-05-30T12:00:00Z
 
 ```files
-lib/memory-watcher.mjs
-test/memory-watcher.test.mjs
-mission-control/src/app/api/watcher/route.ts
-mission-control/src/app/watcher/page.tsx
-mission-control/src/lib/hooks.ts
-memory-plan/plans/redesign/audits/step26_anomaly_alerts/AUDIT_PRE.md
-memory-plan/plans/redesign/audits/step26_anomaly_alerts/AUDIT_POST.md
+lib/session-store.mjs
+test/session-store.test.mjs
+memory-plan/plans/redesign/audits/step31_skipIfExists_fix/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step31_skipIfExists_fix/AUDIT_POST.md
 memory-plan/plans/redesign/INVENTORY.md
 memory-plan/plans/redesign/VERSION
 memory-plan/plans/redesign/COMPONENT_REGISTRY.md
