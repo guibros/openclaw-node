@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, AlertTriangle, Database, HardDrive } from "lucide-react";
-import { useWatcher, WatcherEvent, WatcherHealth } from "@/lib/hooks";
+import { Activity, AlertTriangle, Bell, Database, HardDrive } from "lucide-react";
+import { useWatcher, WatcherEvent, WatcherAlert, WatcherHealth } from "@/lib/hooks";
 
 function statusColor(status?: string): string {
   if (status === "error") return "text-red-400";
@@ -45,6 +45,15 @@ function fmtDuration(ms: number | null | undefined): string {
 
 function opLabel(op: string): string {
   return op.replace("memory.", "");
+}
+
+function alertTypeLabel(t: string): string {
+  switch (t) {
+    case "extraction_failure": return "extraction failure";
+    case "extraction_noop_rate": return "noop rate";
+    case "stalled": return "stalled";
+    default: return t;
+  }
 }
 
 function HealthCard({ health }: { health: WatcherHealth }) {
@@ -135,18 +144,34 @@ function EventRow({ event }: { event: WatcherEvent }) {
   );
 }
 
-export default function WatcherPage() {
-  const [view, setView] = useState<"stream" | "failures">("stream");
+function AlertRow({ alert }: { alert: WatcherAlert }) {
+  return (
+    <div className="flex items-center gap-0 px-4 py-[3px] font-mono text-[11px] border-b border-border/40 bg-red-500/10">
+      <span className="text-muted-foreground w-[65px] shrink-0 tabular-nums">
+        {fmtTs(alert.ts)}
+      </span>
+      <span className="w-[100px] shrink-0">
+        <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-500/20 text-red-400">
+          {alertTypeLabel(alert.alert_type)}
+        </span>
+      </span>
+      <span className="text-red-300 truncate flex-1 min-w-0">
+        {alert.detail}
+      </span>
+    </div>
+  );
+}
 
-  const { events: allEvents, health, isLoading } = useWatcher(100);
+export default function WatcherPage() {
+  const [view, setView] = useState<"stream" | "failures" | "alerts">("stream");
+
+  const { events: allEvents, alerts, health, isLoading } = useWatcher(100);
   const { events: failureEvents } = useWatcher(100, "noop");
   const { events: errorEvents } = useWatcher(50, "error");
 
   const failures = [...failureEvents, ...errorEvents]
     .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
     .slice(0, 100);
-
-  const displayEvents = view === "stream" ? allEvents : failures;
 
   return (
     <div className="h-full flex flex-col bg-background text-foreground">
@@ -185,11 +210,31 @@ export default function WatcherPage() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setView("alerts")}
+            className={`text-xs px-3 py-1.5 rounded font-medium transition-colors flex items-center gap-1.5 ${
+              view === "alerts"
+                ? "bg-red-500/10 text-red-400"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            }`}
+          >
+            <Bell className="h-3 w-3" />
+            Alerts
+            {alerts.length > 0 && (
+              <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded-full">
+                {alerts.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Stats */}
         <div className="ml-auto flex items-center gap-3 text-[11px] font-mono text-muted-foreground">
-          <span>{displayEvents.length} events</span>
+          <span>
+            {view === "alerts"
+              ? `${alerts.length} alerts`
+              : `${view === "failures" ? failures.length : allEvents.length} events`}
+          </span>
           {isLoading && <span className="text-primary animate-pulse">polling...</span>}
         </div>
       </div>
@@ -197,26 +242,42 @@ export default function WatcherPage() {
       {/* Health card */}
       {health && <HealthCard health={health} />}
 
-      {/* Event list */}
+      {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {displayEvents.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
-            {view === "failures" ? (
-              <>
-                <AlertTriangle className="h-6 w-6 text-green-400" />
-                <span className="text-sm">No silent failures detected</span>
-              </>
-            ) : (
-              <>
-                <Activity className="h-6 w-6" />
-                <span className="text-sm">No events yet</span>
-              </>
-            )}
-          </div>
+        {view === "alerts" ? (
+          alerts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+              <Bell className="h-6 w-6 text-green-400" />
+              <span className="text-sm">No anomaly alerts</span>
+            </div>
+          ) : (
+            alerts.map((alert, i) => (
+              <AlertRow key={`${alert.ts}-${alert.alert_type}-${i}`} alert={alert} />
+            ))
+          )
         ) : (
-          displayEvents.map((event, i) => (
-            <EventRow key={`${event.ts}-${event.op}-${i}`} event={event} />
-          ))
+          (() => {
+            const displayEvents = view === "stream" ? allEvents : failures;
+            return displayEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+                {view === "failures" ? (
+                  <>
+                    <AlertTriangle className="h-6 w-6 text-green-400" />
+                    <span className="text-sm">No silent failures detected</span>
+                  </>
+                ) : (
+                  <>
+                    <Activity className="h-6 w-6" />
+                    <span className="text-sm">No events yet</span>
+                  </>
+                )}
+              </div>
+            ) : (
+              displayEvents.map((event, i) => (
+                <EventRow key={`${event.ts}-${event.op}-${i}`} event={event} />
+              ))
+            );
+          })()
         )}
       </div>
     </div>

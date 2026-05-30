@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { buildMemoryEvent } from '../lib/local-event-log.mjs';
-import { toWatcherRecord, classifyStatus, runStoreHealthProbes } from '../lib/memory-watcher.mjs';
+import { toWatcherRecord, classifyStatus, runStoreHealthProbes, createAnomalyDetector } from '../lib/memory-watcher.mjs';
 
 describe('toWatcherRecord', () => {
   it('extracts flat record from memory.ingested event', () => {
@@ -348,5 +348,77 @@ describe('runStoreHealthProbes', () => {
     });
     assert.ok(result.ts);
     assert.ok(!isNaN(Date.parse(result.ts)));
+  });
+});
+
+describe('createAnomalyDetector', () => {
+  it('fires extraction_failure alert on memory.error event', () => {
+    const detector = createAnomalyDetector();
+    const record = { ts: new Date().toISOString(), op: 'memory.error', status: 'error', session: 'sess-fail' };
+    const alerts = detector.evaluate(record);
+    assert.equal(alerts.length, 1);
+    assert.equal(alerts[0].alert_type, 'extraction_failure');
+    assert.equal(alerts[0].op, 'watcher.alert');
+    assert.equal(alerts[0].status, 'error');
+    assert.ok(alerts[0].detail.includes('sess-fail'));
+  });
+
+  it('respects cooldown for extraction_failure', () => {
+    const detector = createAnomalyDetector({ cooldownMs: 60000 });
+    const record = { ts: new Date().toISOString(), op: 'memory.error', status: 'error', session: 's1' };
+    const first = detector.evaluate(record);
+    assert.equal(first.length, 1);
+    const second = detector.evaluate({ ...record, session: 's2' });
+    assert.equal(second.length, 0);
+  });
+
+  it('fires extraction_noop_rate when threshold crossed', () => {
+    const detector = createAnomalyDetector({ extractionRateMinSample: 3, extractionRateThreshold: 0.5 });
+    detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'noop' });
+    detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'noop' });
+    const alerts = detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'ok' });
+    assert.equal(alerts.length, 1);
+    assert.equal(alerts[0].alert_type, 'extraction_noop_rate');
+    assert.ok(alerts[0].window);
+    assert.equal(alerts[0].window.total, 3);
+    assert.equal(alerts[0].window.failures, 2);
+  });
+
+  it('does not fire extraction_noop_rate below threshold', () => {
+    const detector = createAnomalyDetector({ extractionRateMinSample: 3, extractionRateThreshold: 0.5 });
+    detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'ok' });
+    detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'ok' });
+    const alerts = detector.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'noop' });
+    assert.equal(alerts.length, 0);
+  });
+
+  it('fires stalled alert when events are old', () => {
+    const detector = createAnomalyDetector({ staleThresholdMs: 1000 });
+    const oldTs = new Date(Date.now() - 5000).toISOString();
+    detector.evaluate({ ts: oldTs, op: 'memory.ingested', status: 'ok' });
+    const alerts = detector.evaluateStale();
+    assert.equal(alerts.length, 1);
+    assert.equal(alerts[0].alert_type, 'stalled');
+  });
+
+  it('does not fire stalled alert when events are recent', () => {
+    const detector = createAnomalyDetector({ staleThresholdMs: 60000 });
+    detector.evaluate({ ts: new Date().toISOString(), op: 'memory.ingested', status: 'ok' });
+    const alerts = detector.evaluateStale();
+    assert.equal(alerts.length, 0);
+  });
+
+  it('does not fire stalled alert with no events', () => {
+    const detector = createAnomalyDetector({ staleThresholdMs: 1000 });
+    const alerts = detector.evaluateStale();
+    assert.equal(alerts.length, 0);
+  });
+
+  it('window bounds at windowSize', () => {
+    const detector = createAnomalyDetector({ windowSize: 3 });
+    for (let i = 0; i < 5; i++) {
+      detector.evaluate({ ts: new Date().toISOString(), op: 'memory.ingested', status: 'ok' });
+    }
+    assert.equal(detector._recentEvents.length, 3);
   });
 });

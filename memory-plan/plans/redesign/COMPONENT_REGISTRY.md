@@ -199,10 +199,10 @@ Status legend:
 
 | | |
 |---|---|
-| **Status** | LIVE (v2.3) — core subscribe-and-persist loop with per-op classification (ok/noop/error) + periodic store-health probes running inside the daemon. Durable JetStream consumer `watcher-daedalus` on `local-events-daedalus`, writing per-op JSONL records to `~/.openclaw/watcher.jsonl`. Each event record carries `{ts,op,status,actor,session,duration_ms}`. Health probe records carry `{ts,op:'health.probe',status,stores:{state,knowledge,graph_cache},drift}` every 5 minutes. |
+| **Status** | LIVE (v2.6) — core subscribe-and-persist loop with per-op classification (ok/noop/error) + periodic store-health probes + anomaly detection running inside the daemon. Durable JetStream consumer `watcher-daedalus` on `local-events-daedalus`, writing per-op JSONL records to `~/.openclaw/watcher.jsonl`. Each event record carries `{ts,op,status,actor,session,duration_ms}`. Health probe records every 5 min. Anomaly detector evaluates each event against 3 alert rules (extraction_failure, extraction_noop_rate, stalled) with cooldown, writes `watcher.alert` records. Mission-control panel at `:3000/watcher` with Stream, Silent Failures, and Alerts tabs. |
 | **Owner file (repo)** | `lib/memory-watcher.mjs` |
 | **Owner file (runtime)** | `~/.openclaw/workspace/lib/memory-watcher.mjs` (symlinked to repo) |
-| **Verified** | Daemon log: `[watcher] Memory watcher initialized` + `[watcher] health probe: 3 stores checked`; `watcher.jsonl` has event records + health probe records; probe shows state.db sessions=233/entities=1039, knowledge.db session_docs=225, graph-cache nodes=65/edges=317, WAL sizes, drift symlinks=true. |
+| **Verified** | Daemon log: `[watcher] Memory watcher initialized` + `[watcher] health probe: 3 stores checked` + `[watcher] ALERT: extraction_failure — memory.error at zod-fail-session-26`; `watcher.jsonl` has event records + health probes + alert records; API at `/api/watcher` returns `events`, `alerts`, `health`; panel at `:3000/watcher` with Stream/Failures/Alerts tabs. 1414 tests pass. |
 | **Output** | `~/.openclaw/watcher.jsonl` — one JSON line per memory operation + periodic health probes. |
 
 **Target:** Full observability lens over the memory pipeline — who/where/how/when of every operation, classification (ok/noop/error), health probes, anomaly alerts, mission-control panel.
@@ -212,7 +212,7 @@ Status legend:
 - ~~No health probes (row counts, WAL size, drift)~~ CLOSED 2.3: `runStoreHealthProbes()` in `lib/memory-watcher.mjs` queries 3 stores readonly every 5 min. Verified: probe output shows row counts, WAL sizes (state=4.3MB, knowledge=4.5MB, graph-cache=32KB), and drift symlinks.
 - ~~No API endpoint~~ CLOSED 2.4: `GET /api/watcher` on mission-control (:3000) serves event records + latest health probe from watcher.jsonl. Supports `?limit`, `?status`, `?op` filters. `last_indexed` epoch-ms normalized to ISO in health response.
 - ~~No mission-control panel~~ CLOSED 2.5: `/watcher` page at `:3000/watcher` with live stream (SWR 3s poll of `GET /api/watcher`) + silent-failures tab (noop+error filter). Health card shows store metrics + drift. Deployed as file copy to runtime. Verified: HTTP 200, events render, failures populate.
-- No anomaly alerts — step 2.6.
+- ~~No anomaly alerts~~ CLOSED 2.6: `createAnomalyDetector()` in `lib/memory-watcher.mjs` evaluates each event against 3 rules (extraction_failure, extraction_noop_rate, stalled) with 10-min cooldown per type. Writes `watcher.alert` records to JSONL. API separates alerts into `alerts` array. Panel has "Alerts" tab with red badges. Verified: induced Zod validation failure → alert fires in log + JSONL + API + panel.
 - JSONL grows unbounded (no rotation).
 
 ---

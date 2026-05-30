@@ -54,7 +54,7 @@ Read-only observability over the whole system. Surface = mission-control panel.
 | 2 | 2.3 | v2.3 | [x] | Store-health probes: row counts, last-write, WAL size, repo↔runtime drift |
 | 2 | 2.4 | v2.4 | [x] | Mission-control API endpoint serving watcher records + health |
 | 2 | 2.5 | v2.5 | [x] | Mission-control panel UI: live op stream + dedicated silent-failures view |
-| 2 | 2.6 | v2.6 | [ ] | Anomaly alerts: extraction validation-failure rate, empty-output ops, stalled jobs |
+| 2 | 2.6 | v2.6 | [x] | Anomaly alerts: extraction validation-failure rate, empty-output ops, stalled jobs |
 
 > **2.1:** run a session; JSONL has one `{ts,op,actor,session,duration_ms}` line per op.
 > **2.2:** induce an empty extraction; record shows `status:noop` with who/where/when.
@@ -159,7 +159,7 @@ Nothing here starts until Blocks 0–6 close and local is observably healthy. Fe
 | 6 | L6 health | 5 | 36 |
 | 7 | G multi-node (deferred) | 4 | 40 |
 
-**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **2.6**.
+**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **3.1**.
 
 ### Atomicity revision log (vs the prior 33-step draft)
 - Block 0: 0.1 split into lib-symlink (0.1) + daemon-symlink/restart (0.2); old 0.3 split into NATS-install (0.3) + daemon↔NATS-wire (0.4).

@@ -69,10 +69,13 @@ export async function GET(request: NextRequest) {
 
     let latestHealth: WatcherRecord | null = null;
     const events: WatcherRecord[] = [];
+    const alerts: WatcherRecord[] = [];
 
     for (const r of records) {
       if (r.op === "health.probe") {
         if (!latestHealth || r.ts > latestHealth.ts) latestHealth = r;
+      } else if (r.op === "watcher.alert") {
+        alerts.push(r);
       } else {
         if (statusFilter && r.status !== statusFilter) continue;
         if (opFilter && r.op !== opFilter) continue;
@@ -81,10 +84,12 @@ export async function GET(request: NextRequest) {
     }
 
     events.reverse();
+    alerts.reverse();
     const trimmed = events.slice(0, limit);
 
     return NextResponse.json({
       events: trimmed,
+      alerts: alerts.slice(0, limit),
       health: latestHealth ? normalizeHealth(latestHealth) : null,
       source: WATCHER_JSONL,
     });

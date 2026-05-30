@@ -867,6 +867,19 @@ export interface WatcherHealth {
   [key: string]: unknown;
 }
 
+export interface WatcherAlert {
+  ts: string;
+  op: string;
+  status: string;
+  alert_type: string;
+  detail: string;
+  session?: string | null;
+  window?: { total: number; failures: number; rate: number };
+  last_event_ts?: string;
+  age_ms?: number;
+  [key: string]: unknown;
+}
+
 export function useWatcher(limit = 50, status?: string) {
   const params = new URLSearchParams();
   params.set("limit", String(limit));
@@ -874,6 +887,7 @@ export function useWatcher(limit = 50, status?: string) {
 
   const { data, error, isLoading } = useSWR<{
     events: WatcherEvent[];
+    alerts: WatcherAlert[];
     health: WatcherHealth | null;
     source: string;
   }>(`/api/watcher?${params.toString()}`, fetcher, {
@@ -882,6 +896,7 @@ export function useWatcher(limit = 50, status?: string) {
 
   return {
     events: data?.events ?? [],
+    alerts: data?.alerts ?? [],
     health: data?.health ?? null,
     source: data?.source ?? "",
     error,

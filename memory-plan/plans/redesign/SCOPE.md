@@ -1,15 +1,18 @@
 # SCOPE — redesign plan
 
 **Status:** done
-**Goal:** Step 2.5 — Mission-control panel UI: live op stream + dedicated silent-failures view. Add a `/watcher` page to mission-control that polls `GET /api/watcher` via SWR and renders: (1) a live event stream with status badges (ok/noop/error), (2) a dedicated silent-failures view filtering noop+error ops. Done when the page loads at `:3000/watcher` showing live events, and the silent-failures view populates on an induced no-op.
+**Goal:** Step 2.6 — Anomaly alerts: extraction validation-failure rate, empty-output ops, stalled jobs. Add anomaly detection to the memory-watcher that fires alert records on extraction errors, high noop rates, and stalled event streams. Surface alerts in the mission-control watcher panel and watcher.jsonl. Done when an induced Zod validation failure triggers an alert visible in both panel + log.
 **Set at:** 2026-05-29
 **Expires:** 2026-05-30T06:00:00Z
 
 ```files
+lib/memory-watcher.mjs
+test/memory-watcher.test.mjs
+mission-control/src/app/api/watcher/route.ts
 mission-control/src/app/watcher/page.tsx
 mission-control/src/lib/hooks.ts
-memory-plan/plans/redesign/audits/step25_mc_watcher_panel/AUDIT_PRE.md
-memory-plan/plans/redesign/audits/step25_mc_watcher_panel/AUDIT_POST.md
+memory-plan/plans/redesign/audits/step26_anomaly_alerts/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step26_anomaly_alerts/AUDIT_POST.md
 memory-plan/plans/redesign/INVENTORY.md
 memory-plan/plans/redesign/VERSION
 memory-plan/plans/redesign/COMPONENT_REGISTRY.md
