@@ -408,6 +408,18 @@ function emitExtractEvent(sessionId, extraction) {
   );
 }
 
+function emitSynthesizeEvent(sessionId, trigger, synthesis) {
+  if (!localEventLog) return;
+  const event = buildMemoryEvent('memory.synthesized', sessionId, 'memory', {
+    trigger,
+    artifacts_written: synthesis.artifacts_written,
+    duration_ms: synthesis.duration_ms,
+  }, NODE_ID);
+  localEventLog.publishLocal(event).catch(err =>
+    log(`[event] memory.synthesized emit failed: ${err.message}`)
+  );
+}
+
 function emitErrorEvent(boundary, err, sessionId) {
   if (!localEventLog) return;
   const event = buildMemoryEvent('memory.error', sessionId || 'unknown', 'memory', {
@@ -921,6 +933,9 @@ async function handleTransitions(transitions, config) {
             if (result.extraction) {
               emitExtractEvent(result.extraction.session_id, result.extraction);
             }
+            if (result.synthesis) {
+              emitSynthesizeEvent(result.synthesis.session_id, 'interval', result.synthesis);
+            }
             if (memoryBudget && (result.added > 0 || result.merged > 0)) {
               memoryBudget.reload();
               log('  memory-budget: snapshot reloaded after flush');
@@ -962,6 +977,9 @@ async function handleTransitions(transitions, config) {
           });
           if (result.extraction) {
             emitExtractEvent(result.extraction.session_id, result.extraction);
+          }
+          if (result.synthesis) {
+            emitSynthesizeEvent(result.synthesis.session_id, 'session_end', result.synthesis);
           }
           if (result.added > 0 || result.merged > 0) {
             log(`  end-of-session flush [${result.mode || 'regex'}]: ${result.added} added, ${result.merged} merged`);
@@ -1248,6 +1266,9 @@ async function main() {
               log(`  nats-triggered flush [${result.mode || 'regex'}]: ${result.facts} facts, ${result.added} added, ${result.merged} merged`);
               if (result.extraction) {
                 emitExtractEvent(result.extraction.session_id, result.extraction);
+              }
+              if (result.synthesis) {
+                emitSynthesizeEvent(result.synthesis.session_id, 'manual', result.synthesis);
               }
               if (memoryBudget && (result.added > 0 || result.merged > 0)) {
                 memoryBudget.reload();

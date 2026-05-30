@@ -83,7 +83,7 @@ Each fix confirmed in the watcher.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 4 | 4.1 | v4.1 | [ ] | Generate structured MEMORY.md from entity/theme/decision tables (emits memory.synthesized) |
+| 4 | 4.1 | v4.1 | [x] | Generate structured MEMORY.md from entity/theme/decision tables (emits memory.synthesized) |
 | 4 | 4.2 | v4.2 | [ ] | Generate Obsidian concept notes (frontmatter + LLM body + wikilinks) |
 | 4 | 4.3 | v4.3 | [ ] | Generate Obsidian session notes (dated, auto-linked to concepts touched) |
 | 4 | 4.4 | v4.4 | [ ] | Session-end synthesis trigger |
@@ -93,7 +93,7 @@ Each fix confirmed in the watcher.
 | 4 | 4.8 | v4.8 | [ ] | Assemble a daily/weekly digest deterministically from the vault |
 | 4 | 4.9 | v4.9 | [ ] | Retire the lossy hourly daily-log writer |
 
-> **4.1:** end a session → MEMORY.md updates within seconds with structured sections; memory.synthesized event logged.
+> **4.1:** end a session → MEMORY.md updates within seconds with structured sections; memory.synthesized event logged. [DONE 2026-05-30 — runFlush returns a synthesis block; daemon emits memory.synthesized (trigger interval/session_end/manual) at the 3 flush sites, mirroring emitExtractEvent. Real synthesis via deployed runFlush → event published to live local-events-daedalus → watcher recorded+classified ok ({"op":"memory.synthesized","status":"ok","actor":"daemon-daedalus"}). Producer test green.]
 > **4.2:** relevant `concepts/*.md` notes appear with `[[wikilinks]]`.
 > **4.3:** a `sessions/<date>-<topic>.md` note appears, linking the concepts it touched.
 > **4.4:** synthesis fires on a session-end event (visible in watcher).

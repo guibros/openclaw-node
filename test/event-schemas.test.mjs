@@ -342,6 +342,20 @@ describe('buildMemoryEvent produces valid boundary events (Block 1 producers)', 
     assert.equal(result.data.node_id, 'daedalus');
   });
 
+  it('buildMemoryEvent("memory.synthesized") passes MemorySynthesizedSchema', () => {
+    const event = buildMemoryEvent('memory.synthesized', 'sess-test-002', 'memory', {
+      trigger: 'session_end',
+      artifacts_written: ['/Users/x/.openclaw/workspace/MEMORY.md'],
+      duration_ms: 42,
+    }, 'daedalus');
+    const result = MemorySynthesizedSchema.safeParse(event);
+    assert.equal(result.success, true, `Validation failed: ${JSON.stringify(result.error?.issues)}`);
+    assert.equal(result.data.data.trigger, 'session_end');
+    assert.deepEqual(result.data.data.artifacts_written, ['/Users/x/.openclaw/workspace/MEMORY.md']);
+    assert.equal(result.data.data.duration_ms, 42);
+    assert.equal(result.data.node_id, 'daedalus');
+  });
+
   it('buildMemoryEvent("memory.retrieved") passes MemoryRetrievedSchema', () => {
     const event = buildMemoryEvent('memory.retrieved', 'req-test-003', 'memory', {
       query_hash: 'a1b2c3d4e5f6a7b8',
