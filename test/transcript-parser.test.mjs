@@ -152,11 +152,69 @@ describe('parseLine', () => {
   });
 
   it('returns null for openclaw-gateway metadata types (session, model_change)', () => {
-    for (const skipType of ['session', 'model_change', 'thinking_level_change', 'tool_result']) {
+    for (const skipType of ['session', 'model_change', 'thinking_level_change']) {
       const line = JSON.stringify({ type: skipType, message: { role: 'user', content: 'x' } });
       const msg = parseLine(line, { format: 'openclaw-gateway' });
       assert.equal(msg, null, `${skipType} should be skipped`);
     }
+  });
+
+  it('parses gateway toolResult entry as role "tool" with metadata', () => {
+    const line = JSON.stringify({
+      type: 'message',
+      timestamp: '2026-02-08T10:43:48.733Z',
+      message: {
+        role: 'toolResult',
+        toolCallId: 'read_123',
+        toolName: 'read',
+        content: [{ type: 'text', text: 'file contents here' }],
+        isError: false,
+      },
+    });
+    const msg = parseLine(line, { format: 'openclaw-gateway' });
+    assert.ok(msg);
+    assert.equal(msg.role, 'tool');
+    assert.equal(msg.content, 'file contents here');
+    assert.equal(msg.metadata.toolName, 'read');
+    assert.equal(msg.metadata.toolCallId, 'read_123');
+    assert.equal(msg.metadata.isError, false);
+  });
+
+  it('parses gateway assistant message with toolCall content blocks', () => {
+    const line = JSON.stringify({
+      type: 'message',
+      timestamp: '2026-02-08T10:43:12.071Z',
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Let me read that file.' },
+          { type: 'toolCall', name: 'read', arguments: { file_path: '/tmp/test.md' } },
+        ],
+      },
+    });
+    const msg = parseLine(line, { format: 'openclaw-gateway' });
+    assert.ok(msg);
+    assert.equal(msg.role, 'assistant');
+    assert.ok(msg.content.includes('Let me read that file.'));
+    assert.ok(msg.content.includes('[tool_call: read('));
+    assert.ok(msg.content.includes('/tmp/test.md'));
+  });
+
+  it('preserves gateway assistant message with ONLY toolCall content (no text)', () => {
+    const line = JSON.stringify({
+      type: 'message',
+      timestamp: '2026-02-08T10:43:12.071Z',
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'toolCall', name: 'exec', arguments: { command: 'ls' } },
+        ],
+      },
+    });
+    const msg = parseLine(line, { format: 'openclaw-gateway' });
+    assert.ok(msg, 'tool-call-only assistant message should not be dropped');
+    assert.equal(msg.role, 'assistant');
+    assert.ok(msg.content.includes('[tool_call: exec('));
   });
 
   it('returns null for unparseable JSON', () => {

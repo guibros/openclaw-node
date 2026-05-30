@@ -70,12 +70,12 @@ Each fix confirmed in the watcher.
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 3 | 3.1 | v3.1 | [x] | Fix skipIfExists truncation — re-import + append-delta for mid-stream sessions |
-| 3 | 3.2 | v3.2 | [ ] | Stop dropping tool_result / tool-call entries in the gateway transcript adapter |
+| 3 | 3.2 | v3.2 | [x] | Stop dropping tool_result / tool-call entries in the gateway transcript adapter |
 | 3 | 3.3 | v3.3 | [ ] | Populate mentions.turn_index (last-turn-of-tail stamp) |
 | 3 | 3.4 | v3.4 | [ ] | Make tolerant extraction coercion the running path |
 
 > **3.1:** an active session's later turns land in state.db (row count grows as turns arrive).
-> **3.2:** tool messages present in state.db for a session that had them.
+> **3.2:** tool messages present in state.db for a session that had them. [DONE 2026-05-29 — removed `tool_result` from GATEWAY_SKIP_TYPES; gateway adapter now handles `toolCall` content blocks (rendered as `[tool_call: name(args)]`) and maps `toolResult` role → `"tool"`. Verified: 4-message import includes role=tool + role=assistant with tool-call content.]
 > **3.3:** `SELECT COUNT(turn_index) FROM mentions WHERE created_at > now-1h` > 0.
 > **3.4:** watcher reports extraction success-rate >95% over a 10-session sample.
 
@@ -159,7 +159,7 @@ Nothing here starts until Blocks 0–6 close and local is observably healthy. Fe
 | 6 | L6 health | 5 | 36 |
 | 7 | G multi-node (deferred) | 4 | 40 |
 
-**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **3.2**.
+**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **3.3**.
 
 ### Atomicity revision log (vs the prior 33-step draft)
 - Block 0: 0.1 split into lib-symlink (0.1) + daemon-symlink/restart (0.2); old 0.3 split into NATS-install (0.3) + daemon↔NATS-wire (0.4).

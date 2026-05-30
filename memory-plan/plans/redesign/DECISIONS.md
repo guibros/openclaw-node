@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-05-29 — Step 3.2 closed: stop dropping tool_result / tool-call entries in the gateway transcript adapter
+
+**Decision.** Gateway adapter in `lib/transcript-parser.mjs` now preserves tool interactions. Three changes: (1) removed `tool_result` from `GATEWAY_SKIP_TYPES` — it was dead code (gateway format uses `type: "message"` with `role: "toolResult"`, never top-level `type: "tool_result"`) but expressed wrong intent; (2) `extractMessage` scans `message.content[]` for `toolCall` blocks and renders each as `[tool_call: name(args_json)]` text, so assistant messages with only tool calls are no longer silently dropped; (3) `role: "toolResult"` mapped to standard `"tool"` with `toolName`/`toolCallId`/`isError` in metadata. Noise-stripping (date headers, "Conversation info") gated to user/assistant only. VERSION `v3.1 → v3.2`.
+
+**Evidence.** Tests: 1419/0 (3 new: toolResult→tool role, assistant+toolCall content, toolCall-only not dropped). Runtime: verification import of a 5-entry gateway JSONL (session, user, assistant+toolCall, toolResult, assistant+text) → 4 messages stored: `[{role:user,n:1},{role:assistant,n:2},{role:tool,n:1}]`. Daemon PID 87276 clean after restart.
+
+**Consequences.** COMPONENT_REGISTRY 1.1 done-criteria for tool preservation now met. The `"tool"` role is a new value in the messages table (no CHECK constraint, structurally safe). The extraction pipeline (step 3.4) should be checked to confirm it handles tool-role messages appropriately. FTS indexes tool content automatically.
+
+---
+
 ## 2026-05-29 — Step 2.5 closed: mission-control panel UI (live op stream + silent-failures view)
 
 **Decision.** `/watcher` page added to mission-control at `mission-control/src/app/watcher/page.tsx`. A `useWatcher(limit, status?)` SWR hook added to `src/lib/hooks.ts`. Page has two tab views: "Stream" (all events, 3s poll) and "Silent Failures" (merged noop+error events). Health card at top shows store row counts, WAL sizes, and drift status from the latest health probe. Follows the observability page pattern (terminal-style, monospace, status-colored). VERSION `v2.4 → v2.5`.

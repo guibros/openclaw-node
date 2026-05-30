@@ -30,12 +30,12 @@ Status legend:
 
 **Gap:**
 - ~~`skipIfExists: true` truncating mid-stream sessions~~ CLOSED 3.1: `importSession()` now uses append-delta — checks existing message_count, inserts only new turns, upserts session row with `ON CONFLICT(id) DO UPDATE`. Verified: test shows 2→4 message growth on re-import.
-- Tool calls + tool results silently dropped by the openclaw-gateway adapter (`transcript-parser.mjs:82-85`) — `GATEWAY_SKIP_TYPES` includes `tool_result`.
+- ~~Tool calls + tool results silently dropped by the openclaw-gateway adapter~~ CLOSED 3.2: removed `tool_result` from `GATEWAY_SKIP_TYPES`; gateway adapter now handles `toolCall` content blocks (rendered as `[tool_call: name(args)]`) and maps `toolResult` role → `"tool"` with toolName/toolCallId/isError metadata. Verified: 4-message import includes role=tool + role=assistant with tool-call content.
 - Code is now deployed via symlink (steps 0.1/0.2); F-H10/F-H11/F-H12 fixes are live.
 
 **Done-criteria for closure:**
 - ~~`skipIfExists` append-delta implemented~~ ✓ (3.1)
-- `tool_result` no longer in skip set (or explicitly justified as out-of-scope); verified by query showing tool messages present
+- ~~`tool_result` no longer in skip set; tool messages present~~ ✓ (3.2)
 - ~~Deployed code matches repo~~ ✓ (0.1/0.2 symlinks)
 
 ---
