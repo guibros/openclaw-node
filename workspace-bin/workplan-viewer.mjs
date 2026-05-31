@@ -192,11 +192,16 @@ const planDocsMtime = (p) => {
 
 // Is the repo working tree dirty? (uncommitted work — the state the tick's
 // auto-pause keys on). Surfaced so a silent half-done step is visible.
-const treeDirty = () => {
-  try {
-    const r = spawnSync('git', ['status', '--short'], { encoding: 'utf8' });
-    return r.status === 0 && r.stdout.trim().length > 0;
-  } catch { return false; }
+// `git -C <plan.dir>` makes it cwd-independent; absolute-path fallback covers a
+// minimal launchd PATH where bare `git` isn't resolvable.
+const treeDirty = (p) => {
+  for (const bin of ['git', '/usr/bin/git']) {
+    try {
+      const r = spawnSync(bin, ['-C', p.dir, 'status', '--porcelain'], { encoding: 'utf8' });
+      if (r.status === 0) return r.stdout.trim().length > 0;
+    } catch { /* try next */ }
+  }
+  return false;
 };
 
 // If BLOCKED.md names an **External action:** (a human must do something), return
@@ -445,7 +450,7 @@ function planSummary(plan) {
     current_step: (rows.find(r => r.state === 'A') || rows.find(r => r.state === ' ') || null),
     latest_log: latestLog(plan)?.split('/').pop() || null,
     docs_mtime: planDocsMtime(plan),
-    tree_dirty: treeDirty(),
+    tree_dirty: treeDirty(plan),
     external_action: blockExternalAction(plan),
   };
 }
