@@ -133,6 +133,7 @@ function loadConfig() {
       sessionRecapMs: 600000,     // 10 min
       maintenanceMs: 1800000,     // 30 min
       obsidianSyncMs: 1800000,    // 30 min
+      synthesisMs: 1800000,       // 30 min — interval synthesis during active sessions (D2)
     },
     contextWindowTokens: 200000,     // active model's context window (override per LLM)
     memoryCharBudget: 2200,           // MEMORY.md character cap
@@ -723,7 +724,7 @@ function loadThrottleState() {
   return {
     lastRecap: 0, lastMaintenance: 0, lastObsidianSync: 0, lastTrustHealth: 0,
     lastClawvaultReflect: 0, lastClawvaultArchive: 0, lastClawvaultObserve: 0,
-    lastSessionImport: 0, lastHyperagentReflect: 0,
+    lastSessionImport: 0, lastHyperagentReflect: 0, lastSynthesis: 0,
   };
 }
 
@@ -731,7 +732,7 @@ function saveThrottleState(state) {
   fs.writeFileSync(THROTTLE_STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-async function runPhase2ThrottledWork(config) {
+async function runPhase2ThrottledWork(config, sessionState) {
   const now = Date.now();
   const throttle = loadThrottleState();
 
@@ -868,6 +869,37 @@ async function runPhase2ThrottledWork(config) {
           .catch(e => log(`  Phase 2: daily-log-writer failed: ${e.message}`))
       );
     }
+  }
+
+  // 30-min interval synthesis during active sessions (D2, step 4.5)
+  if (sessionState === STATES.ACTIVE && now - throttle.lastSynthesis >= config.intervals.synthesisMs) {
+    throttle.lastSynthesis = now;
+    stage1.push(
+      (async () => {
+        try {
+          const sources = loadTranscriptSources();
+          const currentJsonl = findCurrentJsonl(sources);
+          if (!currentJsonl) return;
+          const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
+          const budget = initMemoryBudget(config);
+          const result = await runFlush(currentJsonl, memoryMd, {
+            charBudget: budget.charBudget,
+            llmClient: getLlmClient(),
+            extractionStore: getExtractionStore(),
+          });
+          log(`  Phase 2: interval synthesis [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added`);
+          if (result.extraction) {
+            emitExtractEvent(result.extraction.session_id, result.extraction);
+          }
+          if (result.synthesis) {
+            emitSynthesizeEvent(result.synthesis.session_id, 'interval', result.synthesis);
+          }
+          if (memoryBudget && (result.added > 0 || result.merged > 0)) {
+            memoryBudget.reload();
+          }
+        } catch (e) { log(`  Phase 2: interval synthesis failed: ${e.message}`); emitErrorEvent('extract', e); }
+      })()
+    );
   }
 
   if (stage1.length > 0) {
@@ -1420,7 +1452,7 @@ async function main() {
 
       // 5. Phase 2: Throttled work (when ACTIVE or IDLE)
       if (sm.state === STATES.ACTIVE || sm.state === STATES.IDLE) {
-        await runPhase2ThrottledWork(config);
+        await runPhase2ThrottledWork(config, sm.state);
       }
 
       // 6. Persist state
