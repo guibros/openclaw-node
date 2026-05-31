@@ -609,6 +609,20 @@ function findCurrentJsonl(sources) {
   return all.length > 0 ? all[0].path : null; // most recent = current
 }
 
+function findJsonlBySessionId(sources, sessionId) {
+  if (!sessionId) return null;
+  const target = `${sessionId}.jsonl`;
+  for (const source of sources) {
+    if (!fs.existsSync(source.path)) continue;
+    const full = path.join(source.path, target);
+    try {
+      const stat = fs.statSync(full);
+      if (stat.size >= 50 * 1024) return full;
+    } catch { /* file doesn't exist in this source */ }
+  }
+  return null;
+}
+
 // ============================================================
 // PHASE 1: STATUS SYNC
 // Updates .daemon-state-${NODE_ID}.md from active-tasks.md (~5ms)
@@ -885,9 +899,32 @@ async function handleTransitions(transitions, config) {
   for (const t of transitions) {
     log(`State: ${t.from} → ${t.to} (session: ${t.sessionId?.slice(0, 8) || '?'})`);
 
-    // ACTIVE → ENDED: Quick cleanup before session switch
+    // ACTIVE → ENDED: Session-end synthesis + quick cleanup before session switch
     if (t.from === STATES.ACTIVE && t.to === STATES.ENDED) {
-      log('Session switched while active — running quick cleanup');
+      log('Session switched while active — running session-end synthesis + cleanup');
+
+      // Session-end synthesis: extract + synthesize the ending session (4.4)
+      const sources = loadTranscriptSources();
+      const endingJsonl = findJsonlBySessionId(sources, t.sessionId) || findCurrentJsonl(sources);
+      if (endingJsonl) {
+        try {
+          const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
+          const budget = initMemoryBudget(config);
+          const result = await runFlush(endingJsonl, memoryMd, {
+            charBudget: budget.charBudget,
+            llmClient: getLlmClient(),
+            extractionStore: getExtractionStore(),
+          });
+          if (result.extraction) {
+            emitExtractEvent(result.extraction.session_id, result.extraction);
+          }
+          if (result.synthesis) {
+            emitSynthesizeEvent(result.synthesis.session_id, 'session_end', result.synthesis);
+            log(`  session-end synthesis [${result.mode}]: ${result.synthesis.artifacts_written.length} artifacts, ${result.synthesis.duration_ms}ms`);
+          }
+        } catch (e) { log(`  session-end synthesis failed: ${e.message}`); emitErrorEvent('extract', e, t.sessionId); }
+      }
+
       const recap = path.join(WORKSPACE, 'bin/session-recap');
       const clawvault = path.join(WORKSPACE, config.clawvaultBin);
       const tasks = [];
@@ -980,6 +1017,7 @@ async function handleTransitions(transitions, config) {
           }
           if (result.synthesis) {
             emitSynthesizeEvent(result.synthesis.session_id, 'session_end', result.synthesis);
+            log(`  session-end synthesis [${result.mode}]: ${result.synthesis.artifacts_written.length} artifacts, ${result.synthesis.duration_ms}ms`);
           }
           if (result.added > 0 || result.merged > 0) {
             log(`  end-of-session flush [${result.mode || 'regex'}]: ${result.added} added, ${result.merged} merged`);

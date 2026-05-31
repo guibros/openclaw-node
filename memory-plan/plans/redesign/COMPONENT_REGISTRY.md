@@ -56,6 +56,7 @@ Status legend:
 - ~~`mentions.turn_index` always NULL~~ CLOSED 3.3: `storeExtractionResult` accepts `opts.turnIndex`; `runFlush` passes `messageCount`.
 - ~~LLM returning extractions missing required arrays~~ CLOSED 3.4: `coerceExtractionResult` tolerates missing arrays; 10/10 real session success rate.
 - ~~No concept note generation in synthesis path~~ CLOSED 4.2: `runFlush` LLM path calls `generateConceptNotes({ db, client, respectPrivacy:false, maxConcepts:10 })` after MEMORY.md generation; concept note paths included in `artifacts_written`.
+- ~~Session-end synthesis not triggered on ACTIVE→ENDED (session switch)~~ CLOSED 4.4: both IDLE→ENDED and ACTIVE→ENDED handlers now call `runFlush` + `emitSynthesizeEvent('session_end')`. Added `findJsonlBySessionId` for session-switch accuracy. Explicit synthesis logging at both paths.
 - Deployed code matches repo (symlinks from 0.1/0.2).
 
 **Done-criteria for closure:**

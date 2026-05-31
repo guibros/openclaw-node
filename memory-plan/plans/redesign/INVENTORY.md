@@ -86,7 +86,7 @@ Each fix confirmed in the watcher.
 | 4 | 4.1 | v4.1 | [x] | Generate structured MEMORY.md from entity/theme/decision tables (emits memory.synthesized) |
 | 4 | 4.2 | v4.2 | [x] | Generate Obsidian concept notes (frontmatter + LLM body + wikilinks) |
 | 4 | 4.3 | v4.3 | [x] | Generate Obsidian session notes (dated, auto-linked to concepts touched) |
-| 4 | 4.4 | v4.4 | [ ] | Session-end synthesis trigger |
+| 4 | 4.4 | v4.4 | [x] | Session-end synthesis trigger |
 | 4 | 4.5 | v4.5 | [ ] | 30-min-while-active synthesis trigger |
 | 4 | 4.6 | v4.6 | [ ] | Deploy consolidation module; verify one manual cycle (emits memory.decayed/promoted) |
 | 4 | 4.7 | v4.7 | [ ] | Install consolidation scheduler (plist) on the cadence |
@@ -96,7 +96,7 @@ Each fix confirmed in the watcher.
 > **4.1:** end a session → MEMORY.md updates within seconds with structured sections; memory.synthesized event logged. [DONE 2026-05-30 — runFlush returns a synthesis block; daemon emits memory.synthesized (trigger interval/session_end/manual) at the 3 flush sites, mirroring emitExtractEvent. Real synthesis via deployed runFlush → event published to live local-events-daedalus → watcher recorded+classified ok ({"op":"memory.synthesized","status":"ok","actor":"daemon-daedalus"}). Producer test green.]
 > **4.2:** relevant `concepts/*.md` notes appear with `[[wikilinks]]`. [DONE 2026-05-30 — wired `generateConceptNotes` into `runFlush` LLM path (after MEMORY.md gen, `{ respectPrivacy:false, maxConcepts:10 }`). Real generation against production state.db (68 entities above threshold): concept notes written to `~/.openclaw/obsidian-local/concepts/` with YAML frontmatter (`type:concept`, `related: [[[wikilinks]]]`), LLM body (qwen3:8b), decisions, session links. `artifacts_written` now includes concept paths.]
 > **4.3:** a `sessions/<date>-<topic>.md` note appears, linking the concepts it touched. [DONE 2026-05-31 — `lib/obsidian-session-notes.mjs` (impl by tick) wired into runFlush after concept notes; tests green. Operator-verified: `generateSessionNote` on real session `e7ccaaf9` produced `2026-03-08-gui-openclaw-nats-jetstream-e7ccaaf9.md` with `[[wikilinks]]` to its 35 concepts. Tick had blocked at Phase 5b (verification command not in allowedTools) — see f5e1f9b observability fixes.]
-> **4.4:** synthesis fires on a session-end event (visible in watcher).
+> **4.4:** synthesis fires on a session-end event (visible in watcher). [DONE 2026-05-31 — fixed ACTIVE->ENDED gap (was quick-cleanup only, now runs full synthesis); added `findJsonlBySessionId` for session-switch accuracy; added explicit synthesis logging at both IDLE->ENDED and ACTIVE->ENDED handlers. Runtime: daemon restarted (PID 27452); `memory.synthesized` event with `trigger:session_end` recorded in watcher (`{"op":"memory.synthesized","status":"ok","actor":"daemon-daedalus","session":"step44-verify"}`). Tests 1444/0.]
 > **4.5:** synthesis fires on the 30-min interval during a long active session (visible in watcher).
 > **4.6:** `consolidate.mjs` runs once manually; entities_archived written OR a summary regenerated; decay/promote events logged.
 > **4.7:** scheduler installed (`launchctl list`); a cycle fires on cadence unattended.
