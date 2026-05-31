@@ -1,7 +1,7 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** At v4.3 (Block 4: 4.1–4.3 closed; next 4.4). No human driver active. Tick chain is currently **disabled** — awaiting operator decision on re-enable mode (hybrid vs allowlist-verification). When the tick runs it self-sets its per-step scope.
+**Goal:** At v4.3 (Block 4: 4.1–4.3 closed; next 4.4). No human driver active. Tick chain is **disabled** — awaiting operator decision on re-enable mode. When the tick runs it self-sets its per-step scope.
 **Set at:** 2026-05-31
 **Expires:** no-expiry
 
