@@ -190,6 +190,25 @@ const planDocsMtime = (p) => {
   return max;
 };
 
+// Is the repo working tree dirty? (uncommitted work — the state the tick's
+// auto-pause keys on). Surfaced so a silent half-done step is visible.
+const treeDirty = () => {
+  try {
+    const r = spawnSync('git', ['status', '--short'], { encoding: 'utf8' });
+    return r.status === 0 && r.stdout.trim().length > 0;
+  } catch { return false; }
+};
+
+// If BLOCKED.md names an **External action:** (a human must do something), return
+// it — so the viewer can show "needs you" rather than a generic block.
+const blockExternalAction = (p) => {
+  try {
+    const m = fs.readFileSync(path.join(p.dir, 'BLOCKED.md'), 'utf8')
+      .match(/\*\*External action:\*\*\s*(.+)/i);
+    return m ? m[1].trim() : null;
+  } catch { return null; }
+};
+
 function inventoryRows(plan) {
   let raw;
   try { raw = fs.readFileSync(path.join(plan.dir, 'INVENTORY.md'), 'utf8'); }
@@ -426,6 +445,8 @@ function planSummary(plan) {
     current_step: (rows.find(r => r.state === 'A') || rows.find(r => r.state === ' ') || null),
     latest_log: latestLog(plan)?.split('/').pop() || null,
     docs_mtime: planDocsMtime(plan),
+    tree_dirty: treeDirty(),
+    external_action: blockExternalAction(plan),
   };
 }
 
@@ -1024,6 +1045,7 @@ const HTML = String.raw`<!doctype html>
     <span class="badge"><span class="key">progress</span><span class="val" id="h-progress">—</span></span>
     <span class="badge" id="h-lock-wrap"><span class="key">lock</span><span class="val" id="h-lock">—</span></span>
     <span class="badge" id="h-block-wrap"><span class="key">block</span><span class="val" id="h-block">—</span></span>
+    <span class="badge" id="h-tree-wrap"><span class="key">tree</span><span class="val" id="h-tree">—</span></span>
     <span class="spacer"></span>
     <span class="step" id="h-step"></span>
     <button class="pause-btn" id="notify-toggle" title="Toggle step/block notifications">🔔 Notify</button>
@@ -1306,8 +1328,11 @@ async function refreshState() {
   $('h-progress').textContent = s.closed_steps + '/' + s.total_steps;
   $('h-lock').textContent = s.locked ? 'held' : 'free';
   $('h-lock-wrap').className = 'badge ' + (s.locked ? 'warn' : 'ok');
-  $('h-block').textContent = s.blocked ? 'BLOCKED' : 'clear';
-  $('h-block-wrap').className = 'badge ' + (s.blocked ? 'bad' : 'ok');
+  $('h-block').textContent = s.external_action ? '🙋 needs you' : (s.blocked ? 'BLOCKED' : 'clear');
+  $('h-block-wrap').className = 'badge ' + ((s.blocked || s.external_action) ? 'bad' : 'ok');
+  $('h-block-wrap').title = s.external_action || (s.blocked ? 'plan blocked — see BLOCKED.md' : 'no block');
+  $('h-tree').textContent = s.tree_dirty ? 'dirty' : 'clean';
+  $('h-tree-wrap').className = 'badge ' + (s.tree_dirty ? 'warn' : 'ok');
   $('h-step').textContent = s.current_step
     ? (s.current_step.step + '  ' + s.current_step.version + '  ' + s.current_step.desc).slice(0, 90)
     : '';

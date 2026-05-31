@@ -105,6 +105,26 @@ maybe_autopause() {
   launchctl bootout  "${target}" >/dev/null 2>&1 || true
 }
 
+# Safety net: when a tick stalls — exits leaving a dirty tree on a clean VERSION
+# without closing the step or writing its own BLOCKED.md — write BLOCKED.md so the
+# stall is a LOUD, visible signal (viewer shows blocked + needs-you), never a
+# silent auto-pause. The **External action:** field tells the operator what to do.
+write_stall_block() {
+  local version="$1" dirty="$2"
+  [ -f "${BLOCK_FILE}" ] && return 0   # never clobber a real, claude-written block
+  local nextdesc; nextdesc=$(printf '%s' "${NEXT}" | awk -F'|' '{print $2": "$3}')
+  {
+    printf '# CONTINUATION_BLOCKED — %s\n\n' "$(ts)"
+    printf '**Step**: %s\n' "${nextdesc:-unknown}"
+    printf '**Phase you were in**: unknown — a prior tick exited without closing the step or self-blocking\n'
+    printf '**Trigger**: silent stall — tree dirty on clean VERSION=%s\n\n' "${version}"
+    printf '## What failed\n\nThe previous tick left uncommitted changes but did not bump VERSION or write BLOCKED.md — the silent half-done state the chain must never enter. The chain auto-paused to avoid compounding it.\n\n'
+    printf '**External action:** operator must review the uncommitted work below, then either finish + commit the step or revert it, and delete this file to resume.\n\n'
+    printf '## State at block\n\n- VERSION: %s\n- Working tree (git status --short):\n\n  ```\n%s\n  ```\n' "${version}" "$(printf '%s' "${dirty}" | sed 's/^/  /')"
+  } > "${BLOCK_FILE}"
+  log "wrote ${BLOCK_FILE} — silent-stall safety net (operator action required)"
+}
+
 if [ -f "${BLOCK_FILE}" ]; then
   log "skip: ${BLOCK_FILE} present — operator must clear before next tick"
   maybe_autopause "BLOCKED.md present"; exit 0
@@ -117,6 +137,7 @@ if [ -n "${DIRTY}" ]; then
     *-pre|*-mid) log "info: tree dirty but VERSION=${VERSION} (in-flight); proceeding" ;;
     *) log "skip: tree dirty on clean VERSION=${VERSION} — unexpected; not invoking claude"
        printf '%s\n' "${DIRTY}" | sed 's/^/        /'
+       write_stall_block "${VERSION}" "${DIRTY}"
        maybe_autopause "dirty tree on clean VERSION"; exit 0 ;;
   esac
 fi
@@ -161,7 +182,7 @@ ln -sfn "$(basename "${TICK_LOG}")" "${CURRENT_LINK}"
   printf '## Redesign tick ended: %s\n' "$(ts)"
 } >>"${TICK_LOG}" 2>&1
 
-TICK_DURATION=$(( $(date +%s) - "${TICK_START_EPOCH:-$(date +%s)}" ))
+TICK_DURATION=$(( $(date +%s) - ${TICK_START_EPOCH:-0} ))
 log "claude exited rc=${CLAUDE_RC:-?} after ${TICK_DURATION}s"
 
 DIGEST_FILE="${HOME}/.openclaw/workspace/memory/redesign-progress.md"

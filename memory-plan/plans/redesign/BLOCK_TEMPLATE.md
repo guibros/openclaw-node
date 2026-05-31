@@ -12,6 +12,7 @@ after addressing the cause; the next tick will then run normally.
 **Step**: <NN> (`vX.Y-<phase>`)
 **Phase you were in**: <Phase 1 | Phase 4 | Phase 5 | Phase 7 | Phase 8 | Phase 8.5 | Phase 9>
 **Trigger**: <one-line cause — one of the §6 block triggers from FRAMEWORK.md>
+**External action:** <the single concrete thing the operator must DO — run a command, approve a tool, manipulate a GUI. The viewer surfaces this as "needs you". Omit the line only if no human action is required.>
 
 ## What failed
 
