@@ -61,3 +61,15 @@ This file is always-writeable (the PreToolUse hook exempts it).
 - **Who-touches-next:** whoever next modifies the daemon shutdown path. Fix: hoist `let healthProbeTimer = null;` to module scope alongside other timers.
 
 ---
+
+## 2026-06-01 — inject analysis LLM 1s timeout always fails with qwen3:8b
+
+**Found while:** checking Ollama availability (operator request) before step 5.3.
+
+**Symptom:** `/memory/inject` always returns `analysis.mode: embedding-fallback` with `fallbackReason: llm-error:llm-client local timeout`, even with Ollama healthy and qwen3:8b warm.
+
+**Root cause:** `lib/llm-client.mjs:207` — the query-analysis path aborts with "llm-client local timeout" at `genOpts.waitTimeoutMs ?? 1000` (1 second, "analyses are short by design"). But a warm qwen3:8b analysis call measures ~2.7s (cold ~9.6s). The 1s wall is shorter than the model's real latency, so the LLM analysis step can NEVER succeed with this model → every inject falls back to embedding-only (no intent/sentiment shaping).
+
+**Evidence:** Ollama v0.24.0 up, qwen3:8b resident in VRAM (10.7GB); direct `/api/generate` warm = 2.7s total. Inject query returned concepts:7/decisions:3/snippets:3 but mode=embedding-fallback.
+
+**Impact:** retrieval still works (embeddings warm), but loses LLM-shaped analysis. **Directly affects step 5.3** (verify all 5 channels via the full pipeline) — the analysis-gated behavior won't exercise unless this timeout is raised. Likely needs: raise `waitTimeoutMs` for the analysis call to ~5–10s, OR a smaller/faster analysis model, OR make it a config knob. Triage before/within 5.3.
