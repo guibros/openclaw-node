@@ -1,7 +1,7 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** Blocks 0–6 COMPLETE at v6.5. Post-completion UI: Memory Content browser + watcher events expand into a full tree-style detail panel (event spec + payload + session content). Tick chain LEFT DISABLED. No human driver active.
+**Goal:** Blocks 0–6 COMPLETE at v6.5. Post-completion UI+events: Memory Content browser, watcher detail panel, and memory events now carry actual content (promoted/decayed names, extracted entities+decisions, retrieved query+results, injected block preview) — schemas extended, watcher renders it. Tick chain LEFT DISABLED. No human driver active.
 **Set at:** 2026-06-01
 **Expires:** no-expiry
 
