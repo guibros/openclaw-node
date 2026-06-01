@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity, Radar, RotateCcw, Eye } from "lucide-react";
+import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity, Radar, RotateCcw, Eye, Brain } from "lucide-react";
 import { useState, useEffect } from "react";
 import { LiveStream } from "@/components/board/live-stream";
 
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/roadmap", label: "Roadmap", icon: GitBranch },
   { href: "/burndown", label: "Burndown", icon: BarChart3 },
   { href: "/memory", label: "Memory Search", icon: Search },
+  { href: "/memory-content", label: "Memory Content", icon: Brain },
   { href: "/souls", label: "Soul Evolution", icon: Users },
   { href: "/live", label: "Live Chat", icon: MessageCircle },
   { href: "/graph", label: "Knowledge Graph", icon: Network },

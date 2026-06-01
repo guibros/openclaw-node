@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Activity, AlertTriangle, Bell, Database, HardDrive } from "lucide-react";
-import { useWatcher, WatcherEvent, WatcherAlert, WatcherHealth } from "@/lib/hooks";
+import { useWatcher, useMemoryContent, WatcherEvent, WatcherAlert, WatcherHealth } from "@/lib/hooks";
 
 function statusColor(status?: string): string {
   if (status === "error") return "text-red-400";
@@ -157,32 +157,73 @@ function HealthCard({ health }: { health: WatcherHealth }) {
   );
 }
 
-function EventRow({ event }: { event: WatcherEvent }) {
+// Drill-down: the actual content tied to one session (real decisions + entities).
+function SessionContent({ session }: { session: string }) {
+  const { decisions, entities, isLoading } = useMemoryContent(undefined, session);
+  if (isLoading) return <div className="px-[80px] py-2 text-[11px] text-muted-foreground">loading content…</div>;
+  if (decisions.length === 0 && entities.length === 0)
+    return <div className="px-[80px] py-2 text-[11px] text-muted-foreground italic">No stored content tied to this session.</div>;
   return (
-    <div className={`flex items-center gap-0 px-4 py-[3px] font-mono text-[11px] border-b border-border/40 ${statusBg(event.status)}`}>
-      <span className="text-muted-foreground w-[65px] shrink-0 tabular-nums">
-        {fmtTs(event.ts)}
-      </span>
-      <span className={`w-[50px] shrink-0 ${statusColor(event.status)}`}>
-        <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${statusBadge(event.status)}`}>
-          {event.status || "ok"}
-        </span>
-      </span>
-      <span className="text-foreground w-[100px] shrink-0 truncate">
-        {opLabel(event.op)}
-      </span>
-      <span className="truncate flex-1 min-w-0">
-        <span className="text-foreground">
-          {eventDetail(event.op, event.data as Record<string, unknown> | null)}
-        </span>
-        {event.session ? (
-          <span className="text-muted-foreground"> · {event.session.slice(0, 8)}</span>
-        ) : null}
-      </span>
-      <span className={`w-[55px] shrink-0 text-right tabular-nums ${statusColor(event.status)}`}>
-        {fmtDuration(event.duration_ms)}
-      </span>
+    <div className="px-[80px] py-2 space-y-2 bg-muted/20 border-b border-border/40">
+      {entities.length > 0 && (
+        <div className="text-[11px]">
+          <div className="text-muted-foreground mb-0.5">entities</div>
+          <div className="flex flex-wrap gap-1">
+            {entities.slice(0, 24).map((e, i) => (
+              <span key={i} className="rounded bg-muted/60 px-1.5 py-0.5 text-foreground">{e.name}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {decisions.length > 0 && (
+        <div className="text-[11px]">
+          <div className="text-muted-foreground mb-0.5">decisions</div>
+          {decisions.slice(0, 8).map((d, i) => (
+            <div key={i} className="mb-1">
+              <span className="text-foreground">• {d.decision}</span>
+              <span className="text-muted-foreground"> — {d.rationale}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function EventRow({ event }: { event: WatcherEvent }) {
+  const [open, setOpen] = useState(false);
+  const drillable = !!event.session && event.op.startsWith("memory.");
+  return (
+    <>
+      <div
+        onClick={() => drillable && setOpen((o) => !o)}
+        className={`flex items-center gap-0 px-4 py-[3px] font-mono text-[11px] border-b border-border/40 ${statusBg(event.status)} ${drillable ? "cursor-pointer hover:bg-muted/40" : ""}`}
+      >
+        <span className="text-muted-foreground w-[65px] shrink-0 tabular-nums">
+          {fmtTs(event.ts)}
+        </span>
+        <span className={`w-[50px] shrink-0 ${statusColor(event.status)}`}>
+          <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${statusBadge(event.status)}`}>
+            {event.status || "ok"}
+          </span>
+        </span>
+        <span className="text-foreground w-[100px] shrink-0 truncate">
+          {drillable ? (open ? "▾ " : "▸ ") : ""}{opLabel(event.op)}
+        </span>
+        <span className="truncate flex-1 min-w-0">
+          <span className="text-foreground">
+            {eventDetail(event.op, event.data as Record<string, unknown> | null)}
+          </span>
+          {event.session ? (
+            <span className="text-muted-foreground"> · {event.session.slice(0, 8)}</span>
+          ) : null}
+        </span>
+        <span className={`w-[55px] shrink-0 text-right tabular-nums ${statusColor(event.status)}`}>
+          {fmtDuration(event.duration_ms)}
+        </span>
+      </div>
+      {open && event.session && <SessionContent session={event.session} />}
+    </>
   );
 }
 

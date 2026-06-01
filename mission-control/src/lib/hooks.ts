@@ -905,6 +905,40 @@ export function useWatcher(limit = 50, status?: string) {
   };
 }
 
+// --- Memory Content (live state.db: the actual remembered content) ---
+
+export interface MemoryEntity { name: string; type: string; mention_count: number; salience: number; last_seen: string; }
+export interface MemoryDecision { decision: string; rationale: string; confidence: number; session_id: string; created_at: string; }
+export interface MemoryTheme { label: string; hierarchy: string[]; mention_count: number; last_seen: string; }
+
+export function useMemoryContent(q?: string, session?: string) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (session) params.set("session", session);
+  const { data, error, isLoading } = useSWR<{
+    entities: MemoryEntity[];
+    decisions: MemoryDecision[];
+    themes: MemoryTheme[];
+    counts: { entities: number; decisions: number; themes: number };
+  }>(`/api/memory-content?${params.toString()}`, fetcher, { refreshInterval: 10_000 });
+  return {
+    entities: data?.entities ?? [],
+    decisions: data?.decisions ?? [],
+    themes: data?.themes ?? [],
+    counts: data?.counts,
+    error,
+    isLoading,
+  };
+}
+
+export function useEntityProse(name: string | null) {
+  const { data, isLoading } = useSWR<{ entity: MemoryEntity | null; prose: string | null }>(
+    name ? `/api/memory-content?entity=${encodeURIComponent(name)}` : null,
+    fetcher,
+  );
+  return { prose: data?.prose ?? null, entity: data?.entity ?? null, isLoading };
+}
+
 // --- Scheduler ---
 
 export function useSchedulerTick(intervalMs = 30_000) {

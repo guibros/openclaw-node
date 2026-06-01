@@ -9,6 +9,14 @@ export const DB_PATH =
 
 export const MEMORY_DIR = path.join(WORKSPACE_ROOT, "memory");
 export const MEMORY_MD = path.join(WORKSPACE_ROOT, "MEMORY.md");
+
+// The LIVE memory stores the daemon writes (siblings of WORKSPACE_ROOT, under
+// ~/.openclaw). state.db holds the actual remembered content (entities,
+// decisions, themes); obsidian-local holds the synthesized concept/session notes.
+export const STATE_DB_PATH =
+  process.env.STATE_DB_PATH || path.join(path.dirname(WORKSPACE_ROOT), "state.db");
+export const OBSIDIAN_DIR =
+  process.env.OBSIDIAN_DIR || path.join(path.dirname(WORKSPACE_ROOT), "obsidian-local");
 export const ACTIVE_TASKS_MD = path.join(MEMORY_DIR, "active-tasks.md");
 export const CLAWVAULT_DIR = path.join(WORKSPACE_ROOT, "memory-vault");
 export const CLAWVAULT_INDEX = path.join(CLAWVAULT_DIR, ".clawvault-index.json");
