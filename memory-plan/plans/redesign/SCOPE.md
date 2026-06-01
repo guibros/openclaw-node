@@ -1,7 +1,7 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** At v5.1 (Block 5 opened; next 5.2 — construct graphCache + refresh on synthesis cadence). No human driver active. Tick runs hybrid.
+**Goal:** At v5.2 (Block 5: 5.1–5.2 closed; next 5.3 — verify all 5 retrieval channels return, integration checkpoint). NOTE: 5.3 needs Ollama warm (the analysis LLM) or the inject path degrades to embedding-fallback. No human driver active. Tick runs hybrid.
 **Set at:** 2026-06-01
 **Expires:** no-expiry
 
