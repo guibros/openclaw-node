@@ -28,6 +28,7 @@ import {
   detectContradictions,
   evaluatePromotionCandidates,
 } from '../lib/consolidation.mjs';
+import { buildMemoryEvent } from '../lib/local-event-log.mjs';
 
 const DEFAULT_DB_PATH = path.join(os.homedir(), '.openclaw/state.db');
 
@@ -54,6 +55,8 @@ const DEFAULT_DB_PATH = path.join(os.homedir(), '.openclaw/state.db');
  * @param {object} [opts.client] — LLM client for summary generation
  * @param {AbortSignal} [opts.signal] — F-N100: hard-cap cancellation
  * @param {number} [opts.maxConcepts] — F-N101: cap per-cycle summary count
+ * @param {object} [opts.eventLog] — local event log instance (publishLocal method)
+ * @param {string} [opts.nodeId] — node identifier for event emission
  * @returns {Promise<object>} cycle results, including `aborted: true` and
  *   `abortedAt: '<step name>'` when the cycle stopped short.
  */
@@ -63,6 +66,8 @@ export async function runConsolidationCycle(opts = {}) {
   const db = opts.db || new Database(dbPath);
   const ownDb = !opts.db;
   const signal = opts.signal || null;
+  const eventLog = opts.eventLog || null;
+  const nodeId = opts.nodeId || process.env.OPENCLAW_NODE_ID || os.hostname();
 
   // Helper: returns true if the cycle should stop. We check this between
   // every step so a hard-cap fires deterministically rather than racing
@@ -87,7 +92,17 @@ export async function runConsolidationCycle(opts = {}) {
 
     // 2. Decay weights
     abortInfo = checkpoint('decay');
-    if (!abortInfo) decayResult = decayWeights(db);
+    if (!abortInfo) {
+      const decayStart = Date.now();
+      decayResult = decayWeights(db);
+      if (eventLog) {
+        const evt = buildMemoryEvent('memory.decayed', 'consolidation', 'memory', {
+          entities_decayed: decayResult.decayedEntities + decayResult.decayedDecisions,
+          duration_ms: Date.now() - decayStart,
+        }, nodeId);
+        eventLog.publishLocal(evt).catch(() => {});
+      }
+    }
 
     // 3. Reinforce co-occurrence
     if (!abortInfo) abortInfo = checkpoint('reinforce');
@@ -124,7 +139,17 @@ export async function runConsolidationCycle(opts = {}) {
 
     // 7. Evaluate promotion candidates
     if (!abortInfo) abortInfo = checkpoint('promotion');
-    if (!abortInfo) promotionResult = evaluatePromotionCandidates(db);
+    if (!abortInfo) {
+      const promoStart = Date.now();
+      promotionResult = evaluatePromotionCandidates(db);
+      if (eventLog) {
+        const evt = buildMemoryEvent('memory.promoted', 'consolidation', 'memory', {
+          entities_promoted: promotionResult.entityCandidates.length + promotionResult.decisionCandidates.length,
+          duration_ms: Date.now() - promoStart,
+        }, nodeId);
+        eventLog.publishLocal(evt).catch(() => {});
+      }
+    }
 
     const durationMs = Date.now() - startMs;
 
@@ -149,14 +174,33 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   const dbIdx = args.indexOf('--db');
   const vaultIdx = args.indexOf('--vault-path');
   const dryRun = args.includes('--dry-run');
+  const noEvents = args.includes('--no-events');
 
-  const opts = {};
+  const natsUrl = process.env.OPENCLAW_NATS || process.env.NATS_URL || 'nats://127.0.0.1:4222';
+  const nodeId = process.env.OPENCLAW_NODE_ID || os.hostname();
+
+  const opts = { nodeId };
   if (dbIdx !== -1 && args[dbIdx + 1]) opts.dbPath = args[dbIdx + 1];
   if (vaultIdx !== -1 && args[vaultIdx + 1]) opts.vaultPath = args[vaultIdx + 1];
   if (dryRun) opts.dryRun = true;
 
+  let nc = null;
+
+  // Connect to NATS for event emission (unless --no-events)
+  if (!noEvents) {
+    try {
+      const { connect } = await import('nats');
+      const { createLocalEventLog } = await import('../lib/local-event-log.mjs');
+      nc = await connect({ servers: natsUrl });
+      opts.eventLog = await createLocalEventLog(nc, nodeId);
+      console.log(`NATS connected (${natsUrl}), events will be emitted.`);
+    } catch (err) {
+      console.warn(`NATS unavailable (${err.message}); running without event emission.`);
+    }
+  }
+
   runConsolidationCycle(opts)
-    .then(result => {
+    .then(async result => {
       console.log('Consolidation cycle complete.');
       console.log(`  Duration: ${result.durationMs}ms`);
       console.log(`  Decayed: ${result.decayed.decayedEntities} entities, ${result.decayed.decayedDecisions} decisions, ${result.decayed.archivedEntities} archived`);
@@ -165,9 +209,14 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
       console.log(`  Summaries: ${result.summariesRegenerated.regenerated} regenerated`);
       console.log(`  Contradictions: ${result.contradictions.total} found`);
       console.log(`  Promotion candidates: ${result.promotionCandidates.entityCandidates.length} entities, ${result.promotionCandidates.decisionCandidates.length} decisions`);
+      if (nc) {
+        await nc.flush();
+        await nc.close();
+      }
     })
-    .catch(err => {
+    .catch(async err => {
       console.error('Consolidation cycle failed:', err.message);
+      if (nc) { try { await nc.close(); } catch {} }
       process.exit(1);
     });
 }
