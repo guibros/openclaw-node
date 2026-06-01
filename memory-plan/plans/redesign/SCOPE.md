@@ -1,7 +1,7 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** **MILESTONE — Blocks 0–6 (the entire local-first memory redesign) are COMPLETE** at v6.5 (36/40 steps; the 4 open are Block 7 federation, DEFERRED per DECISIONS D4). Tick chain is intentionally LEFT DISABLED — the next `[ ]` is deferred Block-7 work that must NOT auto-run. Recommend a full end-to-end review before any Block 7. No human driver active.
+**Goal:** Blocks 0–6 COMPLETE at v6.5 (local-first memory redesign done; 4 open steps = Block 7 federation, DEFERRED per DECISIONS D4). Tick chain intentionally LEFT DISABLED. No human driver active.
 **Set at:** 2026-06-01
 **Expires:** no-expiry
 
