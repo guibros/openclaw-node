@@ -1,7 +1,7 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** Blocks 0–6 COMPLETE at v6.5. Post-completion UI work: watcher now carries+renders per-op data; new Memory Content browser (/memory-content) surfaces the actual remembered content from live state.db; watcher events drill into a session's real entities/decisions. Tick chain LEFT DISABLED. No human driver active.
+**Goal:** Blocks 0–6 COMPLETE at v6.5. Post-completion UI: Memory Content browser + watcher events expand into a full tree-style detail panel (event spec + payload + session content). Tick chain LEFT DISABLED. No human driver active.
 **Set at:** 2026-06-01
 **Expires:** no-expiry
 
