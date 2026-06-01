@@ -1,8 +1,8 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** At v4.6 (Block 4: 4.1–4.6 closed; next 4.7 — consolidation scheduler plist). No human driver active. Tick runs hybrid (implements+tests, BLOCKED.md+External-action on runtime verify). Tick self-sets per-step scope.
-**Set at:** 2026-05-31
+**Goal:** At v4.7 (Block 4: 4.1–4.7 closed; next 4.8 — deterministic vault digest). No human driver active. Tick runs hybrid. Self-sets per-step scope.
+**Set at:** 2026-06-01
 **Expires:** no-expiry
 
 ```files
