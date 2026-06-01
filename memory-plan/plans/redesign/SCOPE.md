@@ -1,20 +1,11 @@
 # SCOPE — redesign plan
 
-**Status:** done
-**Goal:** Step 4.9 — Retire the lossy hourly daily-log writer (last Block-4 step; macro re-orient follows). BLOCK 4 COMPLETE.
+**Status:** idle
+**Goal:** At v4.9 — Block 4 COMPLETE (all 9 synthesis/wiki steps closed). Macro re-orient done. Next: Block 5 (L5 retrieval freshness), step 5.1 — knowledge.db incremental indexing.
 **Set at:** 2026-06-01
-**Expires:** 2026-06-02T06:00:00Z
+**Expires:** no-expiry
 
 ```files
-workspace-bin/memory-daemon.mjs
-workspace-bin/memory-maintenance.mjs
-workspace-bin/daily-log-writer.mjs
-memory-plan/plans/redesign/INVENTORY.md
-memory-plan/plans/redesign/VERSION
-memory-plan/plans/redesign/COMPONENT_REGISTRY.md
-memory-plan/plans/redesign/DECISIONS.md
-memory-plan/plans/redesign/audits/step49_retire_daily_log/AUDIT_PRE.md
-memory-plan/plans/redesign/audits/step49_retire_daily_log/AUDIT_POST.md
 ```
 
 ## How this file works
