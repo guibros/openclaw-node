@@ -432,6 +432,10 @@ function emitExtractEvent(sessionId, extraction) {
     themes_count: extraction.themes_count,
     mentions_count: extraction.mentions_count,
     decisions_count: extraction.decisions_count,
+    // The actual content extracted (capped samples), not just counts.
+    entity_names: extraction.entity_names,
+    theme_labels: extraction.theme_labels,
+    decision_texts: extraction.decision_texts,
     model: DEFAULT_MODEL,
     duration_ms: extraction.duration_ms,
   }, NODE_ID);

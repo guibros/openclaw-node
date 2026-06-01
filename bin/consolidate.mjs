@@ -94,8 +94,13 @@ export async function runConsolidationCycle(opts = {}) {
       const decayStart = Date.now();
       decayResult = decayWeights(db);
       if (eventLog) {
+        const archived = decayResult.archivedNames || [];
         const evt = buildMemoryEvent('memory.decayed', 'consolidation', 'memory', {
           entities_decayed: decayResult.decayedEntities + decayResult.decayedDecisions,
+          archived_count: decayResult.archivedEntities,
+          // Capped sample of WHICH entities were archived out (the meaningful loss).
+          archived_names: archived.slice(0, 20),
+          archived_more: Math.max(0, archived.length - 20),
           duration_ms: Date.now() - decayStart,
         }, nodeId);
         eventLog.publishLocal(evt).catch(() => {});
@@ -141,8 +146,12 @@ export async function runConsolidationCycle(opts = {}) {
       const promoStart = Date.now();
       promotionResult = evaluatePromotionCandidates(db);
       if (eventLog) {
+        const names = promotionResult.entityCandidates.map((e) => e.name).filter(Boolean);
         const evt = buildMemoryEvent('memory.promoted', 'consolidation', 'memory', {
           entities_promoted: promotionResult.entityCandidates.length + promotionResult.decisionCandidates.length,
+          // Capped sample of WHICH entities were promoted (highest-salience kept).
+          promoted_names: names.slice(0, 20),
+          promoted_more: Math.max(0, names.length - 20),
           duration_ms: Date.now() - promoStart,
         }, nodeId);
         eventLog.publishLocal(evt).catch(() => {});
