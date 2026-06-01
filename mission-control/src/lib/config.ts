@@ -17,6 +17,10 @@ export const STATE_DB_PATH =
   process.env.STATE_DB_PATH || path.join(path.dirname(WORKSPACE_ROOT), "state.db");
 export const OBSIDIAN_DIR =
   process.env.OBSIDIAN_DIR || path.join(path.dirname(WORKSPACE_ROOT), "obsidian-local");
+// ~/.openclaw — the root containing every memory store/log a watcher event can
+// point at (vault notes, the injections log, MEMORY.md). Read route is jailed here.
+export const OPENCLAW_ROOT = path.dirname(WORKSPACE_ROOT);
+export const INJECTIONS_LOG = path.join(WORKSPACE_ROOT, "logs", "memory-injections.jsonl");
 export const ACTIVE_TASKS_MD = path.join(MEMORY_DIR, "active-tasks.md");
 export const CLAWVAULT_DIR = path.join(WORKSPACE_ROOT, "memory-vault");
 export const CLAWVAULT_INDEX = path.join(CLAWVAULT_DIR, ".clawvault-index.json");

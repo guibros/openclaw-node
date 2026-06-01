@@ -197,9 +197,73 @@ function fmtVal(v: unknown): React.ReactNode {
   return String(v);
 }
 
+// Where the content an event reports actually lives (file or store reference).
+type Source = { label: string; file?: string; tail?: number; href?: string };
+function sourcesFor(event: WatcherEvent): Source[] {
+  const d = (event.data as Record<string, unknown>) || {};
+  const out: Source[] = [];
+  switch (event.op) {
+    case "memory.synthesized":
+      for (const f of (d.artifacts_written as string[]) || [])
+        out.push({ label: f.split("/").pop() || f, file: f });
+      break;
+    case "memory.injected":
+      out.push({ label: "memory-injections.jsonl (last 30)", file: "workspace/logs/memory-injections.jsonl", tail: 30 });
+      break;
+    case "memory.extracted":
+    case "memory.ingested":
+      if (event.session) out.push({ label: "stored content for this session →", href: `/memory-content?session=${event.session}` });
+      out.push({ label: "MEMORY.md", file: "workspace/MEMORY.md" });
+      break;
+    case "memory.promoted":
+      out.push({ label: "Memory Content (entities) →", href: "/memory-content" });
+      break;
+    case "memory.decayed":
+      out.push({ label: "Memory Content (entities) →", href: "/memory-content" });
+      out.push({ label: "entities_archived (state.db)", href: "/memory-content" });
+      break;
+    case "memory.retrieved":
+      out.push({ label: "Memory Content (what was searched) →", href: "/memory-content" });
+      break;
+  }
+  return out;
+}
+
+// An openable file reference: click to fetch + show its content inline.
+function FileLink({ src }: { src: Source }) {
+  const [content, setContent] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  if (src.href) {
+    return <a href={src.href} className="text-primary hover:underline block">{src.label}</a>;
+  }
+  const load = async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (content === null) {
+      const params = new URLSearchParams({ path: src.file! });
+      if (src.tail) params.set("tail", String(src.tail));
+      const r = await fetch(`/api/memory-file?${params}`).then((x) => x.json()).catch(() => null);
+      setContent(r?.content ?? r?.error ?? "(failed to load)");
+    }
+  };
+  return (
+    <div>
+      <button onClick={load} className="text-primary hover:underline text-left">
+        {open ? "▾ " : "▸ "}{src.label}
+      </button>
+      {open && content !== null && (
+        <pre className="mt-1 mb-2 p-2 bg-background/60 rounded text-[10px] whitespace-pre-wrap max-h-64 overflow-y-auto text-muted-foreground">
+          {content}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 // Full detail panel for one event: the interaction spec + payload + content touched.
 function EventDetailPanel({ event }: { event: WatcherEvent }) {
   const session = event.session || undefined;
+  const sources = sourcesFor(event);
   const { decisions, entities, themes, isLoading } = useMemoryContent(undefined, session);
   const data = (event.data as Record<string, unknown> | null) || {};
   const dataKeys = Object.keys(data).filter((k) => k !== "session_id");
@@ -222,6 +286,15 @@ function EventDetailPanel({ event }: { event: WatcherEvent }) {
           <Section title="Payload">
             {dataKeys.map((k) => (
               <KV key={k} k={k} v={fmtVal(data[k])} />
+            ))}
+          </Section>
+        )}
+
+        {/* Where this event's reported content actually lives (openable). */}
+        {sources.length > 0 && (
+          <Section title="Sources" count={sources.length}>
+            {sources.map((s, i) => (
+              <FileLink key={i} src={s} />
             ))}
           </Section>
         )}
