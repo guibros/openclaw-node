@@ -353,7 +353,8 @@ Status legend:
 **Gap:**
 - ~~No shared helper~~ CLOSED 6.1: `lib/sqlite-store.mjs` (`openStore`, `getVersion`, `setVersion`) sets WAL + foreign_keys + busy_timeout=5000 + integrity_check on every open.
 - ~~No `busy_timeout` on state.db or its extraction tables~~ CLOSED 6.2: all 19 production .mjs files routed through `openStore()` — every store gets WAL + foreign_keys + busy_timeout=5000 + integrity_check.
-- No schema versioning anywhere (F-Q401) — helper provides the mechanism; 6.3 migrates existing stores.
+- ~~No schema versioning anywhere (F-Q401)~~ CLOSED 6.3: all 4 store modules stamp `user_version=1` after migrations.
+- ~~No WAL checkpoint on shutdown~~ CLOSED 6.4: `closeStore(db)` in sqlite-store.mjs runs `wal_checkpoint(TRUNCATE)` + close. All stores wired. Daemon shutdown closes all 5 DB handles. Pre-existing scoping bug in shutdown handler fixed.
 - ~~knowledge.db never auto-updates~~ CLOSED 5.1: daemon Phase 2 incrementally indexes.
 - ~~graph-cache.db refresh job dormant~~ CLOSED 5.2: daemon Phase 2 refreshes on maintenance cadence.
 - `local-events/` now exists as JetStream stream (0.4).

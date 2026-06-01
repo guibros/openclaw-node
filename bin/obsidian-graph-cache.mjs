@@ -19,7 +19,7 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { watch } from 'node:fs';
-import { openStore, getVersion, setVersion } from '../lib/sqlite-store.mjs';
+import { openStore, closeStore, getVersion, setVersion } from '../lib/sqlite-store.mjs';
 import { buildGraph } from '../lib/obsidian-graph.mjs';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 import { getVaultPath } from '../lib/obsidian-vault.mjs';
@@ -293,7 +293,7 @@ export function createGraphCache(opts = {}) {
   function close() {
     stopWatcher();
     if (ownsDb) {
-      db.close();
+      closeStore(db);
     }
   }
 

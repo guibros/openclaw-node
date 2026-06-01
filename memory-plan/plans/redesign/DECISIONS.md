@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-01 — Step 6.4 closed: WAL checkpoint(TRUNCATE) on graceful shutdown
+
+**Decision.** `closeStore(db)` added to `lib/sqlite-store.mjs`: runs `PRAGMA wal_checkpoint(TRUNCATE)` (try-caught for readonly) then `db.close()`. All 4 store close methods (`session-store.mjs`, `extraction-store.mjs`, `hyperagent-store.mjs`, `obsidian-graph-cache.mjs`) wired through it. Daemon `shutdown()` extended to close all 5 open DB handles: graphCache (existing, now checkpoints), knowledgeDb (inline checkpoint+close), extractionStore, sessionStore, haStore (all via `.close()` → `closeStore`).
+
+**Bug fix.** `memoryWatcher` and `healthProbeTimer` were declared inside the NATS try block (lines 1348/1362) but referenced in `shutdown()` outside that block. This `ReferenceError` crashed the shutdown handler on every SIGTERM since step 2.3 — meaning watcher stop, injection server close, graph cache close, and NATS drain never ran. Fix: hoisted both declarations to the outer scope. 2 lines added, 2 removed.
+
+**Evidence.** Tests: 1486/0 (2 new: WAL-truncation verify, readonly-close verify). Runtime: `launchctl kickstart -k` → state.db-wal 3,580,312→0, knowledge.db-wal 449,112→0, graph-cache.db-wal 181,312→0. Daemon log: clean "Received SIGTERM — shutting down", no ReferenceError in `.err`.
+
+**No architectural decision needed.** Pure mechanical wiring.
+
+---
+
 ## 2026-06-01 — Step 6.2 closed: all production `new Database()` sites routed through openStore()
 
 **Decision.** 19 production `.mjs` files converted from `new Database(...)` to `openStore(...)`. Redundant manual pragma setting (WAL, foreign_keys, busy_timeout) removed from 8 files. Directory-creation boilerplate removed from 4 files. `probeStore` DI pattern in `memory-watcher.mjs` simplified (Database constructor parameter removed — `openStore` called directly with `integrityCheck: false`). Knowledge.db opens use `integrityCheck: false` (74MB, readonly).

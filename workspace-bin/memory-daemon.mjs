@@ -1307,6 +1307,8 @@ async function main() {
 
   // Optional NATS subscription for external compaction signals
   let natsConn = null;
+  let memoryWatcher = null;
+  let healthProbeTimer = null;
   try {
     const { connect: natsConnect } = require('nats');
     const { natsConnectOpts } = require('../lib/nats-resolve');
@@ -1345,7 +1347,6 @@ async function main() {
     }
 
     // Initialize memory watcher (subscribes to event stream, persists per-op JSONL)
-    let memoryWatcher = null;
     if (localEventLog) {
       try {
         memoryWatcher = await createMemoryWatcher(natsConn, NODE_ID, {
@@ -1359,7 +1360,6 @@ async function main() {
     // Store-health probes — periodic snapshots of DB row counts, WAL sizes, drift
     const HEALTH_PROBE_INTERVAL = 5 * 60 * 1000;
     const watcherOutputPath = path.join(os.homedir(), '.openclaw', 'watcher.jsonl');
-    let healthProbeTimer = null;
     const runProbe = async () => {
       try {
         const probe = await runStoreHealthProbes();
@@ -1470,6 +1470,19 @@ async function main() {
     }
     if (_graphCache) {
       try { _graphCache.close(); } catch (_) {}
+    }
+    if (_knowledgeDb) {
+      try { _knowledgeDb.pragma('wal_checkpoint(TRUNCATE)'); } catch (_) {}
+      try { _knowledgeDb.close(); } catch (_) {}
+    }
+    if (_extractionStore) {
+      try { _extractionStore.close(); } catch (_) {}
+    }
+    if (_sessionStore) {
+      try { _sessionStore.close(); } catch (_) {}
+    }
+    if (_haStore) {
+      try { _haStore.close(); } catch (_) {}
     }
     if (natsConn) {
       try { await natsConn.drain(); } catch (_) {}

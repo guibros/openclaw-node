@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { openStore, getVersion, setVersion } from '../lib/sqlite-store.mjs';
+import { openStore, closeStore, getVersion, setVersion } from '../lib/sqlite-store.mjs';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -102,5 +102,35 @@ describe('getVersion / setVersion', () => {
     const db2 = openStore(dbPath);
     assert.equal(getVersion(db2), 7);
     db2.close();
+  });
+});
+
+describe('closeStore', () => {
+  it('checkpoints WAL and closes the database', () => {
+    const dbPath = path.join(TMP_DIR, 'close.db');
+    const db = openStore(dbPath);
+    db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY)');
+    db.prepare('INSERT INTO t VALUES (1)').run();
+
+    const walPath = dbPath + '-wal';
+    assert.ok(fs.existsSync(walPath), 'WAL file should exist before close');
+    const walSize = fs.statSync(walPath).size;
+    assert.ok(walSize > 0, 'WAL should have content before close');
+
+    closeStore(db);
+
+    const walAfter = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;
+    assert.equal(walAfter, 0, 'WAL should be truncated after closeStore');
+    assert.throws(() => db.pragma('journal_mode'), /not open/i);
+  });
+
+  it('still closes even if checkpoint fails (readonly)', () => {
+    const dbPath = path.join(TMP_DIR, 'ro-close.db');
+    const setup = openStore(dbPath);
+    setup.close();
+
+    const db = openStore(dbPath, { readonly: true });
+    closeStore(db);
+    assert.throws(() => db.pragma('journal_mode'), /not open/i);
   });
 });

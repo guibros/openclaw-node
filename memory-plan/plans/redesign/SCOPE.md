@@ -1,11 +1,24 @@
 # SCOPE — redesign plan
 
-**Status:** idle
-**Goal:** At v6.3 (Block 6: 6.1–6.3 closed; next 6.4 — WAL checkpoint TRUNCATE on graceful shutdown). No human driver active. Tick runs hybrid.
+**Status:** done
+**Goal:** Step 6.4 closed — WAL checkpoint (TRUNCATE) on graceful shutdown. All stores checkpoint+close in daemon shutdown. Pre-existing scoping bug fixed.
 **Set at:** 2026-06-01
-**Expires:** no-expiry
+**Expires:** 2026-06-02T06:00:00Z
 
 ```files
+lib/sqlite-store.mjs
+lib/session-store.mjs
+lib/extraction-store.mjs
+lib/hyperagent-store.mjs
+bin/obsidian-graph-cache.mjs
+workspace-bin/memory-daemon.mjs
+test/sqlite-store.test.mjs
+memory-plan/plans/redesign/VERSION
+memory-plan/plans/redesign/INVENTORY.md
+memory-plan/plans/redesign/COMPONENT_REGISTRY.md
+memory-plan/plans/redesign/DECISIONS.md
+memory-plan/plans/redesign/audits/step64_wal_checkpoint_shutdown/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step64_wal_checkpoint_shutdown/AUDIT_POST.md
 ```
 
 ## How this file works
