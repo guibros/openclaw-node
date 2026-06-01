@@ -123,13 +123,13 @@ Each fix confirmed in the watcher.
 | 6 | 6.2 | v6.2 | [x] | Route all `new Database()` sites through the helper |
 | 6 | 6.3 | v6.3 | [x] | Schema-version migration for the existing populated stores |
 | 6 | 6.4 | v6.4 | [x] | WAL checkpoint (TRUNCATE) on graceful shutdown |
-| 6 | 6.5 | v6.5 | [ ] | Install health-watch; verify clean respawn + KeepAlive (no crash-loop) |
+| 6 | 6.5 | v6.5 | [x] | Install health-watch; verify clean respawn + KeepAlive (no crash-loop) |
 
 > **6.1:** opening a store via the helper sets all pragmas (PRAGMA readback). [DONE 2026-06-01 — `openStore(dbPath, opts)` in `lib/sqlite-store.mjs` (35 lines): sets WAL, foreign_keys=ON, busy_timeout=5000, runs integrity_check (opt-out via `integrityCheck:false`); `getVersion`/`setVersion` for user_version. 11 tests verify all readbacks. Runtime: file at `~/.openclaw/workspace/lib/sqlite-store.mjs` via symlink. Tests 1484/0. Opens Block 6.]
 > **6.2:** grep shows zero raw `new Database(` outside the helper. [DONE 2026-06-01 — 19 production .mjs files routed through `openStore()`. Redundant WAL/FK/busy_timeout pragmas + dir-creation removed from 8 files. probeStore DI pattern simplified. integrityCheck:false for knowledge.db + health probes. 5 CJS files (.js) remain raw (mission-control.db, not memory pipeline — OUT_OF_SCOPE). Tests 1484/0.]
 > **6.3:** every store reports a user_version. [DONE 2026-06-01 — all 4 store modules stamp user_version=1 after migrations via shared sqlite-store getVersion/setVersion (idempotent, post-migration). Operator-verified: PRAGMA user_version → 1 on state.db, knowledge.db, graph-cache.db (extraction-store shares state.db). 1484/0 tests. Impl by tick, blocked at 5b (DB read approval), closed by operator.]
 > **6.4:** WAL stays bounded across a day (no 331 MB-style bloat). [DONE 2026-06-01 — `closeStore(db)` added to sqlite-store.mjs: `wal_checkpoint(TRUNCATE)` + `db.close()`. All 4 store close methods wired through it. Daemon shutdown handler extended to close all 5 DB handles. Pre-existing scoping bug fixed: `healthProbeTimer`/`memoryWatcher` hoisted from NATS try block to outer scope (was crashing shutdown handler since step 2.3). WALs: state.db 3.58MB→0, knowledge.db 449KB→0, graph-cache.db 181KB→0. Tests 1486/0 (2 new).]
-> **6.5:** kill the daemon → launchd respawns healthy within the interval; no restart loop; watcher logs the transition.
+> **6.5:** kill the daemon → launchd respawns healthy within the interval; no restart loop; watcher logs the transition. [DONE 2026-06-01 — health-watch deployed (symlink+plist+load). Killed daemon (43162) → launchd KeepAlive respawned (31660), stable 30s+, no loop. health-watch logs `healthy`. **2 runtime bugs found+fixed:** (1) health-watch timer .unref()'d → exited+restart-looped standalone, fixed via start({keepAlive}); (2) checkDaemon parsed launchctl table-format but label returns a dict → read `};` as PID, false "not running", fixed via parseLaunchctlPid (+regression tests). 1488/0. CLOSES Block 6 + all local-first blocks 0–6. Impl by tick, blocked at 5b, fixed+closed by operator.]
 
 ## Block 7 — Multi-node / federation (G) · DEFERRED (DECISIONS D3, D4)
 

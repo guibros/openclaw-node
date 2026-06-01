@@ -5,6 +5,7 @@ import {
   deriveStatus,
   formatHealthReport,
   parseAlertTargets,
+  parseLaunchctlPid,
   COMPONENT_NAMES,
   DEFAULT_INTERVAL_SEC,
   ALERT_TARGETS_DEFAULT,
@@ -66,6 +67,31 @@ describe('runHealthCheck', () => {
     for (const name of COMPONENT_NAMES) {
       assert.equal(result[name].ok, false, `${name} should fail`);
     }
+  });
+});
+
+describe('parseLaunchctlPid', () => {
+  // Regression: `launchctl list <label>` returns a property-list DICT, not the
+  // table format the old parser assumed. The PID is mid-output on a `"PID" = N;`
+  // line and the last line is `};` — the old "last line, first token" logic read
+  // `};` as the PID and reported a live daemon as "not running".
+  const DICT = `{
+\t"LimitLoadToSessionType" = "Aqua";
+\t"Label" = "ai.openclaw.memory-daemon";
+\t"OnDemand" = false;
+\t"LastExitStatus" = 9;
+\t"PID" = 31660;
+\t"Program" = "/usr/local/bin/node";
+};`;
+  it('extracts the PID from launchctl dict output (running)', () => {
+    const r = parseLaunchctlPid(DICT);
+    assert.equal(r.ok, true);
+    assert.equal(r.detail, 'pid=31660');
+  });
+  it('reports not-running when no PID line is present', () => {
+    const r = parseLaunchctlPid('{\n\t"Label" = "x";\n\t"LastExitStatus" = 0;\n};');
+    assert.equal(r.ok, false);
+    assert.match(r.detail, /not running/);
   });
 });
 

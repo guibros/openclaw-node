@@ -275,7 +275,7 @@ export function createHealthWatch(opts = {}) {
     if (onTick) onTick(status, result, queueState);
   }
 
-  function start() {
+  function start(startOpts = {}) {
     if (running) return;
     running = true;
     // Run first check immediately
@@ -283,8 +283,11 @@ export function createHealthWatch(opts = {}) {
     timer = setInterval(() => {
       tick().catch(err => console.error(`[health-watch] tick error: ${err.message}`));
     }, intervalSec * 1000);
-    // Allow process to exit if this is the only timer
-    if (timer.unref) timer.unref();
+    // When embedded in another long-lived process, unref so the watcher's timer
+    // doesn't keep the host alive. When run standalone as a service (keepAlive),
+    // the timer MUST hold the event loop open — otherwise the process exits after
+    // the first tick and launchd KeepAlive restart-loops it.
+    if (!startOpts.keepAlive && timer.unref) timer.unref();
   }
 
   function stop() {
@@ -320,7 +323,7 @@ async function main() {
     },
   });
 
-  watcher.start();
+  watcher.start({ keepAlive: true }); // standalone service — keep the process alive between ticks
 
   const shutdown = () => {
     console.log('[health-watch] shutting down');
