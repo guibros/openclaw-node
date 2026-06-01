@@ -197,60 +197,79 @@ function fmtVal(v: unknown): React.ReactNode {
   return String(v);
 }
 
-// Where the content an event reports actually lives (file or store reference).
-type Source = { label: string; file?: string; tail?: number; href?: string };
+// The OPENCLAW home dir (where every memory store/file lives). Mirrors the
+// server's path.dirname(WORKSPACE_ROOT). Used to build absolute on-disk paths.
+const OPENCLAW = "/Users/moltymac/.openclaw";
+
+// The actual absolute on-disk path(s) where this event's content is stored.
+// `note` annotates a DB path with the table/row that holds the content.
+type Source = { path: string; note?: string; openable?: boolean };
 function sourcesFor(event: WatcherEvent): Source[] {
   const d = (event.data as Record<string, unknown>) || {};
-  const out: Source[] = [];
   switch (event.op) {
     case "memory.synthesized":
-      for (const f of (d.artifacts_written as string[]) || [])
-        out.push({ label: f.split("/").pop() || f, file: f });
-      break;
+      // artifacts_written already holds absolute file paths.
+      return ((d.artifacts_written as string[]) || []).map((f) => ({ path: f, openable: true }));
     case "memory.injected":
-      out.push({ label: "memory-injections.jsonl (last 30)", file: "workspace/logs/memory-injections.jsonl", tail: 30 });
-      break;
-    case "memory.extracted":
+      return [{ path: `${OPENCLAW}/workspace/logs/memory-injections.jsonl`, note: "this injection's block", openable: true }];
     case "memory.ingested":
-      if (event.session) out.push({ label: "stored content for this session →", href: `/memory-content?session=${event.session}` });
-      out.push({ label: "MEMORY.md", file: "workspace/MEMORY.md" });
-      break;
+      return [{ path: `${OPENCLAW}/state.db`, note: "sessions + messages tables" }];
+    case "memory.extracted":
+      return [{ path: `${OPENCLAW}/state.db`, note: "entities, decisions, themes, mentions tables" }];
     case "memory.promoted":
-      out.push({ label: "Memory Content (entities) →", href: "/memory-content" });
-      break;
+      return [{ path: `${OPENCLAW}/state.db`, note: "entities.salience (boosted)" }];
     case "memory.decayed":
-      out.push({ label: "Memory Content (entities) →", href: "/memory-content" });
-      out.push({ label: "entities_archived (state.db)", href: "/memory-content" });
-      break;
+      return [
+        { path: `${OPENCLAW}/state.db`, note: "entities.salience (lowered)" },
+        { path: `${OPENCLAW}/state.db`, note: "entities_archived table (dropped entities)" },
+      ];
     case "memory.retrieved":
-      out.push({ label: "Memory Content (what was searched) →", href: "/memory-content" });
-      break;
+      return [
+        { path: `${OPENCLAW}/state.db`, note: "entities + decisions queried" },
+        { path: `${OPENCLAW}/workspace/.knowledge.db`, note: "vector chunks searched" },
+      ];
+    default:
+      return [];
   }
-  return out;
 }
 
-// An openable file reference: click to fetch + show its content inline.
+// One source row: the literal absolute path (copy on click) + optional inline open for files.
 function FileLink({ src }: { src: Source }) {
   const [content, setContent] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  if (src.href) {
-    return <a href={src.href} className="text-primary hover:underline block">{src.label}</a>;
-  }
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    navigator.clipboard?.writeText(src.path).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    });
+  };
   const load = async () => {
     if (open) { setOpen(false); return; }
     setOpen(true);
     if (content === null) {
-      const params = new URLSearchParams({ path: src.file! });
-      if (src.tail) params.set("tail", String(src.tail));
+      const params = new URLSearchParams({ path: src.path });
+      if (src.path.endsWith(".jsonl")) params.set("tail", "30");
       const r = await fetch(`/api/memory-file?${params}`).then((x) => x.json()).catch(() => null);
       setContent(r?.content ?? r?.error ?? "(failed to load)");
     }
   };
+
   return (
-    <div>
-      <button onClick={load} className="text-primary hover:underline text-left">
-        {open ? "▾ " : "▸ "}{src.label}
-      </button>
+    <div className="leading-snug">
+      <div className="flex items-baseline gap-2">
+        <span className="text-foreground break-all select-all">{src.path}</span>
+        <button onClick={copy} className="text-muted-foreground hover:text-primary shrink-0 text-[10px]" title="copy path">
+          {copied ? "copied" : "copy"}
+        </button>
+        {src.openable && (
+          <button onClick={load} className="text-primary hover:underline shrink-0 text-[10px]">
+            {open ? "hide" : "open"}
+          </button>
+        )}
+      </div>
+      {src.note && <div className="text-muted-foreground/60 text-[10px] pl-2">↳ {src.note}</div>}
       {open && content !== null && (
         <pre className="mt-1 mb-2 p-2 bg-background/60 rounded text-[10px] whitespace-pre-wrap max-h-64 overflow-y-auto text-muted-foreground">
           {content}
