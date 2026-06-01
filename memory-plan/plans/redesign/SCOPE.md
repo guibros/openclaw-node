@@ -1,24 +1,11 @@
 # SCOPE — redesign plan
 
-**Status:** done
-**Goal:** Step 6.4 closed — WAL checkpoint (TRUNCATE) on graceful shutdown. All stores checkpoint+close in daemon shutdown. Pre-existing scoping bug fixed.
+**Status:** idle
+**Goal:** **MILESTONE — Blocks 0–6 (the entire local-first memory redesign) are COMPLETE** at v6.5 (36/40 steps; the 4 open are Block 7 federation, DEFERRED per DECISIONS D4). Tick chain is intentionally LEFT DISABLED — the next `[ ]` is deferred Block-7 work that must NOT auto-run. Recommend a full end-to-end review before any Block 7. No human driver active.
 **Set at:** 2026-06-01
-**Expires:** 2026-06-02T06:00:00Z
+**Expires:** no-expiry
 
 ```files
-lib/sqlite-store.mjs
-lib/session-store.mjs
-lib/extraction-store.mjs
-lib/hyperagent-store.mjs
-bin/obsidian-graph-cache.mjs
-workspace-bin/memory-daemon.mjs
-test/sqlite-store.test.mjs
-memory-plan/plans/redesign/VERSION
-memory-plan/plans/redesign/INVENTORY.md
-memory-plan/plans/redesign/COMPONENT_REGISTRY.md
-memory-plan/plans/redesign/DECISIONS.md
-memory-plan/plans/redesign/audits/step64_wal_checkpoint_shutdown/AUDIT_PRE.md
-memory-plan/plans/redesign/audits/step64_wal_checkpoint_shutdown/AUDIT_POST.md
 ```
 
 ## How this file works
