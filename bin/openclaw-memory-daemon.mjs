@@ -92,11 +92,11 @@ async function main() {
     // Open the DBs that federation + subscriber need.
     // Federation needs both extraction-store (concepts/decisions/themes) AND
     // the knowledge DB (session_chunks for FTS / semantic retrieval).
-    const Database = _require('better-sqlite3');
+    const { openStore } = await import('../lib/sqlite-store.mjs');
     const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || join(dbDir, 'knowledge.db');
     const extractionDbPath = process.env.OPENCLAW_EXTRACTION_DB || join(dbDir, 'extraction.db');
-    knowledgeDb = existsSync(knowledgeDbPath) ? new Database(knowledgeDbPath) : null;
-    extractionDb = existsSync(extractionDbPath) ? new Database(extractionDbPath) : null;
+    knowledgeDb = existsSync(knowledgeDbPath) ? openStore(knowledgeDbPath) : null;
+    extractionDb = existsSync(extractionDbPath) ? openStore(extractionDbPath) : null;
     if (!knowledgeDb || !extractionDb) {
       log(`[daemon] WARNING: knowledge.db or extraction.db missing — federation will run in broadcast-only mode (no offerer/acceptor)`);
     }

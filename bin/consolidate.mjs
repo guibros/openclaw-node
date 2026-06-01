@@ -16,7 +16,7 @@
  *   node bin/consolidate.mjs [--db <path>] [--vault-path <path>] [--dry-run]
  */
 
-import Database from 'better-sqlite3';
+import { openStore } from '../lib/sqlite-store.mjs';
 import path from 'path';
 import os from 'os';
 import {
@@ -63,7 +63,7 @@ const DEFAULT_DB_PATH = path.join(os.homedir(), '.openclaw/state.db');
 export async function runConsolidationCycle(opts = {}) {
   const startMs = Date.now();
   const dbPath = opts.dbPath || DEFAULT_DB_PATH;
-  const db = opts.db || new Database(dbPath);
+  const db = opts.db || openStore(dbPath);
   const ownDb = !opts.db;
   const signal = opts.signal || null;
   const eventLog = opts.eventLog || null;
@@ -85,8 +85,6 @@ export async function runConsolidationCycle(opts = {}) {
   let contradictionResult, promotionResult;
 
   try {
-    db.pragma('journal_mode = WAL');
-
     // 1. Init tables
     initConsolidationTables(db);
 

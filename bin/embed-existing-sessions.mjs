@@ -14,7 +14,7 @@
  *   node bin/embed-existing-sessions.mjs --knowledge-db ~/.openclaw/workspace/.knowledge.db
  */
 
-import Database from 'better-sqlite3';
+import { openStore } from '../lib/sqlite-store.mjs';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
@@ -79,7 +79,7 @@ export async function runMigration(opts = {}) {
     process.stderr.write(`[embed-migration] session store not found: ${sessionDbPath}\n`);
     return { processed: 0, skipped: 0, chunks: 0, total: 0 };
   }
-  const sessionDb = new Database(sessionDbPath, { readonly: true });
+  const sessionDb = openStore(sessionDbPath, { readonly: true });
 
   // Open knowledge DB (read-write, creates tables if needed)
   const knowledgeDb = initDatabase(knowledgeDbPath);

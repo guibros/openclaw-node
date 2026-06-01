@@ -19,7 +19,7 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { watch } from 'node:fs';
-import Database from 'better-sqlite3';
+import { openStore } from '../lib/sqlite-store.mjs';
 import { buildGraph } from '../lib/obsidian-graph.mjs';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 import { getVaultPath } from '../lib/obsidian-vault.mjs';
@@ -36,17 +36,6 @@ export const DEFAULT_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
  * @param {import('better-sqlite3').Database} db
  */
 function initDb(db) {
-  // F-M20 fix: enable WAL so concurrent processes (daemon + --refresh CLI)
-  // don't block each other.
-  db.pragma('journal_mode = WAL');
-  // F-P206 fix (F-N158 partial): without busy_timeout, a concurrent reader
-  // (inject-server keeps its own handle) can cause the rebuild txn to throw
-  // SQLITE_BUSY immediately. The startWatcher catch swallows that, but
-  // until the next interval the cache reflects pre-failure state — the
-  // same silent-disable failure mode F-N158 set out to fix. 5s matches
-  // the rest of the codebase's busy_timeout convention.
-  db.pragma('busy_timeout = 5000');
-
   db.exec(`
     CREATE TABLE IF NOT EXISTS concept_graph_nodes (
       id TEXT PRIMARY KEY,
@@ -88,7 +77,7 @@ function initDb(db) {
  */
 export function createGraphCache(opts = {}) {
   const dbPath = opts.dbPath || process.env.GRAPH_CACHE_DB_PATH || DEFAULT_DB_PATH;
-  const db = opts.db || new Database(dbPath);
+  const db = opts.db || openStore(dbPath);
   const vaultPath = opts.vaultPath || getVaultPath();
   const ownsDb = !opts.db;
 

@@ -18,7 +18,7 @@
  *   node bin/extract-existing-sessions.mjs --tail 30 --skip-notes --skip-graph
  */
 
-import Database from 'better-sqlite3';
+import { openStore } from '../lib/sqlite-store.mjs';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -120,7 +120,7 @@ export async function runExtraction(opts = {}) {
     process.stderr.write(`[extract-backfill] session store not found: ${sessionDbPath}\n`);
     return { processed: 0, skipped: 0, failed: 0, total: 0 };
   }
-  const sessionDb = new Database(sessionDbPath, { readonly: true });
+  const sessionDb = openStore(sessionDbPath, { readonly: true });
 
   // Open extraction store (read-write)
   const store = opts.extractionStore || createExtractionStore({ dbPath: extractionDbPath });

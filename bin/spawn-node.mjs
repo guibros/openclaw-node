@@ -168,10 +168,8 @@ export async function spawnNode(opts) {
   const dbPath = join(nodeRoot, 'state.db');
   if (!(await fileExists(dbPath))) {
     try {
-      const require = createRequire(import.meta.url);
-      const Database = require('better-sqlite3');
-      const db = new Database(dbPath);
-      db.pragma('journal_mode = WAL');
+      const { openStore } = await import('../lib/sqlite-store.mjs');
+      const db = openStore(dbPath);
       db.close();
       created.push('state.db');
     } catch (err) {

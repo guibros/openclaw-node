@@ -346,8 +346,8 @@ Options:
       const { homedir } = await import('node:os');
       const { join } = await import('node:path');
       const defaultPath = join(homedir(), '.openclaw', 'state.db');
-      const Database = (await import('better-sqlite3')).default;
-      extractionDb = new Database(defaultPath, { readonly: true });
+      const { openStore } = await import('../lib/sqlite-store.mjs');
+      extractionDb = openStore(defaultPath, { readonly: true });
       process.stderr.write(`[tuning] Extraction DB: ${defaultPath}\n`);
     } catch {
       process.stderr.write('[tuning] WARNING: No extraction DB found. Entity/theme/spread channels disabled.\n');

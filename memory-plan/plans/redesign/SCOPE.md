@@ -1,15 +1,39 @@
 # SCOPE — redesign plan
 
 **Status:** done
-**Goal:** Step 6.1 — Build lib/sqlite-store.mjs (WAL + foreign_keys + busy_timeout + integrity_check + user_version)
-**Set at:** 2026-06-01T22:00:00-04:00
-**Expires:** 2026-06-02T04:00:00-04:00
+**Goal:** Step 6.2 — Route all `new Database()` sites through the helper
+**Set at:** 2026-06-01T23:30:00-04:00
+**Expires:** 2026-06-02T06:00:00-04:00
 
 ```files
-lib/sqlite-store.mjs
-test/sqlite-store.test.mjs
-memory-plan/plans/redesign/audits/step61_sqlite_store_helper/AUDIT_PRE.md
-memory-plan/plans/redesign/audits/step61_sqlite_store_helper/AUDIT_POST.md
+# lib/ production sites (9 files)
+lib/extraction-store.mjs
+lib/memory-inject-server.mjs
+lib/hyperagent-store.mjs
+lib/health-check.mjs
+lib/session-store.mjs
+lib/kanban-store.mjs
+lib/mcp-knowledge/core.mjs
+lib/obsidian-summarizer.mjs
+lib/memory-watcher.mjs
+
+# bin/ production sites (7 files)
+bin/extract-existing-sessions.mjs
+bin/obsidian-graph-cache.mjs
+bin/openclaw-memory-daemon.mjs
+bin/consolidate.mjs
+bin/run-tuning-harness.mjs
+bin/embed-existing-sessions.mjs
+bin/run-block3-validation.mjs
+bin/spawn-node.mjs
+
+# workspace-bin/ + root (2 files)
+workspace-bin/memory-daemon.mjs
+test-session-note-runtime.mjs
+
+# plan files
+memory-plan/plans/redesign/audits/step62_route_all_new_database/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step62_route_all_new_database/AUDIT_POST.md
 memory-plan/plans/redesign/INVENTORY.md
 memory-plan/plans/redesign/VERSION
 memory-plan/plans/redesign/COMPONENT_REGISTRY.md

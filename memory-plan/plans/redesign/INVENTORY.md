@@ -120,13 +120,13 @@ Each fix confirmed in the watcher.
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 6 | 6.1 | v6.1 | [x] | Build lib/sqlite-store.mjs (WAL + foreign_keys + busy_timeout + integrity_check + user_version) |
-| 6 | 6.2 | v6.2 | [ ] | Route all `new Database()` sites through the helper |
+| 6 | 6.2 | v6.2 | [x] | Route all `new Database()` sites through the helper |
 | 6 | 6.3 | v6.3 | [ ] | Schema-version migration for the existing populated stores |
 | 6 | 6.4 | v6.4 | [ ] | WAL checkpoint (TRUNCATE) on graceful shutdown |
 | 6 | 6.5 | v6.5 | [ ] | Install health-watch; verify clean respawn + KeepAlive (no crash-loop) |
 
 > **6.1:** opening a store via the helper sets all pragmas (PRAGMA readback). [DONE 2026-06-01 — `openStore(dbPath, opts)` in `lib/sqlite-store.mjs` (35 lines): sets WAL, foreign_keys=ON, busy_timeout=5000, runs integrity_check (opt-out via `integrityCheck:false`); `getVersion`/`setVersion` for user_version. 11 tests verify all readbacks. Runtime: file at `~/.openclaw/workspace/lib/sqlite-store.mjs` via symlink. Tests 1484/0. Opens Block 6.]
-> **6.2:** grep shows zero raw `new Database(` outside the helper.
+> **6.2:** grep shows zero raw `new Database(` outside the helper. [DONE 2026-06-01 — 19 production .mjs files routed through `openStore()`. Redundant WAL/FK/busy_timeout pragmas + dir-creation removed from 8 files. probeStore DI pattern simplified. integrityCheck:false for knowledge.db + health probes. 5 CJS files (.js) remain raw (mission-control.db, not memory pipeline — OUT_OF_SCOPE). Tests 1484/0.]
 > **6.3:** every store reports a user_version.
 > **6.4:** WAL stays bounded across a day (no 331 MB-style bloat).
 > **6.5:** kill the daemon → launchd respawns healthy within the interval; no restart loop; watcher logs the transition.

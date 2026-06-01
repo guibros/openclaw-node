@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-01 — Step 6.2 closed: all production `new Database()` sites routed through openStore()
+
+**Decision.** 19 production `.mjs` files converted from `new Database(...)` to `openStore(...)`. Redundant manual pragma setting (WAL, foreign_keys, busy_timeout) removed from 8 files. Directory-creation boilerplate removed from 4 files. `probeStore` DI pattern in `memory-watcher.mjs` simplified (Database constructor parameter removed — `openStore` called directly with `integrityCheck: false`). Knowledge.db opens use `integrityCheck: false` (74MB, readonly).
+
+**Evidence.** `grep -rn 'new Database(' --include='*.mjs' | grep -v test/` → only `lib/sqlite-store.mjs:11` (the helper). Tests: 1484/0 (unchanged count). 5 CJS files remain raw (mission-control.db, not memory pipeline — captured in OUT_OF_SCOPE).
+
+**No architectural decision needed.** Pure mechanical routing — no new patterns or abstractions introduced.
+
+---
+
 ## 2026-06-01 — Step 6.1 closed: shared SQLite open helper (lib/sqlite-store.mjs) → Opens Block 6
 
 **Decision.** `lib/sqlite-store.mjs` created with 3 exports: `openStore(dbPath, opts)` returns a better-sqlite3 Database with WAL + foreign_keys=ON + busy_timeout=5000 + integrity_check enforced by default; `getVersion(db)` / `setVersion(db, v)` for user_version schema versioning. Readonly opens skip pragma writes (already set on disk). `integrityCheck: false` opt-out for large readonly databases. Parent directory auto-created on write opens. Module is 35 lines, no class, no wrapper — returns raw `Database` for full API compat.

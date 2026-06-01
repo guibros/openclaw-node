@@ -352,9 +352,8 @@ Status legend:
 
 **Gap:**
 - ~~No shared helper~~ CLOSED 6.1: `lib/sqlite-store.mjs` (`openStore`, `getVersion`, `setVersion`) sets WAL + foreign_keys + busy_timeout=5000 + integrity_check on every open.
-- No `busy_timeout` on state.db or its extraction tables (callers not yet routed through helper — 6.2).
+- ~~No `busy_timeout` on state.db or its extraction tables~~ CLOSED 6.2: all 19 production .mjs files routed through `openStore()` — every store gets WAL + foreign_keys + busy_timeout=5000 + integrity_check.
 - No schema versioning anywhere (F-Q401) — helper provides the mechanism; 6.3 migrates existing stores.
-- No integrity_check on startup for production callers (awaits 6.2).
 - ~~knowledge.db never auto-updates~~ CLOSED 5.1: daemon Phase 2 incrementally indexes.
 - ~~graph-cache.db refresh job dormant~~ CLOSED 5.2: daemon Phase 2 refreshes on maintenance cadence.
 - `local-events/` now exists as JetStream stream (0.4).
@@ -362,7 +361,7 @@ Status legend:
 
 **Done-criteria for closure:**
 - ~~Extract shared `lib/sqlite-store.mjs` helper that ALWAYS sets WAL + foreign_keys + busy_timeout + integrity_check on open.~~ ✓ (6.1)
-- All 16+ `new Database(...)` call sites routed through the helper (6.2).
+- ~~All 16+ `new Database(...)` call sites routed through the helper (6.2).~~ ✓ (6.2 — 19 .mjs files, 5 CJS files out-of-scope)
 - knowledge.db incremental indexer running (verified by file mtime within 1h after a session ends). ✓ (5.1)
 - graph-cache refresh running (verified by `last_refresh_at` within 1h). ✓ (5.2)
 

@@ -6,6 +6,19 @@ This file is always-writeable (the PreToolUse hook exempts it).
 
 ---
 
+## 2026-06-01 — 5 CJS files have raw `new Database()` — can't import ESM helper
+
+Found during step 6.2 (route all `new Database()` through helper). Five `.js` (CJS) files still use `new Database()` directly:
+- `lib/obs-db.js` — observability writer for mission-control.db
+- `mission-control/scripts/gen-chronology.js`
+- `mission-control/scripts/import-pipeline-v2.js`
+- `mission-control/scripts/import-pipeline.js`
+- `mission-control/scripts/enrich-descriptions.js`
+
+All 5 operate on `mission-control.db` (not memory pipeline databases). They can't `require()` the ESM `sqlite-store.mjs` helper without a CJS shim or conversion to ESM. Not blocking Block 6 (memory pipeline hygiene); revisit when mission-control tooling is next touched.
+
+---
+
 ## 2026-05-27 — Workspace daily logs + monthly summaries are lossy auto-digests
 
 - **Observed while:** reading the "old memory-plan" corpus (`~/.openclaw/workspace/memory/`).

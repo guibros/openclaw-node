@@ -22,7 +22,7 @@
  *   node bin/run-block3-validation.mjs --llm-base-url http://localhost:11434 --llm-model qwen3:8b
  */
 
-import Database from 'better-sqlite3';
+import { openStore } from '../lib/sqlite-store.mjs';
 import { existsSync } from 'node:fs';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
@@ -54,7 +54,7 @@ export function readSessions(dbPath, limit = DEFAULT_LIMIT, opts = {}) {
     throw new Error(`Session store not found: ${dbPath}`);
   }
 
-  const db = new Database(dbPath, { readonly: true });
+  const db = openStore(dbPath, { readonly: true });
 
   try {
     // For validation we usually want SUBSTANTIVE sessions, not the most recent

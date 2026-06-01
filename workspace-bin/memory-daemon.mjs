@@ -843,10 +843,10 @@ async function runPhase2ThrottledWork(config, sessionState) {
         try {
           const knowledgeDb = getKnowledgeDb();
           if (!knowledgeDb) return;
-          const Database = require('better-sqlite3');
+          const { openStore } = await import('../lib/sqlite-store.mjs');
           const stateDbPath = path.join(HOME, '.openclaw/state.db');
           if (!fs.existsSync(stateDbPath)) return;
-          const stateDb = new Database(stateDbPath, { readonly: true });
+          const stateDb = openStore(stateDbPath, { readonly: true });
           try {
             const allSessions = stateDb.prepare(
               'SELECT id, source FROM sessions ORDER BY start_time ASC'
