@@ -1,7 +1,7 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** Blocks 0–6 COMPLETE at v6.5. Post-completion UI: Memory Content browser, watcher detail panel with full event spec/payload/content + a Sources section linking each event to where its content lives (openable vault notes, injections log). Tick chain LEFT DISABLED. No human driver active.
+**Goal:** Blocks 0–6 COMPLETE at v6.5. Post-completion UI: watcher detail panel shows event spec + payload + named content + a Sources section with the literal absolute on-disk path each op writes to (copy/open). Tick chain LEFT DISABLED. No human driver active.
 **Set at:** 2026-06-01
 **Expires:** no-expiry
 
