@@ -1,7 +1,7 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** At v4.7 (Block 4: 4.1–4.7 closed; next 4.8 — deterministic vault digest). No human driver active. Tick runs hybrid. Self-sets per-step scope.
+**Goal:** At v4.8 (Block 4: 4.1–4.8 closed; next 4.9 — retire the lossy hourly daily-log writer, the LAST Block-4 step → then macro re-orient). No human driver active. Tick runs hybrid.
 **Set at:** 2026-06-01
 **Expires:** no-expiry
 
