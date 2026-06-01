@@ -47,6 +47,44 @@ function opLabel(op: string): string {
   return op.replace("memory.", "");
 }
 
+// Per-op one-line summary of WHAT the op did, pulled from the full event payload.
+function eventDetail(op: string, data: Record<string, unknown> | null | undefined): string {
+  if (!data) return "";
+  const n = (k: string) => (typeof data[k] === "number" ? (data[k] as number) : undefined);
+  switch (op) {
+    case "memory.extracted": {
+      const parts = [
+        n("entities_count") !== undefined ? `${n("entities_count")} ent` : null,
+        n("themes_count") !== undefined ? `${n("themes_count")} themes` : null,
+        n("decisions_count") !== undefined ? `${n("decisions_count")} dec` : null,
+      ].filter(Boolean);
+      const model = data.model ? ` · ${data.model}` : "";
+      return parts.join(", ") + model;
+    }
+    case "memory.synthesized": {
+      const arr = Array.isArray(data.artifacts_written) ? (data.artifacts_written as string[]) : [];
+      const trigger = data.trigger ? `${data.trigger}: ` : "";
+      if (arr.length === 0) return `${trigger}no files`;
+      const names = arr.map((p) => p.split("/").pop()).slice(0, 3).join(", ");
+      return `${trigger}${arr.length} files — ${names}${arr.length > 3 ? "…" : ""}`;
+    }
+    case "memory.retrieved":
+      return `${n("results_count") ?? 0} results / ${n("channels_hit") ?? 0} channels`;
+    case "memory.injected":
+      return `${n("blocks_count") ?? 0} blocks, ${n("token_count") ?? n("tokens") ?? 0} tok`;
+    case "memory.ingested":
+      return `${n("messages_added") ?? 0} msgs from ${data.source ?? "?"}`;
+    case "memory.promoted":
+      return `${n("entities_promoted") ?? 0} promoted`;
+    case "memory.decayed":
+      return `${n("entities_decayed") ?? 0} decayed`;
+    case "memory.error":
+      return String(data.error_message ?? data.error_code ?? data.boundary ?? "error");
+    default:
+      return "";
+  }
+}
+
 function alertTypeLabel(t: string): string {
   switch (t) {
     case "extraction_failure": return "extraction failure";
@@ -133,9 +171,13 @@ function EventRow({ event }: { event: WatcherEvent }) {
       <span className="text-foreground w-[100px] shrink-0 truncate">
         {opLabel(event.op)}
       </span>
-      <span className="text-muted-foreground truncate flex-1 min-w-0">
-        {event.session ? event.session.slice(0, 12) : ""}
-        {event.actor ? ` (${event.actor})` : ""}
+      <span className="truncate flex-1 min-w-0">
+        <span className="text-foreground">
+          {eventDetail(event.op, event.data as Record<string, unknown> | null)}
+        </span>
+        {event.session ? (
+          <span className="text-muted-foreground"> · {event.session.slice(0, 8)}</span>
+        ) : null}
       </span>
       <span className={`w-[55px] shrink-0 text-right tabular-nums ${statusColor(event.status)}`}>
         {fmtDuration(event.duration_ms)}

@@ -839,6 +839,7 @@ export interface WatcherEvent {
   actor?: string | null;
   session?: string | null;
   duration_ms?: number | null;
+  data?: Record<string, unknown> | null;
   [key: string]: unknown;
 }
 

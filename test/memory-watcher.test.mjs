@@ -21,6 +21,9 @@ describe('toWatcherRecord', () => {
     assert.equal(record.session, 'sess-abc');
     assert.equal(record.duration_ms, null);
     assert.equal(record.status, 'ok');
+    // The record keeps the full payload so the watcher shows WHAT the op did.
+    assert.deepEqual(record.data, event.data);
+    assert.equal(record.data.messages_added, 12);
   });
 
   it('extracts duration_ms from memory.extracted event', () => {
