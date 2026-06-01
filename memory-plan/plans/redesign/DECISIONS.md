@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-01 — Step 6.1 closed: shared SQLite open helper (lib/sqlite-store.mjs) → Opens Block 6
+
+**Decision.** `lib/sqlite-store.mjs` created with 3 exports: `openStore(dbPath, opts)` returns a better-sqlite3 Database with WAL + foreign_keys=ON + busy_timeout=5000 + integrity_check enforced by default; `getVersion(db)` / `setVersion(db, v)` for user_version schema versioning. Readonly opens skip pragma writes (already set on disk). `integrityCheck: false` opt-out for large readonly databases. Parent directory auto-created on write opens. Module is 35 lines, no class, no wrapper — returns raw `Database` for full API compat.
+
+**Evidence.** Tests: 1484/0 (11 new in `test/sqlite-store.test.mjs` — all PRAGMA readbacks, corrupt-DB throw, readonly, nested-dir, version persist). Runtime: file deployed at `~/.openclaw/workspace/lib/sqlite-store.mjs` via lib/ symlink (step 0.1). Verified present: `ls -la ~/.openclaw/workspace/lib/sqlite-store.mjs` → 926 bytes.
+
+**Block 6 open.** First step of Block 6 (L6 health + storage hygiene). 4 remaining: 6.2 (route all `new Database()` sites), 6.3 (schema-version migration), 6.4 (WAL checkpoint on shutdown), 6.5 (health-watch + clean respawn). No architectural decision needed — pure mechanical work.
+
+---
+
 ## 2026-06-01 — Step 5.3 closed: all 5 retrieval channels verified → Block 5 COMPLETE
 
 **Decision.** Two bugs fixed to make the inject server's 5-channel retrieval pipeline functional: (1) the daemon didn't pass `knowledgeDb` or `graphCache` to `startInjectionServer()` — the inject server's `resolveDeps` fallback used `process.cwd()` (= `/` for launchd) to resolve `DB_PATH`, resulting in `/.knowledge.db` (doesn't exist) → all 5 channels gated out; (2) all 1064 entities have `private = 1` (default-private from extraction-store.mjs migration) with no publication mechanism → `filterPrivateResults` dropped every result. Fix: pass daemon's DB handles (`getKnowledgeDb()`, `getGraphCache()`) to the inject server + set `respectPrivacy: false` in the inject server's `retrieveOpts` (loopback-only server serves operator's own data; privacy is a federation concern per D4).

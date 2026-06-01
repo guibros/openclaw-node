@@ -351,19 +351,20 @@ Status legend:
 **Target:** Each DB has WAL + busy_timeout + integrity_check on startup. Schema versioning via `user_version`. Per-DB write-locks via a shared `lib/sqlite-store.mjs` helper. knowledge.db auto-incrementally indexes new sessions. graph-cache.db refreshes on a timer + on filesystem change.
 
 **Gap:**
-- No `busy_timeout` on state.db or its extraction tables.
-- No schema versioning anywhere (F-Q401).
-- No integrity_check on startup.
-- knowledge.db never auto-updates (one-shot CLI only).
-- graph-cache.db refresh job dormant.
-- `local-events/` never created → MemoryBudget events lost.
-- `identity-registry.json` never written → federation trust binding inert.
+- ~~No shared helper~~ CLOSED 6.1: `lib/sqlite-store.mjs` (`openStore`, `getVersion`, `setVersion`) sets WAL + foreign_keys + busy_timeout=5000 + integrity_check on every open.
+- No `busy_timeout` on state.db or its extraction tables (callers not yet routed through helper — 6.2).
+- No schema versioning anywhere (F-Q401) — helper provides the mechanism; 6.3 migrates existing stores.
+- No integrity_check on startup for production callers (awaits 6.2).
+- ~~knowledge.db never auto-updates~~ CLOSED 5.1: daemon Phase 2 incrementally indexes.
+- ~~graph-cache.db refresh job dormant~~ CLOSED 5.2: daemon Phase 2 refreshes on maintenance cadence.
+- `local-events/` now exists as JetStream stream (0.4).
+- `identity-registry.json` never written → federation trust binding inert (Block 7).
 
 **Done-criteria for closure:**
-- Extract shared `lib/sqlite-store.mjs` helper that ALWAYS sets WAL + foreign_keys + busy_timeout + integrity_check on open.
-- All 16+ `new Database(...)` call sites routed through the helper.
-- knowledge.db incremental indexer running (verified by file mtime within 1h after a session ends).
-- graph-cache refresh running (verified by `last_refresh_at` within 1h).
+- ~~Extract shared `lib/sqlite-store.mjs` helper that ALWAYS sets WAL + foreign_keys + busy_timeout + integrity_check on open.~~ ✓ (6.1)
+- All 16+ `new Database(...)` call sites routed through the helper (6.2).
+- knowledge.db incremental indexer running (verified by file mtime within 1h after a session ends). ✓ (5.1)
+- graph-cache refresh running (verified by `last_refresh_at` within 1h). ✓ (5.2)
 
 ---
 

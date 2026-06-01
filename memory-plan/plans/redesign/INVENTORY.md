@@ -119,13 +119,13 @@ Each fix confirmed in the watcher.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 6 | 6.1 | v6.1 | [ ] | Build lib/sqlite-store.mjs (WAL + foreign_keys + busy_timeout + integrity_check + user_version) |
+| 6 | 6.1 | v6.1 | [x] | Build lib/sqlite-store.mjs (WAL + foreign_keys + busy_timeout + integrity_check + user_version) |
 | 6 | 6.2 | v6.2 | [ ] | Route all `new Database()` sites through the helper |
 | 6 | 6.3 | v6.3 | [ ] | Schema-version migration for the existing populated stores |
 | 6 | 6.4 | v6.4 | [ ] | WAL checkpoint (TRUNCATE) on graceful shutdown |
 | 6 | 6.5 | v6.5 | [ ] | Install health-watch; verify clean respawn + KeepAlive (no crash-loop) |
 
-> **6.1:** opening a store via the helper sets all pragmas (PRAGMA readback).
+> **6.1:** opening a store via the helper sets all pragmas (PRAGMA readback). [DONE 2026-06-01 — `openStore(dbPath, opts)` in `lib/sqlite-store.mjs` (35 lines): sets WAL, foreign_keys=ON, busy_timeout=5000, runs integrity_check (opt-out via `integrityCheck:false`); `getVersion`/`setVersion` for user_version. 11 tests verify all readbacks. Runtime: file at `~/.openclaw/workspace/lib/sqlite-store.mjs` via symlink. Tests 1484/0. Opens Block 6.]
 > **6.2:** grep shows zero raw `new Database(` outside the helper.
 > **6.3:** every store reports a user_version.
 > **6.4:** WAL stays bounded across a day (no 331 MB-style bloat).
@@ -159,7 +159,7 @@ Nothing here starts until Blocks 0–6 close and local is observably healthy. Fe
 | 6 | L6 health | 5 | 36 |
 | 7 | G multi-node (deferred) | 4 | 40 |
 
-**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **6.1**.
+**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **6.2**.
 
 ### Atomicity revision log (vs the prior 33-step draft)
 - Block 0: 0.1 split into lib-symlink (0.1) + daemon-symlink/restart (0.2); old 0.3 split into NATS-install (0.3) + daemon↔NATS-wire (0.4).
