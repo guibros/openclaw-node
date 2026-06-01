@@ -27,6 +27,10 @@
       <string>America/Montreal</string>
       <key>OPENCLAW_WORKSPACE</key>
       <string>${OPENCLAW_WORKSPACE}</string>
+      <key>OPENCLAW_NATS</key>
+      <string>nats://127.0.0.1:4222</string>
+      <key>OPENCLAW_NODE_ID</key>
+      <string>daedalus</string>
     </dict>
   </dict>
 </plist>

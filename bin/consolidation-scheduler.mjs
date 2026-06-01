@@ -161,6 +161,8 @@ export async function runScheduledCycle(opts = {}) {
       vaultPath: opts.vaultPath,
       db: opts.db,
       signal: ac.signal,
+      eventLog: opts.eventLog,
+      nodeId: opts.nodeId,
     });
 
     const result = await Promise.race([
@@ -211,6 +213,8 @@ export function createConsolidationScheduler(opts = {}) {
       dbPath: opts.dbPath,
       vaultPath: opts.vaultPath,
       hardCapMs: opts.hardCapMs,
+      eventLog: opts.eventLog,
+      nodeId: opts.nodeId,
     }),
     {
       maxAgeMs: hardCapMs + 60_000,
@@ -274,20 +278,43 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   const vaultIdx = args.indexOf('--vault-path');
   const intervalIdx = args.indexOf('--interval');
   const daemon = args.includes('--daemon');
+  const noEvents = args.includes('--no-events');
 
-  const cliOpts = {};
+  const natsUrl = process.env.OPENCLAW_NATS || process.env.NATS_URL || 'nats://127.0.0.1:4222';
+  const nodeId = process.env.OPENCLAW_NODE_ID || os.hostname();
+
+  const cliOpts = { nodeId };
   if (dbIdx !== -1 && args[dbIdx + 1]) cliOpts.dbPath = args[dbIdx + 1];
   if (vaultIdx !== -1 && args[vaultIdx + 1]) cliOpts.vaultPath = args[vaultIdx + 1];
   if (intervalIdx !== -1 && args[intervalIdx + 1]) cliOpts.intervalMs = Number(args[intervalIdx + 1]);
 
+  let nc = null;
+
+  if (!noEvents) {
+    try {
+      const { connect } = await import('nats');
+      const { createLocalEventLog } = await import('../lib/local-event-log.mjs');
+      nc = await connect({ servers: natsUrl });
+      cliOpts.eventLog = await createLocalEventLog(nc, nodeId);
+      console.log(`NATS connected (${natsUrl}), events will be emitted.`);
+    } catch (err) {
+      console.warn(`NATS unavailable (${err.message}); running without event emission.`);
+    }
+  }
+
   const scheduler = createConsolidationScheduler(cliOpts);
+
+  const cleanup = async () => {
+    if (nc) { try { await nc.flush(); await nc.close(); } catch {} }
+  };
 
   if (daemon) {
     // Long-running mode: run on interval
     scheduler.start();
 
-    const shutdown = () => {
+    const shutdown = async () => {
       scheduler.stop();
+      await cleanup();
       process.exit(0);
     };
     process.on('SIGINT', shutdown);
@@ -295,7 +322,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   } else {
     // Single-shot mode (default for launchd): check idle → run → exit
     scheduler.runOnce()
-      .then(result => {
+      .then(async result => {
         if (result.skipped) {
           console.log(`Skipped: ${result.reason}`);
         } else if (result.ok) {
@@ -310,11 +337,14 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
           }
         } else {
           console.error(`Consolidation failed: ${result.error} (${result.durationMs}ms)`);
+          await cleanup();
           process.exit(1);
         }
+        await cleanup();
       })
-      .catch(err => {
+      .catch(async err => {
         console.error(`Fatal: ${err.message}`);
+        await cleanup();
         process.exit(1);
       });
   }
