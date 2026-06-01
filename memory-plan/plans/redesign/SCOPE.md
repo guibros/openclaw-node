@@ -1,7 +1,7 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** At v4.9 — Block 4 COMPLETE (all 9 synthesis/wiki steps closed). Macro re-orient done. Next: Block 5 (L5 retrieval freshness), step 5.1 — knowledge.db incremental indexing.
+**Goal:** At v5.1 (Block 5 opened; next 5.2 — construct graphCache + refresh on synthesis cadence). No human driver active. Tick runs hybrid.
 **Set at:** 2026-06-01
 **Expires:** no-expiry
 
