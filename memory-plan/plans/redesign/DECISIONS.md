@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-01 — Step 4.9 closed: retire the lossy hourly daily-log writer → Block 4 COMPLETE
+
+**Decision.** The hourly daily-log writer (`workspace-bin/daily-log-writer.mjs`) is retired. Three changes: (1) removed the daemon's Phase 2 daily-log-writer invocation block (13 lines: variable, existsSync guard, hour-alignment, runSubprocess, throttle tracking); (2) removed `checkArchival()` (57 lines: daily-log→monthly-summary archival) and `checkDailyFile()` (15 lines: pre-creates today's daily file) from `memory-maintenance.mjs` + their calls from `runMaintenance()` + the unused `ARCHIVE_DIR` constant; (3) deleted `daily-log-writer.mjs` from the repo. VERSION `v4.8 → v4.9`.
+
+**Evidence.** Tests: 1473/0 (no test changes — daily-log-writer had no tests). Runtime: daemon restarted (PID 7118), boot log clean, zero `daily-log-writer` references in deployed binary (grep: 0 matches) or post-restart log. The vault-based synthesis (steps 4.1–4.8: structured MEMORY.md, Obsidian concept/session notes, deterministic daily/weekly digest) replaces the lossy hourly-repeat writer.
+
+**Block 4 close.** This is the last step of Block 4 (L4 synthesis/wiki). All 9 steps closed: 4.1 (MEMORY.md + synthesized event), 4.2 (concept notes), 4.3 (session notes), 4.4 (session-end trigger), 4.5 (30-min interval trigger), 4.6 (consolidation deploy), 4.7 (consolidation scheduler), 4.8 (deterministic digest), 4.9 (retire old writer). The synthesis layer — the Karpathy wiki — is complete. Macro re-orient follows.
+
+**Consequences.** OUT_OF_SCOPE 2026-05-27 ("Workspace daily logs + monthly summaries are lossy auto-digests") is resolved. Existing daily log files at `~/.openclaw/workspace/memory/` are static history. The mission-control `daily-log.ts` parser can still read old files; it just won't see new ones. A stale deployed copy of `daily-log-writer.mjs` sits at the runtime bin path (not symlinked) — inert. Block 5 (L5 retrieval freshness, steps 5.1–5.3) is next.
+
+---
+
 ## 2026-05-29 — Step 3.2 closed: stop dropping tool_result / tool-call entries in the gateway transcript adapter
 
 **Decision.** Gateway adapter in `lib/transcript-parser.mjs` now preserves tool interactions. Three changes: (1) removed `tool_result` from `GATEWAY_SKIP_TYPES` — it was dead code (gateway format uses `type: "message"` with `role: "toolResult"`, never top-level `type: "tool_result"`) but expressed wrong intent; (2) `extractMessage` scans `message.content[]` for `toolCall` blocks and renders each as `[tool_call: name(args_json)]` text, so assistant messages with only tool calls are no longer silently dropped; (3) `role: "toolResult"` mapped to standard `"tool"` with `toolName`/`toolCallId`/`isError` in metadata. Noise-stripping (date headers, "Conversation info") gated to user/assistant only. VERSION `v3.1 → v3.2`.

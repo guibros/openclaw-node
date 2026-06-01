@@ -1,11 +1,20 @@
 # SCOPE — redesign plan
 
-**Status:** idle
-**Goal:** At v4.8 (Block 4: 4.1–4.8 closed; next 4.9 — retire the lossy hourly daily-log writer, the LAST Block-4 step → then macro re-orient). No human driver active. Tick runs hybrid.
+**Status:** done
+**Goal:** Step 4.9 — Retire the lossy hourly daily-log writer (last Block-4 step; macro re-orient follows). BLOCK 4 COMPLETE.
 **Set at:** 2026-06-01
-**Expires:** no-expiry
+**Expires:** 2026-06-02T06:00:00Z
 
 ```files
+workspace-bin/memory-daemon.mjs
+workspace-bin/memory-maintenance.mjs
+workspace-bin/daily-log-writer.mjs
+memory-plan/plans/redesign/INVENTORY.md
+memory-plan/plans/redesign/VERSION
+memory-plan/plans/redesign/COMPONENT_REGISTRY.md
+memory-plan/plans/redesign/DECISIONS.md
+memory-plan/plans/redesign/audits/step49_retire_daily_log/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step49_retire_daily_log/AUDIT_POST.md
 ```
 
 ## How this file works

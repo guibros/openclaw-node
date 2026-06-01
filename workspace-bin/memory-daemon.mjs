@@ -857,20 +857,6 @@ async function runPhase2ThrottledWork(config, sessionState) {
     }
   }
 
-  // Daily log writer — clock-aligned hourly (runs after recap so recap is fresh)
-  const dailyLogWriter = path.join(WORKSPACE, 'bin/daily-log-writer.mjs');
-  if (fs.existsSync(dailyLogWriter)) {
-    const currentHour = new Date().getHours();
-    if (currentHour !== throttle.lastDailyLogHour) {
-      throttle.lastDailyLogHour = currentHour;
-      stage1.push(
-        runSubprocess('node', [dailyLogWriter], 15000)
-          .then(() => log('  Phase 2: daily-log-writer done'))
-          .catch(e => log(`  Phase 2: daily-log-writer failed: ${e.message}`))
-      );
-    }
-  }
-
   // 30-min interval synthesis during active sessions (D2, step 4.5)
   if (sessionState === STATES.ACTIVE && now - throttle.lastSynthesis >= config.intervals.synthesisMs) {
     throttle.lastSynthesis = now;

@@ -24,7 +24,6 @@ const __dirname = path.dirname(__filename);
 
 const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.dirname(__dirname);
 const MEMORY_DIR = path.join(WORKSPACE, 'memory');
-const ARCHIVE_DIR = path.join(MEMORY_DIR, 'archive');
 const STATE_FILE = path.join(WORKSPACE, '.tmp/last-maintenance');
 const RESULTS_FILE = path.join(WORKSPACE, '.tmp/maintenance-results');
 const LOG_FILE = path.join(WORKSPACE, '.tmp/memory-maintenance.log');
@@ -85,65 +84,6 @@ function parseDate(str) {
 
 let warnings = 0;
 let actions = 0;
-
-// 1. Daily file archival (>30 days → monthly summary)
-function checkArchival() {
-  log('Checking daily files for archival...');
-  fs.mkdirSync(ARCHIVE_DIR, { recursive: true });
-
-  const now = new Date();
-  const candidates = [];
-
-  let files;
-  try { files = fs.readdirSync(MEMORY_DIR); } catch { return; }
-
-  for (const f of files) {
-    const match = f.match(/^(\d{4}-\d{2}-\d{2})\.md$/);
-    if (!match) continue;
-    const fileDate = new Date(match[1] + 'T00:00:00');
-    if (isNaN(fileDate.getTime())) continue;
-    const age = daysBetween(fileDate, now);
-    if (age > 30) {
-      candidates.push({ file: f, path: path.join(MEMORY_DIR, f), date: match[1], month: match[1].slice(0, 7), age });
-      log(`Archive candidate: ${match[1]} (${age} days old)`);
-    }
-  }
-
-  if (candidates.length === 0) return;
-
-  // Group by month
-  const months = {};
-  for (const c of candidates) {
-    (months[c.month] = months[c.month] || []).push(c);
-  }
-
-  for (const [month, files] of Object.entries(months)) {
-    const summaryFile = path.join(ARCHIVE_DIR, `${month}-summary.md`);
-
-    if (!DRY_RUN) {
-      let content = '\n# Monthly Summary: ' + month + '\n';
-      content += `Archived: ${timestamp()}\n\n`;
-
-      for (const f of files) {
-        const dailyContent = readFileOr(f.path);
-        const firstLines = dailyContent.split('\n').slice(0, 50).join('\n');
-        content += `## ${f.date}\n${firstLines}\n\n---\n\n`;
-      }
-
-      fs.appendFileSync(summaryFile, content);
-
-      for (const f of files) {
-        fs.renameSync(f.path, path.join(ARCHIVE_DIR, f.file));
-        log(`Archived: ${f.file}`);
-        actions++;
-      }
-    } else {
-      log(`DRY RUN: Would archive ${files.length} files for ${month}`);
-    }
-  }
-
-  report(`ARCHIVAL: ${candidates.length} daily files archived to memory/archive/`);
-}
 
 // 2. Prediction closure (>7 days, empty outcome)
 function checkPredictions() {
@@ -350,23 +290,6 @@ async function checkMissionControl() {
   }
 }
 
-// 8. Daily file creation
-function checkDailyFile() {
-  log('Checking daily file coverage...');
-  const todayStr = today();
-  const todayFile = path.join(MEMORY_DIR, `${todayStr}.md`);
-
-  if (!fs.existsSync(todayFile)) {
-    if (!DRY_RUN) {
-      fs.mkdirSync(MEMORY_DIR, { recursive: true });
-      fs.writeFileSync(todayFile, `# ${todayStr} — Daily Log\n\n`);
-      log(`Created today's daily file: ${todayStr}.md`);
-      actions++;
-    }
-    report(`DAILY_CREATED: ${todayStr}.md created (was missing)`);
-  }
-}
-
 // 9. Timestamp validation
 function checkTimestamps() {
   log('Spot-checking timestamp consistency...');
@@ -526,7 +449,6 @@ export async function runMaintenance(opts = {}) {
   const dryRun = opts.dryRun ?? DRY_RUN;
 
   fs.mkdirSync(path.join(WORKSPACE, '.tmp'), { recursive: true });
-  fs.mkdirSync(ARCHIVE_DIR, { recursive: true });
 
   // Throttle check
   if (!force) {
@@ -546,14 +468,12 @@ export async function runMaintenance(opts = {}) {
   actions = 0;
   results.length = 0;
 
-  checkArchival();
   checkPredictions();
   checkStaleTasks();
   checkMemoryFreshness();
   checkCompanionFreshness();
   await checkClawVault();
   await checkMissionControl();
-  checkDailyFile();
   checkTimestamps();
   checkErrors();
   await checkConsolidation();

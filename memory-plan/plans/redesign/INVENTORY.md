@@ -91,7 +91,7 @@ Each fix confirmed in the watcher.
 | 4 | 4.6 | v4.6 | [x] | Deploy consolidation module; verify one manual cycle (emits memory.decayed/promoted) |
 | 4 | 4.7 | v4.7 | [x] | Install consolidation scheduler (plist) on the cadence |
 | 4 | 4.8 | v4.8 | [x] | Assemble a daily/weekly digest deterministically from the vault |
-| 4 | 4.9 | v4.9 | [ ] | Retire the lossy hourly daily-log writer |
+| 4 | 4.9 | v4.9 | [x] | Retire the lossy hourly daily-log writer |
 
 > **4.1:** end a session → MEMORY.md updates within seconds with structured sections; memory.synthesized event logged. [DONE 2026-05-30 — runFlush returns a synthesis block; daemon emits memory.synthesized (trigger interval/session_end/manual) at the 3 flush sites, mirroring emitExtractEvent. Real synthesis via deployed runFlush → event published to live local-events-daedalus → watcher recorded+classified ok ({"op":"memory.synthesized","status":"ok","actor":"daemon-daedalus"}). Producer test green.]
 > **4.2:** relevant `concepts/*.md` notes appear with `[[wikilinks]]`. [DONE 2026-05-30 — wired `generateConceptNotes` into `runFlush` LLM path (after MEMORY.md gen, `{ respectPrivacy:false, maxConcepts:10 }`). Real generation against production state.db (68 entities above threshold): concept notes written to `~/.openclaw/obsidian-local/concepts/` with YAML frontmatter (`type:concept`, `related: [[[wikilinks]]]`), LLM body (qwen3:8b), decisions, session links. `artifacts_written` now includes concept paths.]
@@ -101,7 +101,7 @@ Each fix confirmed in the watcher.
 > **4.6:** `consolidate.mjs` runs once manually; entities_archived written OR a summary regenerated; decay/promote events logged. [DONE 2026-05-31 — consolidate.mjs emits memory.decayed (after decay) + memory.promoted (after promotion); CLI connects to NATS with --no-events fallback; symlink-deployed. Operator-verified: backed up state.db, ran one real cycle (1064 entities/318 decisions decayed, 136 promotion candidates), both events recorded+classified ok in watcher; entities_archived table created. Impl by tick, blocked at 5b (sandbox), closed by operator.]
 > **4.7:** scheduler installed (`launchctl list`); a cycle fires on cadence unattended. [DONE 2026-06-01 — consolidation-scheduler.mjs threads eventLog/nodeId + NATS; resolved plist installed (StartInterval 1800) + symlink-deployed. Operator reviewed safety (idle-gated, 5-min hard cap w/ AbortController, concurrency guard, soft-archive-only) before installing. Verified: launchctl list shows it (exit 0); kickstart → "system idle — starting consolidation cycle" → cycle complete, decay+promote events in watcher (2→4). Impl by tick, blocked at 5b, closed by operator.]
 > **4.8:** a generated digest reads coherently from vault notes (not an hourly buffer dump). [DONE 2026-06-01 — lib/obsidian-digest.mjs: deterministic template assembly (no LLM) from vault frontmatter, date-filtered, salience-sorted, wikilinked; wired into runFlush (non-fatal). Operator-verified against live vault: weekly digest reads coherently — dated range, session wikilink, active concepts by salience w/ mentions; identical across 2 runs (deterministic). 1473/0 tests. Impl by tick, blocked at 5b, closed by operator.]
-> **4.9:** the old hourly-repeat daily-log writer no longer runs (OUT_OF_SCOPE 2026-05-27 resolved).
+> **4.9:** the old hourly-repeat daily-log writer no longer runs (OUT_OF_SCOPE 2026-05-27 resolved). [DONE 2026-06-01 — removed daily-log-writer invocation from daemon Phase 2, removed `checkArchival()`+`checkDailyFile()` from memory-maintenance.mjs, deleted `workspace-bin/daily-log-writer.mjs`. Daemon restarted (PID 7118): zero daily-log-writer references in deployed binary or post-restart log. 1473/0 tests. Closes Block 4.]
 
 ## Block 5 — Retrieval freshness (L5) · REGISTRY 1.3
 
@@ -159,7 +159,7 @@ Nothing here starts until Blocks 0–6 close and local is observably healthy. Fe
 | 6 | L6 health | 5 | 36 |
 | 7 | G multi-node (deferred) | 4 | 40 |
 
-**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **3.3**.
+**40 steps total — 36 local-first (Blocks 0–6) + 4 deferred.** Next step to execute: **5.1**.
 
 ### Atomicity revision log (vs the prior 33-step draft)
 - Block 0: 0.1 split into lib-symlink (0.1) + daemon-symlink/restart (0.2); old 0.3 split into NATS-install (0.3) + daemon↔NATS-wire (0.4).
