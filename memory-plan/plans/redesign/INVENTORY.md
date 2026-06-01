@@ -90,7 +90,7 @@ Each fix confirmed in the watcher.
 | 4 | 4.5 | v4.5 | [x] | 30-min-while-active synthesis trigger |
 | 4 | 4.6 | v4.6 | [x] | Deploy consolidation module; verify one manual cycle (emits memory.decayed/promoted) |
 | 4 | 4.7 | v4.7 | [x] | Install consolidation scheduler (plist) on the cadence |
-| 4 | 4.8 | v4.8 | [ ] | Assemble a daily/weekly digest deterministically from the vault |
+| 4 | 4.8 | v4.8 | [x] | Assemble a daily/weekly digest deterministically from the vault |
 | 4 | 4.9 | v4.9 | [ ] | Retire the lossy hourly daily-log writer |
 
 > **4.1:** end a session → MEMORY.md updates within seconds with structured sections; memory.synthesized event logged. [DONE 2026-05-30 — runFlush returns a synthesis block; daemon emits memory.synthesized (trigger interval/session_end/manual) at the 3 flush sites, mirroring emitExtractEvent. Real synthesis via deployed runFlush → event published to live local-events-daedalus → watcher recorded+classified ok ({"op":"memory.synthesized","status":"ok","actor":"daemon-daedalus"}). Producer test green.]
@@ -100,7 +100,7 @@ Each fix confirmed in the watcher.
 > **4.5:** synthesis fires on the 30-min interval during a long active session (visible in watcher). [DONE 2026-05-31 — daemon gains `synthesisMs` interval + `lastSynthesis` throttle; Phase 2 runs interval synthesis only while ACTIVE, emitting memory.synthesized `trigger:interval`. Operator-verified: shortened synthesisMs→5s + induced activity → deployed daemon logged `Phase 2: interval synthesis [llm]: 40 facts` and watcher recorded the event (2→3); config reverted. Impl by tick, blocked at 5b (sandbox), closed by operator.]
 > **4.6:** `consolidate.mjs` runs once manually; entities_archived written OR a summary regenerated; decay/promote events logged. [DONE 2026-05-31 — consolidate.mjs emits memory.decayed (after decay) + memory.promoted (after promotion); CLI connects to NATS with --no-events fallback; symlink-deployed. Operator-verified: backed up state.db, ran one real cycle (1064 entities/318 decisions decayed, 136 promotion candidates), both events recorded+classified ok in watcher; entities_archived table created. Impl by tick, blocked at 5b (sandbox), closed by operator.]
 > **4.7:** scheduler installed (`launchctl list`); a cycle fires on cadence unattended. [DONE 2026-06-01 — consolidation-scheduler.mjs threads eventLog/nodeId + NATS; resolved plist installed (StartInterval 1800) + symlink-deployed. Operator reviewed safety (idle-gated, 5-min hard cap w/ AbortController, concurrency guard, soft-archive-only) before installing. Verified: launchctl list shows it (exit 0); kickstart → "system idle — starting consolidation cycle" → cycle complete, decay+promote events in watcher (2→4). Impl by tick, blocked at 5b, closed by operator.]
-> **4.8:** a generated digest reads coherently from vault notes (not an hourly buffer dump).
+> **4.8:** a generated digest reads coherently from vault notes (not an hourly buffer dump). [DONE 2026-06-01 — lib/obsidian-digest.mjs: deterministic template assembly (no LLM) from vault frontmatter, date-filtered, salience-sorted, wikilinked; wired into runFlush (non-fatal). Operator-verified against live vault: weekly digest reads coherently — dated range, session wikilink, active concepts by salience w/ mentions; identical across 2 runs (deterministic). 1473/0 tests. Impl by tick, blocked at 5b, closed by operator.]
 > **4.9:** the old hourly-repeat daily-log writer no longer runs (OUT_OF_SCOPE 2026-05-27 resolved).
 
 ## Block 5 — Retrieval freshness (L5) · REGISTRY 1.3
