@@ -157,42 +157,130 @@ function HealthCard({ health }: { health: WatcherHealth }) {
   );
 }
 
-// Drill-down: the actual content tied to one session (real decisions + entities).
-function SessionContent({ session }: { session: string }) {
-  const { decisions, entities, isLoading } = useMemoryContent(undefined, session);
-  if (isLoading) return <div className="px-[80px] py-2 text-[11px] text-muted-foreground">loading content…</div>;
-  if (decisions.length === 0 && entities.length === 0)
-    return <div className="px-[80px] py-2 text-[11px] text-muted-foreground italic">No stored content tied to this session.</div>;
+// One labeled key/value row in the tree (indented under a section).
+function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
-    <div className="px-[80px] py-2 space-y-2 bg-muted/20 border-b border-border/40">
-      {entities.length > 0 && (
-        <div className="text-[11px]">
-          <div className="text-muted-foreground mb-0.5">entities</div>
-          <div className="flex flex-wrap gap-1">
-            {entities.slice(0, 24).map((e, i) => (
-              <span key={i} className="rounded bg-muted/60 px-1.5 py-0.5 text-foreground">{e.name}</span>
-            ))}
+    <div className="flex gap-2 leading-[1.5]">
+      <span className="text-muted-foreground shrink-0 w-[120px] text-right">{k}</span>
+      <span className="text-foreground min-w-0 break-words">{v}</span>
+    </div>
+  );
+}
+
+// A collapsible-looking section header in the tree.
+function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mb-1 mt-2 first:mt-0">
+        {title}{count !== undefined ? ` (${count})` : ""}
+      </div>
+      <div className="border-l border-border/60 pl-3 space-y-0.5">{children}</div>
+    </div>
+  );
+}
+
+function fmtVal(v: unknown): React.ReactNode {
+  if (v === null || v === undefined) return <span className="text-muted-foreground/50">—</span>;
+  if (Array.isArray(v)) {
+    if (v.length === 0) return <span className="text-muted-foreground/50">[]</span>;
+    return (
+      <div className="space-y-0.5">
+        {v.map((item, i) => (
+          <div key={i} className="truncate">
+            {typeof item === "string" ? item.split("/").pop() : JSON.stringify(item)}
           </div>
-        </div>
-      )}
-      {decisions.length > 0 && (
-        <div className="text-[11px]">
-          <div className="text-muted-foreground mb-0.5">decisions</div>
-          {decisions.slice(0, 8).map((d, i) => (
-            <div key={i} className="mb-1">
-              <span className="text-foreground">• {d.decision}</span>
-              <span className="text-muted-foreground"> — {d.rationale}</span>
-            </div>
-          ))}
-        </div>
-      )}
+        ))}
+      </div>
+    );
+  }
+  if (typeof v === "object") return <span className="font-mono">{JSON.stringify(v)}</span>;
+  return String(v);
+}
+
+// Full detail panel for one event: the interaction spec + payload + content touched.
+function EventDetailPanel({ event }: { event: WatcherEvent }) {
+  const session = event.session || undefined;
+  const { decisions, entities, themes, isLoading } = useMemoryContent(undefined, session);
+  const data = (event.data as Record<string, unknown> | null) || {};
+  const dataKeys = Object.keys(data).filter((k) => k !== "session_id");
+
+  return (
+    <div className="px-4 py-3 bg-muted/20 border-b border-border/40 font-mono text-[11px]">
+      <div className="border-l-2 border-primary/40 pl-3 space-y-1">
+        {/* The interaction spec — every field of the event itself */}
+        <Section title="Event">
+          <KV k="operation" v={event.op} />
+          <KV k="status" v={<span className={statusColor(event.status)}>{event.status || "ok"}</span>} />
+          <KV k="timestamp" v={new Date(event.ts).toLocaleString()} />
+          <KV k="duration" v={fmtDuration(event.duration_ms) || "—"} />
+          {event.actor && <KV k="actor" v={event.actor} />}
+          {event.session && <KV k="session" v={event.session} />}
+        </Section>
+
+        {/* The full payload the op emitted */}
+        {dataKeys.length > 0 && (
+          <Section title="Payload">
+            {dataKeys.map((k) => (
+              <KV key={k} k={k} v={fmtVal(data[k])} />
+            ))}
+          </Section>
+        )}
+
+        {/* The actual stored content this session touched */}
+        {session && (
+          isLoading ? (
+            <div className="text-muted-foreground mt-2">loading content…</div>
+          ) : entities.length === 0 && decisions.length === 0 && themes.length === 0 ? (
+            <div className="text-muted-foreground/60 italic mt-2">No stored content tied to this session.</div>
+          ) : (
+            <>
+              {entities.length > 0 && (
+                <Section title="Entities touched" count={entities.length}>
+                  <div className="flex flex-wrap gap-1">
+                    {entities.slice(0, 40).map((e, i) => (
+                      <span key={i} className="rounded bg-muted/60 px-1.5 py-0.5">
+                        {e.name} <span className="text-muted-foreground/60">{e.type}</span>
+                      </span>
+                    ))}
+                  </div>
+                </Section>
+              )}
+              {decisions.length > 0 && (
+                <Section title="Decisions" count={decisions.length}>
+                  {decisions.slice(0, 12).map((d, i) => (
+                    <div key={i} className="leading-snug">
+                      <span className="text-foreground">• {d.decision}</span>
+                      <span className="text-muted-foreground"> — {d.rationale}</span>
+                      <span className="text-muted-foreground/60"> ({(d.confidence * 100).toFixed(0)}%)</span>
+                    </div>
+                  ))}
+                </Section>
+              )}
+              {themes.length > 0 && (
+                <Section title="Themes" count={themes.length}>
+                  {themes.slice(0, 12).map((t, i) => (
+                    <div key={i}>
+                      <span className="text-foreground">{t.label}</span>
+                      {t.hierarchy.length > 0 && (
+                        <span className="text-muted-foreground/60"> · {t.hierarchy.join(" › ")}</span>
+                      )}
+                    </div>
+                  ))}
+                </Section>
+              )}
+            </>
+          )
+        )}
+      </div>
     </div>
   );
 }
 
 function EventRow({ event }: { event: WatcherEvent }) {
   const [open, setOpen] = useState(false);
-  const drillable = !!event.session && event.op.startsWith("memory.");
+  // Every memory.* event is drillable — the panel always shows the interaction
+  // spec + payload; session content is added when the event carries a session.
+  const drillable = event.op.startsWith("memory.");
   return (
     <>
       <div
@@ -222,7 +310,7 @@ function EventRow({ event }: { event: WatcherEvent }) {
           {fmtDuration(event.duration_ms)}
         </span>
       </div>
-      {open && event.session && <SessionContent session={event.session} />}
+      {open && <EventDetailPanel event={event} />}
     </>
   );
 }
