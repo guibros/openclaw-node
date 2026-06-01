@@ -73,3 +73,10 @@ This file is always-writeable (the PreToolUse hook exempts it).
 **Evidence:** Ollama v0.24.0 up, qwen3:8b resident in VRAM (10.7GB); direct `/api/generate` warm = 2.7s total. Inject query returned concepts:7/decisions:3/snippets:3 but mode=embedding-fallback.
 
 **Impact:** retrieval still works (embeddings warm), but loses LLM-shaped analysis. **Directly affects step 5.3** (verify all 5 channels via the full pipeline) — the analysis-gated behavior won't exercise unless this timeout is raised. Likely needs: raise `waitTimeoutMs` for the analysis call to ~5–10s, OR a smaller/faster analysis model, OR make it a config knob. Triage before/within 5.3.
+
+**RESOLVED 2026-06-01:** raised the analysis timeout to an env-configurable
+`LLM_ANALYSIS_TIMEOUT` (default 8000ms) at all three sites (llm-client local
+fetch timeout, llm-client queue requestAnalysis wait, query-analysis call).
+Verified: with qwen3:8b warm, `/memory/inject` now returns `mode: llm`
+(fallbackReason NONE) instead of embedding-fallback. Tune via env if a faster/
+slower analysis model is used.
