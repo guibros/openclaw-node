@@ -108,11 +108,11 @@ Each fix confirmed in the watcher.
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 5 | 5.1 | v5.1 | [x] | knowledge.db incremental indexing of new sessions in the daemon's throttled work |
-| 5 | 5.2 | v5.2 | [ ] | Construct graphCache in the daemon + refresh it on the synthesis cadence |
+| 5 | 5.2 | v5.2 | [x] | Construct graphCache in the daemon + refresh it on the synthesis cadence |
 | 5 | 5.3 | v5.3 | [ ] | Verify all 5 retrieval channels return for a known-good query (integration checkpoint) |
 
 > **5.1:** knowledge.db session_documents max-time within 1h of the latest session. [DONE 2026-06-01 — daemon Phase 2 incrementally indexes un-indexed sessions (dedup via session_documents, BATCH_LIMIT 5, every 10min). Operator-verified: ran deployed Phase-2 logic against live state.db→knowledge.db → "5 sessions indexed (5 chunks)"; docs 225→230, MAX(last_indexed) now 0min ago (fresh), un-indexed 8→3 (proves incremental). Impl by tick, blocked at 5b (daemon ENDED), closed by operator. Opens Block 5.]
-> **5.2:** graph-cache `last_refresh_at` within 1h; channel-5 returns non-empty for a seeded query.
+> **5.2:** graph-cache `last_refresh_at` within 1h; channel-5 returns non-empty for a seeded query. [DONE 2026-06-01 — daemon Phase 2 lazily builds graphCache + refreshes on maintenance cadence (after obsidian sync). Operator-verified: `--refresh` → 65→71 nodes, last_refresh_at 0min ago (fresh); channel 5 queryNeighbors on highest-degree node returned 34 edges/8 neighbors (gui, openclaw, nats-jetstream, …) NON-EMPTY. Note: full inject path hit Ollama timeout (env, not defect) → channel 5 verified directly via its own API. Impl by tick, blocked at 5b, closed by operator.]
 > **5.3:** a diagnostic against :7893 shows non-empty hits from FTS, vec, entity, theme, and spreading-activation.
 
 ## Block 6 — Health + storage hygiene (L6) · DESIGN_INPUTS §5 (the scars)

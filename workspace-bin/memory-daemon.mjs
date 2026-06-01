@@ -49,6 +49,7 @@ import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } fro
 import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
 import { createMemoryWatcher, runStoreHealthProbes } from '../lib/memory-watcher.mjs';
 import { initDatabase as initKnowledgeDb, indexSessionTurns } from '../lib/mcp-knowledge/core.mjs';
+import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -118,6 +119,20 @@ function getKnowledgeDb() {
     return _knowledgeDb;
   } catch (err) {
     log(`knowledge-db unavailable: ${err.message}`);
+    return null;
+  }
+}
+
+// Graph cache loaded lazily (for spreading-activation channel 5 freshness)
+let _graphCache = null;
+function getGraphCache() {
+  if (_graphCache) return _graphCache;
+  try {
+    _graphCache = createGraphCache();
+    log('Graph cache initialized');
+    return _graphCache;
+  } catch (err) {
+    log(`graph-cache unavailable: ${err.message}`);
     return null;
   }
 }
@@ -741,7 +756,7 @@ function loadThrottleState() {
     lastRecap: 0, lastMaintenance: 0, lastObsidianSync: 0, lastTrustHealth: 0,
     lastClawvaultReflect: 0, lastClawvaultArchive: 0, lastClawvaultObserve: 0,
     lastSessionImport: 0, lastHyperagentReflect: 0, lastSynthesis: 0,
-    lastKnowledgeIndex: 0,
+    lastKnowledgeIndex: 0, lastGraphCacheRefresh: 0,
   };
 }
 
@@ -963,6 +978,20 @@ async function runPhase2ThrottledWork(config, sessionState) {
         .then(() => log('  Phase 2: obsidian-sync done'))
         .catch(e => log(`  Phase 2: obsidian-sync failed: ${e.message}`));
     }
+  }
+
+  // Stage 3: Graph-cache refresh — runs AFTER obsidian sync so vault notes
+  // written during synthesis (stage 1) and sync (stage 2) are reflected.
+  // Aligned with synthesis cadence (30 min, D2).
+  if (now - (throttle.lastGraphCacheRefresh || 0) >= config.intervals.maintenanceMs) {
+    throttle.lastGraphCacheRefresh = now;
+    try {
+      const gc = getGraphCache();
+      if (gc) {
+        const result = await gc.refreshCache();
+        if (result) log(`  Phase 2: graph-cache refreshed: ${result.nodeCount} nodes, ${result.edgeCount} edges`);
+      }
+    } catch (e) { log(`  Phase 2: graph-cache refresh failed: ${e.message}`); emitErrorEvent('graph_cache_refresh', e); }
   }
 
   // Always persist throttle timestamps (Obsidian sync updates outside stage1)
@@ -1438,6 +1467,9 @@ async function main() {
     }
     if (injectionServer) {
       try { await injectionServer.close(); } catch (_) {}
+    }
+    if (_graphCache) {
+      try { _graphCache.close(); } catch (_) {}
     }
     if (natsConn) {
       try { await natsConn.drain(); } catch (_) {}
