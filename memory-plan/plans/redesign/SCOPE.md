@@ -1,7 +1,7 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** Blocks 0–6 COMPLETE at v6.5 (local-first memory redesign done; 4 open steps = Block 7 federation, DEFERRED per DECISIONS D4). Tick chain intentionally LEFT DISABLED. No human driver active.
+**Goal:** Blocks 0–6 COMPLETE at v6.5. Post-completion polish: watcher nav link + watcher now carries/renders full per-op detail. Tick chain LEFT DISABLED (next is deferred Block 7). No human driver active.
 **Set at:** 2026-06-01
 **Expires:** no-expiry
 
