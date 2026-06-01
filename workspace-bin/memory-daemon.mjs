@@ -48,6 +48,7 @@ import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
 import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
 import { createMemoryWatcher, runStoreHealthProbes } from '../lib/memory-watcher.mjs';
+import { initDatabase as initKnowledgeDb, indexSessionTurns } from '../lib/mcp-knowledge/core.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -102,6 +103,21 @@ async function getHyperAgentStore() {
     return _haStore;
   } catch (err) {
     log(`hyperagent-store unavailable: ${err.message}`);
+    return null;
+  }
+}
+
+// Knowledge DB loaded lazily (requires sqlite-vec native dep from mcp-knowledge)
+let _knowledgeDb = null;
+function getKnowledgeDb() {
+  if (_knowledgeDb) return _knowledgeDb;
+  try {
+    const dbPath = path.join(HOME, '.openclaw/workspace/.knowledge.db');
+    _knowledgeDb = initKnowledgeDb(dbPath);
+    log('Knowledge DB initialized');
+    return _knowledgeDb;
+  } catch (err) {
+    log(`knowledge-db unavailable: ${err.message}`);
     return null;
   }
 }
@@ -725,6 +741,7 @@ function loadThrottleState() {
     lastRecap: 0, lastMaintenance: 0, lastObsidianSync: 0, lastTrustHealth: 0,
     lastClawvaultReflect: 0, lastClawvaultArchive: 0, lastClawvaultObserve: 0,
     lastSessionImport: 0, lastHyperagentReflect: 0, lastSynthesis: 0,
+    lastKnowledgeIndex: 0,
   };
 }
 
@@ -799,6 +816,50 @@ async function runPhase2ThrottledWork(config, sessionState) {
           }
           if (totalImported > 0) log(`  Phase 2: session-store imported ${totalImported} sessions`);
         } catch (e) { log(`  Phase 2: session-import failed: ${e.message}`); emitErrorEvent('ingest', e); }
+      })()
+    );
+  }
+
+  // Knowledge DB incremental indexing (every 10min, aligned with session-import)
+  if (now - (throttle.lastKnowledgeIndex || 0) >= config.intervals.sessionRecapMs) {
+    throttle.lastKnowledgeIndex = now;
+    stage1.push(
+      (async () => {
+        try {
+          const knowledgeDb = getKnowledgeDb();
+          if (!knowledgeDb) return;
+          const Database = require('better-sqlite3');
+          const stateDbPath = path.join(HOME, '.openclaw/state.db');
+          if (!fs.existsSync(stateDbPath)) return;
+          const stateDb = new Database(stateDbPath, { readonly: true });
+          try {
+            const allSessions = stateDb.prepare(
+              'SELECT id, source FROM sessions ORDER BY start_time ASC'
+            ).all();
+            let indexed = 0, chunks = 0;
+            const BATCH_LIMIT = 5;
+            for (const session of allSessions) {
+              if (indexed >= BATCH_LIMIT) break;
+              const existing = knowledgeDb.prepare(
+                'SELECT content_hash FROM session_documents WHERE session_id = ?'
+              ).get(session.id);
+              if (existing) continue;
+              const messages = stateDb.prepare(
+                'SELECT role, content FROM messages WHERE session_id = ? ORDER BY turn_index ASC'
+              ).all(session.id);
+              if (messages.length === 0) continue;
+              const turns = messages.map(m => ({ role: m.role, content: m.content }));
+              const result = await indexSessionTurns(knowledgeDb, session.id, `session-store://${session.id}`, turns);
+              if (result.indexed) {
+                indexed++;
+                chunks += result.chunks;
+              }
+            }
+            if (indexed > 0) log(`  Phase 2: knowledge-index: ${indexed} sessions indexed (${chunks} chunks)`);
+          } finally {
+            stateDb.close();
+          }
+        } catch (e) { log(`  Phase 2: knowledge-index failed: ${e.message}`); emitErrorEvent('knowledge_index', e); }
       })()
     );
   }

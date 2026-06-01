@@ -51,4 +51,13 @@ This file is always-writeable (the PreToolUse hook exempts it).
 - **Severity guess:** MEDIUM (main daemon stable; data loss is silent, not crashing).
 - **Who-touches-next:** redesign Block 2 (L2 watcher / dedicated silent-failures view — would surface this) and Block 3 (3.4 tolerant extraction coercion — would stop dropping these). Inventory steps 2.x and 3.4.
 
+## 2026-06-01 — Memory daemon: `healthProbeTimer` scoping bug causes ReferenceError on shutdown
+
+- **Observed while:** restarting the daemon during redesign step 5.1 verification.
+- **Area:** `workspace-bin/memory-daemon.mjs`, shutdown function (line ~1435) references `healthProbeTimer`, which is declared with `let` inside a block scope (line ~1333) and not accessible from `shutdown()`.
+- **Problem:** every SIGTERM produces `ReferenceError: healthProbeTimer is not defined` in `.err`. The shutdown function can't clear the health probe interval timer. The daemon exits anyway (node process terminates), so the timer is cleaned up by the OS — but it's a correctness bug.
+- **Why it matters:** noisy error on every shutdown; could mask real errors in `.err`. Minor but worth fixing.
+- **Severity guess:** LOW (functional impact: none — process exits regardless).
+- **Who-touches-next:** whoever next modifies the daemon shutdown path. Fix: hoist `let healthProbeTimer = null;` to module scope alongside other timers.
+
 ---
