@@ -1444,7 +1444,7 @@ async function main() {
     try {
       const { startInjectionServer } = await import('../lib/memory-inject-server.mjs');
       injectionServer = await startInjectionServer(
-        { llmClient: getLlmClient(), extractionDb: getExtractionStore()?.db, eventLog: localEventLog, nodeId: NODE_ID },
+        { knowledgeDb: getKnowledgeDb(), graphCache: getGraphCache(), llmClient: getLlmClient(), extractionDb: getExtractionStore()?.db, eventLog: localEventLog, nodeId: NODE_ID },
         { log: (m) => log(`[inject-server] ${m}`) },
       );
     } catch (injErr) {

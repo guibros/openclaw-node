@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-01 — Step 5.3 closed: all 5 retrieval channels verified → Block 5 COMPLETE
+
+**Decision.** Two bugs fixed to make the inject server's 5-channel retrieval pipeline functional: (1) the daemon didn't pass `knowledgeDb` or `graphCache` to `startInjectionServer()` — the inject server's `resolveDeps` fallback used `process.cwd()` (= `/` for launchd) to resolve `DB_PATH`, resulting in `/.knowledge.db` (doesn't exist) → all 5 channels gated out; (2) all 1064 entities have `private = 1` (default-private from extraction-store.mjs migration) with no publication mechanism → `filterPrivateResults` dropped every result. Fix: pass daemon's DB handles (`getKnowledgeDb()`, `getGraphCache()`) to the inject server + set `respectPrivacy: false` in the inject server's `retrieveOpts` (loopback-only server serves operator's own data; privacy is a federation concern per D4).
+
+**Evidence.** Tests: 1473/0. Runtime: daemon PID 22065 logs "Knowledge DB initialized", "Graph cache initialized", "Extraction store initialized"; `POST /memory/inject` with query "How does NATS work with the memory daemon and federation?" → `{concepts:7, decisions:5, snippets:3}` (was 0/0/0 before fix). LLM analysis times out at 1s ceiling (embedding-fallback mode) but all channels return results without it.
+
+**Block 5 close.** This is the last step of Block 5 (L5 retrieval freshness). All 3 steps closed: 5.1 (knowledge.db incremental indexing), 5.2 (graph-cache refresh in daemon), 5.3 (integration checkpoint — all 5 channels verified). The retrieval pipeline is functional end-to-end. Block 6 (L6 health + storage hygiene) is next.
+
+**Carry-forward.** The daemon's LLM analysis path consistently times out at the 1s `waitTimeoutMs` ceiling — even with Ollama warm, queue overhead + prompt eval exceeds 1s. The embedding-fallback path works correctly, but LLM-mode analysis (intent, sentiment, entity disambiguation) never succeeds in practice. Suggested fix for a future step: increase `waitTimeoutMs` to 3-5s or pre-warm the model on daemon startup.
+
+---
+
 ## 2026-06-01 — Step 4.9 closed: retire the lossy hourly daily-log writer → Block 4 COMPLETE
 
 **Decision.** The hourly daily-log writer (`workspace-bin/daily-log-writer.mjs`) is retired. Three changes: (1) removed the daemon's Phase 2 daily-log-writer invocation block (13 lines: variable, existsSync guard, hour-alignment, runSubprocess, throttle tracking); (2) removed `checkArchival()` (57 lines: daily-log→monthly-summary archival) and `checkDailyFile()` (15 lines: pre-creates today's daily file) from `memory-maintenance.mjs` + their calls from `runMaintenance()` + the unused `ARCHIVE_DIR` constant; (3) deleted `daily-log-writer.mjs` from the repo. VERSION `v4.8 → v4.9`.

@@ -1,11 +1,19 @@
 # SCOPE — redesign plan
 
 **Status:** idle
-**Goal:** At v5.2 (Block 5: 5.1–5.2 closed; next 5.3 — verify all 5 retrieval channels return, integration checkpoint). NOTE: 5.3 needs Ollama warm (the analysis LLM) or the inject path degrades to embedding-fallback. No human driver active. Tick runs hybrid.
+**Goal:** At v5.3 (Block 5 COMPLETE; all 3 L5 steps closed; next Block 6 step 6.1 — Build lib/sqlite-store.mjs). LLM analysis timeout (1s waitTimeoutMs) is a carry-forward — channels work in embedding-fallback mode.
 **Set at:** 2026-06-01
 **Expires:** no-expiry
 
 ```files
+memory-plan/plans/redesign/audits/step53_retrieval_checkpoint/AUDIT_PRE.md
+memory-plan/plans/redesign/audits/step53_retrieval_checkpoint/AUDIT_POST.md
+memory-plan/plans/redesign/INVENTORY.md
+memory-plan/plans/redesign/VERSION
+memory-plan/plans/redesign/COMPONENT_REGISTRY.md
+memory-plan/plans/redesign/DECISIONS.md
+lib/memory-inject-server.mjs
+workspace-bin/memory-daemon.mjs
 ```
 
 ## How this file works
