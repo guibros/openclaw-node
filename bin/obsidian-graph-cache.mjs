@@ -19,7 +19,7 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { watch } from 'node:fs';
-import { openStore } from '../lib/sqlite-store.mjs';
+import { openStore, getVersion, setVersion } from '../lib/sqlite-store.mjs';
 import { buildGraph } from '../lib/obsidian-graph.mjs';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 import { getVaultPath } from '../lib/obsidian-vault.mjs';
@@ -64,6 +64,8 @@ function initDb(db) {
       value TEXT
     );
   `);
+
+  if (getVersion(db) < 1) setVersion(db, 1);
 }
 
 /**
