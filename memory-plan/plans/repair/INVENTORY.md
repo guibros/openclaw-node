@@ -23,7 +23,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 
 | Block | Step | Version | Status | Driver | Description |
 |-------|------|---------|--------|--------|-------------|
-| 1 | 1.1 | v1.1 | [ ] | hybrid | Tick re-entrancy guard (R3) |
+| 1 | 1.1 | v1.1 | [x] | hybrid | Tick re-entrancy guard (R3) |
 | 1 | 1.2 | v1.2 | [ ] | hybrid | Time-anchored decay (R1) |
 | 1 | 1.3 | v1.3 | [ ] | hybrid | Idempotent reinforcement (R2) |
 | 1 | 1.4 | v1.4 | [ ] | hybrid | Extraction dedup at flush boundaries (R4) |
@@ -33,7 +33,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 1 | 1.8 | v1.8 | [ ] | operator | Data repair B: rebaseline salience + mention_count |
 
 > **1.1 Goal:** at most one tick body executes at any time.
-> **1.1 Proof:** induce a >30s tick (real LLM flush); the overlapping interval fire logs `tick skipped (in-flight)` and the watcher shows zero interleaved Phase-2 ops; regression test asserts the skip.
+> **1.1 Proof:** induce a >30s tick (real LLM flush); the overlapping interval fire logs `tick skipped (in-flight)` and the watcher shows zero interleaved Phase-2 ops; regression test asserts the skip. [DONE 2026-06-02 — tick wrapped in the shared `createConcurrencyGuard` (maxAgeMs 30min), both call sites routed, skip logged. Runtime: PID 9102, induced long tick via planted gateway session `repair-11-verify` → boot tick 15:36:54, interval fire 15:37:24 logged `tick skipped (in-flight)`, zero interleaved Phase-0/2 sequences; watcher ingested the session ok. Tests 1493/0 (5 new in test/daemon-tick-guard.test.mjs — first defense of workspace-bin/memory-daemon.mjs).]
 >
 > **1.2 Goal:** decay is idempotent w.r.t. cycle frequency — N cycles in a window decay the same total amount as 1.
 > **1.2 Proof:** on a copy of state.db, 3 consolidation cycles inside 1h decay an idle entity ≤0.4% total (per-cycle elapsed-time factor ≈0.1%, not the compounding ~33% observed pre-fix); `entities_archived` gains 0 rows across the 3 cycles in idle steady-state; unit test with a frozen clock locks the formula.

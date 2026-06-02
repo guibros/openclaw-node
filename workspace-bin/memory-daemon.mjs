@@ -47,6 +47,7 @@ import { createExtractionStore } from '../lib/extraction-store.mjs';
 import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
 import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
+import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 import { createMemoryWatcher, runStoreHealthProbes } from '../lib/memory-watcher.mjs';
 import { initDatabase as initKnowledgeDb, indexSessionTurns } from '../lib/mcp-knowledge/core.mjs';
 import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
@@ -1559,8 +1560,12 @@ async function main() {
     }
   }
 
+  // R3 fix: ticks routinely outlive pollMs (LLM extraction, Phase 0 bootstrap);
+  // unguarded overlap re-runs the same throttled work off stale on-disk state.
+  const guardedTick = createConcurrencyGuard(tick, { maxAgeMs: 30 * 60_000, log });
+
   // Run first tick immediately
-  await tick();
+  await guardedTick();
 
   // Schedule recurring ticks
   const interval = setInterval(async () => {
@@ -1569,7 +1574,8 @@ async function main() {
       log('Daemon stopped');
       process.exit(0);
     }
-    await tick();
+    const result = await guardedTick();
+    if (result?.skipped) log('tick skipped (in-flight)');
   }, config.intervals.pollMs);
 
   // setInterval handle above prevents Node from exiting

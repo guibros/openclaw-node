@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-02 — Step 1.1 closed: tick re-entrancy guard → Opens Block 1
+
+**Decision.** The daemon's tick loop is single-flighted through the existing shared `lib/concurrency-guard.mjs` (`createConcurrencyGuard(tick, { maxAgeMs: 30 * 60_000, log })`) — reuse of the F-P215/F-Q406 standardized fix, no new mechanism. Both call sites (immediate boot tick, 30s interval) route through the guard; an overlapping interval fire logs `tick skipped (in-flight)` and does nothing. maxAgeMs=30min force-clears a wedged tick (deadlock recovery over strict exclusion — same posture as the graph-cache usage).
+
+**Evidence.** Tests: 1493/0 (5 new in `test/daemon-tick-guard.test.mjs` — behavioral single-flight + 4 source-wiring assertions; the first tests defending `workspace-bin/memory-daemon.mjs`). Runtime: daemon PID 9102 on repo code; induced long tick (planted gateway session `repair-11-verify`) → boot tick started 15:36:54, interval fire at 15:37:24 logged `tick skipped (in-flight)`, log shows one continuous Phase-0→Phase-2 sequence with zero interleaving; watcher recorded `memory.ingested` (`status:ok`) through the guarded tick.
+
+**No architectural decision needed** — mechanical reuse. Carry-forward: `repair-11-verify` (4 messages) remains in state.db as a known fixture for 1.4's dedup proof; skip-line frequency doubles as a chronic-long-tick signal for 3.1. OUT_OF_SCOPE captured: Phase 0 bootstrap's `memory-maintenance` exits 1 while Phase 2's succeeds.
+
+---
+
 ## 2026-06-02 — Inventory v2: atomization review (operator-directed) — 30 → 48 steps, Goal+Proof per step, 9-phase binding
 
 **Decision.** The v1 inventory failed an operator review on three criteria and was rewritten in place:

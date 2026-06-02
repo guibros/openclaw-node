@@ -1,12 +1,11 @@
 # SCOPE — repair plan
 
 **Status:** idle
-**Goal:** Inventory v2 landed (48 atomic steps, Goal+Proof gates, 9-phase binding, WORKFLOW repointed). Next action: step 1.1 (tick re-entrancy guard) — set its scope with the operator, or build the repair tick chain first (INVENTORY "Work infrastructure").
-**Set at:** 2026-06-02 14:30 Montreal
+**Goal:** Step 1.1 CLOSED at v1.1 (tick re-entrancy guard live, runtime-proved 15:37:24). Next: step 1.2 — time-anchored decay (R1).
+**Set at:** 2026-06-02 15:45 Montreal
 **Expires:** no-expiry
 
 ```files
-memory-plan/plans/repair/*
 ```
 
 ## How this file works
