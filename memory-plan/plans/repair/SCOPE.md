@@ -1,20 +1,11 @@
 # SCOPE — repair plan
 
-**Status:** active
-**Goal:** Autonomous chain through Block 1 hybrid/tick steps (operator directive 2026-06-02: "go autonomously in chain until you block"). Current: 1.2 time-anchored decay → 1.3 idempotent reinforcement → 1.4 extraction dedup → 1.5 turn_index → 1.6 atomic MEMORY.md. Expected BLOCK at 1.7 (operator-driven data repair). One 9-phase cycle + one commit per step; each step's Proof per INVENTORY v2.
-**Set at:** 2026-06-02 15:50 Montreal
-**Expires:** 2026-06-03T12:00:00Z
+**Status:** idle
+**Goal:** Chain run 2026-06-02 CLOSED 1.1–1.6 at v1.6 (all runtime-proved, suite 1499/0, daemon on v1.6). BLOCKED at 1.7/1.8 — operator-driven data repair; see BLOCKED.md (precondition: one live post-fix scheduler cycle).
+**Set at:** 2026-06-02 16:17 Montreal
+**Expires:** no-expiry
 
 ```files
-lib/consolidation.mjs
-lib/extraction-store.mjs
-lib/pre-compression-flush.mjs
-lib/memory-budget.mjs
-test/consolidation.test.mjs
-test/extraction-store.test.mjs
-test/pre-compression-flush.test.mjs
-test/memory-budget.test.mjs
-memory-plan/plans/repair/*
 ```
 
 ## How this file works
