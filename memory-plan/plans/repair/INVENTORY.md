@@ -26,7 +26,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 1 | 1.1 | v1.1 | [x] | hybrid | Tick re-entrancy guard (R3) |
 | 1 | 1.2 | v1.2 | [x] | hybrid | Time-anchored decay (R1) |
 | 1 | 1.3 | v1.3 | [x] | hybrid | Idempotent reinforcement (R2) |
-| 1 | 1.4 | v1.4 | [ ] | hybrid | Extraction dedup at flush boundaries (R4) |
+| 1 | 1.4 | v1.4 | [x] | hybrid | Extraction dedup at flush boundaries (R4) |
 | 1 | 1.5 | v1.5 | [ ] | tick | turn_index stamps the last real turn (R5) |
 | 1 | 1.6 | v1.6 | [ ] | tick | MEMORY.md writes go through atomic-write (R39) |
 | 1 | 1.7 | v1.7 | [ ] | operator | Data repair A: restore bug-archived entities (after 1.2/1.3) |
@@ -42,7 +42,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **1.3 Proof:** SQL snapshot diff across 2 consecutive cycles with no new sessions = zero `mention_count`/salience change; adding one new shared session reinforces each member exactly +1; regression test. [DONE 2026-06-02 — `cooccurrence_state` credited-evidence table (lazy create); credit only on evidence growth; shrink tracked. Copy-run: cycle1 seeds 102 (the set live was re-crediting every cycle), cycle2 reinforced=0/identical snapshots/SUM(mention_count) unchanged, +1 new shared session → exactly +1 each. Tests 22/22 (2 new).]
 >
 > **1.4 Goal:** a flush over already-extracted content is a recorded noop, not a re-extraction.
-> **1.4 Proof:** two `runFlush` calls over an unchanged session → the second inserts 0 mention rows (SQL) and the watcher records the op as `status:noop`/skip; a grown session extracts only the delta (new mention rows reference only new turns).
+> **1.4 Proof:** two `runFlush` calls over an unchanged session → the second inserts 0 mention rows (SQL) and the watcher records the op as `status:noop`/skip; a grown session extracts only the delta (new mention rows reference only new turns). [DONE 2026-06-02 — `extraction_state` content-hash table; dedup gate skips LLM+synthesis, returns zero-count extraction → watcher noop. Live daemon (synthesisMs 60s, reverted): flush#1 16:04:17 `[llm]` ok/12 mentions, flush#2 16:04:55 `[llm-dedup]` noop/entities=0, SQL 0 new mention rows post-20:04:30Z. Suite 1499/0.]
 >
 > **1.5 Goal:** every new mention's `turn_index` references a turn that exists.
 > **1.5 Proof:** post-fix extraction → new mentions carry `turn_index == messageCount-1`, and a JOIN against `session_chunks.turn_index` for that session returns rows (no orphan index); regression test.

@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-02 — Step 1.4 closed: extraction dedup at flush boundaries
+
+**Decision.** `runFlush` keeps a per-session record of the last successfully-extracted tail (`extraction_state`: session_id PK, sha256 of the tail's `[role, content]` pairs, message_count, extracted_at — lazy table in state.db via the store's db handle). Unchanged tail → no LLM call, no synthesis re-run, `mode:'llm-dedup'` with a zero-count extraction block that the daemon's existing emit guard turns into a watcher-classified `noop`. Hash recorded only after a successful store, so failed extractions retry. Delta-input extraction (feeding only new messages) deliberately not attempted.
+
+**Evidence.** Tests: +1 integration (unchanged → dedup/0 LLM calls/0 new mentions; grown → re-extracts); full suite **1499/0**. Runtime, live daemon end-to-end (synthesisMs 60s temporarily, config backed up + reverted): flush#1 16:04:17 `[llm]` → watcher `status=ok entities=12`, 12 mention rows; flush#2 16:04:55 over the unchanged tail → `[llm-dedup]: 0 facts`, watcher `status=noop entities=0`, **0 mention rows inserted** (SQL window check). Fired on a real 712KB production session.
+
+**No architectural decision needed.** All three mention-count inflators (R1 decay, R2 reinforcement, R4 re-extraction) are now off. Carry-forward: 1.5 can cross-check its stamp against `extraction_state.message_count`.
+
+---
+
 ## 2026-06-02 — Step 1.3 closed: idempotent reinforcement
 
 **Decision.** Co-occurrence reinforcement is credited-evidence-based: `cooccurrence_state(id_a, id_b, sessions_seen, last_reinforced_at)` (created lazily inside `reinforceCoOccurrence` so every caller is covered). A pair credits +1 mention_count / +0.05 salience per member when it first qualifies and again only when its shared-session count grows; equal counts skip; 30-day-window shrink is tracked downward (under-credit chosen over re-credit). The `pairs` return now reports only this cycle's credits.

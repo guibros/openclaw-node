@@ -191,6 +191,51 @@ describe('runFlush with LLM extraction', () => {
     }
   });
 
+  it('skips re-extraction when the tail is unchanged (R4, repair 1.4)', async () => {
+    const jsonlPath = path.join(tmpDir, 'dedup-session.jsonl');
+    const memoryMdPath = path.join(tmpDir, 'MEMORY-dedup.md');
+    const messages = [
+      { type: 'user', message: { role: 'user', content: 'Dedup check message one' }, timestamp: '2026-06-02T10:00:00Z' },
+      { type: 'assistant', message: { role: 'assistant', content: 'Dedup check reply' }, timestamp: '2026-06-02T10:00:05Z' },
+    ];
+    fs.writeFileSync(jsonlPath, messages.map(m => JSON.stringify(m)).join('\n'));
+
+    let llmCalls = 0;
+    const mockClient = {
+      async generate() {
+        llmCalls++;
+        return { content: JSON.stringify(mockExtractionResult), usage: null, finishReason: 'stop' };
+      },
+    };
+    const opts = { charBudget: 2200, llmClient: mockClient, extractionStore: store };
+
+    const first = await runFlush(jsonlPath, memoryMdPath, opts);
+    assert.equal(first.mode, 'llm');
+    const mentionsAfterFirst = store.db.prepare(`SELECT COUNT(*) c FROM mentions WHERE session_id = 'dedup-session'`).get().c;
+    const callsAfterFirst = llmCalls;
+
+    const second = await runFlush(jsonlPath, memoryMdPath, opts);
+    assert.equal(second.mode, 'llm-dedup');
+    assert.equal(second.flushed, false);
+    assert.equal(second.skipped, 1);
+    assert.equal(second.extraction.entities_count, 0);
+    assert.equal(llmCalls, callsAfterFirst);
+    assert.equal(
+      store.db.prepare(`SELECT COUNT(*) c FROM mentions WHERE session_id = 'dedup-session'`).get().c,
+      mentionsAfterFirst
+    );
+
+    fs.appendFileSync(jsonlPath, '\n' + JSON.stringify(
+      { type: 'user', message: { role: 'user', content: 'New content arrives' }, timestamp: '2026-06-02T10:01:00Z' }
+    ));
+    const third = await runFlush(jsonlPath, memoryMdPath, opts);
+    assert.equal(third.mode, 'llm');
+    assert.ok(
+      store.db.prepare(`SELECT COUNT(*) c FROM mentions WHERE session_id = 'dedup-session'`).get().c > mentionsAfterFirst,
+      'a grown tail must extract again'
+    );
+  });
+
   it('falls back to regex when LLM extraction fails', async () => {
     const jsonlPath = path.join(tmpDir, 'test-session.jsonl');
     const memoryMdPath = path.join(tmpDir, 'MEMORY.md');
