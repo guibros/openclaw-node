@@ -187,7 +187,9 @@ describe('runFlush with LLM extraction', () => {
     const mentions = store.db.prepare('SELECT turn_index FROM mentions').all();
     assert.equal(mentions.length, 2);
     for (const m of mentions) {
-      assert.equal(m.turn_index, 3);
+      // 3 messages, 0-based turns → last real turn is 2 (R5, repair 1.5:
+      // the old stamp of messageCount pointed one past the end)
+      assert.equal(m.turn_index, 2);
     }
   });
 

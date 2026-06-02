@@ -27,7 +27,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 1 | 1.2 | v1.2 | [x] | hybrid | Time-anchored decay (R1) |
 | 1 | 1.3 | v1.3 | [x] | hybrid | Idempotent reinforcement (R2) |
 | 1 | 1.4 | v1.4 | [x] | hybrid | Extraction dedup at flush boundaries (R4) |
-| 1 | 1.5 | v1.5 | [ ] | tick | turn_index stamps the last real turn (R5) |
+| 1 | 1.5 | v1.5 | [x] | tick | turn_index stamps the last real turn (R5) |
 | 1 | 1.6 | v1.6 | [ ] | tick | MEMORY.md writes go through atomic-write (R39) |
 | 1 | 1.7 | v1.7 | [ ] | operator | Data repair A: restore bug-archived entities (after 1.2/1.3) |
 | 1 | 1.8 | v1.8 | [ ] | operator | Data repair B: rebaseline salience + mention_count |
@@ -45,7 +45,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **1.4 Proof:** two `runFlush` calls over an unchanged session → the second inserts 0 mention rows (SQL) and the watcher records the op as `status:noop`/skip; a grown session extracts only the delta (new mention rows reference only new turns). [DONE 2026-06-02 — `extraction_state` content-hash table; dedup gate skips LLM+synthesis, returns zero-count extraction → watcher noop. Live daemon (synthesisMs 60s, reverted): flush#1 16:04:17 `[llm]` ok/12 mentions, flush#2 16:04:55 `[llm-dedup]` noop/entities=0, SQL 0 new mention rows post-20:04:30Z. Suite 1499/0.]
 >
 > **1.5 Goal:** every new mention's `turn_index` references a turn that exists.
-> **1.5 Proof:** post-fix extraction → new mentions carry `turn_index == messageCount-1`, and a JOIN against `session_chunks.turn_index` for that session returns rows (no orphan index); regression test.
+> **1.5 Proof:** post-fix extraction → new mentions carry `turn_index == messageCount-1`, and a JOIN against the session's real turns returns rows (no orphan index); regression test. [DONE 2026-06-02 — stamp messageCount→messageCount-1; bug-locking test corrected (asserted 3 for a 3-message session → 2). Runtime: real-LLM deployed runFlush on the 4-message fixture → all mentions turn_index=3, JOIN to messages: 8 matched / 0 orphans. Tests 12/12.]
 >
 > **1.6 Goal:** MEMORY.md can never be observed half-written.
 > **1.6 Proof:** grep shows zero bare `writeFileSync` on the MEMORY.md paths (pre-compression-flush ×2, memory-budget) — all routed through `lib/atomic-write.mjs`; one live flush observed updating MEMORY.md intact; tests green.

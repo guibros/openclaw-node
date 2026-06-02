@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-02 — Step 1.5 closed: turn_index stamps the last real turn
+
+**Decision.** The flush stamp is `messageCount - 1` (turns are 0-based). The prior `messageCount` stamp meant every mention referenced a turn that doesn't exist — the turn-grain mechanisms downstream could never match. The regression test that had locked the bug in (asserting 3 for a 3-message session) is corrected, not just extended.
+
+**Evidence.** Tests 12/12. Runtime: real-LLM deployed runFlush against the 4-message `repair-11-verify` fixture in production state.db → mode=llm/16 facts, all mentions `turn_index=3` (=messageCount−1), JOIN to the messages table: 8 matched, **0 orphan stamps**.
+
+**No architectural decision needed** — one-line semantic fix.
+
+---
+
 ## 2026-06-02 — Step 1.4 closed: extraction dedup at flush boundaries
 
 **Decision.** `runFlush` keeps a per-session record of the last successfully-extracted tail (`extraction_state`: session_id PK, sha256 of the tail's `[role, content]` pairs, message_count, extracted_at — lazy table in state.db via the store's db handle). Unchanged tail → no LLM call, no synthesis re-run, `mode:'llm-dedup'` with a zero-count extraction block that the daemon's existing emit guard turns into a watcher-classified `noop`. Hash recorded only after a successful store, so failed extractions retry. Delta-input extraction (feeding only new messages) deliberately not attempted.
