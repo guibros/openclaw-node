@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-02 — Step 1.3 closed: idempotent reinforcement
+
+**Decision.** Co-occurrence reinforcement is credited-evidence-based: `cooccurrence_state(id_a, id_b, sessions_seen, last_reinforced_at)` (created lazily inside `reinforceCoOccurrence` so every caller is covered). A pair credits +1 mention_count / +0.05 salience per member when it first qualifies and again only when its shared-session count grows; equal counts skip; 30-day-window shrink is tracked downward (under-credit chosen over re-credit). The `pairs` return now reports only this cycle's credits.
+
+**Evidence.** Tests: 22/22 (2 new: second-cycle full-snapshot deepEqual; one-new-session → exactly +1). Runtime: live-copy run — cycle 1 seeds 102 credits (the set the live scheduler had re-credited every 30 min), cycle 2 reinforced=0 with identical snapshots and unchanged SUM(mention_count)=9113, one real new shared session → exactly +1 per member. Deploy via lib symlink; scheduler picks it up next spawn.
+
+**No architectural decision needed.** With 1.2+1.3, both halves of the salience/mention_count pump are off; the bug equilibrium is gone. Carry-forward: live scheduler log should show one ~102-credit seeding cycle then 0s — sanity check before 1.7/1.8.
+
+---
+
 ## 2026-06-02 — Step 1.2 closed: time-anchored decay
 
 **Decision.** Decay applications anchor at `last_decayed_at` (new nullable column on entities + decisions, migrated idempotently in `initConsolidationTables` — the only path that reads it). Per-cycle factor = 0.5^(Δt/14d) where Δt = now − max(last_decayed_at, last_recalled||last_seen): exponentials compose, so N cycles decay exactly as much as one; recall restarts the idle clock; the anchor is written only when decay actually applies, so sub-threshold deltas accumulate instead of vanishing. F-P212/F-L21/F-M18/F-P211 semantics preserved. Decisions loop fixed identically (same bug, same function).

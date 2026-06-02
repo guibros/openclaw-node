@@ -25,7 +25,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 |-------|------|---------|--------|--------|-------------|
 | 1 | 1.1 | v1.1 | [x] | hybrid | Tick re-entrancy guard (R3) |
 | 1 | 1.2 | v1.2 | [x] | hybrid | Time-anchored decay (R1) |
-| 1 | 1.3 | v1.3 | [ ] | hybrid | Idempotent reinforcement (R2) |
+| 1 | 1.3 | v1.3 | [x] | hybrid | Idempotent reinforcement (R2) |
 | 1 | 1.4 | v1.4 | [ ] | hybrid | Extraction dedup at flush boundaries (R4) |
 | 1 | 1.5 | v1.5 | [ ] | tick | turn_index stamps the last real turn (R5) |
 | 1 | 1.6 | v1.6 | [ ] | tick | MEMORY.md writes go through atomic-write (R39) |
@@ -39,7 +39,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **1.2 Proof:** on a copy of state.db, 3 consolidation cycles inside 1h decay an idle entity ≤0.4% total (per-cycle elapsed-time factor ≈0.1%, not the compounding ~33% observed pre-fix); `entities_archived` gains 0 rows across the 3 cycles in idle steady-state; unit test with a frozen clock locks the formula. [DONE 2026-06-02 — `last_decayed_at` anchor on entities+decisions (migration in initConsolidationTables); anchor = max(last_decayed_at, recall); written only on applied decay so sub-threshold composes. Copy-run: cycle2 decayed=0, cycles2-4 drift 0.19%, archived 961→961 (0 new) vs pre-fix "all 110 every cycle". Tests 3 new frozen-clock, 20/20 file.]
 >
 > **1.3 Goal:** a co-occurrence pair reinforces once per new shared-session evidence, never per cycle.
-> **1.3 Proof:** SQL snapshot diff across 2 consecutive cycles with no new sessions = zero `mention_count`/salience change; adding one new shared session reinforces each member exactly +1; regression test.
+> **1.3 Proof:** SQL snapshot diff across 2 consecutive cycles with no new sessions = zero `mention_count`/salience change; adding one new shared session reinforces each member exactly +1; regression test. [DONE 2026-06-02 — `cooccurrence_state` credited-evidence table (lazy create); credit only on evidence growth; shrink tracked. Copy-run: cycle1 seeds 102 (the set live was re-crediting every cycle), cycle2 reinforced=0/identical snapshots/SUM(mention_count) unchanged, +1 new shared session → exactly +1 each. Tests 22/22 (2 new).]
 >
 > **1.4 Goal:** a flush over already-extracted content is a recorded noop, not a re-extraction.
 > **1.4 Proof:** two `runFlush` calls over an unchanged session → the second inserts 0 mention rows (SQL) and the watcher records the op as `status:noop`/skip; a grown session extracts only the delta (new mention rows reference only new turns).

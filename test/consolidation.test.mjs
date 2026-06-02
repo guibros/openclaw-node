@@ -297,6 +297,55 @@ describe('reinforceCoOccurrence', () => {
 
     db.close();
   });
+
+  it('second cycle with no new evidence credits nothing (R2, repair 1.3)', () => {
+    const db = createTestDb();
+
+    const sessions = ['s1', 's2', 's3'];
+    insertEntity(db, 'pair-a', 'concept', { sessions, salience: 0.4 });
+    insertEntity(db, 'pair-b', 'concept', { sessions, salience: 0.4 });
+
+    const first = reinforceCoOccurrence(db);
+    assert.equal(first.reinforcedEntities, 2);
+
+    const snapshot = db.prepare(`SELECT name, mention_count, salience FROM entities ORDER BY name`).all();
+    const second = reinforceCoOccurrence(db);
+
+    assert.equal(second.reinforcedEntities, 0);
+    assert.equal(second.pairs.length, 0);
+    assert.deepEqual(
+      db.prepare(`SELECT name, mention_count, salience FROM entities ORDER BY name`).all(),
+      snapshot
+    );
+
+    db.close();
+  });
+
+  it('one new shared session credits each member exactly +1', () => {
+    const db = createTestDb();
+
+    const sessions = ['s1', 's2', 's3'];
+    const idA = insertEntity(db, 'grow-a', 'concept', { sessions, salience: 0.4 });
+    const idB = insertEntity(db, 'grow-b', 'concept', { sessions, salience: 0.4 });
+
+    reinforceCoOccurrence(db);
+    const before = db.prepare(`SELECT mention_count FROM entities WHERE name = 'grow-a'`).get().mention_count;
+
+    const now = new Date().toISOString();
+    for (const id of [idA, idB]) {
+      db.prepare(`INSERT INTO mentions (entity_id, session_id, salience, created_at, source_type)
+                  VALUES (?, 's4', 0.5, ?, 'local')`).run(id, now);
+    }
+
+    const result = reinforceCoOccurrence(db);
+    assert.equal(result.reinforcedEntities, 2);
+    assert.equal(result.pairs[0].sessions, 4);
+
+    const after = db.prepare(`SELECT mention_count FROM entities WHERE name = 'grow-a'`).get().mention_count;
+    assert.equal(after, before + 1);
+
+    db.close();
+  });
 });
 
 describe('detectClusters', () => {
