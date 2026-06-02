@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-02 — Step 1.6 closed: MEMORY.md writes are atomic
+
+**Decision.** All three MEMORY.md write sites (pre-compression-flush LLM + regex paths, memory-budget `#writeFile`) route through `atomicWriteFileSync` (tmp + fsync + rename; budget keeps its dir-creation via `mkdirp: true`). Concurrent readers (budget reload, companion-bridge) can never observe a torn file.
+
+**Evidence.** Grep: zero bare `writeFileSync` in either file. Tests: targeted 72/72, full suite 1499/0. Observed deployed flush wrote MEMORY.md intact with no `.tmp` residue.
+
+**No architectural decision needed.** Block 1 code steps (1.1–1.6) complete; 1.7/1.8 are operator-driven data repair — the autonomous chain BLOCKS here by design.
+
+---
+
 ## 2026-06-02 — Step 1.5 closed: turn_index stamps the last real turn
 
 **Decision.** The flush stamp is `messageCount - 1` (turns are 0-based). The prior `messageCount` stamp meant every mention referenced a turn that doesn't exist — the turn-grain mechanisms downstream could never match. The regression test that had locked the bug in (asserting 3 for a 3-message session) is corrected, not just extended.
