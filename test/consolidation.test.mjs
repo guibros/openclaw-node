@@ -478,3 +478,87 @@ describe('runConsolidationCycle', () => {
     db.close();
   });
 });
+
+describe('decayWeights — time-anchored (R1, repair 1.2)', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const halfLife = (days) => Math.pow(0.5, days / 14);
+
+  it('repeated cycles compose to a single application, not compounding', () => {
+    const db = createTestDb();
+    initConsolidationTables(db);
+
+    const t0 = new Date('2026-06-01T00:00:00.000Z');
+    const idleSince = new Date(t0 - 8 * DAY).toISOString();
+    insertEntity(db, 'idle-entity', 'concept', { salience: 0.8, lastSeen: idleSince });
+
+    decayWeights(db, { now: t0.toISOString() });
+    const afterAnchor = db.prepare(`SELECT salience, last_decayed_at FROM entities WHERE name = 'idle-entity'`).get();
+    assert.ok(Math.abs(afterAnchor.salience - 0.8 * halfLife(8)) < 0.002);
+    assert.equal(afterAnchor.last_decayed_at, t0.toISOString());
+
+    decayWeights(db, { now: new Date(t0.getTime() + 30 * 60 * 1000).toISOString() });
+    const afterTiny = db.prepare(`SELECT salience, last_decayed_at FROM entities WHERE name = 'idle-entity'`).get();
+    assert.equal(afterTiny.last_decayed_at, t0.toISOString());
+
+    decayWeights(db, { now: new Date(t0.getTime() + 60 * 60 * 1000).toISOString() });
+    const final = db.prepare(`SELECT salience FROM entities WHERE name = 'idle-entity'`).get();
+
+    const composed = 0.8 * halfLife(8 + 1 / 24);
+    assert.ok(Math.abs(final.salience - composed) < 0.002,
+      `expected composed ${composed.toFixed(4)}, got ${final.salience.toFixed(4)}`);
+    const compounded = 0.8 * halfLife(8) * halfLife(8) * halfLife(8);
+    assert.ok(final.salience > compounded + 0.1,
+      `salience ${final.salience.toFixed(4)} should be far above the compounding result ${compounded.toFixed(4)}`);
+
+    db.close();
+  });
+
+  it('recall after a decay restarts the idle clock', () => {
+    const db = createTestDb();
+    initConsolidationTables(db);
+
+    const t0 = new Date('2026-06-01T00:00:00.000Z');
+    insertEntity(db, 'recalled-entity', 'concept', {
+      salience: 0.5,
+      lastSeen: new Date(t0 - 5 * DAY).toISOString(),
+    });
+
+    decayWeights(db, { now: t0.toISOString() });
+    const anchored = db.prepare(`SELECT salience FROM entities WHERE name = 'recalled-entity'`).get().salience;
+
+    db.prepare(`UPDATE entities SET last_recalled = ? WHERE name = 'recalled-entity'`)
+      .run(new Date(t0.getTime() + 2 * DAY).toISOString());
+
+    decayWeights(db, { now: new Date(t0.getTime() + 3 * DAY).toISOString() });
+    const final = db.prepare(`SELECT salience FROM entities WHERE name = 'recalled-entity'`).get().salience;
+
+    assert.ok(Math.abs(final - anchored * halfLife(1)) < 0.005,
+      `expected 1 idle day of decay (${(anchored * halfLife(1)).toFixed(4)}), got ${final.toFixed(4)}`);
+    assert.ok(final > anchored * halfLife(3) + 0.02,
+      'decay must count from the recall, not from the previous anchor');
+
+    db.close();
+  });
+
+  it('decisions decay is anchored the same way', () => {
+    const db = createTestDb();
+    initConsolidationTables(db);
+
+    const t0 = new Date('2026-06-01T00:00:00.000Z');
+    db.prepare(`
+      INSERT INTO decisions (session_id, decision, rationale, confidence, created_at, salience, source_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run('s1', 'anchor decisions too', 'R1 applies to both loops', 0.9,
+      new Date(t0 - 10 * DAY).toISOString(), 0.6, 'local');
+
+    decayWeights(db, { now: t0.toISOString() });
+    decayWeights(db, { now: new Date(t0.getTime() + 60 * 60 * 1000).toISOString() });
+    const final = db.prepare(`SELECT salience FROM decisions WHERE decision = 'anchor decisions too'`).get().salience;
+
+    const composed = 0.6 * halfLife(10 + 1 / 24);
+    assert.ok(Math.abs(final - composed) < 0.002,
+      `expected composed ${composed.toFixed(4)}, got ${final.toFixed(4)}`);
+
+    db.close();
+  });
+});

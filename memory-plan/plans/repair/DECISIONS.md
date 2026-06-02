@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-02 — Step 1.2 closed: time-anchored decay
+
+**Decision.** Decay applications anchor at `last_decayed_at` (new nullable column on entities + decisions, migrated idempotently in `initConsolidationTables` — the only path that reads it). Per-cycle factor = 0.5^(Δt/14d) where Δt = now − max(last_decayed_at, last_recalled||last_seen): exponentials compose, so N cycles decay exactly as much as one; recall restarts the idle clock; the anchor is written only when decay actually applies, so sub-threshold deltas accumulate instead of vanishing. F-P212/F-L21/F-M18/F-P211 semantics preserved. Decisions loop fixed identically (same bug, same function).
+
+**Evidence.** Tests: 3 new frozen-clock cases (compose-not-compound, recall reset, decisions parity), consolidation file 20/20. Runtime: 4 real-cadence cycles against a `.backup` copy of live state.db — cycle 2 decayed **0** entities (pre-fix live baseline: all 110, every cycle), cycles 2–4 total drift 0.19% (gate ≤0.4%), `entities_archived` 961→961 (0 new rows). Deploy is the lib symlink; the scheduler spawns fresh per StartInterval, so the next live cycle runs anchored decay with no restart step.
+
+**No architectural decision needed** — formula correction within the documented half-life contract. Carry-forward: run 1.7/1.8 after one live anchored cycle; expect a one-time live anchoring pass that may floor a few bug-crushed idle entities (restorable in 1.7 with the rest).
+
+---
+
 ## 2026-06-02 — Step 1.1 closed: tick re-entrancy guard → Opens Block 1
 
 **Decision.** The daemon's tick loop is single-flighted through the existing shared `lib/concurrency-guard.mjs` (`createConcurrencyGuard(tick, { maxAgeMs: 30 * 60_000, log })`) — reuse of the F-P215/F-Q406 standardized fix, no new mechanism. Both call sites (immediate boot tick, 30s interval) route through the guard; an overlapping interval fire logs `tick skipped (in-flight)` and does nothing. maxAgeMs=30min force-clears a wedged tick (deadlock recovery over strict exclusion — same posture as the graph-cache usage).
