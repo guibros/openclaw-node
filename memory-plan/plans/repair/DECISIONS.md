@@ -4,6 +4,19 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-02 — Inventory v2: atomization review (operator-directed) — 30 → 48 steps, Goal+Proof per step, 9-phase binding
+
+**Decision.** The v1 inventory failed an operator review on three criteria and was rewritten in place:
+1. **Atomization:** 13 v1 steps bundled ≥2 independently-verifiable outcomes (the "and" test from the redesign atomicity rule). All split — full ledger in INVENTORY's "Atomization revision log". Three bundles kept deliberately because their parts are NOT independently verifiable (3.3 expose+consume queue state — exposure alone is dead code; 4.1 shutdown ordering — one behavior; 6.1 record field + UI key — only the surviving panel is observable); each justified inline.
+2. **Structure:** every step now carries an explicit **Goal** (single outcome) + **Proof** (concrete runtime-observable gate with thresholds where measurable). Rule stated at the top: no produced Proof → step not done; no writable Proof → step not startable (binds the 2 defined-at placeholders 2.9/3.4 and Block P).
+3. **Procedural:** the per-step 9-phase lifecycle (WORKFLOW §3 — Scope→§0 Re-Orient→AUDIT_PRE→implement→VERIFY(tests+runtime)→AUDIT_POST→corrections→Deep-Review-Gate→commit, macro Re-Orient per block close, §7.3 tripwire) is now bound explicitly in the INVENTORY header; the copied WORKFLOW.md was repointed at this plan's docs (FINDINGS instead of MEMORY_REDESIGN, D7/D8 as the intent check instead of DESIGN_INPUTS, plan-local audits/ path) — protocol itself unchanged.
+
+**Why.** Operator directive (verbatim criteria): maximize atomization to the simplest implementable task; every task needs a clear goal and a validation point that must be proved; procedure must follow the 9-phase step protocol as in the prior workplan. A verbatim-copied WORKFLOW with redesign references is itself the drift disease this discipline exists to kill.
+
+**Consequences.** 48 active steps (46 fully specified, 2 defined-at), 4 parked. Step numbering changed from v1 — FINDINGS R-ids are the stable references. Next executable step remains 1.1.
+
+---
+
 ## 2026-06-02 — D8: LLM infrastructure gets an audit-first block; no further LLM wiring until measured
 
 **Decision.** The local LLM layer (llm-client, ollama-queue, query-analysis, extraction calls, concept-note summaries, health-watch's LLM introspection) is treated as **untrusted wiring** until a read-only audit (`step 3.1 → LLM_INFRA.md`) measures it end to end: every call site, the full timeout chain, cold/warm latencies per model, model-selection reality vs the MASTER_PLAN "tiered selector (qwen3:8b floor)" claim, and the pre-warm gap. Remediation steps (3.4) are defined from the audit, not guessed.

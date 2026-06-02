@@ -1,6 +1,6 @@
 # Workflow — From Master Plan to Shipped Code
 
-**Date:** 2026-05-28. This is the connective tissue: how an intent becomes a deployed, observed change. It marries the new discipline layer (MASTER_PLAN + scope-hook + runtime-evidence) with the old 9-phase execution rigor (FRAMEWORK.md) so neither is bypassed.
+**Date:** 2026-05-28 · adapted for the **repair plan** 2026-06-02 (protocol unchanged from the redesign plan; plan-doc references repointed). This is the connective tissue: how an intent becomes a deployed, observed change. It marries the new discipline layer (MASTER_PLAN + scope-hook + runtime-evidence) with the old 9-phase execution rigor (FRAMEWORK.md) so neither is bypassed.
 
 If you only read one thing before working a redesign step: read this, then the step's row in `INVENTORY.md`, then open a SCOPE.md for it.
 
@@ -11,15 +11,15 @@ If you only read one thing before working a redesign step: read this, then the s
 ```
 ┌─ LAYER 1 — GOVERNANCE ────────────────────────────────────────────────────┐
 │ MASTER_PLAN.md   principles · done-contract (runtime evidence) · forbidden│
-│ DESIGN_INPUTS.md the taste check (Karpathy LLM-Wiki · one-hop · no bullshit)│
+│ DECISIONS D7/D8  the intent check (transparent referential wiki · measure-first)│
 └───────────────────────────────────────┬───────────────────────────────────┘
                                          │ constrains
 ┌─ LAYER 2 — ROADMAP ─────────────────────▼──────────────────────────────────┐
-│ MEMORY_REDESIGN.md   phases L0..G (the "blocks") · derived from DECISIONS│
+│ FINDINGS_2026-06-02.md   clusters → blocks 1-7+P · derived from the deep review│
 └───────────────────────────────────────┬───────────────────────────────────┘
                                          │ decomposes into
 ┌─ LAYER 3 — STEP LIST ───────────────────▼──────────────────────────────────┐
-│ redesign/INVENTORY.md   atomic steps vX.Y · one step = one 9-phase = one commit│
+│ repair/INVENTORY.md   atomic steps vX.Y (Goal+Proof) · one step = one 9-phase = one commit│
 └───────────────────────────────────────┬───────────────────────────────────┘
                                          │ executed by
 ┌─ LAYER 4 — EXECUTION ───────────────────▼──────────────────────────────────┐
@@ -38,10 +38,10 @@ If you only read one thing before working a redesign step: read this, then the s
 ## 2. The chain — how a decision becomes shipped code
 
 ```
-DESIGN_INPUTS (intent)
-   → DECISIONS (locked choice)
-      → MEMORY_REDESIGN (which phase/block)
-         → INVENTORY (which atomic step)
+FINDINGS_2026-06-02 (verified reality: R1-R42)
+   → DECISIONS (locked choice: D7 transparency, D8 measure-first)
+      → INVENTORY block (which cluster)
+         → INVENTORY step (which atomic step — Goal + Proof)
             → SCOPE.md (today's contract: this step's files + done-evidence; hook now gates)
                → 9-phase execution (FRAMEWORK)
                   → VERIFY includes runtime evidence (deploy + restart + observe)
@@ -58,7 +58,7 @@ For each `INVENTORY.md` step, in order. **Bold = added by the new discipline on 
 
 | Phase | Action | Source |
 |---|---|---|
-| Pre-flight | Pick next `[ ]` step. Clean tree. Read MASTER_PLAN + the step's MEMORY_REDESIGN phase + prior step's AUDIT_POST §6. | FRAMEWORK §8 |
+| Pre-flight | Pick next `[ ]` step. Clean tree. Read MASTER_PLAN + the step's FINDINGS_2026-06-02 cluster + prior step's AUDIT_POST §6. | FRAMEWORK §8 |
 | **Scope** | **Open/refresh `SCOPE.md`: goal = this step; files = this step's deltas; runtime-evidence = this step's done-evidence. The hook now physically blocks edits outside the file set.** | **MASTER_PLAN §6** |
 | **1·§0** | **MICRO RE-ORIENT (≤6 lines, first thing in AUDIT_PRE) — see §7. Zoom out before digging in.** | **§7** |
 | 1 | **AUDIT_PRE** — intent, design decisions (consume carry-forwards), risk register, file-delta outline. | FRAMEWORK |
@@ -80,14 +80,14 @@ The old framework closed 59 steps with zero gate failures — and produced ~0 wo
 2. **Scope contract + hook** physically gates each step's files. No drift, no "while I'm here."
 3. **No parallel implementations / no work outside the inventory** (MASTER_PLAN §4.6, §4.10). The thing that produced the dead `bin/openclaw-memory-daemon.mjs` is forbidden.
 4. **COMPONENT_REGISTRY is living truth**, updated per step — so "what actually runs" is never a mystery again.
-5. **DESIGN_INPUTS taste check** — a step that fails the Karpathy-wiki intent or the one-hop bar needs an explicit DECISIONS entry before it's built.
+5. **Intent check (D7/D8)** — a step that weakens vault transparency (D7) or adds LLM wiring without measured numbers behind it (D8) needs an explicit DECISIONS entry before it's built.
 
 ## 5. The viewer's role
 
 The workplan-viewer (:7892) makes the whole chain visible:
 - **Legacy tabs** (Live / Steps / Documents / History) render this plan's `INVENTORY.md` + the per-step `audits/` exactly as they did for the old framework.
 - **Master Plan tab** (built 2026-05-27) renders `SCOPE.md` + `COMPONENT_REGISTRY.md` + `DECISIONS.md` + `OUT_OF_SCOPE.md`.
-- Once **Block 2 (memory-watcher)** ships, the system being tracked also reports its own live operations — the viewer shows the plan, the watcher shows the running reality.
+- The memory-watcher (shipped in redesign Block 2) reports the system's live operations — the viewer shows the plan, the watcher shows the running reality each step's Proof must move.
 
 One glance = where we are (version), what's next (first `[ ]` step), what's broken (registry badges), what we decided (decisions), what's deferred (out-of-scope).
 
@@ -95,10 +95,10 @@ One glance = where we are (version), what's next (first `[ ]` step), what's brok
 
 ```
 [ ] git tree clean; on main
-[ ] read MASTER_PLAN.md + this step's phase in MEMORY_REDESIGN.md
+[ ] read MASTER_PLAN.md + this step's cluster in FINDINGS_2026-06-02.md
 [ ] open SCOPE.md: goal=step, files=deltas, evidence=step's done-evidence, status=active
 [ ] Phase 1 §0 MICRO RE-ORIENT (≤6 lines — see §7)
-[ ] Phase 1 AUDIT_PRE in redesign/audits/stepNN_<slug>/
+[ ] Phase 1 AUDIT_PRE in audits/stepNN_<slug>/ (this plan's dir)
 [ ] Phase 4 implement (only files in SCOPE; surprises → OUT_OF_SCOPE)
 [ ] Phase 5 tests green + DEPLOY + RESTART + OBSERVE (capture the evidence)
 [ ] Phase 7 AUDIT_POST
@@ -134,7 +134,7 @@ It's cheap (60 seconds) and it forces a look-up-from-the-trench before every dig
 When a step closes a **block**, before the next block's first step, run a **Global Review** — a full zoom-out (this is the loop that catches accumulated drift):
 
 ```
-[ ] Re-read MASTER_PLAN principles + DESIGN_INPUTS taste check (Karpathy-wiki, one-hop).
+[ ] Re-read MASTER_PLAN principles + this plan's D7/D8 intent (DECISIONS.md).
 [ ] Update COMPONENT_REGISTRY: did the components this block touched actually move toward LIVE?
     Verify with RUNTIME PROBES (ps / curl / sql / log), not memory.
 [ ] Re-survey the remaining inventory: are the NEXT block's steps still atomic, correct, and
