@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 2.9 closed: decisions/ + themes/ surfaces live, duplicates aliased → Block 2 COMPLETE
+
+**Decisions (operator, via AskUserQuestion).** Per-decision dated notes (salience ≥0.4, top-30: rationale, confidence, concept + session links); per-theme hub pages (≥threshold: alias, hierarchy, member concepts); duplicates **aliased, not merged** — both DB rows kept, the slug-owning note carries every colliding name (operator deviated from the merge recommendation; the alias map is built from all candidates so targeted regens never drop it).
+
+**Design refinement mid-step.** Decision/theme concept links use **piped slug form** (`[[slug|Name]]`) — basename resolution needs no alias on the target, killing the legacy-note alias-gap class outright. Mid-step find fixed: the session-notes generator was still emitting dangling links (34 landed during the night's induced flushes) — it now applies link-only-existing like every other writer. Theme membership runs on the extraction-batch approximation; the missing theme↔session schema linkage is captured in OUT_OF_SCOPE.
+
+**Evidence.** 21 decision notes + 6 theme hubs live, idempotent on rerun; `openclaw.md` aliases `["OpenClaw", "openclaw"]`; vault **867/867 links resolved (100%), 0 dangling, 0 slug-gap**; coverage: concepts 69/69, decisions 30/30, themes 6/6 — all 100%. Suite **1521/0**. Daemon restarted onto the wired flush (PID 40668).
+
+**Block 2 close + macro Re-Orient (audits/step16).** The operator's headline is delivered end to end: four generated surfaces, full coverage, full link resolution, integrity measured per flush in mission-control. Block 3 (D8 LLM audit-first) re-surveyed and unchanged; 3 new candidates noted for 3.4's defined-at. Flag for operator: a second active scope (`plans/protocol/`) appeared in the hook union — not this plan's doing; one-scope-at-a-time needs an operator look.
+
+---
+
 ## 2026-06-03 — Steps 2.10 + 2.11 closed: synthesis events attributable and truthfully labeled
 
 **2.10.** `memory.synthesized.data.session_id` is required (schema + dist), emitted at the daemon; the watcher reads it natively. Live: a synthesized record with `session: repair-11-verify` — every prior record had `session: null`.

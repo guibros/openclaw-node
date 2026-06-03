@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
@@ -207,7 +207,11 @@ describe('generateSessionNote', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('generates a session note file with wikilinks', async () => {
+  it('generates a session note linking only concepts whose note exists (repair 2.9)', async () => {
+    // Only nats-jetstream has a concept note; openclaw must render as text.
+    await mkdir(join(tmpDir, 'concepts'), { recursive: true });
+    await writeFile(join(tmpDir, 'concepts', 'nats-jetstream.md'), '# NATS JetStream\n');
+
     const result = await generateSessionNote({
       db,
       sessionId: 'sess-abc12345',
@@ -223,7 +227,8 @@ describe('generateSessionNote', () => {
     assert.ok(content.includes('type: session'));
     assert.ok(content.includes('session_id: sess-abc12345'));
     assert.ok(content.includes('[[nats-jetstream]]'));
-    assert.ok(content.includes('[[openclaw]]'));
+    assert.ok(!content.includes('[[openclaw]]'), 'no note on disk → plain text, not a dangler');
+    assert.ok(content.includes('openclaw'));
     assert.ok(content.includes('Use local NATS'));
   });
 

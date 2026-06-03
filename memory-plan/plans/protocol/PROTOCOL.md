@@ -84,13 +84,13 @@ was bypassed.
 | Pre-flight | Pick the first `[ ]`/`[A]` row. Tree clean (or dirty matching an in-flight `-pre`/`-mid`). `BLOCKED.md` present → stop. Read MASTER_PLAN + the step's ROADMAP block + prior step's AUDIT_POST §6. |
 | Scope | Open/refresh `<plan>/SCOPE.md`: Status active, goal = this step, ` ```files ` = this step's deltas, future Expires. The hook now physically gates edits. |
 | 1 · §0 | **Micro Re-Orient** — ≤6 lines, first thing in AUDIT_PRE (§5.1 below). |
-| 1 | `AUDIT_PRE.md` in `audits/stepNN_<slug>/`: intent, design (consume prior carry-forwards), risk register, §6 file-delta outline. Write `vX.Y-pre` to `VERSION`. Flip the row `[ ]`→`[A]`. No production work yet. |
+| 1 | `AUDIT_PRE.md` in `audits/stepNN_<slug>/`: intent, design (consume prior carry-forwards), risk register, §6 file-delta outline. **Pre-screen: verify every Need in the step's §11 contract exists; missing → BLOCK.** Write `vX.Y-pre` to `VERSION`. Flip the row `[ ]`→`[A]`. No production work yet. |
 | 4 | Implement every §6 delta — nothing else. Surprises append to AUDIT_PRE `## Mid-Implementation Findings` and/or `OUT_OF_SCOPE.md`, never silent expansion. Then write `vX.Y-mid` to `VERSION`. |
-| 5 | **Verify** = (a) tests green at baseline (`npm test` here), AND (b) **runtime evidence**: deploy to the runtime tree if applicable, restart the service, observe the step's done-evidence (log line / SQL count / HTTP probe / process state). Cannot observe → BLOCK, never fake-close. |
+| 5 | **Verify** = (a) tests green at baseline (`npm test` here), AND (b) the step's **Verify contract** (§11) executed exactly as written — `runtime:` probe / `code:` check / `visual:` operator confirmation (headless → BLOCK naming it). Cannot observe → BLOCK, never fake-close. |
 | 7 | `AUDIT_POST.md`: §1 promised-vs-landed ledger (every row `yes` or the step isn't done), §2 greppable deltas (command + first hit), §3 cross-refs still valid, §4 findings `[POSITIVE]/[NEGATIVE]`, §5 Phase-8 patches (almost always none), §6 carry-forwards to the next step. |
 | 8 | Apply §5 patches. An architectural choice not pre-decided in DECISIONS/carry-forwards → BLOCK + propose a DECISIONS entry. |
 | 8.5 | **Deep Review Gate** — all six or BLOCK: ① VERSION is exactly `vX.Y-mid` ② every §6 delta greppable ③ staged diff = §6 deltas + ledger files, nothing more ④ tests green ⑤ INVENTORY/audit docs consistent ⑥ **runtime evidence captured and real**. |
-| 9 | One commit (format §3.1). Flip the row `[A]`→`[x]` with a one-line close note. `VERSION` → clean `vX.Y`. Update COMPONENT_REGISTRY. SCOPE Status → done. Log any DECISIONS. **STOP — one step per work unit.** |
+| 9 | One commit (format §3.1). Flip the row `[A]`→`[x]` with a one-line close note. `VERSION` → clean `vX.Y`. Update COMPONENT_REGISTRY. **Record the Feeds landing (§11): where the output lives, which consumer reaches it.** SCOPE Status → done. Log any DECISIONS. **STOP — one step per work unit.** |
 | Block close | If this step closed a block: **Macro Re-Orient** (§5.2) before the next block's first step. |
 
 ### 3.1 Commit format
@@ -221,3 +221,53 @@ Then, before the first step runs (the part no scaffolder can do):
 
 Retiring a plan: set SCOPE Status idle with a close note, leave the silo in place — it is the
 complete, portable record of the run (the cowork-bundle property, COWORK_MODEL §2).
+
+## 10. Surface conformance — what "functionally implements" means
+
+Every plan must functionally wire all six file-backed viewer surfaces — populated and parseable,
+not merely "missing docs degrade gracefully". The functional bar per surface:
+
+| Surface (tab) | Files | Functional bar |
+|---|---|---|
+| **master-plan** | `SCOPE.md` · `COMPONENT_REGISTRY.md` · `DECISIONS.md` · `OUT_OF_SCOPE.md` | SCOPE parses (Status/Goal/Expires + ` ```files `); REGISTRY has ≥1 probed, dated row; DECISIONS has ≥ D1; the tab alone answers: what's the contract, what runs, what was chosen, what's deferred. |
+| **steps** | `INVENTORY.md` · `audits/stepNN_<slug>/` | Rows in the load-bearing 5-column format; every **open** row carries the §11 contract; every `[A]` step has `AUDIT_PRE.md`, every `[x]` step has `AUDIT_PRE.md`+`AUDIT_POST.md`. |
+| **automation** | `automation.json` · `TICK_PROMPT.md` · the `<id>-tick.sh` shim | Valid JSON with the standard keys; `tick_command` exists and is executable; TICK_PROMPT present — and `<FILL` bindings resolved before the chain is enabled. |
+| **block** | `BLOCKED.md` (conditional) | Absent (chain runnable), or matching the BLOCK_TEMPLATE shape with **External action:** naming the operator's single concrete move. |
+| **documents** | the five synced canonical docs · `ROADMAP.md` | Canonical copies byte-identical with `canonical/` (sync `--check` clean for this silo); ROADMAP present with every block carrying intent + exit criterion. |
+| **history** | `tick-logs/` · `VERSION` | Dir exists (ticks write `<ts>.log`/`.jsonl` + `current.log`); VERSION coheres with INVENTORY — `v0.0`, or `vX.Y[-pre|-mid]` pointing at a real row. |
+
+Conformance is **machine-graded** by `workspace-bin/plan-lint.sh <id>`: PASS / WARN / FAIL per
+surface, exit 0 only with zero FAILs. Closed (`[x]`) rows predating the §11 contract grade WARN
+(grandfathered); open rows without contracts FAIL. The lint runs at scaffold end (new-plan.sh)
+and in every tick preflight, so non-conformance is visible at both birth and run time.
+
+## 11. The step contract — extreme atomization
+
+Every **open** INVENTORY row carries a four-field contract in the notes under its table:
+
+```
+> **X.Y — Goal:** one sentence, one outcome.
+> **Needs:** pre-screen — everything that must already exist (files, services, data, locked decisions).
+> **Feeds:** post-use — where this result is consumed (later step / component / viewer surface / operator workflow).
+> **Verify:** the enforceable test, tagged by modality — runtime: / code: / visual: — with its WIN threshold.
+```
+
+How each field is enforced across the phases (§3):
+
+- **Goal** — the atomicity probe. Needs an "and" between two independently-testable outcomes →
+  split the step before opening it.
+- **Needs** — verified in **Phase 1** before any design: each Need is checked to exist (file
+  present, service up, decision logged). A missing Need → BLOCK naming it; never "build it on
+  the way" (that's a hidden second step).
+- **Feeds** — checked at **Phase 9**: AUDIT_POST records where the output landed and which
+  consumer can now reach it. An output nothing consumes is dead work — if Feeds can't be named
+  at planning time, the step doesn't enter the inventory.
+- **Verify** — executed in **Phase 5** exactly as written. `runtime:` = probe/command + observed
+  threshold; `code:` = test/grep; `visual:` = operator-confirmable UI state — a headless tick
+  must BLOCK on visual-only verification, citing it as the **External action:**. The Verify line
+  is the step's done-contract instance (MASTER_PLAN §5): unobservable → unclosable.
+
+Atomicity tightened: if **Goal** needs "and" → split. If **Needs** spans two unrelated systems →
+split. If **Verify** proves two independent outcomes → split. (Two modalities proving ONE
+outcome is fine.) Lineage: redesign's `LOOPS.md` flow framing — connects-with · purpose ·
+produces-for · WIN/FAIL — generalized here for every plan.

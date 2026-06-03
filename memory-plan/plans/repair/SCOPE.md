@@ -1,8 +1,8 @@
 # SCOPE — repair plan
 
 **Status:** idle
-**Goal:** Block 2 chain CLOSED 2.1–2.8 + 2.10/2.11 at v2.11 (coverage 100%, link resolution 100% — was 39.8% —, integrity live per flush, events attributed + truthfully labeled). BLOCKED at 2.9 (defined; awaiting operator shape confirmation — see BLOCKED.md). Then Block-2 macro Re-Orient → Block 3 (D8 LLM audit).
-**Set at:** 2026-06-03 02:30 Montreal
+**Goal:** Block 2 COMPLETE at v2.9 (11/11 steps; macro Re-Orient in audits/step16). The referential system is delivered: 4 surfaces, 100% coverage on all dimensions, 867/867 links resolving, integrity measured per flush. Next: Block 3 step 3.1 — LLM infrastructure audit (D8, operator-driven).
+**Set at:** 2026-06-03 03:25 Montreal
 **Expires:** no-expiry
 
 ```files
@@ -11,6 +11,8 @@ lib/obsidian-promoter.mjs
 lib/obsidian-session-notes.mjs
 lib/obsidian-digest.mjs
 lib/obsidian-link-checker.mjs
+lib/obsidian-decision-notes.mjs
+lib/obsidian-theme-notes.mjs
 lib/obsidian-vault.mjs
 lib/consolidation.mjs
 lib/pre-compression-flush.mjs

@@ -29,6 +29,8 @@ if (args.includes('--coverage')) {
     }
     console.log(`Link resolution: ${cov.links.resolved}/${cov.links.total} (${cov.links.pct}%) | slug-resolvable ${cov.links.slugResolvable} | dangling ${cov.links.dangling}`);
     console.log(`Session notes linking concepts: ${cov.sessions.linkingConcepts}/${cov.sessions.notes} (${cov.sessions.pct}%)`);
+    console.log(`Decision coverage: ${cov.decisions.withNote}/${cov.decisions.eligible} (${cov.decisions.pct}%)`);
+    console.log(`Theme coverage: ${cov.themes.withNote}/${cov.themes.eligible} (${cov.themes.pct}%)`);
   }
 } else {
   const report = checkVaultLinks(vaultPath);

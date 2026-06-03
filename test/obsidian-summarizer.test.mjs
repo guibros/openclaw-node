@@ -337,6 +337,23 @@ describe('queryConceptData + generateConceptNotes integration', () => {
     }
   });
 
+  it('slug-colliding entities share one note carrying both names as aliases (repair 2.9)', async () => {
+    const db = seedDb();
+    db.prepare(`INSERT INTO entities (name, type, first_seen, last_seen, mention_count)
+      VALUES ('nats jetstream', 'technology', '2026-05-01T00:00:00Z', '2026-05-02T00:00:00Z', 6)`).run();
+    const vaultPath = join(tmpDir, 'vault-collide');
+
+    try {
+      const result = await generateConceptNotes({ db, vaultPath, threshold: 5, client: null });
+      assert.equal(result.notes.filter((n) => n === 'nats-jetstream.md').length, 1,
+        'one note for the colliding pair');
+      const note = await readFile(join(vaultPath, 'concepts', 'nats-jetstream.md'), 'utf-8');
+      assert.match(note, /aliases: \["NATS JetStream", "nats jetstream"\]/);
+    } finally {
+      db.close();
+    }
+  });
+
   it('opts.names restricts generation to the targeted concepts (repair 2.7)', async () => {
     const db = seedDb();
     const vaultPath = join(tmpDir, 'vault-targeted');

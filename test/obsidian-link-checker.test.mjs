@@ -74,6 +74,8 @@ describe('checkReferentialCoverage', () => {
 
     const db = new Database(':memory:');
     db.exec(`CREATE TABLE entities (id INTEGER PRIMARY KEY, name TEXT, mention_count INTEGER)`);
+    db.exec(`CREATE TABLE decisions (id INTEGER PRIMARY KEY, decision TEXT, created_at TEXT, salience REAL)`);
+    db.exec(`CREATE TABLE themes (id INTEGER PRIMARY KEY, label TEXT, mention_count INTEGER)`);
     db.prepare(`INSERT INTO entities (name, mention_count) VALUES (?, ?)`).run('Covered Entity', 9);
     db.prepare(`INSERT INTO entities (name, mention_count) VALUES (?, ?)`).run('Missing Entity', 7);
     db.prepare(`INSERT INTO entities (name, mention_count) VALUES (?, ?)`).run('Below Threshold', 2);

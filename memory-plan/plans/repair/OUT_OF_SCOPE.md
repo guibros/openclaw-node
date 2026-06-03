@@ -4,6 +4,14 @@ Things observed while doing repair-plan work that deserve attention later. Agnos
 
 ---
 
+## 2026-06-03 — Extraction records no theme↔session/entity linkage — theme hubs run on an approximation
+
+- **Observed while:** step 2.9 (themes/ surface). The themes table carries only label/hierarchy/mention_count — no link table to sessions or entities (unlike entity mentions).
+- **Problem:** theme hub pages can only approximate member concepts via the theme's first-extraction batch (`source_event_id` join) — partial and frozen at first sighting. True membership needs extraction to write a theme_mentions link (schema + extraction-store + prompt change).
+- **Why it matters:** themes are the wiki's cluster hubs; structural membership would make them genuinely navigational instead of best-effort.
+- **Severity guess:** MEDIUM (surface exists and is honest about the gap; data model is the limiter).
+- **Who-touches-next:** an extraction-schema step (Block 3.4 candidate or its own step) — schema, store, prompt, and backfill all in one decision.
+
 ## 2026-06-03 — findCurrentJsonl's 50KB floor silently excludes small sessions from interval/NATS flushes
 
 - **Observed while:** step 2.5 runtime verification (an hour of unexplained llm-dedup cycles).
