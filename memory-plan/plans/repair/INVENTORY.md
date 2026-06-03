@@ -66,7 +66,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 2 | 2.4 | v2.4 | [x] | hybrid | Build the vault link-integrity checker (manual run) (R9) |
 | 2 | 2.5 | v2.5 | [x] | hybrid | Checker runs on the synthesis cadence + surfaced (R9) |
 | 2 | 2.6 | v2.6 | [x] | hybrid | Referential coverage report (R9) |
-| 2 | 2.7 | v2.7 | [ ] | hybrid | Concept-note coverage backfill to 100% (R9) |
+| 2 | 2.7 | v2.7 | [x] | hybrid | Concept-note coverage backfill to 100% (R9) |
 | 2 | 2.8 | v2.8 | [ ] | hybrid | Generators emit only resolving wikilinks (R9) |
 | 2 | 2.9 | v2.9 | [ ] | — | (defined after 2.6 — its report is the input) themes/decisions surfaces, if the report shows gaps |
 | 2 | 2.10 | v2.10 | [ ] | tick | memory.synthesized carries session_id (R10) |

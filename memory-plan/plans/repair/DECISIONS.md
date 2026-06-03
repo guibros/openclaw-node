@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 2.7 closed: concept-note coverage 100%, and it stays there
+
+**Decision.** Two mechanisms: (1) `generateConceptNotes` gains `opts.names` — targeted generation reusing the whole existing write path; (2) the flush path generates **missing-coverage names first** (from `checkReferentialCoverage`, capped 10/flush, best-effort) instead of blindly rewriting the same top-10 forever — the structural reason HEARTBEAT.md (and any tail entity below the cap) could never get a note. One-time live backfill via the deployed writer closed the last gap.
+
+**Evidence.** Tests 27/27 (+1 targeted-names case). Live: `heartbeat-md.md` written (real LLM body); coverage CLI now reads **68/68 (100%)**. The "newly-crossing entity gets its note on the next synthesis" gate: structurally guaranteed by missing-first selection + already observed live in 2.5's flush (notes 75→76).
+
+## 2026-06-03 — Step 2.6 closed (ledger entry omitted from commit d6d83a1, recorded here)
+
+**Decision.** `checkReferentialCoverage` (lib + CLI `--coverage`) measures the three coverage numbers — concept coverage with missing list, link resolution %, session-note concept linkage %. Live: 67/68 (98.5%) / 39.8% / 6-of-7 (85.7%), each spot-checked against SQL and disk. 2.9's definition input gathered: `decisions/` and `themes/` vault surfaces exist but are empty (0 files).
+
+---
+
 ## 2026-06-03 — Step 2.5 closed: integrity counts on every synthesis flush, end to end
 
 **Decision.** `memory.synthesized` carries an optional `vault_integrity` block (notes/links/resolved/slug_resolvable/dangling/orphans). Measured by `checkVaultLinks()` inside `runFlush` after the synthesis chain (non-fatal — a failed check never kills a flush), passed through the daemon's emit, schema + dist updated. Surfacing rides the existing watcher detail panel (payloads render verbatim) — zero UI changes needed.

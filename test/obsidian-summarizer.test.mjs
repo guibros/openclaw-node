@@ -310,6 +310,21 @@ describe('queryConceptData + generateConceptNotes integration', () => {
     }
   });
 
+  it('opts.names restricts generation to the targeted concepts (repair 2.7)', async () => {
+    const db = seedDb();
+    const vaultPath = join(tmpDir, 'vault-targeted');
+
+    try {
+      const result = await generateConceptNotes({
+        db, vaultPath, threshold: 5, client: null, names: ['NATS JetStream'],
+      });
+      assert.equal(result.generated, 1);
+      assert.deepEqual(result.notes, ['nats-jetstream.md']);
+    } finally {
+      db.close();
+    }
+  });
+
   it('D7 (repair 2.1): private-flagged entities land in the vault by default', async () => {
     const db = seedDb();
     // NATS JetStream flagged private — under D7 the local vault is trusted
