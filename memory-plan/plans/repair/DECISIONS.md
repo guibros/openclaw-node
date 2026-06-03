@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 1.7 closed: bug-archived entities restored (operator-driven)
+
+**Decision (operator, via AskUserQuestion).** (1) Restore **all 941** non-colliding archived entities — the bug killed them in hours, the fixed decay re-archives genuinely idle ones legitimately over ~46 days; maximally transparent per D7. (2) Restored salience **0.5 with `last_decayed_at` anchored at restore time** — archived values were sub-floor and would have re-archived within one cycle; 1.8 rebaselines uniformly. (3) **Flag, don't delete**: `entities_archived.restored_at` stamps the audit trail; the 20 name-collision rows (re-extracted since, live row wins) stay archived and unflagged.
+
+**Precondition verified first.** Overnight post-fix scheduler cycles showed the steady-state signature (Decayed 24–45 with 0 archived, Reinforced 0, 364 credited pairs, archive frozen at 961) — the anchoring/seeding pass had completed.
+
+**Evidence.** Backup `~/.openclaw/backups/pre-step-1-7-2026-06-03/state.db` (25.6 MB). One sub-second transaction on live state.db: 941 inserted with original ids (verified safe: AUTOINCREMENT, sequence 2177 > max archived id 2113, 0 id collisions), live entities 132 → **1073**, join-check **0 field-preservation failures** across all 941, 0 entities below the archive floor, 941 archive rows flagged / 20 unflagged.
+
+**Consequences.** The archived entities' mention rows were deleted at archive time and are unrecoverable — their preserved `mention_count` is the historical baseline; 1.8's recount therefore applies only to entities that have mention rows. `entities_archived` semantics now: flagged = bug-era archive (restored), unflagged = superseded by later re-extraction.
+
+---
+
 ## 2026-06-02 — Step 1.6 closed: MEMORY.md writes are atomic
 
 **Decision.** All three MEMORY.md write sites (pre-compression-flush LLM + regex paths, memory-budget `#writeFile`) route through `atomicWriteFileSync` (tmp + fsync + rename; budget keeps its dir-creation via `mkdirp: true`). Concurrent readers (budget reload, companion-bridge) can never observe a torn file.

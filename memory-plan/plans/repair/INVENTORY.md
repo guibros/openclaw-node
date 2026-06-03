@@ -29,7 +29,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 1 | 1.4 | v1.4 | [x] | hybrid | Extraction dedup at flush boundaries (R4) |
 | 1 | 1.5 | v1.5 | [x] | tick | turn_index stamps the last real turn (R5) |
 | 1 | 1.6 | v1.6 | [x] | tick | MEMORY.md writes go through atomic-write (R39) |
-| 1 | 1.7 | v1.7 | [ ] | operator | Data repair A: restore bug-archived entities (after 1.2/1.3) |
+| 1 | 1.7 | v1.7 | [x] | operator | Data repair A: restore bug-archived entities (after 1.2/1.3) |
 | 1 | 1.8 | v1.8 | [ ] | operator | Data repair B: rebaseline salience + mention_count |
 
 > **1.1 Goal:** at most one tick body executes at any time.
@@ -51,7 +51,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **1.6 Proof:** grep shows zero bare `writeFileSync` on the MEMORY.md paths (pre-compression-flush ×2, memory-budget) — all routed through `lib/atomic-write.mjs`; one live flush observed updating MEMORY.md intact; tests green. [DONE 2026-06-02 — 3 sites → atomicWriteFileSync (budget keeps mkdirp). Grep clean; observed deployed flush wrote intact with no .tmp residue; suite 1499/0.]
 >
 > **1.7 Goal:** entities archived by the R1 bug are back in the live table.
-> **1.7 Proof:** dated `state.db` backup exists before the repair; restoration count logged; SQL shows restored entities live with preserved fields; the handling of their `entities_archived` rows (delete vs flag) decided in-step and logged in DECISIONS with the counts.
+> **1.7 Proof:** dated `state.db` backup exists before the repair; restoration count logged; SQL shows restored entities live with preserved fields; the handling of their `entities_archived` rows (delete vs flag) decided in-step and logged in DECISIONS with the counts. [DONE 2026-06-03 — operator decisions: restore all non-colliding (941), salience 0.5 + fresh anchor, flag restored_at. Backup at backups/pre-step-1-7-2026-06-03/. Live 132→1073; 0 field-preservation failures across 941; 20 collisions left archived; 0 sub-floor. Precondition verified first: overnight post-fix cycles Decayed 24-45/0 archived, Reinforced 0.]
 >
 > **1.8 Goal:** salience and mention_count reflect documented formulas, not the bug equilibrium.
 > **1.8 Proof:** sampled SQL assert `mention_count == COUNT(mentions)` for entities that have mention rows; entities without rows get the documented baseline; salience histogram shows no mass pinned at the 1.0/≈0.158 artifacts; values stable (≤0.3% drift) across 2 idle cycles; formula + numbers logged in DECISIONS.

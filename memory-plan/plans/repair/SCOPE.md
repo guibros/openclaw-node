@@ -1,11 +1,12 @@
 # SCOPE — repair plan
 
-**Status:** idle
-**Goal:** Chain run 2026-06-02 CLOSED 1.1–1.6 at v1.6 (all runtime-proved, suite 1499/0, daemon on v1.6). BLOCKED at 1.7/1.8 — operator-driven data repair; see BLOCKED.md (precondition: one live post-fix scheduler cycle).
-**Set at:** 2026-06-02 16:17 Montreal
-**Expires:** no-expiry
+**Status:** active
+**Goal:** Step 1.7 — data repair A: restore bug-archived entities (operator decisions 2026-06-03: all 941 non-colliding, salience 0.5 + fresh anchor, flag restored_at). Runtime data operation on live state.db + plan bookkeeping; no lib code edits. Proof per INVENTORY 1.7.
+**Set at:** 2026-06-03 00:25 Montreal
+**Expires:** 2026-06-03T18:00:00Z
 
 ```files
+memory-plan/plans/repair/*
 ```
 
 ## How this file works
