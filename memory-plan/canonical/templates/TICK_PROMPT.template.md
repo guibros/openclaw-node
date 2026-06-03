@@ -57,13 +57,13 @@ go to `OUT_OF_SCOPE.md` (always writeable), never into silent scope expansion.
 ## The step lifecycle (PROTOCOL §3 — run in order)
 
 1. **Phase 1 · §0 MICRO RE-ORIENT** — first thing in AUDIT_PRE, ≤6 lines (PROTOCOL §5.1); "still the right next step? no → BLOCK".
-2. **Phase 1 · AUDIT_PRE** — `audits/stepNN_<slug>/AUDIT_PRE.md`: intent, design (consume prior carry-forwards), risks, §6 file-delta outline. VERSION → `vX.Y-pre`. Flip row → `[A]`.
+2. **Phase 1 · AUDIT_PRE** — `audits/stepNN_<slug>/AUDIT_PRE.md`: intent, design (consume prior carry-forwards), risks, §6 file-delta outline. **Pre-screen the step's contract (PROTOCOL §11): verify every Need exists (file present / service up / decision logged). Any Need missing → BLOCK naming it — never build a Need on the way.** VERSION → `vX.Y-pre`. Flip row → `[A]`.
 3. **Phase 4 · implement** — only the SCOPE files, only the §6 deltas. **Tripwire (PROTOCOL §5.3): sprawl or ≥2 mid-impl findings → the step wasn't atomic → BLOCK proposing a split.** VERSION → `vX.Y-mid`.
-4. **Phase 5 · VERIFY** — (a) the bound test command green at baseline; AND (b) **RUNTIME EVIDENCE**: deploy to the bound runtime target if applicable, restart the affected service, OBSERVE the step's done-evidence. Capture exact command + output. Cannot observe → BLOCK.
+4. **Phase 5 · VERIFY** — (a) the bound test command green at baseline; AND (b) the step's **Verify contract executed exactly as written** (PROTOCOL §11): `runtime:` deploy/restart/probe and capture command + output against the WIN threshold; `code:` run the test/grep; `visual:` you CANNOT confirm headless → BLOCK citing the visual check as the **External action:**. Cannot observe → BLOCK.
 5. **Phase 7 · AUDIT_POST** — promised-vs-landed ledger, greppable deltas, cross-refs, findings, §6 carry-forwards.
 6. **Phase 8 · corrections** — usually none. Architectural choice not pre-decided → BLOCK + note for DECISIONS.
 7. **Phase 8.5 · DEEP REVIEW GATE** — the six checks (PROTOCOL §3). Any fail → BLOCK, no commit.
-8. **Phase 9 · close** — one commit (PROTOCOL §3.1 format, `Runtime-Evidence:` trailer mandatory). Flip row → `[x]` + close note. VERSION → clean `vX.Y`. Update COMPONENT_REGISTRY. SCOPE → done. Log any DECISIONS.
+8. **Phase 9 · close** — one commit (PROTOCOL §3.1 format, `Runtime-Evidence:` trailer mandatory). Flip row → `[x]` + close note. VERSION → clean `vX.Y`. Update COMPONENT_REGISTRY. **Record the Feeds landing in AUDIT_POST: where the output lives and which consumer now reaches it.** SCOPE → done. Log any DECISIONS.
 9. **If this step closed a block** → run the MACRO RE-ORIENT (PROTOCOL §5.2) and record it, before stopping.
 
 After the commit, **STOP.** One step per tick.
