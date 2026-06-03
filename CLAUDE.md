@@ -1,29 +1,39 @@
 # openclaw-nodedev — Agent Bootstrap
 
-**Plans are siloed.** The shared sources live in [`memory-plan/canonical/`](memory-plan/canonical/)
-(`MASTER_PLAN.md`, `COWORK_MODEL.md`) and are copied into every plan silo by
-`sync-canonical.sh`. Every plan doc lives inside a self-contained plan dir under
-`memory-plan/plans/<id>/` (each carries its own synced copy of the canonical docs):
-- [`memory-plan/plans/redesign/`](memory-plan/plans/redesign/) — the **active** plan (local-first memory redesign, Blocks 0–6).
+**Plans are siloed, and the protocol base is shared.** The shared sources live in
+[`memory-plan/canonical/`](memory-plan/canonical/): five synced docs (`MASTER_PLAN.md`,
+`PROTOCOL.md`, `FRAMEWORK_CANONICAL.md`, `COWORK_MODEL.md`, `BLOCK_TEMPLATE.md`) copied into
+every plan silo by `workspace-bin/sync-canonical.sh`, plus [`templates/`](memory-plan/canonical/templates/),
+which `workspace-bin/new-plan.sh <id> ["goal"]` instantiates into a new viewer-valid silo.
+`workspace-bin/plan-tick.sh <id>` is the one generic chain engine; per-plan `<id>-tick.sh` shims
+front it (the viewer/launchd invoke tick commands argv-less). Every plan doc lives inside a
+self-contained plan dir under `memory-plan/plans/<id>/`:
+- [`memory-plan/plans/redesign/`](memory-plan/plans/redesign/) — local-first memory redesign. **COMPLETE at v6.5** (Blocks 0–6 delivered; Block 7 federation DEFERRED per its DECISIONS D4).
+- [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **BLOCKED** (`BLOCKED.md` present at v2.11, awaiting operator; scope idle).
+- [`memory-plan/plans/protocol/`](memory-plan/plans/protocol/) — the meta-plan: the workplan operating base itself (canonical docs, generic engine, scaffolder).
 - [`memory-plan/plans/legacy/`](memory-plan/plans/legacy/) — the **completed** 58-step framework plan (archive / reference).
 
 **Read these BEFORE any tool use, in this order:**
 
-1. [`memory-plan/canonical/MASTER_PLAN.md`](memory-plan/canonical/MASTER_PLAN.md) — north star architecture + non-negotiable working principles + done-contract. The shared doc that governs everything you do in this repo (synced copy also at `memory-plan/plans/redesign/MASTER_PLAN.md`).
-2. [`memory-plan/plans/redesign/MEMORY_REDESIGN.md`](memory-plan/plans/redesign/MEMORY_REDESIGN.md) — the local-first redesign roadmap (phases L0–G).
-3. [`memory-plan/plans/redesign/COMPONENT_REGISTRY.md`](memory-plan/plans/redesign/COMPONENT_REGISTRY.md) — current state of every ~/.openclaw service. Reality, not aspiration.
-4. [`memory-plan/plans/redesign/DECISIONS.md`](memory-plan/plans/redesign/DECISIONS.md) — append-only ledger of every architectural decision. The fastest way to absorb what was decided and why.
-5. [`memory-plan/plans/redesign/WORKFLOW.md`](memory-plan/plans/redesign/WORKFLOW.md) + [`INVENTORY.md`](memory-plan/plans/redesign/INVENTORY.md) — the per-step 9-phase lifecycle (incl. the Re-Orient Loop) and the 40-step plan. The first `[ ]` row is the next action.
-6. [`memory-plan/plans/redesign/SCOPE.md`](memory-plan/plans/redesign/SCOPE.md) — the active plan's work contract. If `Status` is not `active`, you MUST set scope with the operator before editing anything.
-7. [`memory-plan/plans/redesign/OUT_OF_SCOPE.md`](memory-plan/plans/redesign/OUT_OF_SCOPE.md) — captured drift awaiting triage.
+1. [`memory-plan/canonical/MASTER_PLAN.md`](memory-plan/canonical/MASTER_PLAN.md) — north star architecture + non-negotiable working principles + done-contract. The shared doc that governs everything you do in this repo (a synced copy sits in every plan silo).
+2. [`memory-plan/canonical/PROTOCOL.md`](memory-plan/canonical/PROTOCOL.md) — **the plan-silo operating base**: silo anatomy, the per-step 9-phase lifecycle, version carriers, the Re-Orient Loop, the viewer + tick-chain contracts, and how a new plan iteration is instantiated.
+
+Then the per-plan documents of the silo you are working in — every silo carries the same standard manifest (PROTOCOL §1):
+
+3. `plans/<id>/ROADMAP.md` (redesign's is `MEMORY_REDESIGN.md`) — the plan's blocks and why.
+4. [`plans/<id>/COMPONENT_REGISTRY.md`](memory-plan/plans/redesign/COMPONENT_REGISTRY.md) — current runtime state of what the plan touches. Reality, not aspiration.
+5. [`plans/<id>/DECISIONS.md`](memory-plan/plans/redesign/DECISIONS.md) — append-only ledger of every architectural decision. The fastest way to absorb what was decided and why.
+6. [`plans/<id>/INVENTORY.md`](memory-plan/plans/redesign/INVENTORY.md) — the atomic step list. The first `[ ]` row is the plan's next action. (Pre-protocol plans also carry their historical `WORKFLOW.md`/`FRAMEWORK.md` — for them, those govern; PROTOCOL.md governs plans created after 2026-06-03.)
+7. [`plans/<id>/SCOPE.md`](memory-plan/plans/redesign/SCOPE.md) — the plan's work contract. If no plan's `SCOPE.md` has `Status: active`, you MUST set scope with the operator before editing anything.
+8. [`plans/<id>/OUT_OF_SCOPE.md`](memory-plan/plans/redesign/OUT_OF_SCOPE.md) — captured drift awaiting triage.
 
 The most recent verified ground-truth audit is [`memory-plan/plans/legacy/AUDIT_2026-05-27.md`](memory-plan/plans/legacy/AUDIT_2026-05-27.md). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them. `git log --oneline -20` shows the recent committed work.
 
 ## Where we are / next action
 
-As of 2026-05-29: plans are siloed under `memory-plan/plans/` (`redesign/` active, `legacy/` archived); shared sources live in `memory-plan/canonical/` and are synced into each silo. The scope-check hook is per-plan; the workplan-viewer roots at `memory-plan/plans`. **Block 0 (deploy gap + local NATS substrate) is COMPLETE** — steps 0.1–0.4 done; the daemon is wired to local NATS (`nats://127.0.0.1:4222`, `OPENCLAW_NODE_ID=daedalus`) with the per-node stream `local-events-daedalus` live and writable, federation dormant.
+As of 2026-06-03: the **protocol base is live** (protocol plan v1.3, Block 1 closed). Every silo carries the five synced canonical docs; `new-plan.sh` scaffolds a complete viewer-valid silo from `canonical/templates/`; `plan-tick.sh <id>` drives any plan (verified by preflight against all four silos). The redesign plan is **complete at v6.5** with its tick plist intentionally unloaded; the repair plan is **BLOCKED at v2.11** awaiting operator action (see its `BLOCKED.md`).
 
-**The next action is redesign step 1.1** — "Define memory.* event vocabulary in `packages/event-schemas`" (first `[ ]` row in `plans/redesign/INVENTORY.md`). Block 1 emits `memory.*` events at the ingest/extract/inject boundaries. This is schema work, not runtime-heavy, so it is **safe for the autonomous tick chain**. The redesign tick (`com.openclaw.redesign-tick`, chain mode) walks one INVENTORY step per tick and self-sets its per-step scope.
+**There is no active scope and no queued step.** The next action is an operator decision: clear `plans/repair/BLOCKED.md`, open the next plan iteration with `workspace-bin/new-plan.sh <id> ["goal"]`, or set a new scope for ad-hoc work. The workplan-viewer (:7892) shows all silos.
 
 ## The forcing function
 

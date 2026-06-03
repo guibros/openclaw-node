@@ -1,7 +1,7 @@
 # SCOPE — protocol plan
 
-**Status:** active
-**Goal:** Build the protocol base: canonical PROTOCOL.md + FRAMEWORK_CANONICAL/BLOCK_TEMPLATE hoist, generic plan-tick.sh engine, templates/ + new-plan.sh scaffolder. Steps 1.1–1.3 of this plan's INVENTORY.
+**Status:** done
+**Goal:** Build the protocol base: canonical PROTOCOL.md + FRAMEWORK_CANONICAL/BLOCK_TEMPLATE hoist, generic plan-tick.sh engine, templates/ + new-plan.sh scaffolder. Steps 1.1–1.3 of this plan's INVENTORY. — CLOSED 2026-06-03: all three steps committed with runtime evidence; Block 1 complete at v1.3.
 **Set at:** 2026-06-03 (operator-directed, interactive session)
 **Expires:** 2026-06-04T23:59:00Z
 

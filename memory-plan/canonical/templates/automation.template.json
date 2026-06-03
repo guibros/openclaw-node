@@ -1,0 +1,15 @@
+{
+  "plist_label": "com.openclaw.{{PLAN_ID}}-tick",
+  "plist_path": "{{HOME}}/Library/LaunchAgents/com.openclaw.{{PLAN_ID}}-tick.plist",
+  "tick_command": "{{REPO}}/workspace-bin/{{PLAN_ID}}-tick.sh",
+  "working_dir": "{{REPO}}",
+  "mode": "chain",
+  "interval_seconds": 1800,
+  "throttle_seconds": 30,
+  "stdout_path": "{{REPO}}/memory-plan/plans/{{PLAN_ID}}/tick-logs/launchd.stdout.log",
+  "stderr_path": "{{REPO}}/memory-plan/plans/{{PLAN_ID}}/tick-logs/launchd.stderr.log",
+  "env": {
+    "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin",
+    "HOME": "{{HOME}}"
+  }
+}
