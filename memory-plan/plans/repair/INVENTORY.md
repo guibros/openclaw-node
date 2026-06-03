@@ -61,7 +61,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | Block | Step | Version | Status | Driver | Description |
 |-------|------|---------|--------|--------|-------------|
 | 2 | 2.1 | v2.1 | [x] | hybrid | All local vault/synthesis writers transparent (D7, R6) |
-| 2 | 2.2 | v2.2 | [ ] | tick | One shared slugify for writers + UI route (R7) |
+| 2 | 2.2 | v2.2 | [x] | tick | One shared slugify for writers + UI route (R7) |
 | 2 | 2.3 | v2.3 | [ ] | tick | Promoter writes only new/changed notes (R8) |
 | 2 | 2.4 | v2.4 | [ ] | hybrid | Build the vault link-integrity checker (manual run) (R9) |
 | 2 | 2.5 | v2.5 | [ ] | hybrid | Checker runs on the synthesis cadence + surfaced (R9) |
@@ -76,7 +76,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **2.1 Proof:** grep shows no privacy-filtered path remaining in local vault writers (consolidation summaries, promoter, summarizer call sites); one consolidation cycle AND one flush each produce notes for previously-private entities (before/after file diff). The `private` column + filter machinery remain in code (federation-era, D4) — just unconsulted locally. [DONE 2026-06-03 — summarizer default flipped to transparent (filter = federation opt-in via respectPrivacy:true); flush call-site redundancy removed; F-N102 tests converted to D7-default + opt-in pair. Live scheduler cycle wrote 5 notes incl. private=1 restored entities; deployed flush wrote 10 (mode=llm). grep clean; tests 48/48.]
 >
 > **2.2 Goal:** one slugify definition, every producer and consumer of note filenames uses it.
-> **2.2 Proof:** grep — single definition, imported by `obsidian-summarizer` and the mission-control memory-content route (and any other slug site); a >60-char concept name renders its prose in the content browser (HTTP check that returned "No concept note" pre-fix).
+> **2.2 Proof:** grep — single definition, imported by `obsidian-summarizer` and the mission-control memory-content route (and any other slug site); a >60-char concept name renders its prose in the content browser (HTTP check that returned "No concept note" pre-fix). [DONE 2026-06-03 — gate substituted (single import impossible across the file-copy deploy boundary; documented in audits/step10): byte-equivalent mirror + source-parity test (10-case battery + no-cap lock). Runtime: 89-char-slug entity's prose rendered via live API post-deploy (was null). Tests 3/3.]
 >
 > **2.3 Goal:** promoter is idempotent — unchanged vault state writes nothing.
 > **2.3 Proof:** two back-to-back promoter runs → second writes 0 files (vault mtime snapshot identical); a changed entity rewrites exactly its own note.

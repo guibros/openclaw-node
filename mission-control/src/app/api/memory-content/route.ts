@@ -25,9 +25,15 @@ function db(): Database.Database | null {
   return _db;
 }
 
-// entity name → vault concept-note slug (mirrors lib/obsidian-summarizer slugifyName)
+// entity name → vault concept-note slug. MUST stay byte-equivalent to
+// lib/obsidian-summarizer.mjs slugifyName (the writer that names the files);
+// test/slugify-parity.test.mjs locks the two together (R7, repair 2.2).
 function slugify(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 // Read the prose body (everything after frontmatter) of a concept note, if present.

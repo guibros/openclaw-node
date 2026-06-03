@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 2.2 closed: one slugify behavior, writer + UI locked together
+
+**Decision.** The mission-control route's slug mirror is now byte-equivalent to the writer's `slugifyName` (60-char cap dropped). The INVENTORY's "single imported definition" gate was substituted — the runtime mission-control is a file-copy deploy, so one relative import cannot resolve in both trees — with an equal-strength gate: `test/slugify-parity.test.mjs` extracts the route's function from source and battery-asserts equality with `slugifyName` (incl. >60-char, unicode, slash cases) plus a no-`.slice(` regression lock. Substitution documented in audits/step10 (precedent: redesign 0.2's done-evidence refinement).
+
+**Evidence.** Parity tests 3/3. Runtime: route deployed (file copy, Next hot-reload); seeded an 89-char-slug entity + real-writer note → live API `?entity=` returned the full prose (pre-fix: truncated-filename lookup → null → "No concept note written yet" for a note that existed). Seed cleaned up.
+
+**No architectural decision needed.** Carry-forward: 2.4/2.6 resolve names→files through the same `slugifyName`; UI agreement is now guaranteed by test.
+
+---
+
 ## 2026-06-03 — Step 2.1 closed: all local vault writers transparent → Opens Block 2
 
 **Decision.** The privacy default in `obsidian-summarizer` (the single gate every vault writer flows through) flipped per D7: `respectPrivacy === true` is now an explicit opt-IN for federation-era surfaces; local writers (flush, consolidation regenerateSummaries, promoter) are transparent by default. The flush call site's redundant explicit `false` removed — the default is the single source of the posture. F-N102's machinery is intact behind the opt-in; its cloud-sync exposure remark stays parked (R36, Block P).
