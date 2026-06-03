@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 2.1 closed: all local vault writers transparent → Opens Block 2
+
+**Decision.** The privacy default in `obsidian-summarizer` (the single gate every vault writer flows through) flipped per D7: `respectPrivacy === true` is now an explicit opt-IN for federation-era surfaces; local writers (flush, consolidation regenerateSummaries, promoter) are transparent by default. The flush call site's redundant explicit `false` removed — the default is the single source of the posture. F-N102's machinery is intact behind the opt-in; its cloud-sync exposure remark stays parked (R36, Block P).
+
+**Evidence.** grep: zero local writers opt into filtering. Tests 48/48 (F-N102 regression pair converted: D7 default-transparency + opt-in filtering with the original exclusion assertions). Runtime, both Proof halves: live scheduler cycle post-change wrote 5 concept notes including `private=1` restored entities (nats-kv-interference-bug-pattern, arcane — pre-change this path excluded every row); deployed real-LLM flush wrote 10 notes for private-flagged entities. Same cycle confirmed Block 1 in live steady state (Decayed 0/0 archived, Reinforced 0, promotion candidates 103→24 under recounted thresholds).
+
+**Consequences.** The R6 contradiction is gone — one posture, decided, documented. Block 2 continues: 2.2 shared slugify.
+
+---
+
 ## 2026-06-03 — Step 1.8 closed: rebaseline → Block 1 COMPLETE
 
 **Decision (operator, via AskUserQuestion).** (1) `mention_count := COUNT(DISTINCT session_id)` for entities with mention rows — immune to residual pre-fix duplicate rows and consistent with reinforcement's shared-session semantics; the 941 restored keep their preserved historical counts (rows unrecoverable). (2) Salience **0.5 + fresh anchor for ALL live entities** — the same fresh-start the restored got; kills the remaining ≈0.158 artifact cluster (94 rows) outright; mention_count carries ranking until fresh dynamics differentiate.

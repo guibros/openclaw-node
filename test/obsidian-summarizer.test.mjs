@@ -310,47 +310,47 @@ describe('queryConceptData + generateConceptNotes integration', () => {
     }
   });
 
-  it('regression_F-N102: private entities are excluded from the vault', async () => {
+  it('D7 (repair 2.1): private-flagged entities land in the vault by default', async () => {
     const db = seedDb();
-    // Re-flip NATS JetStream back to private. Spreading Activation stays public.
+    // NATS JetStream flagged private — under D7 the local vault is trusted
+    // and transparent, so the flag is not consulted by default.
+    db.exec(`UPDATE entities SET private = 1 WHERE name = 'NATS JetStream'`);
+    const vaultPath = join(tmpDir, 'vault-transparent');
+
+    try {
+      const result = await generateConceptNotes({ db, vaultPath, threshold: 5, client: null });
+      assert.equal(result.generated, 2,
+        'D7: the local vault is fully transparent — private flags are not consulted');
+      assert.ok(result.notes.includes('nats-jetstream.md'));
+    } finally {
+      db.close();
+    }
+  });
+
+  it('regression_F-N102 (now opt-IN): respectPrivacy:true filters for federation-era surfaces', async () => {
+    const db = seedDb();
     db.exec(`UPDATE entities SET private = 1 WHERE name = 'NATS JetStream'`);
     // Also private-ify the decision so it doesn't slip through coMentioned wikilinks.
     db.exec(`UPDATE decisions SET private = 1`);
     const vaultPath = join(tmpDir, 'vault-privacy');
 
     try {
-      const result = await generateConceptNotes({ db, vaultPath, threshold: 5, client: null });
+      const result = await generateConceptNotes({
+        db, vaultPath, threshold: 5, client: null, respectPrivacy: true,
+      });
 
       // Only Spreading Activation should land in the vault.
-      assert.equal(result.generated, 1, 'private entity must not become a vault note');
+      assert.equal(result.generated, 1, 'opt-in filtering must exclude private entities');
       assert.ok(result.notes.includes('spreading-activation.md'));
       assert.ok(!result.notes.includes('nats-jetstream.md'),
-        'NATS is private — must NOT appear in vault');
+        'NATS is private — must NOT appear when filtering is opted in');
 
-      // The remaining public note should not wikilink to the private NATS entity.
       const spreadingContent = await readFile(
         join(vaultPath, 'concepts', 'spreading-activation.md'), 'utf-8');
       assert.ok(!spreadingContent.includes('[[NATS JetStream]]'),
-        'public note must not wikilink to a private entity');
+        'filtered note must not wikilink to a private entity');
       assert.ok(!spreadingContent.includes('Use NATS over RabbitMQ'),
-        'private decision text must not leak into public note body');
-    } finally {
-      db.close();
-    }
-  });
-
-  it('regression_F-N102: respectPrivacy:false opts out (for local-only debug vault)', async () => {
-    const db = seedDb();
-    // Mark NATS private again — but pass respectPrivacy: false.
-    db.exec(`UPDATE entities SET private = 1 WHERE name = 'NATS JetStream'`);
-    const vaultPath = join(tmpDir, 'vault-optout');
-
-    try {
-      const result = await generateConceptNotes({
-        db, vaultPath, threshold: 5, client: null, respectPrivacy: false,
-      });
-      assert.equal(result.generated, 2,
-        'respectPrivacy:false surfaces private entities for local-only audit use');
+        'private decision text must not leak into filtered note body');
     } finally {
       db.close();
     }
