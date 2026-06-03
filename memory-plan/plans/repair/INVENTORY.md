@@ -65,7 +65,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 2 | 2.3 | v2.3 | [x] | tick | Promoter writes only new/changed notes (R8) |
 | 2 | 2.4 | v2.4 | [x] | hybrid | Build the vault link-integrity checker (manual run) (R9) |
 | 2 | 2.5 | v2.5 | [x] | hybrid | Checker runs on the synthesis cadence + surfaced (R9) |
-| 2 | 2.6 | v2.6 | [ ] | hybrid | Referential coverage report (R9) |
+| 2 | 2.6 | v2.6 | [x] | hybrid | Referential coverage report (R9) |
 | 2 | 2.7 | v2.7 | [ ] | hybrid | Concept-note coverage backfill to 100% (R9) |
 | 2 | 2.8 | v2.8 | [ ] | hybrid | Generators emit only resolving wikilinks (R9) |
 | 2 | 2.9 | v2.9 | [ ] | — | (defined after 2.6 — its report is the input) themes/decisions surfaces, if the report shows gaps |
@@ -88,7 +88,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **2.5 Proof:** after a live flush, a watcher record carries the dangling/orphan counts; the mission-control surface shows the latest counts matching a manual CLI run. [DONE 2026-06-03 — vault_integrity in the synthesized schema (dist rebuilt), measured in runFlush post-synthesis (non-fatal), passed through the daemon emit. Live flush → watcher record + /api/watcher + manual CLI all byte-identical (notes 76/links 1264/resolved 503/slugRes 204/dangling 557/orphans 29). Found+captured: findCurrentJsonl's undocumented 50KB floor. Tests 46/46.]
 >
 > **2.6 Goal:** referential coverage is a measured number, not a feeling.
-> **2.6 Proof:** report (CLI or panel) shows: % of above-threshold entities with a concept note, % of wikilinks resolving, % of session notes linking ≥1 concept — each number reproduced by a manual SQL/fs spot-check.
+> **2.6 Proof:** report (CLI or panel) shows: % of above-threshold entities with a concept note, % of wikilinks resolving, % of session notes linking ≥1 concept — each number reproduced by a manual SQL/fs spot-check. [DONE 2026-06-03 — checkReferentialCoverage + CLI --coverage. Live: concepts 67/68 (98.5%, missing=HEARTBEAT.md), links 503/1264 (39.8%), sessions 6/7 (85.7%) — all three spot-checked (SQL count, disk ls, engine parity). 2.9 input gathered: decisions/ + themes/ dirs are EMPTY. Tests 8/8.]
 >
 > **2.7 Goal:** every above-threshold entity has a concept note.
 > **2.7 Proof:** the 2.6 instrument reports 100% concept-note coverage after backfill; a newly-crossing entity gets its note on the next synthesis run (observed in the vault + watcher).

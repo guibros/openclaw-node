@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { checkVaultLinks } from '../lib/obsidian-link-checker.mjs';
+import Database from 'better-sqlite3';
+import { checkVaultLinks, checkReferentialCoverage } from '../lib/obsidian-link-checker.mjs';
 
 describe('checkVaultLinks', () => {
   let vault;
@@ -59,5 +60,36 @@ describe('checkVaultLinks', () => {
     const r = checkVaultLinks(join(vault, 'does-not-exist'));
     assert.equal(r.notes, 0);
     assert.equal(r.links, 0);
+  });
+});
+
+describe('checkReferentialCoverage', () => {
+  it('measures concept coverage, link resolution, and session linkage (repair 2.6)', async () => {
+    const vault = await mkdtemp(join(tmpdir(), 'vault-cov-'));
+    await mkdir(join(vault, 'concepts'), { recursive: true });
+    await mkdir(join(vault, 'sessions'), { recursive: true });
+    await writeFile(join(vault, 'concepts', 'covered-entity.md'), '# Covered\n[[Covered Entity]] self.');
+    await writeFile(join(vault, 'sessions', 'linked-session.md'), '# S1\nTouched [[Covered Entity]].');
+    await writeFile(join(vault, 'sessions', 'unlinked-session.md'), '# S2\nNo concept links here.');
+
+    const db = new Database(':memory:');
+    db.exec(`CREATE TABLE entities (id INTEGER PRIMARY KEY, name TEXT, mention_count INTEGER)`);
+    db.prepare(`INSERT INTO entities (name, mention_count) VALUES (?, ?)`).run('Covered Entity', 9);
+    db.prepare(`INSERT INTO entities (name, mention_count) VALUES (?, ?)`).run('Missing Entity', 7);
+    db.prepare(`INSERT INTO entities (name, mention_count) VALUES (?, ?)`).run('Below Threshold', 2);
+
+    const cov = checkReferentialCoverage({ db, vaultPath: vault, threshold: 5 });
+
+    assert.equal(cov.concepts.eligible, 2);
+    assert.equal(cov.concepts.withNote, 1);
+    assert.equal(cov.concepts.pct, 50);
+    assert.deepEqual(cov.concepts.missing, ['Missing Entity']);
+    assert.equal(cov.sessions.notes, 2);
+    assert.equal(cov.sessions.linkingConcepts, 1);
+    assert.equal(cov.sessions.pct, 50);
+    assert.equal(cov.links.total, 2);
+
+    db.close();
+    await rm(vault, { recursive: true, force: true });
   });
 });
