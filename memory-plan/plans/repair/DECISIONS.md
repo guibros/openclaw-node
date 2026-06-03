@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 2.8 closed: every wikilink in the vault resolves — the referential system works
+
+**Sub-decision: link-only-existing, no stubs.** A referential system links what exists; sessions without notes render as plain text, related-links are emitted only for targets on disk or in the same generation run. 442 stub notes rejected as noise.
+
+**Decision.** Three mechanisms: (1) concept frontmatter carries `aliases: ["<Entity Name>"]` — the single line that makes name-style `[[links]]` resolve against slug filenames in Obsidian; (2) generators filter/resolve at emission (related → resolvable targets only; session refs → the real note's basename via `buildSessionNoteResolver`, else text); (3) the checker resolves path-style targets by basename, matching Obsidian (the digest's correct links had been misclassified). One-time migration repaired the 72 existing notes (66 aliased, 10 session links fixed, 300 unlinked to text, 239 ghost related-links dropped — script preserved in audits/).
+
+**Evidence.** Vault-wide: **739/739 wikilinks resolved (100%)** — from 503/1264 (39.8%) at the 2.4 baseline — **0 slug-resolvable, 0 dangling**. Fresh deployed generation (`openclaw-tui`, real LLM): aliases present, 0 dangling in the new note. Tests 44/44 (two bug-locking tests converted).
+
+**Consequences.** `vault_integrity.dangling` on live flushes is now a true regression signal (expected 0). The operator's referential system — concept coverage 100% (2.7), link resolution 100% (2.8), measured per flush (2.5) — is implemented and working. Remaining in block: 2.9 (themes/decisions surfaces — definable now), 2.10/2.11 (event attribution).
+
+---
+
 ## 2026-06-03 — Step 2.7 closed: concept-note coverage 100%, and it stays there
 
 **Decision.** Two mechanisms: (1) `generateConceptNotes` gains `opts.names` — targeted generation reusing the whole existing write path; (2) the flush path generates **missing-coverage names first** (from `checkReferentialCoverage`, capped 10/flush, best-effort) instead of blindly rewriting the same top-10 forever — the structural reason HEARTBEAT.md (and any tail entity below the cap) could never get a note. One-time live backfill via the deployed writer closed the last gap.

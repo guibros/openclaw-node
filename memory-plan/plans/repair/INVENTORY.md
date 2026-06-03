@@ -67,7 +67,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 2 | 2.5 | v2.5 | [x] | hybrid | Checker runs on the synthesis cadence + surfaced (R9) |
 | 2 | 2.6 | v2.6 | [x] | hybrid | Referential coverage report (R9) |
 | 2 | 2.7 | v2.7 | [x] | hybrid | Concept-note coverage backfill to 100% (R9) |
-| 2 | 2.8 | v2.8 | [ ] | hybrid | Generators emit only resolving wikilinks (R9) |
+| 2 | 2.8 | v2.8 | [x] | hybrid | Generators emit only resolving wikilinks (R9) |
 | 2 | 2.9 | v2.9 | [ ] | — | (defined after 2.6 — its report is the input) themes/decisions surfaces, if the report shows gaps |
 | 2 | 2.10 | v2.10 | [ ] | tick | memory.synthesized carries session_id (R10) |
 | 2 | 2.11 | v2.11 | [ ] | tick | Truthful trigger labels at every flush site (R10) |
@@ -91,10 +91,10 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **2.6 Proof:** report (CLI or panel) shows: % of above-threshold entities with a concept note, % of wikilinks resolving, % of session notes linking ≥1 concept — each number reproduced by a manual SQL/fs spot-check. [DONE 2026-06-03 — checkReferentialCoverage + CLI --coverage. Live: concepts 67/68 (98.5%, missing=HEARTBEAT.md), links 503/1264 (39.8%), sessions 6/7 (85.7%) — all three spot-checked (SQL count, disk ls, engine parity). 2.9 input gathered: decisions/ + themes/ dirs are EMPTY. Tests 8/8.]
 >
 > **2.7 Goal:** every above-threshold entity has a concept note.
-> **2.7 Proof:** the 2.6 instrument reports 100% concept-note coverage after backfill; a newly-crossing entity gets its note on the next synthesis run (observed in the vault + watcher).
+> **2.7 Proof:** the 2.6 instrument reports 100% concept-note coverage after backfill; a newly-crossing entity gets its note on the next synthesis run (observed in the vault + watcher). [DONE 2026-06-03 — generateConceptNotes opts.names (targeted); flush generates missing-coverage names first (the top-N-forever defect fixed); live backfill wrote heartbeat-md.md → coverage 68/68 (100%). New-entity note generation observed in 2.5's live flush + structurally guaranteed. Tests 27/27.]
 >
 > **2.8 Goal:** generated notes contain only wikilinks that resolve.
-> **2.8 Proof:** a post-change synthesis run produces notes for which the 2.4 checker reports 0 dangling links; the stub-vs-link-only-existing sub-decision is logged in DECISIONS.
+> **2.8 Proof:** a post-change synthesis run produces notes for which the 2.4 checker reports 0 dangling links; the stub-vs-link-only-existing sub-decision is logged in DECISIONS. [DONE 2026-06-03 — link-only-existing (no stubs). Aliases in concept frontmatter; related filtered to resolvable; session links resolve-or-text via buildSessionNoteResolver; checker basename fix; one-time migration (66 aliased, 72 repaired, script in audits/). Vault: 739/739 resolved (100%, was 39.8%), 0 dangling; fresh generation = 0 dangling. Tests 44/44.]
 >
 > **2.9 Goal+Proof:** written when defined (input = 2.6's report; struck if the report shows no themes/decisions gap). Cannot start before its Proof line exists.
 >

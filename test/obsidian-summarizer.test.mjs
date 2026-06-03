@@ -56,6 +56,7 @@ describe('getConceptThreshold', () => {
 describe('buildConceptFrontmatter', () => {
   it('produces valid YAML frontmatter with all fields', () => {
     const entity = {
+      name: 'NATS JetStream',
       type: 'technology',
       first_seen: '2026-05-10T10:00:00Z',
       last_seen: '2026-05-20T14:30:00Z',
@@ -67,11 +68,21 @@ describe('buildConceptFrontmatter', () => {
     assert.ok(fm.startsWith('---'));
     assert.ok(fm.endsWith('---'));
     assert.ok(fm.includes('type: concept'));
+    assert.ok(fm.includes('aliases: ["NATS JetStream"]'));
     assert.ok(fm.includes('entity_type: technology'));
     assert.ok(fm.includes('mention_count: 47'));
     assert.ok(fm.includes('salience: 0.85'));
     assert.ok(fm.includes('[[Mesh Coordination]]'));
     assert.ok(fm.includes('[[The CAS Bug]]'));
+  });
+
+  it('filters related links to resolvable targets when given the run set (repair 2.8)', () => {
+    const entity = { name: 'Alpha', type: 'concept', first_seen: 't', last_seen: 't', mention_count: 9 };
+    const fm = buildConceptFrontmatter(entity, ['Known Concept', 'Ghost Concept'], 0.5, {
+      resolvableSlugs: new Set(['known-concept']),
+    });
+    assert.ok(fm.includes('[[Known Concept]]'));
+    assert.ok(!fm.includes('[[Ghost Concept]]'), 'unresolvable related links must be dropped');
   });
 });
 
@@ -88,7 +99,23 @@ describe('buildConceptBody', () => {
     assert.ok(body.includes('## Decisions'));
     assert.ok(body.includes('Use NATS over RabbitMQ'));
     assert.ok(body.includes('## Recent activity'));
-    assert.ok(body.includes('[[sessions/2026-05-13-debug]]'));
+    // Without a resolver, sessions render as plain text — never a dangling link (repair 2.8)
+    assert.ok(body.includes('- session 2026-05-13-debug'));
+    assert.ok(!body.includes('[[sessions/2026-05-13-debug]]'));
+  });
+
+  it('links the session note when the resolver finds one (repair 2.8)', () => {
+    const body = buildConceptBody('NATS JetStream', {
+      summary: null,
+      recentSessions: [
+        { session_id: 'e7ccaaf9-1111-2222-3333-444455556666', created_at: '2026-03-08' },
+        { session_id: 'deadbeef-0000-0000-0000-000000000000', created_at: '2026-03-09' },
+      ],
+      sessionNoteResolver: (id) =>
+        id.startsWith('e7ccaaf9') ? '2026-03-08-gui-openclaw-nats-jetstream-e7ccaaf9' : null,
+    });
+    assert.ok(body.includes('[[sessions/2026-03-08-gui-openclaw-nats-jetstream-e7ccaaf9]]'));
+    assert.ok(body.includes('- session deadbeef-0000-0000-0000-000000000000'));
   });
 
   it('falls back to placeholder when no summary', () => {
