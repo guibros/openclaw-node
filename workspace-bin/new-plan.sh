@@ -52,6 +52,9 @@ fi
 "$REPO/workspace-bin/sync-canonical.sh" >/dev/null
 echo "canonical docs synced into plans/$ID/"
 
+echo
+"$REPO/workspace-bin/plan-lint.sh" "$ID" || true
+
 cat <<EOF
 
 plan '$ID' is viewer-valid now — the viewer (:7892) lists it within 60s.

@@ -76,6 +76,8 @@ if [ "${MODE}" = "preflight" ]; then
     log "next step:   NONE — all steps closed (plan complete)"
   fi
   command -v claude >/dev/null 2>&1 && log "claude CLI:  present" || log "claude CLI:  MISSING (real tick would FATAL)"
+  LINT="$REPO/workspace-bin/plan-lint.sh"
+  [ -x "$LINT" ] && log "$("$LINT" "$PLAN_ID" --summary 2>/dev/null || true)"
   log "=== end preflight ==="
   exit 0
 fi

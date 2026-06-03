@@ -33,7 +33,7 @@ test). Steps below use the four-field contract they introduce.
 |-------|------|---------|--------|-------------|
 | 2 | 2.1 | v2.1 | [x] | Conformance + step contracts written into PROTOCOL.md and the templates — closed 2026-06-03, §10/§11 live in all 4 silos |
 | 2 | 2.2 | v2.2 | [x] | plan-lint.sh: enforceable conformance checker over the six surfaces + step contracts — closed 2026-06-03, graded all 4 silos truthfully (legacy CONFORMANT, others' gaps named) |
-| 2 | 2.3 | v2.3 | [ ] | Lint wired into new-plan.sh (scaffold report) and plan-tick.sh preflight (conformance line) |
+| 2 | 2.3 | v2.3 | [x] | Lint wired into new-plan.sh (scaffold report) and plan-tick.sh preflight (conformance line) — closed 2026-06-03, fresh scaffold = CONFORMANT/1 WARN by design |
 | 2 | 2.4 | v2.4 | [ ] | Protocol silo itself fully conformant: ROADMAP, REGISTRY, TICK_PROMPT, automation, shim — lint rc 0 |
 
 > **2.1 — Goal:** the rules exist in one place: PROTOCOL.md gains §10 (six-surface conformance: what "functionally implements" each tab means) + §11 (the Goal/Needs/Feeds/Verify step contract); INVENTORY + TICK_PROMPT templates carry both.
