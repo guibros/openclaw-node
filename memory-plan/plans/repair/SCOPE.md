@@ -1,9 +1,9 @@
 # SCOPE — repair plan
 
-**Status:** active
-**Goal:** Step 1.7 — data repair A: restore bug-archived entities (operator decisions 2026-06-03: all 941 non-colliding, salience 0.5 + fresh anchor, flag restored_at). Runtime data operation on live state.db + plan bookkeeping; no lib code edits. Proof per INVENTORY 1.7.
-**Set at:** 2026-06-03 00:25 Montreal
-**Expires:** 2026-06-03T18:00:00Z
+**Status:** idle
+**Goal:** Block 1 COMPLETE at v1.8 (8/8 steps, all runtime-proved; macro Re-Orient done — see audits/step08 + DECISIONS). Next: Block 2 step 2.1 — unify all vault writers on transparent (D7), the operator's headline block.
+**Set at:** 2026-06-03 00:45 Montreal
+**Expires:** no-expiry
 
 ```files
 memory-plan/plans/repair/*

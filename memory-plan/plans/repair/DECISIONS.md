@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 1.8 closed: rebaseline → Block 1 COMPLETE
+
+**Decision (operator, via AskUserQuestion).** (1) `mention_count := COUNT(DISTINCT session_id)` for entities with mention rows — immune to residual pre-fix duplicate rows and consistent with reinforcement's shared-session semantics; the 941 restored keep their preserved historical counts (rows unrecoverable). (2) Salience **0.5 + fresh anchor for ALL live entities** — the same fresh-start the restored got; kills the remaining ≈0.158 artifact cluster (94 rows) outright; mention_count carries ranking until fresh dynamics differentiate.
+
+**Evidence.** Backup `pre-step-1-8-2026-06-03`. Post-write SQL: 0 recount mismatches (132 entities), 0 restored counts disturbed, 0 rows with salience ≠ 0.5. New top-5 by real session count: NATS-KV-pattern 77, Arcane 71 (claimed "157" pre-fix), HIDDEN_TRUTH 60, NATS JetStream 58, openclaw-tui 33. Stability (1.2-proven copy-run, 2 cycles): 0.208% drift ≤ 0.3% gate, 0 archived, SUM(mention_count) stable at 2118.
+
+**Block 1 close + macro Re-Orient (audits/step08_rebaseline/AUDIT_POST.md).** All 8 steps closed with runtime evidence. The graph's numbers now measure memory, not scheduler cadence. Live probes: 1073 entities (132 organic + 941 restored), 68 above concept threshold, 652 themes, 341 decisions, 973 mentions, 65 vault concept notes. Block 2 re-surveyed: steps remain atomic and ordered; 2.9 stays defined-after-2.6; 2.7's backfill scope is modest (68 threshold vs 65 notes) — 2.4's link-integrity unknowns are the bigger surface. No drift; next step **2.1** (unify all vault writers on transparent, D7).
+
+---
+
 ## 2026-06-03 — Step 1.7 closed: bug-archived entities restored (operator-driven)
 
 **Decision (operator, via AskUserQuestion).** (1) Restore **all 941** non-colliding archived entities — the bug killed them in hours, the fixed decay re-archives genuinely idle ones legitimately over ~46 days; maximally transparent per D7. (2) Restored salience **0.5 with `last_decayed_at` anchored at restore time** — archived values were sub-floor and would have re-archived within one cycle; 1.8 rebaselines uniformly. (3) **Flag, don't delete**: `entities_archived.restored_at` stamps the audit trail; the 20 name-collision rows (re-extracted since, live row wins) stay archived and unflagged.

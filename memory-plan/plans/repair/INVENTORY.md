@@ -30,7 +30,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 1 | 1.5 | v1.5 | [x] | tick | turn_index stamps the last real turn (R5) |
 | 1 | 1.6 | v1.6 | [x] | tick | MEMORY.md writes go through atomic-write (R39) |
 | 1 | 1.7 | v1.7 | [x] | operator | Data repair A: restore bug-archived entities (after 1.2/1.3) |
-| 1 | 1.8 | v1.8 | [ ] | operator | Data repair B: rebaseline salience + mention_count |
+| 1 | 1.8 | v1.8 | [x] | operator | Data repair B: rebaseline salience + mention_count |
 
 > **1.1 Goal:** at most one tick body executes at any time.
 > **1.1 Proof:** induce a >30s tick (real LLM flush); the overlapping interval fire logs `tick skipped (in-flight)` and the watcher shows zero interleaved Phase-2 ops; regression test asserts the skip. [DONE 2026-06-02 — tick wrapped in the shared `createConcurrencyGuard` (maxAgeMs 30min), both call sites routed, skip logged. Runtime: PID 9102, induced long tick via planted gateway session `repair-11-verify` → boot tick 15:36:54, interval fire 15:37:24 logged `tick skipped (in-flight)`, zero interleaved Phase-0/2 sequences; watcher ingested the session ok. Tests 1493/0 (5 new in test/daemon-tick-guard.test.mjs — first defense of workspace-bin/memory-daemon.mjs).]
@@ -54,7 +54,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **1.7 Proof:** dated `state.db` backup exists before the repair; restoration count logged; SQL shows restored entities live with preserved fields; the handling of their `entities_archived` rows (delete vs flag) decided in-step and logged in DECISIONS with the counts. [DONE 2026-06-03 — operator decisions: restore all non-colliding (941), salience 0.5 + fresh anchor, flag restored_at. Backup at backups/pre-step-1-7-2026-06-03/. Live 132→1073; 0 field-preservation failures across 941; 20 collisions left archived; 0 sub-floor. Precondition verified first: overnight post-fix cycles Decayed 24-45/0 archived, Reinforced 0.]
 >
 > **1.8 Goal:** salience and mention_count reflect documented formulas, not the bug equilibrium.
-> **1.8 Proof:** sampled SQL assert `mention_count == COUNT(mentions)` for entities that have mention rows; entities without rows get the documented baseline; salience histogram shows no mass pinned at the 1.0/≈0.158 artifacts; values stable (≤0.3% drift) across 2 idle cycles; formula + numbers logged in DECISIONS.
+> **1.8 Proof:** sampled SQL assert `mention_count == COUNT(mentions)` for entities that have mention rows; entities without rows get the documented baseline; salience histogram shows no mass pinned at the 1.0/≈0.158 artifacts; values stable (≤0.3% drift) across 2 idle cycles; formula + numbers logged in DECISIONS. [DONE 2026-06-03 — operator decisions: distinct-session recount (132 entities, 0 mismatches; restored 941 keep preserved counts, 0 disturbed) + uniform salience 0.5/fresh anchor (0 rows ≠ 0.5; both artifacts gone). Stability copy-run: 0.208% drift over 2 cycles, 0 archived, mention sum stable. Backup pre-step-1-8. CLOSES Block 1; macro Re-Orient in audits/step08.]
 
 ## Block 2 — The vault referential system · D7 · R6-R10 · **the headline**
 
