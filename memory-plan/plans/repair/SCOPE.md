@@ -1,9 +1,9 @@
 # SCOPE — repair plan
 
-**Status:** active
-**Goal:** Autonomous chain through Block 2 (operator "go", 2026-06-03): 2.1 transparent writers → 2.2 shared slugify → 2.3 promoter idempotency → 2.4 link checker → 2.5 cadence+surface → 2.6 coverage report → 2.7 backfill → 2.8 resolving links → 2.10/2.11 event fields; 2.9 defined after 2.6. One 9-phase cycle + commit per step, Proofs per INVENTORY v2.
-**Set at:** 2026-06-03 00:55 Montreal
-**Expires:** 2026-06-04T12:00:00Z
+**Status:** idle
+**Goal:** Block 2 chain CLOSED 2.1–2.8 + 2.10/2.11 at v2.11 (coverage 100%, link resolution 100% — was 39.8% —, integrity live per flush, events attributed + truthfully labeled). BLOCKED at 2.9 (defined; awaiting operator shape confirmation — see BLOCKED.md). Then Block-2 macro Re-Orient → Block 3 (D8 LLM audit).
+**Set at:** 2026-06-03 02:30 Montreal
+**Expires:** no-expiry
 
 ```files
 lib/obsidian-summarizer.mjs
