@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
 
@@ -244,7 +244,7 @@ describe('promoteConceptNotes', () => {
     db.close();
   });
 
-  it('is idempotent — re-running overwrites without error', async () => {
+  it('is idempotent — an unchanged concept is skipped, not rewritten (R8, repair 2.3)', async () => {
     const db = createTestDb();
     seedConceptData(db, 'IdempotentConcept', 15);
 
@@ -257,13 +257,66 @@ describe('promoteConceptNotes', () => {
     };
 
     const r1 = await promoteConceptNotes({ db, sharedDir: sharedDir4, policy, nodeId: 'n1' });
-    const r2 = await promoteConceptNotes({ db, sharedDir: sharedDir4, policy, nodeId: 'n1' });
-
     assert.equal(r1.promoted, 1);
-    assert.equal(r2.promoted, 1);
 
     const files = await readdir(sharedDir4);
     assert.equal(files.length, 1);
+    const notePath = join(sharedDir4, files[0]);
+    const mtimeBefore = (await stat(notePath)).mtimeMs;
+
+    const r2 = await promoteConceptNotes({ db, sharedDir: sharedDir4, policy, nodeId: 'n1' });
+    assert.equal(r2.promoted, 0, 'unchanged note must not be rewritten');
+    assert.deepEqual(r2.skipped, files);
+    assert.equal((await stat(notePath)).mtimeMs, mtimeBefore, 'file must be untouched');
+
+    db.close();
+  });
+
+  it('a changed concept rewrites exactly its own note', async () => {
+    const db = createTestDb();
+    seedConceptData(db, 'StableConcept', 15);
+    seedConceptData(db, 'GrowingConcept', 15);
+
+    const sharedDir5 = join(tmpDir, 'changed-test');
+    const policy = {
+      automatic: ['kanban_events'],
+      explicit: ['share_true'],
+      threshold: { concept_mention_count: 10, decision_confidence: 0.95 },
+      manual_review: ['everything_else'],
+    };
+
+    await promoteConceptNotes({ db, sharedDir: sharedDir5, policy, nodeId: 'n1' });
+    db.exec(`UPDATE entities SET mention_count = mention_count + 1 WHERE name = 'GrowingConcept'`);
+
+    const r2 = await promoteConceptNotes({ db, sharedDir: sharedDir5, policy, nodeId: 'n1' });
+    assert.deepEqual(r2.notes, ['growingconcept.md']);
+    assert.deepEqual(r2.skipped, ['stableconcept.md']);
+
+    db.close();
+  });
+
+  it('slug collisions resolve deterministically — highest mention_count wins, collision reported', async () => {
+    const db = createTestDb();
+    seedConceptData(db, 'Collide Case', 20);
+    seedConceptData(db, 'collide-case', 12);
+
+    const sharedDir6 = join(tmpDir, 'collision-test');
+    const policy = {
+      automatic: ['kanban_events'],
+      explicit: ['share_true'],
+      threshold: { concept_mention_count: 10, decision_confidence: 0.95 },
+      manual_review: ['everything_else'],
+    };
+
+    const r1 = await promoteConceptNotes({ db, sharedDir: sharedDir6, policy, nodeId: 'n1' });
+    assert.deepEqual(r1.notes, ['collide-case.md']);
+    assert.deepEqual(r1.collisions, [{ filename: 'collide-case.md', entity: 'collide-case' }]);
+
+    const note = await readFile(join(sharedDir6, 'collide-case.md'), 'utf-8');
+    assert.match(note, /mention_count: 20/, 'the higher-mention entity must own the slug');
+
+    const r2 = await promoteConceptNotes({ db, sharedDir: sharedDir6, policy, nodeId: 'n1' });
+    assert.equal(r2.promoted, 0, 'collision must not cause ping-pong rewrites');
 
     db.close();
   });

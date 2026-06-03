@@ -62,7 +62,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 |-------|------|---------|--------|--------|-------------|
 | 2 | 2.1 | v2.1 | [x] | hybrid | All local vault/synthesis writers transparent (D7, R6) |
 | 2 | 2.2 | v2.2 | [x] | tick | One shared slugify for writers + UI route (R7) |
-| 2 | 2.3 | v2.3 | [ ] | tick | Promoter writes only new/changed notes (R8) |
+| 2 | 2.3 | v2.3 | [x] | tick | Promoter writes only new/changed notes (R8) |
 | 2 | 2.4 | v2.4 | [ ] | hybrid | Build the vault link-integrity checker (manual run) (R9) |
 | 2 | 2.5 | v2.5 | [ ] | hybrid | Checker runs on the synthesis cadence + surfaced (R9) |
 | 2 | 2.6 | v2.6 | [ ] | hybrid | Referential coverage report (R9) |
@@ -79,7 +79,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **2.2 Proof:** grep — single definition, imported by `obsidian-summarizer` and the mission-control memory-content route (and any other slug site); a >60-char concept name renders its prose in the content browser (HTTP check that returned "No concept note" pre-fix). [DONE 2026-06-03 — gate substituted (single import impossible across the file-copy deploy boundary; documented in audits/step10): byte-equivalent mirror + source-parity test (10-case battery + no-cap lock). Runtime: 89-char-slug entity's prose rendered via live API post-deploy (was null). Tests 3/3.]
 >
 > **2.3 Goal:** promoter is idempotent — unchanged vault state writes nothing.
-> **2.3 Proof:** two back-to-back promoter runs → second writes 0 files (vault mtime snapshot identical); a changed entity rewrites exactly its own note.
+> **2.3 Proof:** two back-to-back promoter runs → second writes 0 files (vault mtime snapshot identical); a changed entity rewrites exactly its own note. [DONE 2026-06-03 — change detection sans volatile promoted_at + atomic writes + deterministic slug-collision first-wins (the tripwire find: OpenClaw/openclaw ping-pong; duplication defect captured to OUT_OF_SCOPE). Live double-run: 23 promoted → 0 promoted/23 skipped, mtimes byte-identical, 1 collision reported. Tests 10/10.]
 >
 > **2.4 Goal:** a checker exists that reports the vault's referential integrity.
 > **2.4 Proof:** CLI run against the live vault outputs note count, wikilink count, dangling links (listed), orphan notes (listed); a deliberately seeded dangling `[[link]]` is detected by name; removing it yields a clean run.

@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 2.3 closed: promoter idempotent + deterministic
+
+**Decision.** `promoteConceptNotes` writes only new/changed notes: content compared without the volatile `promoted_at` line; writes go through `atomicWriteFileSync`; return reports `skipped`. Plus a tripwire find handled minimally in-step: distinct entities slugifying to one filename (`OpenClaw` vs `openclaw`) made true idempotency impossible (ping-pong overwrites) — resolution is deterministic first-wins by mention_count with `collisions` reported. The underlying entity-duplication/canonicalization defect and the promoter's post-D7 filtering posture are captured in OUT_OF_SCOPE (Block 2 re-plan candidate; P.3 respectively), not silently absorbed.
+
+**Evidence.** Tests 10/10 (skip semantics mtime-locked; changed-entity rewrites exactly its note; collision determinism). Runtime, deployed lib against live state.db: run 1 promoted 23 + 1 collision reported; run 2 **promoted=0, skipped=23, mtime snapshot byte-identical**. Full suite 1503/0.
+
+**No architectural decision needed** — canonicalization deferred to its own slot by design.
+
+---
+
 ## 2026-06-03 — Step 2.2 closed: one slugify behavior, writer + UI locked together
 
 **Decision.** The mission-control route's slug mirror is now byte-equivalent to the writer's `slugifyName` (60-char cap dropped). The INVENTORY's "single imported definition" gate was substituted — the runtime mission-control is a file-copy deploy, so one relative import cannot resolve in both trees — with an equal-strength gate: `test/slugify-parity.test.mjs` extracts the route's function from source and battery-asserts equality with `slugifyName` (incl. >60-char, unicode, slash cases) plus a no-`.slice(` regression lock. Substitution documented in audits/step10 (precedent: redesign 0.2's done-evidence refinement).
