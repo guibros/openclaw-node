@@ -448,6 +448,7 @@ function emitExtractEvent(sessionId, extraction) {
 function emitSynthesizeEvent(sessionId, trigger, synthesis) {
   if (!localEventLog) return;
   const event = buildMemoryEvent('memory.synthesized', sessionId, 'memory', {
+    session_id: sessionId,
     trigger,
     artifacts_written: synthesis.artifacts_written,
     duration_ms: synthesis.duration_ms,
@@ -1085,7 +1086,9 @@ async function handleTransitions(transitions, config) {
               emitExtractEvent(result.extraction.session_id, result.extraction);
             }
             if (result.synthesis) {
-              emitSynthesizeEvent(result.synthesis.session_id, 'interval', result.synthesis);
+              // R10 (repair 2.11): this is the ACTIVE→IDLE pre-compression
+              // flush — its own label, not 'interval'.
+              emitSynthesizeEvent(result.synthesis.session_id, 'idle', result.synthesis);
             }
             if (memoryBudget && (result.added > 0 || result.merged > 0)) {
               memoryBudget.reload();

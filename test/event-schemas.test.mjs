@@ -231,17 +231,20 @@ describe('Boundary event schemas (Block 1 vocabulary)', () => {
 
   it('validates memory.synthesized', () => {
     const event = makeMemEvent('memory.synthesized', {
+      session_id: 'sess-2-10',
       trigger: 'session_end',
       artifacts_written: ['MEMORY.md', 'concepts/nats-jetstream.md'],
       duration_ms: 3500,
     });
     const result = MemorySynthesizedSchema.parse(event);
+    assert.equal(result.data.session_id, 'sess-2-10');
     assert.equal(result.data.trigger, 'session_end');
     assert.equal(result.data.artifacts_written.length, 2);
   });
 
   it('validates memory.synthesized with vault_integrity counts (repair 2.5)', () => {
     const event = makeMemEvent('memory.synthesized', {
+      session_id: 'sess-2-10',
       trigger: 'interval',
       artifacts_written: ['MEMORY.md'],
       duration_ms: 1200,
@@ -301,7 +304,7 @@ describe('Boundary event schemas (Block 1 vocabulary)', () => {
       makeMemEvent('memory.extracted', { session_id: 's', entities_count: 0, themes_count: 0, mentions_count: 0, decisions_count: 0, model: 'm', duration_ms: 0 }),
       makeMemEvent('memory.retrieved', { query_hash: 'h', channels_hit: 0, results_count: 0, duration_ms: 0 }),
       makeMemEvent('memory.injected', { request_id: 'r', token_count: 0, blocks_count: 0, duration_ms: 0 }),
-      makeMemEvent('memory.synthesized', { trigger: 'manual', artifacts_written: [], duration_ms: 0 }),
+      makeMemEvent('memory.synthesized', { session_id: 's', trigger: 'manual', artifacts_written: [], duration_ms: 0 }),
       makeMemEvent('memory.decayed', { entities_decayed: 0, duration_ms: 0 }),
       makeMemEvent('memory.promoted', { entities_promoted: 0, duration_ms: 0 }),
       makeMemEvent('memory.error', { boundary: 'ingest', error_code: 'E', error_message: 'msg' }),
@@ -359,6 +362,7 @@ describe('buildMemoryEvent produces valid boundary events (Block 1 producers)', 
 
   it('buildMemoryEvent("memory.synthesized") passes MemorySynthesizedSchema', () => {
     const event = buildMemoryEvent('memory.synthesized', 'sess-test-002', 'memory', {
+      session_id: 'sess-test-002',
       trigger: 'session_end',
       artifacts_written: ['/Users/x/.openclaw/workspace/MEMORY.md'],
       duration_ms: 42,

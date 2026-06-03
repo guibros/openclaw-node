@@ -60,3 +60,15 @@ test('no call site invokes tick() bare — both go through guardedTick', () => {
 test('the interval logs the skip observable', () => {
   assert.match(daemonSrc, /tick skipped \(in-flight\)/);
 });
+
+test('synthesis trigger labels are truthful per call site (R10, repair 2.11)', () => {
+  const labels = [...daemonSrc.matchAll(/emitSynthesizeEvent\([^,]+, '([a-z_]+)'/g)].map((m) => m[1]);
+  labels.sort();
+  // Phase-2 interval, IDLE→ENDED end, ACTIVE→IDLE pre-compression (its own
+  // label), ACTIVE→ENDED end, NATS-triggered manual.
+  assert.deepEqual(labels, ['idle', 'interval', 'manual', 'session_end', 'session_end']);
+});
+
+test('synthesized events carry session_id (R10, repair 2.10)', () => {
+  assert.match(daemonSrc, /buildMemoryEvent\('memory\.synthesized', sessionId, 'memory', \{\n    session_id: sessionId,/);
+});

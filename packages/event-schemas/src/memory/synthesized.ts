@@ -4,7 +4,11 @@ import { EventEnvelopeSchema } from '../envelope.js';
 export const MemorySynthesizedSchema = EventEnvelopeSchema.extend({
   event_type: z.literal('memory.synthesized'),
   data: z.object({
-    trigger: z.enum(['session_end', 'interval', 'manual']),
+    // R10 fix (repair 2.10): synthesis is attributable to its session.
+    session_id: z.string().min(1),
+    // R10 fix (repair 2.11): 'idle' = the ACTIVE→IDLE pre-compression flush,
+    // previously mislabeled 'interval'.
+    trigger: z.enum(['session_end', 'interval', 'manual', 'idle']),
     artifacts_written: z.array(z.string()),
     duration_ms: z.number().int().nonnegative(),
     // Vault referential-integrity counts, measured on the synthesis cadence

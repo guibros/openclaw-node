@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Steps 2.10 + 2.11 closed: synthesis events attributable and truthfully labeled
+
+**2.10.** `memory.synthesized.data.session_id` is required (schema + dist), emitted at the daemon; the watcher reads it natively. Live: a synthesized record with `session: repair-11-verify` — every prior record had `session: null`.
+
+**2.11.** Trigger enum gains `'idle'`; the ACTIVE→IDLE pre-compression flush is relabeled from the false `'interval'`. Per-site labels locked by a source-wiring test (idle / interval / manual / session_end ×2). Live-induction substitution documented: that path gates on `shouldFlush` ≥150k tokens (~1.2MB session) — impractical to induce; the wiring + schema tests and the truthful live `interval` label stand as the evidence (substitution precedent: 0.2, 2.2).
+
+**Evidence.** Full suite **1515/0**. Single live induction (synthesisMs 60s, reverted; daemon PID 22383 back on defaults).
+
+---
+
 ## 2026-06-03 — Step 2.8 closed: every wikilink in the vault resolves — the referential system works
 
 **Sub-decision: link-only-existing, no stubs.** A referential system links what exists; sessions without notes render as plain text, related-links are emitted only for targets on disk or in the same generation run. 442 stub notes rejected as noise.

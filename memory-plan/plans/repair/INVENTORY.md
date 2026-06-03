@@ -69,8 +69,8 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 2 | 2.7 | v2.7 | [x] | hybrid | Concept-note coverage backfill to 100% (R9) |
 | 2 | 2.8 | v2.8 | [x] | hybrid | Generators emit only resolving wikilinks (R9) |
 | 2 | 2.9 | v2.9 | [ ] | — | (defined after 2.6 — its report is the input) themes/decisions surfaces, if the report shows gaps |
-| 2 | 2.10 | v2.10 | [ ] | tick | memory.synthesized carries session_id (R10) |
-| 2 | 2.11 | v2.11 | [ ] | tick | Truthful trigger labels at every flush site (R10) |
+| 2 | 2.10 | v2.10 | [x] | tick | memory.synthesized carries session_id (R10) |
+| 2 | 2.11 | v2.11 | [x] | tick | Truthful trigger labels at every flush site (R10) |
 
 > **2.1 Goal:** no local writer consults the private flag (D7); the vault shows everything.
 > **2.1 Proof:** grep shows no privacy-filtered path remaining in local vault writers (consolidation summaries, promoter, summarizer call sites); one consolidation cycle AND one flush each produce notes for previously-private entities (before/after file diff). The `private` column + filter machinery remain in code (federation-era, D4) — just unconsulted locally. [DONE 2026-06-03 — summarizer default flipped to transparent (filter = federation opt-in via respectPrivacy:true); flush call-site redundancy removed; F-N102 tests converted to D7-default + opt-in pair. Live scheduler cycle wrote 5 notes incl. private=1 restored entities; deployed flush wrote 10 (mode=llm). grep clean; tests 48/48.]
@@ -99,10 +99,10 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **2.9 Goal+Proof:** written when defined (input = 2.6's report; struck if the report shows no themes/decisions gap). Cannot start before its Proof line exists.
 >
 > **2.10 Goal:** every synthesis event is attributable to a session.
-> **2.10 Proof:** schema accepts `session_id` (unit test); a live flush produces a watcher `memory.synthesized` record with `session` equal to the flushed session id (not null).
+> **2.10 Proof:** schema accepts `session_id` (unit test); a live flush produces a watcher `memory.synthesized` record with `session` equal to the flushed session id (not null). [DONE 2026-06-03 — session_id required in schema (dist rebuilt), emitted at the daemon; watcher reads data.session_id natively. Live: synthesized record `session: repair-11-verify` (was always null). Suite 1515/0. Source-wiring test added.]
 >
 > **2.11 Goal:** each flush site emits its own truthful trigger label.
-> **2.11 Proof:** the ACTIVE→IDLE flush no longer reports `interval`; each of the flush sites emits a distinct documented label (schema enum extended + tested); an induced idle flush shows its own label in the watcher.
+> **2.11 Proof:** the ACTIVE→IDLE flush no longer reports `interval`; each of the flush sites emits a distinct documented label (schema enum extended + tested); an induced idle flush shows its own label in the watcher. [DONE 2026-06-03 — enum +'idle'; the ACTIVE→IDLE pre-compression site relabeled; per-site labels locked by source-wiring test (idle/interval/manual/session_end×2). Live-induction substitution documented: that path gates on shouldFlush ≥150k tokens (a ~1.2MB session) — impractical to induce; the wiring test + schema test + the truthful live 'interval' label stand as evidence. Suite 1515/0.]
 
 ## Block 3 — Local LLM infrastructure · D8 · R11-R14 · audit before wiring
 
