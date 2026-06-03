@@ -4,6 +4,18 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 2.4 closed: vault link-integrity checker — the referential system measured for the first time
+
+**Decision.** `lib/obsidian-link-checker.mjs` (read-only) + `bin/vault-check.mjs` classify every wikilink three ways — Obsidian-exact resolved, slug-resolvable (links carry entity names, files carry slugs, notes have no `aliases:` frontmatter), truly dangling — plus orphan notes. Three-way classification chosen deliberately so 2.8 fixes on facts rather than collapsing distinct failure modes.
+
+**First readings (live vault, 75 notes / 1213 links):** 488 resolved (40%), **204 slug-resolvable, 521 truly dangling** (dominated by `[[sessions/<uuid>]]` links to session notes never written), 28 orphans. The operator's "the referential system needs to be implemented and working" verdict, now quantified.
+
+**Evidence.** Tests 4/4 (classification matrix, orphans, seed-detect-remove, missing-vault). Live seed cycle: planted dangling link detected by name, cleared on removal. Two in-step tool bugs caught by verification and fixed (process.exit stdout truncation; YAML-list bracket leakage).
+
+**Consequences.** 2.5 puts these counts on the synthesis cadence + watcher; 2.6 adds the db-side coverage; 2.8's queue is now concrete: alias/slug unification (204) + session-note link policy (the 521).
+
+---
+
 ## 2026-06-03 — Step 2.3 closed: promoter idempotent + deterministic
 
 **Decision.** `promoteConceptNotes` writes only new/changed notes: content compared without the volatile `promoted_at` line; writes go through `atomicWriteFileSync`; return reports `skipped`. Plus a tripwire find handled minimally in-step: distinct entities slugifying to one filename (`OpenClaw` vs `openclaw`) made true idempotency impossible (ping-pong overwrites) — resolution is deterministic first-wins by mention_count with `collisions` reported. The underlying entity-duplication/canonicalization defect and the promoter's post-D7 filtering posture are captured in OUT_OF_SCOPE (Block 2 re-plan candidate; P.3 respectively), not silently absorbed.
