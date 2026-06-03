@@ -240,6 +240,21 @@ describe('Boundary event schemas (Block 1 vocabulary)', () => {
     assert.equal(result.data.artifacts_written.length, 2);
   });
 
+  it('validates memory.synthesized with vault_integrity counts (repair 2.5)', () => {
+    const event = makeMemEvent('memory.synthesized', {
+      trigger: 'interval',
+      artifacts_written: ['MEMORY.md'],
+      duration_ms: 1200,
+      vault_integrity: {
+        notes: 75, links: 1213, resolved: 488,
+        slug_resolvable: 204, dangling: 521, orphans: 28,
+      },
+    });
+    const result = MemorySynthesizedSchema.parse(event);
+    assert.equal(result.data.vault_integrity.dangling, 521);
+    assert.equal(result.data.vault_integrity.orphans, 28);
+  });
+
   it('validates memory.decayed', () => {
     const event = makeMemEvent('memory.decayed', {
       entities_decayed: 14,

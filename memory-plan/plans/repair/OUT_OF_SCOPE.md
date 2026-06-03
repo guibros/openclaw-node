@@ -4,6 +4,15 @@ Things observed while doing repair-plan work that deserve attention later. Agnos
 
 ---
 
+## 2026-06-03 — findCurrentJsonl's 50KB floor silently excludes small sessions from interval/NATS flushes
+
+- **Observed while:** step 2.5 runtime verification (an hour of unexplained llm-dedup cycles).
+- **Area:** `workspace-bin/memory-daemon.mjs` `findCurrentJsonl` / `findJsonlBySessionId` — `stat.size < 50 * 1024 → skip`.
+- **Problem:** sessions under 50KB are never selected as "current," so the interval-synthesis and NATS-trigger flush paths can never process them; only the end-of-session path (which uses the same floor in findJsonlBySessionId — so possibly NOT EVEN THEN) extracts them. A short but meaningful conversation may never be extracted at all. The floor is undocumented and interacts confusingly with the 1.4 dedup (the daemon deduped a big unchanged session while the small target was invisible).
+- **Why it matters:** silent ingestion gap for short sessions; also a verification footgun.
+- **Severity guess:** MEDIUM.
+- **Who-touches-next:** Block 4 (daemon lifecycle) or 3.4 — decide: lower/remove the floor, or document + add a small-session flush path.
+
 ## 2026-06-03 — Distinct entities slugify to one note file (entity-duplication × slug collision)
 
 - **Observed while:** step 2.3 runtime verification — the promoter's second run kept rewriting `openclaw.md` because TWO entities own that slug: `OpenClaw` (24 mentions) and `openclaw` (11), extraction-normalization duplicates. `openclaw-tui`/`openclaw-node` are distinct and fine.

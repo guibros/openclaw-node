@@ -451,6 +451,7 @@ function emitSynthesizeEvent(sessionId, trigger, synthesis) {
     trigger,
     artifacts_written: synthesis.artifacts_written,
     duration_ms: synthesis.duration_ms,
+    ...(synthesis.vault_integrity ? { vault_integrity: synthesis.vault_integrity } : {}),
   }, NODE_ID);
   localEventLog.publishLocal(event).catch(err =>
     log(`[event] memory.synthesized emit failed: ${err.message}`)

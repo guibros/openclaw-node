@@ -64,7 +64,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 2 | 2.2 | v2.2 | [x] | tick | One shared slugify for writers + UI route (R7) |
 | 2 | 2.3 | v2.3 | [x] | tick | Promoter writes only new/changed notes (R8) |
 | 2 | 2.4 | v2.4 | [x] | hybrid | Build the vault link-integrity checker (manual run) (R9) |
-| 2 | 2.5 | v2.5 | [ ] | hybrid | Checker runs on the synthesis cadence + surfaced (R9) |
+| 2 | 2.5 | v2.5 | [x] | hybrid | Checker runs on the synthesis cadence + surfaced (R9) |
 | 2 | 2.6 | v2.6 | [ ] | hybrid | Referential coverage report (R9) |
 | 2 | 2.7 | v2.7 | [ ] | hybrid | Concept-note coverage backfill to 100% (R9) |
 | 2 | 2.8 | v2.8 | [ ] | hybrid | Generators emit only resolving wikilinks (R9) |
@@ -85,7 +85,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **2.4 Proof:** CLI run against the live vault outputs note count, wikilink count, dangling links (listed), orphan notes (listed); a deliberately seeded dangling `[[link]]` is detected by name; removing it yields a clean run. [DONE 2026-06-03 — lib/obsidian-link-checker.mjs + bin/vault-check.mjs (+--json). Live: 75 notes/1213 links → 488 exact, 204 slug-resolvable (no aliases anywhere — 2.8's queue), 521 dangling (mostly [[sessions/uuid]] never written), 28 orphans. Seed detected by name, cleared on removal. Tests 4/4.]
 >
 > **2.5 Goal:** the checker runs automatically on the synthesis cadence and its result is visible.
-> **2.5 Proof:** after a live flush, a watcher record carries the dangling/orphan counts; the mission-control surface shows the latest counts matching a manual CLI run.
+> **2.5 Proof:** after a live flush, a watcher record carries the dangling/orphan counts; the mission-control surface shows the latest counts matching a manual CLI run. [DONE 2026-06-03 — vault_integrity in the synthesized schema (dist rebuilt), measured in runFlush post-synthesis (non-fatal), passed through the daemon emit. Live flush → watcher record + /api/watcher + manual CLI all byte-identical (notes 76/links 1264/resolved 503/slugRes 204/dangling 557/orphans 29). Found+captured: findCurrentJsonl's undocumented 50KB floor. Tests 46/46.]
 >
 > **2.6 Goal:** referential coverage is a measured number, not a feeling.
 > **2.6 Proof:** report (CLI or panel) shows: % of above-threshold entities with a concept note, % of wikilinks resolving, % of session notes linking ≥1 concept — each number reproduced by a manual SQL/fs spot-check.

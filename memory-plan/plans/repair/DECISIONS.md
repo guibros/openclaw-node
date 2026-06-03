@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-03 — Step 2.5 closed: integrity counts on every synthesis flush, end to end
+
+**Decision.** `memory.synthesized` carries an optional `vault_integrity` block (notes/links/resolved/slug_resolvable/dangling/orphans). Measured by `checkVaultLinks()` inside `runFlush` after the synthesis chain (non-fatal — a failed check never kills a flush), passed through the daemon's emit, schema + dist updated. Surfacing rides the existing watcher detail panel (payloads render verbatim) — zero UI changes needed.
+
+**Evidence.** Tests 46/46. Live flush (synthesisMs 60s temporarily, reverted): watcher record `status=ok` with `vault_integrity {76/1264/503/204/557/29}` — byte-identical to a manual CLI run and to `GET /api/watcher`. Daemon back on default config (PID 14804).
+
+**Found while verifying (captured, not fixed):** `findCurrentJsonl` silently skips sessions under 50KB — interval/NATS flush paths can never process short sessions (OUT_OF_SCOPE; Block 4 / 3.4 triage). The fixture was padded past the floor and remains the designated verification session.
+
+---
+
 ## 2026-06-03 — Step 2.4 closed: vault link-integrity checker — the referential system measured for the first time
 
 **Decision.** `lib/obsidian-link-checker.mjs` (read-only) + `bin/vault-check.mjs` classify every wikilink three ways — Obsidian-exact resolved, slug-resolvable (links carry entity names, files carry slugs, notes have no `aliases:` frontmatter), truly dangling — plus orphan notes. Three-way classification chosen deliberately so 2.8 fixes on facts rather than collapsing distinct failure modes.
