@@ -221,7 +221,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 7 | 7.2 | v7.2 | [x] | tick | redesign-tick plist paths point at the real tick-logs dir (R28) |
 | 7 | 7.3 | v7.3 | [x] | tick | Wiring-manifest rows defend workspace-bin/memory-daemon.mjs (R29) |
 | 7 | 7.4 | v7.4 | [x] | tick | Mesh/collab tests skip visibly, never exit(0)-as-pass (R32) |
-| 7 | 7.5 | v7.5 | [ ] | tick | Watcher test fixtures validate against the real schemas (R33) |
+| 7 | 7.5 | v7.5 | [x] | tick | Watcher test fixtures validate against the real schemas (R33) |
 | 7 | 7.6 | v7.6 | [ ] | tick | zod dependency declaration matches what's installed (R30) |
 | 7 | 7.7 | v7.7 | [ ] | hybrid | Byte caps on event content fields + producer truncation (R31) |
 | 7 | 7.8 | v7.8 | [ ] | operator | Dead event vocabulary resolved: wire or delete the 5 producer-less schemas (R41) |
@@ -239,7 +239,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **7.4 Proof:** suite output on this machine shows `skipped > 0` with reasons; grep shows zero `process.exit(0)` in test `before()` hooks. [DONE 2026-06-11 — shared sync probe (test/helpers/mesh-available.cjs, 60s cache) + { skip: reason } on all 31 top-level describes across the 7 files; root hooks gated; zero process.exit(0) left in test/. Output now prints per-suite '﹣ <name> # mesh stack unavailable…' (node:test counts suite-level skips in the suite line, not the skipped counter — documented). Arithmetic confirms the sin: each exiting file had counted as ONE phantom passing test (+13 manifest -7 phantoms = +6 observed). Suite 1547/0 in 43s.]
 >
 > **7.5 Goal:** test fixtures are valid instances of the schemas they impersonate.
-> **7.5 Proof:** the memory-watcher fixtures parse against their real Zod schemas in a test (the current `channels_hit: ['fts','vec']` fixture fails it pre-fix, passes post-fix).
+> **7.5 Proof:** the memory-watcher fixtures parse against their real Zod schemas in a test (the current `channels_hit: ['fts','vec']` fixture fails it pre-fix, passes post-fix). [DONE 2026-06-11 — every watcher fixture routes through buildFixtureEvent (= buildMemoryEvent + MemoryEventSchema.parse, the same parse publishLocal runs). Pre-fix run caught THREE drifts (channels_hit array→int; two synthesized fixtures missing the session_id required since 2.10), not just the known one. Post-fix 37/37.]
 >
 > **7.6 Goal:** event-schemas declares the zod it actually runs on.
 > **7.6 Proof:** `npm ls zod` resolves consistently with package.json; event-schemas rebuild + tests green; a `publishLocal` round-trip against live NATS validates.

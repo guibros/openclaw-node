@@ -4,11 +4,21 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { buildMemoryEvent } from '../lib/local-event-log.mjs';
+import { MemoryEventSchema } from '../packages/event-schemas/dist/index.js';
+
+// R33 fix (repair 7.5): every fixture must be a VALID instance of the schema
+// it impersonates — drifted fixtures defend code against events that can't
+// exist in production. Same parse as publishLocal.
+function buildFixtureEvent(...args) {
+  const event = buildMemoryEvent(...args);
+  MemoryEventSchema.parse(event);
+  return event;
+}
 import { toWatcherRecord, classifyStatus, runStoreHealthProbes, createAnomalyDetector, appendWatcherRecord } from '../lib/memory-watcher.mjs';
 
 describe('toWatcherRecord', () => {
   it('extracts flat record from memory.ingested event', () => {
-    const event = buildMemoryEvent('memory.ingested', 'sess-abc', 'memory', {
+    const event = buildFixtureEvent('memory.ingested', 'sess-abc', 'memory', {
       session_id: 'sess-abc',
       source: 'claude-code',
       messages_added: 12,
@@ -27,7 +37,7 @@ describe('toWatcherRecord', () => {
   });
 
   it('extracts duration_ms from memory.extracted event', () => {
-    const event = buildMemoryEvent('memory.extracted', 'sess-xyz', 'memory', {
+    const event = buildFixtureEvent('memory.extracted', 'sess-xyz', 'memory', {
       session_id: 'sess-xyz',
       entities_count: 5,
       themes_count: 2,
@@ -44,7 +54,7 @@ describe('toWatcherRecord', () => {
   });
 
   it('handles memory.error with missing session_id', () => {
-    const event = buildMemoryEvent('memory.error', 'unknown', 'memory', {
+    const event = buildFixtureEvent('memory.error', 'unknown', 'memory', {
       boundary: 'ingest',
       error_code: 'TypeError',
       error_message: 'something broke',
@@ -57,9 +67,9 @@ describe('toWatcherRecord', () => {
   });
 
   it('handles memory.retrieved with duration_ms', () => {
-    const event = buildMemoryEvent('memory.retrieved', 'req-123', 'memory', {
+    const event = buildFixtureEvent('memory.retrieved', 'req-123', 'memory', {
       query_hash: 'abc',
-      channels_hit: ['fts', 'vec'],
+      channels_hit: 2,
       results_count: 7,
       duration_ms: 150,
     }, 'daedalus');
@@ -73,7 +83,7 @@ describe('toWatcherRecord', () => {
 
 describe('classifyStatus', () => {
   it('classifies memory.error as error', () => {
-    const event = buildMemoryEvent('memory.error', 'x', 'memory', {
+    const event = buildFixtureEvent('memory.error', 'x', 'memory', {
       boundary: 'extract',
       error_code: 'Zod',
       error_message: 'validation failed',
@@ -82,7 +92,7 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.ingested with messages_added=0 as noop', () => {
-    const event = buildMemoryEvent('memory.ingested', 's1', 'memory', {
+    const event = buildFixtureEvent('memory.ingested', 's1', 'memory', {
       session_id: 's1',
       source: 'claude-code',
       messages_added: 0,
@@ -92,7 +102,7 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.ingested with messages_added>0 as ok', () => {
-    const event = buildMemoryEvent('memory.ingested', 's1', 'memory', {
+    const event = buildFixtureEvent('memory.ingested', 's1', 'memory', {
       session_id: 's1',
       source: 'claude-code',
       messages_added: 5,
@@ -102,7 +112,7 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.extracted with all counts=0 as noop', () => {
-    const event = buildMemoryEvent('memory.extracted', 's2', 'memory', {
+    const event = buildFixtureEvent('memory.extracted', 's2', 'memory', {
       session_id: 's2',
       entities_count: 0,
       themes_count: 0,
@@ -115,7 +125,7 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.extracted with some counts>0 as ok', () => {
-    const event = buildMemoryEvent('memory.extracted', 's2', 'memory', {
+    const event = buildFixtureEvent('memory.extracted', 's2', 'memory', {
       session_id: 's2',
       entities_count: 0,
       themes_count: 1,
@@ -135,7 +145,7 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.retrieved with results_count=0 as noop', () => {
-    const event = buildMemoryEvent('memory.retrieved', 'r1', 'memory', {
+    const event = buildFixtureEvent('memory.retrieved', 'r1', 'memory', {
       query_hash: 'abc',
       channels_hit: 0,
       results_count: 0,
@@ -145,7 +155,7 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.injected with blocks_count=0 as noop', () => {
-    const event = buildMemoryEvent('memory.injected', 'r1', 'memory', {
+    const event = buildFixtureEvent('memory.injected', 'r1', 'memory', {
       request_id: 'req-1',
       token_count: 0,
       blocks_count: 0,
@@ -155,7 +165,7 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.injected with blocks_count>0 as ok', () => {
-    const event = buildMemoryEvent('memory.injected', 'r1', 'memory', {
+    const event = buildFixtureEvent('memory.injected', 'r1', 'memory', {
       request_id: 'req-1',
       token_count: 500,
       blocks_count: 3,
@@ -165,7 +175,8 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.synthesized with empty artifacts as noop', () => {
-    const event = buildMemoryEvent('memory.synthesized', 'syn1', 'memory', {
+    const event = buildFixtureEvent('memory.synthesized', 'syn1', 'memory', {
+      session_id: 'syn1',
       trigger: 'session_end',
       artifacts_written: [],
       duration_ms: 200,
@@ -174,7 +185,8 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.synthesized with artifacts as ok', () => {
-    const event = buildMemoryEvent('memory.synthesized', 'syn1', 'memory', {
+    const event = buildFixtureEvent('memory.synthesized', 'syn1', 'memory', {
+      session_id: 'syn1',
       trigger: 'session_end',
       artifacts_written: ['MEMORY.md', 'sessions/2026-05-29.md'],
       duration_ms: 200,
@@ -183,7 +195,7 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.decayed with entities_decayed=0 as noop', () => {
-    const event = buildMemoryEvent('memory.decayed', 'd1', 'memory', {
+    const event = buildFixtureEvent('memory.decayed', 'd1', 'memory', {
       entities_decayed: 0,
       duration_ms: 100,
     }, 'daedalus');
@@ -191,7 +203,7 @@ describe('classifyStatus', () => {
   });
 
   it('classifies memory.promoted with entities_promoted>0 as ok', () => {
-    const event = buildMemoryEvent('memory.promoted', 'p1', 'memory', {
+    const event = buildFixtureEvent('memory.promoted', 'p1', 'memory', {
       entities_promoted: 3,
       duration_ms: 150,
     }, 'daedalus');
@@ -199,7 +211,7 @@ describe('classifyStatus', () => {
   });
 
   it('defaults to ok for unknown event types', () => {
-    const event = buildMemoryEvent('memory.session_started', 'sess', 'memory', {
+    const event = buildFixtureEvent('memory.session_started', 'sess', 'memory', {
       session_id: 'sess',
       start_time: new Date().toISOString(),
     }, 'daedalus');
@@ -486,7 +498,7 @@ describe('R20 (repair 5.4): stall detection ignores scheduler heartbeats', () =>
 
 describe('repair 6.1 + 6.5: record identity and rotation', () => {
   it('toWatcherRecord carries event_id for stable UI row identity', () => {
-    const event = buildMemoryEvent('memory.ingested', 'sess-61', 'memory', {
+    const event = buildFixtureEvent('memory.ingested', 'sess-61', 'memory', {
       session_id: 'sess-61', source: 'gateway', messages_added: 1, total_messages: 1,
     }, 'daedalus');
     const record = toWatcherRecord(event);
