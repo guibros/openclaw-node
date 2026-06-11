@@ -134,3 +134,18 @@ describe('closeStore', () => {
     assert.throws(() => db.pragma('journal_mode'), /not open/i);
   });
 });
+
+describe('R21 (repair 5.5): readonly opens get busy_timeout', () => {
+  it('readonly connections read back busy_timeout = 5000', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sqlite-ro-'));
+    const dbPath = path.join(dir, 'ro.db');
+    const w = openStore(dbPath);
+    w.exec('CREATE TABLE t (id INTEGER)');
+    w.close();
+
+    const ro = openStore(dbPath, { readonly: true, integrityCheck: false });
+    assert.equal(ro.pragma('busy_timeout', { simple: true }), 5000);
+    ro.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
