@@ -159,7 +159,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 
 | Block | Step | Version | Status | Driver | Description |
 |-------|------|---------|--------|--------|-------------|
-| 5 | 5.1 | v5.1 | [ ] | hybrid | Knowledge index re-indexes grown sessions (R18) |
+| 5 | 5.1 | v5.1 | [x] | hybrid | Knowledge index re-indexes grown sessions (R18) |
 | 5 | 5.2 | v5.2 | [x] | tick | Retrieval channel failures surface (R19) |
 | 5 | 5.3 | v5.3 | [x] | hybrid | Promotion events emit on change only (R20) |
 | 5 | 5.4 | v5.4 | [x] | hybrid | Stall detector keyed to pipeline ops only (R20) |
@@ -167,7 +167,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 5 | 5.6 | v5.6 | [x] | tick | integrity_check only at boot / explicit CLI (R22) |
 
 > **5.1 Goal:** a session that grows after first indexing gets re-indexed.
-> **5.1 Proof:** index a session mid-flight, grow it → next Phase-2 pass updates its `content_hash` and chunk count in `session_documents`; an FTS query returns late-session content (SQL evidence).
+> **5.1 Proof:** index a session mid-flight, grow it → next Phase-2 pass updates its `content_hash` and chunk count in `session_documents`; an FTS query returns late-session content (SQL evidence). [DONE 2026-06-11 — existence-skip replaced with cheap turn_count growth pre-filter; indexSessionTurns hash-verifies + delete/reinserts. Live: a 33-session grown-but-frozen backlog began draining at 5/10min (3 passes, 433 chunks of previously-invisible content recovered); session 8f21a4c6 went 4→30 turns indexed (span 0..29) and late-turn content is FTS-reachable ('Schmandt', 23 hits). Backlog converges to zero on the cadence.]
 >
 > **5.2 Goal:** a failing retrieval channel is observable, never a silent empty result.
 > **5.2 Proof:** induced channel failure on a scratch DB (e.g. renamed table) → a `memory.error` event naming the channel appears in the watcher + a log line; the healthy path still returns results. [DONE 2026-06-10 — pluggable channel-error sink in retrieval-pipeline (8 silent catches labeled) + injector (2); inject server installs a sink that logs AND publishes memory.error boundary=retrieve. Live induction: scratch inject server with broken stores published through the LIVE stream → watcher recorded errors NAMING the channels (entity-match/theme-match 'no such table'); request still degraded 200; production inject healthy (mode=llm 7/5/3). Tests 20/20 incl. throwing-sink safety.]

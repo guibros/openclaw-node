@@ -1,9 +1,7 @@
 # SCOPE — repair plan
 
-**Status:** active
-**Goal:** Block 5 chain (operator "go", 2026-06-10): 5.1 knowledge re-index on growth → 5.2 channel errors surface → 5.3 promotion emit-on-change → 5.4 stall detector pipeline-ops-only → 5.5 readonly busy_timeout → 5.6 integrity_check scoping. One 9-phase cycle + commit per step; Proofs per INVENTORY.
-**Set at:** 2026-06-10 (Montreal)
-**Expires:** no-expiry
+**Status:** idle
+**Goal:** Block 5 COMPLETE at v5.6 (6/6; suite 1539/0; backlog of frozen sessions draining live). Next: Block 6 step 6.1 — watcher detail panel survives polls (event_id through toWatcherRecord).
 
 ```files
 workspace-bin/memory-daemon.mjs

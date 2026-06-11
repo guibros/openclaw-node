@@ -4,6 +4,20 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-11 — Block 5 closed (5.1–5.6): retrieval is fresh and the signals are honest
+
+**Consolidated step ledger** (per-step detail in INVENTORY DONE-notes + commits):
+- **5.1 re-index on growth:** existence-skip → turn_count growth pre-filter; a 33-session frozen backlog began draining live (433 chunks of previously-invisible content in 3 passes; late-turn content FTS-verified). Search stops serving truncated prefixes.
+- **5.2 channel errors surface:** pluggable sink over 10 silent catches; the inject server publishes memory.error naming the channel — live-verified through the production stream + watcher ('entity-match: no such table'); requests still degrade gracefully.
+- **5.3 promotion emit-on-change:** sha256 candidate fingerprint in consolidation_meta; two live cycles → exactly one emission. Decision: emit-on-change over real promotion bookkeeping (federation-era, P.3).
+- **5.4 stall detector:** liveness = write-pipeline ops only; scheduler drumbeats and bridge-dependent retrieval no longer mask a dead pipeline (discriminating regression).
+- **5.5 readonly busy_timeout:** all opens get busy_timeout=5000; probes stop failing instantly under writer load.
+- **5.6 integrity scans off hot paths:** the 60s poll and 10-min indexing open with integrityCheck:false — measured 85ms → 0ms; boot/CLI keep the scan.
+
+**Macro Re-Orient:** Blocks 1–5 complete (32 steps closed, all runtime-proved). Block 6 (watcher/UI) re-surveyed unchanged. One honest note: a restart during a long LLM extraction still exits -6 after the 8s grace (the documented 4.1 trade-off; idle restarts are consistently 0). Suite 1539/0.
+
+---
+
 ## 2026-06-10 — Block 4 closed (4.1–4.6): the daemon's lifecycle is trustworthy
 
 **Consolidated step ledger** (per-step detail in INVENTORY DONE-notes + commits 20896b5→this):
