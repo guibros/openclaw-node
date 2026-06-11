@@ -1,14 +1,20 @@
 # SCOPE — repair plan
 
-**Status:** idle
-**Goal:** Block 4 COMPLETE at v4.6 (6/6 incl. block-open-defined 4.6; macro Re-Orient in audits/step24; suite 1533/0; four consecutive exit-0 daemon restarts). Next: Block 5 step 5.1 — knowledge index re-indexes grown sessions (the search-quality fix).
+**Status:** active
+**Goal:** Block 5 chain (operator "go", 2026-06-10): 5.1 knowledge re-index on growth → 5.2 channel errors surface → 5.3 promotion emit-on-change → 5.4 stall detector pipeline-ops-only → 5.5 readonly busy_timeout → 5.6 integrity_check scoping. One 9-phase cycle + commit per step; Proofs per INVENTORY.
 **Set at:** 2026-06-10 (Montreal)
 **Expires:** no-expiry
 
 ```files
 workspace-bin/memory-daemon.mjs
-lib/extraction-trigger.mjs
+lib/retrieval-pipeline.mjs
+lib/memory-injector.mjs
+lib/memory-inject-server.mjs
 lib/memory-watcher.mjs
+lib/consolidation.mjs
+lib/sqlite-store.mjs
+lib/health-check.mjs
+bin/consolidate.mjs
 test/*
 memory-plan/plans/repair/*
 ```

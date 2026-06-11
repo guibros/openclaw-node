@@ -160,7 +160,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | Block | Step | Version | Status | Driver | Description |
 |-------|------|---------|--------|--------|-------------|
 | 5 | 5.1 | v5.1 | [ ] | hybrid | Knowledge index re-indexes grown sessions (R18) |
-| 5 | 5.2 | v5.2 | [ ] | tick | Retrieval channel failures surface (R19) |
+| 5 | 5.2 | v5.2 | [x] | tick | Retrieval channel failures surface (R19) |
 | 5 | 5.3 | v5.3 | [ ] | hybrid | Promotion events emit on change only (R20) |
 | 5 | 5.4 | v5.4 | [ ] | hybrid | Stall detector keyed to pipeline ops only (R20) |
 | 5 | 5.5 | v5.5 | [ ] | tick | Readonly opens get busy_timeout (R21) |
@@ -170,7 +170,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **5.1 Proof:** index a session mid-flight, grow it → next Phase-2 pass updates its `content_hash` and chunk count in `session_documents`; an FTS query returns late-session content (SQL evidence).
 >
 > **5.2 Goal:** a failing retrieval channel is observable, never a silent empty result.
-> **5.2 Proof:** induced channel failure on a scratch DB (e.g. renamed table) → a `memory.error` event naming the channel appears in the watcher + a log line; the healthy path still returns results.
+> **5.2 Proof:** induced channel failure on a scratch DB (e.g. renamed table) → a `memory.error` event naming the channel appears in the watcher + a log line; the healthy path still returns results. [DONE 2026-06-10 — pluggable channel-error sink in retrieval-pipeline (8 silent catches labeled) + injector (2); inject server installs a sink that logs AND publishes memory.error boundary=retrieve. Live induction: scratch inject server with broken stores published through the LIVE stream → watcher recorded errors NAMING the channels (entity-match/theme-match 'no such table'); request still degraded 200; production inject healthy (mode=llm 7/5/3). Tests 20/20 incl. throwing-sink safety.]
 >
 > **5.3 Goal:** an unchanged promotion-candidate set does not re-emit events every cycle.
 > **5.3 Proof:** 2 cycles with unchanged candidates → no second identical `memory.promoted` record in the watcher; a changed candidate set emits; emit-on-change vs real promotion bookkeeping decided and logged in DECISIONS.

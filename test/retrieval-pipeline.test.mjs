@@ -12,6 +12,7 @@ import {
   buildSeeds,
   weightedRRF,
   createRetrievalPipeline,
+  setChannelErrorSink,
 } from '../lib/retrieval-pipeline.mjs';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -315,5 +316,38 @@ describe('createRetrievalPipeline', () => {
     const pipeline = createRetrievalPipeline({});
     const results = await pipeline.retrieve('test query');
     assert.deepStrictEqual(results, []);
+  });
+});
+
+describe('R19 (repair 5.2): channel failures are observable, never silent', () => {
+  it('a broken store reports through the sink and still returns []', () => {
+    const reports = [];
+    setChannelErrorSink((channel, err) => reports.push({ channel, message: err.message }));
+    try {
+      const broken = new Database(':memory:'); // no tables at all
+      const result = findMatchingEntities(broken, 'anything');
+      assert.deepStrictEqual(result, [], 'channel still degrades gracefully');
+      assert.equal(reports.length, 1, 'the failure must be reported');
+      assert.equal(reports[0].channel, 'entity-match');
+      assert.match(reports[0].message, /no such table/);
+      broken.close();
+    } finally {
+      setChannelErrorSink((channel, err) => {
+        console.error(`[retrieval] channel '${channel}' failed: ${err?.message || err}`);
+      });
+    }
+  });
+
+  it('a throwing sink never breaks the channel', () => {
+    setChannelErrorSink(() => { throw new Error('bad sink'); });
+    try {
+      const broken = new Database(':memory:');
+      assert.deepStrictEqual(findMatchingEntities(broken, 'x'), []);
+      broken.close();
+    } finally {
+      setChannelErrorSink((channel, err) => {
+        console.error(`[retrieval] channel '${channel}' failed: ${err?.message || err}`);
+      });
+    }
   });
 });
