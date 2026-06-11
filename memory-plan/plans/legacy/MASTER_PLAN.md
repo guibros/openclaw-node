@@ -90,7 +90,7 @@ SQLite databases (~/.openclaw/)
 
 ### 3.2 Operating constraints (from operator's deployment memory)
 
-- **Consumer hardware.** Must run on a MacBook / mid-range Linux box. No 96-GB-RAM assumptions. LLM extraction goes through a tiered model selector (qwen3:8b floor, qwen3:14b/32b above).
+- **Consumer hardware.** Must run on a MacBook / mid-range Linux box. No 96-GB-RAM assumptions. LLM model selection is a static env var (`LLM_MODEL`, default qwen3:8b) used by every lane; `bin/check-llm-baseline.mjs` is an install-time RAM advisor whose recommendation nothing consumes at runtime. (Corrected 2026-06-10 per the repair-plan 3.1 audit, `plans/repair/LLM_INFRA.md` — a runtime tiered selector was documented here but never existed; building one is unclaimed future scope.)
 - **Multilingual.** Embedding model must handle non-English. BGE-M3 over MiniLM.
 - **LLM-frontend-agnostic.** The harness sits between any OpenAI-compatible client and any LLM. Memory injection works for Claude, Kimi, DeepSeek, local Qwen, etc.
 - **Health-checked.** Every long-running component reports liveness. Restarts on crash via launchd KeepAlive. A health watcher surfaces degradation.
