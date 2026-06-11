@@ -460,3 +460,26 @@ describe('createAnomalyDetector', () => {
     assert.equal(detector._recentEvents.length, 3);
   });
 });
+
+describe('R20 (repair 5.4): stall detection ignores scheduler heartbeats', () => {
+  it('scheduler-only traffic does not mask a dead pipeline', () => {
+    const det = createAnomalyDetector({ staleThresholdMs: 60_000, cooldownMs: 0 });
+    const old = new Date(Date.now() - 10 * 60_000).toISOString();
+    const fresh = new Date().toISOString();
+    // Pipeline died 10 minutes ago…
+    det.evaluate({ ts: old, op: 'memory.ingested', status: 'ok' });
+    // …but the scheduler keeps drumming.
+    det.evaluate({ ts: fresh, op: 'memory.decayed', status: 'ok' });
+    det.evaluate({ ts: fresh, op: 'memory.promoted', status: 'ok' });
+
+    const alerts = det.evaluateStale();
+    assert.equal(alerts.length, 1, 'a dead pipeline must alert despite scheduler events');
+    assert.equal(alerts[0].alert_type, 'stalled');
+  });
+
+  it('fresh pipeline activity keeps the alert quiet', () => {
+    const det = createAnomalyDetector({ staleThresholdMs: 60_000, cooldownMs: 0 });
+    det.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'ok' });
+    assert.deepEqual(det.evaluateStale(), []);
+  });
+});
