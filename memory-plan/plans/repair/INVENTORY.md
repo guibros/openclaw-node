@@ -219,7 +219,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 |-------|------|---------|--------|--------|-------------|
 | 7 | 7.1 | v7.1 | [x] | tick | memory-daemon plist template carries the live env (R28) |
 | 7 | 7.2 | v7.2 | [x] | tick | redesign-tick plist paths point at the real tick-logs dir (R28) |
-| 7 | 7.3 | v7.3 | [ ] | tick | Wiring-manifest rows defend workspace-bin/memory-daemon.mjs (R29) |
+| 7 | 7.3 | v7.3 | [x] | tick | Wiring-manifest rows defend workspace-bin/memory-daemon.mjs (R29) |
 | 7 | 7.4 | v7.4 | [ ] | tick | Mesh/collab tests skip visibly, never exit(0)-as-pass (R32) |
 | 7 | 7.5 | v7.5 | [ ] | tick | Watcher test fixtures validate against the real schemas (R33) |
 | 7 | 7.6 | v7.6 | [ ] | tick | zod dependency declaration matches what's installed (R30) |
@@ -233,7 +233,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **7.2 Proof:** repo plist StandardOut/ErrPath point at `memory-plan/plans/redesign/tick-logs/` (exists); `plutil -lint` passes. [DONE 2026-06-11 — StandardOut/ErrPath repointed to plans/redesign/tick-logs/ (exists); plutil OK.]
 >
 > **7.3 Goal:** the LIVE daemon's wiring is structurally defended by tests.
-> **7.3 Proof:** manifest rows target `workspace-bin/memory-daemon.mjs` (emit* producers at their boundaries, watcher init, inject-server dep passing); mutation check — commenting one wire in a scratch copy fails the test naming that wire; restored → green.
+> **7.3 Proof:** manifest rows target `workspace-bin/memory-daemon.mjs` (emit* producers at their boundaries, watcher init, inject-server dep passing); mutation check — commenting one wire in a scratch copy fails the test naming that wire; restored → green. [DONE 2026-06-11 — 13 rows defend workspace-bin/memory-daemon.mjs (event producers, watcher, probes, inject server, trigger, tick guard, queue snapshot, rotation, runFlush). 24/24; mutation check: commenting exportStateSnapshot failed the test NAMING it; restored green.]
 >
 > **7.4 Goal:** untestable-here integration tests are visible skips, not silent passes.
 > **7.4 Proof:** suite output on this machine shows `skipped > 0` with reasons; grep shows zero `process.exit(0)` in test `before()` hooks.

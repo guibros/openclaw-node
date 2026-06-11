@@ -44,6 +44,25 @@ const REQUIRED_PRODUCTION_WIRES = [
   { factory: 'createGraphCache',       calledIn: 'bin/openclaw-memory-daemon.mjs' },
   { factory: 'createExtractionTrigger', calledIn: 'bin/openclaw-memory-daemon.mjs' },
   { factory: 'runFlush',               calledIn: 'bin/openclaw-memory-daemon.mjs' },
+
+  // R29 fix (repair 7.3): everything above defends the DORMANT federation
+  // daemon. The daemon launchd actually runs is workspace-bin/memory-daemon
+  // — these rows lock its production wires (Block-1 event producers, the
+  // watcher, the inject server, the tick guard, the queue snapshot) so a
+  // refactor can't silently drop them. That exact failure mode shipped once.
+  { factory: 'emitIngestEvent',         calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'emitExtractEvent',        calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'emitSynthesizeEvent',     calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'emitErrorEvent',          calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'createLocalEventLog',     calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'createMemoryWatcher',     calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'runStoreHealthProbes',    calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'startInjectionServer',    calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'createExtractionTrigger', calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'createConcurrencyGuard',  calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'exportStateSnapshot',     calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'appendWatcherRecord',     calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'runFlush',                calledIn: 'workspace-bin/memory-daemon.mjs' },
 ];
 
 /**
