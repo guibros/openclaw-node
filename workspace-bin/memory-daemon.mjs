@@ -464,7 +464,7 @@ function emitErrorEvent(boundary, err, sessionId) {
   if (!localEventLog) return;
   const event = buildMemoryEvent('memory.error', sessionId || 'unknown', 'memory', {
     boundary,
-    error_code: err.code || err.constructor?.name || 'UNKNOWN',
+    error_code: String(err.code || err.constructor?.name || 'UNKNOWN').slice(0, 100),
     error_message: (err.message || String(err)).slice(0, 500),
     ...(sessionId ? { session_id: sessionId } : {}),
   }, NODE_ID);

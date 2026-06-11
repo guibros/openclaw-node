@@ -164,7 +164,7 @@ export async function runConsolidationCycle(opts = {}) {
           const evt = buildMemoryEvent('memory.promoted', 'consolidation', 'memory', {
             entities_promoted: promotionResult.entityCandidates.length + promotionResult.decisionCandidates.length,
             // Capped sample of WHICH entities were promoted (highest-salience kept).
-            promoted_names: names.slice(0, 20),
+            promoted_names: names.slice(0, 20).map((n) => String(n).slice(0, 200)),
             promoted_more: Math.max(0, names.length - 20),
             duration_ms: Date.now() - promoStart,
           }, nodeId);

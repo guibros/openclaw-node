@@ -209,3 +209,25 @@ describe('MemoryBudget dual-write', () => {
     await new Promise(r => setTimeout(r, 20));
   });
 });
+
+describe('R31 (repair 7.7): content samples are byte-capped', () => {
+  it('an oversized decision text is rejected by the schema', async () => {
+    const { MemoryEventSchema } = await import('../packages/event-schemas/dist/index.js');
+    const event = buildMemoryEvent('memory.extracted', 's-cap', 'memory', {
+      session_id: 's-cap', entities_count: 0, themes_count: 0, mentions_count: 0,
+      decisions_count: 1, decision_texts: ['x'.repeat(10_000)],
+      model: 'qwen3:8b', duration_ms: 1,
+    }, 'daedalus');
+    assert.throws(() => MemoryEventSchema.parse(event), /too_big|500/i);
+  });
+
+  it('a producer-truncated decision text passes', async () => {
+    const { MemoryEventSchema } = await import('../packages/event-schemas/dist/index.js');
+    const event = buildMemoryEvent('memory.extracted', 's-cap', 'memory', {
+      session_id: 's-cap', entities_count: 0, themes_count: 0, mentions_count: 0,
+      decisions_count: 1, decision_texts: ['x'.repeat(10_000).slice(0, 500)],
+      model: 'qwen3:8b', duration_ms: 1,
+    }, 'daedalus');
+    assert.doesNotThrow(() => MemoryEventSchema.parse(event));
+  });
+});
