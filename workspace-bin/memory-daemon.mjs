@@ -1338,6 +1338,11 @@ async function main() {
   runProbe();
   healthProbeTimer = setInterval(runProbe, HEALTH_PROBE_INTERVAL);
 
+  // R16 fix (repair 4.3): NATS init is retryable. A broker down at boot used
+  // to permanently disable the event spine (event log, watcher, extraction
+  // trigger) until a manual restart; now the daemon retries every 60s.
+  let natsRetryTimer = null;
+  async function initNatsSubsystems() {
   try {
     const { connect: natsConnect } = require('nats');
     const { natsConnectOpts } = require('../lib/nats-resolve');
@@ -1443,8 +1448,21 @@ async function main() {
     } catch (trigErr) {
       log(`Extraction trigger unavailable (${trigErr.message}) — continuing without trigger`);
     }
+    return true;
   } catch (e) {
-    log(`NATS unavailable (${e.message}) — continuing without compaction subscription`);
+    log(`NATS unavailable (${e.message}) — retrying every 60s until the broker is reachable`);
+    return false;
+  }
+  }
+  if (!(await initNatsSubsystems())) {
+    natsRetryTimer = setInterval(async () => {
+      if (!running) return;
+      if (await initNatsSubsystems()) {
+        clearInterval(natsRetryTimer);
+        natsRetryTimer = null;
+        log('NATS subsystems initialized on retry');
+      }
+    }, 60_000);
   }
 
   // ── Memory injection HTTP endpoint (Block 7 amendment B+D) ──────────
@@ -1478,6 +1496,7 @@ async function main() {
     // routinely outlived launchd's patience (every restart exited -9/-6 with
     // a native mutex abort in .err).
     if (tickInterval) clearInterval(tickInterval);
+    if (natsRetryTimer) clearInterval(natsRetryTimer);
     if (inFlightTick) {
       const drained = await Promise.race([
         inFlightTick.then(() => true).catch(() => true),

@@ -132,7 +132,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 |-------|------|---------|--------|--------|-------------|
 | 4 | 4.1 | v4.1 | [x] | hybrid | Shutdown fencing (R15) |
 | 4 | 4.2 | v4.2 | [x] | tick | Store-health probes decoupled from the NATS init block (R16) |
-| 4 | 4.3 | v4.3 | [ ] | hybrid | NATS subsystems re-init after a failed boot connect (R16) |
+| 4 | 4.3 | v4.3 | [x] | hybrid | NATS subsystems re-init after a failed boot connect (R16) |
 | 4 | 4.4 | v4.4 | [ ] | tick | IDLE→ENDED flushes the ended session's JSONL (R17) |
 | 4 | 4.5 | v4.5 | [ ] | tick | Extraction idle-timer stops self-perpetuating (R40) |
 
@@ -143,7 +143,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **4.2 Proof:** stop NATS, restart daemon → `health.probe` records keep appearing in watcher.jsonl on the 5-min cadence while NATS-dependent components are absent. [DONE 2026-06-10 — probe block hoisted above the NATS try (it probes SQLite, not NATS); TDZ-safe declaration order. Runtime: NATS booted out → daemon restart logged 'NATS unavailable (CONNECTION_REFUSED)' AND 'health probe: 3 stores checked' same second; fresh health.probe record in watcher.jsonl. Stack restored, both services exit 0.]
 >
 > **4.3 Goal:** a daemon booted while NATS is down acquires the event log/watcher/trigger when NATS appears, without restart.
-> **4.3 Proof:** boot daemon with NATS stopped → start NATS → within the retry interval the log shows NATS connected + event log + watcher initialized, a test publish lands in the stream, and the daemon PID is unchanged.
+> **4.3 Proof:** boot daemon with NATS stopped → start NATS → within the retry interval the log shows NATS connected + event log + watcher initialized, a test publish lands in the stream, and the daemon PID is unchanged. [DONE 2026-06-10 — init wrapped in retryable initNatsSubsystems(), 60s retry until success, timer cleared on shutdown. Runtime: booted NATS-down (PID 78799, 'retrying every 60s') → broker restored → 60s later 'NATS subsystems initialized on retry' + event log + watcher up, SAME PID; JetStream test publish consumed by the recovered watcher. Caveat documented: the inject server captures eventLog at startup — its retrieve/injected events resume at next restart.]
 >
 > **4.4 Goal:** a session ended by a new session appearing is flushed from ITS OWN transcript.
 > **4.4 Proof:** induce a session switch → the flush/archive log and watcher record name the ENDED session's JSONL (not the newest file); unit test on the handler path.
