@@ -1,26 +1,16 @@
 # SCOPE — repair plan
 
 **Status:** active
-**Goal:** Step 3.1 — LLM infrastructure audit (D8, operator go 2026-06-10). READ-ONLY on code + runtime: map every call site, the full timeout chain, measured cold/warm latencies, model-selection reality, queue semantics. Deliverable: plans/repair/LLM_INFRA.md + findings R43+. Zero code changes in this step.
+**Goal:** Block 3 chain (operator "go for step 3", 2026-06-10): 3.1 audit CLOSED at v3.1; now 3.2 — queue wait-timeout abandons only its OWN job + stale-pending removal (R11, spec in LLM_INFRA §3) → 3.3 — cross-process queue introspection (R12). Proofs per INVENTORY v2.
 **Set at:** 2026-06-10 (Montreal)
 **Expires:** 2026-06-11T12:00:00Z
 
 ```files
-lib/obsidian-summarizer.mjs
-lib/obsidian-promoter.mjs
-lib/obsidian-session-notes.mjs
-lib/obsidian-digest.mjs
-lib/obsidian-link-checker.mjs
-lib/obsidian-decision-notes.mjs
-lib/obsidian-theme-notes.mjs
-lib/obsidian-vault.mjs
-lib/consolidation.mjs
-lib/pre-compression-flush.mjs
-bin/vault-check.mjs
-bin/consolidate.mjs
+lib/ollama-queue.mjs
+lib/llm-client.mjs
+lib/health-check.mjs
+bin/health-watch.mjs
 workspace-bin/memory-daemon.mjs
-packages/event-schemas/*
-mission-control/src/app/api/memory-content/route.ts
 test/*
 memory-plan/plans/repair/*
 ```

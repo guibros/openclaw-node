@@ -361,3 +361,56 @@ describe('analysis wait-timeout aborts in-flight (F-C6)', () => {
     assert.equal(signalSeenAborted, true, 'run function should see abort signal');
   });
 });
+
+describe('R11 (repair 3.2): wait-timeout abandons only its OWN job', () => {
+  it('B timing out while A executes does not abandon A, and B never runs', async () => {
+    let releaseA;
+    const aGate = new Promise((r) => { releaseA = r; });
+    let concurrent = 0;
+    let maxConcurrent = 0;
+    let bRan = 0;
+
+    const aPromise = requestAnalysis(async () => {
+      concurrent++;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      await aGate;
+      concurrent--;
+      return 'A';
+    }, { waitTimeoutMs: 5000 });
+
+    await new Promise(r => setTimeout(r, 20)); // A is executing
+    const b = await requestAnalysis(async () => {
+      bRan++;
+      concurrent++;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      concurrent--;
+      return 'B';
+    }, { waitTimeoutMs: 50 });
+
+    assert.equal(b.mode, 'fallback');
+    assert.equal(b.reason, 'analysis-wait-timeout');
+    assert.ok(getState().current_job, "A must still own the slot — B's timeout is not A's problem");
+
+    releaseA();
+    const a = await aPromise;
+    assert.equal(a.mode, 'llm');
+    assert.equal(a.value, 'A');
+    await new Promise(r => setTimeout(r, 20)); // allow drain
+    assert.equal(bRan, 0, "B's stale pending entry must never fire");
+    assert.equal(maxConcurrent, 1, 'single-flight must hold');
+    assert.equal(getState().queue_depth, 0);
+  });
+
+  it('a caller timing out on its OWN running job still releases the slot', async () => {
+    const a = await requestAnalysis(async (signal) => {
+      await new Promise((resolve, reject) => {
+        if (signal?.aborted) return reject(new Error('aborted'));
+        signal?.addEventListener?.('abort', () => reject(new Error('aborted')), { once: true });
+      });
+    }, { waitTimeoutMs: 60 });
+
+    assert.equal(a.mode, 'fallback');
+    await new Promise(r => setTimeout(r, 20));
+    assert.equal(getState().current_job, null, 'own abandoned slot must be released');
+  });
+});

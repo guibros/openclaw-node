@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-10 — Step 3.2 closed: queue single-flight restored under timeout pressure
+
+**Decision.** `requestAnalysis` carries a per-call ticket (opts → pending entry → running job). Its wait-timeout path now (a) removes its own never-started pending entry — previously left behind to fire an analysis nobody consumes — and (b) abandons the running slot only when that job is its own (the only case where its abort signal actually cancels the fetch). `drainPending` drops cancelled entries defensively. F-N103's defensive-release intent is preserved, scoped to ownership.
+
+**Evidence.** Queue tests 27/27 (+2: the exact R11 overlap scenario — A keeps the slot and completes `mode=llm`, B falls back, B's run never fires, max-concurrency stays 1, queue drains empty; own-job abandonment still releases). Full suite 1523/0. Daemon restarted onto the fix (PID 57880); live inject post-change: `mode=llm`, items 7/5/3.
+
+**No architectural decision needed** — spec came verbatim from the 3.1 audit.
+
+---
+
 ## 2026-06-10 — Step 3.1 closed: LLM infrastructure audited — the layer is sounder than suspected → Opens Block 3
 
 **Decision.** Audit-first per D8; deliverable `LLM_INFRA.md` (read-only, zero code changes). Headline verdicts: **llm-client sound** (both lanes; timer/signal hygiene holds); **queue sound except R11** (now sharpened to two parts: ownership-less slot abandonment + stale pending entry — 3.2's exact spec); **analysis path healthy end-to-end** (live inject: mode=llm, items 7/5/3, 1.2s); **extraction sound but expensive** (p50 38.9s from a week of production events — per-new-content only since 1.4's dedup); **health-watch LLM introspection dead** (R12 → 3.3); **runtime model tiering does not exist** (R44 — the documented "tiered selector" is an install-time RAM advisor; docs mislead per §4.5); **pre-warm gap closed by measurement** (true-cold-after-eviction analysis 1.56s, warm 3.1s — both far under the 8s ceiling; no machinery needed).

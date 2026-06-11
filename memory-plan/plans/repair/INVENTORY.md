@@ -110,7 +110,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | Block | Step | Version | Status | Driver | Description |
 |-------|------|---------|--------|--------|-------------|
 | 3 | 3.1 | v3.1 | [x] | operator | LLM infra audit (read-only) → `LLM_INFRA.md` (R13) |
-| 3 | 3.2 | v3.2 | [ ] | hybrid | Queue wait-timeout abandons only its OWN job (R11) |
+| 3 | 3.2 | v3.2 | [x] | hybrid | Queue wait-timeout abandons only its OWN job (R11) |
 | 3 | 3.3 | v3.3 | [ ] | hybrid | health-watch sees the daemon's real queue (R12) |
 | 3 | 3.4 | v3.4 | [ ] | — | (defined at block-open from 3.1) timeout/pre-warm/tiering/analysis remediations; R42 rides along |
 
@@ -118,7 +118,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **3.1 Proof:** `LLM_INFRA.md` in this plan dir with a per-call-site table — model, measured cold ms, measured warm ms, timeout budget at every layer of the chain, failure behavior, verdict (sound / miswired / dead) — plus model-selection reality vs the "tiered selector (qwen3:8b floor)" claim and the pre-warm gap. Zero code changes in the commit (docs only); new findings appended to FINDINGS as R43+. [DONE 2026-06-10 — measured: extraction p50 38.9s (week of production data), analysis warm 3.1s / true-cold-after-eviction 1.56s / inject e2e 1.2s mode=llm items 7-5-3; tiering = install-time advisor only (R44); dual timeout knob, queue-side 1s shadowed-but-loaded (R43); R11 sharpened to 2 parts for 3.2; pre-warm gap CLOSED by measurement. Live inject verified healthy.]
 >
 > **3.2 Goal:** the queue's single-flight invariant survives a second caller's timeout.
-> **3.2 Proof:** regression test — two overlapping analyses, B's wait-timeout fires while A executes → A's job is NOT abandoned and no second concurrent Ollama request starts (queue-state assertion); full suite green.
+> **3.2 Proof:** regression test — two overlapping analyses, B's wait-timeout fires while A executes → A's job is NOT abandoned and no second concurrent Ollama request starts (queue-state assertion); full suite green. [DONE 2026-06-10 — per-call ticket ownership + stale-pending removal + cancelled-entry drain filter. Regressions: A keeps slot/completes llm, B never fires, max-concurrency 1; own-job abandonment intact. Queue 27/27; suite 1523/0; daemon restarted (PID 57880), live inject mode=llm 7/5/3 post-change.]
 >
 > **3.3 Goal:** health-watch (separate process) reports the daemon's actual queue state. *(Single sanctioned bundle: exposing state with no consumer is dead code under the done-contract — the only verifiable outcome is the consumer reporting it.)*
 > **3.3 Proof:** induce a stuck/slow LLM job in the daemon → health-watch logs/reports it within its interval and `.daemon-health.md`'s queue section shows nonzero state matching the daemon log; stuck-detection (and the auto-restart path) demonstrably reachable.
