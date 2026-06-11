@@ -21,3 +21,23 @@ Architectural decisions for the workplan operating system itself. Newest at bott
 **Decision.** The standard silo carries no `VERSION_LOG.md`. The redesign plan already ran without one: one commit per step on `main` means `git log` IS the append-only step ledger, and `audits/` carries the per-step narrative. `FRAMEWORK_CANONICAL.md` still describes VERSION_LOG for non-git contexts; in this repo it is satisfied by the commit log.
 
 **Why.** A second hand-maintained ledger duplicating git history was pure bookkeeping overhead and a drift source in the legacy plan.
+
+## D3 — Conformance is law, machine-graded, with grandfathering (2026-06-03)
+
+**Decision.** Operator directive: every plan must *functionally implement* the six viewer
+surfaces (master-plan, steps, automation, block, documents, history), the 9-phase protocol, and
+extreme step atomization via a four-field contract — **Goal** (one outcome), **Needs**
+(pre-screen, verified Phase 1, missing → BLOCK), **Feeds** (named consumer, recorded Phase 9),
+**Verify** (enforceable test tagged `runtime:`/`code:`/`visual:`, executed Phase 5; visual-only
+→ headless ticks BLOCK). Encoded as PROTOCOL §10/§11; graded by `plan-lint.sh` (PASS/WARN/FAIL,
+rc 0 = conformant); surfaced unavoidably at scaffold end and every tick preflight.
+
+**Why.** "Gracefully degrades when missing" had let silos ship half-wired surfaces; and
+done-evidence lines alone didn't force pre-screening (Needs) or downstream accountability
+(Feeds). Rules without a checker are advisory (MASTER_PLAN §6: forcing functions, not
+willpower).
+
+**Consequences.** Open INVENTORY rows without contracts FAIL; closed pre-contract rows are
+grandfathered as WARN. Historical naming variance (ROADMAP under another name, D-heading shapes,
+audit-dir naming) grades WARN, never FAIL. Repair's 29 open rows need contract retrofit before
+its chain resumes — repair-plan work, surfaced by the lint, not done here.

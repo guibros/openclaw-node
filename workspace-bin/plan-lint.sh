@@ -46,9 +46,15 @@ if [ -f "$PLAN/SCOPE.md" ]; then
 else report FAIL master-plan "SCOPE.md missing"; fi
 
 if [ -f "$PLAN/COMPONENT_REGISTRY.md" ]; then
-  rows=$(grep -cE '^\|[^-|]' "$PLAN/COMPONENT_REGISTRY.md" 2>/dev/null || true)
-  if [ "${rows:-0}" -gt 1 ]; then report PASS master-plan "COMPONENT_REGISTRY.md has $((rows-1)) row(s)"
-  else report WARN master-plan "COMPONENT_REGISTRY.md present but no data rows (probe + record)"; fi
+  fams=$(grep -cE '^## +Family [0-9]+:' "$PLAN/COMPONENT_REGISTRY.md" 2>/dev/null || true)
+  sts=$(grep -cE '^\|\s*\*\*Status\*\*\s*\|' "$PLAN/COMPONENT_REGISTRY.md" 2>/dev/null || true)
+  if [ "${fams:-0}" -gt 0 ] && [ "${sts:-0}" -gt 0 ]; then
+    report PASS master-plan "COMPONENT_REGISTRY.md: $fams family(ies), $sts status row(s) (viewer-parseable)"
+  elif grep -qE '^\|[^-|]' "$PLAN/COMPONENT_REGISTRY.md"; then
+    report WARN master-plan "COMPONENT_REGISTRY.md has content but not the '## Family N:' + '| **Status** |' shape the viewer parses (renders empty)"
+  else
+    report WARN master-plan "COMPONENT_REGISTRY.md present but no data (probe + record)"
+  fi
 else report FAIL master-plan "COMPONENT_REGISTRY.md missing"; fi
 
 if [ -f "$PLAN/DECISIONS.md" ]; then
@@ -119,8 +125,8 @@ if [ -f "$AUTO" ]; then
 else report FAIL automation "automation.json missing"; fi
 
 if [ -f "$PLAN/TICK_PROMPT.md" ]; then
-  if grep -q '<FILL' "$PLAN/TICK_PROMPT.md"; then
-    report WARN automation "TICK_PROMPT.md has unresolved <FILL bindings (resolve before enabling the chain)"
+  if grep -q '<FILL:' "$PLAN/TICK_PROMPT.md"; then
+    report WARN automation "TICK_PROMPT.md has unresolved <FILL: bindings (resolve before enabling the chain)"
   else
     report PASS automation "TICK_PROMPT.md present, bindings resolved"
   fi
