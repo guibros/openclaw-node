@@ -1,9 +1,9 @@
 # SCOPE — repair plan
 
-**Status:** idle
-**Goal:** Block 2 COMPLETE at v2.9 (11/11 steps; macro Re-Orient in audits/step16). The referential system is delivered: 4 surfaces, 100% coverage on all dimensions, 867/867 links resolving, integrity measured per flush. Next: Block 3 step 3.1 — LLM infrastructure audit (D8, operator-driven).
-**Set at:** 2026-06-03 03:25 Montreal
-**Expires:** no-expiry
+**Status:** active
+**Goal:** Step 3.1 — LLM infrastructure audit (D8, operator go 2026-06-10). READ-ONLY on code + runtime: map every call site, the full timeout chain, measured cold/warm latencies, model-selection reality, queue semantics. Deliverable: plans/repair/LLM_INFRA.md + findings R43+. Zero code changes in this step.
+**Set at:** 2026-06-10 (Montreal)
+**Expires:** 2026-06-11T12:00:00Z
 
 ```files
 lib/obsidian-summarizer.mjs

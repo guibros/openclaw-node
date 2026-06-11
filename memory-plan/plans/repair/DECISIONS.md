@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-10 — Step 3.1 closed: LLM infrastructure audited — the layer is sounder than suspected → Opens Block 3
+
+**Decision.** Audit-first per D8; deliverable `LLM_INFRA.md` (read-only, zero code changes). Headline verdicts: **llm-client sound** (both lanes; timer/signal hygiene holds); **queue sound except R11** (now sharpened to two parts: ownership-less slot abandonment + stale pending entry — 3.2's exact spec); **analysis path healthy end-to-end** (live inject: mode=llm, items 7/5/3, 1.2s); **extraction sound but expensive** (p50 38.9s from a week of production events — per-new-content only since 1.4's dedup); **health-watch LLM introspection dead** (R12 → 3.3); **runtime model tiering does not exist** (R44 — the documented "tiered selector" is an install-time RAM advisor; docs mislead per §4.5); **pre-warm gap closed by measurement** (true-cold-after-eviction analysis 1.56s, warm 3.1s — both far under the 8s ceiling; no machinery needed).
+
+**New findings:** R43 (queue-side `ANALYSIS_TIMEOUT_MS` default 1000 — the old broken ceiling — shadowed by llm-client but loaded for any direct caller), R44. One audit self-correction recorded: the inject response carries counts under `items`/content in `block`; a probe reading top-level arrays misreads it as empty (briefly looked like a retrieval regression; it isn't — pipeline verified healthy).
+
+**Consequences.** 3.2 (queue ownership) and 3.3 (cross-process introspection) proceed as specified; 3.4's candidate list: R43, R44 docs-or-build, R42, theme-linkage schema, 50KB floor, extraction-cost review.
+
+---
+
 ## 2026-06-03 — Step 2.9 closed: decisions/ + themes/ surfaces live, duplicates aliased → Block 2 COMPLETE
 
 **Decisions (operator, via AskUserQuestion).** Per-decision dated notes (salience ≥0.4, top-30: rationale, confidence, concept + session links); per-theme hub pages (≥threshold: alias, hierarchy, member concepts); duplicates **aliased, not merged** — both DB rows kept, the slug-owning note carries every colliding name (operator deviated from the merge recommendation; the alias map is built from all candidates so targeted regens never drop it).
