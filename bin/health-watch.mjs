@@ -106,55 +106,59 @@ async function getQueueModule() {
 }
 
 /**
- * Read the ollama-queue's current state. Returns null if the module
- * isn't loaded or can't be imported.
+ * Read the DAEMON's queue state from its exported snapshot (R12, repair 3.3).
+ * health-watch is a separate process — importing the queue module here only
+ * ever showed our own empty singleton, so stuck-detection could never fire.
+ * Returns null when the snapshot is missing or stale (>2 min): a dead
+ * exporter must read as "unknown", never as "idle".
  */
-export async function getQueueHealth() {
+export async function getQueueHealth(snapshotPath) {
   const mod = await getQueueModule();
   if (!mod) return null;
-  return mod.getState();
+  return mod.readStateSnapshot(snapshotPath);
 }
 
+// R12: restart rate-limiting is local to the restarter — the daemon's
+// in-process counters can't be reset from here, and they clear themselves
+// on its next successful run anyway.
+const RESTART_WINDOW_MS = 15 * 60 * 1000;
+const RESTART_MAX = 3;
+let _localRestarts = [];
+
 /**
- * Detect stuck Ollama (>=3 consecutive timeouts) and attempt recovery by
- * running `ollama stop <model>`. The next request will reload the model.
- * Returns true if a restart was attempted.
+ * Detect a stuck daemon-side Ollama (>=3 consecutive extraction timeouts in
+ * the daemon's snapshot) and recover by unloading the model. Unload uses the
+ * keep_alive:0 API — the 3.1 audit measured `ollama stop` NOT evicting while
+ * the API call did. Returns true if a restart was attempted.
  */
-export async function maybeAutoRestartOllama() {
+export async function maybeAutoRestartOllama(snapshotPath) {
   const mod = await getQueueModule();
   if (!mod) return false;
-  if (!mod.isStuck()) return false;
+  const snapshot = mod.readStateSnapshot(snapshotPath);
+  if (!snapshot || !mod.snapshotLooksStuck(snapshot)) return false;
 
-  const state = mod.getState();
-  const model = state.current_job?.model || process.env.LLM_MODEL || 'qwen3:8b';
-
-  // F-H16 fix: honor recordAutoRestart's rate-limit signal. If we've restarted
-  // N times in the last window, abstain — a deeper Ollama failure (disk full,
-  // corrupt model) would otherwise trigger an infinite restart cascade.
-  // recordAutoRestart returns { recorded, rateLimited, restartsInWindow }.
-  // We check the count BEFORE issuing the stop command, by peeking via getState.
-  const recentRestarts = (state.recent_restarts || []).filter(
-    r => Date.now() - r.ts < 15 * 60 * 1000
-  );
-  if (recentRestarts.length >= 3) {
-    console.warn(`[health-watch] Ollama stuck but restart rate-limited (${recentRestarts.length} restarts in last 15min) — abstaining`);
+  _localRestarts = _localRestarts.filter(ts => Date.now() - ts < RESTART_WINDOW_MS);
+  if (_localRestarts.length >= RESTART_MAX) {
+    console.warn(`[health-watch] Ollama stuck but restart rate-limited (${_localRestarts.length} restarts in last 15min) — abstaining`);
     return false;
   }
 
-  console.warn(`[health-watch] Ollama appears stuck (consecutive_timeouts=${JSON.stringify(state.consecutive_timeouts)}). Attempting model unload via 'ollama stop ${model}'.`);
+  const model = snapshot.current_job?.model || process.env.LLM_MODEL || 'qwen3:8b';
+  console.warn(`[health-watch] daemon's Ollama appears stuck (consecutive_timeouts=${JSON.stringify(snapshot.consecutive_timeouts)}). Unloading ${model} via keep_alive:0.`);
 
   try {
-    await new Promise((resolve) => {
-      execFile('ollama', ['stop', model], { timeout: 5000 }, () => resolve());
+    const baseUrl = process.env.LLM_BASE_URL || 'http://localhost:11434';
+    const res = await fetch(`${baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, keep_alive: 0 }),
+      signal: AbortSignal.timeout(5000),
     });
-    const result = mod.recordAutoRestart(`stuck-recovery: ${JSON.stringify(state.consecutive_timeouts)}`);
-    if (result && result.rateLimited) {
-      console.warn(`[health-watch] restart was rate-limited by queue module (${result.restartsInWindow} in window)`);
-      return false;
-    }
+    if (!res.ok) throw new Error(`unload returned ${res.status}`);
+    _localRestarts.push(Date.now());
     return true;
   } catch (err) {
-    console.error(`[health-watch] ollama stop failed: ${err.message}`);
+    console.error(`[health-watch] ollama unload failed: ${err.message}`);
     return false;
   }
 }

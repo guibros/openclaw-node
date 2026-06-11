@@ -12,6 +12,9 @@
 
 import { describe, it, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import {
   requestExtraction,
   requestAnalysis,
@@ -19,6 +22,9 @@ import {
   isStuck,
   recordAutoRestart,
   shutdown,
+  exportStateSnapshot,
+  readStateSnapshot,
+  snapshotLooksStuck,
   _resetForTesting,
 } from '../lib/ollama-queue.mjs';
 
@@ -412,5 +418,47 @@ describe('R11 (repair 3.2): wait-timeout abandons only its OWN job', () => {
     assert.equal(a.mode, 'fallback');
     await new Promise(r => setTimeout(r, 20));
     assert.equal(getState().current_job, null, 'own abandoned slot must be released');
+  });
+});
+
+describe('cross-process snapshot (R12, repair 3.3)', () => {
+  it('export → read round-trip carries the live queue state', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'queue-snap-'));
+    const file = join(dir, 'state.json');
+
+    await requestExtraction(async () => 'done', { model: 'qwen3:8b' });
+    const written = exportStateSnapshot(file);
+    assert.equal(written.pid, process.pid);
+
+    const read = readStateSnapshot(file);
+    assert.ok(read, 'fresh snapshot must read back');
+    assert.equal(read.totals.runs, 1);
+    assert.equal(read.pid, process.pid);
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('stale or missing snapshots read as null — never as "idle"', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'queue-snap-'));
+    const file = join(dir, 'state.json');
+
+    assert.equal(readStateSnapshot(file), null, 'missing file');
+
+    const stale = { ts: Date.now() - 10 * 60 * 1000, pid: 1, consecutive_timeouts: { extraction: 0 } };
+    writeFileSync(file, JSON.stringify(stale));
+    assert.equal(readStateSnapshot(file), null, 'stale snapshot');
+
+    writeFileSync(file, 'not json');
+    assert.equal(readStateSnapshot(file), null, 'corrupt snapshot');
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('snapshotLooksStuck applies the extraction-timeouts threshold', () => {
+    assert.equal(snapshotLooksStuck({ consecutive_timeouts: { extraction: 3 } }), true);
+    assert.equal(snapshotLooksStuck({ consecutive_timeouts: { extraction: 2 } }), false);
+    assert.equal(snapshotLooksStuck({ consecutive_timeouts: { analysis: 99, extraction: 0 } }), false,
+      'analysis timeouts must not count (F-H17)');
+    assert.equal(snapshotLooksStuck(null), false);
   });
 });

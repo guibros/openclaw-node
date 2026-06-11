@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-10 — Step 3.3 closed: health-watch finally watches the daemon, not itself
+
+**Decision.** Queue state crosses the process boundary via a snapshot file: the daemon exports `getState()` each tick (atomic write); health-watch reads the file with a 2-minute staleness guard (a dead exporter reads as *unknown*, never *idle*); stuck evaluation reuses the F-H17 extraction-only rule over the snapshot. The auto-restart unload mechanism switched from the `ollama stop` CLI — which the 3.1 audit measured NOT evicting — to the `keep_alive: 0` API, which does. Restart rate-limiting is local to the restarter (the daemon's in-process counters can't be reset cross-process and clear on its next success).
+
+**Evidence.** Queue tests 30/30 (+3 snapshot cases), suite 1526/0. Live cross-process flow with real data: the daemon's own inject became visible in the snapshot (`runs: 1, analysis avg 1754ms`, daemon pid) and rendered in `.daemon-health.md`'s queue section by the separate health-watch process — both previously structurally impossible. Synthetic stuck snapshot → auto-restart attempted **true** → model genuinely evicted (api/ps empty), 1.5s reload on next use.
+
+**Consequences.** R12 closed; the watchdog's Ollama-stuck recovery is live for the first time. 3.4 defined (R43+R42+R44-docs, mechanical) — awaiting operator scope confirmation; the only judgment item is docs-vs-build on the tier selector.
+
+---
+
 ## 2026-06-10 — Step 3.2 closed: queue single-flight restored under timeout pressure
 
 **Decision.** `requestAnalysis` carries a per-call ticket (opts → pending entry → running job). Its wait-timeout path now (a) removes its own never-started pending entry — previously left behind to fire an analysis nobody consumes — and (b) abandons the running slot only when that job is its own (the only case where its abort signal actually cancels the fetch). `drainPending` drops cancelled entries defensively. F-N103's defensive-release intent is preserved, scoped to ownership.

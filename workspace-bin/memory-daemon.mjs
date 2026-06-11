@@ -48,6 +48,7 @@ import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
 import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
+import { exportStateSnapshot } from '../lib/ollama-queue.mjs';
 import { createMemoryWatcher, runStoreHealthProbes } from '../lib/memory-watcher.mjs';
 import { initDatabase as initKnowledgeDb, indexSessionTurns } from '../lib/mcp-knowledge/core.mjs';
 import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
@@ -1558,6 +1559,11 @@ async function main() {
 
       // 6. Persist state
       saveDaemonState(sm);
+
+      // 6.5. Export the LLM queue snapshot for health-watch (R12, repair 3.3):
+      // queue state is in-process memory; without this file a separate
+      // process can only ever see its own empty queue.
+      try { exportStateSnapshot(); } catch (snapErr) { log(`queue snapshot export failed: ${snapErr.message}`); }
 
     } catch (err) {
       log(`Tick error: ${err.message}`);

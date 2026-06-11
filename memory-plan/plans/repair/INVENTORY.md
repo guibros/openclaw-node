@@ -111,7 +111,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 |-------|------|---------|--------|--------|-------------|
 | 3 | 3.1 | v3.1 | [x] | operator | LLM infra audit (read-only) → `LLM_INFRA.md` (R13) |
 | 3 | 3.2 | v3.2 | [x] | hybrid | Queue wait-timeout abandons only its OWN job (R11) |
-| 3 | 3.3 | v3.3 | [ ] | hybrid | health-watch sees the daemon's real queue (R12) |
+| 3 | 3.3 | v3.3 | [x] | hybrid | health-watch sees the daemon's real queue (R12) |
 | 3 | 3.4 | v3.4 | [ ] | — | (defined at block-open from 3.1) timeout/pre-warm/tiering/analysis remediations; R42 rides along |
 
 > **3.1 Goal:** the LLM layer is measured end-to-end with a verdict per component.
@@ -121,9 +121,10 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **3.2 Proof:** regression test — two overlapping analyses, B's wait-timeout fires while A executes → A's job is NOT abandoned and no second concurrent Ollama request starts (queue-state assertion); full suite green. [DONE 2026-06-10 — per-call ticket ownership + stale-pending removal + cancelled-entry drain filter. Regressions: A keeps slot/completes llm, B never fires, max-concurrency 1; own-job abandonment intact. Queue 27/27; suite 1523/0; daemon restarted (PID 57880), live inject mode=llm 7/5/3 post-change.]
 >
 > **3.3 Goal:** health-watch (separate process) reports the daemon's actual queue state. *(Single sanctioned bundle: exposing state with no consumer is dead code under the done-contract — the only verifiable outcome is the consumer reporting it.)*
-> **3.3 Proof:** induce a stuck/slow LLM job in the daemon → health-watch logs/reports it within its interval and `.daemon-health.md`'s queue section shows nonzero state matching the daemon log; stuck-detection (and the auto-restart path) demonstrably reachable.
+> **3.3 Proof:** induce a stuck/slow LLM job in the daemon → health-watch logs/reports it within its interval and `.daemon-health.md`'s queue section shows nonzero state matching the daemon log; stuck-detection (and the auto-restart path) demonstrably reachable. [DONE 2026-06-10 — daemon exports a queue snapshot per tick (atomic, staleness-guarded read: dead exporter = unknown, never idle); health-watch reads the FILE; unload switched to keep_alive:0 API (audit-proven; `ollama stop` doesn't evict); local restart rate-limit. Live: daemon's real inject visible cross-process (runs=1, avg 1754ms) in snapshot AND .daemon-health.md; synthetic stuck snapshot → auto-restart true → model genuinely evicted. Queue 30/30; suite 1526/0.]
 >
-> **3.4 Goal+Proof:** written at Block-3 open from 3.1's numbers (macro Re-Orient). Cannot start before its Proof line exists.
+> **3.4 Goal (defined 2026-06-10 from LLM_INFRA §9):** the audit's mechanical remediations land: **(a) R43** — one analysis-timeout knob: the queue's `ANALYSIS_TIMEOUT_MS` default (1000ms, the old broken ceiling, loaded for any direct caller) unified onto `LLM_ANALYSIS_TIMEOUT`/8000; **(b) R42** — `extractJsonFromText`'s fast path no longer defeats the brace scanner on concatenated `{...}{...}` output; **(c) R44** — MASTER_PLAN §3.2 + REGISTRY 1.2 wording corrected to reality ("static model via LLM_MODEL; install-time tier advisor") per §4.5. Deliberately OUT (own steps/blocks, captured): theme↔session schema linkage; 50KB session floor; building a real runtime tier selector (new scope — operator may commission it separately).
+> **3.4 Proof:** (a) grep — one default, both knobs documented, queue test locks the unified default; (b) regression test: `{...}{...}` recovers via the scanner; (c) the two docs read the measured reality, cross-ref LLM_INFRA. **AWAITING operator confirmation of this scope** (recommended; "your call" accepted) — the docs-vs-build choice on R44 is the only judgment item.
 
 ## Block 4 — Daemon lifecycle · R15-R17, R40
 

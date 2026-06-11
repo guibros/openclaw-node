@@ -1,9 +1,9 @@
 # SCOPE — repair plan
 
-**Status:** active
-**Goal:** Block 3 chain (operator "go for step 3", 2026-06-10): 3.1 audit CLOSED at v3.1; now 3.2 — queue wait-timeout abandons only its OWN job + stale-pending removal (R11, spec in LLM_INFRA §3) → 3.3 — cross-process queue introspection (R12). Proofs per INVENTORY v2.
+**Status:** idle
+**Goal:** Block 3 chain CLOSED 3.1–3.3 at v3.3 (audit + queue ownership + cross-process introspection, all runtime-proved; suite 1526/0). 3.4 DEFINED (R43+R42+R44-docs) — awaiting operator scope confirmation (the docs-vs-build choice on the tier selector). Closing 3.4 closes Block 3 → macro Re-Orient → Block 4.
 **Set at:** 2026-06-10 (Montreal)
-**Expires:** 2026-06-11T12:00:00Z
+**Expires:** no-expiry
 
 ```files
 lib/ollama-queue.mjs
