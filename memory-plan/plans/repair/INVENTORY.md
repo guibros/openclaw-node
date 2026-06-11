@@ -217,8 +217,8 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 
 | Block | Step | Version | Status | Driver | Description |
 |-------|------|---------|--------|--------|-------------|
-| 7 | 7.1 | v7.1 | [ ] | tick | memory-daemon plist template carries the live env (R28) |
-| 7 | 7.2 | v7.2 | [ ] | tick | redesign-tick plist paths point at the real tick-logs dir (R28) |
+| 7 | 7.1 | v7.1 | [x] | tick | memory-daemon plist template carries the live env (R28) |
+| 7 | 7.2 | v7.2 | [x] | tick | redesign-tick plist paths point at the real tick-logs dir (R28) |
 | 7 | 7.3 | v7.3 | [ ] | tick | Wiring-manifest rows defend workspace-bin/memory-daemon.mjs (R29) |
 | 7 | 7.4 | v7.4 | [ ] | tick | Mesh/collab tests skip visibly, never exit(0)-as-pass (R32) |
 | 7 | 7.5 | v7.5 | [ ] | tick | Watcher test fixtures validate against the real schemas (R33) |
@@ -227,10 +227,10 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 7 | 7.8 | v7.8 | [ ] | operator | Dead event vocabulary resolved: wire or delete the 5 producer-less schemas (R41) |
 
 > **7.1 Goal:** rendering the repo template reproduces the running daemon's environment.
-> **7.1 Proof:** template rendered via the install path → diff vs the installed plist shows no missing env keys (OPENCLAW_NATS, OPENCLAW_NODE_ID, NODE_PATH); evidence in the commit body.
+> **7.1 Proof:** template rendered via the install path → diff vs the installed plist shows no missing env keys (OPENCLAW_NATS, OPENCLAW_NODE_ID, NODE_PATH); evidence in the commit body. [DONE 2026-06-11 — template carries OPENCLAW_NATS + ${OPENCLAW_NODE_ID} (installer's envsubst AND sed fallback both substitute it; sanitized-hostname default fixes the dot-illegal stream name). Rendered-vs-installed env diff: only NODE_PATH, which points at a dead legacy dir (inert, deliberately not propagated). plutil OK.]
 >
 > **7.2 Goal:** the tick plist's log paths exist.
-> **7.2 Proof:** repo plist StandardOut/ErrPath point at `memory-plan/plans/redesign/tick-logs/` (exists); `plutil -lint` passes.
+> **7.2 Proof:** repo plist StandardOut/ErrPath point at `memory-plan/plans/redesign/tick-logs/` (exists); `plutil -lint` passes. [DONE 2026-06-11 — StandardOut/ErrPath repointed to plans/redesign/tick-logs/ (exists); plutil OK.]
 >
 > **7.3 Goal:** the LIVE daemon's wiring is structurally defended by tests.
 > **7.3 Proof:** manifest rows target `workspace-bin/memory-daemon.mjs` (emit* producers at their boundaries, watcher init, inject-server dep passing); mutation check — commenting one wire in a scratch copy fails the test naming that wire; restored → green.

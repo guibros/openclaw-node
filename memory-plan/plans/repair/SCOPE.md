@@ -1,15 +1,18 @@
 # SCOPE — repair plan
 
-**Status:** idle
-**Goal:** Block 6 COMPLETE at v6.6 (6/6; suite 1541/0; UI deployed). Next: Block 7 step 7.1 — repo plist template carries the live env (the project's named nemesis).
+**Status:** active
+**Goal:** Block 7 chain (operator "go", 2026-06-11): 7.1 daemon plist env parity → 7.2 tick plist paths → 7.3 wiring-manifest for the LIVE daemon → 7.4 visible skips → 7.5 fixture validity → 7.6 zod alignment → 7.7 byte caps → 7.8 dead vocabulary (operator decision at the end).
 
 ```files
-lib/memory-watcher.mjs
-workspace-bin/memory-daemon.mjs
-mission-control/src/app/watcher/page.tsx
-mission-control/src/app/api/watcher/route.ts
-mission-control/src/lib/hooks.ts
+services/launchd/*
 test/*
+packages/event-schemas/*
+workspace-bin/memory-daemon.mjs
+lib/pre-compression-flush.mjs
+lib/memory-inject-server.mjs
+bin/consolidate.mjs
+bin/memory-promoter.mjs
+lib/memory-budget.mjs
 memory-plan/plans/repair/*
 ```
 
