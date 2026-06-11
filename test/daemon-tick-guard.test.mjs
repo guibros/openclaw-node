@@ -90,6 +90,13 @@ test('IDLE→ENDED targets the ended session\'s own JSONL (R17, repair 4.4)', ()
   assert.equal(bare.length, 0, 'no bare newest-file lookup may remain in the ended-session path');
 });
 
+test('the session-size floor is a named 1KB constant, not a bare 50KB (repair 4.6)', () => {
+  assert.doesNotMatch(daemonSrc, /50 \* 1024/);
+  assert.match(daemonSrc, /const MIN_SESSION_BYTES = 1024;/);
+  const uses = daemonSrc.match(/MIN_SESSION_BYTES/g) || [];
+  assert.equal(uses.length, 4, 'declaration + all three lookup sites (previous/current/by-id)');
+});
+
 test('synthesized events carry session_id (R10, repair 2.10)', () => {
   assert.match(daemonSrc, /buildMemoryEvent\('memory\.synthesized', sessionId, 'memory', \{\n    session_id: sessionId,/);
 });

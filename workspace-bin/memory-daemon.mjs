@@ -619,7 +619,7 @@ function findPreviousJsonl(sources) {
         const full = path.join(source.path, f);
         try {
           const stat = fs.statSync(full);
-          if (stat.size < 50 * 1024) continue; // skip tiny
+          if (stat.size < MIN_SESSION_BYTES) continue; // skip header-only noise (repair 4.6)
           all.push({ path: full, mtime: stat.mtimeMs });
         } catch (err) { console.warn(`[memory-daemon] prev jsonl stat failed for ${full}: ${err.message}`); continue; }
       }
@@ -628,6 +628,13 @@ function findPreviousJsonl(sources) {
   all.sort((a, b) => b.mtime - a.mtime);
   return all.length > 1 ? all[1].path : null; // second most recent = previous
 }
+
+// R-floor fix (repair 4.6): below this a session file is header-only noise.
+// The old floor was a bare 50KB literal, which silently excluded every
+// short-but-real conversation from the interval/NATS flush paths and from
+// ended-session targeting; the 1.4 extraction dedup makes re-considering
+// small sessions cheap.
+const MIN_SESSION_BYTES = 1024;
 
 function findCurrentJsonl(sources) {
   const all = [];
@@ -639,7 +646,7 @@ function findCurrentJsonl(sources) {
         const full = path.join(source.path, f);
         try {
           const stat = fs.statSync(full);
-          if (stat.size < 50 * 1024) continue;
+          if (stat.size < MIN_SESSION_BYTES) continue;
           all.push({ path: full, mtime: stat.mtimeMs });
         } catch (err) { console.warn(`[memory-daemon] current jsonl stat failed for ${full}: ${err.message}`); continue; }
       }
@@ -657,7 +664,7 @@ function findJsonlBySessionId(sources, sessionId) {
     const full = path.join(source.path, target);
     try {
       const stat = fs.statSync(full);
-      if (stat.size >= 50 * 1024) return full;
+      if (stat.size >= MIN_SESSION_BYTES) return full;
     } catch { /* file doesn't exist in this source */ }
   }
   return null;

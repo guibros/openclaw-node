@@ -1,9 +1,9 @@
 # SCOPE — repair plan
 
-**Status:** active
-**Goal:** Block 4 chain (operator "go", 2026-06-10): 4.1 shutdown fencing → 4.2 probes decoupled from NATS init → 4.3 NATS re-init → 4.4 session-switch flushes the right JSONL → 4.5 idle-timer self-ping loop → 4.6 (triaged from OUT_OF_SCOPE at block open) the 50KB session floor. One 9-phase cycle + commit per step; Proofs per INVENTORY.
+**Status:** idle
+**Goal:** Block 4 COMPLETE at v4.6 (6/6 incl. block-open-defined 4.6; macro Re-Orient in audits/step24; suite 1533/0; four consecutive exit-0 daemon restarts). Next: Block 5 step 5.1 — knowledge index re-indexes grown sessions (the search-quality fix).
 **Set at:** 2026-06-10 (Montreal)
-**Expires:** 2026-06-11T12:00:00Z
+**Expires:** no-expiry
 
 ```files
 workspace-bin/memory-daemon.mjs

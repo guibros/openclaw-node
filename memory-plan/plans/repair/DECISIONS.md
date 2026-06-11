@@ -4,6 +4,20 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-10 — Block 4 closed (4.1–4.6): the daemon's lifecycle is trustworthy
+
+**Consolidated step ledger** (per-step detail in INVENTORY DONE-notes + commits 20896b5→this):
+- **4.1 shutdown fencing:** clearInterval + in-flight tick drained (8s grace) before ordered closes; shutdown owns process.exit(0). First exit-0 in the plan's history; four consecutive clean exits since.
+- **4.2 probes decoupled:** SQLite health probes hoisted out of the NATS try — verified running with the broker booted out (CONNECTION_REFUSED + '3 stores checked' same second).
+- **4.3 NATS re-init:** init wrapped retryable (60s); booted broker-down, restored broker → event log + watcher up on the SAME PID, JetStream publish consumed by the recovered watcher. Documented caveat: the inject server captures eventLog at startup (its events resume at next restart).
+- **4.4 ended-session targeting:** IDLE→ENDED flush + subagent-audit use findJsonlBySessionId-first (the runtime-proven ACTIVE→ENDED pattern); wiring-locked.
+- **4.5 idle-timer loop:** self-pings no longer re-arm; loopback-mock regression reproduces the mechanism (old 8 fires/400ms → 1).
+- **4.6 session floor:** MIN_SESSION_BYTES=1024 named + documented at three sites (one previously unknown); short sessions reachable by flush paths.
+
+**Macro Re-Orient:** audits/step24. Block 5 re-surveyed unchanged (5.1 the quality-critical one). OUT_OF_SCOPE: 50KB resolved; bootstrap memory-maintenance exit-1 deliberately left captured (LOW; Phase 2 covers it). Suite 1533/0; daemon PID 82349.
+
+---
+
 ## 2026-06-10 — Step 3.4 closed: audit remediations land → Block 3 COMPLETE
 
 **Decision (operator: "fix the docs").** (a) R43 — one analysis-timeout knob: the queue's `ANALYSIS_TIMEOUT_MS` (default 1000ms, the ceiling that once made LLM analysis structurally impossible, still loaded for any direct caller) removed; `LLM_ANALYSIS_TIMEOUT`/8000 governs both layers, regression-locked. (b) R42 — the JSON fast path validates before returning; concatenated `{...}{...}` model output now recovers via the largest-balanced-block scanner instead of costing a full extraction run. (c) R44 — MASTER_PLAN §3.2 corrected to measured reality (static `LLM_MODEL`; install-time advisor; runtime selector = unclaimed future scope), landed per §11 in its own `master-plan:` commit (70f61c5) and synced to all silos. Building a real tier selector was explicitly declined for now — docs-over-aspiration per §4.5.
