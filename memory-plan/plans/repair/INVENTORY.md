@@ -224,7 +224,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 7 | 7.5 | v7.5 | [x] | tick | Watcher test fixtures validate against the real schemas (R33) |
 | 7 | 7.6 | v7.6 | [x] | tick | zod dependency declaration matches what's installed (R30) |
 | 7 | 7.7 | v7.7 | [x] | hybrid | Byte caps on event content fields + producer truncation (R31) |
-| 7 | 7.8 | v7.8 | [ ] | operator | Dead event vocabulary resolved: wire or delete the 5 producer-less schemas (R41) |
+| 7 | 7.8 | v7.8 | [x] | operator | Dead event vocabulary resolved: wire or delete the 5 producer-less schemas (R41) |
 
 > **7.1 Goal:** rendering the repo template reproduces the running daemon's environment.
 > **7.1 Proof:** template rendered via the install path → diff vs the installed plist shows no missing env keys (OPENCLAW_NATS, OPENCLAW_NODE_ID, NODE_PATH); evidence in the commit body. [DONE 2026-06-11 — template carries OPENCLAW_NATS + ${OPENCLAW_NODE_ID} (installer's envsubst AND sed fallback both substitute it; sanitized-hostname default fixes the dot-illegal stream name). Rendered-vs-installed env diff: only NODE_PATH, which points at a dead legacy dir (inert, deliberately not propagated). plutil OK.]
@@ -248,7 +248,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **7.7 Proof:** every content-sample field carries `.max()` (schema test rejects oversized); producers truncate per-item — a synthetic 10KB decision string publishes successfully (truncated) against live NATS and renders in the watcher; no silent drop. [DONE 2026-06-11 — .max() caps on every content-sample field across 5 schemas (names 200, decisions/errors 500, arrays count-capped); 4 producers truncate per-item. Schema test rejects a 10KB decision; live: 10KB decision published truncated (seq 372) and rendered by the watcher at exactly 500 chars. Dist rebuilt; deployed; suite 1549/0.]
 >
 > **7.8 Goal:** zero producer-less schemas remain — each wired or deleted, none ambiguous.
-> **7.8 Proof:** for each of the 5: either a producer exists (its event observed in the live stream) or the schema + its tests are removed with no orphan references (grep); operator decision logged in DECISIONS (lean: delete — federation can re-add).
+> **7.8 Proof:** for each of the 5: either a producer exists (its event observed in the live stream) or the schema + its tests are removed with no orphan references (grep); operator decision logged in DECISIONS (lean: delete — federation can re-add). [DONE 2026-06-11 — operator: keep all 7, LINK them in the memory watcher. Census corrected the audit: 7 producer-less (not 5) — 3 pure orphans + 4 with phantom consumers. Resolution: watcher classifies all 3 orphan types (compaction-that-freed-nothing = noop), mission-control renders per-op summaries for all 7, every schema carries a PRODUCER STATUS header. Live: all 3 published through the production stream → schema-validated → watcher recorded ok/ok/ok. Zero ambiguity remains; no deletions. 38/38; suite 1550/0.]
 
 ## Block P — PARKED: security (operator directive 2026-06-02) · R34-R38
 

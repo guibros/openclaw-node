@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { EventEnvelopeSchema } from '../envelope.js';
 
+// PRODUCER STATUS (repair 7.8): none yet — gateway-era vocabulary; consumers
+// already live (memory-budget, openclaw-status, watcher).
+
 export const FactExtractedSchema = EventEnvelopeSchema.extend({
   event_type: z.literal('memory.fact_extracted'),
   data: z.object({

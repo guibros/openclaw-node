@@ -80,6 +80,21 @@ function eventDetail(op: string, data: Record<string, unknown> | null | undefine
       return `${n("entities_decayed") ?? 0} decayed`;
     case "memory.error":
       return String(data.error_message ?? data.error_code ?? data.boundary ?? "error");
+    // repair 7.8: gateway-era vocabulary renders the day a producer lands.
+    case "memory.turn_recorded":
+      return `turn ${n("turn_index") ?? "?"} (${data.role ?? "?"})${n("token_count") ? ` · ${n("token_count")} tok` : ""}`;
+    case "memory.compaction_triggered":
+      return `${data.trigger ?? "?"}: ${n("entries_before") ?? "?"} → ${n("entries_after") ?? "?"} entries`;
+    case "memory.artifact_attached":
+      return `${data.filename ?? data.artifact_ref ?? "?"} (${data.mime_type ?? "?"}, ${n("byte_count") ?? 0}B)`;
+    case "memory.session_started":
+      return `${data.session_type ?? "?"} session`;
+    case "memory.fact_extracted":
+      return String(data.fact ?? "").slice(0, 80);
+    case "memory.concept_mentioned":
+      return `${data.concept_name ?? "?"} @ turn ${n("turn_index") ?? "?"}${n("salience") != null ? ` · salience ${n("salience")}` : ""}`;
+    case "memory.snapshot_taken":
+      return `${data.snapshot_type ?? "?"} snapshot (${n("byte_count") ?? 0}B)`;
     default:
       return "";
   }

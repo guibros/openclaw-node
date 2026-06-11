@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { EventEnvelopeSchema } from '../envelope.js';
 
+// PRODUCER STATUS (repair 7.8): none — artifact tracking was vocabulary-only
+// aspiration; no producer or pipeline exists. Watcher consumes + renders it.
+
 export const ArtifactAttachedSchema = EventEnvelopeSchema.extend({
   event_type: z.literal('memory.artifact_attached'),
   data: z.object({

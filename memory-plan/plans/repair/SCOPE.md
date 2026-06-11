@@ -1,7 +1,7 @@
 # SCOPE — repair plan
 
-**Status:** active
-**Goal:** Block 7 chain (operator "go", 2026-06-11): 7.1 daemon plist env parity → 7.2 tick plist paths → 7.3 wiring-manifest for the LIVE daemon → 7.4 visible skips → 7.5 fixture validity → 7.6 zod alignment → 7.7 byte caps → 7.8 dead vocabulary (operator decision at the end).
+**Status:** idle
+**Goal:** ALL ACTIVE BLOCKS COMPLETE at v7.8 (Blocks 1–7, 49/49 steps, every Proof runtime-captured; suite 1550/0). Remaining scope: Block P (parked security R34–R38, operator-held — the 'working prototype' precondition is now met). Next action is an operator decision: open Block P, commission captured OUT_OF_SCOPE items, or close the plan.
 
 ```files
 services/launchd/*

@@ -12,6 +12,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-11 — Block 7 closed (7.1–7.8): the repo can reproduce the runtime — ALL ACTIVE BLOCKS COMPLETE
+
+**7.8 decision (operator):** keep all 7 producer-less schemas and **wire the watcher as their consumer** — classifyStatus + mission-control rendering for the whole vocabulary, PRODUCER STATUS headers on every schema. The census had corrected the audit (7 producer-less, not 5; 4 of them had phantom consumers). Live: all 3 pure-orphan types published → validated → watcher-recorded. No deletions; the day a producer lands (gateway per-turn ingest, artifact tracking), the events render without watcher changes.
+
+**Block ledger:** 7.1 template carries the live env (NATS + NODE_ID; render-verified) · 7.2 tick plist paths real · 7.3 manifest defends the LIVE daemon (mutation check fails naming the wire) · 7.4 visible skips (arithmetic exposed exactly 7 phantom passing tests) · 7.5 fixtures schema-validated (3 drifts caught pre-fix) · 7.6 zod ^4.3.6 declared = run · 7.7 byte caps schema+producer (live 10KB decision truncated to 500, rendered).
+
+**PLAN STATUS: 49/49 active steps closed across Blocks 1–7, all runtime-proved; suite 1550/0. Remaining: Block P (parked security, operator-held). Plan-level Re-Orient in audits/step32.**
+
+---
+
 ## 2026-06-11 — Block 5 closed (5.1–5.6): retrieval is fresh and the signals are honest
 
 **Consolidated step ledger** (per-step detail in INVENTORY DONE-notes + commits):

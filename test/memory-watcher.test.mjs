@@ -524,3 +524,30 @@ describe('repair 6.1 + 6.5: record identity and rotation', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });
+
+describe('R41 (repair 7.8): the gateway-era vocabulary is watcher-consumed', () => {
+  it('turn_recorded / compaction_triggered / artifact_attached classify and record', () => {
+    const turn = buildFixtureEvent('memory.turn_recorded', 's-78', 'memory', {
+      session_id: 's-78', turn_index: 3, role: 'assistant', content_hash: 'abc', token_count: 120,
+    }, 'daedalus');
+    assert.equal(classifyStatus(turn), 'ok');
+    assert.equal(toWatcherRecord(turn).op, 'memory.turn_recorded');
+
+    const compactionNoop = buildFixtureEvent('memory.compaction_triggered', 's-78', 'memory', {
+      session_id: 's-78', trigger: 'scheduled', entries_before: 50, entries_after: 50,
+    }, 'daedalus');
+    assert.equal(classifyStatus(compactionNoop), 'noop', 'compaction that freed nothing is a noop');
+
+    const compactionOk = buildFixtureEvent('memory.compaction_triggered', 's-78', 'memory', {
+      session_id: 's-78', trigger: 'budget_exceeded', entries_before: 50, entries_after: 20,
+    }, 'daedalus');
+    assert.equal(classifyStatus(compactionOk), 'ok');
+
+    const artifact = buildFixtureEvent('memory.artifact_attached', 's-78', 'memory', {
+      session_id: 's-78', artifact_ref: 'vault://notes/x.md', mime_type: 'text/markdown',
+      filename: 'x.md', byte_count: 2048,
+    }, 'daedalus');
+    assert.equal(classifyStatus(artifact), 'ok');
+    assert.equal(toWatcherRecord(artifact).session, 's-78');
+  });
+});
