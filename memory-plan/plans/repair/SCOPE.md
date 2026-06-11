@@ -1,16 +1,15 @@
 # SCOPE — repair plan
 
 **Status:** idle
-**Goal:** Block 3 chain CLOSED 3.1–3.3 at v3.3 (audit + queue ownership + cross-process introspection, all runtime-proved; suite 1526/0). 3.4 DEFINED (R43+R42+R44-docs) — awaiting operator scope confirmation (the docs-vs-build choice on the tier selector). Closing 3.4 closes Block 3 → macro Re-Orient → Block 4.
+**Goal:** Block 3 COMPLETE at v3.4 (4/4: audit, queue ownership, cross-process introspection, remediations; macro Re-Orient in audits/step20; suite 1529/0). Next: Block 4 step 4.1 — shutdown fencing (the -9/-6 exits), with the 50KB-floor capture triaged into its scope-setting.
 **Set at:** 2026-06-10 (Montreal)
-**Expires:** no-expiry
+**Expires:** 2026-06-11T12:00:00Z
 
 ```files
 lib/ollama-queue.mjs
-lib/llm-client.mjs
-lib/health-check.mjs
-bin/health-watch.mjs
-workspace-bin/memory-daemon.mjs
+lib/extraction-prompt.mjs
+memory-plan/canonical/MASTER_PLAN.md
+memory-plan/plans/*/MASTER_PLAN.md
 test/*
 memory-plan/plans/repair/*
 ```

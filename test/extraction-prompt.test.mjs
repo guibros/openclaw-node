@@ -351,3 +351,17 @@ describe('extractStructured', () => {
     assert.equal(result.entities.length, 0);
   });
 });
+
+describe('R42 (repair 3.4): fast path validates before returning', () => {
+  it('concatenated {...}{...} output recovers via the brace scanner', () => {
+    const out = extractJsonFromText('{"entities": [{"name": "A"}]}{"entities": []}');
+    assert.doesNotThrow(() => JSON.parse(out), 'result must be parseable JSON');
+    assert.deepEqual(JSON.parse(out).entities, [{ name: 'A' }],
+      'the scanner must pick a balanced block, not the unparseable whole');
+  });
+
+  it('pure JSON still takes the fast path untouched', () => {
+    const pure = '{"entities": [], "themes": []}';
+    assert.equal(extractJsonFromText(pure), pure);
+  });
+});

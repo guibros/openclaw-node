@@ -421,6 +421,20 @@ describe('R11 (repair 3.2): wait-timeout abandons only its OWN job', () => {
   });
 });
 
+describe('R43 (repair 3.4): one analysis-timeout knob', () => {
+  it('the default wait ceiling is LLM_ANALYSIS_TIMEOUT-grade (8s), not the old 1s', async () => {
+    // A 1.2s analysis with NO explicit waitTimeoutMs must complete in llm
+    // mode — under the retired ANALYSIS_TIMEOUT_MS default (1000ms) this
+    // exact call fell back, which made LLM analysis structurally impossible.
+    const result = await requestAnalysis(async () => {
+      await new Promise(r => setTimeout(r, 1200));
+      return 'slow-but-fine';
+    });
+    assert.equal(result.mode, 'llm');
+    assert.equal(result.value, 'slow-but-fine');
+  });
+});
+
 describe('cross-process snapshot (R12, repair 3.3)', () => {
   it('export → read round-trip carries the live queue state', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'queue-snap-'));

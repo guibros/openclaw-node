@@ -4,6 +4,16 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-10 — Step 3.4 closed: audit remediations land → Block 3 COMPLETE
+
+**Decision (operator: "fix the docs").** (a) R43 — one analysis-timeout knob: the queue's `ANALYSIS_TIMEOUT_MS` (default 1000ms, the ceiling that once made LLM analysis structurally impossible, still loaded for any direct caller) removed; `LLM_ANALYSIS_TIMEOUT`/8000 governs both layers, regression-locked. (b) R42 — the JSON fast path validates before returning; concatenated `{...}{...}` model output now recovers via the largest-balanced-block scanner instead of costing a full extraction run. (c) R44 — MASTER_PLAN §3.2 corrected to measured reality (static `LLM_MODEL`; install-time advisor; runtime selector = unclaimed future scope), landed per §11 in its own `master-plan:` commit (70f61c5) and synced to all silos. Building a real tier selector was explicitly declined for now — docs-over-aspiration per §4.5.
+
+**Evidence.** Suite **1529/1529**; grep shows zero `ANALYSIS_TIMEOUT_MS` remnants; daemon restarted onto v3.4 (sanity inject `mode=llm`, items 7/5/3).
+
+**Block 3 close + macro Re-Orient (audits/step20).** D8 worked as designed: measure first, fix only what the measurements convicted — and the audit cleared as many suspects as it convicted (pre-warm unnecessary, 8s ceiling adequate cold and warm, extraction cost acceptable post-dedup). Block 4 re-surveyed: steps unchanged, 4.1 (shutdown fencing) remains the headline — every restart this plan has performed exits -9/-6, live evidence accumulating. The 50KB-floor capture rides into Block 4's scope-setting.
+
+---
+
 ## 2026-06-10 — Step 3.3 closed: health-watch finally watches the daemon, not itself
 
 **Decision.** Queue state crosses the process boundary via a snapshot file: the daemon exports `getState()` each tick (atomic write); health-watch reads the file with a 2-minute staleness guard (a dead exporter reads as *unknown*, never *idle*); stuck evaluation reuses the F-H17 extraction-only rule over the snapshot. The auto-restart unload mechanism switched from the `ollama stop` CLI — which the 3.1 audit measured NOT evicting — to the `keep_alive: 0` API, which does. Restart rate-limiting is local to the restarter (the daemon's in-process counters can't be reset cross-process and clear on its next success).
