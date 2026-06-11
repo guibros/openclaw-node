@@ -20,9 +20,9 @@
   <false/>
 
   <key>StandardOutPath</key>
-  <string>/Users/moltymac/openclaw-nodedev/memory-plan/redesign/tick-logs/launchd.stdout.log</string>
+  <string>/Users/moltymac/openclaw-nodedev/memory-plan/plans/redesign/tick-logs/launchd.stdout.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/moltymac/openclaw-nodedev/memory-plan/redesign/tick-logs/launchd.stderr.log</string>
+  <string>/Users/moltymac/openclaw-nodedev/memory-plan/plans/redesign/tick-logs/launchd.stderr.log</string>
 
   <key>WorkingDirectory</key>
   <string>/Users/moltymac/openclaw-nodedev</string>
