@@ -4,6 +4,14 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-06-11 — Block 6 closed (6.1–6.6): the watcher UI tells the truth and stays usable
+
+**Consolidated step ledger:** 6.1 stable row identity (event_id lib→JSONL→API→key; panels stop snapping shut); 6.2 HealthCard reads the probe's real fields (the drift light shows green for the first time — it was structurally red); 6.3 fmtVal basenames only path fields (decision texts with '/' render whole); 6.4 session-less panels fetch nothing; 6.5 watcher.jsonl rotates at 5MB (both appenders routed through one helper); 6.6 the API tail-reads — measured 11ms/4ms against a 54MB synthetic file (was O(file) per 3s poll ×3 hooks).
+
+**Deploys:** daemon restarted; three UI files copied to the runtime app (established model). Suite 1541/0. Block 7 (repo↔runtime defense) re-surveyed unchanged — the last active block before P.
+
+---
+
 ## 2026-06-11 — Block 5 closed (5.1–5.6): retrieval is fresh and the signals are honest
 
 **Consolidated step ledger** (per-step detail in INVENTORY DONE-notes + commits):

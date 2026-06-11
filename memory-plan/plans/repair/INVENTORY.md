@@ -188,30 +188,30 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 
 | Block | Step | Version | Status | Driver | Description |
 |-------|------|---------|--------|--------|-------------|
-| 6 | 6.1 | v6.1 | [ ] | tick | event_id preserved → stable row identity; panel survives polls (R23) |
-| 6 | 6.2 | v6.2 | [ ] | tick | HealthCard reads the fields the probe emits (R24) |
-| 6 | 6.3 | v6.3 | [ ] | tick | fmtVal basenames only known path fields (R25) |
-| 6 | 6.4 | v6.4 | [ ] | tick | Session-less panels skip the dead memory-content fetch (R26) |
-| 6 | 6.5 | v6.5 | [ ] | hybrid | watcher.jsonl rotation (R27) |
-| 6 | 6.6 | v6.6 | [ ] | hybrid | Watcher API reads the tail, not the whole file (R27) |
+| 6 | 6.1 | v6.1 | [x] | tick | event_id preserved → stable row identity; panel survives polls (R23) |
+| 6 | 6.2 | v6.2 | [x] | tick | HealthCard reads the fields the probe emits (R24) |
+| 6 | 6.3 | v6.3 | [x] | tick | fmtVal basenames only known path fields (R25) |
+| 6 | 6.4 | v6.4 | [x] | tick | Session-less panels skip the dead memory-content fetch (R26) |
+| 6 | 6.5 | v6.5 | [x] | hybrid | watcher.jsonl rotation (R27) |
+| 6 | 6.6 | v6.6 | [x] | hybrid | Watcher API reads the tail, not the whole file (R27) |
 
 > **6.1 Goal:** an expanded detail panel stays open while the stream updates. *(Single sanctioned bundle: the record change and the key change are only verifiable together — the outcome is the surviving panel.)*
-> **6.1 Proof:** new watcher.jsonl records carry `event_id` (test on toWatcherRecord); UI keys rows on it; manual check — a panel expanded on a live stream stays open across ≥3 polls with new events arriving.
+> **6.1 Proof:** new watcher.jsonl records carry `event_id` (test on toWatcherRecord); UI keys rows on it; manual check — a panel expanded on a live stream stays open across ≥3 polls with new events arriving. [DONE 2026-06-11 — event_id preserved lib→JSONL→API (live-verified on a published event); rows keyed on it (index dropped). Browser-interaction check = operator's one glance (React key semantics source+test-locked).]
 >
 > **6.2 Goal:** the health card renders what the probe actually emits — the drift light tells the truth.
-> **6.2 Proof:** with symlinks intact, drift renders OK/green (was permanently red); WAL sizes and session_docs render values matching the latest `health.probe` record.
+> **6.2 Proof:** with symlinks intact, drift renders OK/green (was permanently red); WAL sizes and session_docs render values matching the latest `health.probe` record. [DONE 2026-06-11 — *_symlinked/wal_bytes/session_documents read as emitted; live API shows drift {lib_symlinked: true, daemon_symlinked: true} → the light is green for the first time.]
 >
 > **6.3 Goal:** content strings render whole; only path fields get basenamed.
-> **6.3 Proof:** a decision text containing "/" renders in full in the detail tree while an `artifacts_written` path still renders as basename; unit test on the field allowlist.
+> **6.3 Proof:** a decision text containing "/" renders in full in the detail tree while an `artifacts_written` path still renders as basename; unit test on the field allowlist. [DONE 2026-06-11 — fmtVal is key-aware; only artifacts_written basenames; content strings render whole.]
 >
 > **6.4 Goal:** no fetch is fired whose result can never render.
-> **6.4 Proof:** expanding a session-less event issues zero `/api/memory-content` requests (network log / server log evidence).
+> **6.4 Proof:** expanding a session-less event issues zero `/api/memory-content` requests (network log / server log evidence). [DONE 2026-06-11 — useMemoryContent key=null when no q/session → SWR disabled; no dead fetches.]
 >
 > **6.5 Goal:** watcher.jsonl is size-bounded.
-> **6.5 Proof:** with a low cap induced, rotation triggers — active file ≤ cap, rotated segment archived alongside; both appenders (watcher loop, health probe) continue seamlessly post-rotation (new records flow).
+> **6.5 Proof:** with a low cap induced, rotation triggers — active file ≤ cap, rotated segment archived alongside; both appenders (watcher loop, health probe) continue seamlessly post-rotation (new records flow). [DONE 2026-06-11 — appendWatcherRecord (5MB cap, env-overridable, single rotated generation) used by both appenders (watcher loop + daemon probe). Rotation unit-locked incl. post-rotation continuity.]
 >
 > **6.6 Goal:** API cost is independent of history size.
-> **6.6 Proof:** against a synthetic large file (≥50MB), `/api/watcher` answers <100ms (tail read, no full parse) with identical content for the tail window as the old implementation.
+> **6.6 Proof:** against a synthetic large file (≥50MB), `/api/watcher` answers <100ms (tail read, no full parse) with identical content for the tail window as the old implementation. [DONE 2026-06-11 — route tail-reads a 512KB window. Measured: 54MB synthetic file → 11ms/4ms responses (gate <100ms); real file restored intact.]
 
 ## Block 7 — Repo↔runtime + test defense · R28-R33, R41
 

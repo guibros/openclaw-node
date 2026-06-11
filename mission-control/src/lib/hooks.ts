@@ -833,6 +833,7 @@ export async function updateMeshTask(
 // --- Watcher ---
 
 export interface WatcherEvent {
+  event_id?: string | null;
   ts: string;
   op: string;
   status?: string;
@@ -915,12 +916,15 @@ export function useMemoryContent(q?: string, session?: string) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (session) params.set("session", session);
+  // repair 6.4: no scope -> no fetch. Session-less detail panels were
+  // pulling the full top-50 content every 10s and never rendering it.
+  const key = q || session ? `/api/memory-content?${params.toString()}` : null;
   const { data, error, isLoading } = useSWR<{
     entities: MemoryEntity[];
     decisions: MemoryDecision[];
     themes: MemoryTheme[];
     counts: { entities: number; decisions: number; themes: number };
-  }>(`/api/memory-content?${params.toString()}`, fetcher, { refreshInterval: 10_000 });
+  }>(key, fetcher, { refreshInterval: 10_000 });
   return {
     entities: data?.entities ?? [],
     decisions: data?.decisions ?? [],

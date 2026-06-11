@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { buildMemoryEvent } from '../lib/local-event-log.mjs';
-import { toWatcherRecord, classifyStatus, runStoreHealthProbes, createAnomalyDetector } from '../lib/memory-watcher.mjs';
+import { toWatcherRecord, classifyStatus, runStoreHealthProbes, createAnomalyDetector, appendWatcherRecord } from '../lib/memory-watcher.mjs';
 
 describe('toWatcherRecord', () => {
   it('extracts flat record from memory.ingested event', () => {
@@ -481,5 +481,34 @@ describe('R20 (repair 5.4): stall detection ignores scheduler heartbeats', () =>
     const det = createAnomalyDetector({ staleThresholdMs: 60_000, cooldownMs: 0 });
     det.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'ok' });
     assert.deepEqual(det.evaluateStale(), []);
+  });
+});
+
+describe('repair 6.1 + 6.5: record identity and rotation', () => {
+  it('toWatcherRecord carries event_id for stable UI row identity', () => {
+    const event = buildMemoryEvent('memory.ingested', 'sess-61', 'memory', {
+      session_id: 'sess-61', source: 'gateway', messages_added: 1, total_messages: 1,
+    }, 'daedalus');
+    const record = toWatcherRecord(event);
+    assert.ok(record.event_id, 'event_id must be preserved');
+    assert.equal(record.event_id, event.event_id);
+  });
+
+  it('appendWatcherRecord rotates at the cap and keeps appending', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'watcher-rot-'));
+    const file = path.join(dir, 'watcher.jsonl');
+    const fat = { op: 'memory.test', pad: 'x'.repeat(400) };
+
+    appendWatcherRecord(file, fat, 300);            // creates
+    appendWatcherRecord(file, fat, 300);            // exceeds cap -> rotates first
+    assert.ok(fs.existsSync(`${file}.1`), 'rotated generation must exist');
+    assert.ok(fs.statSync(file).size <= 500, 'active file restarts with just the new record');
+
+    appendWatcherRecord(file, { op: 'memory.after' }, 300);
+    const lines = fs.readFileSync(file, 'utf-8').trim().split('\n');
+    assert.equal(lines.length, 1, 'the oversized file rotated again; the new record opens a fresh file');
+    assert.match(lines[0], /memory\.after/, 'appends continue seamlessly post-rotation');
+
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

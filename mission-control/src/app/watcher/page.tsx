@@ -107,9 +107,9 @@ function HealthCard({ health }: { health: WatcherHealth }) {
             <span className="text-muted-foreground ml-2">
               {stores.state.sessions} sess / {stores.state.entities} ent
             </span>
-            {stores.state.wal_size != null && (
+            {stores.state.wal_bytes != null && (
               <span className="text-muted-foreground ml-1">
-                WAL {(stores.state.wal_size / 1048576).toFixed(1)}MB
+                WAL {(stores.state.wal_bytes / 1048576).toFixed(1)}MB
               </span>
             )}
           </div>
@@ -121,11 +121,11 @@ function HealthCard({ health }: { health: WatcherHealth }) {
           <div className="text-[11px] font-mono">
             <span className="text-foreground">knowledge.db</span>
             <span className="text-muted-foreground ml-2">
-              {stores.knowledge.session_docs} docs
+              {stores.knowledge.session_documents} docs
             </span>
-            {stores.knowledge.wal_size != null && (
+            {stores.knowledge.wal_bytes != null && (
               <span className="text-muted-foreground ml-1">
-                WAL {(stores.knowledge.wal_size / 1048576).toFixed(1)}MB
+                WAL {(stores.knowledge.wal_bytes / 1048576).toFixed(1)}MB
               </span>
             )}
           </div>
@@ -147,8 +147,10 @@ function HealthCard({ health }: { health: WatcherHealth }) {
           <Activity className="h-3.5 w-3.5 text-muted-foreground" />
           <div className="text-[11px] font-mono">
             <span className="text-foreground">drift</span>
-            <span className={`ml-2 ${drift.lib_symlink && drift.daemon_symlink ? "text-green-400" : "text-red-400"}`}>
-              {drift.lib_symlink && drift.daemon_symlink ? "synced" : "DRIFTED"}
+            {/* repair 6.2: the probe emits *_symlinked — the old *_symlink
+                reads were always falsy, so this light was permanently red. */}
+            <span className={`ml-2 ${drift.lib_symlinked && drift.daemon_symlinked ? "text-green-400" : "text-red-400"}`}>
+              {drift.lib_symlinked && drift.daemon_symlinked ? "synced" : "DRIFTED"}
             </span>
           </div>
         </div>
@@ -179,15 +181,21 @@ function Section({ title, count, children }: { title: string; count?: number; ch
   );
 }
 
-function fmtVal(v: unknown): React.ReactNode {
+// repair 6.3: basename-ify ONLY known path fields. Content strings
+// (decision texts, entity names) legitimately contain "/" and were being
+// mangled to their last segment.
+const PATH_ARRAY_FIELDS = new Set(["artifacts_written"]);
+
+function fmtVal(v: unknown, fieldKey?: string): React.ReactNode {
   if (v === null || v === undefined) return <span className="text-muted-foreground/50">—</span>;
   if (Array.isArray(v)) {
     if (v.length === 0) return <span className="text-muted-foreground/50">[]</span>;
+    const asBasename = PATH_ARRAY_FIELDS.has(fieldKey ?? "");
     return (
       <div className="space-y-0.5">
         {v.map((item, i) => (
           <div key={i} className="truncate">
-            {typeof item === "string" ? item.split("/").pop() : JSON.stringify(item)}
+            {typeof item === "string" ? (asBasename ? item.split("/").pop() : item) : JSON.stringify(item)}
           </div>
         ))}
       </div>
@@ -304,7 +312,7 @@ function EventDetailPanel({ event }: { event: WatcherEvent }) {
         {dataKeys.length > 0 && (
           <Section title="Payload">
             {dataKeys.map((k) => (
-              <KV key={k} k={k} v={fmtVal(data[k])} />
+              <KV key={k} k={k} v={fmtVal(data[k], k)} />
             ))}
           </Section>
         )}
@@ -514,8 +522,8 @@ export default function WatcherPage() {
               <span className="text-sm">No anomaly alerts</span>
             </div>
           ) : (
-            alerts.map((alert, i) => (
-              <AlertRow key={`${alert.ts}-${alert.alert_type}-${i}`} alert={alert} />
+            alerts.map((alert) => (
+              <AlertRow key={`${alert.ts}-${alert.alert_type}`} alert={alert} />
             ))
           )
         ) : (
@@ -536,8 +544,11 @@ export default function WatcherPage() {
                 )}
               </div>
             ) : (
-              displayEvents.map((event, i) => (
-                <EventRow key={`${event.ts}-${event.op}-${i}`} event={event} />
+              displayEvents.map((event) => (
+                // Stable identity (repair 6.1): index-based keys shifted on
+                // every 3s poll and remounted all rows — expanded panels
+                // snapped shut. event_id is unique per event (envelope).
+                <EventRow key={event.event_id ?? `${event.ts}-${event.op}`} event={event} />
               ))
             );
           })()

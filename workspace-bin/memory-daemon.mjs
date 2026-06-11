@@ -49,7 +49,7 @@ import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } fro
 import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 import { exportStateSnapshot } from '../lib/ollama-queue.mjs';
-import { createMemoryWatcher, runStoreHealthProbes } from '../lib/memory-watcher.mjs';
+import { createMemoryWatcher, runStoreHealthProbes, appendWatcherRecord } from '../lib/memory-watcher.mjs';
 import { initDatabase as initKnowledgeDb, indexSessionTurns } from '../lib/mcp-knowledge/core.mjs';
 import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
 
@@ -1350,7 +1350,7 @@ async function main() {
   const runProbe = async () => {
     try {
       const probe = await runStoreHealthProbes();
-      fs.appendFileSync(watcherOutputPath, JSON.stringify(probe) + '\n');
+      appendWatcherRecord(watcherOutputPath, probe);
       log(`[watcher] health probe: ${Object.entries(probe.stores).filter(([,v]) => v).length} stores checked`);
     } catch (err) {
       log(`[watcher] health probe failed: ${err.message}`);

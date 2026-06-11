@@ -1,18 +1,14 @@
 # SCOPE — repair plan
 
 **Status:** idle
-**Goal:** Block 5 COMPLETE at v5.6 (6/6; suite 1539/0; backlog of frozen sessions draining live). Next: Block 6 step 6.1 — watcher detail panel survives polls (event_id through toWatcherRecord).
+**Goal:** Block 6 COMPLETE at v6.6 (6/6; suite 1541/0; UI deployed). Next: Block 7 step 7.1 — repo plist template carries the live env (the project's named nemesis).
 
 ```files
-workspace-bin/memory-daemon.mjs
-lib/retrieval-pipeline.mjs
-lib/memory-injector.mjs
-lib/memory-inject-server.mjs
 lib/memory-watcher.mjs
-lib/consolidation.mjs
-lib/sqlite-store.mjs
-lib/health-check.mjs
-bin/consolidate.mjs
+workspace-bin/memory-daemon.mjs
+mission-control/src/app/watcher/page.tsx
+mission-control/src/app/api/watcher/route.ts
+mission-control/src/lib/hooks.ts
 test/*
 memory-plan/plans/repair/*
 ```
