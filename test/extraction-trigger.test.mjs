@@ -230,3 +230,53 @@ describe('createExtractionTrigger', () => {
     assert.strictEqual(published.length, 0, 'no publishes after stop');
   });
 });
+
+describe('R40 (repair 4.5): idle-timer self-loop', () => {
+  it('an idle-timer ping does not re-arm the timer — fires once, not forever', async () => {
+    // Loopback mock: published messages are delivered back to the
+    // subscription, exactly like the real shared NATS subject — the
+    // mechanism that made the old code a permanent 45-min publish loop.
+    let pendingResolve = null;
+    let unsubscribed = false;
+    const queue = [];
+    const sub = {
+      unsubscribe() {
+        unsubscribed = true;
+        if (pendingResolve) { pendingResolve({ value: undefined, done: true }); pendingResolve = null; }
+      },
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            if (unsubscribed) return Promise.resolve({ value: undefined, done: true });
+            if (queue.length) return Promise.resolve({ value: queue.shift(), done: false });
+            return new Promise((resolve) => { pendingResolve = resolve; });
+          },
+        };
+      },
+    };
+    const published = [];
+    const mockNc = {
+      subscribe() { return sub; },
+      publish(subject, data) {
+        published.push(JSON.parse(new TextDecoder().decode(data)));
+        const msg = { data };
+        if (pendingResolve) { pendingResolve({ value: msg, done: false }); pendingResolve = null; }
+        else queue.push(msg);
+      },
+    };
+
+    const trigger = createExtractionTrigger(mockNc, 'node-A', {
+      onExtract: () => {},
+      idleThresholdSec: 0.05,
+    });
+    await trigger.start();
+
+    // Old behavior: fire → loopback → re-arm → fire → … (8 cycles in 400ms).
+    // Fixed behavior: the initial arm fires exactly once.
+    await new Promise(r => setTimeout(r, 400));
+    trigger.stop();
+
+    assert.strictEqual(published.length, 1,
+      `idle timer must fire once and stay quiet until real activity (got ${published.length} fires)`);
+  });
+});

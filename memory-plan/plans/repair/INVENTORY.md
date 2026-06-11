@@ -134,7 +134,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 4 | 4.2 | v4.2 | [x] | tick | Store-health probes decoupled from the NATS init block (R16) |
 | 4 | 4.3 | v4.3 | [x] | hybrid | NATS subsystems re-init after a failed boot connect (R16) |
 | 4 | 4.4 | v4.4 | [x] | tick | IDLE→ENDED flushes the ended session's JSONL (R17) |
-| 4 | 4.5 | v4.5 | [ ] | tick | Extraction idle-timer stops self-perpetuating (R40) |
+| 4 | 4.5 | v4.5 | [x] | tick | Extraction idle-timer stops self-perpetuating (R40) |
 
 > **4.1 Goal:** SIGTERM produces a clean, fenced exit — stop ticking, drain the in-flight tick, close handles once, exit explicitly. *(One outcome: clean shutdown; the parts are one ordered behavior, not independently shippable.)*
 > **4.1 Proof:** `launchctl kickstart -k` mid-extraction → exit within 10s, `launchctl` shows exit status 0 (not -9), zero new `.err` lines (no mutex abort, no ReferenceError), all three WALs at 0 bytes, shutdown log shows tick-drain before handle closes. [DONE 2026-06-10 — tickInterval cleared + in-flight tick fenced (8s grace) before ordered closes; shutdown owns process.exit(0). Runtime: second restart (new code) exited STATUS 0 — first clean exit in the plan's history (every prior: -9/-6); 'Daemon stopped' logged; state.db-wal 0 bytes; only benign pre-existing ESRCH watchdog noise in .err, no mutex abort. Wiring test locks fence-before-close ordering. Tests 8/8.]
@@ -149,7 +149,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **4.4 Proof:** induce a session switch → the flush/archive log and watcher record name the ENDED session's JSONL (not the newest file); unit test on the handler path. [DONE 2026-06-10 — both IDLE→ENDED lookups (final flush, subagent-audit) now findJsonlBySessionId(t.sessionId)-first with newest-file fallback — the byte-identical pattern already runtime-proven at the ACTIVE→ENDED handler (redesign 4.4). Live-switch induction substituted (documented): wiring test locks 2 targeted lookups + 0 bare lookups in the branch; deployed (PID 79907, prior exit 0). Tests 9/9.]
 >
 > **4.5 Goal:** the idle-timer fallback fires on real inactivity only — no self-triggered loop after a session ends.
-> **4.5 Proof:** observation window after a session truly ends shows zero repeating `extraction requested by idle-timer / skipping — session state is ENDED` pairs; the timer re-arms only on real session activity (log evidence).
+> **4.5 Proof:** observation window after a session truly ends shows zero repeating `extraction requested by idle-timer / skipping — session state is ENDED` pairs; the timer re-arms only on real session activity (log evidence). [DONE 2026-06-10 — idle-timer pings no longer re-arm the timer (re-arm = real activity via resetIdleTimer, or non-idle requests). Loopback-mock regression reproduces the loop: old behavior 8 fires/400ms, fixed exactly 1. Deployed PID 80905. Long-window live absence (the 45-min ping pair recurred for weeks) = carry-forward grep for the next session. Tests 10/10.]
 
 ## Block 5 — Retrieval freshness + honest signals · R18-R22
 
