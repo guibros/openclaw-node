@@ -1464,9 +1464,23 @@ async function main() {
 
   // Graceful shutdown
   let running = true;
+  let tickInterval = null;
+  let inFlightTick = null;
   const shutdown = async (signal) => {
     log(`Received ${signal} — shutting down`);
     running = false;
+    // R15 fix (repair 4.1): fence in-flight work BEFORE closing handles, and
+    // own the exit instead of deferring it to the next interval fire — which
+    // routinely outlived launchd's patience (every restart exited -9/-6 with
+    // a native mutex abort in .err).
+    if (tickInterval) clearInterval(tickInterval);
+    if (inFlightTick) {
+      const drained = await Promise.race([
+        inFlightTick.then(() => true).catch(() => true),
+        new Promise((r) => setTimeout(r, 8000, false)),
+      ]);
+      log(drained ? 'in-flight tick drained' : 'tick still in flight after 8s grace — closing anyway');
+    }
     if (extractionTrigger) {
       extractionTrigger.stop();
     }
@@ -1497,6 +1511,8 @@ async function main() {
     if (natsConn) {
       try { await natsConn.drain(); } catch (_) {}
     }
+    log('Daemon stopped');
+    process.exit(0);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
@@ -1575,16 +1591,16 @@ async function main() {
   const guardedTick = createConcurrencyGuard(tick, { maxAgeMs: 30 * 60_000, log });
 
   // Run first tick immediately
-  await guardedTick();
+  inFlightTick = guardedTick();
+  await inFlightTick;
+  inFlightTick = null;
 
-  // Schedule recurring ticks
-  const interval = setInterval(async () => {
-    if (!running) {
-      clearInterval(interval);
-      log('Daemon stopped');
-      process.exit(0);
-    }
-    const result = await guardedTick();
+  // Schedule recurring ticks. Shutdown owns the exit (R15, repair 4.1).
+  tickInterval = setInterval(async () => {
+    if (!running) return;
+    inFlightTick = guardedTick();
+    const result = await inFlightTick;
+    inFlightTick = null;
     if (result?.skipped) log('tick skipped (in-flight)');
   }, config.intervals.pollMs);
 

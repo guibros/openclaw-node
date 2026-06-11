@@ -130,14 +130,14 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 
 | Block | Step | Version | Status | Driver | Description |
 |-------|------|---------|--------|--------|-------------|
-| 4 | 4.1 | v4.1 | [ ] | hybrid | Shutdown fencing (R15) |
+| 4 | 4.1 | v4.1 | [x] | hybrid | Shutdown fencing (R15) |
 | 4 | 4.2 | v4.2 | [ ] | tick | Store-health probes decoupled from the NATS init block (R16) |
 | 4 | 4.3 | v4.3 | [ ] | hybrid | NATS subsystems re-init after a failed boot connect (R16) |
 | 4 | 4.4 | v4.4 | [ ] | tick | IDLE→ENDED flushes the ended session's JSONL (R17) |
 | 4 | 4.5 | v4.5 | [ ] | tick | Extraction idle-timer stops self-perpetuating (R40) |
 
 > **4.1 Goal:** SIGTERM produces a clean, fenced exit — stop ticking, drain the in-flight tick, close handles once, exit explicitly. *(One outcome: clean shutdown; the parts are one ordered behavior, not independently shippable.)*
-> **4.1 Proof:** `launchctl kickstart -k` mid-extraction → exit within 10s, `launchctl` shows exit status 0 (not -9), zero new `.err` lines (no mutex abort, no ReferenceError), all three WALs at 0 bytes, shutdown log shows tick-drain before handle closes.
+> **4.1 Proof:** `launchctl kickstart -k` mid-extraction → exit within 10s, `launchctl` shows exit status 0 (not -9), zero new `.err` lines (no mutex abort, no ReferenceError), all three WALs at 0 bytes, shutdown log shows tick-drain before handle closes. [DONE 2026-06-10 — tickInterval cleared + in-flight tick fenced (8s grace) before ordered closes; shutdown owns process.exit(0). Runtime: second restart (new code) exited STATUS 0 — first clean exit in the plan's history (every prior: -9/-6); 'Daemon stopped' logged; state.db-wal 0 bytes; only benign pre-existing ESRCH watchdog noise in .err, no mutex abort. Wiring test locks fence-before-close ordering. Tests 8/8.]
 >
 > **4.2 Goal:** SQLite store probes run regardless of NATS.
 > **4.2 Proof:** stop NATS, restart daemon → `health.probe` records keep appearing in watcher.jsonl on the 5-min cadence while NATS-dependent components are absent.

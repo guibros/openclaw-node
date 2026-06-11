@@ -1,15 +1,14 @@
 # SCOPE — repair plan
 
-**Status:** idle
-**Goal:** Block 3 COMPLETE at v3.4 (4/4: audit, queue ownership, cross-process introspection, remediations; macro Re-Orient in audits/step20; suite 1529/0). Next: Block 4 step 4.1 — shutdown fencing (the -9/-6 exits), with the 50KB-floor capture triaged into its scope-setting.
+**Status:** active
+**Goal:** Block 4 chain (operator "go", 2026-06-10): 4.1 shutdown fencing → 4.2 probes decoupled from NATS init → 4.3 NATS re-init → 4.4 session-switch flushes the right JSONL → 4.5 idle-timer self-ping loop → 4.6 (triaged from OUT_OF_SCOPE at block open) the 50KB session floor. One 9-phase cycle + commit per step; Proofs per INVENTORY.
 **Set at:** 2026-06-10 (Montreal)
 **Expires:** 2026-06-11T12:00:00Z
 
 ```files
-lib/ollama-queue.mjs
-lib/extraction-prompt.mjs
-memory-plan/canonical/MASTER_PLAN.md
-memory-plan/plans/*/MASTER_PLAN.md
+workspace-bin/memory-daemon.mjs
+lib/extraction-trigger.mjs
+lib/memory-watcher.mjs
 test/*
 memory-plan/plans/repair/*
 ```
