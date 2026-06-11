@@ -611,3 +611,38 @@ describe('decayWeights — time-anchored (R1, repair 1.2)', () => {
     db.close();
   });
 });
+
+describe('R20 (repair 5.3): promotion emits on change only', () => {
+  function mockEventLog(published) {
+    return { publishLocal: async (evt) => { published.push(evt); } };
+  }
+
+  it('an unchanged candidate set does not re-emit; a changed set does', async () => {
+    const db = createTestDb();
+    initConsolidationTables(db);
+    insertEntity(db, 'promotable-one', 'concept', {
+      sessions: ['s1', 's2', 's3'], salience: 0.9, mentionCount: 25,
+    });
+
+    const published = [];
+    const { runConsolidationCycle } = await import('../bin/consolidate.mjs');
+
+    await runConsolidationCycle({ db, eventLog: mockEventLog(published), nodeId: 'test-node' });
+    const promotedAfterFirst = published.filter(e => e.event_type === 'memory.promoted').length;
+    assert.equal(promotedAfterFirst, 1, 'first sighting of the candidate set must emit');
+
+    const r2 = await runConsolidationCycle({ db, eventLog: mockEventLog(published), nodeId: 'test-node' });
+    assert.equal(published.filter(e => e.event_type === 'memory.promoted').length, promotedAfterFirst,
+      'unchanged set must not re-emit');
+    assert.equal(r2.promotionCandidates?.eventSkipped, true);
+
+    insertEntity(db, 'promotable-two', 'concept', {
+      sessions: ['s4', 's5', 's6'], salience: 0.9, mentionCount: 30,
+    });
+    await runConsolidationCycle({ db, eventLog: mockEventLog(published), nodeId: 'test-node' });
+    assert.equal(published.filter(e => e.event_type === 'memory.promoted').length, promotedAfterFirst + 1,
+      'a changed candidate set must emit');
+
+    db.close();
+  });
+});

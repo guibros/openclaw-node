@@ -161,7 +161,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 |-------|------|---------|--------|--------|-------------|
 | 5 | 5.1 | v5.1 | [ ] | hybrid | Knowledge index re-indexes grown sessions (R18) |
 | 5 | 5.2 | v5.2 | [x] | tick | Retrieval channel failures surface (R19) |
-| 5 | 5.3 | v5.3 | [ ] | hybrid | Promotion events emit on change only (R20) |
+| 5 | 5.3 | v5.3 | [x] | hybrid | Promotion events emit on change only (R20) |
 | 5 | 5.4 | v5.4 | [ ] | hybrid | Stall detector keyed to pipeline ops only (R20) |
 | 5 | 5.5 | v5.5 | [ ] | tick | Readonly opens get busy_timeout (R21) |
 | 5 | 5.6 | v5.6 | [ ] | tick | integrity_check only at boot / explicit CLI (R22) |
@@ -173,7 +173,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **5.2 Proof:** induced channel failure on a scratch DB (e.g. renamed table) → a `memory.error` event naming the channel appears in the watcher + a log line; the healthy path still returns results. [DONE 2026-06-10 — pluggable channel-error sink in retrieval-pipeline (8 silent catches labeled) + injector (2); inject server installs a sink that logs AND publishes memory.error boundary=retrieve. Live induction: scratch inject server with broken stores published through the LIVE stream → watcher recorded errors NAMING the channels (entity-match/theme-match 'no such table'); request still degraded 200; production inject healthy (mode=llm 7/5/3). Tests 20/20 incl. throwing-sink safety.]
 >
 > **5.3 Goal:** an unchanged promotion-candidate set does not re-emit events every cycle.
-> **5.3 Proof:** 2 cycles with unchanged candidates → no second identical `memory.promoted` record in the watcher; a changed candidate set emits; emit-on-change vs real promotion bookkeeping decided and logged in DECISIONS.
+> **5.3 Proof:** 2 cycles with unchanged candidates → no second identical `memory.promoted` record in the watcher; a changed candidate set emits; emit-on-change vs real promotion bookkeeping decided and logged in DECISIONS. [DONE 2026-06-11 — sha256 fingerprint of the candidate set persisted in consolidation_meta; unchanged set → eventSkipped, changed set → emit. Decision logged: emit-on-change over real promotion bookkeeping (federation-era, P.3). Live: two completed scheduler cycles → exactly ONE promoted emission (was one per cycle, identical, forever). Tests 23/23; suite 1536/0.]
 >
 > **5.4 Goal:** the stalled alert detects a dead pipeline even while the scheduler is alive.
 > **5.4 Proof:** consolidation scheduler running + ingest/extract stopped → `watcher.alert` (stalled) fires within the threshold; with the pipeline active, no false alert over an observation window.

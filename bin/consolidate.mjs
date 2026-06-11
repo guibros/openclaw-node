@@ -19,6 +19,7 @@
 import { openStore } from '../lib/sqlite-store.mjs';
 import path from 'path';
 import os from 'os';
+import { createHash } from 'crypto';
 import {
   initConsolidationTables,
   decayWeights,
@@ -147,14 +148,30 @@ export async function runConsolidationCycle(opts = {}) {
       promotionResult = evaluatePromotionCandidates(db);
       if (eventLog) {
         const names = promotionResult.entityCandidates.map((e) => e.name).filter(Boolean);
-        const evt = buildMemoryEvent('memory.promoted', 'consolidation', 'memory', {
-          entities_promoted: promotionResult.entityCandidates.length + promotionResult.decisionCandidates.length,
-          // Capped sample of WHICH entities were promoted (highest-salience kept).
-          promoted_names: names.slice(0, 20),
-          promoted_more: Math.max(0, names.length - 20),
-          duration_ms: Date.now() - promoStart,
-        }, nodeId);
-        eventLog.publishLocal(evt).catch(() => {});
+        // R20 fix (repair 5.3): emit-on-change. The same ~100 candidates were
+        // re-announced every 30-min cycle (nothing ever publishes them), which
+        // also fed the watcher's stall detector a fake heartbeat. Decision in
+        // DECISIONS: real promotion bookkeeping is federation-era scope (P.3);
+        // an unchanged set is not an event.
+        const fingerprint = createHash('sha256').update(JSON.stringify({
+          e: promotionResult.entityCandidates.map((x) => x.id ?? x.name).sort(),
+          d: promotionResult.decisionCandidates.map((x) => x.id ?? x.decision).sort(),
+        })).digest('hex');
+        const last = db.prepare(`SELECT value FROM consolidation_meta WHERE key = 'last_promoted_fingerprint'`).get()?.value;
+        if (last === fingerprint) {
+          promotionResult.eventSkipped = true;
+        } else {
+          const evt = buildMemoryEvent('memory.promoted', 'consolidation', 'memory', {
+            entities_promoted: promotionResult.entityCandidates.length + promotionResult.decisionCandidates.length,
+            // Capped sample of WHICH entities were promoted (highest-salience kept).
+            promoted_names: names.slice(0, 20),
+            promoted_more: Math.max(0, names.length - 20),
+            duration_ms: Date.now() - promoStart,
+          }, nodeId);
+          eventLog.publishLocal(evt).catch(() => {});
+          db.prepare(`INSERT INTO consolidation_meta (key, value) VALUES ('last_promoted_fingerprint', ?)
+                      ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(fingerprint);
+        }
       }
     }
 
