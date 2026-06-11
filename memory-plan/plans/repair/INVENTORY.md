@@ -222,7 +222,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 7 | 7.3 | v7.3 | [x] | tick | Wiring-manifest rows defend workspace-bin/memory-daemon.mjs (R29) |
 | 7 | 7.4 | v7.4 | [x] | tick | Mesh/collab tests skip visibly, never exit(0)-as-pass (R32) |
 | 7 | 7.5 | v7.5 | [x] | tick | Watcher test fixtures validate against the real schemas (R33) |
-| 7 | 7.6 | v7.6 | [ ] | tick | zod dependency declaration matches what's installed (R30) |
+| 7 | 7.6 | v7.6 | [x] | tick | zod dependency declaration matches what's installed (R30) |
 | 7 | 7.7 | v7.7 | [ ] | hybrid | Byte caps on event content fields + producer truncation (R31) |
 | 7 | 7.8 | v7.8 | [ ] | operator | Dead event vocabulary resolved: wire or delete the 5 producer-less schemas (R41) |
 
@@ -242,7 +242,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **7.5 Proof:** the memory-watcher fixtures parse against their real Zod schemas in a test (the current `channels_hit: ['fts','vec']` fixture fails it pre-fix, passes post-fix). [DONE 2026-06-11 — every watcher fixture routes through buildFixtureEvent (= buildMemoryEvent + MemoryEventSchema.parse, the same parse publishLocal runs). Pre-fix run caught THREE drifts (channels_hit array→int; two synthesized fixtures missing the session_id required since 2.10), not just the known one. Post-fix 37/37.]
 >
 > **7.6 Goal:** event-schemas declares the zod it actually runs on.
-> **7.6 Proof:** `npm ls zod` resolves consistently with package.json; event-schemas rebuild + tests green; a `publishLocal` round-trip against live NATS validates.
+> **7.6 Proof:** `npm ls zod` resolves consistently with package.json; event-schemas rebuild + tests green; a `publishLocal` round-trip against live NATS validates. [DONE 2026-06-11 — zod ^3.23.0 → ^4.3.6 (the hoisted 4.3.6 it always ran on; ^3 was satisfied by hoisting accident). npm ls resolves event-schemas → zod@4.3.6 deduped; dist rebuilt; 46/46 schema-adjacent tests; live publishLocal validated+acked (seq 371); suite 1547/0. zod-to-json-schema declaration left as-is (resolves in-range 3.25.1, working).]
 >
 > **7.7 Goal:** no producible event can exceed the stream's payload limit or be silently dropped for size.
 > **7.7 Proof:** every content-sample field carries `.max()` (schema test rejects oversized); producers truncate per-item — a synthetic 10KB decision string publishes successfully (truncated) against live NATS and renders in the watcher; no silent drop.
