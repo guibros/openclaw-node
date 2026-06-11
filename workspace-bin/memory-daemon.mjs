@@ -1118,9 +1118,12 @@ async function handleTransitions(transitions, config) {
       const obsSync = path.join(WORKSPACE, 'bin/obsidian-sync.mjs');
       const subagentAudit = path.join(WORKSPACE, 'bin/subagent-audit.mjs');
 
-      // 0. Pre-compression flush (final chance to capture facts)
+      // 0. Pre-compression flush (final chance to capture facts).
+      // R17 fix (repair 4.4): flush the ENDED session's own transcript —
+      // when the end is caused by a new session appearing, the newest JSONL
+      // is the new session's, not the one being closed.
       const sources = loadTranscriptSources();
-      const currentJsonl = findCurrentJsonl(sources);
+      const currentJsonl = findJsonlBySessionId(sources, t.sessionId) || findCurrentJsonl(sources);
       if (currentJsonl) {
         try {
           const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
@@ -1181,9 +1184,10 @@ async function handleTransitions(transitions, config) {
       }
 
       // 2. Sub-agent audit — extract trust data from this session
+      // (R17, repair 4.4: same ended-session targeting as the flush above)
       if (fs.existsSync(subagentAudit)) {
         const sources = loadTranscriptSources();
-        const currentJsonl = findCurrentJsonl(sources);
+        const currentJsonl = findJsonlBySessionId(sources, t.sessionId) || findCurrentJsonl(sources);
         if (currentJsonl) {
           await runSubprocess('node', [subagentAudit, currentJsonl], 30000).catch(() => {});
           log('  subagent-audit (end-of-session) done');

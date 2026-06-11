@@ -82,6 +82,14 @@ test('synthesis trigger labels are truthful per call site (R10, repair 2.11)', (
   assert.deepEqual(labels, ['idle', 'interval', 'manual', 'session_end', 'session_end']);
 });
 
+test('IDLE→ENDED targets the ended session\'s own JSONL (R17, repair 4.4)', () => {
+  const branch = daemonSrc.match(/if \(t\.from === STATES\.IDLE && t\.to === STATES\.ENDED\) \{[\s\S]*?\n    \}\n/)[0];
+  const targeted = branch.match(/findJsonlBySessionId\(sources, t\.sessionId\) \|\| findCurrentJsonl\(sources\)/g) || [];
+  assert.equal(targeted.length, 2, 'flush + subagent-audit must both target the ended session');
+  const bare = branch.match(/= findCurrentJsonl\(sources\)/g) || [];
+  assert.equal(bare.length, 0, 'no bare newest-file lookup may remain in the ended-session path');
+});
+
 test('synthesized events carry session_id (R10, repair 2.10)', () => {
   assert.match(daemonSrc, /buildMemoryEvent\('memory\.synthesized', sessionId, 'memory', \{\n    session_id: sessionId,/);
 });
