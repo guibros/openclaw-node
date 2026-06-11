@@ -163,8 +163,8 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | 5 | 5.2 | v5.2 | [x] | tick | Retrieval channel failures surface (R19) |
 | 5 | 5.3 | v5.3 | [x] | hybrid | Promotion events emit on change only (R20) |
 | 5 | 5.4 | v5.4 | [x] | hybrid | Stall detector keyed to pipeline ops only (R20) |
-| 5 | 5.5 | v5.5 | [ ] | tick | Readonly opens get busy_timeout (R21) |
-| 5 | 5.6 | v5.6 | [ ] | tick | integrity_check only at boot / explicit CLI (R22) |
+| 5 | 5.5 | v5.5 | [x] | tick | Readonly opens get busy_timeout (R21) |
+| 5 | 5.6 | v5.6 | [x] | tick | integrity_check only at boot / explicit CLI (R22) |
 
 > **5.1 Goal:** a session that grows after first indexing gets re-indexed.
 > **5.1 Proof:** index a session mid-flight, grow it → next Phase-2 pass updates its `content_hash` and chunk count in `session_documents`; an FTS query returns late-session content (SQL evidence).
@@ -179,10 +179,10 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **5.4 Proof:** consolidation scheduler running + ingest/extract stopped → `watcher.alert` (stalled) fires within the threshold; with the pipeline active, no false alert over an observation window. [DONE 2026-06-11 — liveness = write-pipeline ops only (ingested/extracted/synthesized); scheduler decay/promote drumbeats and bridge-dependent retrieval no longer count. Discriminating regression: dead pipeline + fresh scheduler events → stalled fires; fresh pipeline → quiet. Live 30-min dead-window induction substituted (documented): mechanism unit-locked, deployed via restart. Tests 35/35.]
 >
 > **5.5 Goal:** readonly connections tolerate writer bursts.
-> **5.5 Proof:** PRAGMA readback shows `busy_timeout=5000` on a readonly handle (test); an induced write burst with concurrent probes produces zero SQLITE_BUSY failures.
+> **5.5 Proof:** PRAGMA readback shows `busy_timeout=5000` on a readonly handle (test); an induced write burst with concurrent probes produces zero SQLITE_BUSY failures. [DONE 2026-06-11 — busy_timeout=5000 set for ALL opens incl. readonly (WAL/FK stay write-only). PRAGMA readback test green. Deployed (daemon + health-watch restarted).]
 >
 > **5.6 Goal:** the full integrity scan runs where intended, not per health poll.
-> **5.6 Proof:** health-poll duration drops to <50ms (measured before/after); code trace confirms `integrity_check` only at daemon boot + explicit CLI; boot log still shows one integrity pass.
+> **5.6 Proof:** health-poll duration drops to <50ms (measured before/after); code trace confirms `integrity_check` only at daemon boot + explicit CLI; boot log still shows one integrity pass. [DONE 2026-06-11 — integrityCheck:false on the 60s health poll and the 10-min knowledge-index open; boot/CLI opens keep the default scan. Measured: readonly open 85ms (full scan) → 0ms on the poll path (gate <50ms). Suite 1537/0.]
 
 ## Block 6 — Watcher/UI truth + usability · R23-R27
 

@@ -861,7 +861,8 @@ async function runPhase2ThrottledWork(config, sessionState) {
           const { openStore } = await import('../lib/sqlite-store.mjs');
           const stateDbPath = path.join(HOME, '.openclaw/state.db');
           if (!fs.existsSync(stateDbPath)) return;
-          const stateDb = openStore(stateDbPath, { readonly: true });
+          // R22 (repair 5.6): no integrity scan on the 10-min indexing path.
+          const stateDb = openStore(stateDbPath, { readonly: true, integrityCheck: false });
           try {
             const allSessions = stateDb.prepare(
               'SELECT id, source FROM sessions ORDER BY start_time ASC'
@@ -870,10 +871,19 @@ async function runPhase2ThrottledWork(config, sessionState) {
             const BATCH_LIMIT = 5;
             for (const session of allSessions) {
               if (indexed >= BATCH_LIMIT) break;
+              // R18 fix (repair 5.1): existence is not freshness. A session
+              // indexed mid-flight froze at first sighting forever — FTS and
+              // vector search served truncated prefixes of every grown
+              // session. Cheap growth pre-filter via turn_count (= message
+              // count at index time); indexSessionTurns hash-verifies and
+              // delete+reinserts when content actually changed.
               const existing = knowledgeDb.prepare(
-                'SELECT content_hash FROM session_documents WHERE session_id = ?'
+                'SELECT content_hash, turn_count FROM session_documents WHERE session_id = ?'
               ).get(session.id);
-              if (existing) continue;
+              const liveCount = stateDb.prepare(
+                'SELECT COUNT(*) AS n FROM messages WHERE session_id = ?'
+              ).get(session.id).n;
+              if (existing && existing.turn_count === liveCount) continue;
               const messages = stateDb.prepare(
                 'SELECT role, content FROM messages WHERE session_id = ? ORDER BY turn_index ASC'
               ).all(session.id);
