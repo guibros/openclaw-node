@@ -18,6 +18,9 @@
  */
 
 const { describe, it, before, after } = require('node:test');
+// R32 (repair 7.4): availability is a VISIBLE skip, not a silent exit(0).
+const { meshSkipReason } = require('./helpers/mesh-available.cjs');
+const skipReason = meshSkipReason();
 const assert = require('node:assert/strict');
 const { connect, StringCodec } = require('nats');
 const { NATS_URL } = require('../lib/nats-resolve');
@@ -44,11 +47,11 @@ async function pollUntil(subject, payload, predicate, { intervalMs = 100, timeou
 }
 
 before(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   try {
     nc = await connect({ servers: NATS_URL, timeout: 2000 });
   } catch {
-    console.log('⏭ Skipping: NATS server not available');
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 
   // Verify mesh-task-daemon is responding — NATS may be up but daemon down
@@ -60,13 +63,13 @@ before(async () => {
     );
     JSON.parse(sc.decode(msg.data));
   } catch {
-    console.log('⏭ Skipping: NATS connected but mesh-task-daemon not responding');
     await nc.close();
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 });
 
 after(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   for (const tid of createdTaskIds) {
     try { await rpc('mesh.tasks.cancel', { task_id: tid }); } catch {}
   }
@@ -87,7 +90,7 @@ after(async () => {
 // FULL END-TO-END COLLAB PIPELINE
 // ════════════════════════════════════════════════════
 
-describe('E2E collab pipeline', () => {
+describe('E2E collab pipeline', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-full`;
   const nodeA = `${TEST_PREFIX}-nodeA`;
   const nodeB = `${TEST_PREFIX}-nodeB`;
@@ -267,7 +270,7 @@ describe('E2E collab pipeline', () => {
 // E2E: MULTI-ROUND WITH ROUTING FIELDS
 // ════════════════════════════════════════════════════
 
-describe('E2E multi-round with routing fields', () => {
+describe('E2E multi-round with routing fields', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-multiround`;
   const nodeA = `${TEST_PREFIX}-mrA`;
   const nodeB = `${TEST_PREFIX}-mrB`;

@@ -14,6 +14,9 @@
  */
 
 const { describe, it, before, after } = require('node:test');
+// R32 (repair 7.4): availability is a VISIBLE skip, not a silent exit(0).
+const { meshSkipReason } = require('./helpers/mesh-available.cjs');
+const skipReason = meshSkipReason();
 const assert = require('node:assert/strict');
 const { connect, StringCodec } = require('nats');
 const { NATS_URL } = require('../lib/nats-resolve');
@@ -58,12 +61,12 @@ const createdTaskIds = [];
 const createdSessionIds = [];
 
 before(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   try {
     nc = await connect({ servers: NATS_URL, timeout: 2000 });
     console.log(`Connected to NATS at ${NATS_URL}`);
   } catch {
-    console.log('⏭ Skipping: NATS server not available');
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 
   // Verify mesh-task-daemon is responding — NATS may be up but daemon down
@@ -75,13 +78,13 @@ before(async () => {
     );
     JSON.parse(sc.decode(msg.data));
   } catch {
-    console.log('⏭ Skipping: NATS connected but mesh-task-daemon not responding');
     await nc.close();
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 });
 
 after(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   // Cleanup: cancel all test tasks and delete collab sessions
   for (const tid of createdTaskIds) {
     try {
@@ -109,7 +112,7 @@ after(async () => {
 // 1. SOLO TASK LIFECYCLE
 // ════════════════════════════════════════════════════
 
-describe('Solo task lifecycle (live NATS)', () => {
+describe('Solo task lifecycle (live NATS)', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-solo-1`;
   const nodeId = `${TEST_PREFIX}-node-A`;
 
@@ -212,7 +215,7 @@ describe('Solo task lifecycle (live NATS)', () => {
 // 2. TASK FAILURE + RELEASE
 // ════════════════════════════════════════════════════
 
-describe('Task failure and release (live NATS)', () => {
+describe('Task failure and release (live NATS)', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-fail-1`;
   const nodeId = `${TEST_PREFIX}-node-B`;
 
@@ -262,7 +265,7 @@ describe('Task failure and release (live NATS)', () => {
 // 3. TASK CANCELLATION
 // ════════════════════════════════════════════════════
 
-describe('Task cancellation (live NATS)', () => {
+describe('Task cancellation (live NATS)', { skip: skipReason }, () => {
   it('cancels a queued task', async () => {
     const cancelId = `${TEST_PREFIX}-cancel-1`;
     await rpc('mesh.tasks.submit', {
@@ -285,7 +288,7 @@ describe('Task cancellation (live NATS)', () => {
 // 4. COLLABORATIVE TASK — FULL LIFECYCLE
 // ════════════════════════════════════════════════════
 
-describe('Collab task lifecycle (live NATS)', () => {
+describe('Collab task lifecycle (live NATS)', { skip: skipReason }, () => {
   const collabTaskId = `${TEST_PREFIX}-collab-1`;
   const nodeA = `${TEST_PREFIX}-cnode-A`;
   const nodeB = `${TEST_PREFIX}-cnode-B`;
@@ -444,7 +447,7 @@ describe('Collab task lifecycle (live NATS)', () => {
 // 5. COLLAB — MULTI-ROUND (NO CONVERGENCE ON ROUND 1)
 // ════════════════════════════════════════════════════
 
-describe('Collab multi-round (live NATS)', () => {
+describe('Collab multi-round (live NATS)', { skip: skipReason }, () => {
   const collabTaskId = `${TEST_PREFIX}-collab-multi`;
   const nodeA = `${TEST_PREFIX}-mnode-A`;
   const nodeB = `${TEST_PREFIX}-mnode-B`;
@@ -563,7 +566,7 @@ describe('Collab multi-round (live NATS)', () => {
 // 6. COLLAB — PARSE FAILURE HANDLING
 // ════════════════════════════════════════════════════
 
-describe('Collab parse failure handling (live NATS)', () => {
+describe('Collab parse failure handling (live NATS)', { skip: skipReason }, () => {
   const collabTaskId = `${TEST_PREFIX}-collab-parse`;
   const nodeA = `${TEST_PREFIX}-pnode-A`;
   const nodeB = `${TEST_PREFIX}-pnode-B`;
@@ -650,7 +653,7 @@ describe('Collab parse failure handling (live NATS)', () => {
 // 7. COLLAB — MAJORITY MODE
 // ════════════════════════════════════════════════════
 
-describe('Collab majority convergence (live NATS)', () => {
+describe('Collab majority convergence (live NATS)', { skip: skipReason }, () => {
   const collabTaskId = `${TEST_PREFIX}-collab-majority`;
   const nodeA = `${TEST_PREFIX}-majA`;
   const nodeB = `${TEST_PREFIX}-majB`;
@@ -715,7 +718,7 @@ describe('Collab majority convergence (live NATS)', () => {
 // 8. COLLAB — NODE LEAVE MID-SESSION
 // ════════════════════════════════════════════════════
 
-describe('Collab node leave (live NATS)', () => {
+describe('Collab node leave (live NATS)', { skip: skipReason }, () => {
   const collabTaskId = `${TEST_PREFIX}-collab-leave`;
   const nodeA = `${TEST_PREFIX}-lnA`;
   const nodeB = `${TEST_PREFIX}-lnB`;
@@ -788,7 +791,7 @@ describe('Collab node leave (live NATS)', () => {
 // 9. SESSION DISCOVERY (collab.find)
 // ════════════════════════════════════════════════════
 
-describe('Session discovery (live NATS)', () => {
+describe('Session discovery (live NATS)', { skip: skipReason }, () => {
   it('returns null for nonexistent task', async () => {
     const res = await rpc('mesh.collab.find', { task_id: 'nonexistent-999' });
     assert.equal(res.ok, true);
@@ -800,7 +803,7 @@ describe('Session discovery (live NATS)', () => {
 // 10. COLLAB — MAX ROUNDS EXHAUSTION
 // ════════════════════════════════════════════════════
 
-describe('Collab max rounds exhaustion (live NATS)', () => {
+describe('Collab max rounds exhaustion (live NATS)', { skip: skipReason }, () => {
   const collabTaskId = `${TEST_PREFIX}-collab-maxrounds`;
   const nodeA = `${TEST_PREFIX}-mrA`;
   const nodeB = `${TEST_PREFIX}-mrB`;
@@ -878,7 +881,7 @@ describe('Collab max rounds exhaustion (live NATS)', () => {
 // 11. COLLAB — JOIN WINDOW TIMEOUT (RECRUITING FAILURE)
 // ════════════════════════════════════════════════════
 
-describe('Collab join window timeout (live NATS)', { timeout: 30000 }, () => {
+describe('Collab join window timeout (live NATS)', { skip: skipReason, timeout: 30000 }, () => {
   const collabTaskId = `${TEST_PREFIX}-collab-joinexp`;
   const nodeA = `${TEST_PREFIX}-jeA`;
   let sessionId;
@@ -926,7 +929,7 @@ describe('Collab join window timeout (live NATS)', { timeout: 30000 }, () => {
 // 12. COLLAB — BLOCKED VOTE SEMANTICS
 // ════════════════════════════════════════════════════
 
-describe('Collab blocked vote (live NATS)', () => {
+describe('Collab blocked vote (live NATS)', { skip: skipReason }, () => {
   const collabTaskId = `${TEST_PREFIX}-collab-blocked`;
   const nodeA = `${TEST_PREFIX}-blkA`;
   const nodeB = `${TEST_PREFIX}-blkB`;
@@ -1004,7 +1007,7 @@ describe('Collab blocked vote (live NATS)', () => {
 // 13. NODE ROUTING — EXCLUDE AND PREFERRED NODES
 // ════════════════════════════════════════════════════
 
-describe('Node routing: exclude and preferred (live NATS)', () => {
+describe('Node routing: exclude and preferred (live NATS)', { skip: skipReason }, () => {
   const excludedNode = `${TEST_PREFIX}-excluded`;
   const preferredNode = `${TEST_PREFIX}-preferred`;
   const otherNode = `${TEST_PREFIX}-other`;
@@ -1097,7 +1100,7 @@ describe('Node routing: exclude and preferred (live NATS)', () => {
 // 14. ERROR HANDLING
 // ════════════════════════════════════════════════════
 
-describe('Error handling (live NATS)', () => {
+describe('Error handling (live NATS)', { skip: skipReason }, () => {
   it('rejects task submit without required fields', async () => {
     const res = await rpc('mesh.tasks.submit', { description: 'no id or title' });
     assert.equal(res.ok, false);
@@ -1128,7 +1131,7 @@ describe('Error handling (live NATS)', () => {
 // 11. EVENT STREAM VERIFICATION
 // ════════════════════════════════════════════════════
 
-describe('Event stream (live NATS)', () => {
+describe('Event stream (live NATS)', { skip: skipReason }, () => {
   it('publishes events on task state changes', async () => {
     const eventTaskId = `${TEST_PREFIX}-events-1`;
     const events = [];
@@ -1178,7 +1181,7 @@ describe('Event stream (live NATS)', () => {
 // 15. SEQUENTIAL MODE — FULL ROUND FLOW
 // ════════════════════════════════════════════════════
 
-describe('Sequential mode — full round flow (live NATS)', { timeout: 30000 }, () => {
+describe('Sequential mode — full round flow (live NATS)', { skip: skipReason, timeout: 30000 }, () => {
   const collabTaskId = `${TEST_PREFIX}-seq-full`;
   const nodeA = `${TEST_PREFIX}-seqA`;
   const nodeB = `${TEST_PREFIX}-seqB`;

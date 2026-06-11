@@ -9,6 +9,9 @@
  */
 
 const { describe, it, before, after } = require('node:test');
+// R32 (repair 7.4): availability is a VISIBLE skip, not a silent exit(0).
+const { meshSkipReason } = require('./helpers/mesh-available.cjs');
+const skipReason = meshSkipReason();
 const assert = require('node:assert/strict');
 const { connect, StringCodec } = require('nats');
 const { NATS_URL } = require('../lib/nats-resolve');
@@ -35,11 +38,11 @@ async function pollUntil(subject, payload, predicate, { intervalMs = 100, timeou
 }
 
 before(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   try {
     nc = await connect({ servers: NATS_URL, timeout: 2000 });
   } catch {
-    console.log('⏭ Skipping: NATS server not available');
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 
   // Verify mesh-task-daemon is responding — NATS may be up but daemon down
@@ -51,13 +54,13 @@ before(async () => {
     );
     JSON.parse(sc.decode(msg.data));
   } catch {
-    console.log('⏭ Skipping: NATS connected but mesh-task-daemon not responding');
     await nc.close();
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 });
 
 after(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   for (const tid of createdTaskIds) {
     try { await rpc('mesh.tasks.cancel', { task_id: tid }); } catch {}
   }
@@ -78,7 +81,7 @@ after(async () => {
 // SUBSCRIBE-BEFORE-JOIN: last node must not miss round 1
 // ════════════════════════════════════════════════════
 
-describe('Subscribe-before-join pattern', () => {
+describe('Subscribe-before-join pattern', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-sbj-1`;
   const nodeA = `${TEST_PREFIX}-sbjA`;
   const nodeB = `${TEST_PREFIX}-sbjB`;
@@ -142,7 +145,7 @@ describe('Subscribe-before-join pattern', () => {
 // SESSION HEARTBEAT: detect abort while waiting for rounds
 // ════════════════════════════════════════════════════
 
-describe('Session heartbeat detection', () => {
+describe('Session heartbeat detection', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-hb-1`;
   const nodeA = `${TEST_PREFIX}-hbA`;
   const nodeB = `${TEST_PREFIX}-hbB`;

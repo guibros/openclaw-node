@@ -13,6 +13,9 @@
  */
 
 const { describe, it, before, after } = require("node:test");
+// R32 (repair 7.4): availability is a VISIBLE skip, not a silent exit(0).
+const { meshSkipReason } = require('./helpers/mesh-available.cjs');
+const skipReason = meshSkipReason();
 const assert = require("node:assert/strict");
 const crypto = require("crypto");
 
@@ -22,20 +25,19 @@ let connect, StringCodec, sc, nc;
 const NATS_URL = process.env.OPENCLAW_NATS || "nats://127.0.0.1:4222";
 
 before(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   try {
     ({ connect, StringCodec } = require("nats"));
     sc = StringCodec();
   } catch {
-    console.log("SKIP: nats package not installed");
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 
   try {
     nc = await connect({ servers: NATS_URL, timeout: 5000 });
     console.log(`Connected to NATS at ${NATS_URL}`);
   } catch {
-    console.log(`SKIP: NATS unreachable at ${NATS_URL}`);
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 
   // Check daemon availability — skip gracefully if not running
@@ -49,14 +51,14 @@ before(async () => {
     console.log(
       "SKIP: mesh-task-daemon not running — integration tests require it"
     );
-    console.log("Start with: node bin/mesh-task-daemon.js");
     await nc.close();
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
   console.log("mesh-task-daemon confirmed alive");
 });
 
 after(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   if (nc && !nc.isClosed()) {
     await nc.close();
   }
@@ -77,7 +79,7 @@ async function rpc(subject, payload) {
 
 // ── Tests ──
 
-describe("NATS Task RPC", () => {
+describe("NATS Task RPC", { skip: skipReason }, () => {
   it("mesh.tasks.list returns tasks array", async () => {
     const res = await rpc("mesh.tasks.list", {});
     assert.ok(res.ok, "Response should be ok");
@@ -125,7 +127,7 @@ describe("NATS Task RPC", () => {
   });
 });
 
-describe("Task state transitions", () => {
+describe("Task state transitions", { skip: skipReason }, () => {
   it("claim → start → complete lifecycle", async () => {
     const taskId = uniqueTaskId();
     const nodeId = "test-node-" + crypto.randomBytes(2).toString("hex");
@@ -171,7 +173,7 @@ describe("Task state transitions", () => {
   });
 });
 
-describe("Collision-proof task IDs", () => {
+describe("Collision-proof task IDs", { skip: skipReason }, () => {
   it("sequential ID generation produces no collisions", () => {
     const ids = new Set();
     for (let i = 0; i < 100; i++) {
@@ -209,7 +211,7 @@ describe("Collision-proof task IDs", () => {
   });
 });
 
-describe("Mesh events", () => {
+describe("Mesh events", { skip: skipReason }, () => {
   it("submitted event fires on task creation", async () => {
     const taskId = uniqueTaskId();
 

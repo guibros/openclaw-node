@@ -9,6 +9,9 @@
  */
 
 const { describe, it, before, after } = require('node:test');
+// R32 (repair 7.4): availability is a VISIBLE skip, not a silent exit(0).
+const { meshSkipReason } = require('./helpers/mesh-available.cjs');
+const skipReason = meshSkipReason();
 const assert = require('node:assert/strict');
 const { connect, StringCodec } = require('nats');
 const { NATS_URL } = require('../lib/nats-resolve');
@@ -24,11 +27,11 @@ async function rpc(subject, payload, timeout = 10000) {
 }
 
 before(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   try {
     nc = await connect({ servers: NATS_URL, timeout: 2000 });
   } catch {
-    console.log('⏭ Skipping: NATS server not available');
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 
   // Verify mesh-task-daemon is responding
@@ -40,20 +43,20 @@ before(async () => {
     );
     JSON.parse(sc.decode(msg.data));
   } catch {
-    console.log('⏭ Skipping: NATS connected but mesh-task-daemon not responding');
     await nc.close();
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 });
 
 after(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   for (const tid of createdTaskIds) {
     try { await rpc('mesh.tasks.cancel', { task_id: tid }); } catch {}
   }
   if (nc) await nc.close();
 });
 
-describe('Collab recruit signal', () => {
+describe('Collab recruit signal', { skip: skipReason }, () => {
   it('recruit broadcast is published when collab task is submitted', async () => {
     const taskId = `${TEST_PREFIX}-signal-1`;
     createdTaskIds.push(taskId);

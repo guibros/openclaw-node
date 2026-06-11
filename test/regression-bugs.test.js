@@ -17,6 +17,9 @@
  */
 
 const { describe, it, before, after } = require('node:test');
+// R32 (repair 7.4): availability is a VISIBLE skip, not a silent exit(0).
+const { meshSkipReason } = require('./helpers/mesh-available.cjs');
+const skipReason = meshSkipReason();
 const assert = require('node:assert/strict');
 const { connect, StringCodec } = require('nats');
 const { NATS_URL } = require('../lib/nats-resolve');
@@ -43,11 +46,11 @@ async function pollUntil(subject, payload, predicate, { intervalMs = 100, timeou
 }
 
 before(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   try {
     nc = await connect({ servers: NATS_URL, timeout: 2000 });
   } catch {
-    console.log('⏭ Skipping: NATS server not available');
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 
   // Verify mesh-task-daemon is responding — NATS may be up but daemon down
@@ -59,13 +62,13 @@ before(async () => {
     );
     JSON.parse(sc.decode(msg.data));
   } catch {
-    console.log('⏭ Skipping: NATS connected but mesh-task-daemon not responding');
     await nc.close();
-    process.exit(0);
+    throw new Error('mesh stack vanished between availability probe and setup');
   }
 });
 
 after(async () => {
+  if (skipReason) return; // R32: root hooks run even when every suite is skipped
   for (const tid of createdTaskIds) {
     try { await rpc('mesh.tasks.cancel', { task_id: tid }); } catch {}
   }
@@ -91,7 +94,7 @@ after(async () => {
 //   3. startCollabRound() notified ALL nodes, not just current_turn
 // ════════════════════════════════════════════════════
 
-describe('Bug 2 regression: Sequential mode full lifecycle', () => {
+describe('Bug 2 regression: Sequential mode full lifecycle', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-seq`;
   const nodeA = `${TEST_PREFIX}-seqA`;
   const nodeB = `${TEST_PREFIX}-seqB`;
@@ -241,7 +244,7 @@ describe('Bug 2 regression: Sequential mode full lifecycle', () => {
 // BUG 2 continued: Sequential multi-round
 // ════════════════════════════════════════════════════
 
-describe('Bug 2 regression: Sequential multi-round', () => {
+describe('Bug 2 regression: Sequential multi-round', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-seqmr`;
   const nodeA = `${TEST_PREFIX}-smrA`;
   const nodeB = `${TEST_PREFIX}-smrB`;
@@ -377,7 +380,7 @@ describe('Bug 2 regression: Sequential multi-round', () => {
 // preferred_nodes, exclude_nodes when materializing subtasks.
 // ════════════════════════════════════════════════════
 
-describe('Bug 3 regression: Plan subtask routing field inheritance', () => {
+describe('Bug 3 regression: Plan subtask routing field inheritance', { skip: skipReason }, () => {
   it('plan subtasks inherit routing fields from parent task', async () => {
     const planTaskId = `${TEST_PREFIX}-planrt`;
 
@@ -446,7 +449,7 @@ describe('Bug 3 regression: Plan subtask routing field inheritance', () => {
 // Session metadata (rounds, contributions, artifacts) was lost.
 // ════════════════════════════════════════════════════
 
-describe('Bug 4 regression: collab.completed event metadata', () => {
+describe('Bug 4 regression: collab.completed event metadata', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-b4meta`;
   const nodeA = `${TEST_PREFIX}-b4A`;
   const nodeB = `${TEST_PREFIX}-b4B`;
@@ -527,7 +530,7 @@ describe('Bug 4 regression: collab.completed event metadata', () => {
 // would pollute the completed session record.
 // ════════════════════════════════════════════════════
 
-describe('Bug 5 regression: Stale reflections rejected after convergence', () => {
+describe('Bug 5 regression: Stale reflections rejected after convergence', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-b5stale`;
   const nodeA = `${TEST_PREFIX}-b5A`;
   const nodeB = `${TEST_PREFIX}-b5B`;
