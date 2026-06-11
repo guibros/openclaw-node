@@ -4,6 +4,14 @@ Things observed while doing repair-plan work that deserve attention later. Agnos
 
 ---
 
+## 2026-06-11 — mission-control fails `tsc --noEmit` with ~25 pre-existing type errors
+
+- **Observed while:** hydration-mismatch hotfix (skeleton widths). Typecheck of the workspace surfaced errors in `src/components/observability/event-timeline.tsx` (10), `src/app/watcher/page.tsx` (7, incl. `lib_symlinked` vs `lib_symlink` property-name drift against the typed API), `src/lib/__tests__/mesh-kv-sync.test.ts` (5), `src/components/mesh/network-topology.tsx` (3). Verified pre-existing: identical with the hotfix stashed.
+- **Problem:** the UI builds/runs (Next dev tolerates), but the type layer has drifted from the data shapes it renders — property renames and `unknown` flowing into ReactNode/arithmetic.
+- **Why it matters:** type drift in the watcher/observability pages is exactly where silent rendering bugs hide; `tsc --noEmit` can't be used as a CI gate until clean.
+- **Severity guess:** MEDIUM.
+- **Who-touches-next:** whoever next works mission-control UI — one typecheck-cleanup step.
+
 ## 2026-06-03 — Extraction records no theme↔session/entity linkage — theme hubs run on an approximation
 
 - **Observed while:** step 2.9 (themes/ surface). The themes table carries only label/hierarchy/mention_count — no link table to sessions or entities (unlike entity mentions).

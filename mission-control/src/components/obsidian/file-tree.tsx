@@ -36,7 +36,7 @@ export function FileTree({
     return (
       <div className="p-3 space-y-2 animate-pulse">
         {[...Array(8)].map((_, i) => (
-          <div key={i} className="h-4 bg-muted rounded" style={{ width: `${50 + Math.random() * 50}%` }} />
+          <div key={i} className="h-4 bg-muted rounded" style={{ width: `${50 + ((i * 37) % 50)}%` }} />
         ))}
       </div>
     );

@@ -34,7 +34,7 @@ export function DocReader({ filePath }: DocReaderProps) {
         <div className="h-4 w-1/4 bg-muted rounded" />
         <div className="mt-4 space-y-2">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="h-3 bg-muted rounded" style={{ width: `${60 + Math.random() * 40}%` }} />
+            <div key={i} className="h-3 bg-muted rounded" style={{ width: `${60 + ((i * 23) % 40)}%` }} />
           ))}
         </div>
       </div>

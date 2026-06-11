@@ -1,7 +1,7 @@
 # SCOPE — repair plan
 
 **Status:** idle
-**Goal:** ALL ACTIVE BLOCKS COMPLETE at v7.8 (Blocks 1–7, 49/49 steps, every Proof runtime-captured; suite 1550/0). Remaining scope: Block P (parked security R34–R38, operator-held — the 'working prototype' precondition is now met). Next action is an operator decision: open Block P, commission captured OUT_OF_SCOPE items, or close the plan.
+**Goal:** ALL ACTIVE BLOCKS COMPLETE at v7.8 (Blocks 1–7, 49/49 steps, every Proof runtime-captured; suite 1550/0). Remaining scope: Block P (parked security R34–R38, operator-held — the 'working prototype' precondition is now met). Next action is an operator decision: open Block P, commission captured OUT_OF_SCOPE items, or close the plan. (2026-06-11: one labeled hotfix ran under this scope — hydration-mismatch skeleton widths, see git log — scope returned to idle.)
 
 ```files
 services/launchd/*

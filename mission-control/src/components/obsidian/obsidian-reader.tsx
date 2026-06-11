@@ -79,7 +79,7 @@ export function ObsidianReader({
             <div
               key={i}
               className="h-3 bg-muted rounded"
-              style={{ width: `${60 + Math.random() * 40}%` }}
+              style={{ width: `${60 + ((i * 23) % 40)}%` }}
             />
           ))}
         </div>
