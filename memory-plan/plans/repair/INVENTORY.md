@@ -131,7 +131,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 | Block | Step | Version | Status | Driver | Description |
 |-------|------|---------|--------|--------|-------------|
 | 4 | 4.1 | v4.1 | [x] | hybrid | Shutdown fencing (R15) |
-| 4 | 4.2 | v4.2 | [ ] | tick | Store-health probes decoupled from the NATS init block (R16) |
+| 4 | 4.2 | v4.2 | [x] | tick | Store-health probes decoupled from the NATS init block (R16) |
 | 4 | 4.3 | v4.3 | [ ] | hybrid | NATS subsystems re-init after a failed boot connect (R16) |
 | 4 | 4.4 | v4.4 | [ ] | tick | IDLE→ENDED flushes the ended session's JSONL (R17) |
 | 4 | 4.5 | v4.5 | [ ] | tick | Extraction idle-timer stops self-perpetuating (R40) |
@@ -140,7 +140,7 @@ Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas
 > **4.1 Proof:** `launchctl kickstart -k` mid-extraction → exit within 10s, `launchctl` shows exit status 0 (not -9), zero new `.err` lines (no mutex abort, no ReferenceError), all three WALs at 0 bytes, shutdown log shows tick-drain before handle closes. [DONE 2026-06-10 — tickInterval cleared + in-flight tick fenced (8s grace) before ordered closes; shutdown owns process.exit(0). Runtime: second restart (new code) exited STATUS 0 — first clean exit in the plan's history (every prior: -9/-6); 'Daemon stopped' logged; state.db-wal 0 bytes; only benign pre-existing ESRCH watchdog noise in .err, no mutex abort. Wiring test locks fence-before-close ordering. Tests 8/8.]
 >
 > **4.2 Goal:** SQLite store probes run regardless of NATS.
-> **4.2 Proof:** stop NATS, restart daemon → `health.probe` records keep appearing in watcher.jsonl on the 5-min cadence while NATS-dependent components are absent.
+> **4.2 Proof:** stop NATS, restart daemon → `health.probe` records keep appearing in watcher.jsonl on the 5-min cadence while NATS-dependent components are absent. [DONE 2026-06-10 — probe block hoisted above the NATS try (it probes SQLite, not NATS); TDZ-safe declaration order. Runtime: NATS booted out → daemon restart logged 'NATS unavailable (CONNECTION_REFUSED)' AND 'health probe: 3 stores checked' same second; fresh health.probe record in watcher.jsonl. Stack restored, both services exit 0.]
 >
 > **4.3 Goal:** a daemon booted while NATS is down acquires the event log/watcher/trigger when NATS appears, without restart.
 > **4.3 Proof:** boot daemon with NATS stopped → start NATS → within the retry interval the log shows NATS connected + event log + watcher initialized, a test publish lands in the stream, and the daemon PID is unchanged.

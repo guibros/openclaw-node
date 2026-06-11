@@ -1319,6 +1319,25 @@ async function main() {
   let natsConn = null;
   let memoryWatcher = null;
   let healthProbeTimer = null;
+
+  // Store-health probes — periodic snapshots of DB row counts, WAL sizes,
+  // drift. R16 fix (repair 4.2): they probe SQLite, not NATS — they used to
+  // live inside the NATS try block and silently died whenever the broker
+  // was down at boot, exactly when disk-level visibility matters most.
+  const HEALTH_PROBE_INTERVAL = 5 * 60 * 1000;
+  const watcherOutputPath = path.join(os.homedir(), '.openclaw', 'watcher.jsonl');
+  const runProbe = async () => {
+    try {
+      const probe = await runStoreHealthProbes();
+      fs.appendFileSync(watcherOutputPath, JSON.stringify(probe) + '\n');
+      log(`[watcher] health probe: ${Object.entries(probe.stores).filter(([,v]) => v).length} stores checked`);
+    } catch (err) {
+      log(`[watcher] health probe failed: ${err.message}`);
+    }
+  };
+  runProbe();
+  healthProbeTimer = setInterval(runProbe, HEALTH_PROBE_INTERVAL);
+
   try {
     const { connect: natsConnect } = require('nats');
     const { natsConnectOpts } = require('../lib/nats-resolve');
@@ -1366,21 +1385,6 @@ async function main() {
         log(`Memory watcher unavailable (${watchErr.message}) — continuing without watcher`);
       }
     }
-
-    // Store-health probes — periodic snapshots of DB row counts, WAL sizes, drift
-    const HEALTH_PROBE_INTERVAL = 5 * 60 * 1000;
-    const watcherOutputPath = path.join(os.homedir(), '.openclaw', 'watcher.jsonl');
-    const runProbe = async () => {
-      try {
-        const probe = await runStoreHealthProbes();
-        fs.appendFileSync(watcherOutputPath, JSON.stringify(probe) + '\n');
-        log(`[watcher] health probe: ${Object.entries(probe.stores).filter(([,v]) => v).length} stores checked`);
-      } catch (err) {
-        log(`[watcher] health probe failed: ${err.message}`);
-      }
-    };
-    runProbe();
-    healthProbeTimer = setInterval(runProbe, HEALTH_PROBE_INTERVAL);
 
     // Ensure shared federation stream (OPENCLAW_SHARED, R=3)
     try {
