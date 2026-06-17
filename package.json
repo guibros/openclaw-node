@@ -3,7 +3,9 @@
   "version": "2.0.0",
   "description": "One-command installer for the OpenClaw node layer — identity, skills, souls, daemon, and Mission Control.",
   "bin": {
-    "openclaw-node": "./cli.js"
+    "openclaw-node": "./cli.js",
+    "openclaw-node-check": "./bin/node-acceptance.mjs",
+    "openclaw-node-watch": "./bin/node-watch.mjs"
   },
   "files": [
     "cli.js",
@@ -49,7 +51,9 @@
     "test:unit": "node --test test/*.test.js test/*.test.mjs",
     "test:mc": "cd mission-control && npx vitest run src/lib/__tests__/",
     "test:integration": "node test/distributed-mc.test.js",
-    "test:all": "npm run test:unit && npm run test:mc && npm run test:integration"
+    "test:all": "npm run test:unit && npm run test:mc && npm run test:integration",
+    "node-check": "node bin/node-acceptance.mjs",
+    "node-watch": "node bin/node-watch.mjs"
   },
   "engines": {
     "node": ">=18"
