@@ -69,7 +69,7 @@ delegates to a `node-acceptance` probe · **applic.** = applicability gate (OFF 
 |---|---|---|
 | Obsidian sync | vault notes written < 2h | live |
 | Graph cache (retrieval ch.5) | `graph-cache.db` `last_refresh_at` < 30min | live |
-| Vault link integrity | no dangling links / coverage floor | **UNKNOWN-stub** |
+| Vault link integrity | no dangling wikilinks | live (wraps read-only `checkVaultLinks`; heavy → one-shot/`--deep`) |
 
 ### LLM — local
 | Element | Watch signal | Probe |
@@ -114,7 +114,7 @@ delegates to a `node-acceptance` probe · **applic.** = applicability gate (OFF 
 | Element | Watch signal | Probe |
 |---|---|---|
 | Task board (kanban) | `active-tasks.md` parses | live |
-| Calendar / scheduler | `/api/scheduler/tick` reachable | **UNKNOWN-stub** (needs safe GET, not dispatch POST) |
+| Calendar / scheduler | `/api/scheduler/status` reachable; no overdue triggers | live (read-only GET `/api/scheduler/status`) |
 | Workplan viewer :7892 | HTTP 200 + plans discovered | live |
 | Diagnostics (MC + health report) | `/api/diagnostics` 200 + `.daemon-health.md` fresh | live |
 
@@ -130,8 +130,9 @@ delegates to a `node-acceptance` probe · **applic.** = applicability gate (OFF 
 ## Honest coverage today
 
 - **Implemented (live or reused):** every element above except the three marked UNKNOWN-stub.
-- **UNKNOWN-stub (no probe yet — reports UNKNOWN, never green):** vault link integrity and
-  calendar/scheduler. (Cloud-LLM reachability is now wired through companion-bridge — see above.)
+- **UNKNOWN-stub (no probe yet — reports UNKNOWN, never green):** none — all targets now have a probe.
+  (Vault link integrity wraps the read-only `checkVaultLinks`; calendar reads `/api/scheduler/status`;
+  cloud-LLM reachability is wired through companion-bridge — see above.)
 - **Heavy probes** (local generation, embedder, structured extraction) run one-shot/`--deep` only.
 
 The watcher's status of any element is whatever it **observes at runtime** — this doc declares the

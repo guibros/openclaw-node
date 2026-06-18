@@ -34,6 +34,7 @@ function makeCtx(over = {}) {
     queryDb: makeQueryDb(),
     httpGet: async () => ({ status: 200, json: {} }),
     exec: async () => ({ code: 0, stdout: '', stderr: '' }),
+    checkVaultLinks: async () => ({ notes: 3, links: 5, resolved: 5, dangling: [], orphans: [] }),
   };
   return Object.assign(ctx, over);
 }
@@ -42,12 +43,16 @@ const target = (id) => WATCH_TARGETS.find((t) => t.id === id);
 const envFor = (ctx, extra = {}) => ({ ctx, config: ctx.config, hc: {}, probes: {}, includeHeavy: true, ...extra });
 
 describe('node-watch honesty invariants', () => {
-  it('a target with no implemented probe is UNKNOWN, never WORKING', async () => {
-    for (const id of ['obs.links', 'ops.calendar']) {
-      const r = await target(id).run(envFor(makeCtx()));
-      assert.equal(r.status, STATUS.UNKNOWN, `${id} must be UNKNOWN`);
-      assert.notEqual(r.status, STATUS.WORKING);
-    }
+  it('a slow target is UNKNOWN (never WORKING) when not probed this cycle', async () => {
+    const report = await runWatch({
+      ctx: makeCtx(), config,
+      healthCheckFn: async () => ({}),
+      probes: {},
+      includeHeavy: false,
+      targets: [target('obs.links')], // slow: true
+    });
+    assert.equal(report.results[0].status, STATUS.UNKNOWN);
+    assert.notEqual(report.results[0].status, STATUS.WORKING);
   });
 
   it('heavy probe is UNKNOWN (not WORKING) when not probed this cycle', async () => {
@@ -126,6 +131,32 @@ describe('node-watch observed verdicts', () => {
     const ctx = makeCtx({ httpGet: async () => ({ status: 200, json: { status: 'ok', sessions: [] } }) });
     assert.equal((await target('llm.cloud').run(envFor(ctx))).status, STATUS.UNKNOWN);
   });
+
+  it('vault links WORKING when no dangling wikilinks', async () => {
+    const ctx = makeCtx({ checkVaultLinks: async () => ({ notes: 4, links: 10, resolved: 10, dangling: [] }) });
+    assert.equal((await target('obs.links').run(envFor(ctx))).status, STATUS.WORKING);
+  });
+  it('vault links BROKEN when dangling wikilinks exist', async () => {
+    const ctx = makeCtx({ checkVaultLinks: async () => ({ notes: 4, links: 10, resolved: 8, dangling: [{ file: 'a.md', target: 'X' }, { file: 'b.md', target: 'Y' }] }) });
+    assert.equal((await target('obs.links').run(envFor(ctx))).status, STATUS.BROKEN);
+  });
+  it('vault links UNKNOWN when vault has no notes', async () => {
+    const ctx = makeCtx({ checkVaultLinks: async () => ({ notes: 0, links: 0, resolved: 0, dangling: [] }) });
+    assert.equal((await target('obs.links').run(envFor(ctx))).status, STATUS.UNKNOWN);
+  });
+
+  it('calendar OFF when Mission Control is not running', async () => {
+    const ctx = makeCtx({ httpGet: async () => { throw new Error('ECONNREFUSED'); } });
+    assert.equal((await target('ops.calendar').run(envFor(ctx))).status, STATUS.OFF);
+  });
+  it('calendar WORKING when scheduler reachable and nothing overdue', async () => {
+    const ctx = makeCtx({ httpGet: async () => ({ status: 200, json: { scheduled: { at: 2, cron: 1 }, ready: 0, overdue: 0, graceMinutes: 30 } }) });
+    assert.equal((await target('ops.calendar').run(envFor(ctx))).status, STATUS.WORKING);
+  });
+  it('calendar BROKEN when scheduled tasks are overdue (tick not running)', async () => {
+    const ctx = makeCtx({ httpGet: async () => ({ status: 200, json: { scheduled: { at: 3, cron: 0 }, overdue: 2, overdueIds: ['T1', 'T2'], graceMinutes: 30 } }) });
+    assert.equal((await target('ops.calendar').run(envFor(ctx))).status, STATUS.BROKEN);
+  });
 });
 
 describe('node-watch HTML dropdown view', () => {
@@ -161,7 +192,7 @@ describe('node-watch HTML dropdown view', () => {
 
 describe('node-watch runner', () => {
   it('runs all targets, tallies, and drains teardown', async () => {
-    const ctx = makeCtx({ httpGet: async () => { throw new Error('bridge down'); } });
+    const ctx = makeCtx({ httpGet: async () => { throw new Error('bridge down'); }, checkVaultLinks: async () => ({ notes: 0, links: 0, resolved: 0, dangling: [] }) });
     ctx.teardown.push(async () => { ctx._cleaned = true; });
     const report = await runWatch({
       ctx, config,
