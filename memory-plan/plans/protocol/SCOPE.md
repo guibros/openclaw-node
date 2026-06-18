@@ -35,6 +35,8 @@ mission-control/src/app/api/node-watch/route.ts
 mission-control/src/app/diagnostics/page.tsx
 mission-control/src/lib/scheduler.ts
 mission-control/src/app/api/scheduler/status/route.ts
+mission-control/src/app/node-watch/page.tsx
+mission-control/src/components/layout/sidebar.tsx
 ```
 
 ## Prior closed scopes (retained for history)
