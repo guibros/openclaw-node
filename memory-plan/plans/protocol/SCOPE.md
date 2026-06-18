@@ -1,6 +1,6 @@
 # SCOPE — protocol plan
 
-**Status:** active
+**Status:** done
 **Goal:** Operator-directed 2026-06-15: lock the node watch-target list as a spec and build the
 **watcher** that fills in the REAL per-element status (WORKING / BROKEN / OFF / UNKNOWN). Honesty
 invariant: never WORKING without an observed signal; unimplemented/unobservable => UNKNOWN (never
