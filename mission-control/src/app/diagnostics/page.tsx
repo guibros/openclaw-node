@@ -33,6 +33,38 @@ interface TestReport {
   timestamp: string;
 }
 
+interface WatchResult {
+  id: string;
+  family: string;
+  label: string;
+  signal: string;
+  status: "WORKING" | "BROKEN" | "OFF" | "UNKNOWN";
+  detail: string;
+  evidence?: string;
+  latency_ms: number;
+}
+
+interface WatchReport {
+  meta: { nodeId: string; mode: string; timestamp: string | null };
+  counts: Record<string, number>;
+  results: WatchResult[];
+  missing?: boolean;
+  hint?: string;
+  error?: string;
+  fileMtime?: string;
+  fileAgeMs?: number;
+}
+
+const WATCH_COLOR: Record<string, string> = {
+  WORKING: "text-green-400", BROKEN: "text-red-400", OFF: "text-zinc-500", UNKNOWN: "text-yellow-400",
+};
+const WATCH_DOT: Record<string, string> = {
+  WORKING: "bg-green-400", BROKEN: "bg-red-400", OFF: "bg-zinc-500", UNKNOWN: "bg-yellow-400",
+};
+const WATCH_BORDER: Record<string, string> = {
+  WORKING: "border-green-500/40", BROKEN: "border-red-500/40", OFF: "border-zinc-500/40", UNKNOWN: "border-yellow-500/40",
+};
+
 // ── Helpers ──
 
 function StatusIcon({ ok }: { ok: boolean }) {
@@ -50,13 +82,18 @@ function StatRow({ label, value, warn }: { label: string; value: string | number
 
 // ── Tabs ──
 
-type Tab = "health" | "tests" | "logs";
+type Tab = "watch" | "health" | "tests" | "logs";
 
 // ── Page ──
 
 export default function DiagnosticsPage() {
-  const [tab, setTab] = useState<Tab>("tests");
+  const [tab, setTab] = useState<Tab>("watch");
   const [data, setData] = useState<DiagnosticData | null>(null);
+
+  const [watch, setWatch] = useState<WatchReport | null>(null);
+  const [watchSel, setWatchSel] = useState(0);
+  const [watchLoading, setWatchLoading] = useState(false);
+  const [watchError, setWatchError] = useState<string | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
 
@@ -92,6 +129,26 @@ export default function DiagnosticsPage() {
     }
   };
 
+  // ── Watch fetch (reads the watcher's JSON snapshot; MC does not probe the node itself) ──
+
+  const fetchWatch = async () => {
+    setWatchLoading(true);
+    setWatchError(null);
+    try {
+      const res = await fetch("/api/node-watch");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d: WatchReport = await res.json();
+      setWatch(d);
+      const firstBroken = d.results.findIndex((r) => r.status === "BROKEN");
+      setWatchSel(firstBroken >= 0 ? firstBroken : 0);
+      log(`Watch: ${d.counts.WORKING || 0} working, ${d.counts.BROKEN || 0} broken, ${d.counts.OFF || 0} off, ${d.counts.UNKNOWN || 0} unknown`);
+    } catch (e) {
+      setWatchError((e as Error).message);
+    } finally {
+      setWatchLoading(false);
+    }
+  };
+
   // ── Test runner ──
 
   const runTests = async () => {
@@ -122,6 +179,7 @@ export default function DiagnosticsPage() {
 
   useEffect(() => {
     fetchHealth();
+    fetchWatch();
   }, []);
 
   // ── Group test results by suite ──
@@ -146,7 +204,7 @@ export default function DiagnosticsPage() {
         <div className="flex items-center gap-2">
           {/* Tab switcher */}
           <div className="flex rounded-lg bg-accent/50 p-0.5 mr-3">
-            {(["tests", "health", "logs"] as Tab[]).map((t) => (
+            {(["watch", "tests", "health", "logs"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -154,7 +212,7 @@ export default function DiagnosticsPage() {
                   tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {t === "tests" ? "Tests" : t === "health" ? "Health" : "Logs"}
+                {t === "watch" ? "Watch" : t === "tests" ? "Tests" : t === "health" ? "Health" : "Logs"}
               </button>
             ))}
           </div>
@@ -174,6 +232,87 @@ export default function DiagnosticsPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-6">
+        {/* ═══ WATCH TAB ═══ */}
+        {tab === "watch" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-wrap gap-3">
+                {(["WORKING", "BROKEN", "OFF", "UNKNOWN"] as const).map((s) => (
+                  <span key={s} className={`text-xs font-mono ${WATCH_COLOR[s]}`}>{s} {watch?.counts?.[s] ?? 0}</span>
+                ))}
+              </div>
+              <button
+                onClick={fetchWatch}
+                disabled={watchLoading}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${watchLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </div>
+
+            {watchError && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-xs text-red-400">{watchError}</div>
+            )}
+
+            {watch?.missing && (
+              <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-4 py-3 text-xs text-yellow-400">{watch.hint}</div>
+            )}
+
+            {watch && watch.results.length > 0 && (
+              <>
+                <div>
+                  <label htmlFor="nw" className="block text-xs text-muted-foreground mb-1">
+                    Items checked ({watch.results.length}) — select to see the result
+                  </label>
+                  <select
+                    id="nw"
+                    value={watchSel}
+                    onChange={(e) => setWatchSel(Number(e.target.value))}
+                    className="block w-full max-w-xl rounded-md border border-border bg-card text-foreground text-xs px-3 py-2"
+                  >
+                    {Array.from(new Set(watch.results.map((r) => r.family))).map((fam) => (
+                      <optgroup key={fam} label={fam}>
+                        {watch.results.map((r, i) =>
+                          r.family === fam ? (
+                            <option key={r.id} value={i}>
+                              {r.status} — {r.label}
+                            </option>
+                          ) : null
+                        )}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+
+                {watch.results[watchSel] && (
+                  <div className={`rounded-lg border bg-card p-4 ${WATCH_BORDER[watch.results[watchSel].status] || "border-border"}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`h-2 w-2 rounded-full ${WATCH_DOT[watch.results[watchSel].status]}`} />
+                      <span className={`text-xs font-semibold ${WATCH_COLOR[watch.results[watchSel].status]}`}>
+                        {watch.results[watchSel].status}
+                      </span>
+                      <span className="text-sm font-semibold text-foreground">{watch.results[watchSel].label}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{watch.results[watchSel].latency_ms}ms</span>
+                    </div>
+                    <StatRow label="family" value={watch.results[watchSel].family} />
+                    <StatRow label="signal" value={watch.results[watchSel].signal} />
+                    <StatRow label="detail" value={watch.results[watchSel].detail} />
+                    {watch.results[watchSel].evidence ? <StatRow label="evidence" value={watch.results[watchSel].evidence!} /> : null}
+                  </div>
+                )}
+
+                {watch.fileMtime && (
+                  <p className="text-[10px] text-muted-foreground/60">
+                    snapshot {watch.fileMtime}
+                    {typeof watch.fileAgeMs === "number" ? ` (${Math.round(watch.fileAgeMs / 1000)}s ago)` : ""} — node={watch.meta?.nodeId}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {/* ═══ TESTS TAB ═══ */}
         {tab === "tests" && (
           <div className="space-y-4">

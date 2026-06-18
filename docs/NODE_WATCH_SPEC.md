@@ -82,7 +82,13 @@ delegates to a `node-acceptance` probe · **applic.** = applicability gate (OFF 
 ### LLM — cloud
 | Element | Watch signal | Probe |
 |---|---|---|
-| Cloud LLM provider | configured provider reachable | applic. (OFF if no key); UNKNOWN-stub if configured |
+| Cloud LLM (via companion-bridge) | bridge `:8787` `/health` reports healthy served sessions | live (via bridge `/health`) |
+
+> Wired **through companion-bridge** (the bridge proxies to the upstream cloud LLM). The probe reads the
+> bridge's free `/health` (no tokens): WORKING if it reports sessions with completed turns and no
+> zombie-retry/context failures; BROKEN if sessions are degraded; OFF if the bridge isn't running
+> (it's on-demand); UNKNOWN if up but no completed turns. The watcher never sends a billable
+> generation, so a definitive live upstream check requires an operator-initiated test prompt.
 
 ### Network
 | Element | Watch signal | Probe |
@@ -124,8 +130,8 @@ delegates to a `node-acceptance` probe · **applic.** = applicability gate (OFF 
 ## Honest coverage today
 
 - **Implemented (live or reused):** every element above except the three marked UNKNOWN-stub.
-- **UNKNOWN-stub (no probe yet — reports UNKNOWN, never green):** vault link integrity, calendar/scheduler,
-  and cloud-LLM reachability when a provider *is* configured. These are the known build gaps.
+- **UNKNOWN-stub (no probe yet — reports UNKNOWN, never green):** vault link integrity and
+  calendar/scheduler. (Cloud-LLM reachability is now wired through companion-bridge — see above.)
 - **Heavy probes** (local generation, embedder, structured extraction) run one-shot/`--deep` only.
 
 The watcher's status of any element is whatever it **observes at runtime** — this doc declares the

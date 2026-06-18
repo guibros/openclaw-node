@@ -31,6 +31,8 @@ test/node-watch.test.mjs
 test/node-acceptance.test.mjs
 test/node-acceptance-probes.test.mjs
 package.json
+mission-control/src/app/api/node-watch/route.ts
+mission-control/src/app/diagnostics/page.tsx
 ```
 
 ## Prior closed scopes (retained for history)

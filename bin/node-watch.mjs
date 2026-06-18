@@ -29,12 +29,15 @@ const { values } = parseArgs({
     html: { type: 'boolean', default: false },
     report: { type: 'string' },
     'html-out': { type: 'string' },
+    'json-out': { type: 'string' },
     quiet: { type: 'boolean', default: false },
   },
 });
 
 const DEFAULT_REPORT = path.join(os.homedir(), '.openclaw', '.node-watch.md');
 const DEFAULT_HTML = path.join(os.homedir(), '.openclaw', '.node-watch.html');
+// Machine snapshot read by the Mission Control /diagnostics Watch dropdown.
+const DEFAULT_JSON = path.join(os.homedir(), '.openclaw', '.node-watch.json');
 
 async function once(mode) {
   const report = await runWatch({ mode, includeHeavy: mode === 'once' || values.deep });
@@ -44,6 +47,8 @@ async function once(mode) {
     const rp = values.report || DEFAULT_REPORT;
     await mkdir(path.dirname(rp), { recursive: true });
     await writeFile(rp, formatReport(report), 'utf8');
+    // Always emit the JSON snapshot (the contract Mission Control reads).
+    await writeFile(values['json-out'] || DEFAULT_JSON, JSON.stringify(report, null, 2), 'utf8');
   } catch (err) { process.stderr.write(`[node-watch] report write failed: ${err.message}\n`); }
   if (values.html) {
     try {

@@ -72,11 +72,9 @@ describe('node-watch honesty invariants', () => {
 });
 
 describe('node-watch OFF semantics (intentionally not active ≠ broken)', () => {
-  it('cloud LLM is OFF when no API key configured, UNKNOWN when configured', async () => {
-    const noKey = makeCtx({ fsp: { ...makeCtx().fsp, readFile: async () => 'OPENCLAW_NATS=nats://x\n' } });
-    assert.equal((await target('llm.cloud').run(envFor(noKey))).status, STATUS.OFF);
-    const withKey = makeCtx({ fsp: { ...makeCtx().fsp, readFile: async () => 'ANTHROPIC_API_KEY=sk-abc\n' } });
-    assert.equal((await target('llm.cloud').run(envFor(withKey))).status, STATUS.UNKNOWN);
+  it('cloud LLM (via companion-bridge) is OFF when the bridge is not running', async () => {
+    const ctx = makeCtx({ httpGet: async () => { throw new Error('ECONNREFUSED'); } });
+    assert.equal((await target('llm.cloud').run(envFor(ctx))).status, STATUS.OFF);
   });
 
   it('companion-bridge is OFF when not listening (on-demand), not BROKEN', async () => {
@@ -115,6 +113,19 @@ describe('node-watch observed verdicts', () => {
     const up = makeCtx({ httpGet: async () => ({ status: 200 }) });
     assert.equal((await target('ops.roadmap').run(envFor(up))).status, STATUS.WORKING);
   });
+
+  it('cloud LLM via bridge: WORKING when /health reports a served session', async () => {
+    const ctx = makeCtx({ httpGet: async () => ({ status: 200, json: { status: 'ok', companion: 'http://localhost:3457', model: 'm', sessions: [{ lifetimeTurns: 5, zombieRetryCount: 0, contextTrackingHealthy: true }] } }) });
+    assert.equal((await target('llm.cloud').run(envFor(ctx))).status, STATUS.WORKING);
+  });
+  it('cloud LLM via bridge: BROKEN when a session is degraded (zombie retries)', async () => {
+    const ctx = makeCtx({ httpGet: async () => ({ status: 200, json: { status: 'ok', sessions: [{ lifetimeTurns: 2, zombieRetryCount: 2 }] } }) });
+    assert.equal((await target('llm.cloud').run(envFor(ctx))).status, STATUS.BROKEN);
+  });
+  it('cloud LLM via bridge: UNKNOWN when bridge up but no completed turns (no billable probe sent)', async () => {
+    const ctx = makeCtx({ httpGet: async () => ({ status: 200, json: { status: 'ok', sessions: [] } }) });
+    assert.equal((await target('llm.cloud').run(envFor(ctx))).status, STATUS.UNKNOWN);
+  });
 });
 
 describe('node-watch HTML dropdown view', () => {
@@ -150,7 +161,7 @@ describe('node-watch HTML dropdown view', () => {
 
 describe('node-watch runner', () => {
   it('runs all targets, tallies, and drains teardown', async () => {
-    const ctx = makeCtx();
+    const ctx = makeCtx({ httpGet: async () => { throw new Error('bridge down'); } });
     ctx.teardown.push(async () => { ctx._cleaned = true; });
     const report = await runWatch({
       ctx, config,
@@ -160,9 +171,9 @@ describe('node-watch runner', () => {
       targets: [target('mem.daemon'), target('obs.links'), target('llm.cloud')],
     });
     assert.equal(report.results.length, 3);
-    assert.equal(report.counts.WORKING, 1);   // daemon
+    assert.equal(report.counts.WORKING, 1);   // daemon (hc.ok)
     assert.equal(report.counts.UNKNOWN, 1);    // obs.links (no probe)
-    assert.equal(report.counts.OFF, 1);        // cloud (no key — readFile '' has none)
+    assert.equal(report.counts.OFF, 1);        // cloud via bridge (bridge down → OFF)
     assert.equal(ctx._cleaned, true);
     // honesty: nothing WORKING beyond what was observed
     assert.ok(report.results.find((r) => r.id === 'obs.links').status !== STATUS.WORKING);
