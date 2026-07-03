@@ -381,7 +381,7 @@ describe('Bug 2 regression: Sequential multi-round', { skip: skipReason }, () =>
 // ════════════════════════════════════════════════════
 
 describe('Bug 3 regression: Plan subtask routing field inheritance', { skip: skipReason }, () => {
-  it('plan subtasks inherit routing fields from parent task', async () => {
+  it('plan subtasks inherit routing fields from parent task', async (t) => {
     const planTaskId = `${TEST_PREFIX}-planrt`;
 
     // Submit parent task with routing fields
@@ -414,31 +414,27 @@ describe('Bug 3 regression: Plan subtask routing field inheritance', { skip: ski
     });
 
     if (!plan.ok) {
-      // Plans endpoint might not exist or might have different API
-      // Skip gracefully rather than fail — this tests daemon logic
-      console.log('  (skipped: mesh.plans.create not available)');
+      // Plans endpoint not present in this daemon build — a VISIBLE skip in
+      // the summary, not a silent green pass that asserted nothing.
+      t.skip(`mesh.plans.create not available: ${plan.error || 'unknown'}`);
       return;
     }
 
     // Approve the plan to trigger subtask materialization
     const approve = await rpc('mesh.plans.approve', { plan_id: plan.data.plan_id });
-    if (!approve.ok) {
-      console.log('  (skipped: mesh.plans.approve not available)');
-      return;
-    }
+    assert.equal(approve.ok, true, `mesh.plans.approve failed: ${approve.error || 'unknown'}`);
 
     // Wait for subtask to be materialized
     await new Promise(r => setTimeout(r, 1000));
 
     // Check that the subtask inherited routing fields
     const subtask = await rpc('mesh.tasks.get', { task_id: `${planTaskId}-sub1` });
-    if (subtask.ok) {
-      assert.equal(subtask.data.llm_provider, 'shell', 'Subtask should inherit llm_provider');
-      assert.equal(subtask.data.llm_model, 'custom-regression', 'Subtask should inherit llm_model');
-      assert.deepEqual(subtask.data.preferred_nodes, ['node-X'], 'Subtask should inherit preferred_nodes');
-      assert.deepEqual(subtask.data.exclude_nodes, ['node-Y'], 'Subtask should inherit exclude_nodes');
-      createdTaskIds.push(`${planTaskId}-sub1`);
-    }
+    assert.equal(subtask.ok, true, `mesh.tasks.get failed for materialized subtask: ${subtask.error || 'unknown'}`);
+    assert.equal(subtask.data.llm_provider, 'shell', 'Subtask should inherit llm_provider');
+    assert.equal(subtask.data.llm_model, 'custom-regression', 'Subtask should inherit llm_model');
+    assert.deepEqual(subtask.data.preferred_nodes, ['node-X'], 'Subtask should inherit preferred_nodes');
+    assert.deepEqual(subtask.data.exclude_nodes, ['node-Y'], 'Subtask should inherit exclude_nodes');
+    createdTaskIds.push(`${planTaskId}-sub1`);
   });
 });
 
