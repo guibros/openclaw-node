@@ -130,7 +130,12 @@ for nats-server-binary suites — OBSERVED: absent ⇒ `skipped 2` w/ filenames,
 regression-bugs Bug 3 silent returns ⇒ t.skip/hard asserts. (mesh-kv) test file rewritten against the
 real src/lib/sync/mesh-kv.ts — 17 production tests replace 30 green-by-construction ones; MC 82/82.
 (CI) lockfiles synced (npm ci verified root+MC), root job runs `npm test` so the workspace dist builds.
-Full local suite 1651/0/1. CI-green pending observation of the next Tests run.
+Full local suite 1651/0/1. **CI OBSERVED GREEN** 2026-07-03 22:35Z (run 28686140714, commit 09895a3):
+all 4 jobs (node 18/20/22 + MC) — first green Tests run after 5+ consecutive reds. Took three
+iterations: (1) lockfile + `npm test`, (2) event-schemas builds with its own tsc + clean-room MC lock,
+(3) OPENCLAW_NO_EMBED_MODEL=1 on CI — the five embedding suites skip through per-file census sentinels
+(OBSERVED: model present ⇒ all run 0 skipped; absent ⇒ `skipped 5` each with reason;
+OPENCLAW_REQUIRE_EMBEDDER=1 ⇒ hard fail).
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
