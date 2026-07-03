@@ -284,6 +284,12 @@ async function main() {
   const sub = nc.subscribe('mesh.deploy.trigger');
   console.log(`[deploy-listener] Listening on mesh.deploy.trigger`);
 
+  // C2 fix (deep review 2026-07-03): authenticate the trigger before running
+  // `git reset --hard` + deploy. Opt-in via OPENCLAW_REQUIRE_SIGNED_DEPLOY=1
+  // (+ OPENCLAW_DEPLOY_TRUSTED_KEYS); default off preserves current behavior
+  // but warns on unsigned triggers. ESM helper loaded dynamically (this is CJS).
+  const { verifyDeployTrigger } = await import('../lib/deploy-trigger-auth.mjs');
+
   (async () => {
     for await (const msg of sub) {
       try {
@@ -292,6 +298,12 @@ async function main() {
         // Ignore triggers for specific nodes that don't include us
         if (trigger.nodes && !trigger.nodes.includes(NODE_ID) && !trigger.nodes.includes('all')) {
           console.log(`[deploy-listener] Trigger not for us — target: ${trigger.nodes.join(', ')}`);
+          continue;
+        }
+
+        const auth = verifyDeployTrigger(trigger);
+        if (!auth.ok) {
+          console.error(`[deploy-listener] REJECTED deploy trigger: ${auth.reason} (sha=${trigger.sha}, initiator=${trigger.initiator || 'unknown'})`);
           continue;
         }
 

@@ -65,6 +65,19 @@ caps; no query timeout — better-sqlite3 exposes no progress handler, documente
 copy of the live state.db), replace the F-H23 per-theme LIKE stopgap with FTS MATCH, add the `dfts`
 retrieval channel. Phase G outbox note + optional ctx sidecar NOT in scope (doc/ops, captured in
 OUT_OF_SCOPE / session transcript).
+**Addendum 2026-07-03e (operator-directed "go for the remaining"):** the remaining review backlog —
+scheduler heartbeat (browser-dependent ticking), diagnostics-runner production side effects, and mesh
+deploy-trigger auth (C2 security).
+— REMAINING CLOSED 2026-07-03: (heartbeat) 4da7265 — launchd/systemd unit POSTs /api/scheduler/tick
+every 60s (curl, no node spawn); observed HTTP 200 against live MC. (diagnostics) 920c7bd — GLOB not
+LIKE for `__TEST__` + markdown re-sync after cleanup; the schedulerTick-vs-production-DB isolation is a
+larger refactor left in OUT_OF_SCOPE. (mesh deploy auth) `lib/deploy-trigger-auth.mjs` — opt-in signed
+deploys (`OPENCLAW_REQUIRE_SIGNED_DEPLOY=1` + `OPENCLAW_DEPLOY_TRUSTED_KEYS`); listener verifies before
+`git reset --hard`, both publishers best-effort sign; 9/9 unit tests + e2e probe OBSERVED (signed→verified,
+unsigned/forged→rejected under strict; default off = unchanged behavior + unsigned warning). **CAVEATS:**
+not runtime-tested vs a live mesh (dormant); activation needs the operator to provision trusted keys +
+set the flag. The exec-safety half of C2 is NOT fixable here (no exec responder in-repo) — captured in
+OUT_OF_SCOPE.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -114,6 +127,7 @@ mission-control/src/app/api/diagnostics/test-runner/route.ts
 bin/mesh-deploy-listener.js
 bin/mesh.js
 bin/fleet-deploy.js
+lib/deploy-trigger-auth.mjs
 test/deploy-trigger-auth.test.mjs
 lib/readonly-sql.mjs
 test/readonly-sql.test.mjs

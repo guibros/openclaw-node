@@ -702,8 +702,13 @@ async function cmdDeploy(args) {
     await resultsKv.put('latest', sc.encode(JSON.stringify({ sha, branch })));
   } catch (err) { console.warn(`[mesh] write deploy latest marker: ${err.message}`); }
 
+  // Sign the trigger (best-effort) so signed-deploy listeners accept it. C2:
+  // harmless when no listener enforces signatures; required once they do.
+  const { maybeSignDeployTrigger } = await import('../lib/deploy-trigger-auth.mjs');
+  const signedTrigger = maybeSignDeployTrigger(trigger);
+
   // Publish trigger
-  nc.publish('mesh.deploy.trigger', sc.encode(JSON.stringify(trigger)));
+  nc.publish('mesh.deploy.trigger', sc.encode(JSON.stringify(signedTrigger)));
   await nc.flush();
   console.log('Deploy trigger sent.\n');
 
