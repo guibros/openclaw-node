@@ -1,6 +1,6 @@
 # SCOPE — protocol plan
 
-**Status:** done
+**Status:** active
 **Goal:** Operator-directed 2026-06-15: lock the node watch-target list as a spec and build the
 **watcher** that fills in the REAL per-element status (WORKING / BROKEN / OFF / UNKNOWN). Honesty
 invariant: never WORKING without an observed signal; unimplemented/unobservable => UNKNOWN (never
@@ -16,12 +16,24 @@ tests green. 3 honest UNKNOWN-stubs: vault links, calendar, cloud-LLM-reachabili
 — CLOSED 2026-06-15: `formatHtml` (self-contained page; `<select>` grouped by family via `<optgroup>`,
 option per item = "STATUS — label", detail panel, color-coded) + `--html`/`--html-out` flags. 14 watch
 tests green (2 new). Sample rendered to /tmp/node-watch-sample.html from mock data. NOT run on live node.
-**Set at:** 2026-06-15 (operator-directed, interactive session)
-**Expires:** 2026-06-19T23:59:00Z
+**Addendum 2026-07-03 (operator-directed, interactive session):** P0 remediation from the
+2026-07-03 deep review: (1) fix C1 — memory daemon cross-wired to two DBs (`createExtractionStore`
+silently ignores `opts.db`; extraction writes → state.db while consolidation/federation read the
+0-byte extraction.db); (2) fix the four C7 node-watch bugs (deploy-drift cwd false-green, hardcoded
+node id in plist, `--axis` false-ACCEPT, axis snapshot clobber) + atomic snapshot write + tick
+overlap guard, then commit the 15-day-old node-watch working tree; (3) refresh CLAUDE.md
+"Where we are" + AGENTS.md to match reality (repair complete at v7.8, not BLOCKED).
+**Set at:** 2026-07-03 (operator-directed, interactive session)
+**Expires:** 2026-07-10T23:59:00Z
 
 ```files
 docs/NODE_WATCH_SPEC.md
 docs/NODE_ACCEPTANCE.md
+bin/openclaw-memory-daemon.mjs
+lib/extraction-store.mjs
+test/extraction-store.test.mjs
+CLAUDE.md
+AGENTS.md
 lib/node-watch.mjs
 lib/node-acceptance.mjs
 lib/node-acceptance-probes.mjs
@@ -37,6 +49,9 @@ mission-control/src/lib/scheduler.ts
 mission-control/src/app/api/scheduler/status/route.ts
 mission-control/src/app/node-watch/page.tsx
 mission-control/src/components/layout/sidebar.tsx
+services/launchd/ai.openclaw.node-watch.plist
+services/systemd/openclaw-node-watch.service
+services/service-manifest.json
 ```
 
 ## Prior closed scopes (retained for history)

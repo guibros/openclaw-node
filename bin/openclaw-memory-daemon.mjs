@@ -57,6 +57,7 @@ async function main() {
   let subscriber = null;
   let scheduler = null;
   let extractionTrigger = null;     // STUB_AUDIT fix: real-time extraction now wired
+  let extractionStore = null;
   let shuttingDown = false;
 
   const cleanup = async (sig) => {
@@ -74,6 +75,7 @@ async function main() {
     try { graphCache?.close?.(); } catch { /* ignore */ }
     try { if (nc) await nc.drain(); } catch (e) { log(`[daemon] nc.drain error: ${e.message}`); }
     try { knowledgeDb?.close(); } catch { /* ignore */ }
+    try { extractionStore?.close(); } catch { /* ignore */ }
     try { extractionDb?.close(); } catch { /* ignore */ }
     log(`[daemon] stopped`);
   };
@@ -94,7 +96,12 @@ async function main() {
     // the knowledge DB (session_chunks for FTS / semantic retrieval).
     const { openStore } = await import('../lib/sqlite-store.mjs');
     const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || join(dbDir, 'knowledge.db');
-    const extractionDbPath = process.env.OPENCLAW_EXTRACTION_DB || join(dbDir, 'extraction.db');
+    // C1 fix (deep review 2026-07-03): extraction tables live in state.db —
+    // the session-store database that extraction-store, the inject server,
+    // and extract-existing-sessions all use. The old default (extraction.db)
+    // split the daemon's reads (federation, consolidation) from its writes:
+    // consolidation ran against a 0-byte DB forever while logging success.
+    const extractionDbPath = process.env.OPENCLAW_EXTRACTION_DB || join(dbDir, 'state.db');
     knowledgeDb = existsSync(knowledgeDbPath) ? openStore(knowledgeDbPath) : null;
     extractionDb = existsSync(extractionDbPath) ? openStore(extractionDbPath) : null;
     if (!knowledgeDb || !extractionDb) {
@@ -168,10 +175,9 @@ async function main() {
       const { createExtractionStore } = await import('../lib/extraction-store.mjs');
       const { createLlmClient } = await import('../lib/llm-client.mjs');
 
-      // Resolve runtime deps for the extract handler. extractionDb opened
-      // above; we need an extraction-store interface (the writer side) and
-      // an LLM client (for structured extraction).
-      const extractionStore = extractionDb ? createExtractionStore({ db: extractionDb }) : null;
+      // Resolve runtime deps for the extract handler. Same DB file as the
+      // raw extractionDb handle above (own connection; WAL makes that safe).
+      extractionStore = extractionDb ? createExtractionStore({ dbPath: extractionDbPath }) : null;
       let llmClient = null;
       try { llmClient = createLlmClient(); }
       catch (e) { log(`[daemon] LLM client unavailable: ${e.message}`); }
