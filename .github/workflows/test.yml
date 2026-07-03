@@ -18,7 +18,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
       - name: Root unit tests
-        run: node --test test/*.test.js test/*.test.mjs
+        # npm test (not bare node --test): the pretest hook builds the
+        # event-schemas workspace dist that the broadcast libs fail loud on.
+        run: npm test
 
   mission-control-tests:
     runs-on: ubuntu-latest
