@@ -117,6 +117,20 @@ inheritance; flush-coalescing guard ported to the live daemon (workspace-bin/mem
 default path fix; federation-suite skip census + regression-bugs silent returns; broadcast dist-import
 fail-loud; CI green (lockfile drift + workspace build); mesh-kv-sync test rewritten against production code.
 Files added below under "# 2026-07-03g".
+— P1 round 2 CLOSED 2026-07-03 (commits 7e3466e, c07a42a, + census/test/CI commits): (axis) unknown
+`--axis` throws, OBSERVED exit 3 + evidence file untouched; empty gate ⇒ INCOMPLETE; axis runs no longer
+clobber `.node-acceptance.md`. (timeout) reuse targets inherit probe timeoutMs — test proves a 50ms probe
+budget governs where the 30s clamp would have passed. (knowledge-db) default now workspace/.knowledge.db;
+stale 0-byte extraction.db deleted. (flush) all five runFlush paths in the LIVE daemon serialized + NATS
+coalescing + idle re-arm (takes effect at deploy-day restart). (broadcast) event-schemas import hoisted
+via lib/event-schemas.mjs — OBSERVED loud failure with dist removed. (C2) latest KV marker now the signed
+trigger; checkAndCatchUp verifies via verifyDeployMarker (signature+trust, no freshness — markers are
+state); live triggers get replay cache + 15-min window; 15/15 auth tests. (census) second census class
+for nats-server-binary suites — OBSERVED: absent ⇒ `skipped 2` w/ filenames, strict ⇒ hard fail;
+regression-bugs Bug 3 silent returns ⇒ t.skip/hard asserts. (mesh-kv) test file rewritten against the
+real src/lib/sync/mesh-kv.ts — 17 production tests replace 30 green-by-construction ones; MC 82/82.
+(CI) lockfiles synced (npm ci verified root+MC), root job runs `npm test` so the workspace dist builds.
+Full local suite 1651/0/1. CI-green pending observation of the next Tests run.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -190,6 +204,7 @@ mission-control/src/lib/mesh-kv-sync.ts
 mission-control/package.json
 mission-control/package-lock.json
 package-lock.json
+packages/event-schemas/package.json
 .github/workflows/test.yml
 ```
 

@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "node ../../mission-control/node_modules/typescript/bin/tsc"
+    "build": "tsc"
   },
   "dependencies": {
     "zod": "^4.3.6",
