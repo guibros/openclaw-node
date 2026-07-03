@@ -299,6 +299,57 @@ describe('runFlush with LLM extraction', () => {
   });
 });
 
+describe('decisions_fts (schema v3)', () => {
+  const matchCount = (q) =>
+    store.db.prepare('SELECT COUNT(*) c FROM decisions_fts WHERE decisions_fts MATCH ?').get(q).c;
+
+  it('indexes stored decisions and stays in sync on conflict-update and delete', () => {
+    store.storeExtractionResult('fts-session', {
+      entities: [], themes: [],
+      decisions: [{ decision: 'Adopt JetStream', rationale: 'durable messaging needed', confidence: 0.9 }],
+    });
+    assert.equal(matchCount('"durable"'), 1);
+
+    // Same (session, decision) re-stated → ON CONFLICT UPDATE path; the FTS
+    // row must follow the new rationale, not keep the old one
+    store.storeExtractionResult('fts-session', {
+      entities: [], themes: [],
+      decisions: [{ decision: 'Adopt JetStream', rationale: 'replicated persistence needed', confidence: 0.9 }],
+    });
+    assert.equal(matchCount('"durable"'), 0);
+    assert.equal(matchCount('"replicated"'), 1);
+
+    store.db.prepare(`DELETE FROM decisions WHERE session_id = 'fts-session'`).run();
+    assert.equal(matchCount('"replicated"'), 0);
+  });
+
+  it('backfills pre-existing decisions on migration and reopens idempotently', () => {
+    const dbPath = path.join(tmpDir, 'v3-migration.db');
+    // Simulate a pre-v3 database: decisions exist, no FTS table
+    {
+      const first = createExtractionStore({ dbPath });
+      first.storeExtractionResult('old-session', {
+        entities: [], themes: [],
+        decisions: [{ decision: 'Keep FTS local', rationale: 'no cloud dependency', confidence: 0.8 }],
+      });
+      first.db.exec(`
+        DROP TRIGGER decisions_fts_ai; DROP TRIGGER decisions_fts_ad;
+        DROP TRIGGER decisions_fts_au; DROP TABLE decisions_fts;
+      `);
+      first.db.pragma('user_version = 2');
+      first.close();
+    }
+    for (let reopen = 0; reopen < 2; reopen++) {
+      const s = createExtractionStore({ dbPath });
+      assert.equal(
+        s.db.prepare('SELECT COUNT(*) c FROM decisions_fts WHERE decisions_fts MATCH ?').get('"cloud"').c,
+        1
+      );
+      s.close();
+    }
+  });
+});
+
 // Helper to call generateMemoryContent (avoids repeating the budget default)
 function generateContentFromStore(s) {
   return s.generateMemoryContent(2200);
