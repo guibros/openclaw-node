@@ -968,10 +968,19 @@ export async function POST() {
   // CLEANUP: Remove any leftover test data
   // ═══════════════════════════════════════════════════════════
 
-  raw.prepare(`DELETE FROM dependencies WHERE source_id LIKE '${TEST_PREFIX}%' OR target_id LIKE '${TEST_PREFIX}%'`).run();
-  raw.prepare(`DELETE FROM tasks WHERE id LIKE '${TEST_PREFIX}%'`).run();
-  raw.prepare(`DELETE FROM cluster_members WHERE cluster_id LIKE '${TEST_PREFIX}%'`).run();
-  raw.prepare(`DELETE FROM clusters WHERE id LIKE '${TEST_PREFIX}%'`).run();
+  // GLOB (not LIKE): in LIKE, `_` is a single-char wildcard, so
+  // `LIKE '__TEST__%'` also matched e.g. `XXTESTXX...`. GLOB treats `_`
+  // literally and `*` as the wildcard, so this deletes exactly the test rows.
+  raw.prepare(`DELETE FROM dependencies WHERE source_id GLOB '${TEST_PREFIX}*' OR target_id GLOB '${TEST_PREFIX}*'`).run();
+  raw.prepare(`DELETE FROM tasks WHERE id GLOB '${TEST_PREFIX}*'`).run();
+  raw.prepare(`DELETE FROM cluster_members WHERE cluster_id GLOB '${TEST_PREFIX}*'`).run();
+  raw.prepare(`DELETE FROM clusters WHERE id GLOB '${TEST_PREFIX}*'`).run();
+
+  // The run wrote __TEST__ tasks into the live active-tasks.md via
+  // syncTasksToMarkdown; deleting them from the DB alone left them in the file
+  // until the next unrelated write. Re-sync so the markdown matches the
+  // cleaned DB and the daemon never sees a lingering __TEST__ task.
+  try { syncTasksToMarkdown(db); } catch { /* best-effort: cleanup must not throw */ }
 
   // ═══════════════════════════════════════════════════════════
   // Summary
