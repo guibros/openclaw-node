@@ -45,6 +45,17 @@ deleted; (8) 0b4142e — GET /api/tasks + GET /api/scheduler/tick now read-only,
 Browser-dependent scheduler + diagnostics-runner side effects captured in OUT_OF_SCOPE.md (need infra/seams).
 **Full suite after P1 OBSERVED: 1607 pass / 0 fail / 1 skipped** (the census — mesh tier down on this host);
 MC vitest 95/95.
+**Addendum 2026-07-03c (operator-directed "retrieval quality"):** P2 retrieval track —
+(D7) embeddings truncated at `max_length: 256` (~1000 chars) while chunks are 1800 chars → ~45% of every
+chunk invisible to vector search; (D8) channels 3/4/5 ordered chunks by global `turn_index DESC` with a
+fabricated score going negative past rank 100, discarding the caller's salience ranking.
+— P2 retrieval CLOSED 2026-07-03: (D7) `EMBED_MAX_TOKENS = 2048` covers a full 1800-char chunk in any
+language; misleading comment + "~17MB" error string corrected. Runtime probe OBSERVED: two 1436-char texts
+sharing a ~1330-char prefix but differing only in the tail now embed distinctly (cosine 0.95) — the tail
+beyond the old cap is embedded. **CAVEAT:** existing knowledge.db vectors were indexed at 256 — a re-index
+is needed for full benefit on already-stored content (query path benefits immediately). (D8) `getChunksForSessions`
+ranks by caller session-relevance order then within-session recency; score is (0,1], never negative.
+50/50 retrieval+embedding tests green (incl. 2 new ranking tests + embed-benchmark under the new ceiling).
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -55,6 +66,9 @@ bin/openclaw-memory-daemon.mjs
 lib/extraction-store.mjs
 lib/extraction-trigger.mjs
 lib/pre-compression-flush.mjs
+lib/mcp-knowledge/core.mjs
+lib/retrieval-pipeline.mjs
+test/retrieval-pipeline.test.mjs
 test/extraction-store.test.mjs
 test/extraction-trigger.test.mjs
 test/consolidation.test.mjs

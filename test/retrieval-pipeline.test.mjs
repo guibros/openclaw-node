@@ -240,6 +240,39 @@ describe('weightedRRF', () => {
   });
 });
 
+describe('getChunksForSessions (D8: session-relevance ranking)', () => {
+  let kDb;
+  beforeEach(() => { kDb = createKnowledgeDb(); });
+  afterEach(() => { kDb.close(); });
+
+  it('ranks by caller session order, not global turn_index', () => {
+    const insert = kDb.prepare(`INSERT INTO session_chunks (session_id, turn_index, role, text, snippet) VALUES (?, ?, ?, ?, ?)`);
+    // 'lo' is the LESS-relevant session but has much HIGHER turn indices. Under
+    // the old global `ORDER BY turn_index DESC`, lo's chunks would rank first.
+    insert.run('hi', 0, 'user', 'hi-a', 'hi-a');
+    insert.run('hi', 1, 'assistant', 'hi-b', 'hi-b');
+    insert.run('lo', 50, 'user', 'lo-a', 'lo-a');
+    insert.run('lo', 51, 'assistant', 'lo-b', 'lo-b');
+
+    // Caller passes 'hi' first (more relevant).
+    const results = getChunksForSessions(kDb, ['hi', 'lo'], 10);
+    assert.strictEqual(results[0].session_id, 'hi', 'top-relevance session ranks first despite lower turn_index');
+    assert.strictEqual(results[1].session_id, 'hi');
+    assert.strictEqual(results[2].session_id, 'lo');
+    // Within 'hi', recency first (turn 1 before turn 0).
+    assert.strictEqual(results[0].turn_index, 1);
+    // Scores are positive and monotonic by session rank (never negative).
+    assert.ok(results.every(r => r.score > 0), 'scores never negative');
+    assert.ok(results[0].score >= results[results.length - 1].score);
+  });
+
+  it('respects the limit', () => {
+    const insert = kDb.prepare(`INSERT INTO session_chunks (session_id, turn_index, role, text, snippet) VALUES (?, ?, ?, ?, ?)`);
+    for (let i = 0; i < 20; i++) insert.run('s1', i, 'user', 't' + i, 't' + i);
+    assert.strictEqual(getChunksForSessions(kDb, ['s1'], 5).length, 5);
+  });
+});
+
 describe('entitySearch', () => {
   let eDb, kDb;
   beforeEach(() => {
