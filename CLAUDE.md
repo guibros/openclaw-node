@@ -27,7 +27,7 @@ Then the per-plan documents of the silo you are working in — every silo carrie
 7. [`plans/<id>/SCOPE.md`](memory-plan/plans/redesign/SCOPE.md) — the plan's work contract. If no plan's `SCOPE.md` has `Status: active`, you MUST set scope with the operator before editing anything.
 8. [`plans/<id>/OUT_OF_SCOPE.md`](memory-plan/plans/redesign/OUT_OF_SCOPE.md) — captured drift awaiting triage.
 
-The most recent verified ground-truth audit is [`memory-plan/plans/legacy/AUDIT_2026-05-27.md`](memory-plan/plans/legacy/AUDIT_2026-05-27.md). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them. `git log --oneline -20` shows the recent committed work.
+The most recent verified ground-truth audit is [`memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md`](memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md) (six-agent review, every claim file:line- or runtime-verified). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them. `git log --oneline -20` shows the recent committed work.
 
 ## Where we are / next action
 
@@ -35,17 +35,25 @@ As of 2026-07-03: the **protocol base is live** (canonical docs synced, `new-pla
 viewer-valid silos, `plan-tick.sh <id>` drives any plan). Redesign is **complete at v6.5**; repair is
 **complete at v7.8** (49/49 steps — the old "BLOCKED at v2.11" status was stale for a month). The June
 workstream (hosted in the protocol silo) built the **node test+watch system**: `bin/node-acceptance.mjs`
-(deploy gate) + `bin/node-watch.mjs` (continuous WORKING/BROKEN/OFF/UNKNOWN monitor) + Mission Control
-`/node-watch` page + launchd/systemd units. First observed live run 2026-07-03: health 75%
-(21 W / 5 B / 3 OFF / 2 U) — the 5 BROKEN are real node findings, not watcher defects.
+(deploy gate) + `bin/node-watch.mjs` (WORKING/BROKEN/OFF/UNKNOWN watcher engine) + Mission Control
+`/node-watch` page + launchd/systemd unit *files*. Runtime status is honest-UNKNOWN, not live: only one
+manual one-shot run has ever been observed (2026-07-03, health 75%, 21 W / 5 B / 3 OFF / 2 U); the
+continuous-mode units are NOT installed and currently cannot be (unrendered `${VAR}` placeholders +
+install.sh never places node-watch.mjs at the unit exec path). Of the one-shot's findings, the 5 BROKEN
+are real node findings; the 2 UNKNOWN are a watcher defect (30s timeout clamp on 120s LLM probes).
 
-A **deep review (2026-07-03)** drove P0 remediation on branch `feat/node-test-watch-system`: C1 — the
-memory daemon was cross-wired to two DBs (extraction wrote state.db while consolidation read a 0-byte
-extraction.db; fixed, `createExtractionStore` now throws on unknown opts); the four node-watch honesty
-bugs (deploy-drift false green, hardcoded node id, `--axis` false-ACCEPT, snapshot clobber); the broken
-`ai.openclaw.mesh-bridge` launchd unit (pointed at nonexistent `~/openclaw/`) is retired (`.disabled`).
-The review's P1/P2 backlog (silent test-suite skips, memory-pipeline dedup, mesh security before any
-mesh revival, MC GET-handlers that mutate) is the queued next work.
+A first **deep review (2026-07-03)** drove P0/P1/P2 remediation on branch `feat/node-test-watch-system`
+(C1 one-DB fix, node-watch honesty bugs, dedup migration, mesh-bridge retirement, read-only SQL surface,
+decisions_fts). A second **full deep review (2026-07-03 evening,
+[`plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md`](memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md))**
+verified that work: 10 claims VERIFIED / 7 PARTIAL / 3 NOT-DONE. Its headline: **the runtime is running
+pre-fix code almost everywhere** — live MC is a drifted hand-copy (pre-fix GET handlers), the live daemon
+is `workspace-bin/memory-daemon.mjs` on an unmigrated v1 state.db, and the branch sat unmerged since
+06-16. Corrections of record (SCOPE.md addendum 2026-07-03f): D7 was a no-op (retracted), C2 signed
+deploys have an unsigned catch-up bypass (PARTIAL). Batch-0 triage done same day: MC rebound to
+127.0.0.1, 7 crash-looping mesh launchd units disabled, branch pushed. **Queued next: deploy day**
+(merge → daemon-restart-then-migrate → real MC checkout → fix/install or de-claim the watch units),
+then P1 round 2 (review §5).
 
 **Active scope:** `plans/protocol/SCOPE.md` (P0 remediation, expires 2026-07-10). The workplan-viewer
 (:7892) shows all silos.

@@ -86,6 +86,31 @@ unsigned/forged→rejected under strict; default off = unchanged behavior + unsi
 not runtime-tested vs a live mesh (dormant); activation needs the operator to provision trusted keys +
 set the flag. The exec-safety half of C2 is NOT fixable here (no exec responder in-repo) — captured in
 OUT_OF_SCOPE.
+**Addendum 2026-07-03f (operator-directed "deep review" — CORRECTIONS to prior entries):** a six-agent
+deep review (`audits/DEEP_REVIEW_2026-07-03_FULL.md`) re-verified every claim above with differential
+probes. Three prior entries are corrected:
+- **D7 (addendum c) is RETRACTED as a fix — it was a no-op.** transformers.js 3.8.1's feature-extraction
+  pipeline ignores the `max_length` option entirely (destructures only pooling/normalize/quantize/precision;
+  tokenizer runs at model_max_length=8192). OBSERVED: same text embedded with `max_length: 4` vs `2048` →
+  cosine 1.000000, bit-identical. The old 256 cap was equally ignored — full chunks were ALWAYS embedded;
+  the "~45% invisible" premise was false. The addendum-c "runtime probe OBSERVED" was post-only (would have
+  passed identically pre-change) — not causal evidence. The re-index CAVEAT is also retracted: OBSERVED,
+  a stored vector for a 24k-char chunk matches a fresh full-text embed at cosine 1.000000; no re-index is
+  pending. `EMBED_MAX_TOKENS` is dead code; if a real ceiling is ever wanted it must be enforced by
+  tokenizing/slicing before `embed()`.
+- **C7 live-run "2 UNKNOWN" (addendum a) were watcher defects, not honest unobservability:** `reuse()` in
+  `lib/node-watch.mjs` clamps reused probes to the 30s default, discarding their declared 120s budgets
+  (LLM-L2-EXTRACT/EMBED) — the watcher structurally cannot observe slow-but-working LLM ops. Queued P1.
+- **C2 (addendum e) downgraded to PARTIAL:** the catch-up path (`checkAndCatchUp` in
+  `bin/mesh-deploy-listener.js`) executes the UNSIGNED `latest` KV marker without calling
+  `verifyDeployTrigger` — a full bypass of the signed-deploy control on every startup/reconnect; plus no
+  replay cache within the 24h freshness window. Queued P1 (sign the marker + verify in catch-up).
+Also recorded by the review: the runtime deploy gap is systemic (live MC = drifted hand-copy with pre-fix
+GET handlers; live daemon = pre-D5 code on an unmigrated v1 state.db; node-watch/heartbeat units not
+installed and currently uninstallable — `${VAR}` placeholders nothing renders + install.sh never places
+node-watch.mjs at the unit exec path). Batch-0 triage EXECUTED 2026-07-03 (operator-approved): MC rebound
+to 127.0.0.1 (OBSERVED lsof + HTTP 200), 7 crash-looping mesh/aux launchd units unloaded → `.disabled`,
+branch pushed. Deploy day + P1 round 2 are the queued next scopes.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -140,6 +165,8 @@ test/deploy-trigger-auth.test.mjs
 lib/readonly-sql.mjs
 test/readonly-sql.test.mjs
 lib/mcp-knowledge/server.mjs
+# 2026-07-03f (operator-directed, interactive session): full deep-review report document
+memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md
 ```
 
 ## Prior closed scopes (retained for history)
