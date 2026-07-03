@@ -37,6 +37,14 @@ findings (NATS probe timeout, MC scheduler 404, stale graph cache), not watcher 
 (5) flush concurrency guard + idle-timer re-arm in the daemon/trigger; (6) make test-suite skips
 visible (no silent `skipped 0`); (7) delete dead `workspace-bin/mesh-bridge.mjs`; (8) MC: stop GET
 handlers mutating on poll + label the mock Live Chat page.
+— P1 ALL CLOSED 2026-07-03: (4) 28ca668 — dedup migration OBSERVED on a copy of the live 26MB state.db
+(removed 23 dup mentions + 15 dup decisions; one entity was mention_count 77 → 0, a pure flush counter);
+(5) f31dbfd — flush serialized w/ coalesce + idle re-arm (11/11 trigger tests); (6) ef00406 — mesh-skip
+census (`skipped 1` with reason; `npm run test:strict` fails hard, the CI gate); (7) 55f54e9 — dead bridge
+deleted; (8) 0b4142e — GET /api/tasks + GET /api/scheduler/tick now read-only, Live Chat MOCK badge.
+Browser-dependent scheduler + diagnostics-runner side effects captured in OUT_OF_SCOPE.md (need infra/seams).
+**Full suite after P1 OBSERVED: 1607 pass / 0 fail / 1 skipped** (the census — mesh tier down on this host);
+MC vitest 95/95.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
