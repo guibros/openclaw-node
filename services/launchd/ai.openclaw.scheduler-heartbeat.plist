@@ -9,7 +9,10 @@
     <key>ProgramArguments</key>
     <array>
       <string>/usr/bin/curl</string>
-      <string>-s</string>
+      <!-- -fsS not -s: an HTTP 4xx/5xx or refused connection must exit
+           non-zero and land in the .err log, not heartbeat "successfully"
+           against a dead or drifted MC forever -->
+      <string>-fsS</string>
       <string>-o</string>
       <string>/dev/null</string>
       <string>--max-time</string>

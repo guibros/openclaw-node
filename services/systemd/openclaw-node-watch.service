@@ -9,7 +9,7 @@ Restart=always
 RestartSec=5
 Environment=HOME=${HOME}
 Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
-Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
+Environment=NODE_PATH=${OPENCLAW_REPO_DIR}/node_modules:${OPENCLAW_WORKSPACE}/node_modules
 Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
 Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
 Environment=OPENCLAW_NODE_ID=${OPENCLAW_NODE_ID}

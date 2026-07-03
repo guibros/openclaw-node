@@ -218,6 +218,8 @@ test/gulf1-eval.test.mjs
 test/hybrid-search.test.mjs
 test/embed-existing-sessions.test.mjs
 test/mcp-knowledge-sessions.test.mjs
+# deploy day (operator-approved): watch units installable + heartbeat fail-visible
+install.sh
 ```
 
 ## Prior closed scopes (retained for history)

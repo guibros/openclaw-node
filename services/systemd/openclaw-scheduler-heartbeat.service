@@ -4,4 +4,4 @@ After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/curl -s -o /dev/null --max-time 10 -X POST http://127.0.0.1:3000/api/scheduler/tick
+ExecStart=/usr/bin/curl -fsS -o /dev/null --max-time 10 -X POST http://127.0.0.1:3000/api/scheduler/tick

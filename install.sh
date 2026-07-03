@@ -330,6 +330,9 @@ step "Step 3: Install Workspace Scripts"
 
 run rsync -av --exclude='*.bak' --exclude='*.bak.*' --exclude='routing-eval-tests.json' \
   "$REPO_DIR/workspace-bin/" "$WORKSPACE/bin/"
+# The node-watch/acceptance service units exec ${OPENCLAW_WORKSPACE}/bin/node-watch.mjs —
+# these live in repo bin/ (not workspace-bin/) and must land at that path too.
+run cp "$REPO_DIR/bin/node-watch.mjs" "$REPO_DIR/bin/node-acceptance.mjs" "$WORKSPACE/bin/"
 run chmod +x "$WORKSPACE/bin/"*
 run chmod +x "$WORKSPACE/bin/hooks/"* 2>/dev/null || true
 info "Workspace scripts installed to $WORKSPACE/bin/"
