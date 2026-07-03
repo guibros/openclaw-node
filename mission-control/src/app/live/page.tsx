@@ -27,7 +27,7 @@ export default function LivePage() {
       id: "welcome",
       role: "agent",
       content:
-        "Live Chat ready. TTS is active — agent responses will be spoken aloud. Type a message to test.",
+        "TTS is live, but agent responses here are canned placeholders — this page tests the speech pipeline, not a real agent. Type a message to hear a mock reply spoken aloud.",
       timestamp: new Date(),
     },
   ]);
@@ -102,6 +102,12 @@ export default function LivePage() {
         <div className="flex items-center gap-2">
           <MessageCircle className="w-5 h-5 text-primary" />
           <h1 className="text-lg font-semibold text-foreground">Live Chat</h1>
+          <span
+            className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-yellow-500/15 text-yellow-500 border border-yellow-500/30"
+            title="Agent responses are canned placeholders. The TTS/speech pipeline is real; the conversation is not."
+          >
+            Mock
+          </span>
           {(isSpeaking || isLoading) && (
             <span className="ml-2 text-xs text-primary animate-pulse">
               {isLoading ? "synthesizing..." : "speaking..."}

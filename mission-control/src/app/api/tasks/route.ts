@@ -61,40 +61,13 @@ export async function GET(request: NextRequest) {
     // Only re-sync from markdown if the file was modified externally
     syncTasksFromMarkdownIfChanged(db);
 
-    // Inject live session task from daemon state
+    // The live "current session" task is DERIVED from daemon state, not stored.
+    // It used to be upsert/deleted here on every request — a write on every 3s
+    // poll from every open tab (updatedAt churn + WAL pressure). Now GET is
+    // read-only: synthesize the row in the response instead. One-time cleanup
+    // removes any row persisted by the old behavior, after which GET never writes.
     const liveWork = readDaemonState();
     const liveTaskId = "__LIVE_SESSION__";
-
-    if (liveWork) {
-      db.insert(tasks)
-        .values({
-          id: liveTaskId,
-          title: liveWork.title,
-          status: "running",
-          kanbanColumn: "in_progress",
-          owner: AGENT_NAME.toLowerCase(),
-          nextAction: liveWork.nextAction || null,
-          updatedAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          sortOrder: -1,
-          successCriteria: null,
-          artifacts: null,
-        })
-        .onConflictDoUpdate({
-          target: tasks.id,
-          set: {
-            title: liveWork.title,
-            status: "running",
-            kanbanColumn: "in_progress",
-            nextAction: liveWork.nextAction || null,
-            updatedAt: new Date().toISOString(),
-          },
-        })
-        .run();
-    } else {
-      // No active work — remove the live task if it exists
-      db.delete(tasks).where(eq(tasks.id, liveTaskId)).run();
-    }
 
     const { searchParams } = request.nextUrl;
     const statusFilter = searchParams.get("status");
@@ -124,12 +97,39 @@ export async function GET(request: NextRequest) {
         .all();
     }
 
-    // Parse JSON fields for the response
-    const result = rows.map((t) => ({
-      ...t,
-      successCriteria: t.successCriteria ? JSON.parse(t.successCriteria) : [],
-      artifacts: t.artifacts ? JSON.parse(t.artifacts) : [],
-    }));
+    // One-time cleanup of any __LIVE_SESSION__ row left by the old write-on-read
+    // behavior; steady state has none, so this is a no-op (no write) after the
+    // first request post-upgrade.
+    if (rows.some((t) => t.id === liveTaskId)) {
+      db.delete(tasks).where(eq(tasks.id, liveTaskId)).run();
+    }
+
+    // Parse JSON fields for the response (excluding any stale persisted live row)
+    const result = rows
+      .filter((t) => t.id !== liveTaskId)
+      .map((t) => ({
+        ...t,
+        successCriteria: t.successCriteria ? JSON.parse(t.successCriteria) : [],
+        artifacts: t.artifacts ? JSON.parse(t.artifacts) : [],
+      }));
+
+    // Prepend the derived live-session task so consumers (status banner, task
+    // card, calendar) see current daemon activity — without persisting it.
+    if (liveWork && !statusFilter && !columnFilter) {
+      result.unshift({
+        id: liveTaskId,
+        title: liveWork.title,
+        status: "running",
+        kanbanColumn: "in_progress",
+        owner: AGENT_NAME.toLowerCase(),
+        nextAction: liveWork.nextAction || null,
+        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        sortOrder: -1,
+        successCriteria: [],
+        artifacts: [],
+      } as (typeof result)[number]);
+    }
 
     return NextResponse.json(result);
   } catch (err) {
