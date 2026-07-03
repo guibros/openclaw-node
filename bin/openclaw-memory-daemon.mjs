@@ -198,25 +198,49 @@ async function main() {
         } catch { return null; }
       };
 
+      // Serialize flushes: a flush takes 1–15 min; concurrent extract requests
+      // (or an idle fire during one) must not run overlapping runFlush passes —
+      // they'd double the LLM work and race on the store. Guard to one in-flight
+      // flush; a request arriving mid-flush sets `pending` so we do exactly one
+      // more pass afterward to capture the latest transcript (dedup makes that
+      // pass a cheap no-op if nothing changed).
+      let flushInFlight = false;
+      let flushPending = false;
+      const runFlushGuarded = async (triggeredBy) => {
+        if (flushInFlight) {
+          flushPending = true;
+          log(`[daemon] flush already running — coalescing request (triggered_by=${triggeredBy})`);
+          return;
+        }
+        flushInFlight = true;
+        try {
+          do {
+            flushPending = false;
+            const jsonlPath = findActiveTranscript();
+            if (!jsonlPath) {
+              log(`[daemon] extract requested by ${triggeredBy} but no active transcript found — skipping`);
+              break;
+            }
+            const memoryMdPath = jsonlPath.replace(/\.jsonl$/, '.memory.md');
+            log(`[daemon] running flush for ${jsonlPath} (triggered_by=${triggeredBy})`);
+            try {
+              const result = await runFlush(jsonlPath, memoryMdPath, { llmClient, extractionStore });
+              log(`[daemon] flush complete: mode=${result.mode}, facts=${result.facts}, added=${result.added}, merged=${result.merged}`);
+            } catch (err) {
+              log(`[daemon] flush failed: ${err.message}`);
+            }
+          } while (flushPending);
+        } finally {
+          flushInFlight = false;
+          // A completed flush is the new activity baseline — re-arm the idle
+          // timer so the fallback keeps firing (it dies after one fire
+          // otherwise: idle-timer messages deliberately don't self-re-arm).
+          extractionTrigger?.resetIdleTimer?.();
+        }
+      };
+
       extractionTrigger = createExtractionTrigger(nc, nodeId, {
-        onExtract: async (payload) => {
-          const jsonlPath = findActiveTranscript();
-          if (!jsonlPath) {
-            log(`[daemon] extract requested by ${payload.triggered_by} but no active transcript found — skipping`);
-            return;
-          }
-          const memoryMdPath = jsonlPath.replace(/\.jsonl$/, '.memory.md');
-          log(`[daemon] running flush for ${jsonlPath} (triggered_by=${payload.triggered_by})`);
-          try {
-            const result = await runFlush(jsonlPath, memoryMdPath, {
-              llmClient,
-              extractionStore,
-            });
-            log(`[daemon] flush complete: mode=${result.mode}, facts=${result.facts}, added=${result.added}, merged=${result.merged}`);
-          } catch (err) {
-            log(`[daemon] flush failed: ${err.message}`);
-          }
-        },
+        onExtract: (payload) => { void runFlushGuarded(payload.triggered_by); },
       });
       await extractionTrigger.start();
       log(`[daemon] extraction trigger active on ${join('mesh.memory.extract_request')}`);
