@@ -49,4 +49,17 @@ describe('node-acceptance gate', () => {
     assert.ok(l3, 'expected an L3 row');
     assert.equal(l3.status, VERDICT.NA);
   });
+
+  it('throws on an unknown --axis instead of ACCEPTing an empty result set', async () => {
+    await assert.rejects(
+      runAcceptance({ profile: 'single-node', axis: 'TYPO_AXIS', probes: [], healthCheckFn: async () => allHealthy }),
+      /unknown axis 'TYPO_AXIS'/,
+    );
+  });
+
+  it('an axis whose only rows are N/A is INCOMPLETE, never ACCEPTED', async () => {
+    const r = await runAcceptance({ profile: 'single-node', axis: 'internode', probes: [], healthCheckFn: async () => allHealthy });
+    assert.equal(r.gate.state, 'INCOMPLETE');
+    assert.equal(r.gate.exitCode, 2);
+  });
 });

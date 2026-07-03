@@ -95,7 +95,11 @@ async function main() {
     // Federation needs both extraction-store (concepts/decisions/themes) AND
     // the knowledge DB (session_chunks for FTS / semantic retrieval).
     const { openStore } = await import('../lib/sqlite-store.mjs');
-    const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || join(dbDir, 'knowledge.db');
+    // The knowledge DB lives in the workspace (same path the running daemon,
+    // embed-existing-sessions, and .mcp.json use) — NOT dbDir/knowledge.db,
+    // which never existed and would silently drop federation to broadcast-only.
+    const workspaceDir = process.env.OPENCLAW_WORKSPACE || join(homedir(), '.openclaw', 'workspace');
+    const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || join(workspaceDir, '.knowledge.db');
     // C1 fix (deep review 2026-07-03): extraction tables live in state.db —
     // the session-store database that extraction-store, the inject server,
     // and extract-existing-sessions all use. The old default (extraction.db)
@@ -105,7 +109,7 @@ async function main() {
     knowledgeDb = existsSync(knowledgeDbPath) ? openStore(knowledgeDbPath) : null;
     extractionDb = existsSync(extractionDbPath) ? openStore(extractionDbPath) : null;
     if (!knowledgeDb || !extractionDb) {
-      log(`[daemon] WARNING: knowledge.db or extraction.db missing — federation will run in broadcast-only mode (no offerer/acceptor)`);
+      log(`[daemon] WARNING: missing DB (knowledge=${knowledgeDb ? 'ok' : knowledgeDbPath} extraction=${extractionDb ? 'ok' : extractionDbPath}) — federation will run in broadcast-only mode (no offerer/acceptor)`);
     }
 
     // STUB_AUDIT fix: Channel 5 (spreading activation) was inert in the

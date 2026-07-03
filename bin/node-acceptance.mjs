@@ -50,13 +50,16 @@ async function main() {
     process.stdout.write(formatTable(report) + '\n');
   }
 
-  const reportPath = values.report || DEFAULT_REPORT;
-  try {
-    await mkdir(path.dirname(reportPath), { recursive: true });
-    await writeFile(reportPath, formatReport(report), 'utf8');
-    if (!values.quiet && !values.json) process.stdout.write(`Evidence -> ${reportPath}\n`);
-  } catch (err) {
-    process.stderr.write(`[node-acceptance] could not write report: ${err.message}\n`);
+  // An axis run is a partial view — it must not clobber the full-gate evidence file.
+  const reportPath = values.report || (values.axis ? null : DEFAULT_REPORT);
+  if (reportPath) {
+    try {
+      await mkdir(path.dirname(reportPath), { recursive: true });
+      await writeFile(reportPath, formatReport(report), 'utf8');
+      if (!values.quiet && !values.json) process.stdout.write(`Evidence -> ${reportPath}\n`);
+    } catch (err) {
+      process.stderr.write(`[node-acceptance] could not write report: ${err.message}\n`);
+    }
   }
 
   process.exit(report.gate.exitCode);

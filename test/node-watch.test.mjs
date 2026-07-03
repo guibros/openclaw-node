@@ -74,6 +74,28 @@ describe('node-watch honesty invariants', () => {
     const r = await target('net.nats').run(envFor(makeCtx(), { probes: {} }));
     assert.equal(r.status, STATUS.UNKNOWN);
   });
+
+  it('a reusing target inherits the reused probe timeoutMs (no 30s default clamp)', async () => {
+    // probe declares a 50ms budget and takes 150ms: with inheritance the target
+    // times out at 50ms (UNKNOWN "timeout 50ms"); under the old default clamp
+    // (30s) it would have completed and reported WORKING.
+    const t = target('llm.extraction_task');
+    assert.equal(t.reuses, 'LLM-L2-EXTRACT');
+    const probes = {
+      'LLM-L2-EXTRACT': {
+        timeoutMs: 50,
+        run: () => new Promise((res) => setTimeout(() => res({ status: 'PASS', detail: 'slow ok' }), 150)),
+      },
+    };
+    const report = await runWatch({
+      ctx: makeCtx(), config,
+      healthCheckFn: async () => ({}),
+      probes, includeHeavy: true,
+      targets: [t],
+    });
+    assert.equal(report.results[0].status, STATUS.UNKNOWN);
+    assert.match(report.results[0].detail, /timeout 50ms/);
+  });
 });
 
 describe('node-watch OFF semantics (intentionally not active ≠ broken)', () => {

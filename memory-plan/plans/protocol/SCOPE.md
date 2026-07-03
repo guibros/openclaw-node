@@ -111,6 +111,12 @@ installed and currently uninstallable — `${VAR}` placeholders nothing renders 
 node-watch.mjs at the unit exec path). Batch-0 triage EXECUTED 2026-07-03 (operator-approved): MC rebound
 to 127.0.0.1 (OBSERVED lsof + HTTP 200), 7 crash-looping mesh/aux launchd units unloaded → `.disabled`,
 branch pushed. Deploy day + P1 round 2 are the queued next scopes.
+**Addendum 2026-07-03g (operator-directed "go batch3"):** P1 round 2 from the full deep review (§5 items
+3–11): C2 catch-up signing + replay cache; node-acceptance axis validation; node-watch reuse() timeout
+inheritance; flush-coalescing guard ported to the live daemon (workspace-bin/memory-daemon.mjs); knowledge-DB
+default path fix; federation-suite skip census + regression-bugs silent returns; broadcast dist-import
+fail-loud; CI green (lockfile drift + workspace build); mesh-kv-sync test rewritten against production code.
+Files added below under "# 2026-07-03g".
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -167,6 +173,24 @@ test/readonly-sql.test.mjs
 lib/mcp-knowledge/server.mjs
 # 2026-07-03f (operator-directed, interactive session): full deep-review report document
 memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md
+# 2026-07-03g (operator-directed "go batch3"): P1 round 2
+workspace-bin/memory-daemon.mjs
+lib/broadcast-offerer.mjs
+lib/broadcast-acceptor.mjs
+lib/broadcast-emitter.mjs
+lib/event-schemas.mjs
+lib/node-identity.mjs
+test/federation-2node.test.mjs
+test/federation-3node.test.mjs
+test/federation-resilience.test.mjs
+test/regression-bugs.test.js
+test/broadcast-*.test.mjs
+mission-control/src/lib/__tests__/mesh-kv-sync.test.ts
+mission-control/src/lib/mesh-kv-sync.ts
+mission-control/package.json
+mission-control/package-lock.json
+package-lock.json
+.github/workflows/test.yml
 ```
 
 ## Prior closed scopes (retained for history)
