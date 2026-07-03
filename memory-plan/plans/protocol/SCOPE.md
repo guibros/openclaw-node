@@ -211,6 +211,8 @@ test/helpers/embedder-available.mjs
 test/embed-benchmark.test.mjs
 test/gulf1-eval.test.mjs
 test/hybrid-search.test.mjs
+test/embed-existing-sessions.test.mjs
+test/mcp-knowledge-sessions.test.mjs
 ```
 
 ## Prior closed scopes (retained for history)

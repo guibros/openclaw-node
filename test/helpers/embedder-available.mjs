@@ -15,6 +15,12 @@ let cached;
 
 export async function embedderSkipReason() {
   if (cached !== undefined) return cached;
+  // CI opts out explicitly: a 2GB model download per run is wasteful and
+  // flaky (one corrupt cache = red run). The census still surfaces the skip.
+  if (process.env.OPENCLAW_NO_EMBED_MODEL === '1') {
+    cached = 'embedding model disabled by OPENCLAW_NO_EMBED_MODEL=1';
+    return cached;
+  }
   try {
     await getEmbedder();
     cached = false;
