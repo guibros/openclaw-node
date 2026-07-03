@@ -65,6 +65,14 @@ caps; no query timeout — better-sqlite3 exposes no progress handler, documente
 copy of the live state.db), replace the F-H23 per-theme LIKE stopgap with FTS MATCH, add the `dfts`
 retrieval channel. Phase G outbox note + optional ctx sidecar NOT in scope (doc/ops, captured in
 OUT_OF_SCOPE / session transcript).
+— A+B CLOSED 2026-07-03: (A) fb4667e — `lib/readonly-sql.mjs` + `sql_query`/`sql_schema` wired into
+mcp-knowledge (6 tools total); 13/13 unit tests; live stdio MCP probe OBSERVED (real state.db rows
+returned; DELETE refused isError:true). Keyword gate added beyond the ctx pattern: ATTACH/PRAGMA are
+sqlite3_stmt_readonly-true but blocked. (B) 1df972e — schema v3 migration OBSERVED on a copy of the
+live state.db (337/337 decisions FTS-indexed, bm25 hits ranked); F-H23 LIKE stopgap + dead sentinel
+loop deleted; channel 6 `dfts` live-probed against real DBs (5 session chunks for a decision-worded
+query). Full suite 1642: 1641/0/1 known census skip. NOTE: the live daemon picks up v3 only after the
+L0 deploy-gap symlink/restart — same caveat as every lib/ change this session.
 **Addendum 2026-07-03e (operator-directed "go for the remaining"):** the remaining review backlog —
 scheduler heartbeat (browser-dependent ticking), diagnostics-runner production side effects, and mesh
 deploy-trigger auth (C2 security).
