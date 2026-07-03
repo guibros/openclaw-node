@@ -95,6 +95,53 @@ export function computeWaves(
   }
 }
 
+export interface SchedulerStatus {
+  now: string;
+  scheduled: { at: number; cron: number };
+  ready: number;
+  running: number;
+  overdue: number;
+  overdueIds: string[];
+  graceMinutes: number;
+}
+
+/**
+ * READ-ONLY scheduler status — mirrors the trigger evaluation WITHOUT mutating
+ * or dispatching anything (selects only). Used by the node watcher to observe
+ * scheduler health: `overdue` counts one-shot ("at") tasks still queued past
+ * trigger_at + grace — a non-zero value means the dispatching tick isn't running.
+ */
+export function schedulerStatus(graceMinutes = 30): SchedulerStatus {
+  const db = getDb();
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - graceMinutes * 60_000).toISOString();
+
+  const atQueued = db
+    .select({ id: tasks.id, triggerAt: tasks.triggerAt })
+    .from(tasks)
+    .where(and(eq(tasks.triggerKind, "at"), eq(tasks.status, "queued")))
+    .all();
+  const cronQueued = db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(and(eq(tasks.triggerKind, "cron"), eq(tasks.status, "queued")))
+    .all();
+  const ready = db.select({ id: tasks.id }).from(tasks).where(eq(tasks.status, "ready")).all();
+  const running = db.select({ id: tasks.id }).from(tasks).where(eq(tasks.status, "running")).all();
+
+  const overdue = atQueued.filter((t) => t.triggerAt && t.triggerAt <= cutoff);
+
+  return {
+    now: now.toISOString(),
+    scheduled: { at: atQueued.length, cron: cronQueued.length },
+    ready: ready.length,
+    running: running.length,
+    overdue: overdue.length,
+    overdueIds: overdue.map((t) => t.id).slice(0, 10),
+    graceMinutes,
+  };
+}
+
 /**
  * Main scheduler tick. Evaluates triggers and dispatches eligible tasks.
  * Designed to be called externally (API route, heartbeat, SWR poll).

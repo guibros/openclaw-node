@@ -214,10 +214,6 @@ async function fleetDeploy(nc, opts) {
   const js = nc.jetstream();
   const resultsKv = await js.views.kv(RESULTS_BUCKET, { history: 5, ttl: 7 * 24 * 60 * 60 * 1000 });
 
-  // Also write a "latest" marker so offline nodes know what to catch up to
-  await resultsKv.put('latest', sc.encode(JSON.stringify({ sha, branch, timestamp: new Date().toISOString() })));
-
-  // Publish the trigger
   const trigger = {
     sha,
     branch,
@@ -228,8 +224,17 @@ async function fleetDeploy(nc, opts) {
     force: !!force,
   };
 
+  // Sign the trigger (best-effort) so signed-deploy listeners accept it. C2:
+  // harmless when no listener enforces signatures; required once they do.
+  const { maybeSignDeployTrigger } = await import('../lib/deploy-trigger-auth.mjs');
+  const signedTrigger = maybeSignDeployTrigger(trigger);
+
+  // The "latest" catch-up marker carries the SAME signed trigger — an unsigned
+  // marker let anyone with KV write access steer every catching-up node.
+  await resultsKv.put('latest', sc.encode(JSON.stringify(signedTrigger)));
+
   console.log(`Publishing deploy trigger: sha=${sha} nodes=${(targetNodes || ['all']).join(',')}`);
-  nc.publish('mesh.deploy.trigger', sc.encode(JSON.stringify(trigger)));
+  nc.publish('mesh.deploy.trigger', sc.encode(JSON.stringify(signedTrigger)));
   info(`Trigger published: ${sha} → mesh.deploy.trigger`);
 
   // Watch for results

@@ -1,465 +1,232 @@
 /**
- * mesh-kv-sync.test.ts — Unit tests for distributed MC (Phase 1+2).
+ * mesh-kv-sync.test.ts — tests for the PRODUCTION sync engine
+ * (src/lib/sync/mesh-kv.ts) against a MockKV-backed @/lib/nats.
  *
- * Tests: CAS operations, authority model, proposal lifecycle,
- * task merge/deduplication, watcher lifecycle, sync skip logic.
- *
- * No external dependencies — uses MockKV for all NATS KV operations.
+ * The previous version of this file imported zero production code: it tested
+ * a mergeTasks defined inside the test file, an authority rule computed
+ * inline, and the MockKV's own Map — green by construction (deep review
+ * 2026-07-03). Every suite below exercises the real module; node identity and
+ * role are driven through the mocked @/lib/config.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
-import { MockKV, encode, decode } from "./mocks/mock-kv";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { MockKV } from "./mocks/mock-kv";
 
-let kv: MockKV;
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+let kv: MockKV | null;
+const cfg = { nodeId: "worker-1", nodeRole: "worker" as "lead" | "worker" };
+
+vi.mock("@/lib/nats", () => ({
+  getTasksKv: async () => kv,
+  sc: {
+    encode: (s: string) => encoder.encode(s),
+    decode: (b: Uint8Array) => decoder.decode(b),
+  },
+}));
+
+vi.mock("@/lib/config", () => ({
+  get NODE_ID() {
+    return cfg.nodeId;
+  },
+  get NODE_ROLE() {
+    return cfg.nodeRole;
+  },
+}));
+
+import {
+  listMeshTasks,
+  getMeshTask,
+  putMeshTask,
+  updateMeshTaskCAS,
+  proposeMeshTask,
+  watchMeshTasks,
+  mergeTasks,
+  type MeshTaskEntry,
+} from "@/lib/sync/mesh-kv";
+
+function task(over: Partial<MeshTaskEntry> = {}): MeshTaskEntry {
+  return {
+    task_id: "t1",
+    title: "Test task",
+    description: "",
+    status: "queued",
+    origin: "lead-node",
+    owner: null,
+    priority: 1,
+    budget_minutes: 10,
+    metric: null,
+    success_criteria: [],
+    scope: [],
+    tags: [],
+    preferred_nodes: [],
+    exclude_nodes: [],
+    created_at: "2026-07-03T00:00:00Z",
+    claimed_at: null,
+    started_at: null,
+    completed_at: null,
+    last_activity: null,
+    result: null,
+    attempts: [],
+    ...over,
+  };
+}
 
 beforeEach(() => {
   kv = new MockKV();
+  cfg.nodeId = "worker-1";
+  cfg.nodeRole = "worker";
 });
 
-// ── CAS (Compare-And-Swap) Operations ──
+// ── Read/write roundtrip ──
 
-describe("CAS operations", () => {
-  it("put creates entry with incrementing revision", async () => {
-    const rev1 = await kv.put("task-1", encode({ title: "Task 1" }));
-    const rev2 = await kv.put("task-2", encode({ title: "Task 2" }));
-    expect(rev1).toBe(1);
-    expect(rev2).toBe(2);
-  });
-
-  it("get returns stored entry with revision", async () => {
-    await kv.put("task-1", encode({ title: "First" }));
-    const entry = await kv.get("task-1");
-    expect(entry).not.toBeNull();
-    expect(decode(entry!.value)).toEqual({ title: "First" });
-    expect(entry!.revision).toBe(1);
-  });
-
-  it("get returns null for missing key", async () => {
-    const entry = await kv.get("nonexistent");
-    expect(entry).toBeNull();
-  });
-
-  it("create fails if key already exists", async () => {
-    await kv.put("task-1", encode({ title: "V1" }));
-    await expect(
-      kv.create("task-1", encode({ title: "V2" }))
-    ).rejects.toThrow("key already exists");
-  });
-
-  it("create succeeds for new key", async () => {
-    const rev = await kv.create("task-new", encode({ title: "New" }));
+describe("put/get/list roundtrip (production)", () => {
+  it("putMeshTask stores what getMeshTask reads back", async () => {
+    const rev = await putMeshTask(task({ task_id: "rt1", title: "Roundtrip" }));
     expect(rev).toBeGreaterThan(0);
-    const entry = await kv.get("task-new");
-    expect(decode(entry!.value)).toEqual({ title: "New" });
+    const got = await getMeshTask("rt1");
+    expect(got?.task.title).toBe("Roundtrip");
+    expect(got?.revision).toBe(rev);
   });
 
-  it("update succeeds with correct revision", async () => {
-    await kv.put("task-1", encode({ title: "V1" }));
-    const entry = await kv.get("task-1");
-    await kv.update("task-1", encode({ title: "V2" }), entry!.revision);
-    const updated = await kv.get("task-1");
-    expect(decode(updated!.value)).toEqual({ title: "V2" });
+  it("listMeshTasks returns every stored task", async () => {
+    await putMeshTask(task({ task_id: "a" }));
+    await putMeshTask(task({ task_id: "b" }));
+    const all = await listMeshTasks();
+    expect(all.map((t) => t.task_id).sort()).toEqual(["a", "b"]);
   });
 
-  it("update fails with stale revision (CAS conflict)", async () => {
-    await kv.put("task-1", encode({ title: "V1" }));
-    const entry = await kv.get("task-1");
-    const staleRev = entry!.revision;
-
-    // Another write bumps the revision
-    await kv.put("task-1", encode({ title: "V2" }));
-
-    try {
-      await kv.update("task-1", encode({ title: "V3" }), staleRev);
-      expect.unreachable("Update should have thrown");
-    } catch (err: any) {
-      expect(err.message).toContain("wrong last sequence");
-      expect(err.message).toContain("revision mismatch");
-    }
-  });
-
-  it("update fails for nonexistent key", async () => {
-    await expect(
-      kv.update("ghost", encode({ title: "X" }), 1)
-    ).rejects.toThrow("revision mismatch");
-  });
-
-  it("delete removes entry", async () => {
-    await kv.put("task-1", encode({ title: "V1" }));
-    await kv.delete("task-1");
-    const entry = await kv.get("task-1");
-    expect(entry).toBeNull();
+  it("listMeshTasks returns [] when NATS is unavailable", async () => {
+    kv = null;
+    expect(await listMeshTasks()).toEqual([]);
   });
 });
 
-// ── Authority Model ──
+// ── Authority model (production rule in updateMeshTaskCAS) ──
 
-describe("Authority model", () => {
-  it("lead can update any task", async () => {
-    const nodeRole = "lead";
-    const nodeId = "mac-lead";
+describe("authority model (production)", () => {
+  it("lead can update a task originated elsewhere", async () => {
+    cfg.nodeRole = "lead";
+    cfg.nodeId = "lead-node";
+    const rev = await putMeshTask(task({ origin: "worker-9" }));
+    const newRev = await updateMeshTaskCAS("t1", { status: "running" }, rev);
+    expect(newRev).toBeGreaterThan(rev);
+    expect((await getMeshTask("t1"))?.task.status).toBe("running");
+  });
 
-    await kv.put(
-      "T-001",
-      encode({ task_id: "T-001", origin: "ubuntu-worker", status: "queued" })
+  it("worker can update its OWN task", async () => {
+    const rev = await putMeshTask(task({ origin: "worker-1" }));
+    await updateMeshTaskCAS("t1", { status: "running" }, rev);
+    expect((await getMeshTask("t1"))?.task.status).toBe("running");
+  });
+
+  it("worker is DENIED updating a foreign-origin task", async () => {
+    const rev = await putMeshTask(task({ origin: "lead-node" }));
+    await expect(updateMeshTaskCAS("t1", { status: "running" }, rev)).rejects.toThrow(
+      /Authority denied: worker worker-1/
     );
-    const entry = await kv.get("T-001");
-    const task = decode(entry!.value);
-
-    // Lead can update regardless of origin
-    const canUpdate = nodeRole === "lead" || task.origin === nodeId;
-    expect(canUpdate).toBe(true);
-  });
-
-  it("worker can only update tasks it originated", async () => {
-    const nodeRole = "worker";
-    const nodeId = "ubuntu-worker";
-
-    await kv.put(
-      "T-001",
-      encode({ task_id: "T-001", origin: "ubuntu-worker", status: "proposed" })
-    );
-    const entry = await kv.get("T-001");
-    const task = decode(entry!.value);
-
-    const canUpdate = nodeRole === "lead" || task.origin === nodeId;
-    expect(canUpdate).toBe(true);
-  });
-
-  it("worker cannot update tasks from other nodes", async () => {
-    const nodeRole = "worker";
-    const nodeId = "ubuntu-worker-2";
-
-    await kv.put(
-      "T-001",
-      encode({ task_id: "T-001", origin: "ubuntu-worker-1", status: "queued" })
-    );
-    const entry = await kv.get("T-001");
-    const task = decode(entry!.value);
-
-    const canUpdate = nodeRole === "lead" || task.origin === nodeId;
-    expect(canUpdate).toBe(false);
-  });
-
-  it("worker proposals get status 'proposed'", () => {
-    const nodeRole = "worker";
-    const status = nodeRole === "lead" ? "queued" : "proposed";
-    expect(status).toBe("proposed");
-  });
-
-  it("lead proposals get status 'queued' directly", () => {
-    const nodeRole = "lead";
-    const status = nodeRole === "lead" ? "queued" : "proposed";
-    expect(status).toBe("queued");
+    expect((await getMeshTask("t1"))?.task.status).toBe("queued");
   });
 });
 
-// ── Proposal Lifecycle ──
+// ── CAS semantics ──
 
-describe("Proposal lifecycle", () => {
-  it("worker proposes → daemon accepts → queued", async () => {
-    // Worker creates with proposed
-    await kv.put(
-      "T-PROP-001",
-      encode({
-        task_id: "T-PROP-001",
-        title: "Fix bug",
-        origin: "worker-1",
-        status: "proposed",
-      })
+describe("CAS update (production)", () => {
+  it("succeeds on the expected revision and merges partial updates", async () => {
+    const rev = await putMeshTask(task({ origin: "worker-1", priority: 1 }));
+    await updateMeshTaskCAS("t1", { priority: 5 }, rev);
+    const got = await getMeshTask("t1");
+    expect(got?.task.priority).toBe(5);
+    expect(got?.task.title).toBe("Test task"); // untouched fields survive
+  });
+
+  it("throws on a stale revision (another node wrote since our read)", async () => {
+    const rev = await putMeshTask(task({ origin: "worker-1" }));
+    await updateMeshTaskCAS("t1", { status: "running" }, rev);
+    await expect(updateMeshTaskCAS("t1", { status: "done" }, rev)).rejects.toThrow(
+      /wrong last sequence/
     );
-
-    // Daemon reads proposed tasks
-    const entry = await kv.get("T-PROP-001");
-    const task = decode(entry!.value);
-    expect(task.status).toBe("proposed");
-
-    // Daemon validates and accepts
-    task.status = "queued";
-    await kv.put("T-PROP-001", encode(task));
-
-    const updated = await kv.get("T-PROP-001");
-    expect(decode(updated!.value).status).toBe("queued");
   });
 
-  it("daemon rejects invalid proposal", async () => {
-    // Worker proposes without title
-    await kv.put(
-      "T-BAD-001",
-      encode({
-        task_id: "T-BAD-001",
-        title: "",
-        origin: "worker-1",
-        status: "proposed",
-      })
-    );
-
-    const entry = await kv.get("T-BAD-001");
-    const task = decode(entry!.value);
-
-    // Daemon validates: empty title → reject
-    if (!task.title || !task.origin) {
-      task.status = "rejected";
-      task.result = { success: false, summary: "Missing required fields" };
-    }
-    await kv.put("T-BAD-001", encode(task));
-
-    const updated = await kv.get("T-BAD-001");
-    expect(decode(updated!.value).status).toBe("rejected");
-  });
-
-  it("proposal with missing origin gets rejected", async () => {
-    await kv.put(
-      "T-BAD-002",
-      encode({
-        task_id: "T-BAD-002",
-        title: "Good title",
-        origin: "",
-        status: "proposed",
-      })
-    );
-
-    const entry = await kv.get("T-BAD-002");
-    const task = decode(entry!.value);
-
-    if (!task.title || !task.origin) {
-      task.status = "rejected";
-    }
-    await kv.put("T-BAD-002", encode(task));
-
-    const updated = await kv.get("T-BAD-002");
-    expect(decode(updated!.value).status).toBe("rejected");
+  it("throws when the task does not exist", async () => {
+    await expect(updateMeshTaskCAS("nope", { status: "x" }, 1)).rejects.toThrow(/not found/);
   });
 });
 
-// ── Watcher Lifecycle ──
+// ── Proposal lifecycle ──
 
-describe("KV Watcher lifecycle", () => {
-  it("watcher receives put events", async () => {
-    const watcher = await kv.watch();
-    const events: any[] = [];
-
-    // Start collecting in background
-    const collecting = (async () => {
-      for await (const entry of watcher) {
-        events.push(entry);
-        if (events.length >= 2) break;
-      }
-    })();
-
-    await kv.put("task-1", encode({ title: "First" }));
-    await kv.put("task-2", encode({ title: "Second" }));
-
-    await collecting;
-
-    expect(events).toHaveLength(2);
-    expect(events[0].key).toBe("task-1");
-    expect(events[1].key).toBe("task-2");
+describe("proposeMeshTask (production)", () => {
+  it("a worker proposal lands as status=proposed with the worker's origin", async () => {
+    const proposed = await proposeMeshTask(task({ task_id: "p1" }));
+    expect(proposed.status).toBe("proposed");
+    expect(proposed.origin).toBe("worker-1");
+    expect((await getMeshTask("p1"))?.task.status).toBe("proposed");
   });
 
-  it("watcher receives delete events", async () => {
-    await kv.put("task-1", encode({ title: "Exists" }));
-
-    const watcher = await kv.watch();
-    const events: any[] = [];
-
-    const collecting = (async () => {
-      for await (const entry of watcher) {
-        events.push(entry);
-        if (events.length >= 1) break;
-      }
-    })();
-
-    await kv.delete("task-1");
-    await collecting;
-
-    expect(events).toHaveLength(1);
-    expect(events[0].key).toBe("task-1");
-    expect(events[0].operation).toBe("DEL");
-  });
-
-  it("watcher.stop() ends iteration", async () => {
-    const watcher = await kv.watch();
-    let iterations = 0;
-
-    const collecting = (async () => {
-      for await (const _entry of watcher) {
-        iterations++;
-      }
-    })();
-
-    await kv.put("task-1", encode({ title: "First" }));
-
-    // Give time for the event to be processed
-    await new Promise((r) => setTimeout(r, 10));
-
-    watcher.stop();
-    await collecting;
-
-    expect(iterations).toBe(1);
-  });
-
-  it("stopped watcher does not receive new events", async () => {
-    const watcher = await kv.watch();
-    const events: any[] = [];
-
-    const collecting = (async () => {
-      for await (const entry of watcher) {
-        events.push(entry);
-      }
-    })();
-
-    await kv.put("task-1", encode({ title: "Before stop" }));
-    await new Promise((r) => setTimeout(r, 10));
-
-    watcher.stop();
-    await collecting;
-
-    // This write happens after stop
-    await kv.put("task-2", encode({ title: "After stop" }));
-    await new Promise((r) => setTimeout(r, 10));
-
-    expect(events).toHaveLength(1);
-    expect(events[0].key).toBe("task-1");
+  it("a lead proposal is queued directly", async () => {
+    cfg.nodeRole = "lead";
+    cfg.nodeId = "lead-node";
+    const proposed = await proposeMeshTask(task({ task_id: "p2" }));
+    expect(proposed.status).toBe("queued");
+    expect(proposed.origin).toBe("lead-node");
   });
 });
 
-// ── Sync Skip Logic ──
+// ── Watcher ──
 
-describe("Sync skip logic (worker nodes)", () => {
-  it("worker role skips markdown write", () => {
-    const nodeRole = "worker";
-    let wrote = false;
-    if (nodeRole !== "worker") {
-      wrote = true;
-    }
-    expect(wrote).toBe(false);
+describe("watchMeshTasks (production)", () => {
+  it("surfaces a PUT as a decoded task event; stop() ends iteration", async () => {
+    const watch = await watchMeshTasks();
+    expect(watch).not.toBeNull();
+    const iter = watch!.events[Symbol.asyncIterator]();
+    const pending = iter.next();
+    await putMeshTask(task({ task_id: "w1", title: "Watched" }));
+    const ev = await pending;
+    expect(ev.done).toBe(false);
+    expect(ev.value.operation).toBe("PUT");
+    expect(ev.value.task?.title).toBe("Watched");
+    watch!.stop();
+    expect((await iter.next()).done).toBe(true);
   });
 
-  it("lead role allows markdown write", () => {
-    const nodeRole = "lead";
-    let wrote = false;
-    if (nodeRole !== "worker") {
-      wrote = true;
-    }
-    expect(wrote).toBe(true);
-  });
-});
-
-// ── Collision-proof ID Generation ──
-
-describe("Collision-proof task IDs", () => {
-  it("generates unique IDs sequentially", () => {
-    const ids = new Set<string>();
-    for (let i = 0; i < 100; i++) {
-      const { randomBytes } = require("crypto");
-      const suffix = randomBytes(3).toString("hex");
-      const now = new Date();
-      const dateStr =
-        now.getFullYear().toString() +
-        (now.getMonth() + 1).toString().padStart(2, "0") +
-        now.getDate().toString().padStart(2, "0");
-      ids.add(`T-${dateStr}-${suffix}`);
-    }
-    expect(ids.size).toBe(100);
+  it("returns null when NATS is unavailable", async () => {
+    kv = null;
+    expect(await watchMeshTasks()).toBeNull();
   });
 });
 
-// ── Task Merge Logic (useTasks on worker nodes) ──
+// ── Merge logic (the real mergeTasks) ──
 
-describe("Task merge logic (worker node deduplication)", () => {
-  function mergeTasks(
-    sqliteTasks: Array<{ id: string; title: string; source: "sqlite" }>,
-    kvTasks: Array<{ task_id: string; title: string; source: "kv" }>,
-    nodeRole: "lead" | "worker"
-  ) {
-    const merged = new Map<string, any>();
+describe("mergeTasks (production)", () => {
+  const sqlite = [{ id: "s1", title: "Local only" }, { id: "shared", title: "SQLite version" }];
+  const kvTasks = [
+    { task_id: "k1", title: "KV only" },
+    { task_id: "shared", title: "KV version" },
+  ];
 
-    for (const t of sqliteTasks) {
-      merged.set(t.id, { ...t, mergedFrom: "sqlite" });
-    }
-
-    for (const t of kvTasks) {
-      const existing = merged.get(t.task_id);
-      if (!existing) {
-        merged.set(t.task_id, { id: t.task_id, ...t, mergedFrom: "kv" });
-      } else if (nodeRole === "worker") {
-        merged.set(t.task_id, { id: t.task_id, ...t, mergedFrom: "kv" });
-      }
-    }
-
-    return Array.from(merged.values());
-  }
-
-  it("merges non-overlapping tasks from both sources", () => {
-    const sqlite = [
-      { id: "T-001", title: "Local task", source: "sqlite" as const },
-    ];
-    const kvTasks = [
-      { task_id: "T-002", title: "Mesh task", source: "kv" as const },
-    ];
-    const result = mergeTasks(sqlite, kvTasks, "worker");
-    expect(result).toHaveLength(2);
-    expect(result.find((t: any) => t.id === "T-001")).toBeTruthy();
-    expect(result.find((t: any) => t.id === "T-002")).toBeTruthy();
+  it("dedupes by id and includes tasks from both sources", () => {
+    const merged = mergeTasks(sqlite, kvTasks, "lead");
+    expect(merged.map((t) => t.id).sort()).toEqual(["k1", "s1", "shared"]);
   });
 
-  it("deduplicates overlapping tasks — worker prefers KV", () => {
-    const sqlite = [
-      { id: "T-001", title: "SQLite version", source: "sqlite" as const },
-      { id: "T-002", title: "Local only", source: "sqlite" as const },
-    ];
-    const kvTasks = [
-      {
-        task_id: "T-001",
-        title: "KV version (newer)",
-        source: "kv" as const,
-      },
-      { task_id: "T-003", title: "Mesh only", source: "kv" as const },
-    ];
-    const result = mergeTasks(sqlite, kvTasks, "worker");
-    expect(result).toHaveLength(3);
-    const t001 = result.find((t: any) => t.id === "T-001");
-    expect(t001.mergedFrom).toBe("kv");
-    expect(t001.title).toBe("KV version (newer)");
+  it("on lead, SQLite wins for shared ids", () => {
+    const merged = mergeTasks(sqlite, kvTasks, "lead");
+    const shared = merged.find((t) => t.id === "shared");
+    expect(shared?.title).toBe("SQLite version");
+    expect(shared?.source).toBe("sqlite");
   });
 
-  it("deduplicates overlapping tasks — lead prefers SQLite", () => {
-    const sqlite = [
-      {
-        id: "T-001",
-        title: "SQLite version (richer)",
-        source: "sqlite" as const,
-      },
-    ];
-    const kvTasks = [
-      { task_id: "T-001", title: "KV version", source: "kv" as const },
-    ];
-    const result = mergeTasks(sqlite, kvTasks, "lead");
-    expect(result).toHaveLength(1);
-    const t001 = result.find((t: any) => t.id === "T-001");
-    expect(t001.mergedFrom).toBe("sqlite");
-    expect(t001.title).toBe("SQLite version (richer)");
+  it("on worker, KV wins for shared ids", () => {
+    const merged = mergeTasks(sqlite, kvTasks, "worker");
+    const shared = merged.find((t) => t.id === "shared");
+    expect(shared?.title).toBe("KV version");
+    expect(shared?.source).toBe("kv");
   });
 
-  it("handles empty KV gracefully", () => {
-    const sqlite = [
-      { id: "T-001", title: "Only local", source: "sqlite" as const },
-    ];
-    const result = mergeTasks(sqlite, [], "worker");
-    expect(result).toHaveLength(1);
-  });
-
-  it("handles empty SQLite gracefully", () => {
-    const kvTasks = [
-      { task_id: "T-001", title: "Only mesh", source: "kv" as const },
-    ];
-    const result = mergeTasks([], kvTasks, "worker");
-    expect(result).toHaveLength(1);
-  });
-
-  it("handles both empty gracefully", () => {
-    const result = mergeTasks([], [], "worker");
-    expect(result).toHaveLength(0);
+  it("KV-only tasks carry source=kv; SQLite-only carry source=sqlite", () => {
+    const merged = mergeTasks(sqlite, kvTasks, "lead");
+    expect(merged.find((t) => t.id === "k1")?.source).toBe("kv");
+    expect(merged.find((t) => t.id === "s1")?.source).toBe("sqlite");
   });
 });

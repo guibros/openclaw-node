@@ -413,6 +413,20 @@ let memoryBudget = null;
 let localEventLog = null;
 let extractionTrigger = null;
 
+// Serialize runFlush across all trigger paths (D3 port, deep review 2026-07-03).
+// A flush takes 1–15 min; the NATS extract handler used to fire un-awaited and
+// could overlap interval/session-end flushes — double LLM work + racing
+// MEMORY.md/vault writes. Every completed pass re-arms the idle timer, which
+// deliberately does not self-re-arm (R40).
+let flushChain = Promise.resolve();
+let natsFlushQueued = false;
+function serializeFlush(fn) {
+  const run = () => Promise.resolve().then(fn).finally(() => extractionTrigger?.resetIdleTimer?.());
+  const next = flushChain.then(run, run);
+  flushChain = next.catch(() => {});
+  return next;
+}
+
 function emitIngestEvent(sessionId, source, messageCount) {
   if (!localEventLog) return;
   const event = buildMemoryEvent('memory.ingested', sessionId, 'memory', {
@@ -969,11 +983,11 @@ async function runPhase2ThrottledWork(config, sessionState) {
           if (!currentJsonl) return;
           const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
           const budget = initMemoryBudget(config);
-          const result = await runFlush(currentJsonl, memoryMd, {
+          const result = await serializeFlush(() => runFlush(currentJsonl, memoryMd, {
             charBudget: budget.charBudget,
             llmClient: getLlmClient(),
             extractionStore: getExtractionStore(),
-          });
+          }));
           log(`  Phase 2: interval synthesis [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added`);
           if (result.extraction) {
             emitExtractEvent(result.extraction.session_id, result.extraction);
@@ -1043,11 +1057,11 @@ async function handleTransitions(transitions, config) {
         try {
           const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
           const budget = initMemoryBudget(config);
-          const result = await runFlush(endingJsonl, memoryMd, {
+          const result = await serializeFlush(() => runFlush(endingJsonl, memoryMd, {
             charBudget: budget.charBudget,
             llmClient: getLlmClient(),
             extractionStore: getExtractionStore(),
-          });
+          }));
           if (result.extraction) {
             emitExtractEvent(result.extraction.session_id, result.extraction);
           }
@@ -1094,11 +1108,11 @@ async function handleTransitions(transitions, config) {
             log(`  pre-compression flush triggered (${flushCheck.pctUsed}% of ${flushCheck.threshold} token threshold)`);
             const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
             const budget = initMemoryBudget(config);
-            const result = await runFlush(currentJsonl, memoryMd, {
+            const result = await serializeFlush(() => runFlush(currentJsonl, memoryMd, {
               charBudget: budget.charBudget,
               llmClient: getLlmClient(),
               extractionStore: getExtractionStore(),
-            });
+            }));
             log(`  flush [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped`);
             if (result.extraction) {
               emitExtractEvent(result.extraction.session_id, result.extraction);
@@ -1145,11 +1159,11 @@ async function handleTransitions(transitions, config) {
         try {
           const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
           const budget = initMemoryBudget(config);
-          const result = await runFlush(currentJsonl, memoryMd, {
+          const result = await serializeFlush(() => runFlush(currentJsonl, memoryMd, {
             charBudget: budget.charBudget,
             llmClient: getLlmClient(),
             extractionStore: getExtractionStore(),
-          });
+          }));
           if (result.extraction) {
             emitExtractEvent(result.extraction.session_id, result.extraction);
           }
@@ -1435,8 +1449,13 @@ async function main() {
             log(`[nats] skipping extraction — session state is ${sm.state}`);
             return;
           }
+          if (natsFlushQueued) {
+            log('[nats] flush already queued — coalescing request');
+            return;
+          }
           const currentJsonl = findCurrentJsonl(loadTranscriptSources());
           if (!currentJsonl) return;
+          natsFlushQueued = true;
           try {
             const flushCheck = await shouldFlush(currentJsonl, {
               contextWindowTokens: config.contextWindowTokens || 200000,
@@ -1444,11 +1463,11 @@ async function main() {
             if (flushCheck.shouldFlush) {
               const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
               const budget = initMemoryBudget(config);
-              const result = await runFlush(currentJsonl, memoryMd, {
+              const result = await serializeFlush(() => runFlush(currentJsonl, memoryMd, {
                 charBudget: budget.charBudget,
                 llmClient: getLlmClient(),
                 extractionStore: getExtractionStore(),
-              });
+              }));
               log(`  nats-triggered flush [${result.mode || 'regex'}]: ${result.facts} facts, ${result.added} added, ${result.merged} merged`);
               if (result.extraction) {
                 emitExtractEvent(result.extraction.session_id, result.extraction);
@@ -1462,6 +1481,7 @@ async function main() {
               }
             }
           } catch (e) { log(`  nats-triggered flush failed: ${e.message}`); emitErrorEvent('extract', e, path.basename(currentJsonl, '.jsonl')); }
+          finally { natsFlushQueued = false; }
         },
       });
       await extractionTrigger.start();

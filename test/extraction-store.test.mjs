@@ -102,6 +102,39 @@ describe('createExtractionStore', () => {
     assert.equal(stats.decisionCount, 2);
   });
 
+  it('re-extracting the same session is idempotent (D5: no mention/decision inflation)', () => {
+    // The flush pipeline re-extracts the overlapping message tail every flush.
+    // Storing the same result for the same session repeatedly must NOT grow
+    // mentions/decisions or inflate entities.mention_count.
+    store.storeExtractionResult('session-001', mockExtractionResult);
+    store.storeExtractionResult('session-001', mockExtractionResult);
+    store.storeExtractionResult('session-001', mockExtractionResult);
+
+    const stats = store.getExtractionStats();
+    assert.equal(stats.entityCount, 2);
+    assert.equal(stats.mentionCount, 2, 'mentions must not duplicate on re-flush');
+    assert.equal(stats.decisionCount, 1, 'decisions must not duplicate on re-flush');
+
+    const counts = store.db.prepare('SELECT name, mention_count FROM entities ORDER BY name').all();
+    for (const e of counts) {
+      assert.equal(e.mention_count, 1, `${e.name} mention_count must equal distinct mentions, not flush count`);
+    }
+  });
+
+  it('re-extracting a decision refreshes rationale/confidence instead of duplicating', () => {
+    store.storeExtractionResult('session-001', mockExtractionResult);
+    const updated = {
+      ...mockExtractionResult,
+      decisions: [{ decision: 'Use file storage for JetStream', rationale: 'Refined: durability + crash safety', confidence: 0.95 }],
+    };
+    store.storeExtractionResult('session-001', updated);
+
+    const rows = store.db.prepare('SELECT rationale, confidence FROM decisions WHERE session_id = ?').all('session-001');
+    assert.equal(rows.length, 1, 'same decision text in same session must not duplicate');
+    assert.equal(rows[0].rationale, 'Refined: durability + crash safety');
+    assert.equal(rows[0].confidence, 0.95);
+  });
+
   it('generateMemoryContent produces formatted markdown', () => {
     store.storeExtractionResult('session-001', mockExtractionResult);
 
@@ -263,6 +296,57 @@ describe('runFlush with LLM extraction', () => {
     assert.equal(result.mode, 'regex');
     // Regex should still extract the preference pattern
     assert.ok(result.facts > 0);
+  });
+});
+
+describe('decisions_fts (schema v3)', () => {
+  const matchCount = (q) =>
+    store.db.prepare('SELECT COUNT(*) c FROM decisions_fts WHERE decisions_fts MATCH ?').get(q).c;
+
+  it('indexes stored decisions and stays in sync on conflict-update and delete', () => {
+    store.storeExtractionResult('fts-session', {
+      entities: [], themes: [],
+      decisions: [{ decision: 'Adopt JetStream', rationale: 'durable messaging needed', confidence: 0.9 }],
+    });
+    assert.equal(matchCount('"durable"'), 1);
+
+    // Same (session, decision) re-stated → ON CONFLICT UPDATE path; the FTS
+    // row must follow the new rationale, not keep the old one
+    store.storeExtractionResult('fts-session', {
+      entities: [], themes: [],
+      decisions: [{ decision: 'Adopt JetStream', rationale: 'replicated persistence needed', confidence: 0.9 }],
+    });
+    assert.equal(matchCount('"durable"'), 0);
+    assert.equal(matchCount('"replicated"'), 1);
+
+    store.db.prepare(`DELETE FROM decisions WHERE session_id = 'fts-session'`).run();
+    assert.equal(matchCount('"replicated"'), 0);
+  });
+
+  it('backfills pre-existing decisions on migration and reopens idempotently', () => {
+    const dbPath = path.join(tmpDir, 'v3-migration.db');
+    // Simulate a pre-v3 database: decisions exist, no FTS table
+    {
+      const first = createExtractionStore({ dbPath });
+      first.storeExtractionResult('old-session', {
+        entities: [], themes: [],
+        decisions: [{ decision: 'Keep FTS local', rationale: 'no cloud dependency', confidence: 0.8 }],
+      });
+      first.db.exec(`
+        DROP TRIGGER decisions_fts_ai; DROP TRIGGER decisions_fts_ad;
+        DROP TRIGGER decisions_fts_au; DROP TABLE decisions_fts;
+      `);
+      first.db.pragma('user_version = 2');
+      first.close();
+    }
+    for (let reopen = 0; reopen < 2; reopen++) {
+      const s = createExtractionStore({ dbPath });
+      assert.equal(
+        s.db.prepare('SELECT COUNT(*) c FROM decisions_fts WHERE decisions_fts MATCH ?').get('"cloud"').c,
+        1
+      );
+      s.close();
+    }
   });
 });
 

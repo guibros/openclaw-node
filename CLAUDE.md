@@ -9,7 +9,7 @@ which `workspace-bin/new-plan.sh <id> ["goal"]` instantiates into a new viewer-v
 front it (the viewer/launchd invoke tick commands argv-less). Every plan doc lives inside a
 self-contained plan dir under `memory-plan/plans/<id>/`:
 - [`memory-plan/plans/redesign/`](memory-plan/plans/redesign/) — local-first memory redesign. **COMPLETE at v6.5** (Blocks 0–6 delivered; Block 7 federation DEFERRED per its DECISIONS D4).
-- [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **BLOCKED** (`BLOCKED.md` present at v2.11, awaiting operator; scope idle).
+- [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **COMPLETE at v7.8** (49/49 steps, all active blocks closed, suite 1550/0; scope idle).
 - [`memory-plan/plans/protocol/`](memory-plan/plans/protocol/) — the meta-plan: the workplan operating base itself (canonical docs, generic engine, scaffolder).
 - [`memory-plan/plans/legacy/`](memory-plan/plans/legacy/) — the **completed** 58-step framework plan (archive / reference).
 
@@ -27,13 +27,36 @@ Then the per-plan documents of the silo you are working in — every silo carrie
 7. [`plans/<id>/SCOPE.md`](memory-plan/plans/redesign/SCOPE.md) — the plan's work contract. If no plan's `SCOPE.md` has `Status: active`, you MUST set scope with the operator before editing anything.
 8. [`plans/<id>/OUT_OF_SCOPE.md`](memory-plan/plans/redesign/OUT_OF_SCOPE.md) — captured drift awaiting triage.
 
-The most recent verified ground-truth audit is [`memory-plan/plans/legacy/AUDIT_2026-05-27.md`](memory-plan/plans/legacy/AUDIT_2026-05-27.md). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them. `git log --oneline -20` shows the recent committed work.
+The most recent verified ground-truth audit is [`memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md`](memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md) (six-agent review, every claim file:line- or runtime-verified). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them. `git log --oneline -20` shows the recent committed work.
 
 ## Where we are / next action
 
-As of 2026-06-03: the **protocol base is live** (protocol plan v1.3, Block 1 closed). Every silo carries the five synced canonical docs; `new-plan.sh` scaffolds a complete viewer-valid silo from `canonical/templates/`; `plan-tick.sh <id>` drives any plan (verified by preflight against all four silos). The redesign plan is **complete at v6.5** with its tick plist intentionally unloaded; the repair plan is **BLOCKED at v2.11** awaiting operator action (see its `BLOCKED.md`).
+As of 2026-07-03: the **protocol base is live** (canonical docs synced, `new-plan.sh` scaffolds
+viewer-valid silos, `plan-tick.sh <id>` drives any plan). Redesign is **complete at v6.5**; repair is
+**complete at v7.8** (49/49 steps — the old "BLOCKED at v2.11" status was stale for a month). The June
+workstream (hosted in the protocol silo) built the **node test+watch system**: `bin/node-acceptance.mjs`
+(deploy gate) + `bin/node-watch.mjs` (WORKING/BROKEN/OFF/UNKNOWN watcher engine) + Mission Control
+`/node-watch` page + launchd/systemd unit *files*. Runtime status is honest-UNKNOWN, not live: only one
+manual one-shot run has ever been observed (2026-07-03, health 75%, 21 W / 5 B / 3 OFF / 2 U); the
+continuous-mode units are NOT installed and currently cannot be (unrendered `${VAR}` placeholders +
+install.sh never places node-watch.mjs at the unit exec path). Of the one-shot's findings, the 5 BROKEN
+are real node findings; the 2 UNKNOWN are a watcher defect (30s timeout clamp on 120s LLM probes).
 
-**There is no active scope and no queued step.** The next action is an operator decision: clear `plans/repair/BLOCKED.md`, open the next plan iteration with `workspace-bin/new-plan.sh <id> ["goal"]`, or set a new scope for ad-hoc work. The workplan-viewer (:7892) shows all silos.
+A first **deep review (2026-07-03)** drove P0/P1/P2 remediation on branch `feat/node-test-watch-system`
+(C1 one-DB fix, node-watch honesty bugs, dedup migration, mesh-bridge retirement, read-only SQL surface,
+decisions_fts). A second **full deep review (2026-07-03 evening,
+[`plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md`](memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md))**
+verified that work: 10 claims VERIFIED / 7 PARTIAL / 3 NOT-DONE. Its headline: **the runtime is running
+pre-fix code almost everywhere** — live MC is a drifted hand-copy (pre-fix GET handlers), the live daemon
+is `workspace-bin/memory-daemon.mjs` on an unmigrated v1 state.db, and the branch sat unmerged since
+06-16. Corrections of record (SCOPE.md addendum 2026-07-03f): D7 was a no-op (retracted), C2 signed
+deploys have an unsigned catch-up bypass (PARTIAL). Batch-0 triage done same day: MC rebound to
+127.0.0.1, 7 crash-looping mesh launchd units disabled, branch pushed. **Queued next: deploy day**
+(merge → daemon-restart-then-migrate → real MC checkout → fix/install or de-claim the watch units),
+then P1 round 2 (review §5).
+
+**Active scope:** `plans/protocol/SCOPE.md` (P0 remediation, expires 2026-07-10). The workplan-viewer
+(:7892) shows all silos.
 
 ## The forcing function
 
@@ -58,7 +81,10 @@ In May 2026, 5 review rounds + 22 commits in 24h produced ~0 production change b
 - Two parallel daemons got built next to each other
 - Code-on-disk and runtime drifted 4+ days apart
 
-This plan + hook + scope contract is the structural fix. Don't bypass it; it's bypass-proof by design (the hook is at the tool layer, not advisory).
+This plan + hook + scope contract is the structural fix. Don't bypass it. It is enforced at the tool
+layer for `Edit | Write | MultiEdit | NotebookEdit`; Bash file writes (`sed -i`, `tee`, redirects) are
+NOT gated — that is a known hole, not permission. Treat the scope contract as binding for every write,
+whatever tool performs it.
 
 ## Pointers
 

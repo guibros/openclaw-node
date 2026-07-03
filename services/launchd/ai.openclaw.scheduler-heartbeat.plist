@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>ai.openclaw.scheduler-heartbeat</string>
+    <key>Comment</key>
+    <string>OpenClaw Scheduler Heartbeat — POSTs /api/scheduler/tick every 60s so at-triggers and cron tasks fire without a Mission Control browser tab open (curl; no node spawn)</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/bin/curl</string>
+      <string>-s</string>
+      <string>-o</string>
+      <string>/dev/null</string>
+      <string>--max-time</string>
+      <string>10</string>
+      <string>-X</string>
+      <string>POST</string>
+      <string>http://127.0.0.1:3000/api/scheduler/tick</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>60</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/scheduler-heartbeat.log</string>
+    <key>StandardErrorPath</key>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/scheduler-heartbeat.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/usr/bin:/bin</string>
+    </dict>
+  </dict>
+</plist>

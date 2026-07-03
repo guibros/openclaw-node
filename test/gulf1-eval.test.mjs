@@ -1,4 +1,10 @@
 import { describe, it, before, after } from 'node:test';
+import { test } from 'node:test';
+import { embedderSkipReason, embedderCensus } from './helpers/embedder-available.mjs';
+
+const EMBED_SKIP = await embedderSkipReason();
+embedderCensus(test, EMBED_SKIP, 'gulf1-eval');
+
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -43,7 +49,7 @@ describe('parseQuerySet', () => {
 
 // ─── runEvaluation ───────────────────────────────────────────────────────────
 
-describe('runEvaluation', () => {
+describe('runEvaluation', { skip: EMBED_SKIP }, () => {
   let db, tmpDir;
 
   before(async () => {
@@ -125,7 +131,7 @@ describe('formatResults', () => {
 
 // ─── checkDatabaseReadiness ──────────────────────────────────────────────────
 
-describe('checkDatabaseReadiness', () => {
+describe('checkDatabaseReadiness', { skip: EMBED_SKIP }, () => {
   it('reports chunk and vector counts for populated database', async () => {
     const tmpDir2 = mkdtempSync(join(tmpdir(), 'gulf1-ready-'));
     const db2 = initDatabase(join(tmpDir2, 'test.db'));

@@ -57,6 +57,7 @@ async function main() {
   let subscriber = null;
   let scheduler = null;
   let extractionTrigger = null;     // STUB_AUDIT fix: real-time extraction now wired
+  let extractionStore = null;
   let shuttingDown = false;
 
   const cleanup = async (sig) => {
@@ -74,6 +75,7 @@ async function main() {
     try { graphCache?.close?.(); } catch { /* ignore */ }
     try { if (nc) await nc.drain(); } catch (e) { log(`[daemon] nc.drain error: ${e.message}`); }
     try { knowledgeDb?.close(); } catch { /* ignore */ }
+    try { extractionStore?.close(); } catch { /* ignore */ }
     try { extractionDb?.close(); } catch { /* ignore */ }
     log(`[daemon] stopped`);
   };
@@ -93,12 +95,21 @@ async function main() {
     // Federation needs both extraction-store (concepts/decisions/themes) AND
     // the knowledge DB (session_chunks for FTS / semantic retrieval).
     const { openStore } = await import('../lib/sqlite-store.mjs');
-    const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || join(dbDir, 'knowledge.db');
-    const extractionDbPath = process.env.OPENCLAW_EXTRACTION_DB || join(dbDir, 'extraction.db');
+    // The knowledge DB lives in the workspace (same path the running daemon,
+    // embed-existing-sessions, and .mcp.json use) — NOT dbDir/knowledge.db,
+    // which never existed and would silently drop federation to broadcast-only.
+    const workspaceDir = process.env.OPENCLAW_WORKSPACE || join(homedir(), '.openclaw', 'workspace');
+    const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || join(workspaceDir, '.knowledge.db');
+    // C1 fix (deep review 2026-07-03): extraction tables live in state.db —
+    // the session-store database that extraction-store, the inject server,
+    // and extract-existing-sessions all use. The old default (extraction.db)
+    // split the daemon's reads (federation, consolidation) from its writes:
+    // consolidation ran against a 0-byte DB forever while logging success.
+    const extractionDbPath = process.env.OPENCLAW_EXTRACTION_DB || join(dbDir, 'state.db');
     knowledgeDb = existsSync(knowledgeDbPath) ? openStore(knowledgeDbPath) : null;
     extractionDb = existsSync(extractionDbPath) ? openStore(extractionDbPath) : null;
     if (!knowledgeDb || !extractionDb) {
-      log(`[daemon] WARNING: knowledge.db or extraction.db missing — federation will run in broadcast-only mode (no offerer/acceptor)`);
+      log(`[daemon] WARNING: missing DB (knowledge=${knowledgeDb ? 'ok' : knowledgeDbPath} extraction=${extractionDb ? 'ok' : extractionDbPath}) — federation will run in broadcast-only mode (no offerer/acceptor)`);
     }
 
     // STUB_AUDIT fix: Channel 5 (spreading activation) was inert in the
@@ -168,10 +179,9 @@ async function main() {
       const { createExtractionStore } = await import('../lib/extraction-store.mjs');
       const { createLlmClient } = await import('../lib/llm-client.mjs');
 
-      // Resolve runtime deps for the extract handler. extractionDb opened
-      // above; we need an extraction-store interface (the writer side) and
-      // an LLM client (for structured extraction).
-      const extractionStore = extractionDb ? createExtractionStore({ db: extractionDb }) : null;
+      // Resolve runtime deps for the extract handler. Same DB file as the
+      // raw extractionDb handle above (own connection; WAL makes that safe).
+      extractionStore = extractionDb ? createExtractionStore({ dbPath: extractionDbPath }) : null;
       let llmClient = null;
       try { llmClient = createLlmClient(); }
       catch (e) { log(`[daemon] LLM client unavailable: ${e.message}`); }
@@ -192,25 +202,49 @@ async function main() {
         } catch { return null; }
       };
 
+      // Serialize flushes: a flush takes 1–15 min; concurrent extract requests
+      // (or an idle fire during one) must not run overlapping runFlush passes —
+      // they'd double the LLM work and race on the store. Guard to one in-flight
+      // flush; a request arriving mid-flush sets `pending` so we do exactly one
+      // more pass afterward to capture the latest transcript (dedup makes that
+      // pass a cheap no-op if nothing changed).
+      let flushInFlight = false;
+      let flushPending = false;
+      const runFlushGuarded = async (triggeredBy) => {
+        if (flushInFlight) {
+          flushPending = true;
+          log(`[daemon] flush already running — coalescing request (triggered_by=${triggeredBy})`);
+          return;
+        }
+        flushInFlight = true;
+        try {
+          do {
+            flushPending = false;
+            const jsonlPath = findActiveTranscript();
+            if (!jsonlPath) {
+              log(`[daemon] extract requested by ${triggeredBy} but no active transcript found — skipping`);
+              break;
+            }
+            const memoryMdPath = jsonlPath.replace(/\.jsonl$/, '.memory.md');
+            log(`[daemon] running flush for ${jsonlPath} (triggered_by=${triggeredBy})`);
+            try {
+              const result = await runFlush(jsonlPath, memoryMdPath, { llmClient, extractionStore });
+              log(`[daemon] flush complete: mode=${result.mode}, facts=${result.facts}, added=${result.added}, merged=${result.merged}`);
+            } catch (err) {
+              log(`[daemon] flush failed: ${err.message}`);
+            }
+          } while (flushPending);
+        } finally {
+          flushInFlight = false;
+          // A completed flush is the new activity baseline — re-arm the idle
+          // timer so the fallback keeps firing (it dies after one fire
+          // otherwise: idle-timer messages deliberately don't self-re-arm).
+          extractionTrigger?.resetIdleTimer?.();
+        }
+      };
+
       extractionTrigger = createExtractionTrigger(nc, nodeId, {
-        onExtract: async (payload) => {
-          const jsonlPath = findActiveTranscript();
-          if (!jsonlPath) {
-            log(`[daemon] extract requested by ${payload.triggered_by} but no active transcript found — skipping`);
-            return;
-          }
-          const memoryMdPath = jsonlPath.replace(/\.jsonl$/, '.memory.md');
-          log(`[daemon] running flush for ${jsonlPath} (triggered_by=${payload.triggered_by})`);
-          try {
-            const result = await runFlush(jsonlPath, memoryMdPath, {
-              llmClient,
-              extractionStore,
-            });
-            log(`[daemon] flush complete: mode=${result.mode}, facts=${result.facts}, added=${result.added}, merged=${result.merged}`);
-          } catch (err) {
-            log(`[daemon] flush failed: ${err.message}`);
-          }
-        },
+        onExtract: (payload) => { void runFlushGuarded(payload.triggered_by); },
       });
       await extractionTrigger.start();
       log(`[daemon] extraction trigger active on ${join('mesh.memory.extract_request')}`);

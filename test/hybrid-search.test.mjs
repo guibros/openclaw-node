@@ -1,4 +1,10 @@
 import { describe, it, before, after } from 'node:test';
+import { test } from 'node:test';
+import { embedderSkipReason, embedderCensus } from './helpers/embedder-available.mjs';
+
+const EMBED_SKIP = await embedderSkipReason();
+embedderCensus(test, EMBED_SKIP, 'hybrid-search');
+
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -49,7 +55,7 @@ describe('reciprocalRankFusion', () => {
 
 // ─── searchSessionsFts ──────────────────────────────────────────────────────
 
-describe('searchSessionsFts', () => {
+describe('searchSessionsFts', { skip: EMBED_SKIP }, () => {
   let db, tmpDir;
 
   before(async () => {
@@ -90,7 +96,7 @@ describe('searchSessionsFts', () => {
 
 // ─── hybridSearchSessions ───────────────────────────────────────────────────
 
-describe('hybridSearchSessions', () => {
+describe('hybridSearchSessions', { skip: EMBED_SKIP }, () => {
   let db, tmpDir;
 
   before(async () => {

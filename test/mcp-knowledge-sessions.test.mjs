@@ -6,6 +6,12 @@
  */
 
 import { describe, it, before, after } from 'node:test';
+import { test } from 'node:test';
+import { embedderSkipReason, embedderCensus } from './helpers/embedder-available.mjs';
+
+const EMBED_SKIP = await embedderSkipReason();
+embedderCensus(test, EMBED_SKIP, 'mcp-knowledge-sessions');
+
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -86,7 +92,7 @@ describe('chunkSessionTurns', () => {
   });
 });
 
-describe('indexSessionTurns + searchSessions', () => {
+describe('indexSessionTurns + searchSessions', { skip: EMBED_SKIP }, () => {
   let db;
   let tmpDir;
 

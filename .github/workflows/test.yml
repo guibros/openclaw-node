@@ -18,7 +18,13 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
       - name: Root unit tests
-        run: node --test test/*.test.js test/*.test.mjs
+        # npm test (not bare node --test): the pretest hook builds the
+        # event-schemas workspace dist that the broadcast libs fail loud on.
+        # No 2GB embedding model on CI runners — the embedding suites skip
+        # VISIBLY via the per-file census (see test/helpers/embedder-available.mjs).
+        env:
+          OPENCLAW_NO_EMBED_MODEL: "1"
+        run: npm test
 
   mission-control-tests:
     runs-on: ubuntu-latest

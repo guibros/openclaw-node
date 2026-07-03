@@ -1,0 +1,23 @@
+[Unit]
+Description=OpenClaw Node Watch — continuously monitors every node component (light every 60s, full incl. heavy every 15min)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NODE_BIN} ${OPENCLAW_WORKSPACE}/bin/node-watch.mjs --watch --interval 60 --deep-interval 900 --quiet
+Restart=always
+RestartSec=5
+Environment=HOME=${HOME}
+Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
+Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
+Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=OPENCLAW_NODE_ID=${OPENCLAW_NODE_ID}
+Environment=OPENCLAW_REPO_DIR=${OPENCLAW_REPO_DIR}
+Environment=TZ=America/Montreal
+WorkingDirectory=${OPENCLAW_WORKSPACE}
+StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-node-watch.log
+StandardError=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-node-watch.err
+
+[Install]
+WantedBy=default.target

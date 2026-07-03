@@ -215,11 +215,25 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
  */
 async function checkAndCatchUp(resultsKv, nodesKv) {
   try {
-    // Read the latest deploy SHA from the "latest" key
+    // Read the latest deploy marker from the "latest" key
     const latest = await resultsKv.get('latest');
     if (!latest || !latest.value) return;
 
-    const { sha, branch } = JSON.parse(sc.decode(latest.value));
+    const marker = JSON.parse(sc.decode(latest.value));
+
+    // C2: the marker steers a `git reset --hard` exactly like a live trigger —
+    // it gets the same signature+trust gate (no freshness: markers are state,
+    // read possibly days after the deploy). Without this, the signed-trigger
+    // check was fully bypassed on every startup/reconnect by whoever could
+    // write one KV key.
+    const { verifyDeployMarker } = await import('../lib/deploy-trigger-auth.mjs');
+    const auth = verifyDeployMarker(marker);
+    if (!auth.ok) {
+      console.error(`[deploy-listener] REJECTED catch-up marker: ${auth.reason} (sha=${marker.sha})`);
+      return;
+    }
+
+    const { sha, branch } = marker;
     const currentSha = execSync('git rev-parse --short HEAD', {
       cwd: REPO_DIR, encoding: 'utf8',
     }).trim();
@@ -284,6 +298,12 @@ async function main() {
   const sub = nc.subscribe('mesh.deploy.trigger');
   console.log(`[deploy-listener] Listening on mesh.deploy.trigger`);
 
+  // C2 fix (deep review 2026-07-03): authenticate the trigger before running
+  // `git reset --hard` + deploy. Opt-in via OPENCLAW_REQUIRE_SIGNED_DEPLOY=1
+  // (+ OPENCLAW_DEPLOY_TRUSTED_KEYS); default off preserves current behavior
+  // but warns on unsigned triggers. ESM helper loaded dynamically (this is CJS).
+  const { verifyDeployTrigger } = await import('../lib/deploy-trigger-auth.mjs');
+
   (async () => {
     for await (const msg of sub) {
       try {
@@ -292,6 +312,12 @@ async function main() {
         // Ignore triggers for specific nodes that don't include us
         if (trigger.nodes && !trigger.nodes.includes(NODE_ID) && !trigger.nodes.includes('all')) {
           console.log(`[deploy-listener] Trigger not for us — target: ${trigger.nodes.join(', ')}`);
+          continue;
+        }
+
+        const auth = verifyDeployTrigger(trigger);
+        if (!auth.ok) {
+          console.error(`[deploy-listener] REJECTED deploy trigger: ${auth.reason} (sha=${trigger.sha}, initiator=${trigger.initiator || 'unknown'})`);
           continue;
         }
 

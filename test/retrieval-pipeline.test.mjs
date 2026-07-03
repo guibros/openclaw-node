@@ -9,6 +9,8 @@ import {
   getChunksForSessions,
   entitySearch,
   themeEntitySearch,
+  decisionFtsSearch,
+  toFtsQuery,
   buildSeeds,
   weightedRRF,
   createRetrievalPipeline,
@@ -65,8 +67,20 @@ function createExtractionDb() {
       created_at TEXT NOT NULL,
       source_type TEXT DEFAULT 'local',
       source_node TEXT,
-      source_event_id TEXT
+      source_event_id TEXT,
+      private INTEGER DEFAULT 1
     );
+    CREATE VIRTUAL TABLE decisions_fts USING fts5(
+      decision, rationale, content='decisions', content_rowid='id'
+    );
+    CREATE TRIGGER decisions_fts_ai AFTER INSERT ON decisions BEGIN
+      INSERT INTO decisions_fts(rowid, decision, rationale)
+      VALUES (new.id, new.decision, new.rationale);
+    END;
+    CREATE TRIGGER decisions_fts_ad AFTER DELETE ON decisions BEGIN
+      INSERT INTO decisions_fts(decisions_fts, rowid, decision, rationale)
+      VALUES ('delete', old.id, old.decision, old.rationale);
+    END;
   `);
   return db;
 }
@@ -123,9 +137,9 @@ function seedKnowledgeDb(db) {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('DEFAULT_CHANNEL_WEIGHTS', () => {
-  it('has all 5 channel keys with weight 1', () => {
+  it('has all 6 channel keys with weight 1', () => {
     assert.deepStrictEqual(DEFAULT_CHANNEL_WEIGHTS, {
-      fts: 1, vec: 1, entity: 1, theme: 1, spread: 1,
+      fts: 1, vec: 1, entity: 1, theme: 1, spread: 1, dfts: 1,
     });
     assert.ok(Object.isFrozen(DEFAULT_CHANNEL_WEIGHTS));
   });
@@ -240,6 +254,39 @@ describe('weightedRRF', () => {
   });
 });
 
+describe('getChunksForSessions (D8: session-relevance ranking)', () => {
+  let kDb;
+  beforeEach(() => { kDb = createKnowledgeDb(); });
+  afterEach(() => { kDb.close(); });
+
+  it('ranks by caller session order, not global turn_index', () => {
+    const insert = kDb.prepare(`INSERT INTO session_chunks (session_id, turn_index, role, text, snippet) VALUES (?, ?, ?, ?, ?)`);
+    // 'lo' is the LESS-relevant session but has much HIGHER turn indices. Under
+    // the old global `ORDER BY turn_index DESC`, lo's chunks would rank first.
+    insert.run('hi', 0, 'user', 'hi-a', 'hi-a');
+    insert.run('hi', 1, 'assistant', 'hi-b', 'hi-b');
+    insert.run('lo', 50, 'user', 'lo-a', 'lo-a');
+    insert.run('lo', 51, 'assistant', 'lo-b', 'lo-b');
+
+    // Caller passes 'hi' first (more relevant).
+    const results = getChunksForSessions(kDb, ['hi', 'lo'], 10);
+    assert.strictEqual(results[0].session_id, 'hi', 'top-relevance session ranks first despite lower turn_index');
+    assert.strictEqual(results[1].session_id, 'hi');
+    assert.strictEqual(results[2].session_id, 'lo');
+    // Within 'hi', recency first (turn 1 before turn 0).
+    assert.strictEqual(results[0].turn_index, 1);
+    // Scores are positive and monotonic by session rank (never negative).
+    assert.ok(results.every(r => r.score > 0), 'scores never negative');
+    assert.ok(results[0].score >= results[results.length - 1].score);
+  });
+
+  it('respects the limit', () => {
+    const insert = kDb.prepare(`INSERT INTO session_chunks (session_id, turn_index, role, text, snippet) VALUES (?, ?, ?, ?, ?)`);
+    for (let i = 0; i < 20; i++) insert.run('s1', i, 'user', 't' + i, 't' + i);
+    assert.strictEqual(getChunksForSessions(kDb, ['s1'], 5).length, 5);
+  });
+});
+
 describe('entitySearch', () => {
   let eDb, kDb;
   beforeEach(() => {
@@ -283,6 +330,79 @@ describe('themeEntitySearch', () => {
     // "memory infrastructure" theme appears in decisions for session-004
     const sessionIds = new Set(results.map(r => r.session_id));
     assert.ok(sessionIds.has('session-004'));
+  });
+
+  it('handles theme labels containing FTS operator characters', () => {
+    const now = new Date().toISOString();
+    eDb.prepare(`INSERT INTO themes (label, first_seen, last_seen) VALUES (?, ?, ?)`)
+      .run('mesh AND "security"', now, now);
+    // Label is phrase-quoted into the MATCH — must not throw as FTS syntax
+    assert.doesNotThrow(() =>
+      themeEntitySearch(eDb, kDb, 'thoughts on mesh AND "security" hardening', 10));
+  });
+});
+
+describe('toFtsQuery', () => {
+  it('quotes terms and ORs them, dropping sub-2-char terms', () => {
+    assert.equal(toFtsQuery('use NATS for x federation'), '"use" OR "NATS" OR "for" OR "federation"');
+  });
+
+  it('strips embedded quotes so user text cannot inject FTS syntax', () => {
+    assert.equal(toFtsQuery('say "hello world"'), '"say" OR "hello" OR "world"');
+  });
+
+  it('returns empty string when no usable terms', () => {
+    assert.equal(toFtsQuery('a b'), '');
+    assert.equal(toFtsQuery('   '), '');
+  });
+});
+
+describe('decisionFtsSearch (channel 6)', () => {
+  let eDb, kDb;
+  beforeEach(() => {
+    eDb = createExtractionDb();
+    kDb = createKnowledgeDb();
+    seedExtractionDb(eDb);
+    seedKnowledgeDb(kDb);
+  });
+  afterEach(() => { eDb.close(); kDb.close(); });
+
+  it('surfaces sessions whose decisions match query terms', () => {
+    // Query words appear in the session-004 decision text, but "session-004"
+    // has no entity mention — channels 3/4 entity paths can't find it.
+    const results = decisionFtsSearch(eDb, kDb, 'reliable messaging federation', 10);
+    assert.ok(results.length > 0);
+    assert.ok(results.every(r => r.session_id === 'session-004'));
+  });
+
+  it('returns [] for queries with no usable terms', () => {
+    assert.deepEqual(decisionFtsSearch(eDb, kDb, 'a', 10), []);
+  });
+
+  it('respects decision privacy when respectPrivacy is set', () => {
+    // Seeded decision is private (DEFAULT 1)
+    const hidden = decisionFtsSearch(eDb, kDb, 'reliable messaging', 10, { respectPrivacy: true });
+    assert.deepEqual(hidden, []);
+
+    eDb.prepare(`UPDATE decisions SET private = 0 WHERE session_id = 'session-004'`).run();
+    const visible = decisionFtsSearch(eDb, kDb, 'reliable messaging', 10, { respectPrivacy: true });
+    assert.ok(visible.length > 0);
+  });
+
+  it('reports (not swallows) a missing decisions_fts table', () => {
+    const errors = [];
+    setChannelErrorSink((channel, err) => errors.push({ channel, message: err.message }));
+    try {
+      eDb.exec('DROP TRIGGER decisions_fts_ad; DROP TABLE decisions_fts;');
+      const results = decisionFtsSearch(eDb, kDb, 'reliable messaging', 10);
+      assert.deepEqual(results, []);
+      assert.equal(errors.length, 1);
+      assert.equal(errors[0].channel, 'decision-fts');
+    } finally {
+      setChannelErrorSink((channel, err) => {
+        console.error(`[retrieval] channel '${channel}' failed: ${err?.message || err}`);
+      });
+    }
   });
 });
 

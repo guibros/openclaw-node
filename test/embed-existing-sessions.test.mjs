@@ -7,6 +7,12 @@
  */
 
 import { describe, it, before, after } from 'node:test';
+import { test } from 'node:test';
+import { embedderSkipReason, embedderCensus } from './helpers/embedder-available.mjs';
+
+const EMBED_SKIP = await embedderSkipReason();
+embedderCensus(test, EMBED_SKIP, 'embed-existing-sessions');
+
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
@@ -84,7 +90,7 @@ const SESSION_B_TURNS = [
 
 // ── Test Suite ───────────────────────────────────────────────────────────────
 
-describe('embed-existing-sessions migration', () => {
+describe('embed-existing-sessions migration', { skip: EMBED_SKIP }, () => {
   let tmpDir;
   let sessionDbPath;
   let knowledgeDbPath;

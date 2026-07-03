@@ -231,6 +231,33 @@ describe('createExtractionTrigger', () => {
   });
 });
 
+describe('resetIdleTimer re-arm (daemon calls this after each flush)', () => {
+  it('re-arms the idle timer so the fallback keeps firing, not just once', async () => {
+    // The trigger deliberately does not self-re-arm on an idle fire (R40).
+    // The daemon re-arms via resetIdleTimer() after each completed flush;
+    // without that call the fallback is a dead-man switch after one fire.
+    const published = [];
+    const mockNc = {
+      subscribe() { return createMockSub(); },
+      publish(subject, data) { published.push(JSON.parse(new TextDecoder().decode(data))); },
+    };
+    const trigger = createExtractionTrigger(mockNc, 'node-A', {
+      onExtract: () => {},
+      idleThresholdSec: 0.1,
+    });
+    await trigger.start();
+
+    await new Promise(r => setTimeout(r, 160));
+    assert.strictEqual(published.length, 1, 'timer fires once on its own');
+
+    trigger.resetIdleTimer();
+    await new Promise(r => setTimeout(r, 160));
+    assert.strictEqual(published.length, 2, 'resetIdleTimer re-armed the fallback');
+
+    trigger.stop();
+  });
+});
+
 describe('R40 (repair 4.5): idle-timer self-loop', () => {
   it('an idle-timer ping does not re-arm the timer — fires once, not forever', async () => {
     // Loopback mock: published messages are delivered back to the
