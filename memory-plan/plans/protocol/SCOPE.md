@@ -31,6 +31,12 @@ plist node id templated; unknown `--axis` throws (observed exit 3); axis runs sk
 (node=MoltyMacs-Virtual-Machine.local, 2026-07-03T18:22Z, heavy incl.): 21 WORKING / 5 BROKEN / 3 OFF / 2 UNKNOWN,
 health 75%, snapshot written (29KB). The prior "NOT run on live node" caveat is closed; the 5 BROKEN are real
 findings (NATS probe timeout, MC scheduler 404, stale graph cache), not watcher defects.
+**Addendum 2026-07-03b (operator-directed "go"):** P1 remediation from the same review —
+(4) memory data integrity: dedup decisions + derive entity mention_count from the mentions table
+(stop per-flush inflation), with an idempotent migration that dedups the existing state.db;
+(5) flush concurrency guard + idle-timer re-arm in the daemon/trigger; (6) make test-suite skips
+visible (no silent `skipped 0`); (7) delete dead `workspace-bin/mesh-bridge.mjs`; (8) MC: stop GET
+handlers mutating on poll + label the mock Live Chat page.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -39,9 +45,18 @@ docs/NODE_WATCH_SPEC.md
 docs/NODE_ACCEPTANCE.md
 bin/openclaw-memory-daemon.mjs
 lib/extraction-store.mjs
+lib/extraction-trigger.mjs
+lib/pre-compression-flush.mjs
 test/extraction-store.test.mjs
+test/extraction-trigger.test.mjs
+test/consolidation.test.mjs
 CLAUDE.md
 AGENTS.md
+package.json
+mission-control/src/app/api/tasks/route.ts
+mission-control/src/app/api/scheduler/tick/route.ts
+mission-control/src/lib/hooks.ts
+mission-control/src/app/live/page.tsx
 lib/node-watch.mjs
 lib/node-acceptance.mjs
 lib/node-acceptance-probes.mjs

@@ -102,6 +102,39 @@ describe('createExtractionStore', () => {
     assert.equal(stats.decisionCount, 2);
   });
 
+  it('re-extracting the same session is idempotent (D5: no mention/decision inflation)', () => {
+    // The flush pipeline re-extracts the overlapping message tail every flush.
+    // Storing the same result for the same session repeatedly must NOT grow
+    // mentions/decisions or inflate entities.mention_count.
+    store.storeExtractionResult('session-001', mockExtractionResult);
+    store.storeExtractionResult('session-001', mockExtractionResult);
+    store.storeExtractionResult('session-001', mockExtractionResult);
+
+    const stats = store.getExtractionStats();
+    assert.equal(stats.entityCount, 2);
+    assert.equal(stats.mentionCount, 2, 'mentions must not duplicate on re-flush');
+    assert.equal(stats.decisionCount, 1, 'decisions must not duplicate on re-flush');
+
+    const counts = store.db.prepare('SELECT name, mention_count FROM entities ORDER BY name').all();
+    for (const e of counts) {
+      assert.equal(e.mention_count, 1, `${e.name} mention_count must equal distinct mentions, not flush count`);
+    }
+  });
+
+  it('re-extracting a decision refreshes rationale/confidence instead of duplicating', () => {
+    store.storeExtractionResult('session-001', mockExtractionResult);
+    const updated = {
+      ...mockExtractionResult,
+      decisions: [{ decision: 'Use file storage for JetStream', rationale: 'Refined: durability + crash safety', confidence: 0.95 }],
+    };
+    store.storeExtractionResult('session-001', updated);
+
+    const rows = store.db.prepare('SELECT rationale, confidence FROM decisions WHERE session_id = ?').all('session-001');
+    assert.equal(rows.length, 1, 'same decision text in same session must not duplicate');
+    assert.equal(rows[0].rationale, 'Refined: durability + crash safety');
+    assert.equal(rows[0].confidence, 0.95);
+  });
+
   it('generateMemoryContent produces formatted markdown', () => {
     store.storeExtractionResult('session-001', mockExtractionResult);
 
