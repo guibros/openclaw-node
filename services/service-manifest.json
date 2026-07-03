@@ -9,5 +9,6 @@
   { "name": "openclaw-gateway", "role": "both", "autostart": true },
   { "name": "openclaw-lane-watchdog", "role": "both", "autostart": true },
   { "name": "openclaw-memory-daemon", "role": "both", "autostart": true },
+  { "name": "openclaw-node-watch", "role": "both", "autostart": true },
   { "name": "openclaw-log-rotate", "role": "both", "autostart": true, "timer": true }
 ]

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>ai.openclaw.node-watch</string>
+    <key>Comment</key>
+    <string>OpenClaw Node Watch — continuously monitors every node component (light every 60s, full incl. heavy every 15min); writes ~/.openclaw/.node-watch.json</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>${NODE_BIN}</string>
+      <string>${OPENCLAW_WORKSPACE}/bin/node-watch.mjs</string>
+      <string>--watch</string>
+      <string>--interval</string>
+      <string>60</string>
+      <string>--deep-interval</string>
+      <string>900</string>
+      <string>--quiet</string>
+    </array>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/node-watch.log</string>
+    <key>StandardErrorPath</key>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/node-watch.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key>
+      <string>${HOME}</string>
+      <key>PATH</key>
+      <string>${OPENCLAW_WORKSPACE}/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+      <key>TZ</key>
+      <string>America/Montreal</string>
+      <key>OPENCLAW_WORKSPACE</key>
+      <string>${OPENCLAW_WORKSPACE}</string>
+      <key>OPENCLAW_NATS</key>
+      <string>nats://127.0.0.1:4222</string>
+      <key>OPENCLAW_NODE_ID</key>
+      <string>${OPENCLAW_NODE_ID}</string>
+      <key>OPENCLAW_REPO_DIR</key>
+      <string>${OPENCLAW_REPO_DIR}</string>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+  </dict>
+</plist>

@@ -23,6 +23,14 @@ silently ignores `opts.db`; extraction writes → state.db while consolidation/f
 node id in plist, `--axis` false-ACCEPT, axis snapshot clobber) + atomic snapshot write + tick
 overlap guard, then commit the 15-day-old node-watch working tree; (3) refresh CLAUDE.md
 "Where we are" + AGENTS.md to match reality (repair complete at v7.8, not BLOCKED).
+— C1 CLOSED 2026-07-03 (5a07b6e): probe OBSERVED write→read on one file; `{ db }` now throws; 60/60 store tests.
+— C7 CLOSED 2026-07-03: deploy-drift resolves repo via OPENCLAW_REPO_DIR/module path (self-compare ⇒ UNKNOWN);
+plist node id templated; unknown `--axis` throws (observed exit 3); axis runs skip the default report+snapshot
+(observed: no snapshot written); snapshot/report/html writes atomic; watch tick overlap guard; healthPct(0 observed)
+= null, never 100 (formatters + MC page render n/a). 54/54 node-* tests green. **First live one-shot run OBSERVED**
+(node=MoltyMacs-Virtual-Machine.local, 2026-07-03T18:22Z, heavy incl.): 21 WORKING / 5 BROKEN / 3 OFF / 2 UNKNOWN,
+health 75%, snapshot written (29KB). The prior "NOT run on live node" caveat is closed; the 5 BROKEN are real
+findings (NATS probe timeout, MC scheduler 404, stale graph cache), not watcher defects.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
