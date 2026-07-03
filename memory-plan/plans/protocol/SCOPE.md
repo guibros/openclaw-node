@@ -50,6 +50,7 @@ lib/pre-compression-flush.mjs
 test/extraction-store.test.mjs
 test/extraction-trigger.test.mjs
 test/consolidation.test.mjs
+test/mesh-skip-census.test.mjs
 CLAUDE.md
 AGENTS.md
 package.json

@@ -49,6 +49,7 @@
     "pretest": "npm run --workspaces --if-present build",
     "test": "node --test test/*.test.js test/*.test.mjs",
     "test:unit": "node --test test/*.test.js test/*.test.mjs",
+    "test:strict": "OPENCLAW_REQUIRE_MESH=1 node --test test/*.test.js test/*.test.mjs",
     "test:mc": "cd mission-control && npx vitest run src/lib/__tests__/",
     "test:integration": "node test/distributed-mc.test.js",
     "test:all": "npm run test:unit && npm run test:mc && npm run test:integration",
