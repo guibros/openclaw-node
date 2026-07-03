@@ -215,11 +215,25 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
  */
 async function checkAndCatchUp(resultsKv, nodesKv) {
   try {
-    // Read the latest deploy SHA from the "latest" key
+    // Read the latest deploy marker from the "latest" key
     const latest = await resultsKv.get('latest');
     if (!latest || !latest.value) return;
 
-    const { sha, branch } = JSON.parse(sc.decode(latest.value));
+    const marker = JSON.parse(sc.decode(latest.value));
+
+    // C2: the marker steers a `git reset --hard` exactly like a live trigger —
+    // it gets the same signature+trust gate (no freshness: markers are state,
+    // read possibly days after the deploy). Without this, the signed-trigger
+    // check was fully bypassed on every startup/reconnect by whoever could
+    // write one KV key.
+    const { verifyDeployMarker } = await import('../lib/deploy-trigger-auth.mjs');
+    const auth = verifyDeployMarker(marker);
+    if (!auth.ok) {
+      console.error(`[deploy-listener] REJECTED catch-up marker: ${auth.reason} (sha=${marker.sha})`);
+      return;
+    }
+
+    const { sha, branch } = marker;
     const currentSha = execSync('git rev-parse --short HEAD', {
       cwd: REPO_DIR, encoding: 'utf8',
     }).trim();

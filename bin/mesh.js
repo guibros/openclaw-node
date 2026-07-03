@@ -695,17 +695,18 @@ async function cmdDeploy(args) {
     timestamp: new Date().toISOString(),
   };
 
-  // Write "latest" marker so offline nodes can catch up
-  try {
-    const js = nc.jetstream();
-    const resultsKv = await js.views.kv('MESH_DEPLOY_RESULTS', { history: 5, ttl: 7 * 24 * 60 * 60 * 1000 });
-    await resultsKv.put('latest', sc.encode(JSON.stringify({ sha, branch })));
-  } catch (err) { console.warn(`[mesh] write deploy latest marker: ${err.message}`); }
-
   // Sign the trigger (best-effort) so signed-deploy listeners accept it. C2:
   // harmless when no listener enforces signatures; required once they do.
   const { maybeSignDeployTrigger } = await import('../lib/deploy-trigger-auth.mjs');
   const signedTrigger = maybeSignDeployTrigger(trigger);
+
+  // Write "latest" marker so offline nodes can catch up. Same signed trigger —
+  // an unsigned marker let anyone with KV write access steer catching-up nodes.
+  try {
+    const js = nc.jetstream();
+    const resultsKv = await js.views.kv('MESH_DEPLOY_RESULTS', { history: 5, ttl: 7 * 24 * 60 * 60 * 1000 });
+    await resultsKv.put('latest', sc.encode(JSON.stringify(signedTrigger)));
+  } catch (err) { console.warn(`[mesh] write deploy latest marker: ${err.message}`); }
 
   // Publish trigger
   nc.publish('mesh.deploy.trigger', sc.encode(JSON.stringify(signedTrigger)));
