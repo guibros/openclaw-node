@@ -206,6 +206,11 @@ mission-control/package-lock.json
 package-lock.json
 packages/event-schemas/package.json
 .github/workflows/test.yml
+# CI-green continuation: embedding-model suites need a visible skip on model-less runners
+test/helpers/embedder-available.mjs
+test/embed-benchmark.test.mjs
+test/gulf1-eval.test.mjs
+test/hybrid-search.test.mjs
 ```
 
 ## Prior closed scopes (retained for history)

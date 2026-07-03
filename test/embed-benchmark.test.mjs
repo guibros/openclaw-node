@@ -9,6 +9,12 @@
  */
 
 import { describe, it, before } from 'node:test';
+import { test } from 'node:test';
+import { embedderSkipReason, embedderCensus } from './helpers/embedder-available.mjs';
+
+const EMBED_SKIP = await embedderSkipReason();
+embedderCensus(test, EMBED_SKIP, 'embed-benchmark');
+
 import assert from 'node:assert/strict';
 
 import {
@@ -56,7 +62,7 @@ function generateTurns(count) {
 
 // ── Test Suite ───────────────────────────────────────────────────────────────
 
-describe('embedding model identity', () => {
+describe('embedding model identity', { skip: EMBED_SKIP }, () => {
   it('model name matches Block 2 frozen decision (Xenova/bge-m3)', () => {
     assert.strictEqual(MODEL_NAME, 'Xenova/bge-m3',
       'MODEL_NAME must match frozen decision (upgraded 2026-05-22 from MiniLM-L6-v2)');
@@ -78,7 +84,7 @@ describe('embedding model identity', () => {
   });
 });
 
-describe('embedding latency benchmark', () => {
+describe('embedding latency benchmark', { skip: EMBED_SKIP }, () => {
   before(async () => {
     // Warm up the model (first call loads ONNX weights from cache)
     await getEmbedder();
