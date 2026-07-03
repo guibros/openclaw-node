@@ -52,7 +52,7 @@ mesh revival, MC GET-handlers that mutate) is the queued next work.
 
 ## The forcing function
 
-`.claude/settings.json` registers a PreToolUse hook (`.claude/hooks/scope-check.sh`) on `Edit | Write | MultiEdit | NotebookEdit`. The hook is **per-plan**: it scans every `memory-plan/plans/*/SCOPE.md`, keeps those whose `Status` is `active` and not past `Expires`, and unions their ` ```files ` blocks into the allow-list. It will **block you** if:
+`.codex/hooks.json` registers a PreToolUse hook (`.codex/hooks/scope-check.sh` — a synced copy of `.claude/hooks/scope-check.sh`; if they ever diverge, the `.claude` one is canonical) on `Edit | Write | MultiEdit | NotebookEdit`. The hook is **per-plan**: it scans every `memory-plan/plans/*/SCOPE.md`, keeps those whose `Status` is `active` and not past `Expires`, and unions their ` ```files ` blocks into the allow-list. It will **block you** if:
 
 - no active scope exists (no `plans/*/SCOPE.md` with `Status: active`)
 - the active scope's `Expires` timestamp has passed
