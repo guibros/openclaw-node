@@ -56,6 +56,15 @@ beyond the old cap is embedded. **CAVEAT:** existing knowledge.db vectors were i
 is needed for full benefit on already-stored content (query path benefits immediately). (D8) `getChunksForSessions`
 ranks by caller session-relevance order then within-session recency; score is (0,1], never negative.
 50/50 retrieval+embedding tests green (incl. 2 new ranking tests + embed-benchmark under the new ceiling).
+**Addendum 2026-07-03d (operator-directed "option 1 is ok"):** adopt two patterns from the verified
+ctx analysis (ctxrs/ctx, Apache-2.0) — (A) read-only SQL MCP surface in mcp-knowledge
+(`sql_query`/`sql_schema` over an allowlist of state.db / knowledge.db / mission-control.db;
+read-only open + `PRAGMA query_only` + single-statement + stmt.readonly/reader checks + row/byte
+caps; no query timeout — better-sqlite3 exposes no progress handler, documented limitation);
+(B) `decisions_fts` (schema v3: content-table FTS5 + triggers + backfill, migration verified on a
+copy of the live state.db), replace the F-H23 per-theme LIKE stopgap with FTS MATCH, add the `dfts`
+retrieval channel. Phase G outbox note + optional ctx sidecar NOT in scope (doc/ops, captured in
+OUT_OF_SCOPE / session transcript).
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -98,6 +107,17 @@ mission-control/src/components/layout/sidebar.tsx
 services/launchd/ai.openclaw.node-watch.plist
 services/systemd/openclaw-node-watch.service
 services/service-manifest.json
+services/launchd/ai.openclaw.scheduler-heartbeat.plist
+services/systemd/openclaw-scheduler-heartbeat.service
+services/systemd/openclaw-scheduler-heartbeat.timer
+mission-control/src/app/api/diagnostics/test-runner/route.ts
+bin/mesh-deploy-listener.js
+bin/mesh.js
+bin/fleet-deploy.js
+test/deploy-trigger-auth.test.mjs
+lib/readonly-sql.mjs
+test/readonly-sql.test.mjs
+lib/mcp-knowledge/server.mjs
 ```
 
 ## Prior closed scopes (retained for history)
