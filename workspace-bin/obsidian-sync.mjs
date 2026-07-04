@@ -23,7 +23,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.dirname(__dirname);
-const CONFIG_PATH = path.join(os.homedir(), '.openclaw/config/obsidian-sync.json');
+const CONFIG_PATH = process.env.OPENCLAW_OBSIDIAN_SYNC_CONFIG
+  || path.join(os.homedir(), '.openclaw/config/obsidian-sync.json');
 const SYNC_STATE_PATH = path.join(WORKSPACE, '.tmp/obsidian-sync-state.json');
 
 // ============================================================
@@ -40,6 +41,7 @@ function loadConfig() {
     syncDirection: 'push',
     nodePrivateRoutes: [],
     sharedRoutes: [],
+    extraRoots: [],
     excludePatterns: [],
     frontmatterDefaults: { status: 'draft', tags: ['auto-synced'] },
   };
@@ -295,6 +297,32 @@ function routeFile(relPath, config) {
   }
 
   return null; // no route matched — skip
+}
+
+/**
+ * Route a file from an extra root (a source tree beyond the workspace — e.g.
+ * the openclaw-nodedev repo) using that root's own shared-style routes.
+ * `stripPrefix` + dir preservation keeps same-named files from different
+ * subtrees (each plan's DECISIONS.md) from clobbering one another.
+ * Returns { dest, domain, type: 'shared' } or null.
+ */
+export function routeExtraFile(relPath, routes, excludePatterns = []) {
+  if (matchesAnyGlob(relPath, excludePatterns)) return null;
+  for (const route of routes) {
+    if (!matchesGlob(relPath, route.pattern)) continue;
+    let rel = relPath;
+    if (route.stripPrefix && rel.startsWith(route.stripPrefix)) {
+      rel = rel.slice(route.stripPrefix.length);
+    }
+    const dir = route.stripPrefix ? path.dirname(rel) : '';
+    const filename = toKebabCase(path.basename(rel));
+    return {
+      dest: path.join(route.domain, route.subfolder || '', dir === '.' ? '' : dir, filename),
+      domain: route.domain.replace(/^\d+-/, ''),
+      type: 'shared',
+    };
+  }
+  return null;
 }
 
 // ============================================================
@@ -610,20 +638,37 @@ export async function syncToObsidian(opts = {}) {
     console.log(`Sync method: ${method}${apiAvailable ? ` (port ${config.apiPort})` : ' (direct write)'}`);
   }
 
-  // Discover and route files
-  const allFiles = discoverFiles(config);
+  // Discover and route files: the workspace walk, plus every configured extra
+  // root (other source trees — e.g. the openclaw-nodedev repo — merged into the
+  // same global vault with their own routes).
+  const entries = discoverFiles(config).map(relPath => ({ root: WORKSPACE, relPath, extra: null }));
+  for (const extra of (config.extraRoots || [])) {
+    const rootAbs = extra.root.startsWith('~')
+      ? path.join(os.homedir(), extra.root.slice(1))
+      : extra.root;
+    if (!fs.existsSync(rootAbs)) {
+      if (verbose) console.log(`  [extra-root missing] ${rootAbs}`);
+      continue;
+    }
+    for (const relPath of walkDir(rootAbs, rootAbs)) {
+      entries.push({ root: rootAbs, relPath, extra });
+    }
+  }
   let synced = 0, skipped = 0, errors = 0;
 
-  for (const relPath of allFiles) {
-    const absPath = path.join(WORKSPACE, relPath);
+  for (const { root, relPath, extra } of entries) {
+    const absPath = path.join(root, relPath);
     if (!fs.existsSync(absPath)) continue;
 
     // Skip non-text files by extension
     const ext = path.extname(relPath).toLowerCase();
     if (['.zip', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.woff', '.woff2', '.ttf'].includes(ext)) continue;
 
-    const route = routeFile(relPath, config);
+    const route = extra
+      ? routeExtraFile(relPath, extra.routes || [], config.excludePatterns)
+      : routeFile(relPath, config);
     if (!route) continue;
+    const stateKey = extra ? `${extra.root}:${relPath}` : relPath;
 
     // Check if file has changed since last sync
     let currentHash;
@@ -633,7 +678,7 @@ export async function syncToObsidian(opts = {}) {
       continue; // unreadable
     }
 
-    if (!force && syncState[relPath] === currentHash) {
+    if (!force && syncState[stateKey] === currentHash) {
       skipped++;
       continue;
     }
@@ -656,6 +701,7 @@ export async function syncToObsidian(opts = {}) {
         tags: config.frontmatterDefaults.tags || ['auto-synced'],
         source_node: config.nodeId,
         source_path: relPath,
+        ...(extra ? { source_root: extra.root } : {}),
       };
 
       if (route.domain) {
@@ -671,7 +717,7 @@ export async function syncToObsidian(opts = {}) {
     if (dryRun) {
       console.log(`  [dry] ${relPath} → ${route.dest} (${route.type})`);
       synced++;
-      newState[relPath] = currentHash;
+      newState[stateKey] = currentHash;
       continue;
     }
 
@@ -696,7 +742,7 @@ export async function syncToObsidian(opts = {}) {
 
     if (ok) {
       synced++;
-      newState[relPath] = currentHash;
+      newState[stateKey] = currentHash;
       if (verbose) console.log(`  [synced] ${relPath} → ${route.dest} (${route.type})`);
     } else {
       errors++;

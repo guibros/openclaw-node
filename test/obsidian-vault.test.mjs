@@ -9,7 +9,14 @@ import {
   VAULT_SUBDIRS,
   getVaultPath,
   ensureVaultStructure,
+  _resetVaultPathCache,
 } from '../lib/obsidian-vault.mjs';
+
+// Isolate from the node's real fused-vault config (memoryVaultPath) — these
+// tests assert the pre-config resolution tiers. Fusion behavior is covered in
+// obsidian-vault-fusion.test.mjs.
+process.env.OPENCLAW_OBSIDIAN_SYNC_CONFIG = '/nonexistent/obsidian-sync.json';
+_resetVaultPathCache();
 
 describe('DEFAULT_VAULT_PATH', () => {
   it('resolves under ~/.openclaw/obsidian-local/', () => {

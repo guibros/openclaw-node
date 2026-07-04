@@ -303,6 +303,22 @@ decision-note ride the next idle-window consolidation cycles (Ollama actively ex
 idle gate correctly deferring). 55/55 affected tests. PENDING autonomous: backfill tail
 (~130 sessions), <20% orphans, hub summaries, this-week decision note — check the vault after
 the next quiet hour.
+**Addendum 2026-07-04k (operator-directed "merge all project doc/data into one global vault"):**
+obsidian-sync gains `extraRoots` — additional source trees beyond the workspace, each with its
+own shared-style routes (+ `stripPrefix` for dir-preserving dests, per-root state keys so the
+workspace sync state is untouched). First consumer: the openclaw-nodedev repo itself → domain
+`22-openclaw-node` (README, docs/**, memory-plan canonical protocol docs, per-plan
+ROADMAP/DECISIONS/COMPONENT_REGISTRY). Config-path env override (OPENCLAW_OBSIDIAN_SYNC_CONFIG)
+for testability, matching lib/obsidian-vault.mjs. Files under "vault-global".
+— GLOBAL CLOSED 2026-07-04, OBSERVED: dry-run routed 33 repo files correctly (per-plan dirs
+preserved, 2491 workspace files untouched — state keys intact); real run 33 synced / 0 errors;
+vault now carries 22-openclaw-node/{docs,plans/{legacy,protocol,redesign,repair},protocol,
+readme} with source_root/source_path frontmatter; operator-sync half verified alive beforehand
+(fresh recaps/lessons today, 1555 files under nodes/). 4/4 extra-roots tests;
+obsidian-vault.test.mjs isolated from the live fused config (my config layer broke its bare
+getVaultPath assumption — fixed with env-pointed nonexistent config); vault tests 18/18.
+Daemon Phase 2 spawns the deployed sync fresh each tick — extraRoots active next cycle without
+restart. Full suite 1718/1721 (census skip + the 2 known external fails).
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -434,6 +450,15 @@ mission-control/src/app/notifications/page.tsx
 docs/NOTIFICATIONS.md
 install.sh
 package.json
+```
+
+```files vault-global closed
+workspace-bin/obsidian-sync.mjs
+config/obsidian-sync.json.template
+test/obsidian-sync-extra-roots.test.mjs
+# pre-existing test assumed bare getVaultPath() = legacy default; needs config isolation now
+test/obsidian-vault.test.mjs
+docs/VAULT.md
 ```
 
 ```files vault-fusion closed

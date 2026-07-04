@@ -38,3 +38,21 @@ pushing project docs into the same tree.
 Migration record (this node): 157 notes moved from `obsidian-local` (now
 `obsidian-local.pre-fusion-backup`), graph rebuilt identical (157 nodes / 1104 edges),
 channel 5 verified live from the fused path (152 nodes activated from one seed).
+
+## The global half: extraRoots (project docs & data)
+
+The same vault also receives every doc source, via the operator sync
+([workspace-bin/obsidian-sync.mjs](../workspace-bin/obsidian-sync.mjs), run by the memory
+daemon's Phase 2 every 30 min — REST API when the Obsidian app is up, direct write otherwise):
+
+- **Workspace routes** (existing): recaps, lessons, state, memory-vault ledgers →
+  `nodes/<nodeId>/…`; arcane project docs → the `00`–`21` domains.
+- **`extraRoots`** (2026-07-04): additional source trees beyond the workspace, each with its
+  own routes. First consumer is the openclaw-nodedev repo itself → domain `22-openclaw-node/`
+  (README, `docs/**`, the canonical protocol docs, and every plan silo's
+  ROADMAP/DECISIONS/COMPONENT_REGISTRY — `stripPrefix` preserves per-plan dirs so the four
+  DECISIONS.md never clobber). Per-root sync-state keys; changed-hash detection; frontmatter
+  carries `source_root` + `source_path` back to the origin file.
+
+Adding any future doc source = one `extraRoots` entry in
+`~/.openclaw/config/obsidian-sync.json`. No code.

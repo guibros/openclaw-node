@@ -6,6 +6,20 @@
   "apiKeyFile": "projects/arcane-vault/.obsidian-api-key",
   "nodeId": "${OPENCLAW_NODE_ID}",
   "syncDirection": "push",
+  "extraRoots": [
+    {
+      "root": "${OPENCLAW_REPO_DIR}",
+      "routes": [
+        { "pattern": "README.md", "domain": "22-openclaw-node" },
+        { "pattern": "docs/**", "domain": "22-openclaw-node", "subfolder": "docs" },
+        { "pattern": "memory-plan/canonical/*.md", "domain": "22-openclaw-node", "subfolder": "protocol" },
+        { "pattern": "memory-plan/plans/*/ROADMAP.md", "domain": "22-openclaw-node", "subfolder": "plans", "stripPrefix": "memory-plan/plans/" },
+        { "pattern": "memory-plan/plans/*/DECISIONS.md", "domain": "22-openclaw-node", "subfolder": "plans", "stripPrefix": "memory-plan/plans/" },
+        { "pattern": "memory-plan/plans/*/COMPONENT_REGISTRY.md", "domain": "22-openclaw-node", "subfolder": "plans", "stripPrefix": "memory-plan/plans/" },
+        { "pattern": "memory-plan/plans/redesign/MEMORY_REDESIGN.md", "domain": "22-openclaw-node", "subfolder": "plans", "stripPrefix": "memory-plan/plans/" }
+      ]
+    }
+  ],
   "nodePrivateRoutes": [
     { "pattern": "memory/last-session-recap.md", "dest": "nodes/{nodeId}/recaps/" },
     { "pattern": "memory/archive/**", "dest": "nodes/{nodeId}/archive/" },
