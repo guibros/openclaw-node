@@ -30,6 +30,10 @@ import {
   evaluatePromotionCandidates,
 } from '../lib/consolidation.mjs';
 import { buildMemoryEvent } from '../lib/local-event-log.mjs';
+import { backfillSessionNotes } from '../lib/obsidian-session-notes.mjs';
+import { generateDecisionNotes } from '../lib/obsidian-decision-notes.mjs';
+import { generateThemeNotes } from '../lib/obsidian-theme-notes.mjs';
+import { generateDailyDigest } from '../lib/obsidian-digest.mjs';
 
 const DEFAULT_DB_PATH = path.join(os.homedir(), '.openclaw/state.db');
 
@@ -83,7 +87,7 @@ export async function runConsolidationCycle(opts = {}) {
   let abortInfo = null;
   let decayResult, reinforceResult, clusterResult;
   let summaryResult = { regenerated: 0 };
-  let contradictionResult, promotionResult;
+  let contradictionResult, promotionResult, vaultSurfaceResult;
 
   try {
     // 1. Init tables
@@ -137,6 +141,36 @@ export async function runConsolidationCycle(opts = {}) {
       }
     }
 
+    // 5b. Vault surfaces beyond concepts. Session/decision/theme/daily notes
+    // used to be born ONLY inside the flush-LLM path — which meant they simply
+    // stopped whenever the LLM was unavailable or the tail deduped (last real
+    // run 2026-06-16; memory review 2026-07-04 §3A). They are DB-driven, so
+    // the consolidation cadence is their natural home. Each is best-effort:
+    // one writer failing never kills the cycle.
+    if (!abortInfo) abortInfo = checkpoint('vault-surfaces');
+    if (!abortInfo && !opts.dryRun) {
+      const vp = opts.vaultPath ? { vaultPath: opts.vaultPath } : {};
+      vaultSurfaceResult = {};
+      try {
+        const r = await backfillSessionNotes({ db, ...vp, limit: opts.sessionNoteLimit ?? 20 });
+        vaultSurfaceResult.sessionNotes = r.generated;
+        vaultSurfaceResult.sessionNotesRemaining = r.remaining;
+      } catch (e) { vaultSurfaceResult.sessionNotesError = e.message; }
+      try {
+        const r = await generateDecisionNotes({ db, ...vp });
+        vaultSurfaceResult.decisionNotes = r.notes.length;
+      } catch (e) { vaultSurfaceResult.decisionNotesError = e.message; }
+      try {
+        const r = await generateThemeNotes({ db, ...vp });
+        vaultSurfaceResult.themeNotes = r.notes.length;
+      } catch (e) { vaultSurfaceResult.themeNotesError = e.message; }
+      // Daily digest reads vault state — must run after the writers above.
+      try {
+        const r = await generateDailyDigest({ ...vp });
+        vaultSurfaceResult.dailyDigest = r.generated ? 1 : 0;
+      } catch (e) { vaultSurfaceResult.dailyDigestError = e.message; }
+    }
+
     // 6. Detect contradictions
     if (!abortInfo) abortInfo = checkpoint('contradictions');
     if (!abortInfo) contradictionResult = detectContradictions(db);
@@ -182,6 +216,7 @@ export async function runConsolidationCycle(opts = {}) {
       reinforced: reinforceResult,
       clusters: clusterResult,
       summariesRegenerated: summaryResult,
+      vaultSurfaces: vaultSurfaceResult,
       contradictions: contradictionResult,
       promotionCandidates: promotionResult,
       durationMs,

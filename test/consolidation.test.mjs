@@ -489,6 +489,31 @@ describe('runConsolidationCycle', () => {
     db.close();
   });
 
+  it('the cycle backfills session notes for DB sessions lacking one (memory review V1-2)', async () => {
+    const db = createTestDb();
+    insertEntity(db, 'backfilled-concept', 'concept', {
+      mentionCount: 6, sourceType: 'local',
+      sessions: ['cafe0001-1111-2222-3333-444455556666'],
+    });
+
+    const vault = mkdtempSync(join(tmpdir(), 'cycle-vault-'));
+    const result = await runConsolidationCycle({ vaultPath: vault, db });
+
+    assert.ok(result.vaultSurfaces, 'cycle reports vault surfaces');
+    assert.equal(result.vaultSurfaces.sessionNotes, 1, 'one session note backfilled');
+    const { readdirSync } = await import('node:fs');
+    const files = readdirSync(join(vault, 'sessions'));
+    assert.equal(files.length, 1);
+    assert.ok(files[0].includes('cafe0001'), 'note filename embeds the session shortid');
+    assert.ok('dailyDigest' in result.vaultSurfaces);
+
+    // Second cycle: nothing new to backfill — idempotent.
+    const again = await runConsolidationCycle({ vaultPath: vault, db });
+    assert.equal(again.vaultSurfaces.sessionNotes, 0);
+
+    db.close();
+  });
+
   it('regression_F-N100: aborts cleanly when signal fires before the cycle starts', async () => {
     const db = createTestDb();
     insertEntity(db, 'e1', 'concept', { mentionCount: 1 });
@@ -527,7 +552,7 @@ describe('runConsolidationCycle', () => {
       // per-concept summary loop catches the signal mid-iteration (vs. the
       // between-step checkpoints).
       assert.ok(['decay', 'reinforce', 'clusters', 'summaries',
-                 'summaries-midloop',
+                 'summaries-midloop', 'vault-surfaces',
                  'contradictions', 'promotion'].includes(result.abortedAt),
         `abortedAt should be a known step, got: ${result.abortedAt}`);
     }
