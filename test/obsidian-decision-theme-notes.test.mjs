@@ -47,21 +47,28 @@ describe('decision notes (repair 2.9)', () => {
     assert.match(note, /\[\[sessions\/2026-06-02-verify-s1\]\]/);
   });
 
-  it('generates high-salience decisions, idempotent on rerun', async () => {
+  it('selects top-N by salience — decayed decisions still qualify (memory review V1-3)', async () => {
     const vault = await mkdtemp(join(tmpdir(), 'vault-dec-'));
     const db = makeDb();
     db.prepare(`INSERT INTO decisions (session_id, decision, rationale, confidence, created_at, salience)
       VALUES ('s1', 'Adopt time-anchored decay', 'Compounding bug', 0.9, '2026-06-02T10:00:00Z', 0.8)`).run();
+    // Post-decay salience (live avg is 0.024): the old >=0.4 gate dropped
+    // these forever; top-N keeps the surface alive.
     db.prepare(`INSERT INTO decisions (session_id, decision, rationale, confidence, created_at, salience)
-      VALUES ('s1', 'Low salience decision', 'meh', 0.5, '2026-06-02T10:00:00Z', 0.1)`).run();
+      VALUES ('s1', 'Decayed but real decision', 'still matters', 0.95, '2026-06-02T10:00:00Z', 0.02)`).run();
 
     const r1 = await generateDecisionNotes({ db, vaultPath: vault });
-    assert.equal(r1.generated, 1);
+    assert.equal(r1.generated, 2);
     assert.match(r1.notes[0], /^2026-06-02-adopt-time-anchored-decay/);
+
+    // maxNotes caps the surface: only the top by salience survives an N=1 run
+    const capped = await generateDecisionNotes({ db, vaultPath: await mkdtemp(join(tmpdir(), 'vault-dec2-')), maxNotes: 1 });
+    assert.equal(capped.generated, 1);
+    assert.match(capped.notes[0], /adopt-time-anchored-decay/);
 
     const r2 = await generateDecisionNotes({ db, vaultPath: vault });
     assert.equal(r2.generated, 0);
-    assert.equal(r2.unchanged, 1);
+    assert.equal(r2.unchanged, 2);
 
     db.close();
     await rm(vault, { recursive: true, force: true });
