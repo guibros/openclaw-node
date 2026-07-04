@@ -120,28 +120,9 @@ export async function runConsolidationCycle(opts = {}) {
     if (!abortInfo) abortInfo = checkpoint('clusters');
     if (!abortInfo) clusterResult = detectClusters(db);
 
-    // 5. Regenerate summaries (async — uses LLM). Signal flows in so the
-    // per-concept loop stops cleanly mid-cycle.
-    if (!abortInfo) abortInfo = checkpoint('summaries');
-    if (!abortInfo) {
-      summaryResult = await regenerateSummaries({
-        db,
-        vaultPath: opts.vaultPath,
-        client: opts.client,
-        signal,
-        maxConcepts: opts.maxConcepts,
-      });
-      // F-P208 fix: regenerateSummaries' per-concept loop checks the signal
-      // and returns { aborted: true } when interrupted mid-loop. Before this
-      // fix, the cycle continued running detectContradictions and
-      // evaluatePromotionCandidates after a mid-summary abort, and reported
-      // `aborted: false` to the caller — masking the partial state.
-      if (summaryResult?.aborted) {
-        abortInfo = { aborted: true, abortedAt: 'summaries-midloop' };
-      }
-    }
-
-    // 5b. Vault surfaces beyond concepts. Session/decision/theme/daily notes
+    // 4b. Vault surfaces beyond concepts (BEFORE concept regeneration: the
+    // concept writer links session notes via the resolver, so sessions must
+    // exist first or every fresh backfill needs a second cycle to be linked). Session/decision/theme/daily notes
     // used to be born ONLY inside the flush-LLM path — which meant they simply
     // stopped whenever the LLM was unavailable or the tail deduped (last real
     // run 2026-06-16; memory review 2026-07-04 §3A). They are DB-driven, so
@@ -169,6 +150,27 @@ export async function runConsolidationCycle(opts = {}) {
         const r = await generateDailyDigest({ ...vp });
         vaultSurfaceResult.dailyDigest = r.generated ? 1 : 0;
       } catch (e) { vaultSurfaceResult.dailyDigestError = e.message; }
+    }
+
+    // 5. Regenerate summaries (async — uses LLM). Signal flows in so the
+    // per-concept loop stops cleanly mid-cycle.
+    if (!abortInfo) abortInfo = checkpoint('summaries');
+    if (!abortInfo) {
+      summaryResult = await regenerateSummaries({
+        db,
+        vaultPath: opts.vaultPath,
+        client: opts.client,
+        signal,
+        maxConcepts: opts.maxConcepts,
+      });
+      // F-P208 fix: regenerateSummaries' per-concept loop checks the signal
+      // and returns { aborted: true } when interrupted mid-loop. Before this
+      // fix, the cycle continued running detectContradictions and
+      // evaluatePromotionCandidates after a mid-summary abort, and reported
+      // `aborted: false` to the caller — masking the partial state.
+      if (summaryResult?.aborted) {
+        abortInfo = { aborted: true, abortedAt: 'summaries-midloop' };
+      }
     }
 
     // 6. Detect contradictions

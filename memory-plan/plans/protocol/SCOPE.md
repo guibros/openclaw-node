@@ -172,6 +172,21 @@ flush-LLM-success only; (3) decision notes select top-N by salience (no static 0
 Acceptance: review §5 criteria (concept→concept edges > 0, channel 5 non-empty on probe suite,
 session refs resolve, this-week decision gets a note within one cycle, no fixtures in live vault).
 Files added under "# 2026-07-04d".
+— V0+V1 CLOSED 2026-07-04 ~02:25, all OBSERVED on the live node: (V0) tests write tmp vaults (0
+live-vault writes during the previously-polluting files); 9 fixture files quarantined + 2 dailies
+cleaned — 0 fixture refs remain. (V1-1) concept notes emit quoted piped slug links + body ## Related;
+buildGraph normalizes targets + flattens legacy YAML; activation walks both directions. (V1-2) session/
+decision/theme/daily writers ride the consolidation cycle (session backfill 20/cycle, idempotent),
+ordered BEFORE concept regeneration so fresh session notes are linkable same-cycle. (V1-3) decisions
+top-30 by salience (0.001 junk floor). (V1-4) v4 canonical merge OBSERVED live: 1087→1062 entities,
+0 dupes/orphans/drift; upsert keys on canonical identity. LIVE RESULTS after 2 supervised cycles:
+graph 105 edges/60% resolved/0 concept→concept → **1072 edges/100% resolved/611 concept→concept**;
+**channel 5 alive** (126 nodes activated from any concept seed; was structurally 0); session notes
+7→45 (backfill converging, ~150 remain at 20/cycle); orphan rate 76%→39% (converging; <20% target
+pending tail rewrites); daemon+scheduler restarted on new code. PENDING next cycles: <20% orphans,
+LLM summaries for the top-10 hub stubs (needs an Ollama-free window), and a this-week decision note
+(blocked on upstream: LLM extraction has produced no decisions since 2026-06-17 — queued V2).
+**Set at:** 2026-07-03 (operator-directed, interactive session)
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
