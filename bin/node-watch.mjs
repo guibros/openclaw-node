@@ -61,14 +61,6 @@ async function once(mode, includeHeavy) {
     const jp = values['json-out'] || (values.axis ? null : DEFAULT_JSON);
     if (jp) await atomicWriteFile(jp, JSON.stringify(report, null, 2));
   } catch (err) { process.stderr.write(`[node-watch] report write failed: ${err.message}\n`); }
-  // Wakefulness heartbeat: append one on/off/idle record per continuous tick
-  // (never for one-shot/axis runs — those aren't a timeline). A gap in these
-  // records is the "system was asleep" inscription. Best-effort; a failed
-  // append never disturbs the monitor.
-  if (mode === 'watch' && !values.axis) {
-    try { await appendWakeRecord(deriveWakeSample(report)); }
-    catch (err) { process.stderr.write(`[node-watch] wakefulness append failed: ${err.message}\n`); }
-  }
   if (values.html) {
     try {
       const hp = values['html-out'] || DEFAULT_HTML;
@@ -92,11 +84,22 @@ async function main() {
   process.stdout.write(`[node-watch] continuous monitor — light every ${intervalMs / 1000}s, full (incl. heavy) every ${deepIntervalMs / 1000}s (Ctrl-C to stop)\n`);
   let stopping = false;
   let running = false; // deep sweeps can outlast the interval — never overlap ticks
-  let lastDeep = 0; // 0 => first tick is a full sweep
+  // First tick is LIGHT: a deep sweep on every KeepAlive restart amplifies load
+  // (and the native-mutex crash under load is what makes restarts frequent).
+  // First deep sweep comes one deep-interval in.
+  let lastDeep = Date.now();
   const tick = async () => {
     if (stopping || running) return;
     running = true;
     try {
+      // Wakefulness heartbeat FIRST, before the crash-prone deep sweep: a
+      // heartbeat that only lands after the sweep would report false-OFF under
+      // exactly the load that crashes the sweep. Report-less sample reads
+      // daemon-pid liveness + extraction age directly (cheap). A gap between
+      // records is the "system was asleep" inscription.
+      try { await appendWakeRecord(deriveWakeSample(null)); }
+      catch (err) { process.stderr.write(`[node-watch] wakefulness append failed: ${err.message}\n`); }
+
       const deep = values.deep || (Date.now() - lastDeep) >= deepIntervalMs;
       if (deep) lastDeep = Date.now();
       if (!values.json && !values.quiet) process.stdout.write('\x1b[2J\x1b[H'); // clear screen between frames
