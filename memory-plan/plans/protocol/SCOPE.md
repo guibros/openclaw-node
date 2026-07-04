@@ -186,6 +186,30 @@ graph 105 edges/60% resolved/0 concept→concept → **1072 edges/100% resolved/
 pending tail rewrites); daemon+scheduler restarted on new code. PENDING next cycles: <20% orphans,
 LLM summaries for the top-10 hub stubs (needs an Ollama-free window), and a this-week decision note
 (blocked on upstream: LLM extraction has produced no decisions since 2026-06-17 — queued V2).
+**Addendum 2026-07-04f (operator-directed "notif system"):** end-to-end desktop notification system.
+Today's popups (memory-plan-notify.sh via terminal-notifier) are fire-and-forget dead ends: no click
+target, no ledger, no origin link, macOS-only. Build: (1) `lib/notify.mjs` + `bin/openclaw-notify.mjs` —
+append-only JSONL ledger at `~/.openclaw/notifications/ledger.jsonl` (event written BEFORE dispatch;
+clicks are separate `type:click` lines), platform dispatch (darwin: terminal-notifier `-open <url>`
++ `-contentImage <icon>`, osascript fallback honest-unclickable; linux: notify-send `--icon`, `-A`+
+xdg-open when libnotify supports actions — capability-detected); (2) per-kind icon set
+(`services/notify-icons/`, generated PNGs) + `~/.openclaw/config/notify.json` (kind→icon override,
+enable/sources toggles); (3) rewire: memory-plan-notify.sh → thin shim over the CLI; workplan-viewer
+fires CLI with `?plan=<id>` deep-link URL + gains URL-param plan selection; node-watch fires on
+WORKING↔BROKEN transitions → MC /node-watch; (4) MC `/notifications` page + `/api/notifications`
+over the ledger; (5) install.sh step: place icons + default config, per-OS dependency check
+(terminal-notifier / libnotify-bin + xdg-open), no new daemon. Files under "# 2026-07-04f-notif".
+— NOTIF CLOSED 2026-07-04, all OBSERVED on the live node: lib+CLI+ledger+icons (24/24 notify tests;
+full suite 1691/0/1 census skip); real popup fired via terminal-notifier `-open` — ledgered
+delivery `{method:terminal-notifier, clickable:true, ok:true}`, icon resolved from
+~/.openclaw/share/notify-icons; viewer restarted on new code, /api/notify-test → ledger line
+source=workplan url=`?plan=protocol`; a live tick-chain caller ("Health: stuck") rode the rewired
+shim unprompted at 17:01Z; node-watch unit restarted on new code (transition-fire itself UNKNOWN
+until a real WORKING↔BROKEN flip is observed); MC files deployed to the runtime tree —
+/api/notifications 200 with real ledger events + /notifications page 200, sidebar entry live
+(MC vitest 82/82, no new tsc errors). Linux lane is unit-tested + install-wired only — runtime
+UNKNOWN until run on an Ubuntu node. Click-through is `visual:` — operator confirms a popup click
+lands on the viewer/MC origin.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
@@ -275,9 +299,28 @@ test/mcp-knowledge-sessions.test.mjs
 lib/wakefulness.mjs
 bin/wakefulness.mjs
 test/wakefulness.test.mjs
+# 2026-07-04f (operator-directed "start from the beginning"): 5-layer standalone observer
+# (VM / node / interaction / memory uptimes + timestamped memory-activity log).
+# Retires the coupled wakefulness draft (folded into the observer's memory layer).
+lib/observer.mjs
+bin/observer.mjs
+test/observer.test.mjs
+services/launchd/ai.openclaw.observer.plist
+services/systemd/openclaw-observer.service
+services/systemd/openclaw-observer.timer
 # deploy day (operator-approved): watch units installable + heartbeat fail-visible
 install.sh
 bin/health-watch.mjs
+# 2026-07-04f-notif (operator-directed "notif system"): end-to-end notification system
+lib/notify.mjs
+bin/openclaw-notify.mjs
+test/notify.test.mjs
+workspace-bin/memory-plan-notify.sh
+workspace-bin/workplan-viewer.mjs
+services/notify-icons/*
+mission-control/src/app/api/notifications/route.ts
+mission-control/src/app/notifications/page.tsx
+docs/NOTIFICATIONS.md
 # 2026-07-04d (operator-directed "go V0+V1"): memory-vault remediation
 lib/obsidian-summarizer.mjs
 lib/obsidian-decision-notes.mjs

@@ -85,8 +85,8 @@ function findPlan(id) {
 //   plan became BLOCKED                       → 'blocked' → Sosumi alert
 // Disable with MEMORY_PLAN_NOTIFY=off.
 const HERE = path.dirname(new URL(import.meta.url).pathname);
-const NOTIFY_SCRIPT = path.join(HERE, 'memory-plan-notify.sh');
-const NOTIFY_SCRIPT_OK = fs.existsSync(NOTIFY_SCRIPT);
+const NOTIFY_CLI = path.join(HERE, '..', 'bin', 'openclaw-notify.mjs');
+const NOTIFY_CLI_OK = fs.existsSync(NOTIFY_CLI);
 const NOTIFY_CONFIG_FILE = path.join(os.homedir(), '.openclaw', 'config', 'workplan-viewer.json');
 
 // Runtime on/off switch (toggled from the header button, persisted across restarts).
@@ -109,11 +109,22 @@ function saveNotifyEnabled(v) {
   return notifyEnabled;
 }
 
-function fireNotify(kind, version, message) {
-  // kind: 'closed' (forward, Glass) | 'blocked' (Sosumi)
-  if (!notifyEnabled || !NOTIFY_SCRIPT_OK) return;
+function fireNotify(kind, version, message, planId) {
+  // kind: 'closed' (forward) | 'blocked'. Every event is ledgered by the CLI and
+  // the popup click-links back to this viewer, deep-linked to the plan.
+  if (!notifyEnabled || !NOTIFY_CLI_OK) return;
+  const blocked = kind === 'blocked';
+  const args = [
+    NOTIFY_CLI,
+    '--source', 'workplan',
+    '--kind', blocked ? 'block' : 'success',
+    '--title', blocked ? 'Workplan — BLOCKED' : 'Workplan — step forward',
+    '--subtitle', String(version || ''),
+    '--message', String(message || ''),
+    '--url', `http://127.0.0.1:${PORT}/${planId ? '?plan=' + encodeURIComponent(planId) : ''}`,
+  ];
   try {
-    execFile(NOTIFY_SCRIPT, [kind, String(version || ''), String(message || '')], { timeout: 10_000 }, () => {});
+    execFile(process.execPath, args, { timeout: 10_000 }, () => {});
   } catch { /* best-effort; never block the viewer */ }
 }
 
@@ -155,11 +166,11 @@ function pollNotifications() {
     if (!prev) continue; // seed silently
     if (cur.blocked && !prev.blocked) {
       const msg = blockMessage(s);
-      fireNotify('blocked', cur.version, `${plan.id}: ${msg}`);
+      fireNotify('blocked', cur.version, `${plan.id}: ${msg}`, plan.id);
       console.log(`[notify] ${plan.id} BLOCKED at ${cur.version} — ${msg}`);
     } else if (cur.closed > prev.closed || cur.version !== prev.version) {
       const msg = forwardMessage(plan, cur.version, prev.version);
-      fireNotify('closed', cur.version, `${plan.id}: ${msg}`);
+      fireNotify('closed', cur.version, `${plan.id}: ${msg}`, plan.id);
       console.log(`[notify] ${plan.id} forward ${prev.version}→${cur.version} — ${msg}`);
     }
   }
@@ -1208,10 +1219,13 @@ async function refreshPlans() {
     data.plans.length + ' plan(s) · roots: ' + data.roots.map(r => r.split('/').pop()).join(', ');
   if (!state.planId && data.plans.length) {
     // Default to the plan that actually needs eyes — not the alphabetically-first
-    // (which is the completed legacy plan). Prefer the operator's last choice, then
-    // a blocked plan, then the first incomplete (active) plan, then anything.
+    // (which is the completed legacy plan). A ?plan= deep link (notification
+    // click-through) beats the operator's last choice, then a blocked plan, then
+    // the first incomplete (active) plan, then anything.
     let pick = null;
-    try {
+    const urlPlan = new URLSearchParams(location.search).get('plan');
+    if (urlPlan && data.plans.some(p => p.id === urlPlan)) pick = urlPlan;
+    if (!pick) try {
       const saved = localStorage.getItem('workplan.planId');
       if (saved && data.plans.some(p => p.id === saved)) pick = saved;
     } catch { /* no localStorage */ }
@@ -2762,7 +2776,7 @@ const server = http.createServer(async (req, res) => {
         ? `${plan.id}: ${blockMessage(s)}`
         : `${plan.id}: ${forwardMessage(plan, s.current_step ? s.current_step.version : s.version, s.version)}`;
     }
-    fireNotify(kind, version, message);
+    fireNotify(kind, version, message, plan?.id);
     return json(res, { fired: kind, enabled: notifyEnabled, plan: plan?.id || null, version, message });
   }
 

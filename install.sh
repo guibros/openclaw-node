@@ -332,7 +332,10 @@ run rsync -av --exclude='*.bak' --exclude='*.bak.*' --exclude='routing-eval-test
   "$REPO_DIR/workspace-bin/" "$WORKSPACE/bin/"
 # The node-watch/acceptance service units exec ${OPENCLAW_WORKSPACE}/bin/node-watch.mjs —
 # these live in repo bin/ (not workspace-bin/) and must land at that path too.
-run cp "$REPO_DIR/bin/node-watch.mjs" "$REPO_DIR/bin/node-acceptance.mjs" "$WORKSPACE/bin/"
+# openclaw-notify.mjs rides along: the viewer, the notify shim, and node-watch
+# all resolve it next to themselves (or at ../bin/) in the deployed tree.
+run cp "$REPO_DIR/bin/node-watch.mjs" "$REPO_DIR/bin/node-acceptance.mjs" \
+  "$REPO_DIR/bin/openclaw-notify.mjs" "$WORKSPACE/bin/"
 run chmod +x "$WORKSPACE/bin/"*
 run chmod +x "$WORKSPACE/bin/hooks/"* 2>/dev/null || true
 info "Workspace scripts installed to $WORKSPACE/bin/"
@@ -937,6 +940,69 @@ else
     fi
   fi
 fi
+
+# ============================================================
+# Step 16.5: Desktop Notifications (ledgered, click-through popups)
+# ============================================================
+
+step "Step 16.5: Desktop Notifications"
+
+NOTIFY_ICON_SRC="$REPO_DIR/services/notify-icons"
+NOTIFY_ICON_DEST="$HOME/.openclaw/share/notify-icons"
+run mkdir -p "$NOTIFY_ICON_DEST" "$HOME/.openclaw/notifications" "$HOME/.openclaw/config"
+if ls "$NOTIFY_ICON_SRC"/*.png >/dev/null 2>&1; then
+  run cp "$NOTIFY_ICON_SRC"/*.png "$NOTIFY_ICON_DEST/"
+  info "Notification icons installed → $NOTIFY_ICON_DEST (swap per-kind via config/notify.json)"
+else
+  warn "No notification icons found at $NOTIFY_ICON_SRC"
+fi
+
+NOTIFY_CONFIG="$HOME/.openclaw/config/notify.json"
+if [ -f "$NOTIFY_CONFIG" ] && ! $UPDATE_ONLY; then
+  info "Notification config already exists, keeping it"
+else
+  cat > "$NOTIFY_CONFIG" <<'EOF'
+{
+  "enabled": true,
+  "sources": {},
+  "icons": {
+    "default": "default.png",
+    "info": "info.png",
+    "success": "success.png",
+    "warn": "warn.png",
+    "error": "error.png",
+    "block": "block.png"
+  }
+}
+EOF
+  info "Default notification config written → $NOTIFY_CONFIG"
+fi
+
+if [ "$OS" = "macos" ]; then
+  if command -v terminal-notifier >/dev/null 2>&1 || [ -x /opt/homebrew/bin/terminal-notifier ] || [ -x /usr/local/bin/terminal-notifier ]; then
+    info "terminal-notifier present — popups click through to their origin"
+  elif command -v brew >/dev/null 2>&1; then
+    run brew install terminal-notifier || warn "brew install terminal-notifier failed — osascript fallback active (popups not clickable)"
+  else
+    warn "terminal-notifier missing — osascript fallback fires popups but they are NOT clickable"
+    warn "Install later: brew install terminal-notifier"
+  fi
+elif [ "$OS" = "linux" ]; then
+  if ! command -v notify-send >/dev/null 2>&1; then
+    run sudo apt-get install -y libnotify-bin xdg-utils || warn "libnotify-bin install failed — popups disabled (events still ledgered)"
+  fi
+  if command -v notify-send >/dev/null 2>&1; then
+    if notify-send --help 2>/dev/null | grep -Eq '^\s*-A[,\s]'; then
+      info "notify-send with action support — popups click through to their origin"
+    else
+      warn "libnotify < 0.7.10 (no -A flag) — popups fire but are NOT clickable"
+    fi
+    command -v xdg-open >/dev/null 2>&1 || warn "xdg-open missing — install xdg-utils for click-through"
+  fi
+fi
+
+info "Smoke test: node $REPO_DIR/bin/openclaw-notify.mjs --test"
+info "Ledger (every event, clicked or not): ~/.openclaw/notifications/ledger.jsonl · UI: Mission Control /notifications"
 
 # ============================================================
 # Step 17: Mesh Network (optional — if Tailscale detected)

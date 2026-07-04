@@ -17,6 +17,8 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { atomicWriteFile } from '../lib/atomic-write.mjs';
 import { runWatch, formatTable, formatReport, formatHtml, STATUS } from '../lib/node-watch.mjs';
@@ -72,6 +74,39 @@ async function once(mode, includeHeavy) {
   return report;
 }
 
+// Status-transition notifications (watch mode only): a ledgered desktop popup
+// on WORKING→BROKEN and BROKEN→WORKING, click-linking to the MC watch page.
+// Only ids present in consecutive reports are compared, so the light/deep probe
+// subsets never fabricate a transition. First report seeds silently.
+const NOTIFY_CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'openclaw-notify.mjs');
+const MC_WATCH_URL = `${process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000'}/node-watch`;
+let prevStatuses = null;
+
+function notifyTransitions(report) {
+  const cur = new Map(report.results.map((r) => [r.id, r.status]));
+  const prev = prevStatuses;
+  prevStatuses = cur;
+  if (!prev) return;
+  const broke = [];
+  const recovered = [];
+  for (const [id, status] of cur) {
+    const was = prev.get(id);
+    if (!was || was === status) continue;
+    if (status === STATUS.BROKEN) broke.push(id);
+    else if (was === STATUS.BROKEN && status === STATUS.WORKING) recovered.push(id);
+  }
+  const fire = (kind, title, message) => {
+    try {
+      execFile(process.execPath, [
+        NOTIFY_CLI, '--source', 'node-watch', '--kind', kind,
+        '--title', title, '--message', message, '--url', MC_WATCH_URL,
+      ], { timeout: 10_000 }, () => {});
+    } catch { /* best-effort; the watcher never dies for a popup */ }
+  };
+  if (broke.length) fire('error', `Node watch — ${broke.length} BROKEN`, broke.join(', '));
+  if (recovered.length) fire('success', 'Node watch — recovered', recovered.join(', '));
+}
+
 async function main() {
   if (!values.watch) {
     const report = await once('once', true); // one-shot runs every check, incl. heavy
@@ -103,7 +138,7 @@ async function main() {
       const deep = values.deep || (Date.now() - lastDeep) >= deepIntervalMs;
       if (deep) lastDeep = Date.now();
       if (!values.json && !values.quiet) process.stdout.write('\x1b[2J\x1b[H'); // clear screen between frames
-      try { await once('watch', deep); } catch (err) { process.stderr.write(`[node-watch] tick error: ${err.message}\n`); }
+      try { notifyTransitions(await once('watch', deep)); } catch (err) { process.stderr.write(`[node-watch] tick error: ${err.message}\n`); }
     } finally { running = false; }
   };
   await tick();

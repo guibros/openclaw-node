@@ -1,46 +1,36 @@
 #!/usr/bin/env bash
-# memory-plan-notify.sh — top-right Notification Center banners for the
-# memory-plan / redesign ticks and the workplan-viewer.
+# memory-plan-notify.sh — compatibility shim over bin/openclaw-notify.mjs for
+# the tick-chain callers (memory-plan-tick.sh / plan-tick.sh).
 #
-# Posts a real top-right NC banner via terminal-notifier (preferred), with an
-# osascript `display notification` fallback. NOT a center-screen modal.
+# The real notification path lives in lib/notify.mjs: every event is appended
+# to ~/.openclaw/notifications/ledger.jsonl and the popup click-links back to
+# the workplan viewer. See docs/NOTIFICATIONS.md.
 #
-# PERSISTENCE: whether a banner stays until dismissed (Alerts style) or
-# auto-dismisses after ~5s (Banners style) is a per-app macOS setting, NOT
-# controllable from a script. To make these STAY until you discard them:
-#   System Settings → Notifications → terminal-notifier → "Alerts"
-# (one-time toggle; applies to every workplan banner thereafter).
-#
-# Usage:
-#   memory-plan-notify.sh closed  <version> <step-description>   # forward → Glass
-#   memory-plan-notify.sh blocked <version> <one-line-reason>    # block   → Sosumi
-#   memory-plan-notify.sh skipped <reason>                       # quiet
-#   memory-plan-notify.sh test                                   # both (top-right)
+# Usage (unchanged):
+#   memory-plan-notify.sh closed  <version> <step-description>
+#   memory-plan-notify.sh blocked <version> <one-line-reason>
+#   memory-plan-notify.sh skipped <reason>
+#   memory-plan-notify.sh test
 #
 # Disable globally with MEMORY_PLAN_NOTIFY=off.
 
 set -u
 [ "${MEMORY_PLAN_NOTIFY:-on}" = "off" ] && exit 0
 
-# Locate terminal-notifier (PATH can be minimal under launchd).
-TN="$(command -v terminal-notifier 2>/dev/null || true)"
-[ -z "${TN}" ] && [ -x /opt/homebrew/bin/terminal-notifier ] && TN=/opt/homebrew/bin/terminal-notifier
-[ -z "${TN}" ] && [ -x /usr/local/bin/terminal-notifier ]   && TN=/usr/local/bin/terminal-notifier
+HERE="$(cd "$(dirname "$0")" && pwd)"
+CLI="${HERE}/../bin/openclaw-notify.mjs"
+[ -f "${CLI}" ] || exit 0
 
-# Post a top-right Notification Center banner. The current time (Montreal local,
-# HH:MM) is appended to the subtitle so the banner shows when it fired.
-banner() {  # banner <title> <subtitle> <message> <sound>
-  local title="$1" subtitle="$2" message="$3" sound="$4"
-  local now; now=$(TZ=America/Montreal date '+%H:%M' 2>/dev/null || date '+%H:%M')
-  subtitle="${subtitle:+${subtitle} · }${now}"
-  if [ -n "${TN}" ]; then
-    "${TN}" -title "${title}" -subtitle "${subtitle}" -message "${message}" -sound "${sound}" >/dev/null 2>&1 || true
-  elif command -v osascript >/dev/null 2>&1; then
-    local m s
-    m=$(printf '%s' "${message}"  | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-200)
-    s=$(printf '%s' "${subtitle}" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-100)
-    osascript -e "display notification \"${m}\" with title \"${title}\" subtitle \"${s}\" sound name \"${sound}\"" >/dev/null 2>&1 || true
-  fi
+NODE="$(command -v node 2>/dev/null || true)"
+[ -z "${NODE}" ] && [ -x /opt/homebrew/bin/node ] && NODE=/opt/homebrew/bin/node
+[ -z "${NODE}" ] && [ -x /usr/local/bin/node ]    && NODE=/usr/local/bin/node
+[ -z "${NODE}" ] && exit 0
+
+VIEWER_URL="http://127.0.0.1:${WORKPLAN_VIEWER_PORT:-7892}/"
+
+fire() {  # fire <kind> <title> <subtitle> <message>
+  "${NODE}" "${CLI}" --source workplan --kind "$1" --title "$2" \
+    --subtitle "$3" --message "$4" --url "${VIEWER_URL}" >/dev/null 2>&1 || true
 }
 
 KIND="${1:-}"
@@ -48,18 +38,18 @@ shift || true
 
 case "${KIND}" in
   closed)
-    banner "Workplan — step forward" "${1:-}" "${2:-step closed}" "Glass"
+    fire success "Workplan — step forward" "${1:-}" "${2:-step closed}"
     ;;
   blocked)
-    banner "Workplan — BLOCKED" "${1:-}" "${2:-see BLOCKED.md}" "Sosumi"
+    fire block "Workplan — BLOCKED" "${1:-}" "${2:-see BLOCKED.md}"
     ;;
   skipped)
     exit 0
     ;;
   test)
-    banner "Workplan — step forward" "v0.0-test" "smoke test: forward (top-right banner)" "Glass"
+    fire success "Workplan — step forward" "v0.0-test" "smoke test: forward"
     sleep 1
-    banner "Workplan — BLOCKED" "v0.0-test" "smoke test: blocked (top-right banner)" "Sosumi"
+    fire block "Workplan — BLOCKED" "v0.0-test" "smoke test: blocked"
     ;;
   *)
     echo "usage: memory-plan-notify.sh {closed|blocked|skipped|test} [args]" >&2
