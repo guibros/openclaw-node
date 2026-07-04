@@ -217,6 +217,8 @@ test/readonly-sql.test.mjs
 lib/mcp-knowledge/server.mjs
 # 2026-07-03f (operator-directed, interactive session): full deep-review report document
 memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md
+# 2026-07-04c (operator-directed "full review of the actual memory system"): memory/vault audit report
+memory-plan/plans/protocol/audits/MEMORY_SYSTEM_REVIEW_2026-07-04.md
 # 2026-07-03g (operator-directed "go batch3"): P1 round 2
 workspace-bin/memory-daemon.mjs
 lib/broadcast-offerer.mjs
