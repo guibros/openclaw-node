@@ -153,10 +153,11 @@ describe('spreadingActivation', () => {
 });
 
 describe('createGraphAdapter', () => {
-  it('wraps queryNeighbors into edgesFrom interface', () => {
+  it('wraps queryNeighbors into edgesFrom interface (bidirectional)', () => {
     const mockCache = {
       queryNeighbors(nodeId, opts) {
-        assert.equal(opts.direction, 'outgoing');
+        // vault links are citations, not arrows — the walk must see both ends
+        assert.equal(opts.direction, 'both');
         if (nodeId === 'A') {
           return [
             { source_id: 'A', target_id: 'B', edge_type: 'mentions', weight: 1 },
@@ -175,5 +176,22 @@ describe('createGraphAdapter', () => {
 
     // Empty node
     assert.deepEqual(adapter.edgesFrom('Z'), []);
+  });
+
+  it('an INCOMING edge (session-note → concept seed) activates the session note', () => {
+    // The exact shape that made channel 5 return [] for every query: the
+    // vault's only resolved edges pointed session→concept, and an
+    // outgoing-only walk from concept seeds saw nothing.
+    const mockCache = {
+      queryNeighbors(nodeId, opts) {
+        assert.equal(opts.direction, 'both');
+        if (nodeId === 'nats') {
+          return [{ source_id: 'session-note-x', target_id: 'nats', edge_type: 'mentions', weight: 1 }];
+        }
+        return [];
+      },
+    };
+    const adapter = createGraphAdapter(mockCache);
+    assert.deepEqual(adapter.edgesFrom('nats'), [{ target: 'session-note-x', weight: 1 }]);
   });
 });

@@ -72,8 +72,8 @@ describe('buildConceptFrontmatter', () => {
     assert.ok(fm.includes('entity_type: technology'));
     assert.ok(fm.includes('mention_count: 47'));
     assert.ok(fm.includes('salience: 0.85'));
-    assert.ok(fm.includes('[[Mesh Coordination]]'));
-    assert.ok(fm.includes('[[The CAS Bug]]'));
+    assert.ok(fm.includes('"[[mesh-coordination|Mesh Coordination]]"'));
+    assert.ok(fm.includes('"[[the-cas-bug|The CAS Bug]]"'));
   });
 
   it('filters related links to resolvable targets when given the run set (repair 2.8)', () => {
@@ -81,8 +81,8 @@ describe('buildConceptFrontmatter', () => {
     const fm = buildConceptFrontmatter(entity, ['Known Concept', 'Ghost Concept'], 0.5, {
       resolvableSlugs: new Set(['known-concept']),
     });
-    assert.ok(fm.includes('[[Known Concept]]'));
-    assert.ok(!fm.includes('[[Ghost Concept]]'), 'unresolvable related links must be dropped');
+    assert.ok(fm.includes('"[[known-concept|Known Concept]]"'), 'related emits quoted piped slug links');
+    assert.ok(!fm.includes('Ghost Concept'), 'unresolvable related links must be dropped');
   });
 });
 
@@ -114,7 +114,7 @@ describe('buildConceptBody', () => {
       sessionNoteResolver: (id) =>
         id.startsWith('e7ccaaf9') ? '2026-03-08-gui-openclaw-nats-jetstream-e7ccaaf9' : null,
     });
-    assert.ok(body.includes('[[sessions/2026-03-08-gui-openclaw-nats-jetstream-e7ccaaf9]]'));
+    assert.ok(body.includes('[[2026-03-08-gui-openclaw-nats-jetstream-e7ccaaf9]]'), 'basename link — path-style [[sessions/x]] never matched graph node ids');
     assert.ok(body.includes('- session deadbeef-0000-0000-0000-000000000000'));
   });
 
@@ -308,7 +308,7 @@ describe('queryConceptData + generateConceptNotes integration', () => {
       assert.ok(natsContent.includes('entity_type: technology'));
       assert.ok(natsContent.includes('mention_count: 10'));
       assert.ok(natsContent.includes('# NATS JetStream'));
-      assert.ok(natsContent.includes('[[Spreading Activation]]'));
+      assert.ok(natsContent.includes('[[spreading-activation|Spreading Activation]]'));
       assert.ok(natsContent.includes('Use NATS over RabbitMQ'));
 
       // Verify concepts/ directory was created

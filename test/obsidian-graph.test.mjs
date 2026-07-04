@@ -178,35 +178,35 @@ Built on [[NATS]]. See also [[SQLite]].
   it('creates edges from body wikilinks', async () => {
     const { edges } = await buildGraph(tmpDir);
     const natsToJetstream = edges.find(
-      e => e.source === 'nats' && e.target === 'JetStream'
+      e => e.source === 'nats' && e.target === 'jetstream'
     );
-    assert.ok(natsToJetstream, 'Expected edge from nats to JetStream');
+    assert.ok(natsToJetstream, 'Expected edge from nats to jetstream (display-name target normalized to node id)');
     assert.equal(natsToJetstream.type, 'mentions');
   });
 
   it('creates edges from frontmatter related field', async () => {
     const { edges } = await buildGraph(tmpDir);
     const natsToSqlite = edges.find(
-      e => e.source === 'nats' && e.target === 'SQLite'
+      e => e.source === 'nats' && e.target === 'sqlite'
     );
-    assert.ok(natsToSqlite, 'Expected edge from nats to SQLite via related');
+    assert.ok(natsToSqlite, 'Expected edge from nats to sqlite via related');
   });
 
   it('uses edge_types from frontmatter when present', async () => {
     const { edges } = await buildGraph(tmpDir);
     const jsToNats = edges.find(
-      e => e.source === 'jetstream' && e.target === 'NATS'
+      e => e.source === 'jetstream' && e.target === 'nats'
     );
-    assert.ok(jsToNats, 'Expected edge from jetstream to NATS');
+    assert.ok(jsToNats, 'Expected edge from jetstream to nats');
     assert.equal(jsToNats.type, 'derived_from');
   });
 
   it('defaults to mentions type when no edge_types mapping', async () => {
     const { edges } = await buildGraph(tmpDir);
     const jsToSqlite = edges.find(
-      e => e.source === 'jetstream' && e.target === 'SQLite'
+      e => e.source === 'jetstream' && e.target === 'sqlite'
     );
-    assert.ok(jsToSqlite, 'Expected edge from jetstream to SQLite');
+    assert.ok(jsToSqlite, 'Expected edge from jetstream to sqlite');
     assert.equal(jsToSqlite.type, 'mentions');
   });
 
