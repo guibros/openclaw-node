@@ -225,11 +225,47 @@ is closed. Deploy/consolidation/watchdog paths are wired+tested but dormant unti
 occur (mesh listener units currently disabled). 25/25 notify tests; affected suites 73/73; full
 suite green except 2 external fails (embed-benchmark perf-under-load; the observer session's
 in-progress test).
-**Set at:** 2026-07-03 (operator-directed, interactive session)
+**Addendum 2026-07-04h (operator-directed "gogo"):** protocol-base remediation per the 2026-07-04
+planner deep review — (1) per-addendum scoped ```files blocks: a `closed` word on the fence line
+re-locks that batch's files (hook change + this file restructured accordingly); (2) plan-lint
+drift checks: active-scope age/size, Runtime-Evidence trailer presence in recent commits,
+VERSION-vs-git-activity; (3) `[D]` DEFERRED step state (lint/tick/viewer; redesign's 4 deferred
+rows flipped); (4) canonical contradiction pass (MASTER_PLAN §6.2/§7 silo layout, FRAMEWORK 5→6
+checks + VERSION_LOG alignment, COWORK_MODEL engine names, PROTOCOL plist naming ai.openclaw.*,
+settings.json comment) + sync; (5) §4.6: dead per-plan engines deleted (memory-plan-tick.sh,
+redesign-tick.sh 207-line copy) → 2-line shims over plan-tick.sh, automation.json repointed;
+(6) mechanical: plan-tick $HOME not /Users/moltymac, dirty-tree check ignores untracked files,
+INVENTORY row regex unified whitespace-tolerant across tick/lint/viewer. Files under
+"protocol-remediation" block below.
+— REMEDIATION CLOSED 2026-07-04, all OBSERVED: (hook) closed-block pruning live-probed 6/6
+(open allow · closed block · glob · bare-fence compat · unscoped block · SCOPE self-allow) —
+this file restructured into 6 labeled blocks, open allow-list 110→~32 entries; the migration
+required a temp bare block (old hook couldn't parse labeled fences — chicken-and-egg, resolved).
+(lint) drift checks live: protocol grades "scope hygiene: 32 entries, age 1d" PASS + honest WARN
+"step machinery idle: 76 commits since VERSION moved"; stale-canonical FAIL fired during the doc
+pass and cleared by sync — the lint caught its own author. (D) redesign 4 rows flipped [D]:
+lint CONFORMANT (was 1F), viewer 36/36+4 deferred (was 36/40 forever-incomplete). (canonical)
+MASTER_PLAN §hdr/§6.2/§7/§10 silo-true; FRAMEWORK Binding-note reconciles 5→6 checks +
+VERSION_LOG (D2) + [D]; COWORK_MODEL names plan-tick.sh, honest "no chain loaded"; PROTOCOL
+ai.openclaw.<id>-tick + [D] + closed-block hook text; templates + settings.json comment; synced,
+lint documents-surface PASS all silos. (§4.6) memory-plan-tick.sh deleted, redesign-tick.sh
+207-line copy → 2-line shim, legacy-tick.sh shim created, automation.json × 3 repointed
+(ai.openclaw.*), orphaned com.openclaw plists → .disabled, viewer deriveAutomationDefaults no
+longer offers the dead engine. (mechanical) plan-tick $HOME + untracked-not-dirty (preflight
+OBSERVED post-commit: tree clean w/ .codex/ + observer files untracked present); viewer
+inventory parser now first-4-strict/desc-last — repair renders 49/49 live (was 0/0, a
+pre-existing display lie: its rows carry a 6th column). Tests: test/plan-protocol.test.mjs 9/9
+(hook open/closed/glob/compat, lint [D]/whitespace/hygiene-bloat-vs-pruned); full suite
+1701/1703 (1 skip census, 1 fail = concurrent observer session's own in-progress test).
+Repair remains honestly NONCONFORMANT (missing automation surfaces, dormant complete plan — D6).
+Chain deliberately NOT loaded for any plan (operator decision, viewer Automation tab).
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
-```files
+Per-addendum blocks (2026-07-04h restructure). A `closed` word on a ```files fence re-locks that
+batch: the hook skips closed blocks. Reopen by deleting the word (operator approval, as ever).
+
+```files node-watch-p0p1 closed
 docs/NODE_WATCH_SPEC.md
 docs/NODE_ACCEPTANCE.md
 bin/openclaw-memory-daemon.mjs
@@ -258,7 +294,6 @@ bin/node-acceptance.mjs
 test/node-watch.test.mjs
 test/node-acceptance.test.mjs
 test/node-acceptance-probes.test.mjs
-package.json
 mission-control/src/app/api/node-watch/route.ts
 mission-control/src/app/diagnostics/page.tsx
 mission-control/src/lib/scheduler.ts
@@ -272,7 +307,6 @@ services/launchd/ai.openclaw.scheduler-heartbeat.plist
 services/systemd/openclaw-scheduler-heartbeat.service
 services/systemd/openclaw-scheduler-heartbeat.timer
 mission-control/src/app/api/diagnostics/test-runner/route.ts
-bin/mesh-deploy-listener.js
 bin/mesh.js
 bin/fleet-deploy.js
 lib/deploy-trigger-auth.mjs
@@ -280,11 +314,13 @@ test/deploy-trigger-auth.test.mjs
 lib/readonly-sql.mjs
 test/readonly-sql.test.mjs
 lib/mcp-knowledge/server.mjs
-# 2026-07-03f (operator-directed, interactive session): full deep-review report document
 memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md
-# 2026-07-04c (operator-directed "full review of the actual memory system"): memory/vault audit report
 memory-plan/plans/protocol/audits/MEMORY_SYSTEM_REVIEW_2026-07-04.md
-# 2026-07-03g (operator-directed "go batch3"): P1 round 2
+install.sh
+bin/health-watch.mjs
+```
+
+```files batch3-p1r2 closed
 workspace-bin/memory-daemon.mjs
 lib/broadcast-offerer.mjs
 lib/broadcast-acceptor.mjs
@@ -303,27 +339,42 @@ mission-control/package-lock.json
 package-lock.json
 packages/event-schemas/package.json
 .github/workflows/test.yml
-# CI-green continuation: embedding-model suites need a visible skip on model-less runners
 test/helpers/embedder-available.mjs
 test/embed-benchmark.test.mjs
 test/gulf1-eval.test.mjs
 test/hybrid-search.test.mjs
 test/embed-existing-sessions.test.mjs
 test/mcp-knowledge-sessions.test.mjs
-# 2026-07-04f (operator-directed "start from the beginning"): 5-layer standalone observer
-# (VM / node / interaction / memory uptimes + timestamped memory-activity log).
-# Retires the coupled wakefulness draft (folded into the observer's memory layer).
+```
+
+```files vault-v0v1 closed
+lib/obsidian-summarizer.mjs
+lib/obsidian-decision-notes.mjs
+lib/obsidian-theme-notes.mjs
+lib/obsidian-session-notes.mjs
+lib/obsidian-digest.mjs
+lib/obsidian-graph.mjs
+lib/obsidian-vault.mjs
+lib/spreading-activation.mjs
+lib/consolidation.mjs
+bin/consolidate.mjs
+test/obsidian-*.test.mjs
+test/spreading-activation.test.mjs
+test/pre-compression-flush.test.mjs
+```
+
+```files observer
+# 2026-07-04f (operator-directed "start from the beginning") — concurrent session's
+# 5-layer observer; left OPEN until that session closes its work.
 lib/observer.mjs
 bin/observer.mjs
 test/observer.test.mjs
 services/launchd/ai.openclaw.observer.plist
 services/systemd/openclaw-observer.service
 services/systemd/openclaw-observer.timer
-# deploy day (operator-approved): watch units installable + heartbeat fail-visible
-install.sh
-bin/health-watch.mjs
-# 2026-07-04f-notif (operator-directed "notif system"): end-to-end notification system
-# + 2026-07-04g-notif round 2 (operator-directed): branded banner icon + wider emitters
+```
+
+```files notif closed
 bin/lane-watchdog.js
 bin/mesh-deploy-listener.js
 bin/consolidation-scheduler.mjs
@@ -337,21 +388,37 @@ services/notify-icons/*
 mission-control/src/app/api/notifications/route.ts
 mission-control/src/app/notifications/page.tsx
 docs/NOTIFICATIONS.md
-# 2026-07-04d (operator-directed "go V0+V1"): memory-vault remediation
-lib/obsidian-summarizer.mjs
-lib/obsidian-decision-notes.mjs
-lib/obsidian-theme-notes.mjs
-lib/obsidian-session-notes.mjs
-lib/obsidian-digest.mjs
-lib/obsidian-graph.mjs
-lib/obsidian-vault.mjs
-lib/spreading-activation.mjs
-lib/consolidation.mjs
-bin/consolidate.mjs
-bin/consolidation-scheduler.mjs
-test/obsidian-*.test.mjs
-test/spreading-activation.test.mjs
-test/pre-compression-flush.test.mjs
+install.sh
+package.json
+```
+
+```files protocol-remediation closed
+.claude/hooks/scope-check.sh
+.claude/settings.json
+workspace-bin/plan-tick.sh
+workspace-bin/plan-lint.sh
+workspace-bin/new-plan.sh
+workspace-bin/legacy-tick.sh
+workspace-bin/redesign-tick.sh
+workspace-bin/memory-plan-tick.sh
+workspace-bin/workplan-viewer.mjs
+memory-plan/canonical/MASTER_PLAN.md
+memory-plan/canonical/PROTOCOL.md
+memory-plan/canonical/FRAMEWORK_CANONICAL.md
+memory-plan/canonical/COWORK_MODEL.md
+memory-plan/canonical/BLOCK_TEMPLATE.md
+memory-plan/canonical/templates/*
+memory-plan/plans/*/MASTER_PLAN.md
+memory-plan/plans/*/PROTOCOL.md
+memory-plan/plans/*/FRAMEWORK_CANONICAL.md
+memory-plan/plans/*/COWORK_MODEL.md
+memory-plan/plans/*/BLOCK_TEMPLATE.md
+memory-plan/plans/redesign/INVENTORY.md
+memory-plan/plans/legacy/automation.json
+memory-plan/plans/redesign/automation.json
+memory-plan/plans/protocol/automation.json
+memory-plan/plans/protocol/DECISIONS.md
+test/plan-protocol.test.mjs
 ```
 
 ## Prior closed scopes (retained for history)

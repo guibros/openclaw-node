@@ -6,7 +6,9 @@
 # owns its own SCOPE.md. This hook scans every memory-plan/plans/*/SCOPE.md, keeps
 # those whose Status is "active" AND not past Expires, and unions their ```files
 # blocks into the allow-list. An edit is permitted if it matches any active plan's
-# files block (exact or shell-glob).
+# files block (exact or shell-glob). A block whose fence ends with the word
+# `closed` (```files <label> closed) is a shipped batch — excluded from the
+# union, so finished work re-locks without deleting its record.
 #
 # Backward-compat: if no per-plan scopes exist yet (pre-restructure), it falls back
 # to the legacy single gate at memory-plan/SCOPE.md with identical semantics.
@@ -77,12 +79,16 @@ scope_field() {
     | tr -d ' ' | tr 'A-Z' 'a-z' || true
 }
 
-# Extract the ```files block from a SCOPE.md.
+# Extract the ```files block(s) from a SCOPE.md. A fence may carry a label and
+# a lifecycle word: ```files <label> [closed]``` — blocks marked `closed` are
+# batches whose work shipped; their files are pruned from the allow-list.
 scope_files() {
   awk '
-    /^```files[[:space:]]*$/ { flag=1; next }
-    /^```[[:space:]]*$/      { flag=0 }
-    flag                     { print }
+    /^```files([[:space:]]|$)/ {
+      flag = ($0 ~ /[[:space:]]closed[[:space:]]*$/) ? 0 : 1; next
+    }
+    /^```[[:space:]]*$/ { flag=0 }
+    flag                { print }
   ' "$1"
 }
 

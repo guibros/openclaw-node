@@ -1,6 +1,6 @@
 {
-  "plist_label": "com.openclaw.{{PLAN_ID}}-tick",
-  "plist_path": "{{HOME}}/Library/LaunchAgents/com.openclaw.{{PLAN_ID}}-tick.plist",
+  "plist_label": "ai.openclaw.{{PLAN_ID}}-tick",
+  "plist_path": "{{HOME}}/Library/LaunchAgents/ai.openclaw.{{PLAN_ID}}-tick.plist",
   "tick_command": "{{REPO}}/workspace-bin/{{PLAN_ID}}-tick.sh",
   "working_dir": "{{REPO}}",
   "mode": "chain",

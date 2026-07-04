@@ -230,16 +230,22 @@ function inventoryRows(plan) {
   try { raw = fs.readFileSync(path.join(plan.dir, 'INVENTORY.md'), 'utf8'); }
   catch { return []; }
   const rows = [];
-  const re = /^\|\s*(\d+)\s*\|\s*(\d+\.\d+)\s*\|\s*(v\d+\.\d+)\s*\|\s*\[([xA ])\]\s*\|\s*([^|]+?)\s*\|$/;
+  // Status vocabulary: [ ] open · [A] in progress · [x] closed · [D] deferred.
+  // Same contract as plan-tick/plan-lint: the first four columns are strict,
+  // anything after is descriptive (repair's historical rows carry a sixth
+  // "mode" column — the description is always the LAST cell).
+  const re = /^\|\s*(\d+)\s*\|\s*(\d+\.\d+)\s*\|\s*(v\d+\.\d+)\s*\|\s*\[([xAD ])\]\s*\|(.+)\|\s*$/;
   for (const line of raw.split('\n')) {
     const m = line.match(re);
     if (!m) continue;
+    const cells = m[5].split('|').map(s => s.trim()).filter(Boolean);
+    if (!cells.length) continue;
     rows.push({
       block: Number(m[1]),
       step: m[2],
       version: m[3],
       state: m[4],
-      desc: m[5].trim(),
+      desc: cells[cells.length - 1],
     });
   }
   return rows;
@@ -448,6 +454,7 @@ function planSummary(plan) {
   const rows = inventoryRows(plan);
   const closed = rows.filter(r => r.state === 'x').length;
   const active = rows.filter(r => r.state === 'A').length;
+  const deferred = rows.filter(r => r.state === 'D').length;
   return {
     id: plan.id,
     dir: plan.dir,
@@ -457,7 +464,10 @@ function planSummary(plan) {
     locked: isLocked(plan),
     closed_steps: closed,
     in_flight_steps: active,
-    total_steps: rows.length,
+    deferred_steps: deferred,
+    // Deferred rows are deliberately out of the race: a plan whose remaining
+    // rows are all [D] is complete, not stuck at closed < total forever.
+    total_steps: rows.length - deferred,
     current_step: (rows.find(r => r.state === 'A') || rows.find(r => r.state === ' ') || null),
     latest_log: latestLog(plan)?.split('/').pop() || null,
     docs_mtime: planDocsMtime(plan),
@@ -486,15 +496,11 @@ const LAUNCH_AGENTS = path.join(os.homedir(), 'Library/LaunchAgents');
 function deriveAutomationDefaults(plan) {
   const repo = plan.root;
   const id = plan.id;
-  const legacyLabel = `com.openclaw.${id}-tick`;
-  const cmdCandidates = [
-    path.join(repo, 'workspace-bin', `${id}-tick.sh`),
-    path.join(repo, 'workspace-bin', 'memory-plan-tick.sh'),
-  ];
-  const cmd = cmdCandidates.find(p => fs.existsSync(p)) || cmdCandidates[0];
+  const label = `ai.openclaw.${id}-tick`;
+  const cmd = path.join(repo, 'workspace-bin', `${id}-tick.sh`);
   return {
-    plist_label: legacyLabel,
-    plist_path: path.join(LAUNCH_AGENTS, `${legacyLabel}.plist`),
+    plist_label: label,
+    plist_path: path.join(LAUNCH_AGENTS, `${label}.plist`),
     tick_command: cmd,
     working_dir: repo,
     // Scheduling mode:
@@ -1605,7 +1611,7 @@ async function renderSteps() {
     const div = document.createElement('div');
     div.className = 'step' + (state.selectedStep === idx ? ' active' : '');
     const mClass = row.state === 'x' ? 'x' : row.state === 'A' ? 'A' : 'empty';
-    const mText  = row.state === 'x' ? '✓' : row.state === 'A' ? '●' : '○';
+    const mText  = row.state === 'x' ? '✓' : row.state === 'A' ? '●' : row.state === 'D' ? '◇' : '○';
     div.innerHTML =
       '<div class="marker ' + mClass + '">' + mText + '</div>' +
       '<div class="info">' +

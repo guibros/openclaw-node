@@ -6,6 +6,17 @@
 
 **Origin.** Distilled from a production workflow that has successfully closed 35+ steps with zero deep-review failures. Stripped of project-specific details (language, test runner, version-control system, deployment target) so it can be re-skinned for any domain — code migrations, content production pipelines, data backfills, model retraining sweeps, infrastructure migrations, etc.
 
+**Binding note (this repo, 2026-07-04).** This is the portable THEORY doc. Where it and
+`PROTOCOL.md` (the silo-resolved binding) disagree, **PROTOCOL.md governs**:
+- The Deep Review Gate here is 5 checks; the binding runs **6** (⑥ runtime evidence captured
+  and real — MASTER_PLAN §5).
+- `{VERSION_LOG_FILE}` and `{RESUME_FILE}` are placeholder ledgers for non-git contexts. In
+  this repo they are deliberately **not instantiated** (protocol DECISIONS D2): one commit
+  per step makes `git log` the version ledger, and `VERSION` + `SCOPE.md` close notes +
+  `AUDIT_POST §6` carry the resume state.
+- The INVENTORY status vocabulary here is `[ ]/[A]/[x]`; the binding adds **`[D]` deferred**
+  (deliberately postponed — never a next step, never blocks plan completion).
+
 ---
 
 ## 0. The model in one paragraph

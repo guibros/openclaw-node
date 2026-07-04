@@ -40,8 +40,11 @@ ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
 log() { printf '[%s] [%s] %s\n' "$(ts)" "${PLAN_ID}" "$*"; }
 
 # Find the first [ ] or [A] inventory row → "next step". Echoes "version|step|desc" or empty.
+# Whitespace-tolerant (same tolerance as the viewer and plan-lint — one row format,
+# one parse contract). [D] (deferred) rows are never a next step and never block
+# plan completion.
 next_step() {
-  grep -E '^\| [0-9]+ \| [0-9]+\.[0-9]+ \| v[0-9]+\.[0-9]+ \| \[(A| )\]' "${INVENTORY_FILE}" 2>/dev/null \
+  grep -E '^\|[[:space:]]*[0-9]+[[:space:]]*\|[[:space:]]*[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*v[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*\[(A| )\]' "${INVENTORY_FILE}" 2>/dev/null \
     | head -1 \
     | awk -F'|' '{ gsub(/^ +| +$/,"",$3); gsub(/^ +| +$/,"",$5); gsub(/^ +| +$/,"",$6); print $4"|"$3"|"$6 }'
 }
@@ -68,8 +71,8 @@ if [ "${MODE}" = "preflight" ]; then
     log "BLOCKED.md:  absent"
   fi
   cd "${REPO}"
-  DIRTY=$(git status --short)
-  log "tree:        $([ -n "${DIRTY}" ] && echo dirty || echo clean)"
+  DIRTY=$(git status --porcelain | grep -v '^??' || true)
+  log "tree:        $([ -n "${DIRTY}" ] && echo dirty || echo clean) (tracked files only)"
   if [ -n "${NEXT}" ]; then
     log "next step:   $(printf '%s' "${NEXT}" | awk -F'|' '{print $2" ("$1") — "$3}')"
   else
@@ -102,7 +105,7 @@ trap 'rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
 maybe_autopause() {
   local reason="$1"
   [ "${WORKPLAN_AUTOPAUSE:-0}" = "1" ] || return 0
-  local label="${WORKPLAN_PLIST_LABEL:-com.openclaw.${PLAN_ID}-tick}"
+  local label="${WORKPLAN_PLIST_LABEL:-ai.openclaw.${PLAN_ID}-tick}"
   local target="gui/$(id -u)/${label}"
   log "auto-pause: ${reason} — disabling ${label}"
   launchctl disable "${target}" >/dev/null 2>&1 || true
@@ -135,7 +138,9 @@ if [ -f "${BLOCK_FILE}" ]; then
 fi
 
 cd "${REPO}"
-DIRTY=$(git status --short)
+# Untracked files are NOT dirt: a stray scratch dir or a concurrent session's new
+# files must not trip the stall-block for a chain that never touched them.
+DIRTY=$(git status --porcelain | grep -v '^??' || true)
 if [ -n "${DIRTY}" ]; then
   case "${VERSION}" in
     *-pre|*-mid) log "info: tree dirty but VERSION=${VERSION} (in-flight); proceeding" ;;
@@ -174,8 +179,8 @@ ln -sfn "$(basename "${TICK_LOG}")" "${CURRENT_LINK}"
     --print \
     --permission-mode acceptEdits \
     --allowedTools "Bash(nats:*),Bash(curl:*),Bash(lsof:*),Bash(npm:*),Bash(git:*),Bash(jq:*),Bash(launchctl:*)" \
-    --add-dir "/Users/moltymac/.openclaw/workspace" \
-    --add-dir "/Users/moltymac/.openclaw" \
+    --add-dir "${HOME}/.openclaw/workspace" \
+    --add-dir "${HOME}/.openclaw" \
     --output-format stream-json \
     --verbose \
     | tee "${TICK_RAW}" \

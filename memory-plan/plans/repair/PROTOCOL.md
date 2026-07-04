@@ -38,7 +38,7 @@ drift — the next sync erases it. Change the canonical source instead.
 
 | File | Role | Required? |
 |---|---|---|
-| `INVENTORY.md` | The step list: blocks × atomic steps, status `[ ]/[A]/[x]`, per-step done-evidence | **yes** (discovery) |
+| `INVENTORY.md` | The step list: blocks × atomic steps, status `[ ]` open · `[A]` in-flight · `[x]` closed · `[D]` deferred (deliberate; never a next step, never blocks completion, no §11 contract required), per-step done-evidence | **yes** (discovery) |
 | `VERSION` | Single-line carrier `vX.Y[-pre|-mid]` | **yes** (discovery) |
 | `SCOPE.md` | The per-step work contract the scope hook enforces | yes |
 | `OUT_OF_SCOPE.md` | Drift capture, always-writeable | yes |
@@ -170,7 +170,7 @@ two-line shim `workspace-bin/<id>-tick.sh` (`exec plan-tick.sh <id>`), which is 
 `automation.json.tick_command` points at. One tick = exactly one step (or a BLOCK):
 
 ```
-launchd (com.openclaw.<id>-tick, interval from automation.json) fires <id>-tick.sh
+launchd (ai.openclaw.<id>-tick, interval from automation.json) fires <id>-tick.sh
   └─ guards: BLOCKED.md present → exit · dirty tree on clean VERSION → write stall-BLOCKED + exit
             · single-tick lock (stale-reaped >60min) · no [ ]/[A] rows → plan complete, exit
   └─ invoke: cat <plan>/TICK_PROMPT.md | claude --print --permission-mode acceptEdits
@@ -188,8 +188,11 @@ enabling the chain is an explicit operator decision per plan (viewer Automation 
 
 `.claude/hooks/scope-check.sh` (PreToolUse on Edit/Write/MultiEdit/NotebookEdit) scans every
 `memory-plan/plans/*/SCOPE.md`, keeps those with `Status: active` and unexpired `Expires`, and
-unions their ` ```files ` blocks into the allow-list. Blocked when: no active scope · expired ·
-file not in any active block. Always-writeable: every plan's own `SCOPE.md` + `OUT_OF_SCOPE.md`.
+unions their **open** ` ```files ` blocks into the allow-list. A fence may carry a label and a
+lifecycle word — ` ```files <label> closed ` — and closed blocks are pruned: a shipped batch
+re-locks its files while the record stays. One open block per in-flight batch. Blocked when:
+no active scope · expired · file not in any open block. Always-writeable: every plan's own
+`SCOPE.md` + `OUT_OF_SCOPE.md`.
 `**Override:** true` on a scope disables enforcement (operator escape). Keep **one** scope active
 at a time. If blocked: update SCOPE.md with the operator, or capture to OUT_OF_SCOPE.md and stay
 on the original scope, or stop. Never work around it.

@@ -2,7 +2,7 @@
 
 **Status:** v0 (draft, 2026-05-27). Authored after the May audit revealed that 5 review rounds + 22 commits in 24h produced ~0 production change due to absent work discipline + an undeployed runtime tree.
 
-**Read this first, every session, before any tool use.** If you are about to Edit/Write/MultiEdit a file, the PreToolUse hook will block you unless `memory-plan/SCOPE.md` lists it. Don't fight the hook. Update SCOPE.md (with the operator) or stop.
+**Read this first, every session, before any tool use.** If you are about to Edit/Write/MultiEdit a file, the PreToolUse hook will block you unless an active plan scope (`memory-plan/plans/<id>/SCOPE.md`) lists it in an open ```files block. Don't fight the hook. Update the plan's SCOPE.md (with the operator) or stop.
 
 ---
 
@@ -180,16 +180,21 @@ The repo's `CLAUDE.md` instructs every session to read this doc + `SCOPE.md` bef
 
 ### 6.2 PreToolUse hook (write-time enforcement)
 
-`.claude/settings.json` configures a hook that fires before every `Edit`, `Write`, `MultiEdit`. The hook reads SCOPE.md and decides:
+`.claude/settings.json` configures a hook (`.claude/hooks/scope-check.sh`) that fires before every `Edit`, `Write`, `MultiEdit`, `NotebookEdit`. The hook scans every `memory-plan/plans/*/SCOPE.md`, keeps those with `Status: active` and unexpired `Expires`, unions their **open** ```files blocks into the allow-list, and decides:
 
-- **Empty** → block, message "SCOPE.md is empty. Set today's scope with the operator before editing."
-- **Stale (older than declared deadline)** → block, message "SCOPE.md expired YYYY-MM-DD. Refresh or reset before editing."
-- **File not in `scope.files[]`** → block, message "file_path not in today's scope. Update SCOPE.md or stop."
+- **No active scope anywhere** → block: set a scope with the operator before editing.
+- **Expired** → an expired scope contributes nothing; if none remain, block.
+- **File not in any open block** → block: update the relevant plan's SCOPE.md or stop.
 - **All clear** → allow.
 
-**Exception:** `memory-plan/OUT_OF_SCOPE.md` is always writeable regardless of SCOPE.md state. The hook recognizes that path and permits writes unconditionally. This protects the §4.3 capture mechanism from being blocked by the very enforcement that triggers the need to capture.
+**Batch lifecycle:** a ```files block may carry a label and the word `closed`
+(` ```files <label> closed `) — a shipped batch. Closed blocks are pruned from the allow-list,
+so finished work re-locks while its record stays in the file. One open block per in-flight
+batch is the discipline.
 
-The hook is the only mechanism that physically prevents silent drift. Bypassing it requires the operator's explicit override (`SCOPE.md` `override: true` field for the session).
+**Exception:** every plan's own `SCOPE.md` and `OUT_OF_SCOPE.md` are always writeable. This protects the §4.3 capture mechanism (and scope refresh itself) from being blocked by the very enforcement that triggers the need to capture.
+
+The hook is the only mechanism that physically prevents silent drift — and it gates only the edit tools; Bash file writes are a known hole, covered by convention, not enforcement. Bypassing it requires the operator's explicit override (`**Override:** true` on a scope).
 
 ### 6.3 Done-contract gate (commit-time enforcement)
 
@@ -197,31 +202,31 @@ The hook is the only mechanism that physically prevents silent drift. Bypassing 
 
 ---
 
-## 7. File map of memory-plan/
+## 7. File map of memory-plan/ (silo layout, since 2026-06-03)
 
 ```
-MASTER_PLAN.md          ← this file. North star + discipline.
-COMPONENT_REGISTRY.md   ← current state of every service. Reality.
-SCOPE.md                ← today's work contract. ONE active scope at a time.
-OUT_OF_SCOPE.md         ← agnostic-spec capture of things observed but not acted on. Always-writeable.
-DECISIONS.md            ← append-only architectural decisions ledger. (created when first decision lands)
-INVENTORY.md            ← repurposed backlog. The old "45 steps × 9 phases" framework retired.
-archive/                ← historical docs. Read for context, not for guidance.
-  REFERENCE_PLAN.md
-  HANDOFF.md
-  MEMORY_SYSTEM_MAP.md
-  STUB_AUDIT.md
-  REVIEW_PASS_{1,2}.md
-  CODE_REVIEW_*.md
-  RESUME.md
-  FRAMEWORK{,_CANONICAL}.md
-  TICK_PROMPT.md, BLOCK_TEMPLATE.md, TIMELINE.md, etc.
-  audits/  (per-step audits from the old framework)
-  eval/    (gulf-1 eval, block-3 validation)
-  tick-logs/
+canonical/              ← authored ONCE here; sync-canonical.sh copies into every silo
+  MASTER_PLAN.md          this file. North star + discipline.
+  PROTOCOL.md             the plan-silo operating base (silo anatomy, 9 phases, tick chain)
+  FRAMEWORK_CANONICAL.md  the portable theory doc (see its Binding note)
+  COWORK_MODEL.md         what this system is
+  BLOCK_TEMPLATE.md       the shape a BLOCKED.md must take
+  templates/              what new-plan.sh instantiates
+plans/<id>/             ← one self-contained silo per plan (legacy, redesign, repair, protocol, …)
+  INVENTORY.md            the step list ([ ]/[A]/[x]/[D]) — viewer discovery file
+  VERSION                 vX.Y[-pre|-mid] carrier — viewer discovery file
+  SCOPE.md                the work contract (per-batch ```files blocks; closed = re-locked)
+  OUT_OF_SCOPE.md         drift capture, always-writeable
+  DECISIONS.md            append-only architectural ledger
+  ROADMAP.md              the plan's blocks and why
+  COMPONENT_REGISTRY.md   runtime reality of what the plan touches
+  TICK_PROMPT.md + automation.json   the autonomous-chain config
+  audits/ · tick-logs/ · BLOCKED.md (only while blocked)
 ```
 
-The archive directory is read-only context. Anything actionable from those docs gets re-extracted into MASTER_PLAN / COMPONENT_REGISTRY / INVENTORY when it's still relevant.
+Pre-silo history (the old flat `memory-plan/` layout and its `archive/`) lives inside the
+`legacy` silo. Archive material is read-only context: anything actionable gets re-extracted
+into the live silo docs.
 
 ---
 
@@ -280,14 +285,13 @@ SCOPE.md stays. Next session reads it, sees yesterday's state.
 
 ## 10. Pointers (where to find things)
 
-- Current state of every service: `COMPONENT_REGISTRY.md`
-- Today's scope: `SCOPE.md`
-- Things observed but not acted on: `OUT_OF_SCOPE.md`
-- Backlog of work: `INVENTORY.md`
-- Architectural decisions: `DECISIONS.md` (when populated)
+- Current state of every service: the active plan's `COMPONENT_REGISTRY.md`
+- Today's scope: the active plan's `SCOPE.md` (`plans/*/SCOPE.md` with `Status: active`)
+- Things observed but not acted on: the plan's `OUT_OF_SCOPE.md`
+- Backlog of work: the plan's `INVENTORY.md`
+- Architectural decisions: the plan's `DECISIONS.md`
 - The forcing function: `.claude/settings.json` (hook config), `.claude/hooks/scope-check.sh` (hook implementation)
-- Why all the historical docs went to archive/: §7 + this file's intro.
-- The most recent ground-truth audit: `AUDIT_2026-05-27.md` (verify before acting; see 4.9).
+- Ground-truth audits live under `plans/<id>/audits/` — audits decay (§4.9): re-verify claims older than 14 days before acting.
 
 ---
 

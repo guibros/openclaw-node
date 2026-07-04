@@ -17,7 +17,7 @@ two unrelated systems, split it. If the Verify proves two independent outcomes, 
 · Verify (enforceable test tagged `runtime:` / `code:` / `visual:`). `plan-lint.sh` fails open
 rows without it.
 
-**Status:** `[ ]` queued · `[A]` in-flight · `[x]` closed.
+**Status:** `[ ]` queued · `[A]` in-flight · `[x]` closed · `[D]` deferred (deliberate; never a next step, never blocks completion).
 **Version:** `v<block>.<step>`; carrier starts at `v0.0`.
 **Table format is load-bearing:** the tick engine greps rows shaped exactly
 `| <block> | <b>.<s> | v<b>.<s> | [ ] | <description> |` — keep the five columns, one row per step.

@@ -4,7 +4,7 @@ Every L0–G phase from `MEMORY_REDESIGN.md` decomposed to **true atomic grain**
 
 **Atomicity test (applied to every step):** does it produce exactly one verifiable behavior change? If a step needed "and" to describe two independently-testable outcomes, it was split. Event-log emission for an operation is folded into the step that *builds* that operation (not front-loaded), so each step's event is part of its own done-evidence.
 
-**Status:** `[ ]` queued · `[A]` in-flight · `[x]` closed.
+**Status:** `[ ]` queued · `[A]` in-flight · `[x]` closed · `[D]` deferred (deliberate; not open work).
 **Version:** `v<block>.<step>`. Blocks: 0=L0, 1=L1, 2=L2, 3=L3, 4=L4, 5=L5, 6=L6, 7=G. Carrier starts at `v0.0`.
 
 Blocks 0–6 = **local-first**, run in order. Block 7 = **DEFERRED** (DECISIONS D4). Every block boundary triggers the **macro Re-Orient** (WORKFLOW §7); every step opens with the **micro Re-Orient**.
@@ -137,10 +137,10 @@ Nothing here starts until Blocks 0–6 close and local is observably healthy. Fe
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 7 | 7.1 | v7.1 | [ ] | (DEFERRED) Stand up the 3-node NATS cluster (R=3) |
-| 7 | 7.2 | v7.2 | [ ] | (DEFERRED) Wire broadcast/offerer/acceptor into the workspace daemon |
-| 7 | 7.3 | v7.3 | [ ] | (DEFERRED) Identity registry + promoter reading the L1 event log |
-| 7 | 7.4 | v7.4 | [ ] | (DEFERRED) Validate a cross-node broadcast→offer→accept round-trip |
+| 7 | 7.1 | v7.1 | [D] | (DEFERRED) Stand up the 3-node NATS cluster (R=3) |
+| 7 | 7.2 | v7.2 | [D] | (DEFERRED) Wire broadcast/offerer/acceptor into the workspace daemon |
+| 7 | 7.3 | v7.3 | [D] | (DEFERRED) Identity registry + promoter reading the L1 event log |
+| 7 | 7.4 | v7.4 | [D] | (DEFERRED) Validate a cross-node broadcast→offer→accept round-trip |
 
 > Block 7 done-evidence defined when it is un-deferred (after a Block-6 close + macro Re-Orient).
 

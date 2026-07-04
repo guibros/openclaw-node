@@ -39,11 +39,41 @@ report() {
 [ "$SUMMARY" -eq 1 ] || echo "plan-lint: $ID  ($PLAN)"
 
 # ── surface 1: master-plan ──────────────────────────────────────────────────
+STATUS_LC=""
 if [ -f "$PLAN/SCOPE.md" ]; then
   status=$(grep -iE '^\*\*Status:\*\*' "$PLAN/SCOPE.md" | head -1 | sed -E 's/^\*\*Status:\*\*[[:space:]]*//' || true)
+  STATUS_LC=$(printf '%s' "$status" | tr -d ' ' | tr 'A-Z' 'a-z')
   if [ -n "$status" ]; then report PASS master-plan "SCOPE.md parseable (Status: $status)"
   else report FAIL master-plan "SCOPE.md present but no **Status:** field"; fi
 else report FAIL master-plan "SCOPE.md missing"; fi
+
+# Scope hygiene — the drift that actually bites (2026-07-04 deep review): an
+# active scope that grows unbounded or lives for weeks is the hook's designed
+# failure mode performed openly. Only OPEN (non-`closed`) files blocks count.
+if [ "$STATUS_LC" = "active" ] && [ -f "$PLAN/SCOPE.md" ]; then
+  open_files=$(awk '
+    /^```files([[:space:]]|$)/ { flag = ($0 ~ /[[:space:]]closed[[:space:]]*$/) ? 0 : 1; next }
+    /^```[[:space:]]*$/ { flag=0 }
+    flag && !/^[[:space:]]*(#|$)/ { n++ }
+    END { print n+0 }
+  ' "$PLAN/SCOPE.md")
+  if [ "$open_files" -gt 80 ]; then report FAIL master-plan "scope hygiene: $open_files open allow-list entries (>80) — close shipped batches (\`\`\`files <label> closed)"
+  elif [ "$open_files" -gt 40 ]; then report WARN master-plan "scope hygiene: $open_files open allow-list entries (>40) — prune closed batches"
+  else report PASS master-plan "scope hygiene: $open_files open allow-list entries"; fi
+
+  set_at=$(grep -E '^\*\*Set at:\*\*' "$PLAN/SCOPE.md" | tail -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || true)
+  if [ -n "$set_at" ]; then
+    set_epoch=$(date -j -f '%Y-%m-%d' "$set_at" '+%s' 2>/dev/null || date -d "$set_at" '+%s' 2>/dev/null || echo "")
+    if [ -n "$set_epoch" ]; then
+      age_days=$(( ( $(date '+%s') - set_epoch ) / 86400 ))
+      if [ "$age_days" -gt 30 ]; then report FAIL master-plan "scope hygiene: active scope is ${age_days}d old (>30) — re-set or retire it"
+      elif [ "$age_days" -gt 14 ]; then report WARN master-plan "scope hygiene: active scope is ${age_days}d old (>14)"
+      else report PASS master-plan "scope hygiene: active scope age ${age_days}d"; fi
+    fi
+  else
+    report WARN master-plan "scope hygiene: active scope has no dated **Set at:** line"
+  fi
+fi
 
 if [ -f "$PLAN/COMPONENT_REGISTRY.md" ]; then
   fams=$(grep -cE '^## +Family [0-9]+:' "$PLAN/COMPONENT_REGISTRY.md" 2>/dev/null || true)
@@ -67,7 +97,10 @@ else report FAIL master-plan "OUT_OF_SCOPE.md missing"; fi
 
 # ── surface 2: steps ────────────────────────────────────────────────────────
 INV="$PLAN/INVENTORY.md"
-ROW_RE='^\| [0-9]+ \| [0-9]+\.[0-9]+ \| v[0-9]+\.[0-9]+ \| \[(x|A| )\]'
+# Whitespace-tolerant, matching plan-tick and the viewer — one row format, one
+# parse contract. Status vocabulary: [ ] open · [A] in progress · [x] closed ·
+# [D] deferred (deliberately postponed; never a next step, no contract required).
+ROW_RE='^\|[[:space:]]*[0-9]+[[:space:]]*\|[[:space:]]*[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*v[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*\[(x|A|D| )\]'
 if [ -f "$INV" ] && grep -qE "$ROW_RE" "$INV"; then
   total=$(grep -cE "$ROW_RE" "$INV")
   report PASS steps "INVENTORY.md: $total row(s) in the load-bearing format"
@@ -89,7 +122,7 @@ if [ -f "$INV" ] && grep -qE "$ROW_RE" "$INV"; then
     fi
     if [ "$has_contract" -eq 0 ]; then
       case "$st" in
-        "[x]") contract_warn=$((contract_warn+1)) ;;
+        "[x]"|"[D]") contract_warn=$((contract_warn+1)) ;;
         *)     contract_fail=$((contract_fail+1))
                [ "$SUMMARY" -eq 1 ] || printf '         %s\n' "open row $step lacks the Goal/Needs/Feeds/Verify contract" ;;
       esac
@@ -100,7 +133,7 @@ if [ -f "$INV" ] && grep -qE "$ROW_RE" "$INV"; then
   else report PASS steps "all open rows carry the §11 contract"; fi
   [ "$contract_warn" -gt 0 ] && report WARN steps "$contract_warn closed row(s) predate the contract (grandfathered)"
 
-  closed=$(grep -cE '^\| [0-9]+ \| [0-9]+\.[0-9]+ \| v[0-9]+\.[0-9]+ \| \[x\]' "$INV" 2>/dev/null || true)
+  closed=$(grep -cE '^\|[[:space:]]*[0-9]+[[:space:]]*\|[[:space:]]*[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*v[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*\[x\]' "$INV" 2>/dev/null || true)
   pres=$(find "$PLAN/audits" -name 'AUDIT_PRE.md' 2>/dev/null | wc -l | tr -d ' ')
   posts=$(find "$PLAN/audits" -name 'AUDIT_POST.md' 2>/dev/null | wc -l | tr -d ' ')
   if [ "${closed:-0}" -gt 0 ] && [ "${posts:-0}" -lt "${closed}" ]; then
@@ -163,12 +196,34 @@ else report FAIL history "tick-logs/ missing (ticks have nowhere to write; Live/
 if [ -f "$PLAN/VERSION" ]; then
   ver=$(tr -d '[:space:]' < "$PLAN/VERSION")
   base="${ver%-pre}"; base="${base%-mid}"
-  if [ "$ver" = "v0.0" ] || grep -qE "^\| [0-9]+ \| [0-9]+\.[0-9]+ \| ${base} \|" "$INV" 2>/dev/null; then
+  if [ "$ver" = "v0.0" ] || grep -qE "^\|[[:space:]]*[0-9]+[[:space:]]*\|[[:space:]]*[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*${base}[[:space:]]*\|" "$INV" 2>/dev/null; then
     report PASS history "VERSION ($ver) coheres with INVENTORY"
   else
     report FAIL history "VERSION ($ver) points at no INVENTORY row"
   fi
 else report FAIL history "VERSION missing"; fi
+
+# Activity-vs-machinery drift (2026-07-04 deep review): work flowing through the
+# repo while the plan's step machinery sits idle is the bypass signature. Only
+# graded for the plan holding an active scope — repo-wide signals would nag
+# dormant silos forever.
+if [ "$STATUS_LC" = "active" ] && git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
+  evid=$(git -C "$REPO" log -15 --format='%B' 2>/dev/null | grep -c 'Runtime-Evidence:' || true)
+  if [ "${evid:-0}" -eq 0 ]; then
+    report WARN history "no Runtime-Evidence: trailer in the last 15 commits (done-contract §5 evidence not riding commits)"
+  else
+    report PASS history "Runtime-Evidence: trailer present in $evid of the last 15 commits"
+  fi
+  vh=$(git -C "$REPO" log -1 --format='%H' -- "$PLAN/VERSION" 2>/dev/null || true)
+  if [ -n "$vh" ]; then
+    since=$(git -C "$REPO" rev-list --count "$vh"..HEAD 2>/dev/null || echo 0)
+    if [ "${since:-0}" -gt 20 ]; then
+      report WARN history "step machinery idle: $since commits since VERSION last moved — work is flowing past the step ledger"
+    else
+      report PASS history "VERSION moved within the last ${since} commit(s)"
+    fi
+  fi
+fi
 
 # ── summary ─────────────────────────────────────────────────────────────────
 verdict="CONFORMANT"; rc=0

@@ -31,7 +31,7 @@ chaining is either in-session subagents or orchestration you build at the REST l
 | Agent definition (system prompt + tools + skills) | `CLAUDE.md` bootstrap + `MASTER_PLAN.md` (north star) + `WORKFLOW.md` (9-phase) + `.claude/hooks/scope-check.sh` |
 | Environment / sandbox | the live repo + `~/.openclaw/workspace` runtime (we deliberately do **not** add a per-task VM — stay light) |
 | A single task | one `INVENTORY.md` step + its `SCOPE.md` contract + `TICK_PROMPT.md` (the recurring prompt) |
-| Scheduler (cron) | launchd plist (`com.openclaw.<plan>-tick`) firing the tick script on an interval |
+| Scheduler (cron) | launchd plist (`ai.openclaw.<plan>-tick`) firing the tick script on an interval |
 | Pipeline / chaining | the **INVENTORY walk**: each tick does the first open step; the next tick does the next — a within-plan task DAG |
 | Outputs / lifecycle | `audits/` (AUDIT_PRE/POST), `tick-logs/`, one git commit per step, the `VERSION` carrier, `COMPONENT_REGISTRY.md` |
 | Done-contract | **runtime-observable** (stricter than cowork's "last message printed") |
@@ -41,11 +41,13 @@ chaining is either in-session subagents or orchestration you build at the REST l
 complete agent-context bundle (its own MASTER_PLAN, WORKFLOW, FRAMEWORK, DECISIONS, INVENTORY,
 SCOPE, TICK_PROMPT). That is the local analogue of a cowork agent+environment definition.
 
-## 3. The chain engine (this already exists)
+## 3. The chain engine
 
-The chained automation is **built and proven** — `workspace-bin/memory-plan-tick.sh` drove the
-legacy 58-step plan to completion autonomously. `workspace-bin/redesign-tick.sh` is the same
-engine adapted to the redesign plan. One tick does exactly one step:
+One generic engine drives any plan: `workspace-bin/plan-tick.sh <id>`, fronted by argv-less
+two-line shims `workspace-bin/<id>-tick.sh` (PROTOCOL §7). Its ancestors — the per-plan
+`memory-plan-tick.sh` (drove the legacy 58-step plan to completion, 165 ticks) and the
+`redesign-tick.sh` copy (32 ticks) — were reduced to shims over the generic engine on
+2026-07-04 per MASTER_PLAN §4.6 (no parallel implementations). One tick does exactly one step:
 
 ```
 launchd fires <plan>-tick.sh every <interval_seconds>
@@ -86,8 +88,9 @@ autonomous tick has executed for this plan yet," not a bug.
 
 - **Built & working:** agent contract, siloed portable plan bundles, scheduler, the within-plan
   chain engine, control surface, runtime-evidence done-contract, BLOCK/review.
-- **Paused (deliberate):** the redesign tick plist is unloaded (interactive Block 0).
+- **Paused (deliberate):** no tick plist is loaded for any plan — all current work is
+  operator-directed interactive batches; loading a chain is an explicit per-plan decision
+  (viewer Automation tab). Honest corollary: Live/Progress tabs are empty for interactive work.
 - **Genuinely missing / thin:** per-task isolation (we run in the live tree by choice — staying
   light); **cross-plan pipelines** (chaining is within one plan's INVENTORY; plan-A→plan-B
-  orchestration does not exist yet); the legacy tick scripts carry stale post-restructure paths
-  (dead automation, captured in OUT_OF_SCOPE).
+  orchestration does not exist yet).

@@ -41,3 +41,42 @@ willpower).
 grandfathered as WARN. Historical naming variance (ROADMAP under another name, D-heading shapes,
 audit-dir naming) grades WARN, never FAIL. Repair's 29 open rows need contract retrofit before
 its chain resumes — repair-plan work, surfaced by the lint, not done here.
+
+## D4 — Scope batches are first-class: labeled ```files blocks with a `closed` lifecycle (2026-07-04)
+
+**Decision.** The unit of scope is the operator-directed batch, not the calendar. Each batch gets
+its own labeled ` ```files <label> ` block in the plan's SCOPE.md; when the batch ships, the word
+`closed` is appended to the fence and the hook prunes that block from the allow-list. The 2026-07-04
+planner deep review found the alternative — one ever-growing union — had reached 349 lines /
+12 addenda / ~110 permanently-writeable files: the hook's designed failure mode (silent expansion)
+performed openly. plan-lint now grades the drift directly (open-entry count, active-scope age,
+Runtime-Evidence trailers in recent commits, VERSION-vs-git-activity).
+
+**Consequences.** Finished work re-locks without losing its record. One open block per in-flight
+batch is the discipline. The always-writeable SCOPE.md remains the trusted-agent hole it always
+was — convention plus the new lint visibility, not enforcement.
+
+## D5 — `[D]` DEFERRED is a first-class step state (2026-07-04)
+
+**Decision.** INVENTORY rows may be `[D]`: deliberately postponed. Deferred rows are never a next
+step (tick engine ignores them), never block plan completion (viewer excludes them from
+total_steps), and need no §11 contract (lint treats them like grandfathered-closed). Redesign's
+four Block-7 federation rows are the first users — the plan now grades CONFORMANT instead of
+failing lint for work it explicitly chose not to do (its DECISIONS D4).
+
+**Consequences.** Deferral is machine-distinguishable from unfinished. Reopening a deferred step
+is a one-character flip `[D]`→`[ ]` plus writing its §11 contract.
+
+## D6 — The per-plan tick engines are retired; plan-tick.sh is the only engine (2026-07-04)
+
+**Decision.** Per MASTER_PLAN §4.6, `memory-plan-tick.sh` (165 legacy ticks) and the 207-line
+`redesign-tick.sh` copy (32 ticks) are replaced by two-line shims over the generic
+`plan-tick.sh`; their orphaned `com.openclaw.*` plists are renamed `.disabled`. Plist naming is
+standardized on `ai.openclaw.<id>-tick` (docs, templates, viewer defaults, automation.json).
+plan-tick.sh no longer counts untracked files as tree-dirt (a concurrent session's new files
+must not trip the stall-block) and derives paths from $HOME, not a hardcoded operator.
+
+**Consequences.** One engine to maintain; the chain remains deliberately unloaded for every plan
+(loading is an explicit operator decision, viewer Automation tab). D3's repair note ("29 open
+rows need contract retrofit") is superseded: repair closed 49/49 on 2026-06-11; its remaining
+lint FAILs are the missing automation surfaces of a dormant, complete plan.
