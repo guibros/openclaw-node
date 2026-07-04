@@ -20,6 +20,7 @@ import os from 'node:os';
 import { parseArgs } from 'node:util';
 import { atomicWriteFile } from '../lib/atomic-write.mjs';
 import { runWatch, formatTable, formatReport, formatHtml, STATUS } from '../lib/node-watch.mjs';
+import { deriveWakeSample, appendWakeRecord } from '../lib/wakefulness.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -60,6 +61,14 @@ async function once(mode, includeHeavy) {
     const jp = values['json-out'] || (values.axis ? null : DEFAULT_JSON);
     if (jp) await atomicWriteFile(jp, JSON.stringify(report, null, 2));
   } catch (err) { process.stderr.write(`[node-watch] report write failed: ${err.message}\n`); }
+  // Wakefulness heartbeat: append one on/off/idle record per continuous tick
+  // (never for one-shot/axis runs — those aren't a timeline). A gap in these
+  // records is the "system was asleep" inscription. Best-effort; a failed
+  // append never disturbs the monitor.
+  if (mode === 'watch' && !values.axis) {
+    try { await appendWakeRecord(deriveWakeSample(report)); }
+    catch (err) { process.stderr.write(`[node-watch] wakefulness append failed: ${err.message}\n`); }
+  }
   if (values.html) {
     try {
       const hp = values['html-out'] || DEFAULT_HTML;

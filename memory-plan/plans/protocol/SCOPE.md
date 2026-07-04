@@ -271,6 +271,10 @@ test/gulf1-eval.test.mjs
 test/hybrid-search.test.mjs
 test/embed-existing-sessions.test.mjs
 test/mcp-knowledge-sessions.test.mjs
+# 2026-07-04e (operator-directed): wakefulness ledger — on/off/idle uptime timeline
+lib/wakefulness.mjs
+bin/wakefulness.mjs
+test/wakefulness.test.mjs
 # deploy day (operator-approved): watch units installable + heartbeat fail-visible
 install.sh
 bin/health-watch.mjs
