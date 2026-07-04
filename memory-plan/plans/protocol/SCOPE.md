@@ -161,6 +161,17 @@ gains `claude-code-nodedev` source (runtime config, .bak kept); daemon re-reads 
 session's JSONL, Phase 2 stage-1 firing (00:58), backlog ingest of the missed day in progress.
 Related gap for next scope: node-watch `mem.ingest` reports WORKING on arbitrarily-old JSONLs — a
 freshness-bounded probe (and a registry-paths-exist probe) would have caught the dead source day-of.
+**Addendum 2026-07-04d (operator-directed "go V0+V1"):** memory-vault remediation per
+audits/MEMORY_SYSTEM_REVIEW_2026-07-04.md — V0: test-vault isolation (thread vaultPath through
+runFlush/runConsolidationCycle; tests write tmp vaults) + purge fixture pollution from the live vault.
+V1: (1) link emission — concept frontmatter/body emits resolvable piped slug links, graph parser
+flattens legacy YAML + normalizes targets, spreading activation walks both directions; (2) session/
+decision/theme/daily writers driven by the consolidation cycle (DB-driven backfill) instead of
+flush-LLM-success only; (3) decision notes select top-N by salience (no static 0.4 floor vs decay);
+(4) canonical_name normalization + v4 merge migration for case/format entity variants.
+Acceptance: review §5 criteria (concept→concept edges > 0, channel 5 non-empty on probe suite,
+session refs resolve, this-week decision gets a note within one cycle, no fixtures in live vault).
+Files added under "# 2026-07-04d".
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -248,6 +259,21 @@ test/mcp-knowledge-sessions.test.mjs
 # deploy day (operator-approved): watch units installable + heartbeat fail-visible
 install.sh
 bin/health-watch.mjs
+# 2026-07-04d (operator-directed "go V0+V1"): memory-vault remediation
+lib/obsidian-summarizer.mjs
+lib/obsidian-decision-notes.mjs
+lib/obsidian-theme-notes.mjs
+lib/obsidian-session-notes.mjs
+lib/obsidian-digest.mjs
+lib/obsidian-graph.mjs
+lib/obsidian-vault.mjs
+lib/spreading-activation.mjs
+lib/consolidation.mjs
+bin/consolidate.mjs
+bin/consolidation-scheduler.mjs
+test/obsidian-*.test.mjs
+test/spreading-activation.test.mjs
+test/pre-compression-flush.test.mjs
 ```
 
 ## Prior closed scopes (retained for history)

@@ -181,6 +181,7 @@ describe('runFlush with LLM extraction', () => {
     };
 
     const result = await runFlush(jsonlPath, memoryMdPath, {
+      vaultPath: path.join(tmpDir, 'vault'),
       charBudget: 2200,
       llmClient: mockClient,
       extractionStore: store,
@@ -212,6 +213,7 @@ describe('runFlush with LLM extraction', () => {
     };
 
     await runFlush(jsonlPath, memoryMdPath, {
+      vaultPath: path.join(tmpDir, 'vault'),
       charBudget: 2200,
       llmClient: mockClient,
       extractionStore: store,
@@ -242,7 +244,7 @@ describe('runFlush with LLM extraction', () => {
         return { content: JSON.stringify(mockExtractionResult), usage: null, finishReason: 'stop' };
       },
     };
-    const opts = { charBudget: 2200, llmClient: mockClient, extractionStore: store };
+    const opts = { charBudget: 2200, llmClient: mockClient, extractionStore: store, vaultPath: path.join(tmpDir, 'vault') };
 
     const first = await runFlush(jsonlPath, memoryMdPath, opts);
     assert.equal(first.mode, 'llm');
@@ -287,6 +289,7 @@ describe('runFlush with LLM extraction', () => {
     };
 
     const result = await runFlush(jsonlPath, memoryMdPath, {
+      vaultPath: path.join(tmpDir, 'vault'),
       charBudget: 2200,
       llmClient: failingClient,
       extractionStore: store,

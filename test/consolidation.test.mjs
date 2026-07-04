@@ -15,6 +15,13 @@ import {
   evaluatePromotionCandidates,
 } from '../lib/consolidation.mjs';
 import { runConsolidationCycle } from '../bin/consolidate.mjs';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// Never let a cycle default to the REAL vault (getVaultPath) — fixture notes
+// were landing in production ~/.openclaw/obsidian-local (memory review 2026-07-04).
+const TEST_VAULT = mkdtempSync(join(tmpdir(), 'consolidation-vault-'));
 
 /**
  * Helper: create a temp in-memory DB with the extraction store schema.
@@ -463,7 +470,7 @@ describe('runConsolidationCycle', () => {
     insertEntity(db, 'aging-entity', 'concept', { salience: 0.5, lastSeen: thirtyDaysAgo });
     insertEntity(db, 'promoted-entity', 'concept', { mentionCount: 12, sourceType: 'local' });
 
-    const result = await runConsolidationCycle({ db });
+    const result = await runConsolidationCycle({ vaultPath: TEST_VAULT, db });
 
     assert.ok(result.durationMs >= 0);
     assert.ok('decayed' in result);
@@ -489,7 +496,7 @@ describe('runConsolidationCycle', () => {
     const ac = new AbortController();
     ac.abort(new Error('hard cap'));  // already-aborted signal
 
-    const result = await runConsolidationCycle({ db, signal: ac.signal });
+    const result = await runConsolidationCycle({ vaultPath: TEST_VAULT, db, signal: ac.signal });
 
     assert.equal(result.aborted, true, 'cycle records that it was aborted');
     assert.equal(result.abortedAt, 'decay',
@@ -510,7 +517,7 @@ describe('runConsolidationCycle', () => {
     // init+decay synchronously before yielding).
     queueMicrotask(() => ac.abort(new Error('mid-cycle hard cap')));
 
-    const result = await runConsolidationCycle({ db, signal: ac.signal });
+    const result = await runConsolidationCycle({ vaultPath: TEST_VAULT, db, signal: ac.signal });
 
     // Either aborted at one of the checkpoints, or completed before microtask
     // depending on scheduling — both are valid. The key assertion: when
@@ -627,11 +634,11 @@ describe('R20 (repair 5.3): promotion emits on change only', () => {
     const published = [];
     const { runConsolidationCycle } = await import('../bin/consolidate.mjs');
 
-    await runConsolidationCycle({ db, eventLog: mockEventLog(published), nodeId: 'test-node' });
+    await runConsolidationCycle({ vaultPath: TEST_VAULT, db, eventLog: mockEventLog(published), nodeId: 'test-node' });
     const promotedAfterFirst = published.filter(e => e.event_type === 'memory.promoted').length;
     assert.equal(promotedAfterFirst, 1, 'first sighting of the candidate set must emit');
 
-    const r2 = await runConsolidationCycle({ db, eventLog: mockEventLog(published), nodeId: 'test-node' });
+    const r2 = await runConsolidationCycle({ vaultPath: TEST_VAULT, db, eventLog: mockEventLog(published), nodeId: 'test-node' });
     assert.equal(published.filter(e => e.event_type === 'memory.promoted').length, promotedAfterFirst,
       'unchanged set must not re-emit');
     assert.equal(r2.promotionCandidates?.eventSkipped, true);
@@ -639,7 +646,7 @@ describe('R20 (repair 5.3): promotion emits on change only', () => {
     insertEntity(db, 'promotable-two', 'concept', {
       sessions: ['s4', 's5', 's6'], salience: 0.9, mentionCount: 30,
     });
-    await runConsolidationCycle({ db, eventLog: mockEventLog(published), nodeId: 'test-node' });
+    await runConsolidationCycle({ vaultPath: TEST_VAULT, db, eventLog: mockEventLog(published), nodeId: 'test-node' });
     assert.equal(published.filter(e => e.event_type === 'memory.promoted').length, promotedAfterFirst + 1,
       'a changed candidate set must emit');
 
