@@ -150,6 +150,17 @@ heartbeat (d9d47c8) — OBSERVED fresh. Deep one-shot 2026-07-04T04:39Z: health 
 timeout-inheritance verified live (extract probe ran full 120s, embedder WORKING 2s). NEW findings
 queued (not in this scope): daemon Phase 2 stalled since 2026-07-03 15:02 (watcher caught it overnight);
 NATS client-connect TIMEOUT (pre-existing); MC dev-mode cold-compile vs 2.5s diagnostics probe.
+**Addendum 2026-07-04b (operator-directed "go" — Phase-2 stall root cause):** the watcher's overnight
+obs.sync/obs.graph_cache BROKEN traced to a compound cause: (1) `~/.openclaw/config/transcript-sources.json`
+still pointed `claude-code-repo` at the DEAD pre-rename project dir (`-Users-moltymac-openclaw`) — every
+session in openclaw-nodedev was invisible to activity detection, so the daemon sat ENDED (no Phase 2, no
+extraction) for the whole deep-review day; (2) the daemon's main loop froze `loadTranscriptSources()` at
+startup (five other paths re-read per tick), so the registry fix couldn't apply live. Fixed: registry
+gains `claude-code-nodedev` source (runtime config, .bak kept); daemon re-reads sources every tick
+(d4dfd34). OBSERVED after restart: `ENDED → BOOT (session: 12c83c0b)`, session-trace tracking this
+session's JSONL, Phase 2 stage-1 firing (00:58), backlog ingest of the missed day in progress.
+Related gap for next scope: node-watch `mem.ingest` reports WORKING on arbitrarily-old JSONLs — a
+freshness-bounded probe (and a registry-paths-exist probe) would have caught the dead source day-of.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
