@@ -22,7 +22,6 @@ import { execFile } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { atomicWriteFile } from '../lib/atomic-write.mjs';
 import { runWatch, formatTable, formatReport, formatHtml, STATUS } from '../lib/node-watch.mjs';
-import { deriveWakeSample, appendWakeRecord } from '../lib/wakefulness.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -127,14 +126,6 @@ async function main() {
     if (stopping || running) return;
     running = true;
     try {
-      // Wakefulness heartbeat FIRST, before the crash-prone deep sweep: a
-      // heartbeat that only lands after the sweep would report false-OFF under
-      // exactly the load that crashes the sweep. Report-less sample reads
-      // daemon-pid liveness + extraction age directly (cheap). A gap between
-      // records is the "system was asleep" inscription.
-      try { await appendWakeRecord(deriveWakeSample(null)); }
-      catch (err) { process.stderr.write(`[node-watch] wakefulness append failed: ${err.message}\n`); }
-
       const deep = values.deep || (Date.now() - lastDeep) >= deepIntervalMs;
       if (deep) lastDeep = Date.now();
       if (!values.json && !values.quiet) process.stdout.write('\x1b[2J\x1b[H'); // clear screen between frames

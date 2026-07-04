@@ -1,0 +1,10 @@
+[Unit]
+Description=OpenClaw Observer — sample 5 uptime layers + memory-activity feed
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=${NODE_BIN} ${OPENCLAW_WORKSPACE}/bin/observer.mjs --sample
+Environment=HOME=${HOME}
+Environment=PATH=/usr/sbin:/usr/bin:/bin:/usr/local/bin
+Environment=TZ=America/Montreal

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>ai.openclaw.observer</string>
+    <key>Comment</key>
+    <string>OpenClaw Observer — samples 5 layers (vm / node / interaction / memory uptime + memory-activity feed) every 60s to append-only ledgers. Standalone + lightweight: only stops when the VM does, never runs heavy probes.</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>${NODE_BIN}</string>
+      <string>${OPENCLAW_WORKSPACE}/bin/observer.mjs</string>
+      <string>--sample</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>60</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/observer.log</string>
+    <key>StandardErrorPath</key>
+    <string>${OPENCLAW_WORKSPACE}/.tmp/observer.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key>
+      <string>${HOME}</string>
+      <key>PATH</key>
+      <string>/usr/sbin:/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin</string>
+      <key>TZ</key>
+      <string>America/Montreal</string>
+    </dict>
+  </dict>
+</plist>
