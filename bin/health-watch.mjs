@@ -262,11 +262,15 @@ export function createHealthWatch(opts = {}) {
     const repeatDue = status !== 'healthy'
       && (now - lastAlertTime) >= REPEAT_ALERT_SEC * 1000;
 
-    if (statusChanged || repeatDue) {
-      const report = formatHealthReport(result) + formatQueueSection(queueState);
+    // The file is a HEARTBEAT, not a change-log: node-watch's ops.diagnostics
+    // reads its mtime for freshness, so it must be written every tick — a
+    // healthy-once-then-silent file is indistinguishable from a dead monitor.
+    if (targets.includes('file')) {
+      await alertFile(formatHealthReport(result) + formatQueueSection(queueState));
+    }
 
+    if (statusChanged || repeatDue) {
       const alertPromises = [];
-      if (targets.includes('file')) alertPromises.push(alertFile(report));
       if (targets.includes('nats')) alertPromises.push(alertNats(status, result));
       if (targets.includes('banner') && (statusChanged || repeatDue)) {
         alertPromises.push(alertBanner(status));

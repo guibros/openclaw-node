@@ -220,6 +220,7 @@ test/embed-existing-sessions.test.mjs
 test/mcp-knowledge-sessions.test.mjs
 # deploy day (operator-approved): watch units installable + heartbeat fail-visible
 install.sh
+bin/health-watch.mjs
 ```
 
 ## Prior closed scopes (retained for history)
