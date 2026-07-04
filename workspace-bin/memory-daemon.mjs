@@ -1586,8 +1586,11 @@ async function main() {
     if (!running) return;
 
     try {
-      // 1. Detect activity
-      const activity = detectActivity(sources, config.intervals.activityWindowMs);
+      // 1. Detect activity. Sources are re-read from the registry every tick —
+      // every other consumer already does; a startup-frozen copy made registry
+      // edits invisible until restart (a stale entry hid a whole project's
+      // sessions from extraction for a day, 2026-07-03).
+      const activity = detectActivity(loadTranscriptSources(), config.intervals.activityWindowMs);
 
       // 2. State machine tick
       const transitions = sm.tick(activity);
@@ -1615,7 +1618,7 @@ async function main() {
       // Multiple agents may be active simultaneously (Claude Code + gateway + etc.)
       if (sm.state === STATES.ACTIVE) {
         const recentCutoff = Date.now() - (config.intervals?.activityWindowMs || 900000);
-        for (const source of sources) {
+        for (const source of loadTranscriptSources()) {
           if (!fs.existsSync(source.path)) continue;
           try {
             const files = fs.readdirSync(source.path).filter(f => f.endsWith('.jsonl'));
