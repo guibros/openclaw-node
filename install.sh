@@ -987,6 +987,13 @@ if [ "$OS" = "macos" ]; then
     warn "terminal-notifier missing — osascript fallback fires popups but they are NOT clickable"
     warn "Install later: brew install terminal-notifier"
   fi
+  # Branded sender bundle: the banner's LEFT icon is the sending app's icon, so
+  # ship our own (claw-badged) copy — lib/notify.mjs prefers it when present.
+  if bash "$REPO_DIR/services/notify-icons/build-notifier-app.sh" >/dev/null 2>&1; then
+    info "OpenClaw notifier bundle built → ~/.openclaw/share/OpenClawNotifier.app (branded banner icon)"
+  else
+    warn "Branded notifier bundle not built (terminal-notifier missing?) — stock icon will show"
+  fi
 elif [ "$OS" = "linux" ]; then
   if ! command -v notify-send >/dev/null 2>&1; then
     run sudo apt-get install -y libnotify-bin xdg-utils || warn "libnotify-bin install failed — popups disabled (events still ledgered)"

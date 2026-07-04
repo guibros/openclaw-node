@@ -6,7 +6,7 @@ import os from 'node:os';
 import {
   notify, readLedger, appendLedger, recordClick, loadConfig, resolveIcon,
   buildDarwinArgs, buildLinuxArgs, dispatch, awaitClickAndOpen, notifyPaths,
-  DEFAULT_CONFIG, KINDS,
+  findTerminalNotifier, DEFAULT_CONFIG, KINDS,
 } from '../lib/notify.mjs';
 
 let tmp, paths;
@@ -97,6 +97,24 @@ describe('ledger', () => {
     const limited = readLedger({ limit: 1 }, paths);
     assert.equal(limited.events.length, 1);
     assert.equal(limited.total, 2);
+  });
+});
+
+describe('findTerminalNotifier', () => {
+  it('prefers the branded OpenClawNotifier.app bundle over PATH', () => {
+    const appDir = path.join(tmp, '.openclaw', 'share', 'OpenClawNotifier.app', 'Contents', 'MacOS');
+    fs.mkdirSync(appDir, { recursive: true });
+    const branded = path.join(appDir, 'terminal-notifier');
+    fs.writeFileSync(branded, '#!/bin/sh\n');
+    fs.chmodSync(branded, 0o755);
+    const pathDir = path.join(tmp, 'pathbin');
+    fs.mkdirSync(pathDir);
+    const stock = path.join(pathDir, 'terminal-notifier');
+    fs.writeFileSync(stock, '#!/bin/sh\n');
+    fs.chmodSync(stock, 0o755);
+    assert.equal(findTerminalNotifier({ OPENCLAW_NOTIFY_HOME: tmp, PATH: pathDir }), branded);
+    fs.rmSync(branded);
+    assert.equal(findTerminalNotifier({ OPENCLAW_NOTIFY_HOME: tmp, PATH: pathDir }), stock);
   });
 });
 

@@ -16,7 +16,7 @@
  */
 
 const { connect, StringCodec } = require('nats');
-const { execSync } = require('child_process');
+const { execSync, execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -61,6 +61,19 @@ const { ROLE_COMPONENTS } = require('../lib/mesh-roles');
 const NODE_COMPONENTS = new Set(ROLE_COMPONENTS[NODE_ROLE] || ROLE_COMPONENTS.worker);
 
 let deploying = false; // prevent concurrent deploys
+
+// A deploy rewrites this node (`git reset --hard`) — every outcome is worth a
+// ledgered desktop popup, not just a console line nobody watches.
+const NOTIFY_CLI = path.join(__dirname, 'openclaw-notify.mjs');
+const MC_MESH_URL = `${process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000'}/mesh`;
+function notifyDesktop(kind, title, message) {
+  try {
+    execFile(process.execPath, [
+      NOTIFY_CLI, '--source', 'mesh-deploy', '--kind', kind,
+      '--title', title, '--message', message, '--url', MC_MESH_URL,
+    ], { timeout: 10_000 }, () => {});
+  } catch { /* best-effort */ }
+}
 
 // ── Deploy Execution ─────────────────────────────────────────────────────
 
@@ -187,6 +200,12 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
       await resultsKv.put(resultKey, sc.encode(JSON.stringify(result)));
     } catch (err) {
       console.error(`[deploy-listener] Failed to write result: ${err.message}`);
+    }
+
+    if (result.status === 'success') {
+      notifyDesktop('success', 'Mesh deploy applied', `${NODE_ID} now at ${result.sha} (${result.durationSeconds}s)`);
+    } else if (result.status === 'failed') {
+      notifyDesktop('error', 'Mesh deploy FAILED', `${NODE_ID}: ${result.errors.join('; ').slice(0, 180)}`);
     }
 
     // Update our deployVersion in the nodes registry
@@ -318,6 +337,7 @@ async function main() {
         const auth = verifyDeployTrigger(trigger);
         if (!auth.ok) {
           console.error(`[deploy-listener] REJECTED deploy trigger: ${auth.reason} (sha=${trigger.sha}, initiator=${trigger.initiator || 'unknown'})`);
+          notifyDesktop('block', 'Mesh deploy REJECTED', `${auth.reason} (sha=${trigger.sha}, from ${trigger.initiator || 'unknown'})`);
           continue;
         }
 

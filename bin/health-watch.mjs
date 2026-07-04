@@ -36,10 +36,10 @@ const WORKSPACE_PATH = process.env.OPENCLAW_WORKSPACE
 const HEALTH_FILE = path.join(WORKSPACE_PATH, '.daemon-health.md');
 const NATS_ALERT_SUBJECT = 'mesh.health.alerts';
 const REPEAT_ALERT_SEC = 300; // re-alert every 5 min while unhealthy
-const NOTIFY_SCRIPT = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
-  '..', 'workspace-bin', 'memory-plan-notify.sh',
+const NOTIFY_CLI = path.resolve(
+  path.dirname(new URL(import.meta.url).pathname), 'openclaw-notify.mjs',
 );
+const MC_DIAGNOSTICS_URL = `${process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000'}/diagnostics`;
 
 // ---------------------------------------------------------------------------
 // Alert destinations
@@ -74,19 +74,22 @@ async function alertNats(status, result) {
 }
 
 async function alertBanner(status) {
-  if (process.platform !== 'darwin') return;
-  const kind = status === 'healthy' ? 'closed' : 'blocked';
+  const kind = status === 'healthy' ? 'success' : status === 'degraded' ? 'warn' : 'error';
   const message = status === 'healthy'
     ? 'All components healthy'
     : `Health: ${status}`;
   try {
     await new Promise((resolve, reject) => {
-      execFile(NOTIFY_SCRIPT, [kind, 'health-watch', message], { timeout: 5000 }, (err) => {
+      execFile(process.execPath, [
+        NOTIFY_CLI, '--source', 'health-watch', '--kind', kind,
+        '--title', `Health watch — ${status}`, '--message', message,
+        '--url', MC_DIAGNOSTICS_URL,
+      ], { timeout: 10_000 }, (err) => {
         if (err) reject(err); else resolve();
       });
     });
   } catch {
-    // Notification script unavailable — skip
+    // Notifier unavailable — skip
   }
 }
 

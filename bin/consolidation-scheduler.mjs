@@ -18,7 +18,23 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import os from 'os';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
+
+// A failed consolidation cycle breaks the memory cadence silently (launchd
+// just restarts the one-shot) — escalate it to a ledgered desktop popup.
+const NOTIFY_CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'openclaw-notify.mjs');
+const MC_MEMORY_URL = `${process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000'}/memory`;
+function notifyCycleFailure(message) {
+  try {
+    execFile(process.execPath, [
+      NOTIFY_CLI, '--source', 'consolidation', '--kind', 'error',
+      '--title', 'Consolidation cycle FAILED', '--message', message,
+      '--url', MC_MEMORY_URL,
+    ], { timeout: 10_000 }, () => {});
+  } catch { /* best-effort */ }
+}
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -244,6 +260,7 @@ export function createConsolidationScheduler(opts = {}) {
       log(`[consolidation-scheduler] cycle complete (${result.durationMs}ms)`);
     } else {
       log(`[consolidation-scheduler] cycle failed: ${result.error} (${result.durationMs}ms)`);
+      notifyCycleFailure(`${result.error} (${result.durationMs}ms)`);
     }
 
     return result;

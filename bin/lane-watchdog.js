@@ -19,7 +19,21 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFile } = require('child_process');
+
+// Every watchdog intervention (SIGUSR1 → resetAllLanes) is operator-worthy:
+// if these recur, the gateway is deadlocking under load.
+const NOTIFY_CLI = path.join(__dirname, 'openclaw-notify.mjs');
+const MC_DIAG_URL = `${process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000'}/diagnostics`;
+function notifyIntervention(message) {
+  try {
+    execFile(process.execPath, [
+      NOTIFY_CLI, '--source', 'lane-watchdog', '--kind', 'warn',
+      '--title', 'Gateway lanes reset (SIGUSR1)', '--message', message,
+      '--url', MC_DIAG_URL,
+    ], { timeout: 10_000 }, () => {});
+  } catch { /* best-effort */ }
+}
 
 // --- Configuration ---
 const GATEWAY_LOG = process.env.GATEWAY_LOG
@@ -79,6 +93,7 @@ function sendSigusr1(pid, reason) {
     process.kill(pid, 'SIGUSR1');
     lastInterventionAt = now;
     log(`SIGUSR1 sent successfully. Gateway will resetAllLanes().`);
+    notifyIntervention(`pid=${pid} reason="${reason}"`);
     // Clear tracked events after intervention
     events.agentTimeout = null;
     events.laneWaitExceeded = null;

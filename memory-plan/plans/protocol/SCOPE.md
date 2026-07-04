@@ -210,6 +210,21 @@ until a real WORKING↔BROKEN flip is observed); MC files deployed to the runtim
 (MC vitest 82/82, no new tsc errors). Linux lane is unit-tested + install-wired only — runtime
 UNKNOWN until run on an Ubuntu node. Click-through is `visual:` — operator confirms a popup click
 lands on the viewer/MC origin.
+— NOTIF ROUND 2 CLOSED 2026-07-04: (banner icon) the LEFT banner icon is the sender bundle's icon —
+built `OpenClawNotifier.app` (terminal-notifier copy + generated openclaw.icns: terminal tile w/
+orange claw badge bottom-right, bundle id ai.openclaw.notifier, ad-hoc resigned, lsregister'd);
+lib prefers it; install.sh builds it on macOS. OBSERVED: usernoted db2 shows ai.openclaw.notifier
+registered with 4 delivered records (= 4 test fires); banner pixels not screenshot-verifiable
+(NC excluded by allowlist compositor filtering) — icon appearance is the operator's visual check.
+(emitters widened per audit) health-watch alertBanner → CLI (own source/kind/URL, was masquerading
+as workplan via the shim; darwin-only gate dropped); mesh-deploy-listener REJECTED/applied/FAILED;
+consolidation-scheduler cycle-failure; lane-watchdog SIGUSR1 intervention. OBSERVED live:
+health-watch "healthy" event post-restart (18:24Z) + node-watch transition wire fired on REAL flips
+(obs.links BROKEN 18:20Z error, fabric.services recovered 18:22Z success) — the round-1 UNKNOWN
+is closed. Deploy/consolidation/watchdog paths are wired+tested but dormant until their events
+occur (mesh listener units currently disabled). 25/25 notify tests; affected suites 73/73; full
+suite green except 2 external fails (embed-benchmark perf-under-load; the observer session's
+in-progress test).
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
@@ -308,6 +323,11 @@ services/systemd/openclaw-observer.timer
 install.sh
 bin/health-watch.mjs
 # 2026-07-04f-notif (operator-directed "notif system"): end-to-end notification system
+# + 2026-07-04g-notif round 2 (operator-directed): branded banner icon + wider emitters
+bin/lane-watchdog.js
+bin/mesh-deploy-listener.js
+bin/consolidation-scheduler.mjs
+bin/health-watch.mjs
 lib/notify.mjs
 bin/openclaw-notify.mjs
 test/notify.test.mjs
