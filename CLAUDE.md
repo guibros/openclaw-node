@@ -42,18 +42,27 @@ continuous-mode units are NOT installed and currently cannot be (unrendered `${V
 install.sh never places node-watch.mjs at the unit exec path). Of the one-shot's findings, the 5 BROKEN
 are real node findings; the 2 UNKNOWN are a watcher defect (30s timeout clamp on 120s LLM probes).
 
-A first **deep review (2026-07-03)** drove P0/P1/P2 remediation on branch `feat/node-test-watch-system`
-(C1 one-DB fix, node-watch honesty bugs, dedup migration, mesh-bridge retirement, read-only SQL surface,
-decisions_fts). A second **full deep review (2026-07-03 evening,
+A first **deep review (2026-07-03)** drove P0/P1/P2 remediation on branch `feat/node-test-watch-system`.
+A second **full deep review (2026-07-03 evening,
 [`plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md`](memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md))**
-verified that work: 10 claims VERIFIED / 7 PARTIAL / 3 NOT-DONE. Its headline: **the runtime is running
-pre-fix code almost everywhere** — live MC is a drifted hand-copy (pre-fix GET handlers), the live daemon
-is `workspace-bin/memory-daemon.mjs` on an unmigrated v1 state.db, and the branch sat unmerged since
-06-16. Corrections of record (SCOPE.md addendum 2026-07-03f): D7 was a no-op (retracted), C2 signed
-deploys have an unsigned catch-up bypass (PARTIAL). Batch-0 triage done same day: MC rebound to
-127.0.0.1, 7 crash-looping mesh launchd units disabled, branch pushed. **Queued next: deploy day**
-(merge → daemon-restart-then-migrate → real MC checkout → fix/install or de-claim the watch units),
-then P1 round 2 (review §5).
+verified that work (10 VERIFIED / 7 PARTIAL / 3 NOT-DONE) and found the runtime running pre-fix code
+almost everywhere. Its remediation is now DONE: **P1 round 2** (SCOPE 2026-07-03g: C2 catch-up bypass
+closed, acceptance-axis false-ACCEPT fixed, watch timeout clamp fixed, live-daemon flush serialization,
+broadcast fail-loud, census widened, mesh-kv tests rewritten against production, **CI observed green**
+4/4 jobs — first after 5+ reds), then **deploy day 2026-07-03/04**: branch merged to main (PR #5),
+state.db migrated to v3 OBSERVED (0 dup groups, 337/337 decisions FTS-indexed, 0 count drift, backup
+kept), daemon restarted on new code, the drifted MC hand-copy replaced with the repo tree (data/env
+preserved, loopback-only), and the **continuous node-watch + scheduler-heartbeat launchd units are LIVE
+for the first time** (5h+ soak observed; install.sh now renders+places them for fresh nodes;
+health-watch report converted to a per-tick heartbeat). Live state (deep one-shot 2026-07-04T04:39Z):
+**health 74%** — 20 W / 5 B / 4 OFF / 2 U. The 2 UNKNOWN are honest (Ollama gen/extract exceeding their
+30s/120s budgets on this VM); the 5 BROKEN are real queued findings: (a) daemon Phase 2
+(obsidian-sync + graph-cache refresh) has not fired since 2026-07-03 15:02 — caught by the watcher
+overnight; (b) NATS client-connect TIMEOUT while the :8222 monitor answers (pre-existing); (c) MC
+dev-mode cold-compile beats the 2.5s diagnostics probe (resolves when `next build` is fixed — 25 tsc
+errors, queued). **Queued next:** Phase-2 daemon bug, NATS client auth/port, MC production build, then
+the review's P2 batch (§5 of the audit: channel-4 privacy, cron double-fire, dry-run honesty,
+formatHtml, staleness banner, health-watch vs node-watch retirement decision).
 
 **Active scope:** `plans/protocol/SCOPE.md` (P0 remediation, expires 2026-07-10). The workplan-viewer
 (:7892) shows all silos.

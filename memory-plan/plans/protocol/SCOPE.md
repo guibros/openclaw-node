@@ -136,6 +136,20 @@ iterations: (1) lockfile + `npm test`, (2) event-schemas builds with its own tsc
 (3) OPENCLAW_NO_EMBED_MODEL=1 on CI — the five embedding suites skip through per-file census sentinels
 (OBSERVED: model present ⇒ all run 0 skipped; absent ⇒ `skipped 5` each with reason;
 OPENCLAW_REQUIRE_EMBEDDER=1 ⇒ hard fail).
+**Addendum 2026-07-04a (operator-directed "Full deploy day"):** deploy day EXECUTED and OBSERVED —
+(1) PR #5 merged to main (5c1ebc6); (2) state.db migrated v1→v3 on the live DB (consistent .backup
+first; OBSERVED post-migration: user_version=3, 0 dup mention groups, 0 dup decision groups, 337/337
+decisions_fts, 0 mention-count drift; daemon stopped-then-restarted in the safe order, stable 5h+);
+(3) live MC hand-copy replaced by the repo tree (tar backup kept; data/mission-control.db 538 tasks +
+.env.local preserved; OBSERVED: /, /api/scheduler/status, /api/node-watch, /node-watch all 200 on
+127.0.0.1); (4) watch units DEPLOYED: install.sh now places bin/node-{watch,acceptance}.mjs at the unit
+exec path, heartbeat curl -s→-fsS (failures land in .err), systemd NODE_PATH de-staled; plists rendered
++ loaded — ai.openclaw.node-watch (continuous, 60s/900s) and ai.openclaw.scheduler-heartbeat OBSERVED
+live 5h+ (fresh snapshots, heartbeat .err empty); (5) health-watch report converted to per-tick
+heartbeat (d9d47c8) — OBSERVED fresh. Deep one-shot 2026-07-04T04:39Z: health 74% (20W/5B/4OFF/2U);
+timeout-inheritance verified live (extract probe ran full 120s, embedder WORKING 2s). NEW findings
+queued (not in this scope): daemon Phase 2 stalled since 2026-07-03 15:02 (watcher caught it overnight);
+NATS client-connect TIMEOUT (pre-existing); MC dev-mode cold-compile vs 2.5s diagnostics probe.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
