@@ -259,6 +259,24 @@ pre-existing display lie: its rows carry a 6th column). Tests: test/plan-protoco
 1701/1703 (1 skip census, 1 fail = concurrent observer session's own in-progress test).
 Repair remains honestly NONCONFORMANT (missing automation surfaces, dormant complete plan — D6).
 Chain deliberately NOT loaded for any plan (operator decision, viewer Automation tab).
+**Addendum 2026-07-04i (operator-directed "clickable icon to start the full suite"):** one-click
+stack launcher — `bin/openclaw-stack.mjs` (up/status/down: discovers installed ai.openclaw.*
+launchd / openclaw-* systemd units, bootstraps unloaded ones, kickstarts pid-less KeepAlive
+daemons, starts external companion-bridge when its repo exists and :8787 is closed, port-probes
+nats/MC/viewer/injection/bridge, prints a truth table, fires a ledgered click-through popup;
+NEVER touches .disabled units); macOS double-clickable `OpenClaw Stack.app` (osacompile applet,
+claw icns, ad-hoc signed) + Linux .desktop entry; install.sh builds/places both. Files under
+"stack-launcher".
+— LAUNCHER CLOSED 2026-07-04, OBSERVED live: `status` table truthful vs the real node (7 LIVE /
+4 LOADED periodic / 8 DISABLED untouched / bridge DOWN, exit 1); `up` started companion-bridge
+DOWN→LIVE :8787 (first managed start ever) while leaving running units alone → popup
+"OpenClaw stack — 12/12 up — all systems live" ledgered w/ /diagnostics click-through;
+`OpenClaw Stack.app` built (claw icns, ai.openclaw.stack-launcher) and OBSERVED via `open -a`
+double-click simulation: applet → stack table in ~/.openclaw/logs/stack-launcher.log + fresh
+ledgered 12/12 popup (19:18:58Z). 8/8 stack tests (discovery, .disabled honesty, port probe,
+classify rules). install.sh builds the app (macOS) / installs the .desktop (Linux);
+`openclaw-stack` bin registered. Ubuntu lane unit-tested only — runtime UNKNOWN until a Linux
+node runs it. Double-clicking the icon yourself is the operator's visual check.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -390,6 +408,15 @@ mission-control/src/app/notifications/page.tsx
 docs/NOTIFICATIONS.md
 install.sh
 package.json
+```
+
+```files stack-launcher closed
+bin/openclaw-stack.mjs
+services/launcher/*
+test/openclaw-stack.test.mjs
+install.sh
+package.json
+docs/STACK.md
 ```
 
 ```files protocol-remediation closed

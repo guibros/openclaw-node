@@ -1011,6 +1011,29 @@ fi
 info "Smoke test: node $REPO_DIR/bin/openclaw-notify.mjs --test"
 info "Ledger (every event, clicked or not): ~/.openclaw/notifications/ledger.jsonl · UI: Mission Control /notifications"
 
+# One-click stack launcher: a claw-icon app/desktop entry that runs
+# `openclaw-stack up` (starts every installed unit + companion-bridge, probes,
+# reports via ledgered notification).
+if [ "$OS" = "macos" ]; then
+  if bash "$REPO_DIR/services/launcher/build-launcher-app.sh" >/dev/null 2>&1; then
+    info "Stack launcher built → ~/Applications/OpenClaw Stack.app (double-click or Dock it)"
+  else
+    warn "Stack launcher app not built — start manually: node $REPO_DIR/bin/openclaw-stack.mjs up"
+  fi
+elif [ "$OS" = "linux" ]; then
+  DESKTOP_DIR="$HOME/.local/share/applications"
+  run mkdir -p "$DESKTOP_DIR"
+  if command -v envsubst >/dev/null 2>&1; then
+    NODE_BIN="$NODE_BIN" OPENCLAW_REPO_DIR="$REPO_DIR" HOME="$HOME" \
+      envsubst < "$REPO_DIR/services/launcher/openclaw-stack.desktop" > "$DESKTOP_DIR/openclaw-stack.desktop"
+  else
+    sed -e "s|\${NODE_BIN}|$NODE_BIN|g" -e "s|\${OPENCLAW_REPO_DIR}|$REPO_DIR|g" -e "s|\${HOME}|$HOME|g" \
+      "$REPO_DIR/services/launcher/openclaw-stack.desktop" > "$DESKTOP_DIR/openclaw-stack.desktop"
+  fi
+  chmod +x "$DESKTOP_DIR/openclaw-stack.desktop"
+  info "Stack launcher installed → $DESKTOP_DIR/openclaw-stack.desktop (app menu: OpenClaw Stack)"
+fi
+
 # ============================================================
 # Step 17: Mesh Network (optional — if Tailscale detected)
 # ============================================================
