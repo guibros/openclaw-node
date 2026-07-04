@@ -1,4 +1,6 @@
 import path from "path";
+import fs from "fs";
+import os from "os";
 
 export const WORKSPACE_ROOT =
   process.env.WORKSPACE_ROOT || "/Users/moltymac/.openclaw/workspace";
@@ -12,11 +14,30 @@ export const MEMORY_MD = path.join(WORKSPACE_ROOT, "MEMORY.md");
 
 // The LIVE memory stores the daemon writes (siblings of WORKSPACE_ROOT, under
 // ~/.openclaw). state.db holds the actual remembered content (entities,
-// decisions, themes); obsidian-local holds the synthesized concept/session notes.
+// decisions, themes); the memory vault holds the synthesized concept/session
+// notes — since the 2026-07-04 vault fusion it can live INSIDE the operator's
+// real Obsidian vault (obsidian-sync.json memoryVaultPath, same resolution as
+// lib/obsidian-vault.mjs getVaultPath), falling back to legacy obsidian-local.
 export const STATE_DB_PATH =
   process.env.STATE_DB_PATH || path.join(path.dirname(WORKSPACE_ROOT), "state.db");
+
+function configuredMemoryVaultPath(): string | null {
+  try {
+    const cfg = JSON.parse(
+      fs.readFileSync(path.join(os.homedir(), ".openclaw", "config", "obsidian-sync.json"), "utf8"),
+    );
+    if (!cfg.memoryVaultPath) return null;
+    return path.isAbsolute(cfg.memoryVaultPath)
+      ? cfg.memoryVaultPath
+      : path.join(WORKSPACE_ROOT, cfg.memoryVaultPath);
+  } catch {
+    return null;
+  }
+}
 export const OBSIDIAN_DIR =
-  process.env.OBSIDIAN_DIR || path.join(path.dirname(WORKSPACE_ROOT), "obsidian-local");
+  process.env.OBSIDIAN_DIR ||
+  configuredMemoryVaultPath() ||
+  path.join(path.dirname(WORKSPACE_ROOT), "obsidian-local");
 // ~/.openclaw — the root containing every memory store/log a watcher event can
 // point at (vault notes, the injections log, MEMORY.md). Read route is jailed here.
 export const OPENCLAW_ROOT = path.dirname(WORKSPACE_ROOT);

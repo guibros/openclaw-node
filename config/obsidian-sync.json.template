@@ -1,6 +1,7 @@
 {
   "enabled": false,
   "vaultPath": "projects/arcane-vault",
+  "memoryVaultPath": "",
   "apiPort": 27124,
   "apiKeyFile": "projects/arcane-vault/.obsidian-api-key",
   "nodeId": "${OPENCLAW_NODE_ID}",

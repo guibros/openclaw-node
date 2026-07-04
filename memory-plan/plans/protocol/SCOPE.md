@@ -277,6 +277,32 @@ ledgered 12/12 popup (19:18:58Z). 8/8 stack tests (discovery, .disabled honesty,
 classify rules). install.sh builds the app (macOS) / installs the .desktop (Linux);
 `openclaw-stack` bin registered. Ubuntu lane unit-tested only — runtime UNKNOWN until a Linux
 node runs it. Double-clicking the icon yourself is the operator's visual check.
+**Addendum 2026-07-04j (operator-directed "one big fused obsidian" + "go with the V2 queued"):**
+vault fusion + V2. Fusion (operator chose: existing arcane-vault, memory under
+nodes/daedalus/memory/): getVaultPath gains a config layer (obsidian-sync.json `memoryVaultPath`,
+workspace-relative or absolute; precedence opts > env > config > legacy obsidian-local default);
+node-watch obs.* probes + MC config.ts resolve through the same convention; migrate
+obsidian-local/{concepts,sessions,decisions,themes,daily} into the real vault; rebuild graph
+cache; restart daemon/scheduler/node-watch; verify channel 5 + probes against the fused path.
+V2 (in the fused vault): verify today's 3 new decisions are fresh extractions; heavy obs.links
+one-shot; orphan convergence + hub summaries via consolidation cycles; this-week decision note.
+Files under "vault-fusion".
+— FUSION+V2 CLOSED 2026-07-04, OBSERVED: getVaultPath config layer (opts>env>memoryVaultPath>
+legacy; 6/6 fusion tests incl. cache/reset + workspace-relative resolution); node-watch obs
+probes + MC config.ts on the same convention; 157 notes migrated into
+arcane-vault/nodes/daedalus/memory (counts identical), live config gains memoryVaultPath (.bak
+kept), obsidian-local → .pre-fusion-backup; daemon+node-watch restarted, MC config deployed
+(/obsidian + /memory-content 200); graph REBUILT FROM FUSED PATH identical 157 nodes/1104 edges;
+channel 5 OBSERVED live from fused vault (seed {ollama:1} → 152 nodes activated); obs axis
+one-shot OBSERVED against fused path (graph_cache WORKING; obs.sync stale-3h = Ollama-busy
+consolidation deferral, benign; obs.links 1 dangling of 1614 = session note ef98ec24 not yet
+backfilled — session EXISTS in state.db, self-heals with the backfill tail). V2: the 3
+2026-07-04 decisions are REAL fresh extractions (session 12c83c0b — yesterday's, the one the
+transcript-source fix re-exposed; decision drought since 06-17 is OVER); orphans/hub-summaries/
+decision-note ride the next idle-window consolidation cycles (Ollama actively extracting —
+idle gate correctly deferring). 55/55 affected tests. PENDING autonomous: backfill tail
+(~130 sessions), <20% orphans, hub summaries, this-week decision note — check the vault after
+the next quiet hour.
 **Set at:** 2026-07-03 (operator-directed, interactive session)
 **Expires:** 2026-07-10T23:59:00Z
 
@@ -408,6 +434,15 @@ mission-control/src/app/notifications/page.tsx
 docs/NOTIFICATIONS.md
 install.sh
 package.json
+```
+
+```files vault-fusion closed
+lib/obsidian-vault.mjs
+lib/node-watch.mjs
+mission-control/src/lib/config.ts
+config/obsidian-sync.json.template
+test/obsidian-vault-fusion.test.mjs
+docs/VAULT.md
 ```
 
 ```files stack-launcher closed
