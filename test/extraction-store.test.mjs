@@ -121,6 +121,56 @@ describe('createExtractionStore', () => {
     }
   });
 
+  it('case/underscore variants of a name upsert into ONE entity (v4 canonical identity)', () => {
+    store.storeExtractionResult('session-001', {
+      ...mockExtractionResult,
+      entities: [{ name: 'OpenClaw', type: 'project', salience: 0.9 }],
+    });
+    store.storeExtractionResult('session-002', {
+      ...mockExtractionResult,
+      entities: [{ name: 'openclaw', type: 'project', salience: 0.7 }],
+    });
+    store.storeExtractionResult('session-003', {
+      ...mockExtractionResult,
+      entities: [{ name: 'OPEN_CLAW', type: 'project', salience: 0.5 }],
+    });
+
+    const rows = store.db.prepare(`SELECT name, canonical_name, mention_count FROM entities WHERE canonical_name IN ('openclaw', 'open claw')`).all();
+    // "OpenClaw"/"openclaw" merge; "OPEN_CLAW" canonicalizes to "open claw" (distinct words kept distinct)
+    const openclaw = rows.find((r) => r.canonical_name === 'openclaw');
+    assert.ok(openclaw);
+    assert.equal(openclaw.name, 'OpenClaw', 'first-seen display name kept');
+    assert.equal(openclaw.mention_count, 2, 'variant mentions accumulate on one entity');
+  });
+
+  it('v4 migration merges pre-existing case-variant entities (mentions re-pointed, counts recomputed)', () => {
+    // Simulate a pre-v4 DB: distinct rows for case variants, version rolled back
+    const db = store.db;
+    db.prepare(`INSERT INTO entities (name, type, canonical_name, first_seen, last_seen, mention_count)
+                VALUES ('NATS', 'technology', 'NATS', 't1', 't2', 0)`).run();
+    db.prepare(`INSERT INTO entities (name, type, canonical_name, first_seen, last_seen, mention_count)
+                VALUES ('nats', 'technology', 'nats', 't0', 't3', 0)`).run();
+    const idA = db.prepare(`SELECT id FROM entities WHERE name = 'NATS'`).get().id;
+    const idB = db.prepare(`SELECT id FROM entities WHERE name = 'nats'`).get().id;
+    db.prepare(`INSERT INTO mentions (entity_id, session_id, salience, created_at) VALUES (?, 's-1', 0.8, 't1')`).run(idA);
+    db.prepare(`INSERT INTO mentions (entity_id, session_id, salience, created_at) VALUES (?, 's-1', 0.8, 't1')`).run(idB); // duplicate of winner's mention post-merge
+    db.prepare(`INSERT INTO mentions (entity_id, session_id, salience, created_at) VALUES (?, 's-2', 0.6, 't2')`).run(idA);
+    db.prepare(`UPDATE entities SET mention_count = (SELECT COUNT(*) FROM mentions WHERE entity_id = entities.id)`).run();
+    db.exec('DROP INDEX IF EXISTS idx_entities_canonical');
+    db.pragma('user_version = 3');
+    const dbPath = db.prepare('PRAGMA database_list').get().file;
+    store.close();
+
+    // Re-open: v4 runs
+    store = createExtractionStore({ dbPath });
+    const merged = store.db.prepare(`SELECT id, name, mention_count FROM entities WHERE canonical_name = 'nats'`).all();
+    assert.equal(merged.length, 1, 'one row per canonical name');
+    assert.equal(merged[0].name, 'NATS', 'highest-mention variant wins');
+    assert.equal(merged[0].mention_count, 2, 'duplicate (session,turn) mention dropped; distinct one re-pointed');
+    const orphan = store.db.prepare('SELECT COUNT(*) c FROM mentions WHERE entity_id NOT IN (SELECT id FROM entities)').get();
+    assert.equal(orphan.c, 0, 'no orphaned mentions');
+  });
+
   it('re-extracting a decision refreshes rationale/confidence instead of duplicating', () => {
     store.storeExtractionResult('session-001', mockExtractionResult);
     const updated = {
