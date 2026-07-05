@@ -499,6 +499,7 @@ generate_config() {
     sed \
       -e "s|\${HOME}|$HOME|g" \
       -e "s|\${OPENCLAW_WORKSPACE}|$WORKSPACE|g" \
+      -e "s|\${OPENCLAW_REPO_DIR}|$REPO_DIR|g" \
       -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
       -e "s|\${OPENCLAW_TIMEZONE}|$OPENCLAW_TIMEZONE|g" \
       -e "s|\${OPENAI_API_KEY}|${OPENAI_API_KEY:-}|g" \

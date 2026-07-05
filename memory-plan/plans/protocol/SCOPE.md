@@ -310,6 +310,12 @@ workspace sync state is untouched). First consumer: the openclaw-nodedev repo it
 `22-openclaw-node` (README, docs/**, memory-plan canonical protocol docs, per-plan
 ROADMAP/DECISIONS/COMPONENT_REGISTRY). Config-path env override (OPENCLAW_OBSIDIAN_SYNC_CONFIG)
 for testability, matching lib/obsidian-vault.mjs. Files under "vault-global".
+**Addendum 2026-07-05a (operator-directed "same as github + deployable elsewhere"):** deploy
+parity — sed fallback in generate_config missed ${OPENCLAW_REPO_DIR} (envsubst-less fresh nodes
+would render a literal placeholder and the vault repo-docs domain would silently never sync).
+Fixed; both render paths OBSERVED producing identical valid extraRoots. Repo leak-scan clean
+(no local memory content tracked; *.db gitignored; obsidian-vault/ is the scaffold template).
+Local was 5 ahead / 0 behind origin — pushed. Files under "deploy-parity".
 — GLOBAL CLOSED 2026-07-04, OBSERVED: dry-run routed 33 repo files correctly (per-plan dirs
 preserved, 2491 workspace files untouched — state keys intact); real run 33 synced / 0 errors;
 vault now carries 22-openclaw-node/{docs,plans/{legacy,protocol,redesign,repair},protocol,
@@ -450,6 +456,10 @@ mission-control/src/app/notifications/page.tsx
 docs/NOTIFICATIONS.md
 install.sh
 package.json
+```
+
+```files deploy-parity closed
+install.sh
 ```
 
 ```files vault-global closed
