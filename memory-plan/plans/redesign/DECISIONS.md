@@ -357,3 +357,10 @@ The workplan-viewer now fires the existing `memory-plan-notify.sh` server-side o
 - **Do not "fix" this by adding the hook to other repos or the global CLAUDE.md.** It is not an oversight. If the operator later wants broader reach, that's a new decision logged here.
 
 ---
+
+## 2026-07-06 — Block 7 [D] partially absorbed by the federation plan
+
+Deferred step 7.1 (3-node NATS cluster, R=3) is absorbed by `plans/federation/` step 1.1.
+Steps 7.2–7.4 (memory broadcast/offer/accept content exchange) remain deferred — recorded as
+federation plan Block 7.3 [D]: task federation ships first; memory federation returns when the
+need is concrete (federation DECISIONS D1). This plan stays COMPLETE at v6.5; nothing reopens.

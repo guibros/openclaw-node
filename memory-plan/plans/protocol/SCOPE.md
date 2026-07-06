@@ -316,6 +316,20 @@ would render a literal placeholder and the vault repo-docs domain would silently
 Fixed; both render paths OBSERVED producing identical valid extraRoots. Repo leak-scan clean
 (no local memory content tracked; *.db gitignored; obsidian-vault/ is the scaffold template).
 Local was 5 ahead / 0 behind origin — pushed. Files under "deploy-parity".
+**Addendum 2026-07-06a (operator-directed "plan the node federation system"):** author the
+`federation` plan silo (scaffolded via new-plan.sh): worker grappes of 3 in three architectures
+(adversarial = the Circling Strategy paper docs/circling-strategy-implementationV3.md, already
+implemented+dormant; cooperative; collaborative) → 5-node management grappe (decompose/dispatch/
+assemble) → savant grappe (system overview → concrete operator-gated change-sets). Absorbs
+redesign Block 7 [D] (NATS R=3 cluster, broadcast wiring). Authoring only — no runtime work;
+first step runs when a federation SCOPE is set. Files under "federation-authoring".
+— AUTHORING CLOSED 2026-07-06, OBSERVED: silo scaffolded (new-plan.sh) + authored (ROADMAP 8
+blocks, INVENTORY 31 rows / 27 open all §11-contracted / 4 [D], DECISIONS D1, registry probed
+live 2026-07-06: NATS single-node cluster:NONE, circling 44/44 tests dormant, no spawned trees,
+fed-2node 11/11, 11 disabled plists; TICK_PROMPT bindings resolved); plan-lint federation
+15P/1W/0F CONFORMANT; viewer discovers it (0/27 +4d); preflight names next step 0.1 (crash-loop
+root-cause). Redesign DECISIONS gains the Block-7 absorption note. Runtime work starts when a
+federation SCOPE is set (or the chain is loaded).
 — GLOBAL CLOSED 2026-07-04, OBSERVED: dry-run routed 33 repo files correctly (per-plan dirs
 preserved, 2491 workspace files untouched — state keys intact); real run 33 synced / 0 errors;
 vault now carries 22-openclaw-node/{docs,plans/{legacy,protocol,redesign,repair},protocol,
@@ -456,6 +470,12 @@ mission-control/src/app/notifications/page.tsx
 docs/NOTIFICATIONS.md
 install.sh
 package.json
+```
+
+```files federation-authoring closed
+# instantiating the federation plan silo is protocol-plan work (PROTOCOL §9)
+memory-plan/plans/federation/*
+memory-plan/plans/redesign/DECISIONS.md
 ```
 
 ```files deploy-parity closed

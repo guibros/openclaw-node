@@ -1,0 +1,220 @@
+# federation — Step Inventory
+
+Node federation: worker grappes (adversarial/cooperative/collaborative) → management grappe (5) → savant grappe.
+Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-implementationV3.md.
+
+**One step = one independently-verifiable runtime outcome = one 9-phase cycle = one commit**
+(PROTOCOL §3). Done-evidence is runtime-observable (MASTER_PLAN §5), never just tests-green.
+
+**Status:** `[ ]` queued · `[A]` in-flight · `[x]` closed · `[D]` deferred (deliberate; never a next step, never blocks completion).
+**Version:** `v<block>.<step>`; carrier starts at `v0.0`.
+**Table format is load-bearing:** the tick engine greps rows shaped exactly
+`| <block> | <b>.<s> | v<b>.<s> | [ ] | <description> |` — five columns, one row per step.
+
+---
+
+## Block 0 — Spec + ground truth
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 0 | 0.1 | v0.1 | [ ] | Root-cause the 2026-07-03 mesh unit crash-loops (diagnosis only, no fixes) |
+| 0 | 0.2 | v0.2 | [ ] | FEDERATION_SPEC.md — grappe model, three modes, envelopes, layer contracts |
+
+> **0.1 — Goal:** name the exact reason the 7 mesh/aux units crash-looped before anything is revived.
+> **Needs:** the `.disabled` plists in ~/Library/LaunchAgents; historical launchd logs / `log show`; bin/mesh-*.js sources.
+> **Feeds:** DECISIONS D2 (revive-vs-fix choice); step 1.2's revival is blocked on this diagnosis.
+> **Verify:** `code:` DECISIONS.md D2 cites the failing log excerpt + file:line of the fault path per unit (or "cause: NATS absent" with the connect-fail excerpt).
+
+> **0.2 — Goal:** the federation contract exists as one spec document generalizing the circling paper to all three layers.
+> **Needs:** docs/circling-strategy-implementationV3.md; the operator's mode definitions (ROADMAP); COMPONENT_REGISTRY probed baseline.
+> **Feeds:** every subsequent step's Phase-1 design; the savant change-set format (5.2) is defined here.
+> **Verify:** `code:` docs/FEDERATION_SPEC.md exists; grep finds the three mode flow-diagrams, task/result envelope schemas, and ≥10 file:line cross-references into the existing stack.
+
+## Block 1 — Substrate
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 1 | 1.1 | v1.1 | [ ] | 3-node NATS cluster (R=3) live in local-dev mode (absorbs redesign 7.1 [D]) |
+| 1 | 1.2 | v1.2 | [ ] | 3 spawned logical nodes heartbeating through the cluster (mesh daemons revived per D2) |
+| 1 | 1.3 | v1.3 | [ ] | Grappe manifest schema + KV registry + `openclaw-grappe` CLI (form/status/dissolve) |
+| 1 | 1.4 | v1.4 | [ ] | Signed grappe membership — join tokens verified, unsigned join rejected |
+
+> **1.1 — Goal:** a 3-node NATS cluster with R=3 JetStream replication runs on this machine.
+> **Needs:** docs/NATS_CLUSTER.md; ports 4222-4224/6222-6224/8222-8224 free; nats-server binary; the current single-node NATS unit (to be reconfigured, not duplicated — §4.6).
+> **Feeds:** every federation subject/KV; 1.2 heartbeats; redesign 7.1 [D] recorded absorbed.
+> **Verify:** `runtime:` all three :822x monitors answer; a test stream created with R=3 reports 3 replicas current; kill one nats process → stream still writable (quorum 2/3), observed.
+
+> **1.2 — Goal:** three isolated logical nodes (spawn-node.mjs trees) run mesh agents heartbeating through the cluster.
+> **Needs:** 1.1 cluster; bin/spawn-node.mjs; D2 diagnosis (crash-loop cause fixed or avoided); bin/mesh-agent.js + mesh-health-publisher.
+> **Feeds:** 1.3 registry entries; Block 2 sessions run on these nodes.
+> **Verify:** `runtime:` `mesh.health` (or equivalent) shows 3 distinct node-ids with fresh heartbeats < 60s old, observed for 10+ min without a crash-loop (launchctl/ps stable).
+
+> **1.3 — Goal:** grappes exist as first-class registry objects with a CLI.
+> **Needs:** 1.2 live nodes; JetStream KV; grappe schema locked in FEDERATION_SPEC (0.2).
+> **Feeds:** management dispatch (4.2) addresses grappes by registry id; MC page (6.2) lists them.
+> **Verify:** `runtime:` `openclaw-grappe form --id wg-alpha --mode adversarial --members alpha,bravo,charlie` writes the KV manifest; `openclaw-grappe status` renders the grappe with 3 live members.
+
+> **1.4 — Goal:** grappe membership is cryptographically gated.
+> **Needs:** 1.3 registry; lib/deploy-trigger-auth.mjs signature pattern; bin/mesh-join-token.js.
+> **Feeds:** 4.2 signed task envelopes reuse the same verification; savant change-set signing (5.3).
+> **Verify:** `runtime:` a join with a valid token lands in the manifest; a forged/unsigned join is rejected with a logged reason — both observed.
+
+## Block 2 — Worker mode A: adversarial (circling revival)
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 2 | 2.1 | v2.1 | [ ] | Live end-to-end circling session on the grappe with a mock LLM |
+| 2 | 2.2 | v2.2 | [ ] | Paper gap 14.1 — adaptive convergence (unanimous converged ⇒ early finalization) |
+| 2 | 2.3 | v2.3 | [ ] | Paper gap 14.2 — parse-failure retry ×3 before degradation |
+| 2 | 2.4 | v2.4 | [ ] | First real adversarial run: small production task via qwen3:8b to a converged vote |
+| 2 | 2.5 | v2.5 | [D] | Paper gap 14.3 — reviewer Step-2 dual output (deferred: +20% token cost, v2 enhancement) |
+
+> **2.1 — Goal:** the paper's full session lifecycle is observed live (the 40 unit tests never ran one).
+> **Needs:** Block 1 substrate; lib/mesh-collab.js + bin/mesh-task-daemon.js + bin/mesh-agent.js + bin/mesh-bridge.js; a mock-LLM mode for mesh-agent (env or flag; check what tests use).
+> **Feeds:** 2.2-2.4 build on a proven baseline; cooperative/collaborative (Block 3) inherit the machinery.
+> **Verify:** `runtime:` one session from `mesh.collab.create` to COMPLETE: 3 roles assigned, ≥1 full sub-round (both barriers held 3/3), finalization votes recorded, artifacts readable in KV; kanban trail visible.
+
+> **2.2 — Goal:** a session that converges early finalizes early instead of burning remaining sub-rounds.
+> **Needs:** 2.1 baseline; lib/mesh-collab.js advanceCirclingStep (paper §14.1).
+> **Feeds:** token budget on consumer hardware (ROADMAP constraint 3); 2.4 uses it live.
+> **Verify:** `code:` new unit tests (unanimous converged after step 2 ⇒ finalization) · `runtime:` a mock session scripted to converge in SR1 observed finalizing after SR1.
+
+> **2.3 — Goal:** a node whose output fails parsing is retried up to 3× before being degraded.
+> **Needs:** 2.1 baseline; daemon reflect handler + failure tracking (paper §14.2).
+> **Feeds:** real-LLM reliability for 2.4 (local models fail delimiters more than cloud ones).
+> **Verify:** `code:` unit test: 2 failures then success ⇒ barrier satisfied, no degradation; 3 failures ⇒ degraded + CRITICAL log · `runtime:` mock session with an injected double-failure observed completing.
+
+> **2.4 — Goal:** the first production adversarial grappe run completes on the local LLM.
+> **Needs:** 2.1-2.3; ollama with LLM_MODEL (qwen3:8b); a real small task chosen with the operator; an idle-enough window (single GPU).
+> **Feeds:** Block 4 dispatches to this proven mode; DECISIONS records observed round timings/token cost as the planning baseline.
+> **Verify:** `runtime:` session COMPLETE with a converged vote on real LLM output; artifacts non-trivial (operator spot-check `visual:`); wall-clock + per-step timings recorded in the audit.
+
+## Block 3 — Worker modes B + C
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 3 | 3.1 | v3.1 | [ ] | `architecture` field on collab sessions + daemon dispatch by mode (adversarial default) |
+| 3 | 3.2 | v3.2 | [ ] | Cooperative protocol: propose-all / integrate-one / rotate-integrator rounds, live run |
+| 3 | 3.3 | v3.3 | [ ] | Collaborative protocol: decompose → per-node subtasks → parallel work → merge + merge-review, live run |
+| 3 | 3.4 | v3.4 | [ ] | Mode-selection guidance in FEDERATION_SPEC + task-envelope `preferred_mode` honored |
+
+> **3.1 — Goal:** one session schema carries all three architectures without forking the stack (§4.6).
+> **Needs:** 2.1 proven baseline; lib/mesh-collab.js session schema (`circling` field precedent); FEDERATION_SPEC mode flows.
+> **Feeds:** 3.2/3.3 implement against the dispatch seam; management (4.2) sets the field.
+> **Verify:** `code:` schema + dispatch unit tests (unknown mode rejected; adversarial default preserved — existing 40 tests still green) · `runtime:` a created session shows `architecture` in KV.
+
+> **3.2 — Goal:** three nodes co-author one artifact with a rotating integrator, live.
+> **Needs:** 3.1 seam; circling barrier machinery; integrator-rotation state (who integrates round N).
+> **Feeds:** management mode choice for exploratory tasks (3.4, 4.2).
+> **Verify:** `runtime:` mock-LLM cooperative session: 3 rounds observed, integrator differs each round (KV state), final artifact assembled from all three nodes' proposals; barriers 3/3 each round.
+
+> **3.3 — Goal:** a task splits into per-node subtasks executed in parallel and merged, live.
+> **Needs:** 3.1 seam; `mesh.plans.*` subtask machinery (create/subtask.update); a merge step + merge-review step in the session flow.
+> **Feeds:** management decomposition (4.1) maps naturally onto this mode for decomposable work.
+> **Verify:** `runtime:` mock-LLM collaborative session: 3 subtasks assigned to 3 distinct node-ids, worked concurrently (overlapping timestamps), merge artifact produced, merge-review vote recorded.
+
+> **3.4 — Goal:** mode choice is a contract, not folklore — the spec says which task shapes get which mode and the envelope carries it.
+> **Needs:** 3.1-3.3 all three modes live; FEDERATION_SPEC (0.2).
+> **Feeds:** management decomposer (4.1) applies the guidance mechanically.
+> **Verify:** `code:` spec section exists with the decision table; envelope schema has `preferred_mode`; dispatch honors it (unit test) · `runtime:` a session created with each of the three values lands in the matching protocol.
+
+## Block 4 — Management grappe (5 nodes)
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 4 | 4.1 | v4.1 | [ ] | Management session type: intake → decomposition proposal → 3/5 quorum approval |
+| 4 | 4.2 | v4.2 | [ ] | Signed dispatch to worker grappes + result envelopes back (defer-to-management flow) |
+| 4 | 4.3 | v4.3 | [ ] | Assembly + verification: 2 verifier roles review, 3/5 quorum accepts, operator gate on reject |
+| 4 | 4.4 | v4.4 | [ ] | Failure handling: worker-grappe timeout/death ⇒ reassignment, observed with injected failure |
+| 4 | 4.5 | v4.5 | [ ] | End-to-end: 2-subtask complex task through the full management lifecycle, live |
+
+> **4.1 — Goal:** a 5-node management grappe accepts a complex task and quorum-approves a decomposition.
+> **Needs:** Block 1 substrate (a second grappe of 5 logical nodes); stored role identities pattern (paper); decomposition schema in FEDERATION_SPEC.
+> **Feeds:** 4.2 dispatches the approved decomposition; MC page (6.2) shows the vote.
+> **Verify:** `runtime:` intake of a seeded task produces a decomposition proposal + 5 votes in KV with ≥3 approvals before state advances; a scripted 2/5 approval observed NOT advancing.
+
+> **4.2 — Goal:** approved subtasks reach worker grappes as signed envelopes and results flow back.
+> **Needs:** 4.1; 1.4 signing; grappe registry (1.3) for addressing; worker modes live (Blocks 2-3).
+> **Feeds:** 4.3 assembly consumes result envelopes; the operator's "defer their result to a management grappe" contract.
+> **Verify:** `runtime:` a worker grappe observed rejecting an unsigned envelope and executing a signed one; result envelope lands in the management session KV referencing the worker session id.
+
+> **4.3 — Goal:** assembled results pass adversarial verification and quorum before delivery.
+> **Needs:** 4.2 results; assembler + verifier roles; gate machinery (mesh-bridge tier-gate precedent).
+> **Feeds:** the delivered artifact (operator-visible); savant telemetry (5.1) reads accept/reject outcomes.
+> **Verify:** `runtime:` verifiers' reviews + 5 votes recorded; ≥3 accept ⇒ delivered state; a scripted verifier reject ⇒ operator gate raised (kanban + ledgered notification), observed both paths.
+
+> **4.4 — Goal:** a dying worker grappe never silently kills a complex task.
+> **Needs:** 4.2 dispatch; heartbeats (1.2); reassignment policy in spec (retry same grappe vs next grappe).
+> **Feeds:** 4.5 end-to-end resilience; node-watch fed.* probes (6.3) surface the event.
+> **Verify:** `runtime:` mid-session kill of a worker grappe's nodes ⇒ management observes timeout, reassigns the subtask to another grappe, task still completes; the failure fires a ledgered notification.
+
+> **4.5 — Goal:** the operator's full L2 contract observed once, end to end.
+> **Needs:** 4.1-4.4; two worker grappes formed; a real 2-subtask task chosen with the operator.
+> **Feeds:** Block 5 (this run's telemetry is the savant's first meal); DECISIONS records timings.
+> **Verify:** `runtime:` one complex task: intake → quorum decomposition → signed dispatch to 2 grappes (different modes) → assembly → quorum accept → delivered; every state transition present in KV; `visual:` operator reviews the assembled artifact.
+
+## Block 5 — Savant grappe
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 5 | 5.1 | v5.1 | [ ] | Telemetry substrate: federation-wide feed (watch snapshots, ledger, session outcomes, digests) |
+| 5 | 5.2 | v5.2 | [ ] | Change-set artifact: savant adversarial session producing {level, rationale, edit, evidence} |
+| 5 | 5.3 | v5.3 | [ ] | Proposal pipeline: signed change-set → notification + PROPOSED OUT_OF_SCOPE entry → operator gate |
+| 5 | 5.4 | v5.4 | [ ] | First savant cycle over ≥7 days of real telemetry: ≥1 gated change-set per level, zero auto-applies |
+
+> **5.1 — Goal:** the savant sees the whole system through one queryable feed.
+> **Needs:** node-watch JSON snapshots; notifications ledger; session KV; tick digests; a collector (JetStream consumer or periodic scrape — decide in Phase 1, log in DECISIONS).
+> **Feeds:** 5.2 sessions read this feed as their task input.
+> **Verify:** `runtime:` feed query returns entries from ≥4 source types with federation-wide node coverage; freshness ≤ one collection interval, observed.
+
+> **5.2 — Goal:** a savant grappe (3 nodes, adversarial protocol) produces a schema-valid change-set as its work artifact.
+> **Needs:** 5.1 feed; Block 2 adversarial machinery; change-set schema in FEDERATION_SPEC (0.2).
+> **Feeds:** 5.3 pipeline; the operator's "concrete edits implementable on the different levels" contract.
+> **Verify:** `runtime:` one savant session over seeded telemetry yields a change-set that validates against the schema AND names a concrete edit (patch hunk or scope-addendum text) with expected evidence; reviewers' critiques recorded.
+
+> **5.3 — Goal:** change-sets reach the operator through the workplan protocol — never the codebase directly.
+> **Needs:** 5.2 artifacts; 1.4 signing; OUT_OF_SCOPE always-writeable convention; openclaw-notify.
+> **Feeds:** operator decision loop; approved edits enter normal SCOPE/commit discipline.
+> **Verify:** `runtime:` a change-set lands as a ledgered notification (click-through to MC) + a PROPOSED entry in the target plan's OUT_OF_SCOPE.md with valid signature; `code:` no apply path exists that skips the gate (grep + test asserting the pipeline has no write access outside OUT_OF_SCOPE).
+
+> **5.4 — Goal:** the savant layer proves useful on reality, not seeds.
+> **Needs:** 5.1-5.3; ≥7 days of real federation telemetry (Blocks 2-4 running in the interim).
+> **Feeds:** the operator's improvement loop; plan-done criterion (ROADMAP).
+> **Verify:** `runtime:` ≥1 change-set per level (substrate/worker/management/policy) reached the gate; audit lists each with the operator's verdict; zero write events outside the gate path, checked.
+
+## Block 6 — Ops: fleet, surfaces, watch
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 6 | 6.1 | v6.1 | [ ] | install.sh federation profile: fresh node can join a grappe by token |
+| 6 | 6.2 | v6.2 | [ ] | MC federation page: grappes, sessions, rounds, votes, gates — live views |
+| 6 | 6.3 | v6.3 | [ ] | node-watch `fed.*` probe family + grappe/management/savant notification sources |
+| 6 | 6.4 | v6.4 | [ ] | Federation test census in CI (nats-binary-gated) + NODE_ACCEPTANCE federation axis |
+
+> **6.1 — Goal:** federation is deployable, not hand-built: a fresh install can join an existing grappe.
+> **Needs:** Blocks 1-4 stable interfaces; install.sh service machinery; join tokens (1.4).
+> **Feeds:** the fleet story (MULTI_NODE_DEPLOY.md updated); operator adds real machines later.
+> **Verify:** `runtime:` a clean spawned tree + install-rendered config joins grappe wg-alpha via token and appears in `openclaw-grappe status` as a live member.
+
+> **6.2 — Goal:** the operator can watch federation happen without reading KV by hand.
+> **Needs:** session/registry KV shapes stable (Blocks 1-5); MC conventions (node-watch page precedent).
+> **Feeds:** gates resolved from a browser; savant change-sets reviewed on-screen.
+> **Verify:** `visual:` operator confirms a live session's rounds/votes render and a gate can be approved from the page · `runtime:` page + API 200 with real session data.
+
+> **6.3 — Goal:** federation health is honest and its events reach the desktop.
+> **Needs:** NODE_WATCH_SPEC honesty rules; openclaw-notify sources; probes for cluster quorum, grappe heartbeats, session liveness.
+> **Feeds:** the same watch/notify loop every other subsystem lives in.
+> **Verify:** `runtime:` `node-watch --axis federation` grades the live system (UNKNOWN where unobservable, never green); a killed grappe member flips a probe and fires a ledgered popup, observed.
+
+> **6.4 — Goal:** federation code is CI-guarded on runners with no NATS, honestly.
+> **Needs:** census pattern (test/mesh-skip-census precedent); federation test suites from Blocks 1-5.
+> **Feeds:** the repo's green-CI deployability contract.
+> **Verify:** `code:` CI run: nats absent ⇒ visible census skip with filenames; nats present ⇒ suites run; `runtime:` one observed green CI including the federation census.
+
+## Block 7 — DEFERRED
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 7 | 7.1 | v7.1 | [D] | (DEFERRED) WAN/multi-site federation beyond the Tailscale mesh |
+| 7 | 7.2 | v7.2 | [D] | (DEFERRED) Heterogeneous LLM-per-role assignment (e.g. reviewer on a bigger model) |
+| 7 | 7.3 | v7.3 | [D] | (DEFERRED) Cross-grappe memory federation (redesign Block 7 broadcast/offer/accept content) |
