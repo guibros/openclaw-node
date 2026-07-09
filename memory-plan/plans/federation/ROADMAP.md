@@ -156,7 +156,19 @@ exchange — revisit once grappes are live and the memory-exchange need is concr
 
 ## Order & what plan-done means
 
-0 → 1 → 2 → 3 → 4 → 5 → 6. A complex task submitted to the management grappe on this machine is
+Execution is grouped into **three operator-set phases**, each ending in an operational gate step
+— the full elaboration (deliverable detail, schemas, T1–T7 test tiers, chaos matrices, soak
+criteria, acceptance checklists) lives in [IMPLEMENTATION_PHASES.md](IMPLEMENTATION_PHASES.md):
+
+- **Phase 1 — the basic cluster** = Blocks 0–3, gated by step **3.5** (worker-cluster testing
+  program). Block-6 slices landed here: CI census, worker probes, `grappe` notifications.
+- **Phase 2 — the manager cluster** = Block 4, gated by step **4.6** (manager-cluster testing
+  program). Block-6 slices: fleet join-by-token, MC management view, `fed.mgmt.*` probes.
+- **Phase 3 — the savant cluster** = Block 5, gated by step **5.5** (savant-cluster testing
+  program + gate security). Block-6 slices: savant probes, MC change-set review — Block 6
+  fully closes with Phase 3.
+
+Block order within the ledger stays 0 → 1 → 2 → 3 → 4 → 5 → 6. A complex task submitted to the management grappe on this machine is
 decomposed, dispatched to worker grappes in the mode the task shape calls for, executed through
 observed sessions, assembled, quorum-verified and delivered — while the savant grappe, watching,
 produces at least one structural improvement that survives its own adversarial review and the

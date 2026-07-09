@@ -97,6 +97,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 3 | 3.2 | v3.2 | [ ] | Cooperative protocol: propose-all / integrate-one / rotate-integrator rounds, live run |
 | 3 | 3.3 | v3.3 | [ ] | Collaborative protocol: decompose → per-node subtasks → parallel work → merge + merge-review, live run |
 | 3 | 3.4 | v3.4 | [ ] | Mode-selection guidance in FEDERATION_SPEC + task-envelope `preferred_mode` honored |
+| 3 | 3.5 | v3.5 | [ ] | PHASE-1 GATE: worker-cluster operational testing program (T3 matrix, 8-cell chaos, ≥12h soak, T7 acceptance) |
 
 > **3.1 — Goal:** one session schema carries all three architectures without forking the stack (§4.6).
 > **Needs:** 2.1 proven baseline; lib/mesh-collab.js session schema (`circling` field precedent); FEDERATION_SPEC mode flows.
@@ -118,6 +119,11 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Feeds:** management decomposer (4.1) applies the guidance mechanically.
 > **Verify:** `code:` spec section exists with the decision table; envelope schema has `preferred_mode`; dispatch honors it (unit test) · `runtime:` a session created with each of the three values lands in the matching protocol.
 
+> **3.5 — Goal:** the worker cluster is operationally PROVEN — Phase 1 closes only through this gate (IMPLEMENTATION_PHASES §1.C).
+> **Needs:** steps 0.1–3.4 closed; CI census (Block 6 slice) landed; fed.* worker probes + `grappe` notification source live; a soak feeder script.
+> **Feeds:** Phase 2 entry (step 4.1's Needs cites this checklist); management planning constants (timings from the matrix).
+> **Verify:** `runtime:` all 6 T3 cells + all 8 chaos cells observed with KV/ledger evidence; ≥12h soak report clean (0 hung sessions, 0 crash-loops, flat memory); CI green incl. federation census · `visual:` operator watches one live session end-to-end and signs the T7 checklist in AUDIT_POST.
+
 ## Block 4 — Management grappe (5 nodes)
 
 | Block | Step | Version | Status | Description |
@@ -127,6 +133,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 4 | 4.3 | v4.3 | [ ] | Assembly + verification: 2 verifier roles review, 3/5 quorum accepts, operator gate on reject |
 | 4 | 4.4 | v4.4 | [ ] | Failure handling: worker-grappe timeout/death ⇒ reassignment, observed with injected failure |
 | 4 | 4.5 | v4.5 | [ ] | End-to-end: 2-subtask complex task through the full management lifecycle, live |
+| 4 | 4.6 | v4.6 | [ ] | PHASE-2 GATE: manager-cluster operational testing program (quorum/chaos matrix, ≥24h soak, fleet join, T7 acceptance) |
 
 > **4.1 — Goal:** a 5-node management grappe accepts a complex task and quorum-approves a decomposition.
 > **Needs:** Block 1 substrate (a second grappe of 5 logical nodes); stored role identities pattern (paper); decomposition schema in FEDERATION_SPEC.
@@ -153,6 +160,11 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Feeds:** Block 5 (this run's telemetry is the savant's first meal); DECISIONS records timings.
 > **Verify:** `runtime:` one complex task: intake → quorum decomposition → signed dispatch to 2 grappes (different modes) → assembly → quorum accept → delivered; every state transition present in KV; `visual:` operator reviews the assembled artifact.
 
+> **4.6 — Goal:** the manager cluster is operationally PROVEN — Phase 2 closes only through this gate (IMPLEMENTATION_PHASES §2.B).
+> **Needs:** 3.5 Phase-1 gate closed; steps 4.1–4.5 closed; fleet join-by-token (6.1 slice) + MC management view + fed.mgmt.* probes landed; RAM budget for 8 logical nodes measured.
+> **Feeds:** Phase 3 entry (step 5.1's Needs cites this checklist); savant telemetry richness.
+> **Verify:** `runtime:` T3 cells M1–M4 + chaos cells X1–X6 observed (incl. coordinator succession + reassignment); ≥24h mixed-mode soak clean with one scheduled injection absorbed; a clean spawned tree joined a grappe by token · `visual:` operator exercises an MC gate approval for real and signs the T7 checklist.
+
 ## Block 5 — Savant grappe
 
 | Block | Step | Version | Status | Description |
@@ -161,6 +173,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 5 | 5.2 | v5.2 | [ ] | Change-set artifact: savant adversarial session producing {level, rationale, edit, evidence} |
 | 5 | 5.3 | v5.3 | [ ] | Proposal pipeline: signed change-set → notification + PROPOSED OUT_OF_SCOPE entry → operator gate |
 | 5 | 5.4 | v5.4 | [ ] | First savant cycle over ≥7 days of real telemetry: ≥1 gated change-set per level, zero auto-applies |
+| 5 | 5.5 | v5.5 | [ ] | PHASE-3 GATE: savant-cluster operational testing program (gate-security chaos, 7-day soak, closed improvement loop, T7) |
 
 > **5.1 — Goal:** the savant sees the whole system through one queryable feed.
 > **Needs:** node-watch JSON snapshots; notifications ledger; session KV; tick digests; a collector (JetStream consumer or periodic scrape — decide in Phase 1, log in DECISIONS).
@@ -181,6 +194,11 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Needs:** 5.1-5.3; ≥7 days of real federation telemetry (Blocks 2-4 running in the interim).
 > **Feeds:** the operator's improvement loop; plan-done criterion (ROADMAP).
 > **Verify:** `runtime:` ≥1 change-set per level (substrate/worker/management/policy) reached the gate; audit lists each with the operator's verdict; zero write events outside the gate path, checked.
+
+> **5.5 — Goal:** the savant cluster is operationally PROVEN and the whole plan closes — Phase 3's gate (IMPLEMENTATION_PHASES §3.B).
+> **Needs:** 4.6 Phase-2 gate closed; steps 5.1–5.4 closed; fed.savant.* probes + MC change-set review view landed.
+> **Feeds:** plan-done (ROADMAP); the standing self-improvement loop the operator keeps.
+> **Verify:** `runtime:` gate-security cells G1–G5 observed (write-jail throw, unsigned/tampered refusal, self-referential flag, rate limit); 7-day soak: all emissions schema-valid + cited + gated, zero writes outside OUT_OF_SCOPE (fs-audit) · `visual:` operator confirms one approved change-set was implemented through normal scope discipline and its expected_evidence probe observed true — the closed loop.
 
 ## Block 6 — Ops: fleet, surfaces, watch
 

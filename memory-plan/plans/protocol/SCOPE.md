@@ -472,6 +472,14 @@ install.sh
 package.json
 ```
 
+```files federation-phasing closed
+# 2026-07-06b (operator-directed): three-phase implementation elaboration — CLOSED same day:
+# IMPLEMENTATION_PHASES.md (phase→block→step map, schemas, T1–T7 tiers, 6+8 worker matrix cells,
+# M/X management cells, G savant gate-security cells, soak criteria, T7 checklists); 3 gate steps
+# (3.5/4.6/5.5) added w/ contracts; ROADMAP order section rewired. Lint re-CONFORMANT.
+memory-plan/plans/federation/*
+```
+
 ```files federation-authoring closed
 # instantiating the federation plan silo is protocol-plan work (PROTOCOL §9)
 memory-plan/plans/federation/*
