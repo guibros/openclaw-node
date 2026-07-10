@@ -18,8 +18,15 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 | | |
 |---|---|
-| **Status** | LIVE (single node — NOT the R=3 cluster this plan needs) |
-| **Verified** | 2026-07-06 — lsof :4222 LISTEN (pid 696); :8222/varz → server_name=openclaw-local, cluster: NONE. docs/NATS_CLUSTER.md documents the 3-node local-dev cluster (4222-4224/6222-6224/8222-8224) — documented only, never stood up (step 1.1). |
+| **Status** | LIVE (single node — NOT the R=3 cluster this plan needs; cluster configs hardened + manifest/install wired by step 1.1; cutover gated at step 1.5) |
+| **Verified** | 2026-07-10 — curl :8222/varz → server_name=openclaw-local, pid=1989, port=4222, cluster=NONE, in_msgs≈12716; config at `~/.openclaw/nats/nats.conf` (separate from repo cluster templates). Scratch proof 2026-07-10: R=3 cluster on ports 4322-4324 formed, token-auth enforced, quorum 2/3 survived node kill, live :4222 undisturbed. Hardened templates in services/nats/nats-{1,2,3}.conf; plists in services/launchd/ai.openclaw.nats-{1,2,3}.plist; rendered to ~/.openclaw/config/ by install.sh. |
+
+### NATS cluster configs — services/nats/nats-{1,2,3}.conf
+
+| | |
+|---|---|
+| **Status** | HARDENED (step 1.1) — loopback-bind + `authorization { token: "${OPENCLAW_NATS_TOKEN}" }` in all three; install.sh generates token if absent; templates rendered to `~/.openclaw/config/` at install time. Cutover to real ports is step 1.5 (operator-gated). |
+| **Verified** | 2026-07-10 — no 0.0.0.0 in any conf (grep clean); authorization block + token template in all three; 3 entries in service-manifest.json (role=both, autostart=false); 3 plist templates in services/launchd/ (correct ${HOME} path, rendered conf path). |
 
 ### Logical node trees — bin/spawn-node.mjs
 

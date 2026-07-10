@@ -1,5 +1,20 @@
 [
   {
+    "name": "openclaw-nats-1",
+    "role": "both",
+    "autostart": false
+  },
+  {
+    "name": "openclaw-nats-2",
+    "role": "both",
+    "autostart": false
+  },
+  {
+    "name": "openclaw-nats-3",
+    "role": "both",
+    "autostart": false
+  },
+  {
     "name": "openclaw-mesh-task-daemon",
     "role": "lead",
     "autostart": true

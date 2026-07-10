@@ -470,6 +470,17 @@ if [ -f "$ENV_FILE" ]; then
   done < "$ENV_FILE"
 fi
 
+# Generate OPENCLAW_NATS_TOKEN if not set — server-side auth token (D2, federation step 1.1).
+# Clients already resolve+send it via lib/nats-resolve.js; this closes the server-side gap.
+if [ -z "${OPENCLAW_NATS_TOKEN:-}" ]; then
+  OPENCLAW_NATS_TOKEN="$(openssl rand -hex 32)"
+  export OPENCLAW_NATS_TOKEN
+  if [ -f "$ENV_FILE" ]; then
+    echo "OPENCLAW_NATS_TOKEN=$OPENCLAW_NATS_TOKEN" >> "$ENV_FILE"
+    info "Generated OPENCLAW_NATS_TOKEN and persisted to $ENV_FILE"
+  fi
+fi
+
 # Set defaults for template substitution
 export OPENCLAW_NODE_ID="${OPENCLAW_NODE_ID:-$(hostname -s)}"
 export OPENCLAW_TIMEZONE="${OPENCLAW_TIMEZONE:-America/Montreal}"
@@ -510,6 +521,7 @@ generate_config() {
       -e "s|\${WEB_SEARCH_API_KEY}|${WEB_SEARCH_API_KEY:-}|g" \
       -e "s|\${OBSIDIAN_API_KEY}|${OBSIDIAN_API_KEY:-}|g" \
       -e "s|\${OPENCLAW_NATS}|${OPENCLAW_NATS:-}|g" \
+      -e "s|\${OPENCLAW_NATS_TOKEN}|${OPENCLAW_NATS_TOKEN:-}|g" \
       -e "s|\${CLAUDE_PROJECT_WORKSPACE}|${CLAUDE_PROJECT_WORKSPACE}|g" \
       -e "s|\${CLAUDE_PROJECT_HOME}|${CLAUDE_PROJECT_HOME}|g" \
       "$template" > "$output"
@@ -520,6 +532,12 @@ generate_config() {
 
 generate_config "$REPO_DIR/config/daemon.json.template" "$OPENCLAW_ROOT/config/daemon.json"
 generate_config "$REPO_DIR/config/transcript-sources.json.template" "$OPENCLAW_ROOT/config/transcript-sources.json"
+
+# NATS cluster config rendering (federation step 1.1) — templates → ~/.openclaw/config/
+# The rendered files embed OPENCLAW_NATS_TOKEN; the service plists reference these paths.
+generate_config "$REPO_DIR/services/nats/nats-1.conf" "$OPENCLAW_ROOT/config/nats-1.conf"
+generate_config "$REPO_DIR/services/nats/nats-2.conf" "$OPENCLAW_ROOT/config/nats-2.conf"
+generate_config "$REPO_DIR/services/nats/nats-3.conf" "$OPENCLAW_ROOT/config/nats-3.conf"
 generate_config "$REPO_DIR/config/obsidian-sync.json.template" "$OPENCLAW_ROOT/config/obsidian-sync.json"
 generate_config "$REPO_DIR/config/openclaw.json.template" "$OPENCLAW_ROOT/openclaw.json"
 

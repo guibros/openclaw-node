@@ -34,7 +34,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 1 | 1.1 | v1.1 | [ ] | NATS cluster configs hardened (loopback+token) + manifest/install wired + R=3 proven on scratch ports (non-destructive; live :4222 untouched) — absorbs redesign 7.1 [D] |
+| 1 | 1.1 | v1.1 | [x] | NATS cluster configs hardened (loopback+token) + manifest/install wired + R=3 proven on scratch ports (non-destructive; live :4222 untouched) — absorbs redesign 7.1 [D] — closed 2026-07-10: loopback+token in all 3 confs, 3 plists in launchd/, manifest wired, install renders token+confs; scratch proof 10/10 PASS |
 | 1 | 1.2 | v1.2 | [ ] | 3 spawned logical nodes heartbeating through the bus (mesh daemons revived per the 0.1 triage) |
 | 1 | 1.3 | v1.3 | [ ] | Grappe manifest schema + KV registry + `openclaw-grappe` CLI (form/status/dissolve) |
 | 1 | 1.4 | v1.4 | [ ] | Signed grappe membership — join tokens verified, unsigned join rejected |

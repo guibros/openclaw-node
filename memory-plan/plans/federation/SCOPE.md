@@ -1,8 +1,8 @@
 # SCOPE — federation plan
 
 **Status:** idle
-**Goal:** D6 restructure SHIPPED 2026-07-09 — 1.1 split (non-destructive prep) + new gated 1.5 cutover, CONFORMANT. Chain re-enabled: runs 1.1→1.4, hard-blocks at 1.5. Next open step: 1.1.
-**Set at:** 2026-07-09
+**Goal:** step 1.1 SHIPPED — NATS cluster configs hardened (loopback+token) + manifest/install wired + R=3 proven on scratch ports. Next: step 1.2.
+**Set at:** 2026-07-10
 **Expires:** no-expiry
 
 ```files d6-split-1.1-gate-cutover closed
@@ -38,6 +38,22 @@ memory-plan/plans/federation/GRANULAR_PHASE1.md
 memory-plan/plans/federation/PHASE1_TASKS.md
 memory-plan/plans/federation/IMPLEMENTATION_PHASES.md
 memory-plan/plans/federation/ROADMAP.md
+```
+
+```files step-1.1-nats-cluster-harden closed
+services/nats/nats-1.conf
+services/nats/nats-2.conf
+services/nats/nats-3.conf
+services/launchd/ai.openclaw.nats-1.plist
+services/launchd/ai.openclaw.nats-2.plist
+services/launchd/ai.openclaw.nats-3.plist
+services/service-manifest.json
+install.sh
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/audits/step11_nats-cluster-harden/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step11_nats-cluster-harden/AUDIT_POST.md
 ```
 
 ## How this file works
