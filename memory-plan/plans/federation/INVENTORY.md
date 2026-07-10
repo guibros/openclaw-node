@@ -39,10 +39,10 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 1 | 1.3 | v1.3 | [ ] | Grappe manifest schema + KV registry + `openclaw-grappe` CLI (form/status/dissolve) |
 | 1 | 1.4 | v1.4 | [ ] | Signed grappe membership — join tokens verified, unsigned join rejected |
 
-> **1.1 — Goal:** a 3-node NATS cluster with R=3 JetStream replication runs on this machine.
-> **Needs:** docs/NATS_CLUSTER.md; ports 4222-4224/6222-6224/8222-8224 free; nats-server binary; the current single-node NATS unit (to be reconfigured, not duplicated — §4.6).
-> **Feeds:** every federation subject/KV; 1.2 heartbeats; redesign 7.1 [D] recorded absorbed.
-> **Verify:** `runtime:` all three :822x monitors answer; a test stream created with R=3 reports 3 replicas current; kill one nats process → stream still writable (quorum 2/3), observed.
+> **1.1 — Goal:** the existing 3-node cluster configs are adopted, loopback-bound, token-authed, and running R=3.
+> **Needs:** the pre-existing `services/nats/nats-{1,2,3}.conf` + `ai.openclaw.nats-{1,2,3}.plist` (probed present 2026-07-06); nats-server binary; `OPENCLAW_NATS_TOKEN` (install.sh already provisions it); ports 4222-4224/6222-6224/8222-8224 free.
+> **Feeds:** every federation subject/KV; 1.2 heartbeats; redesign 7.1 [D] recorded absorbed. The token+loopback hardening is the trust floor 1.4/4.2 signatures stand on.
+> **Verify:** `runtime:` no `0.0.0.0` listener remains; connect without the token refused + with it accepted; all three :822x monitors answer; a test stream R=3 reports 3 replicas; kill one nats process → still writable at 2/3, observed.
 
 > **1.2 — Goal:** three isolated logical nodes (spawn-node.mjs trees) run mesh agents heartbeating through the cluster.
 > **Needs:** 1.1 cluster; bin/spawn-node.mjs; D2 diagnosis (crash-loop cause fixed or avoided); bin/mesh-agent.js + mesh-health-publisher.
@@ -68,6 +68,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 2 | 2.3 | v2.3 | [ ] | Paper gap 14.2 — parse-failure retry ×3 before degradation |
 | 2 | 2.4 | v2.4 | [ ] | First real adversarial run: small production task via qwen3:8b to a converged vote |
 | 2 | 2.5 | v2.5 | [D] | Paper gap 14.3 — reviewer Step-2 dual output (deferred: +20% token cost, v2 enhancement) |
+| 2 | 2.6 | v2.6 | [ ] | PREMISE BENCHMARK: adversarial grappe vs solo node, blind operator comparison (does circling actually help?) |
 
 > **2.1 — Goal:** the paper's full session lifecycle is observed live (the 40 unit tests never ran one).
 > **Needs:** Block 1 substrate; lib/mesh-collab.js + bin/mesh-task-daemon.js + bin/mesh-agent.js + bin/mesh-bridge.js; a mock-LLM mode for mesh-agent (env or flag; check what tests use).
@@ -88,6 +89,11 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Needs:** 2.1-2.3; ollama with LLM_MODEL (qwen3:8b); a real small task chosen with the operator; an idle-enough window (single GPU).
 > **Feeds:** Block 4 dispatches to this proven mode; DECISIONS records observed round timings/token cost as the planning baseline.
 > **Verify:** `runtime:` session COMPLETE with a converged vote on real LLM output; artifacts non-trivial (operator spot-check `visual:`); wall-clock + per-step timings recorded in the audit.
+
+> **2.6 — Goal:** prove the premise — a circled artifact is observably better than one node alone, or BLOCK the plan here (DECISIONS D3).
+> **Needs:** 2.4 (real adversarial runs work); a solo-node baseline path (single agent, same task, same model); ≥5 real tasks chosen with the operator; a blind-comparison protocol.
+> **Feeds:** the Phase-1 gate (3.5 Needs this verdict); the go/no-go on Phases 2–3. A fail is a plan-level BLOCK, not a step failure.
+> **Verify:** `visual:` operator blind-scores grappe-vs-solo output on ≥5 tasks (which is which hidden); `runtime:` the grappe wins a clear majority on a pre-agreed quality rubric — else write BLOCKED.md citing the premise miss. Also record the GPU-cost delta (D3: ~35 GPU-min/grappe-session vs ~2min solo) so the quality gain is weighed against the cost.
 
 ## Block 3 — Worker modes B + C
 
@@ -120,7 +126,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Verify:** `code:` spec section exists with the decision table; envelope schema has `preferred_mode`; dispatch honors it (unit test) · `runtime:` a session created with each of the three values lands in the matching protocol.
 
 > **3.5 — Goal:** the worker cluster is operationally PROVEN — Phase 1 closes only through this gate (IMPLEMENTATION_PHASES §1.C).
-> **Needs:** steps 0.1–3.4 closed; CI census (Block 6 slice) landed; fed.* worker probes + `grappe` notification source live; a soak feeder script.
+> **Needs:** steps 0.1–3.4 closed; **the 2.6 premise-benchmark verdict PASSED** (a failed benchmark BLOCKs the plan before this gate — D3); CI census (Block 6 slice) landed; fed.* worker probes + `grappe` notification source live; a soak feeder script.
 > **Feeds:** Phase 2 entry (step 4.1's Needs cites this checklist); management planning constants (timings from the matrix).
 > **Verify:** `runtime:` all 6 T3 cells + all 8 chaos cells observed with KV/ledger evidence; ≥12h soak report clean (0 hung sessions, 0 crash-loops, flat memory); CI green incl. federation census · `visual:` operator watches one live session end-to-end and signs the T7 checklist in AUDIT_POST.
 

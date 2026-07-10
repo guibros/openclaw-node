@@ -56,9 +56,15 @@ execution, mesh-bridge kanban; 40 tests) and DORMANT (mesh units `.disabled` sin
    Tailscale mesh — never a different code path.
 2. **Local-first.** A node outside any grappe keeps full single-node function. Federation is
    additive.
-3. **LLM-agnostic + budget-aware.** Roles bind to `LLM_MODEL` (default qwen3:8b via the ollama
-   queue); one inference at a time per host — barriers already tolerate slow steps (10-min
-   timeouts), and grappe scheduling must respect the single-GPU reality.
+3. **LLM-agnostic + budget-aware — and this is a HEADLINE constraint, not a footnote (D3).**
+   Roles bind to `LLM_MODEL` (default qwen3:8b via the ollama queue); **one inference at a time
+   per host.** The arithmetic: one adversarial session ≈ 3 roles × 2 steps × 3 sub-rounds ≈ 18
+   serialized inferences × ~120s ≈ **~35 GPU-minutes, fully serialized**; a management task fanning
+   to 2 grappes ≈ 70+ min wall-clock. So federation is a **quality-amplifier for rare, high-stakes
+   artifacts** (a contract, a migration, a spec) — NOT a throughput engine. The soaks are bounded
+   by GPU serialization, not the cron interval. Because same-model reviewers can share failure
+   modes (qwen3:8b reviewing qwen3:8b), **step 2.6 benchmarks grappe-vs-solo and can BLOCK the whole
+   plan at Phase 1** if circling doesn't observably beat one node.
 4. **No parallel implementations (§4.6).** Adversarial mode = the existing circling stack.
    Cooperative/collaborative extend `mesh-collab.js` sessions with an `architecture` field —
    same state layer, same daemon, same agent runner, same bridge.

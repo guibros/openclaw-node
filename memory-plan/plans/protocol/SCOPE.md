@@ -472,6 +472,18 @@ install.sh
 package.json
 ```
 
+```files federation-review-fixes closed
+# 2026-07-06e (operator-directed "go forward"): Fable-5 adversarial review remediation —
+# NATS config reality+hardening, mgmt-daemon decision, throughput math, solo-vs-grappe benchmark
+memory-plan/plans/federation/*
+# CLOSED 2026-07-06: 4 review findings fixed. (P1 config) step 1.1 re-scoped adopt+harden across
+# INVENTORY/PHASE1/GRANULAR — existing nats-*.conf loopback-bound + token-authed (0.0.0.0 + unused
+# OPENCLAW_NATS_TOKEN was the gap); DECISIONS D2. (P2 daemon) T4.1.4 OR resolved: mgmt = mesh.mgmt.*
+# handlers in the one mesh-task-daemon (D2, §4.6). (throughput) ~35 GPU-min/session math is now a
+# ROADMAP headline constraint (D3). (premise) new step 2.6 blind grappe-vs-solo benchmark that can
+# BLOCK the plan at Phase 1; the 3.5 gate now Needs its PASS. Lint CONFORMANT (0/31, +2.6).
+```
+
 ```files federation-granular closed
 # 2026-07-06d (operator-directed): granular micro-step level for Phase 1 — CLOSED same day:
 # GRANULAR_PHASE1.md (51 g-steps + 3 exact JSON schemas + reality-anchor table, grounded in real

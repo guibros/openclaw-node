@@ -30,13 +30,17 @@ Task id = `T<step>.<n>`. Format: **action** → *touches* · done-when (observab
 
 ## Block 1 — Substrate
 
-### Step 1.1 — 3-node NATS cluster (R=3)
-- **T1.1.1** Author `nats-node-1.conf` (client 4222, cluster 6222, monitor 8222, JetStream on, ~64MB mem cap, store `~/.openclaw/nats/n1`, cluster name `openclaw-cluster`, routes to 6223/6224) → *NEW services/nats/cluster/nats-node-1.conf* · done-when: config parses (`nats-server -c … -t`). [code]
-- **T1.1.2** Author node-2.conf (4223/6223/8223) and node-3.conf (4224/6224/8224), mirrored routes → *services/nats/cluster/* · done-when: both parse. [code]
-- **T1.1.3** Reconfigure `ai.openclaw.nats` plist to launch node-1 with the cluster config; add `ai.openclaw.nats-2`/`nats-3` plist templates (§4.6: no leftover single-node config) → *services/launchd/*, *services/systemd/*, *services/service-manifest.json* · done-when: three units defined, old single-node config retired. [code]
-- **T1.1.4** Bring the cluster up locally → *launchctl bootstrap the 3 units* · done-when: all three `:822x/varz` report `cluster.name=openclaw-cluster` with 2 peers each. [runtime T3]
-- **T1.1.5** R=3 replication probe → *NEW test/helpers or a probe script: create a JetStream stream R=3, publish, read replica count* · done-when: stream reports 3 current replicas. [runtime T3]
-- **T1.1.6** Quorum-survival probe → *kill node-2's process, publish to the stream, restart* · done-when: stream still writable at 2/3; recovers to 3/3 after restart. [chaos C2 preview]
+### Step 1.1 — 3-node NATS cluster (R=3): ADOPT + HARDEN
+**Reality (2026-07-06 review):** `services/nats/nats-{1,2,3}.conf` + `ai.openclaw.nats-{1,2,3}.plist`
+ALREADY EXIST — the cluster is scaffolded, not to be authored. But the existing configs `listen:
+0.0.0.0` (all interfaces) and carry no `authorization` while install.sh provisions an unused
+`OPENCLAW_NATS_TOKEN`. This step adopts + hardens; granular in [GRANULAR_PHASE1.md](GRANULAR_PHASE1.md).
+- **T1.1.1** Bind every listener loopback (`0.0.0.0`→`127.0.0.1`, client+cluster+monitor) in all three configs → *services/nats/nats-{1,2,3}.conf* · done-when: no all-interfaces listener remains; `nats-server -c … -t` OK. [code]
+- **T1.1.2** Add `authorization { token }` (+ cluster-route auth) as install-rendered templates so the token stays out of git → *services/nats/nats-*.conf, install.sh config generator* · done-when: connect without the token refused, with it accepted. [runtime]
+- **T1.1.3** Confirm the three plists exec the real `services/nats/nats-N.conf` path + are in service-manifest role `both`; retire any legacy single-node `ai.openclaw.nats.plist` (§4.6) → *services/* · done-when: three units, one config family. [code]
+- **T1.1.4** Bring the cluster up + JetStream budget decision (256MB×3 vs 64MB×3) logged → *launchctl bootstrap; DECISIONS* · done-when: all three `:822x/varz` report `cluster.name=openclaw-cluster` with 2 peers. [runtime T3]
+- **T1.1.5** R=3 replication probe → *probe script: stream R=3, read replica count* · done-when: 3 current replicas. [runtime T3]
+- **T1.1.6** Quorum-survival probe → *kill node-2, publish, restart* · done-when: writable at 2/3; recovers to 3/3. [chaos C2 preview]
 
 ### Step 1.2 — logical nodes heartbeating
 - **T1.2.1** Spawn three trees → *`spawn-node.mjs --id alpha|bravo|charlie`* · done-when: `~/.openclaw-{alpha,bravo,charlie}/` exist with own state.db/config. [runtime]
@@ -85,6 +89,13 @@ Task id = `T<step>.<n>`. Format: **action** → *touches* · done-when (observab
 - **T2.4.3** Run the session, measure per-step wall-times → *live run* · done-when: COMPLETE with a converged vote on real output. [runtime T4]
 - **T2.4.4** Operator spot-check artifacts are non-trivial → *visual* · done-when: operator confirms usefulness. [visual T7]
 - **T2.4.5** Record timings/subround/token metrics as Phase-2 planning constants → *DECISIONS / audit* · done-when: metrics logged. [code]
+
+### Step 2.6 — PREMISE BENCHMARK (does circling actually help?)
+- **T2.6.1** Solo-node baseline path: one agent, same task, same qwen3:8b, no reviewers → *a `--solo` create mode or a direct single-agent call* · done-when: solo produces an artifact for the same brief. [code]
+- **T2.6.2** Pick ≥5 real tasks with the operator spanning the intended use (a doc harden, a small spec, a review) → *AskUserQuestion* · done-when: task set fixed. [visual]
+- **T2.6.3** Run each task both ways (solo + adversarial grappe); strip identifying markers → *runs + anonymizer* · done-when: 10 artifacts, provenance hidden. [runtime T4]
+- **T2.6.4** Operator blind-scores each pair on a pre-agreed rubric (correctness, completeness, catches-a-real-flaw) → *visual* · done-when: scores recorded, which-is-which revealed after. [T7]
+- **T2.6.5** Verdict + cost: grappe wins a clear majority → PASS (Phase 1 may proceed); else write BLOCKED.md citing the premise miss. Record the GPU-cost delta (~35 min vs ~2 min) alongside → *DECISIONS/audit* · done-when: PASS-or-BLOCK decision committed. [decision]
 
 ## Block 3 — Worker modes B + C
 

@@ -44,3 +44,58 @@ modes B/C build on its machinery). Redesign plan Block 7 [D] step 7.1 (NATS clus
 here too (this plan's 7.3 [D]) — task federation first, memory federation when the need is
 concrete. Mesh crash-loop root-cause (0.1) gates any unit revival. All grappe testing happens on
 logical nodes first; multi-machine is a deploy profile (6.1), never a separate protocol.
+
+## D2 — NATS is the trust floor: adopt the existing cluster, harden it, single mgmt daemon (2026-07-06, from the Fable-5 review)
+
+**Decision.** Three corrections the adversarial self-review forced:
+1. **Substrate is adopt-and-harden, not build.** `services/nats/nats-{1,2,3}.conf` +
+   `ai.openclaw.nats-{1,2,3}.plist` already exist (probed 2026-07-06). Step 1.1 adopts them and
+   fixes two real security defects: they `listen: 0.0.0.0` (all interfaces) and carry no
+   `authorization` while install.sh provisions an unused `OPENCLAW_NATS_TOKEN`. Un-hardened, the
+   entire signed-envelope layer (1.4, 4.2) would sit on an unauthenticated, externally-listening
+   bus — a signed door on a wall-less house. Fix: loopback-bind every listener + wire the token as
+   install-rendered config. The token authenticates *connection to the bus*; envelope signatures
+   authenticate the *sender* — both required, neither replaces the other.
+2. **Management runs in ONE daemon, decided now.** The atomic task T4.1.4 left "mesh-task-daemon
+   handlers OR a separate mgmt daemon" open — the exact §4.6 either/or the rule forbids leaving to
+   drift. **Decision: management handlers live in the existing `bin/mesh-task-daemon.js`** (it
+   already owns `mesh.collab.*`/`mesh.plans.*`/`mesh.tasks.*`; adding `mesh.mgmt.*` is a handler
+   set, not a second daemon). A separate savant daemon is also NOT created — savant sessions are
+   collab sessions of `architecture: adversarial` whose artifact is a change-set.
+
+**Why.** §4.5 (reality before aspiration) — the review caught me anchoring four interfaces and
+not probing the fifth (the configs). §4.6 (no parallel implementations) — an open OR in a task is
+a latent second daemon. Security-by-default — the July-3 MC triage already taught this node that
+`0.0.0.0` + no-auth is the wrong posture; the federation must not reintroduce it.
+
+**Consequences.** Step 1.1 re-scoped (INVENTORY/PHASE1_TASKS/GRANULAR updated). Multi-machine
+(Block 7) binds the Tailscale interface as a deliberate, tested change — never all-interfaces.
+All three layers share one task daemon; the layer difference is the session `architecture`/type,
+not the process.
+
+## D3 — Federation is a quality-amplifier for rare high-stakes tasks, not a throughput engine — and Phase 1 must PROVE it helps (2026-07-06, from the review)
+
+**Decision.** Two framings the review made non-negotiable:
+1. **The throughput ceiling is a headline constraint, with the math shown.** One adversarial
+   session ≈ 3 roles × 2 steps × 3 sub-rounds ≈ 18 serialized LLM inferences; at ~120s each
+   (measured 2026-07-04) that is **~35 GPU-minutes per session**, fully serialized on the single
+   local GPU. A management task fanning to 2 worker grappes ≈ 70+ min wall-clock. The soaks (12h /
+   24h / 7d) are bounded by GPU serialization, not the cron interval. Federation therefore earns
+   its cost on *rare, high-stakes* artifacts (a contract, a migration, a spec) — NOT on volume.
+   This is written into the ROADMAP constraints, not buried.
+2. **Phase 1 gains a benchmark step (2.6) that decides whether Phases 2–3 exist.** Every gate so
+   far proves sessions *complete*; none proves a circled artifact is *better* than one node alone.
+   With qwen3:8b reviewing qwen3:8b, the live risk is correlated failure (identical weights agreeing
+   confidently and wrong — information asymmetry mitigates, cannot eliminate). New step **2.6**:
+   same real task, solo node vs adversarial grappe, blind operator comparison over ≥5 tasks. If the
+   grappe is not observably better, that is a plan-level BLOCK surfacing at Phase 1 — the cheapest
+   place to learn the whole architecture is theater.
+
+**Why.** A construction plan that never validates its own premise is how you spend months building
+machinery that completes sessions nobody's shown are worth running. Failing this at Phase 1 costs
+days; failing it at Phase 3 costs the plan.
+
+**Consequences.** Step 2.6 added (INVENTORY + PHASE1_TASKS); the Phase-1 gate (3.5) now Needs the
+2.6 benchmark verdict. The savant layer's honest framing follows: it is safe because the
+**write-jail** (T5.3.4) is structural, not because same-model reviewers reliably catch a
+gate-weakening change-set — recorded so Phase 3 never leans on the review as the safety mechanism.

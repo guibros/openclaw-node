@@ -68,29 +68,32 @@ at entry".
 
 ## Block 1 — Substrate
 
-### Task T1.1.1 — nats-node-1.conf (exact)
-```
-server_name: openclaw-n1
-listen: 127.0.0.1:4222
-http: 127.0.0.1:8222                       # monitor
-jetstream { store_dir: "~/.openclaw/nats/n1", max_memory_store: 64MB, max_file_store: 2GB }
-cluster {
-  name: openclaw-cluster
-  listen: 127.0.0.1:6222
-  routes: [ nats-route://127.0.0.1:6223, nats-route://127.0.0.1:6224 ]
-}
-```
-- **g.1.1.a** node-2: server_name `openclaw-n2`, 4223/8223/6223, store `n2`, routes → 6222,6224.
-- **g.1.1.b** node-3: `openclaw-n3`, 4224/8224/6224, store `n3`, routes → 6222,6223.
-- **g.1.1.c** validate each: `nats-server -c services/nats/cluster/nats-node-N.conf -t` → "configuration OK".
+### Task T1.1.1 — ADOPT + HARDEN the pre-existing cluster configs
+**Reality correction (2026-07-06 Fable-5 review):** `services/nats/nats-{1,2,3}.conf` + the
+three `ai.openclaw.nats-{1,2,3}.plist` templates **already exist** — this task was mis-scoped
+as "author NEW configs" (a §4.5 miss). And the existing configs are UNSAFE as-is: they
+`listen: 0.0.0.0` (all interfaces — the same exposure the 2026-07-03 MC triage closed) and
+carry **no `authorization` block**, while install.sh provisions `OPENCLAW_NATS_TOKEN` that
+nothing consumes. Un-hardened, the whole signed-envelope trust layer (1.4, 4.2) sits on an
+unauthenticated, externally-listening bus. The task is therefore adopt + harden:
+- **g.1.1.a** bind every listener loopback: `listen: 127.0.0.1:422N`, `http_port` →
+  `http: 127.0.0.1:822N`, cluster `listen: 127.0.0.1:622N` (Tailscale-interface binding is a
+  deliberate later change with Block 7, not a default).
+- **g.1.1.b** add auth to all three: `authorization { token: "${OPENCLAW_NATS_TOKEN}" }` +
+  cluster-route auth; configs become install-rendered templates (envsubst/sed like the units)
+  so the token never lands in git.
+- **g.1.1.c** JetStream budget decision: existing `max_mem: 256MB` ×3 = 768MB vs the ROADMAP
+  consumer-hardware constraint — reduce to 64MB ×3 unless the Phase-1 soak shows pressure;
+  record the chosen number in DECISIONS.
 
-### Task T1.1.3 — units
-- **g.1.1.d** rewrite `services/launchd/ai.openclaw.nats.plist` ProgramArguments → `nats-server -c <repo>/services/nats/cluster/nats-node-1.conf`; add `ai.openclaw.nats-2`/`-3`; systemd equivalents; add all three to `services/service-manifest.json` role `both`. Remove the old single-node config path (§4.6).
+### Task T1.1.3 — units (the three plists already exist)
+- **g.1.1.d** Verify `services/nats/ai.openclaw.nats-{1,2,3}.plist` each exec `nats-server -c <repo>/services/nats/nats-N.conf` (the REAL path — not a `cluster/` subdir); confirm all three are in `services/service-manifest.json` role `both`; if a legacy single-node `ai.openclaw.nats.plist` still ships anywhere, retire it (§4.6 — one NATS config). install.sh renders the token into each config at deploy.
 
 ### Task T1.1.4–T1.1.6 — bring-up + probes
 - **g.1.1.e** `for p in 8222 8223 8224; do curl -s 127.0.0.1:$p/varz | jq '.cluster.name, (.cluster.urls|length)'; done` → each `"openclaw-cluster"`, 2.
 - **g.1.1.f** R=3 probe: `nats stream add fedtest --replicas 3 --subjects "fedtest.>" …`; `nats stream info fedtest -j | jq '.cluster.replicas|length'` → 3.
 - **g.1.1.g** quorum: `launchctl kill TERM …nats-2`; `nats pub fedtest.x hi` succeeds; `nats stream info` shows 1 replica offline; restart → back to 3.
+- **g.1.1.h** token-auth probe (the new invariant): connect without `OPENCLAW_NATS_TOKEN` → refused; with it → accepted. Both observed.
 
 ### Task T1.3.1–T1.3.6 — grappe registry + CLI ‹propose›
 - **g.1.3.a** `lib/grappe-registry.mjs` (CJS to match mesh-*): exports
