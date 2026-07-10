@@ -178,7 +178,7 @@ ln -sfn "$(basename "${TICK_LOG}")" "${CURRENT_LINK}"
   cat "${PROMPT_FILE}" | claude \
     --print \
     --permission-mode acceptEdits \
-    --allowedTools "Bash(nats:*),Bash(curl:*),Bash(lsof:*),Bash(npm:*),Bash(git:*),Bash(jq:*),Bash(launchctl:*)" \
+    --allowedTools "Bash(node:*),Bash(nats:*),Bash(/opt/homebrew/bin/nats:*),Bash(curl:*),Bash(lsof:*),Bash(npm:*),Bash(git:*),Bash(jq:*),Bash(launchctl:*)" \
     --add-dir "${HOME}/.openclaw/workspace" \
     --add-dir "${HOME}/.openclaw" \
     --output-format stream-json \
