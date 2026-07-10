@@ -1,8 +1,8 @@
 # SCOPE — federation plan
 
 **Status:** idle
-**Goal:** Step 0.1 CLOSED 2026-07-09 (v0.1) — single root cause (stale `~/openclaw/` exec path), all units class-C, triage recorded as DECISIONS D5. Next: step 0.2 (FEDERATION_SPEC).
-**Set at:** 2026-07-09
+**Goal:** Step 0.2 CLOSED 2026-07-10 (v0.2) — FEDERATION_SPEC.md: 509 lines, 3 mode flows, 3 envelope schemas, 23 file:line cross-refs. Next: step 1.1 (NATS cluster hardening + live-bus cutover).
+**Set at:** 2026-07-10
 **Expires:** no-expiry
 
 ```files step-0.1-crashloop-rootcause closed
@@ -11,6 +11,16 @@ memory-plan/plans/federation/audits/step01_crashloop-rootcause/AUDIT_POST.md
 memory-plan/plans/federation/DECISIONS.md
 memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+```
+
+```files step-0.2-federation-spec closed
+docs/FEDERATION_SPEC.md
+memory-plan/plans/federation/audits/step02_federation-spec/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step02_federation-spec/AUDIT_POST.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/COMPONENT_REGISTRY.md
 ```
 

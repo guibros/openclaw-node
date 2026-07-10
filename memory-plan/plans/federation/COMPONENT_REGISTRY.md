@@ -3,6 +3,15 @@
 Current state of every component this plan touches. **Reality, not aspiration** — probed
 2026-07-06. Claims older than 14 days decay (MASTER_PLAN §4.9): re-probe before acting.
 
+## Family 0: specification artifacts
+
+### Federation contract — docs/FEDERATION_SPEC.md
+
+| | |
+|---|---|
+| **Status** | LIVE (documentation only, no runtime component) |
+| **Verified** | 2026-07-10 — `ls docs/FEDERATION_SPEC.md` → present; grep confirms 3 mode flows, 3 envelope schemas, 23 file:line cross-refs. Produced by step 0.2. |
+
 ## Family 1: substrate (NATS, nodes, identity)
 
 ### NATS — :4222, ai.openclaw.nats
