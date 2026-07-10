@@ -11,7 +11,7 @@ concrete, operator-gated structural edits.
 integration (default `max_subrounds: 3`), information asymmetry against groupthink, per-step
 barriers, tier gates, finalization votes (`converged | blocked`). It is IMPLEMENTED
 (lib/mesh-collab.js, lib/circling-parser.js, mesh-task-daemon orchestration, mesh-agent
-execution, mesh-bridge kanban; 40 tests) and DORMANT (mesh units `.disabled` since the
+execution, mesh-bridge kanban; 93 circling-family tests) and DORMANT (mesh units `.disabled` since the
 2026-07-03 crash-loop triage). This plan's adversarial mode is a revival + hardening, not a build.
 
 ## The three layers
@@ -98,7 +98,7 @@ execution, mesh-bridge kanban; 40 tests) and DORMANT (mesh units `.disabled` sin
 
 ## Block 2 — Worker mode A: adversarial (circling revival)
 
-- **Intent:** revive the paper's implementation and prove it live. The 40 unit tests never ran
+- **Intent:** revive the paper's implementation and prove it live. The 93 circling-family unit tests never ran
   a live session. Then close paper gaps 14.1 (adaptive convergence early-exit) and 14.2
   (parse-failure retry ×3), then the first REAL run through qwen3:8b.
 - **Exit criterion:** one observed real adversarial session on the grappe — artifacts in KV,

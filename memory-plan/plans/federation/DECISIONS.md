@@ -99,3 +99,41 @@ days; failing it at Phase 3 costs the plan.
 2.6 benchmark verdict. The savant layer's honest framing follows: it is safe because the
 **write-jail** (T5.3.4) is structural, not because same-model reviewers reliably catch a
 gate-weakening change-set — recorded so Phase 3 never leans on the review as the safety mechanism.
+
+## D4 — The openclaw-mesh fleet layer: absorb-and-retire (2026-07-09, operator-approved)
+
+**Decision.** The operator's fleet prototype (openclaw-mesh v2.0.0 — Mac lead + Ubuntu worker
+over Tailscale+NATS: shared-folder sync, `mesh exec`, capture, health/self-repair) is reconciled
+as **absorb-and-retire**:
+
+1. **Retire** the `openclaw.*` fleet namespace and its unauthenticated exec channel
+   (`openclaw.{node}.exec` — repo-audit finding #84: any tailnet device can exec, no server-side
+   blocklist), the `com.openclaw.agent` system-domain daemon, and install.sh's
+   `npx openclaw-mesh` delegation (install.sh:1078 — it currently installs the very stack
+   uninstall.sh:77 classifies as legacy). Retirement is **6.1's contract**; until 6.1 lands, the
+   npx path is a standing hazard on any fresh Tailscale-connected install.
+2. **Absorb** the capabilities worth keeping — cross-node file distribution, capture, infra
+   self-repair, the idempotent phase-checked installer pattern — into the authenticated `mesh.*`
+   world when multi-machine un-defers: recorded as **7.4 [D]** beside 7.1–7.3. Nothing re-enters
+   under `openclaw.*` or unsigned.
+3. **Supersession context for D2.** The cluster configs' `0.0.0.0`/no-auth posture was NOT an
+   omission — it descends from the prototype's documented model ("Tailscale is the authentication
+   layer — no tokens, no TLS", openclaw-mesh SKILL.md §Security). D2's loopback+token stance
+   deliberately overrides that model; audit finding #84 is the evidence why tailnet-only trust
+   fails on a bus that carries an exec channel.
+
+**Why.** §4.6 — the repo today carries two mesh vocabularies (`openclaw.*` fleet vs `mesh.*` task
+layer; bin/mesh.js is a drifted prototype copy — 957 diff lines, audit #37's predicted drift
+realized) and an installer that deploys a stack its own uninstaller retires. One story, and the
+secure one.
+
+**Consequences.** 6.1 gains the retirement contract; 7.4 [D] holds the absorbed capabilities;
+0.1 widens to the system launchd domain (the `com.openclaw.agent` zombie — loaded,
+spawn-scheduled, workdir absent, observed 2026-07-09); 1.1 is re-scoped from bring-up to
+**live-bus cutover** (127.0.0.1:4222 is the production bus: local-events-daedalus 14,364 msgs
+live + the MESH_* KV buckets must survive the migration). Ledger corrections applied in the same
+pass: step 0.1's output is referenced as "the crash-loop triage entry" (appended at 0.1 close —
+the pre-assigned "D2" was consumed by this ledger's actual D2); token wording corrected (clients
+already resolve+send `OPENCLAW_NATS_TOKEN` via lib/nats-resolve.js — the gap is server-side
+only); test-count citations corrected (D1's "40 tests" reads as approximate; the circling-family
+count today is 93).

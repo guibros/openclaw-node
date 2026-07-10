@@ -45,9 +45,11 @@ CI-guarded, watch-graded, and notifying.
 ### 1.A Substrate deliverables (steps 0.1–1.4)
 
 **0.1 — crash-loop diagnosis.** Before any unit is revived: `log show --predicate` over the
-2026-07-03 window for each of the 7 disabled mesh units; classify each as (a) NATS-dependency
+2026-07-03 window for each disabled/zombie unit across both launchd domains (the 11 user-domain
+`.disabled` + the system-domain `com.openclaw.agent` — D4); classify each as (a) NATS-dependency
 crash (connect-fail tight loop), (b) code fault (stack trace), or (c) config fault (bad path/env
-from the pre-rename era). Output: DECISIONS D2 with per-unit verdict + log excerpt. **Nothing in
+from the pre-rename era). Output: the DECISIONS crash-loop triage entry (appended at 0.1 close —
+"D2" is already taken) with per-unit verdict + log excerpt. **Nothing in
 Phase 1 starts a previously-disabled unit whose class is (b) or (c) without its fix landing
 first.**
 
@@ -96,7 +98,7 @@ joins loudly (log + ledgered notification, kind `block`).
 ### 1.B Worker modes deliverables (steps 2.1–3.4)
 
 **2.1 — circling revived live.** mesh-task-daemon + mesh-bridge on the operator node (revived
-per D2 verdicts), agents on alpha/bravo/charlie, LLM mocked (`MESH_AGENT_MOCK=1` — reuse
+per the 0.1 triage verdicts), agents on alpha/bravo/charlie, LLM mocked (`MESH_AGENT_MOCK=1` — reuse
 whatever seam the 44 tests use; if none exists at process level, adding the env seam is part of
 this step). One full session: create → recruit (3 roles stored) → SR1 step 1 barrier 3/3 → SR1
 step 2 barrier 3/3 → … → finalization votes → COMPLETE. Every state transition read back from

@@ -20,10 +20,10 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 0 | 0.1 | v0.1 | [ ] | Root-cause the 2026-07-03 mesh unit crash-loops (diagnosis only, no fixes) |
 | 0 | 0.2 | v0.2 | [ ] | FEDERATION_SPEC.md — grappe model, three modes, envelopes, layer contracts |
 
-> **0.1 — Goal:** name the exact reason the 7 mesh/aux units crash-looped before anything is revived.
-> **Needs:** the `.disabled` plists in ~/Library/LaunchAgents; historical launchd logs / `log show`; bin/mesh-*.js sources.
-> **Feeds:** DECISIONS D2 (revive-vs-fix choice); step 1.2's revival is blocked on this diagnosis.
-> **Verify:** `code:` DECISIONS.md D2 cites the failing log excerpt + file:line of the fault path per unit (or "cause: NATS absent" with the connect-fail excerpt).
+> **0.1 — Goal:** name the exact reason every dead/zombie unit stopped — the 11 user-domain `.disabled` plists AND the system-domain `com.openclaw.agent` (loaded, spawn-scheduled, workdir absent — D4) — before anything is revived.
+> **Needs:** the `.disabled` plists in ~/Library/LaunchAgents; `launchctl print system/com.openclaw.agent` + /Library/LaunchDaemons; historical launchd logs / `log show`; bin/mesh-*.js sources.
+> **Feeds:** the DECISIONS crash-loop triage entry (revive-vs-fix choice; appended at 0.1 close — "D2" is already taken); step 1.2's revival is blocked on this diagnosis.
+> **Verify:** `code:` the DECISIONS triage entry cites the failing log excerpt + file:line of the fault path per unit (or "cause: NATS absent" with the connect-fail excerpt), covering both launchd domains.
 
 > **0.2 — Goal:** the federation contract exists as one spec document generalizing the circling paper to all three layers.
 > **Needs:** docs/circling-strategy-implementationV3.md; the operator's mode definitions (ROADMAP); COMPONENT_REGISTRY probed baseline.
@@ -35,17 +35,17 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 1 | 1.1 | v1.1 | [ ] | 3-node NATS cluster (R=3) live in local-dev mode (absorbs redesign 7.1 [D]) |
-| 1 | 1.2 | v1.2 | [ ] | 3 spawned logical nodes heartbeating through the cluster (mesh daemons revived per D2) |
+| 1 | 1.2 | v1.2 | [ ] | 3 spawned logical nodes heartbeating through the cluster (mesh daemons revived per the 0.1 triage) |
 | 1 | 1.3 | v1.3 | [ ] | Grappe manifest schema + KV registry + `openclaw-grappe` CLI (form/status/dissolve) |
 | 1 | 1.4 | v1.4 | [ ] | Signed grappe membership — join tokens verified, unsigned join rejected |
 
-> **1.1 — Goal:** the existing 3-node cluster configs are adopted, loopback-bound, token-authed, and running R=3.
-> **Needs:** the pre-existing `services/nats/nats-{1,2,3}.conf` + `ai.openclaw.nats-{1,2,3}.plist` (probed present 2026-07-06); nats-server binary; `OPENCLAW_NATS_TOKEN` (install.sh already provisions it); ports 4222-4224/6222-6224/8222-8224 free.
+> **1.1 — Goal:** the existing 3-node cluster configs are adopted, loopback-bound, token-authed, running R=3 — and the LIVE single-node bus is cut over onto the cluster without data loss (a production migration, not a green-field bring-up — D4).
+> **Needs:** the pre-existing `services/nats/nats-{1,2,3}.conf` + `ai.openclaw.nats-{1,2,3}.plist` (probed present 2026-07-06); nats-server binary; `OPENCLAW_NATS_TOKEN` (install.sh provisions it; clients already resolve+send it via lib/nats-resolve.js — the gap is server-side only); a cutover plan for the live bus on 127.0.0.1:4222 (production JetStream: local-events-daedalus 14k+ msgs + MESH_* KV, observed 2026-07-09); ports 4223-4224/6222-6224/8222-8224 free (4222 frees at cutover).
 > **Feeds:** every federation subject/KV; 1.2 heartbeats; redesign 7.1 [D] recorded absorbed. The token+loopback hardening is the trust floor 1.4/4.2 signatures stand on.
-> **Verify:** `runtime:` no `0.0.0.0` listener remains; connect without the token refused + with it accepted; all three :822x monitors answer; a test stream R=3 reports 3 replicas; kill one nats process → still writable at 2/3, observed.
+> **Verify:** `runtime:` no `0.0.0.0` listener remains; connect without the token refused + with it accepted; all three :822x monitors answer; a test stream R=3 reports 3 replicas; kill one nats process → still writable at 2/3, observed; post-cutover: pre-existing stream/KV data intact (message counts match), existing clients reconnected, the legacy single-node unit retired (§4.6).
 
 > **1.2 — Goal:** three isolated logical nodes (spawn-node.mjs trees) run mesh agents heartbeating through the cluster.
-> **Needs:** 1.1 cluster; bin/spawn-node.mjs; D2 diagnosis (crash-loop cause fixed or avoided); bin/mesh-agent.js + mesh-health-publisher.
+> **Needs:** 1.1 cluster; bin/spawn-node.mjs; the 0.1 triage (crash-loop cause fixed or avoided); bin/mesh-agent.js + mesh-health-publisher.
 > **Feeds:** 1.3 registry entries; Block 2 sessions run on these nodes.
 > **Verify:** `runtime:` `mesh.health` (or equivalent) shows 3 distinct node-ids with fresh heartbeats < 60s old, observed for 10+ min without a crash-loop (launchctl/ps stable).
 
@@ -70,7 +70,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 2 | 2.5 | v2.5 | [D] | Paper gap 14.3 — reviewer Step-2 dual output (deferred: +20% token cost, v2 enhancement) |
 | 2 | 2.6 | v2.6 | [ ] | PREMISE BENCHMARK: adversarial grappe vs solo node, blind operator comparison (does circling actually help?) |
 
-> **2.1 — Goal:** the paper's full session lifecycle is observed live (the 40 unit tests never ran one).
+> **2.1 — Goal:** the paper's full session lifecycle is observed live (the 93 circling-family unit tests never ran one).
 > **Needs:** Block 1 substrate; lib/mesh-collab.js + bin/mesh-task-daemon.js + bin/mesh-agent.js + bin/mesh-bridge.js; a mock-LLM mode for mesh-agent (env or flag; check what tests use).
 > **Feeds:** 2.2-2.4 build on a proven baseline; cooperative/collaborative (Block 3) inherit the machinery.
 > **Verify:** `runtime:` one session from `mesh.collab.create` to COMPLETE: 3 roles assigned, ≥1 full sub-round (both barriers held 3/3), finalization votes recorded, artifacts readable in KV; kanban trail visible.
@@ -108,7 +108,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **3.1 — Goal:** one session schema carries all three architectures without forking the stack (§4.6).
 > **Needs:** 2.1 proven baseline; lib/mesh-collab.js session schema (`circling` field precedent); FEDERATION_SPEC mode flows.
 > **Feeds:** 3.2/3.3 implement against the dispatch seam; management (4.2) sets the field.
-> **Verify:** `code:` schema + dispatch unit tests (unknown mode rejected; adversarial default preserved — existing 40 tests still green) · `runtime:` a created session shows `architecture` in KV.
+> **Verify:** `code:` schema + dispatch unit tests (unknown mode rejected; adversarial default preserved — the existing circling suites, 93 tests, still green) · `runtime:` a created session shows `architecture` in KV.
 
 > **3.2 — Goal:** three nodes co-author one artifact with a rotating integrator, live.
 > **Needs:** 3.1 seam; circling barrier machinery; integrator-rotation state (who integrates round N).
@@ -215,10 +215,10 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 6 | 6.3 | v6.3 | [ ] | node-watch `fed.*` probe family + grappe/management/savant notification sources |
 | 6 | 6.4 | v6.4 | [ ] | Federation test census in CI (nats-binary-gated) + NODE_ACCEPTANCE federation axis |
 
-> **6.1 — Goal:** federation is deployable, not hand-built: a fresh install can join an existing grappe.
-> **Needs:** Blocks 1-4 stable interfaces; install.sh service machinery; join tokens (1.4).
-> **Feeds:** the fleet story (MULTI_NODE_DEPLOY.md updated); operator adds real machines later.
-> **Verify:** `runtime:` a clean spawned tree + install-rendered config joins grappe wg-alpha via token and appears in `openclaw-grappe status` as a live member.
+> **6.1 — Goal:** federation is deployable, not hand-built: a fresh install can join an existing grappe — and the legacy fleet path is retired (D4: no `npx openclaw-mesh` delegation, no `openclaw.*` exec channel, no com.openclaw.agent).
+> **Needs:** Blocks 1-4 stable interfaces; install.sh service machinery; join tokens (1.4); D4.
+> **Feeds:** the fleet story (MULTI_NODE_DEPLOY.md updated); operator adds real machines later; 7.4 [D] absorbs the prototype's capabilities when multi-machine un-defers.
+> **Verify:** `runtime:` a clean spawned tree + install-rendered config joins grappe wg-alpha via token and appears in `openclaw-grappe status` as a live member; `code:` install.sh carries no npx openclaw-mesh path; a fresh install produces no com.openclaw.agent unit and no `openclaw.*` exec subscriber.
 
 > **6.2 — Goal:** the operator can watch federation happen without reading KV by hand.
 > **Needs:** session/registry KV shapes stable (Blocks 1-5); MC conventions (node-watch page precedent).
@@ -242,3 +242,9 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 7 | 7.1 | v7.1 | [D] | (DEFERRED) WAN/multi-site federation beyond the Tailscale mesh |
 | 7 | 7.2 | v7.2 | [D] | (DEFERRED) Heterogeneous LLM-per-role assignment (e.g. reviewer on a bigger model) |
 | 7 | 7.3 | v7.3 | [D] | (DEFERRED) Cross-grappe memory federation (redesign Block 7 broadcast/offer/accept content) |
+| 7 | 7.4 | v7.4 | [D] | (DEFERRED) Fleet ops absorbed from the openclaw-mesh prototype — file distribution, capture, infra self-repair — under authenticated `mesh.*` (D4) |
+
+> **7.4 — Goal:** the prototype's genuinely useful fleet capabilities re-enter under the authenticated namespace when real multi-machine work un-defers (with 7.1).
+> **Needs:** 7.1 WAN/Tailscale substrate; D4 retirement done (6.1); signed envelopes (1.4/4.2) as the transport contract.
+> **Feeds:** the multi-machine operator story (capture / file distribution / infra repair across real nodes).
+> **Verify:** `runtime:` each absorbed capability observed working under `mesh.*` with a signed envelope; no `openclaw.*` subject in use anywhere.

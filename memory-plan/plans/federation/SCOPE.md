@@ -1,11 +1,17 @@
 # SCOPE — federation plan
 
 **Status:** idle
-**Goal:** not yet set — scaffolded 2026-07-06; open the first step's contract with the operator before any edit.
-**Set at:** 2026-07-06
+**Goal:** shipped — D4 fleet reconciliation + 2026-07-09 verification corrections landed; next scope opens with step 0.1.
+**Set at:** 2026-07-09
 **Expires:** no-expiry
 
-```files
+```files d4-fleet-reconciliation closed
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/GRANULAR_PHASE1.md
+memory-plan/plans/federation/PHASE1_TASKS.md
+memory-plan/plans/federation/IMPLEMENTATION_PHASES.md
+memory-plan/plans/federation/ROADMAP.md
 ```
 
 ## How this file works

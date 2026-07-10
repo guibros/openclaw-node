@@ -22,16 +22,17 @@ at entry".
 | join token | `bin/mesh-join-token.js` → HMAC shared-secret integrity | **reconcile (1.4.1):** token carries grappe-id/expiry with HMAC integrity; the *member record* is ed25519-signed by the joining node. Two mechanisms, two jobs — documented in the spec |
 | watch probe | `lib/node-watch.mjs`: `{id, family, label, signal, slow?, timeoutMs?, async run({ctx,config})→ W()/B()/U()/OFF()}` | `fed.*` probes are new entries in this exact registry shape; UNKNOWN (`U()`) when unobservable, never green |
 | notify | `bin/openclaw-notify.mjs --source --kind --title --message --url` (ledger + click-through) | `grappe` source = `--source grappe`; kinds map: gate→`block`/`warn`, failure→`error`, success→`success` |
+| adjacent namespaces | `lib/federation-*.mjs` = the redesign's memory-broadcast layer (openclaw-status "federation wiring" means THAT); `bin/mesh.js` = drifted openclaw-mesh prototype CLI speaking `openclaw.*` (retired per D4) | FEDERATION_SPEC (0.2) disambiguates the names; no new code under `openclaw.*`; `fed.*` probe ids stay distinct from lib/federation-* |
 
 ---
 
 ## Block 0 — Spec + ground truth
 
 ### Task T0.1.1–T0.1.4 (crash-loop diagnosis)
-- **g.0.1.a** For each of the 11 `.plist.disabled`, extract `Label`, `ProgramArguments[1]`, `StandardErrorPath` → build the table `{unit, script, err_path}`.
+- **g.0.1.a** For each of the 11 `.plist.disabled` PLUS the system-domain `com.openclaw.agent` (`launchctl print system/com.openclaw.agent` — loaded, spawn-scheduled, workdir absent; D4), extract `Label`, `ProgramArguments[1]`, `StandardErrorPath` → build the table `{unit, domain, script, err_path}`.
 - **g.0.1.b** `log show --predicate 'eventMessage CONTAINS "openclaw" OR process CONTAINS "mesh"' --start "2026-07-03 00:00:00" --end "2026-07-03 23:59:59" --style compact` → grep per unit label; also tail each `err_path`.
 - **g.0.1.c** For each unit assign class ∈ {A=nats-connect-loop, B=code-throw, C=stale-config} with the one deciding log line. Expected prior (2026-07-04b finding): several are class C (dead `-Users-moltymac-openclaw` project path from the pre-rename era).
-- **g.0.1.d** DECISIONS **D2** table: `unit | class | evidence-line | revive-precondition`. Rule stated: a class-B/C unit's precondition must be met (fix committed) before task 1.2.2/2.1.2 starts it.
+- **g.0.1.d** DECISIONS **crash-loop triage entry** (appended at 0.1 close; id assigned then — the pre-assigned "D2" was consumed by the 2026-07-06 review decision): table `unit | class | evidence-line | revive-precondition`. Rule stated: a class-B/C unit's precondition must be met (fix committed) before task 1.2.2/2.1.2 starts it.
 
 ### Task T0.2.2 — grappe manifest schema
 - **g.0.2.manifest** (KV bucket `grappe-registry`, key `g.<id>`):
@@ -72,10 +73,12 @@ at entry".
 **Reality correction (2026-07-06 Fable-5 review):** `services/nats/nats-{1,2,3}.conf` + the
 three `ai.openclaw.nats-{1,2,3}.plist` templates **already exist** — this task was mis-scoped
 as "author NEW configs" (a §4.5 miss). And the existing configs are UNSAFE as-is: they
-`listen: 0.0.0.0` (all interfaces — the same exposure the 2026-07-03 MC triage closed) and
-carry **no `authorization` block**, while install.sh provisions `OPENCLAW_NATS_TOKEN` that
-nothing consumes. Un-hardened, the whole signed-envelope trust layer (1.4, 4.2) sits on an
-unauthenticated, externally-listening bus. The task is therefore adopt + harden:
+`listen: 0.0.0.0` (all interfaces — the prototype's documented tailnet-trust model, deliberately
+superseded by D2/D4) and carry **no `authorization` block**, while install.sh provisions
+`OPENCLAW_NATS_TOKEN` that no *server* config consumes (clients already resolve + send it via
+lib/nats-resolve.js — the gap is server-side only). Un-hardened, the whole signed-envelope trust
+layer (1.4, 4.2) sits on an unauthenticated, externally-listening bus. The task is therefore
+adopt + harden:
 - **g.1.1.a** bind every listener loopback: `listen: 127.0.0.1:422N`, `http_port` →
   `http: 127.0.0.1:822N`, cluster `listen: 127.0.0.1:622N` (Tailscale-interface binding is a
   deliberate later change with Block 7, not a default).
@@ -87,7 +90,10 @@ unauthenticated, externally-listening bus. The task is therefore adopt + harden:
   record the chosen number in DECISIONS.
 
 ### Task T1.1.3 — units (the three plists already exist)
-- **g.1.1.d** Verify `services/nats/ai.openclaw.nats-{1,2,3}.plist` each exec `nats-server -c <repo>/services/nats/nats-N.conf` (the REAL path — not a `cluster/` subdir); confirm all three are in `services/service-manifest.json` role `both`; if a legacy single-node `ai.openclaw.nats.plist` still ships anywhere, retire it (§4.6 — one NATS config). install.sh renders the token into each config at deploy.
+- **g.1.1.d** Verify `services/nats/ai.openclaw.nats-{1,2,3}.plist` each exec `nats-server -c <repo>/services/nats/nats-N.conf` (the REAL path — not a `cluster/` subdir); ADD all three to `services/service-manifest.json` role `both` (absent today — verified 2026-07-09) and make install's render loop reach them (the plists live in `services/nats/`, the loop renders `services/launchd/` only — install.sh:794). The legacy single-node `ai.openclaw.nats` unit is LIVE on the lead node — it retires in the T1.1.7 cutover, not by file deletion. install.sh renders the token into each config at deploy.
+
+### Task T1.1.7 — live-bus cutover (interleaves with bring-up)
+- **g.1.1.cut** 127.0.0.1:4222 is the PRODUCTION single-node bus (jetstream at `~/.openclaw/nats/`: `local-events-daedalus` 14k+ msgs + the MESH_* KV buckets — observed 2026-07-09). Sequence: bring nodes 2/3 up first (ports 4223/4224); decide carry-vs-recreate per stream/bucket (`nats stream backup/restore` vs re-seed — record choices in DECISIONS); stop the legacy unit; node-1 adopts 4222 + the data. Clients need no change (nats-resolve default already points at 127.0.0.1:4222). Done-when: post-cutover message/bucket counts match, live clients reconnected, legacy unit retired.
 
 ### Task T1.1.4–T1.1.6 — bring-up + probes
 - **g.1.1.e** `for p in 8222 8223 8224; do curl -s 127.0.0.1:$p/varz | jq '.cluster.name, (.cluster.urls|length)'; done` → each `"openclaw-cluster"`, 2.
@@ -123,7 +129,7 @@ unauthenticated, externally-listening bus. The task is therefore adopt + harden:
 
 ### Task T2.2.1 — adaptive convergence (paper §14.1)
 - **g.2.2.a** in `advanceCirclingStep` (lib/mesh-collab.js ~line 620+), after the step-2 barrier: if every live node's latest vote `=== CONVERGENCE.CONVERGED`, set phase→finalization instead of incrementing `current_subround`. Guard: only when `current_step===2`.
-- **g.2.2.b** `test/collab-circling.test.js`: `it('finalizes early when all vote converged after a sub-round')` + `it('continues when votes are mixed')`; assert the existing 27 still pass.
+- **g.2.2.b** `test/collab-circling.test.js`: `it('finalizes early when all vote converged after a sub-round')` + `it('continues when votes are mixed')`; assert the existing 31 still pass.
 
 ### Task T2.3.1 — parse-retry (paper §14.2)
 - **g.2.3.a** in the daemon reflect handler (bin/mesh-task-daemon.js), on parser failure: read `failCount` for `{sid, node, subround, step}`; if `< 3` → `nats pub` the directed input back to that node, increment failCount, **return without counting toward the barrier**; at 3 → existing degrade + `CRITICAL` log.

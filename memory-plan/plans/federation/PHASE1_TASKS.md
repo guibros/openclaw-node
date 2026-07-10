@@ -13,10 +13,10 @@ Task id = `T<step>.<n>`. Format: **action** → *touches* · done-when (observab
 ## Block 0 — Spec + ground truth
 
 ### Step 0.1 — crash-loop root-cause (diagnosis only)
-- **T0.1.1** Enumerate the disabled mesh units and their exec paths → *`ls ~/Library/LaunchAgents/*.disabled`, read each plist's ProgramArguments* · done-when: a table {unit → script → last-exit-code} recorded in AUDIT_PRE. [PROBE]
+- **T0.1.1** Enumerate the dead/zombie units across BOTH launchd domains → *`ls ~/Library/LaunchAgents/*.disabled` + `launchctl print system/com.openclaw.agent` (/Library/LaunchDaemons — D4), read each plist's ProgramArguments* · done-when: a table {unit → domain → script → last-exit-code} recorded in AUDIT_PRE. [PROBE]
 - **T0.1.2** Pull each unit's crash window from the system log → *`log show --predicate 'process CONTAINS "mesh"' --start 2026-07-03`; per-unit stderr `.log` tails* · done-when: the actual failing line captured per unit. [PROBE]
 - **T0.1.3** Classify each failure: (a) NATS-dependency loop, (b) code fault, (c) stale-config fault → *cross-ref the log excerpt against the source line* · done-when: every unit has one class + evidence. [PROBE]
-- **T0.1.4** Write **DECISIONS D2**: per-unit verdict + excerpt + the revive-precondition (what must be true/fixed before it starts) → *DECISIONS.md* · done-when: D2 committed; no class (b)/(c) unit may be started in Phase 1 until its fix lands. [code]
+- **T0.1.4** Write the **DECISIONS crash-loop triage entry** (id assigned at close — "D2" is consumed): per-unit verdict + excerpt + the revive-precondition (what must be true/fixed before it starts) → *DECISIONS.md* · done-when: the triage entry committed; no class (b)/(c) unit may be started in Phase 1 until its fix lands. [code]
 
 ### Step 0.2 — FEDERATION_SPEC.md
 - **T0.2.1** Grappe model + lifecycle prose (FORMING→ACTIVE→DEGRADED→DISSOLVED) → *NEW docs/FEDERATION_SPEC.md* · done-when: states + transitions defined. [code]
@@ -31,20 +31,23 @@ Task id = `T<step>.<n>`. Format: **action** → *touches* · done-when (observab
 ## Block 1 — Substrate
 
 ### Step 1.1 — 3-node NATS cluster (R=3): ADOPT + HARDEN
-**Reality (2026-07-06 review):** `services/nats/nats-{1,2,3}.conf` + `ai.openclaw.nats-{1,2,3}.plist`
-ALREADY EXIST — the cluster is scaffolded, not to be authored. But the existing configs `listen:
-0.0.0.0` (all interfaces) and carry no `authorization` while install.sh provisions an unused
-`OPENCLAW_NATS_TOKEN`. This step adopts + hardens; granular in [GRANULAR_PHASE1.md](GRANULAR_PHASE1.md).
+**Reality (2026-07-06 review + 2026-07-09 D4):** `services/nats/nats-{1,2,3}.conf` +
+`ai.openclaw.nats-{1,2,3}.plist` ALREADY EXIST — the cluster is scaffolded, not to be authored.
+The configs `listen: 0.0.0.0` (the prototype's tailnet-trust model, superseded by D2/D4) and
+carry no `authorization` while install.sh provisions an `OPENCLAW_NATS_TOKEN` no server config
+consumes (clients already send it). AND 127.0.0.1:4222 is the LIVE production bus — this step is
+a cutover (T1.1.7), not a bring-up. Granular in [GRANULAR_PHASE1.md](GRANULAR_PHASE1.md).
 - **T1.1.1** Bind every listener loopback (`0.0.0.0`→`127.0.0.1`, client+cluster+monitor) in all three configs → *services/nats/nats-{1,2,3}.conf* · done-when: no all-interfaces listener remains; `nats-server -c … -t` OK. [code]
 - **T1.1.2** Add `authorization { token }` (+ cluster-route auth) as install-rendered templates so the token stays out of git → *services/nats/nats-*.conf, install.sh config generator* · done-when: connect without the token refused, with it accepted. [runtime]
-- **T1.1.3** Confirm the three plists exec the real `services/nats/nats-N.conf` path + are in service-manifest role `both`; retire any legacy single-node `ai.openclaw.nats.plist` (§4.6) → *services/* · done-when: three units, one config family. [code]
+- **T1.1.3** Fix the three plists' exec paths if needed + ADD them to service-manifest role `both` (absent today) + make install's render loop reach `services/nats/` (it renders `services/launchd/` only — install.sh:794) → *services/*, install.sh* · done-when: three units render + install on a fresh run; one config family (the live legacy unit retires in T1.1.7). [code]
 - **T1.1.4** Bring the cluster up + JetStream budget decision (256MB×3 vs 64MB×3) logged → *launchctl bootstrap; DECISIONS* · done-when: all three `:822x/varz` report `cluster.name=openclaw-cluster` with 2 peers. [runtime T3]
 - **T1.1.5** R=3 replication probe → *probe script: stream R=3, read replica count* · done-when: 3 current replicas. [runtime T3]
 - **T1.1.6** Quorum-survival probe → *kill node-2, publish, restart* · done-when: writable at 2/3; recovers to 3/3. [chaos C2 preview]
+- **T1.1.7** Cut the LIVE single-node bus over to the cluster (interleaves with T1.1.4: nodes 2/3 up first, carry-vs-recreate decided per stream/bucket, stop legacy, node-1 adopts 4222 + the data — `local-events-daedalus` 14k+ msgs + MESH_* KV) → *launchctl, `nats stream backup/restore`, DECISIONS (carry choices)* · done-when: post-cutover counts match, clients reconnected, legacy unit retired (§4.6). [runtime T3]
 
 ### Step 1.2 — logical nodes heartbeating
 - **T1.2.1** Spawn three trees → *`spawn-node.mjs --id alpha|bravo|charlie`* · done-when: `~/.openclaw-{alpha,bravo,charlie}/` exist with own state.db/config. [runtime]
-- **T1.2.2** Apply D2 revive-preconditions to mesh-agent + health-publisher (fix class-(b)/(c) faults found in 0.1) → *bin/mesh-agent.js, bin/mesh-health-publisher.js as D2 dictates* · done-when: the specific fault no longer reproduces. [code]
+- **T1.2.2** Apply the 0.1 triage revive-preconditions to mesh-agent + health-publisher (fix class-(b)/(c) faults found in 0.1) → *bin/mesh-agent.js, bin/mesh-health-publisher.js as the triage dictates* · done-when: the specific fault no longer reproduces. [code]
 - **T1.2.3** Generate per-node agent units (label `ai.openclaw.node-<id>-agent`, round-robin the 3 cluster URLs, OFF by default) → *services/ templates + a render step in the grappe CLI or install* · done-when: units exist, start cleanly. [code]
 - **T1.2.4** Start the three agents, observe heartbeats → *start units; subscribe `mesh.health`* · done-when: 3 distinct node-ids publish heartbeats <60s fresh. [runtime T3]
 - **T1.2.5** 10-minute stability soak → *leave running, watch launchctl restart counters* · done-when: 0 restarts, heartbeats unbroken 10+ min. [T6 mini]
@@ -67,7 +70,7 @@ ALREADY EXIST — the cluster is scaffolded, not to be authored. But the existin
 
 ### Step 2.1 — circling revived live
 - **T2.1.1** Establish a process-level mock-LLM seam for mesh-agent (reuse the 44-test seam; if it's in-test-only, add `MESH_AGENT_MOCK=1` reading scripted responses) → *bin/mesh-agent.js* · done-when: an agent process returns scripted artifacts without a real LLM call. [code]
-- **T2.1.2** Revive mesh-task-daemon + mesh-bridge on the operator node per D2 → *start units, apply any D2 fix* · done-when: daemon connects to the cluster, subscribes the `mesh.collab.*` subjects, no crash-loop. [runtime]
+- **T2.1.2** Revive mesh-task-daemon + mesh-bridge on the operator node per the 0.1 triage → *start units, apply any triage-mandated fix* · done-when: daemon connects to the cluster, subscribes the `mesh.collab.*` subjects, no crash-loop. [runtime]
 - **T2.1.3** Drive one full session create→recruit→SR loop→finalization → *`mesh.collab.create` with 3 members, mock agents* · done-when: session reaches COMPLETE. [runtime T3-L1]
 - **T2.1.4** Evidence capture: read back every state transition + artifacts from KV → *KV dump script* · done-when: role assignments, both barriers per SR (3/3), votes, artifacts quoted in AUDIT_POST. [runtime]
 - **T2.1.5** Kanban trail check → *mesh-bridge materialization* · done-when: the session's cards appear with correct states. [visual/runtime]
