@@ -472,6 +472,17 @@ install.sh
 package.json
 ```
 
+```files federation-atomic closed
+# 2026-07-06c (operator-directed): atomic task-level decomposition per phase — CLOSED same day:
+# PHASE{1,2,3}_TASKS.md, 148 atomic tasks (T<step>.<n>: action → touches → observable done-when
+# → tier) across all 31 open steps; each tagged [T1..T7] so live-gated tasks are visible; IMPL
+# PHASES cross-links them. Lint re-CONFORMANT.
+memory-plan/plans/federation/PHASE1_TASKS.md
+memory-plan/plans/federation/PHASE2_TASKS.md
+memory-plan/plans/federation/PHASE3_TASKS.md
+memory-plan/plans/federation/IMPLEMENTATION_PHASES.md
+```
+
 ```files federation-phasing closed
 # 2026-07-06b (operator-directed): three-phase implementation elaboration — CLOSED same day:
 # IMPLEMENTATION_PHASES.md (phase→block→step map, schemas, T1–T7 tiers, 6+8 worker matrix cells,

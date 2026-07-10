@@ -12,6 +12,11 @@ testing programs (steps 3.5, 4.6, 5.5) in exhaustive detail.
 | **2** | The manager cluster: 5-node management grappe commanding worker grappes | 4 (+ 6 slices: fleet join, mgmt probes/MC view) | 4.1–4.5 | **4.6** |
 | **3** | The savant cluster: overview → operator-gated change-sets | 5 (+ 6 slices: savant probes/MC review UI) | 5.1–5.4 | **5.5** |
 
+**Atomic task decomposition** (the per-step implementation checklists — file to touch, function
+to write, observable that proves it) lives in the per-phase task docs:
+[PHASE1_TASKS.md](PHASE1_TASKS.md) · [PHASE2_TASKS.md](PHASE2_TASKS.md) ·
+[PHASE3_TASKS.md](PHASE3_TASKS.md).
+
 Block 6's steps execute **inside** the phases as noted (6.4 CI census lands in Phase 1; 6.1
 fleet-join in Phase 2; 6.2/6.3 grow incrementally each phase and close in Phase 3). The
 test-tier vocabulary below is shared by all three phases:
