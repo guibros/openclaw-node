@@ -1,9 +1,26 @@
 # SCOPE — federation plan
 
-**Status:** idle
-**Goal:** step 1.1 SHIPPED — NATS cluster configs hardened (loopback+token) + manifest/install wired + R=3 proven on scratch ports. Next: step 1.2.
+**Status:** active
+**Goal:** step 1.2 — 3 spawned logical nodes (alpha/bravo/charlie) heartbeating through the :4222 bus
 **Set at:** 2026-07-10
 **Expires:** no-expiry
+
+```files step-1.2-logical-nodes-heartbeat
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/BLOCKED.md
+memory-plan/plans/federation/audits/step12_logical-nodes-heartbeat/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step12_logical-nodes-heartbeat/AUDIT_POST.md
+services/launchd/ai.openclaw.mesh-health-publisher.plist
+services/launchd/ai.openclaw.mesh-task-daemon.plist
+services/launchd/ai.openclaw.mesh-agent.plist
+services/launchd/ai.openclaw.mesh-bridge.plist
+bin/mesh-agent.js
+bin/mesh-health-publisher.js
+```
 
 ```files d6-split-1.1-gate-cutover closed
 memory-plan/plans/federation/INVENTORY.md

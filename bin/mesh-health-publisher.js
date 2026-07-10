@@ -25,7 +25,7 @@ const tracer = createTracer('mesh-health-publisher');
 
 // ── Config ───────────────────────────────────────────────────────────────
 
-const NODE_ID = process.env.OPENCLAW_NODE_ID || os.hostname();
+const NODE_ID = process.env.OPENCLAW_NODE_ID || process.env.MESH_NODE_ID || os.hostname();
 const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const PUBLISH_INTERVAL_MS = 15_000; // 15 seconds
 const HEALTH_BUCKET = "MESH_NODE_HEALTH";
