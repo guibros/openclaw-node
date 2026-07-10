@@ -1,9 +1,16 @@
 # SCOPE — federation plan
 
 **Status:** idle
-**Goal:** Step 0.2 CLOSED 2026-07-10 (v0.2) — FEDERATION_SPEC.md: 509 lines, 3 mode flows, 3 envelope schemas, 23 file:line cross-refs. Next: step 1.1 (NATS cluster hardening + live-bus cutover).
-**Set at:** 2026-07-10
+**Goal:** D6 restructure SHIPPED 2026-07-09 — 1.1 split (non-destructive prep) + new gated 1.5 cutover, CONFORMANT. Chain re-enabled: runs 1.1→1.4, hard-blocks at 1.5. Next open step: 1.1.
+**Set at:** 2026-07-09
 **Expires:** no-expiry
+
+```files d6-split-1.1-gate-cutover closed
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/GRANULAR_PHASE1.md
+memory-plan/plans/federation/PHASE1_TASKS.md
+```
 
 ```files step-0.1-crashloop-rootcause closed
 memory-plan/plans/federation/audits/step01_crashloop-rootcause/AUDIT_PRE.md

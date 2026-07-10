@@ -30,20 +30,23 @@ Task id = `T<step>.<n>`. Format: **action** → *touches* · done-when (observab
 
 ## Block 1 — Substrate
 
-### Step 1.1 — 3-node NATS cluster (R=3): ADOPT + HARDEN
-**Reality (2026-07-06 review + 2026-07-09 D4):** `services/nats/nats-{1,2,3}.conf` +
-`ai.openclaw.nats-{1,2,3}.plist` ALREADY EXIST — the cluster is scaffolded, not to be authored.
-The configs `listen: 0.0.0.0` (the prototype's tailnet-trust model, superseded by D2/D4) and
-carry no `authorization` while install.sh provisions an `OPENCLAW_NATS_TOKEN` no server config
-consumes (clients already send it). AND 127.0.0.1:4222 is the LIVE production bus — this step is
-a cutover (T1.1.7), not a bring-up. Granular in [GRANULAR_PHASE1.md](GRANULAR_PHASE1.md).
+### Step 1.1 — NATS cluster: HARDEN + prove on scratch ports (non-destructive; D6)
+**Reality (2026-07-06 review + 2026-07-09 D4/D6):** `services/nats/nats-{1,2,3}.conf` +
+`ai.openclaw.nats-{1,2,3}.plist` ALREADY EXIST. The configs `listen: 0.0.0.0` (the prototype's
+tailnet-trust model, superseded by D2) and carry no `authorization` while install.sh provisions an
+`OPENCLAW_NATS_TOKEN` no server config consumes (clients already send it). 127.0.0.1:4222 is the
+LIVE production bus — so per **D6 this step does NOT touch it**: it hardens the configs and proves
+R=3 on a **scratch port-set**, then tears it down. The live-bus cutover is the separate
+operator-gated **step 1.5**. Granular in [GRANULAR_PHASE1.md](GRANULAR_PHASE1.md).
 - **T1.1.1** Bind every listener loopback (`0.0.0.0`→`127.0.0.1`, client+cluster+monitor) in all three configs → *services/nats/nats-{1,2,3}.conf* · done-when: no all-interfaces listener remains; `nats-server -c … -t` OK. [code]
-- **T1.1.2** Add `authorization { token }` (+ cluster-route auth) as install-rendered templates so the token stays out of git → *services/nats/nats-*.conf, install.sh config generator* · done-when: connect without the token refused, with it accepted. [runtime]
-- **T1.1.3** Fix the three plists' exec paths if needed + ADD them to service-manifest role `both` (absent today) + make install's render loop reach `services/nats/` (it renders `services/launchd/` only — install.sh:794) → *services/*, install.sh* · done-when: three units render + install on a fresh run; one config family (the live legacy unit retires in T1.1.7). [code]
-- **T1.1.4** Bring the cluster up + JetStream budget decision (256MB×3 vs 64MB×3) logged → *launchctl bootstrap; DECISIONS* · done-when: all three `:822x/varz` report `cluster.name=openclaw-cluster` with 2 peers. [runtime T3]
-- **T1.1.5** R=3 replication probe → *probe script: stream R=3, read replica count* · done-when: 3 current replicas. [runtime T3]
-- **T1.1.6** Quorum-survival probe → *kill node-2, publish, restart* · done-when: writable at 2/3; recovers to 3/3. [chaos C2 preview]
-- **T1.1.7** Cut the LIVE single-node bus over to the cluster (interleaves with T1.1.4: nodes 2/3 up first, carry-vs-recreate decided per stream/bucket, stop legacy, node-1 adopts 4222 + the data — `local-events-daedalus` 14k+ msgs + MESH_* KV) → *launchctl, `nats stream backup/restore`, DECISIONS (carry choices)* · done-when: post-cutover counts match, clients reconnected, legacy unit retired (§4.6). [runtime T3]
+- **T1.1.2** Add `authorization { token }` (+ cluster-route auth) as install-rendered templates so the token stays out of git → *services/nats/nats-*.conf, install.sh config generator* · done-when: connect without the token refused, with it accepted (proven on the scratch cluster). [runtime]
+- **T1.1.3** Fix the three plists' exec paths if needed + ADD them to service-manifest role `both` (absent today) + make install's render loop reach `services/nats/` (it renders `services/launchd/` only — install.sh:794) → *services/*, install.sh* · done-when: three units render + install on a fresh run; one config family (the live legacy unit retires in the operator-gated step 1.5, NOT here). [code]
+- **T1.1.4** Bring a **SCRATCH 3-node cluster up on alt ports** (e.g. 4322-4324/6322-6324/8322-8324 — copies of the configs, NEVER 4222) + JetStream budget decision (256MB×3 vs 64MB×3) logged → *ephemeral nats-server on scratch ports; DECISIONS* · done-when: all three scratch `:83xx/varz` report `cluster.name` with 2 peers; live :4222 untouched. [runtime T3]
+- **T1.1.5** R=3 replication probe on the scratch cluster → *probe script: stream R=3, read replica count* · done-when: 3 current replicas. [runtime T3]
+- **T1.1.6** Quorum-survival probe on the scratch cluster, then tear it down → *kill scratch node-2, publish, restart; then stop all scratch nodes* · done-when: writable at 2/3; recovers to 3/3; scratch cluster removed; live :4222 PID+msg-count unchanged. [chaos C2 preview]
+
+### Step 1.5 — ⛔ OPERATOR-GATED live-bus cutover (D6; NOT part of step 1.1)
+- **T1.5.1** Migrate the LIVE single-node :4222 bus onto the hardened R=3 cluster, **with the operator present** (1.5's Verify is `visual:` → a headless tick MUST BLOCK): `nats stream backup` every stream/bucket → cluster up on real ports → stop legacy → restore + verify counts match the pre-migration baseline (`local-events-daedalus` 14k+ msgs + MESH_*/grappe-registry KV) → clients reconnect → retire the legacy unit (§4.6) → *launchctl, `nats stream backup/restore`, operator sign-off* · done-when: operator confirms counts match + clients reconnected + single-node retired. [visual T7]
 
 ### Step 1.2 — logical nodes heartbeating
 - **T1.2.1** Spawn three trees → *`spawn-node.mjs --id alpha|bravo|charlie`* · done-when: `~/.openclaw-{alpha,bravo,charlie}/` exist with own state.db/config. [runtime]

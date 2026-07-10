@@ -34,18 +34,19 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 1 | 1.1 | v1.1 | [ ] | 3-node NATS cluster (R=3) live in local-dev mode (absorbs redesign 7.1 [D]) |
-| 1 | 1.2 | v1.2 | [ ] | 3 spawned logical nodes heartbeating through the cluster (mesh daemons revived per the 0.1 triage) |
+| 1 | 1.1 | v1.1 | [ ] | NATS cluster configs hardened (loopback+token) + manifest/install wired + R=3 proven on scratch ports (non-destructive; live :4222 untouched) — absorbs redesign 7.1 [D] |
+| 1 | 1.2 | v1.2 | [ ] | 3 spawned logical nodes heartbeating through the bus (mesh daemons revived per the 0.1 triage) |
 | 1 | 1.3 | v1.3 | [ ] | Grappe manifest schema + KV registry + `openclaw-grappe` CLI (form/status/dissolve) |
 | 1 | 1.4 | v1.4 | [ ] | Signed grappe membership — join tokens verified, unsigned join rejected |
+| 1 | 1.5 | v1.5 | [ ] | ⛔ OPERATOR-GATED cutover: migrate live single-node :4222 → hardened R=3 cluster, zero data loss, retire single-node (D6) |
 
-> **1.1 — Goal:** the existing 3-node cluster configs are adopted, loopback-bound, token-authed, running R=3 — and the LIVE single-node bus is cut over onto the cluster without data loss (a production migration, not a green-field bring-up — D4).
-> **Needs:** the pre-existing `services/nats/nats-{1,2,3}.conf` + `ai.openclaw.nats-{1,2,3}.plist` (probed present 2026-07-06); nats-server binary; `OPENCLAW_NATS_TOKEN` (install.sh provisions it; clients already resolve+send it via lib/nats-resolve.js — the gap is server-side only); a cutover plan for the live bus on 127.0.0.1:4222 (production JetStream: local-events-daedalus 14k+ msgs + MESH_* KV, observed 2026-07-09); ports 4223-4224/6222-6224/8222-8224 free (4222 frees at cutover).
-> **Feeds:** every federation subject/KV; 1.2 heartbeats; redesign 7.1 [D] recorded absorbed. The token+loopback hardening is the trust floor 1.4/4.2 signatures stand on.
-> **Verify:** `runtime:` no `0.0.0.0` listener remains; connect without the token refused + with it accepted; all three :822x monitors answer; a test stream R=3 reports 3 replicas; kill one nats process → still writable at 2/3, observed; post-cutover: pre-existing stream/KV data intact (message counts match), existing clients reconnected, the legacy single-node unit retired (§4.6).
+> **1.1 — Goal:** the 3-node cluster configs are hardened (loopback-bind + token-auth, D2), wired into the service manifest + install render path, and proven to form R=3 with quorum on a **scratch port-set that never touches the live :4222 bus** (the cutover is the separate gated step 1.5 — D6).
+> **Needs:** the pre-existing `services/nats/nats-{1,2,3}.conf` + `ai.openclaw.nats-{1,2,3}.plist` (probed present 2026-07-06); nats-server binary; `OPENCLAW_NATS_TOKEN` (install.sh provisions it; clients already resolve+send it via lib/nats-resolve.js — gap is server-side only); a free scratch port-set (e.g. 4322-4324/6322-6324/8322-8324) for the non-destructive proof.
+> **Feeds:** 1.5 cutover reuses the hardened configs on the real ports; the token+loopback hardening is the trust floor 1.4/4.2 signatures stand on.
+> **Verify:** `code:` no `0.0.0.0` listener in any config; `authorization { token }` present in all three; three units in service-manifest role `both` + install renders them. `runtime:` a **scratch** 3-node cluster on the alt ports reports cluster.name + a test stream at R=3 (3 replicas) + quorum survival (kill one → still writable 2/3) + token refused-without/accepted-with — then torn down, with live :4222 confirmed still up (PID + msg-count unchanged). NO live-bus mutation this step.
 
-> **1.2 — Goal:** three isolated logical nodes (spawn-node.mjs trees) run mesh agents heartbeating through the cluster.
-> **Needs:** 1.1 cluster; bin/spawn-node.mjs; the 0.1 triage (crash-loop cause fixed or avoided); bin/mesh-agent.js + mesh-health-publisher.
+> **1.2 — Goal:** three isolated logical nodes (spawn-node.mjs trees) run mesh agents heartbeating through the NATS bus on :4222.
+> **Needs:** a running NATS on :4222 (the existing single-node bus pre-cutover — it has JetStream; or the R=3 cluster once 1.5 lands — either works); bin/spawn-node.mjs; the 0.1 triage (crash-loop cause fixed or avoided); bin/mesh-agent.js + mesh-health-publisher. **NOTE (chain-safety):** this step STARTS live daemons — reversible via unit stop, but it changes running state; kept chain-able (unlike 1.5).
 > **Feeds:** 1.3 registry entries; Block 2 sessions run on these nodes.
 > **Verify:** `runtime:` `mesh.health` (or equivalent) shows 3 distinct node-ids with fresh heartbeats < 60s old, observed for 10+ min without a crash-loop (launchctl/ps stable).
 
@@ -58,6 +59,11 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Needs:** 1.3 registry; lib/deploy-trigger-auth.mjs signature pattern; bin/mesh-join-token.js.
 > **Feeds:** 4.2 signed task envelopes reuse the same verification; savant change-set signing (5.3).
 > **Verify:** `runtime:` a join with a valid token lands in the manifest; a forged/unsigned join is rejected with a logged reason — both observed.
+
+> **1.5 — Goal:** ⛔ **OPERATOR-GATED.** The live single-node bus (:4222 — production JetStream: local-events-daedalus 14k+ msgs + MESH_*/grappe-registry KV) is migrated onto the hardened R=3 cluster with zero data loss, and the single-node unit retired — the one production migration, done deliberately with the operator.
+> **Needs:** 1.1 (hardened configs proven on scratch ports); a backup/restore migration run **with the operator present**; the operator's explicit go. **This step is HARD-GATED — a headless tick MUST BLOCK here** (D6 / the 2026-07-09 interlock finding: a capable tick otherwise designs and executes the migration unattended).
+> **Feeds:** R=3 resilience for every downstream grappe; retires the last single-node dependency; 1.2's agents reconnect to the same :4222 endpoint post-cutover.
+> **Verify:** `visual:` the OPERATOR confirms the cutover end-to-end — `nats stream backup` every stream + KV → cluster up on real ports (4222-4224) → restore → message counts match the pre-migration baseline → clients reconnected → single-node unit retired (§4.6). The `visual:` modality **forces a headless BLOCK**; the chain cannot self-close this step.
 
 ## Block 2 — Worker mode A: adversarial (circling revival)
 

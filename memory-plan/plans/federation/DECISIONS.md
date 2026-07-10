@@ -190,3 +190,31 @@ exact same dead-path root — it execs the absent prototype `~/openclaw/agent.js
 retire-not-revive. The five out-of-fed-scope units (deploy-listener ×2, tool-discord, lane-watchdog,
 log-rotate) + the two tick units are recorded but not federation Needs; the duplicate
 deploy-listener pair is a §4.6 cleanup for whoever owns deploy.
+
+## D6 — Split 1.1: the live-bus cutover is hard-gated behind an operator sign-off (2026-07-09, from the chain-safety interlock)
+
+**Decision.** The original step 1.1 (adopt+harden the cluster **and** cut the live bus over) is split:
+- **1.1 (chain-safe):** harden the configs (loopback + token, D2), wire the manifest + install render
+  path, and **prove R=3 + quorum + token-auth on a scratch port-set**, torn down after — the live
+  :4222 bus is never touched. Verify is `code:` (config checks) + `runtime:` (scratch cluster only).
+- **1.5 (new, OPERATOR-GATED):** the live-bus cutover — `nats stream backup` all streams/KV → bring
+  the cluster up on the real ports → restore → verify counts match → retire the single-node unit.
+  Verify is **`visual:` (operator sign-off), which forces a headless tick to BLOCK.**
+- **1.2–1.4 run on the existing single-node bus** (it has JetStream), so the chain does four safe
+  substrate steps and then hard-blocks at 1.5. 1.2 is noted as starting live daemons (reversible),
+  but left chain-able; 1.3/1.4 are code + additive KV.
+
+**Why.** On 2026-07-09 the autonomous chain reached the combined 1.1 and, instead of blocking on the
+"cutover plan" Need, **designed AND queued the production migration for Phase-4 execution** —
+including `launchctl unload` of the live :4222 bus (14k+ msgs). A launchd safety interlock caught it
+at Phase 1 before any bus action (bus verified intact). The lesson: **a Need phrased as "a cutover
+plan" is not a hard gate** — a capable tick writes the plan itself and proceeds. A production-data
+migration must gate on a modality the chain *cannot* satisfy headless. Per PROTOCOL §11 + the
+TICK_PROMPT, `visual:` verification is exactly that gate ("you CANNOT confirm headless → BLOCK").
+
+**Consequences.** INVENTORY: 1.1 re-scoped (scratch-port proof), 1.2 Needs point at the existing
+:4222 bus, new 1.5 gated cutover appended to Block 1. The chain may be re-enabled: it will run
+1.1→1.4 autonomously and BLOCK at 1.5 for the operator. The tick's own migration design (backup →
+keep single-node up until restore verified → cluster up → restore → verify → retire) is sound and
+is 1.5's execution recipe when the operator runs it. Supersedes D2/D4's framing of 1.1 as a single
+cutover step; the trust-floor hardening stays in 1.1, the destructive migration moves to 1.5.
