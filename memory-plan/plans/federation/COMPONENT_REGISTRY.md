@@ -32,8 +32,8 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 | | |
 |---|---|
-| **Status** | DORMANT (code complete per paper V3; units .disabled; never ran a live session) |
-| **Verified** | 2026-07-06 — `node --test test/collab-circling.test.js test/daemon-circling-handlers.test.js` → **44/44 pass**. Mesh units among the 11 `.plist.disabled` in ~/Library/LaunchAgents (2026-07-03 crash-loop triage — root cause NOT yet diagnosed → step 0.1). Paper: docs/circling-strategy-implementationV3.md (gaps §14.1/.2/.3 open). |
+| **Status** | DORMANT — code believed-good, stranded behind **stale-path unit files** (crash-loop root cause diagnosed 2026-07-09, step 0.1 / D5) |
+| **Verified** | 2026-07-09 (step 0.1) — the 6 mesh units + 3 aux + system `com.openclaw.agent` all crash-looped on **one root cause**: plists exec `/Users/moltymac/openclaw/…` (ABSENT — renamed to `~/.openclaw/workspace/` + repo). Disable-time evidence: `Cannot find module '…/openclaw/bin/<script>.js'`, `requireStack:[]` (entry missing); `mesh-task-daemon.err` = **269,948** MODULE_NOT_FOUND records, 72–263 MB per file, frozen Jul 3 17:35. Class-C stale-config; **code health unobservable** (entry never loaded). Revival (1.2) = re-render at live install path, NOT re-enable the stale plist; NATS reachable (1.1) first (class-A breadcrumb in the err heads). Test baseline 2026-07-06: 44/44 (collab-circling+daemon). Paper: docs/circling-strategy-implementationV3.md (gaps §14.1/.2/.3 open). |
 
 ### Task kanban + plans layer — mesh.tasks.* / mesh.plans.* subjects
 

@@ -1,9 +1,18 @@
 # SCOPE — federation plan
 
 **Status:** idle
-**Goal:** shipped — D4 fleet reconciliation + 2026-07-09 verification corrections landed; next scope opens with step 0.1.
+**Goal:** Step 0.1 CLOSED 2026-07-09 (v0.1) — single root cause (stale `~/openclaw/` exec path), all units class-C, triage recorded as DECISIONS D5. Next: step 0.2 (FEDERATION_SPEC).
 **Set at:** 2026-07-09
 **Expires:** no-expiry
+
+```files step-0.1-crashloop-rootcause closed
+memory-plan/plans/federation/audits/step01_crashloop-rootcause/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step01_crashloop-rootcause/AUDIT_POST.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+```
 
 ```files d4-fleet-reconciliation closed
 memory-plan/plans/federation/DECISIONS.md

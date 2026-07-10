@@ -137,3 +137,56 @@ the pre-assigned "D2" was consumed by this ledger's actual D2); token wording co
 already resolve+send `OPENCLAW_NATS_TOKEN` via lib/nats-resolve.js — the gap is server-side
 only); test-count citations corrected (D1's "40 tests" reads as approximate; the circling-family
 count today is 93).
+
+## D5 — Crash-loop triage: every dead mesh/aux unit is class-C stale-path, one root cause (2026-07-09, step 0.1 product)
+
+**This is step 0.1's output** — the triage the pre-protocol contracts call "D2" (that id was
+consumed by this ledger's actual D2; the reference is this entry). Diagnosis only; nothing was
+started or fixed.
+
+**Decision (finding).** All 9 disabled/zombie units, across both launchd domains, crash-looped for
+**one shared reason**: their `ProgramArguments` exec a script under `/Users/moltymac/openclaw/…`,
+a directory that no longer exists — the layout was renamed to `~/.openclaw/workspace/` (runtime) +
+`~/openclaw-nodedev/` (repo). Each launch dies instantly with
+`Error: Cannot find module '/Users/moltymac/openclaw/bin/<script>.js'` + `requireStack: []` (empty
+⇒ the **entry point** is missing, not an inner `require`), KeepAlive relaunches, repeat — until
+disabled Jul 3 ~17:35 (mesh-bridge earlier, 14:22). The crash-loop mass is real: the stderr files
+are 72–263 MB of the identical trace (`mesh-task-daemon.err` alone: **269,948** MODULE_NOT_FOUND
+records).
+
+Per-unit triage (`unit · domain · class · deciding evidence · revive-precondition`):
+
+| Unit | Domain | Class | Deciding evidence (disable-time tail) | Revive-precondition |
+|---|---|---|---|---|
+| mesh-task-daemon | user | **C** | `Cannot find module '…/openclaw/bin/mesh-task-daemon.js'` | re-render unit at live install path (1.2); then NATS reachable (1.1) |
+| mesh-agent | user | **C** | `…/openclaw/bin/mesh-agent.js` not found | re-render at live path (1.2) |
+| mesh-bridge | user | **C** | `…/openclaw/bin/mesh-bridge.js` not found (disabled 14:22) | re-render at live path (1.2) |
+| mesh-health-publisher | user | **C** | `…/openclaw/bin/mesh-health-publisher.js` not found | re-render at live path (1.2) |
+| mesh-deploy-listener | user | **C** | `…/openclaw/bin/mesh-deploy-listener.js` not found | out-of-fed-scope (deploy, not Blocks 1-2) |
+| mesh-tool-discord | user | **C** | `…/openclaw/bin/mesh-tool-discord.js` not found | out-of-fed-scope (Discord tool) |
+| deploy-listener (aux) | user | **C** | dup exec of mesh-deploy-listener.js, absent | out-of-fed-scope; retire the dup (§4.6) |
+| lane-watchdog (aux) | user | **C** | `Cannot find module '…/openclaw/bin/lane-watchdog.js'` | out-of-fed-scope |
+| log-rotate (aux) | user | **C** | bash target `…/openclaw/bin/log-rotate` absent | out-of-fed-scope |
+| **com.openclaw.agent** | **system** | **C** | `…/openclaw/agent.js` absent (D4 prototype zombie) | **do not revive — retire in 6.1 (D4)** |
+| memory-plan-tick | user | **C** | shim `workspace-bin/memory-plan-tick.sh` absent | out-of-fed-scope (workplan tick) |
+| redesign-tick | user | **deliberate** | shim EXISTS; redesign complete at v6.5, tick intentionally off | out-of-fed-scope; leave off |
+
+**Why (the two honest limits).** (1) **Code health is unobservable from these logs.** Because the
+entry script was never found, the daemon code never executed — MODULE_NOT_FOUND proves the *path* is
+dead, and proves nothing about whether `bin/mesh-task-daemon.js` (the repo's, 93 tests) runs
+cleanly. 1.2 must run it from the correct path to surface any latent class-A/B fault. (2) **A
+class-A breadcrumb exists.** The *head* of `mesh-task-daemon.err` (an older era, when `~/openclaw/`
+still had `node_modules/`) shows `NatsError: TIMEOUT` — so before the rename, the fault was NATS
+connectivity. When 1.2 fixes the path, NATS reachability (1.1's cluster) is the very next thing to
+verify before declaring the daemon healthy; a revived unit could trade class-C for class-A.
+
+**Consequences.** For **1.2**: the four in-scope mesh units (task-daemon, agent, bridge,
+health-publisher) are believed-good code stranded behind stale unit files — revival is a
+unit re-render at the live install path (install.sh already deploys correctly per the recent
+fresh-node commits), explicitly **not** a code rewrite and **not** a re-enable of the stale plist.
+For **1.1**: the historical NATS timeout confirms the cluster must be up and reachable before 1.2's
+revived daemons will pass health. For **D4/6.1**: the system-domain `com.openclaw.agent` shares the
+exact same dead-path root — it execs the absent prototype `~/openclaw/agent.js` — reinforcing
+retire-not-revive. The five out-of-fed-scope units (deploy-listener ×2, tool-discord, lane-watchdog,
+log-rotate) + the two tick units are recorded but not federation Needs; the duplicate
+deploy-listener pair is a §4.6 cleanup for whoever owns deploy.

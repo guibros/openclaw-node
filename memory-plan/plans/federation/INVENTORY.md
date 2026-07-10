@@ -17,7 +17,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 0 | 0.1 | v0.1 | [ ] | Root-cause the 2026-07-03 mesh unit crash-loops (diagnosis only, no fixes) |
+| 0 | 0.1 | v0.1 | [x] | Root-cause the 2026-07-03 mesh unit crash-loops (diagnosis only, no fixes) — closed 2026-07-09: single root cause (stale `~/openclaw/` exec path), all class-C, triage = D5 |
 | 0 | 0.2 | v0.2 | [ ] | FEDERATION_SPEC.md — grappe model, three modes, envelopes, layer contracts |
 
 > **0.1 — Goal:** name the exact reason every dead/zombie unit stopped — the 11 user-domain `.disabled` plists AND the system-domain `com.openclaw.agent` (loaded, spawn-scheduled, workdir absent — D4) — before anything is revived.
