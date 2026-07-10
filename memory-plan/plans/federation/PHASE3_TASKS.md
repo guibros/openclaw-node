@@ -64,3 +64,22 @@ without re-deriving intent: the file to touch, the function to write, the observ
 it. The `[runtime]`/`[T5]`/`[T7]` tags mark which tasks CANNOT be closed by tests alone — they
 gate on live-grappe observation, per MASTER_PLAN §5. Nothing here is committed as done until its
 done-when is witnessed.
+
+---
+
+## Granular at entry (why Phase 3 micro-steps aren't written yet)
+
+Phase-3 micro-steps are authored at Phase-3 entry, because the savant design is downstream of
+what Phases 1–2 produce:
+- **the telemetry collector shape (T5.1.1)** — JetStream mirror vs periodic scrape — is decided
+  "from Phase-1/2 hindsight"; the feed API signatures follow that decision.
+- **what real telemetry actually looks like** (7 days of it, T5.4.1) shapes the change-set
+  rationale-citation format and the reviewer attack axes — a savant designed against imagined
+  telemetry critiques the wrong things.
+- **the write-jail (T5.3.4)** is the one task worth pre-thinking now because it's a security
+  invariant, not a design guess: it is a path-allowlist wrapper that throws on any write whose
+  resolved absolute path is not under an `OUT_OF_SCOPE.md`; its unit test is writable today even
+  though the pipeline around it isn't.
+The seed is the atomic task list above (5.1–5.5) + the change-set schema locked in
+FEDERATION_SPEC (0.2). Phase-3 entry = write `GRANULAR_PHASE3.md` anchored to the real
+`lib/savant-feed.mjs` / `lib/mgmt-session.mjs` neighbors.

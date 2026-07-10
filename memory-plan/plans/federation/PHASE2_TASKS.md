@@ -57,3 +57,22 @@ Phase 2 depends on the Phase-1 gate (3.5): step 4.1's Needs cites that checklist
 - **T4.6.6** Run + record chaos X1–X6 (worker kill/reassign, coordinator succession, forged + replayed envelope, mgmt restart mid-vote, NATS follower kill during dispatch) → *T5* · done-when: all observed. [T5]
 - **T4.6.7** ≥24h soak: complex task every 2h mixed modes, one scheduled injection midway → *feeder script* · done-when: every task terminal, reassignment counter matches injections, ledger tells the story. [T6]
 - **T4.6.8** T7 acceptance: operator exercises a real MC gate approval; RAM budget for 8 nodes recorded sustainable (or fallback logged); sign the checklist → *visual* · done-when: Phase-2 checklist signed. [T7]
+
+---
+
+## Granular at entry (why Phase 2 micro-steps aren't written yet)
+
+Per [GRANULAR_PHASE1.md](GRANULAR_PHASE1.md) and MASTER_PLAN §4.5 (reality before aspiration),
+Phase-2 micro-steps are authored when Phase 2 opens — because they depend on facts Phase 1
+*measures*, not guesses:
+- **the 8-node RAM budget (T4.1.1)** decides whether management is 5 real spawned nodes or 5
+  shared-process agents — the session code's process model changes with the answer.
+- **the real circling timings (T2.4.3–2.4.5)** set the management dispatch deadlines (`deadline_s`
+  in the task envelope) and the reassignment backoff — guessing them now would bake in wrong
+  timeouts.
+- **the worker result-envelope shape as actually emitted** (proven in T4.2.3) is what the
+  assembler parses; granular assembler code is written against the observed envelope, not the
+  spec's draft.
+The seed is the atomic task list above (4.1–4.6) + the schemas locked in FEDERATION_SPEC (0.2).
+Phase-2 entry = write `GRANULAR_PHASE2.md` the same way GRANULAR_PHASE1 was: read the now-real
+`lib/mgmt-session.mjs` neighbors, anchor signatures, mark `‹propose›` where still open.
