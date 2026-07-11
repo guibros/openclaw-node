@@ -1,9 +1,15 @@
 # SCOPE — federation plan
 
-**Status:** done
-**Goal:** step 2.3 — Paper gap 14.2 — parse-failure retry ×3 before degradation
+**Status:** active
+**Goal:** step 2.4 — record the operator-chosen first real task (harden FEDERATION_SPEC, D8) so the tick can run the qwen3:8b adversarial session
 **Set at:** 2026-07-11
-**Expires:** 2026-07-11T23:59:00Z
+**Expires:** 2026-07-12T06:00:00Z
+
+```files step-2.4-task-record
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/BLOCKED.md
+memory-plan/plans/federation/DECISIONS.md
+```
 
 ```files step-2.3-parse-retry closed
 memory-plan/plans/federation/SCOPE.md

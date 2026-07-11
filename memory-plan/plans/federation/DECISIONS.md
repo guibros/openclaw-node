@@ -246,3 +246,37 @@ blocker. Net: 2.1 needs only the #3 guard, now in.
 **Consequences.** 1.5 → [D]; the chain's next step becomes 2.1 (first live circling session). The 1.5
 contract + runbook are preserved for the operator's eventual cutover. Plan-done (Block 5) does not
 require the cutover; R=3 is an operator-timed hardening.
+
+## D8 — First real adversarial task (2.4): harden the FEDERATION_SPEC schemas (operator-chosen 2026-07-11)
+
+**Decision.** The first live qwen3:8b adversarial circling run (step 2.4) tackles a real, small,
+reviewable task chosen by the operator: **harden the three FEDERATION_SPEC schema defects the
+2026-07-10 parallel audit found.** This satisfies 2.4's Need ("a real small task chosen with the
+operator") and dogfoods the federation on its own contract. The operator will review the artifacts
+(2.4's `visual:` gate).
+
+**Task brief (for the `mesh.collab.create` payload — circling / adversarial mode, 3 nodes):**
+- **Title:** Harden FEDERATION_SPEC envelope + session schemas (audit F1/F2/F4).
+- **Problem (fix exactly these three; do not rewrite the whole spec):**
+  1. **F1** — envelopes (§5.1/5.2/5.3) timestamp with `issued_at`, but `verifyEvent` freshness keys on
+     `timestamp` (`lib/node-identity.mjs`) → every envelope fails verification. Reconcile: use
+     `timestamp` (or have the signer inject it); and correct the false claim that `signEvent` adds
+     `event_id` (it adds only `signature`+`signer_pubkey`; the caller injects `event_id`).
+  2. **F2** — no envelope carries a signer node id → the registry impersonation defense
+     (`verifyEvent` `expectedNodeId`) can't run. Add `signer_node_id` and specify receivers pass it.
+  3. **F4** — the spec invents `session.architecture` (§3) AND `session.type` (§4.1) as the mode
+     discriminator; neither exists — the real discriminator is `session.mode` (`lib/mesh-collab.js`).
+     Pick ONE real mechanism and make the spec consistent.
+- **Inputs:** docs/FEDERATION_SPEC.md (§3, §5); lib/node-identity.mjs (signEvent/verifyEvent, the
+  `timestamp` freshness gate); lib/mesh-collab.js (createSession, `session.mode`).
+- **Acceptance:** for each of F1/F2/F4, a corrected schema/text block + a one-line rationale tied to
+  the real interface (file:line). No changes outside these three defects.
+
+**Why.** The spec is genuinely flawed (blocks Block 3-5 code) and the fixes are small + checkable
+against the audit — an ideal first real run. It also feeds 2.6 (the premise benchmark): the same task
+run solo-vs-grappe gives a clean quality comparison.
+
+**Consequences.** 2.4's Need is met (task recorded here). The tick runs the qwen3:8b session and
+BLOCKS at Phase 5 (visual:) for the operator to review the hardened-spec artifact before closing.
+If the grappe's output is good, it also becomes the basis for actually correcting the spec (a
+follow-on scope), closing the F1/F2/F4 OUT_OF_SCOPE items.
