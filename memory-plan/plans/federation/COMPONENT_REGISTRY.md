@@ -55,8 +55,8 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 | | |
 |---|---|
-| **Status** | DORMANT-RECOVERED — plist templates corrected (step 1.2); health-publisher confirmed connectable to :4222 (code healthy for this layer); full mesh stack (task-daemon, agent, bridge) revival tested via template fix — not yet running as launchd services (Block 2 activates for circling sessions) |
-| **Verified** | 2026-07-10 (step 1.2) — 4 plist templates (`mesh-health-publisher`, `mesh-task-daemon`, `mesh-agent`, `mesh-bridge`) corrected: `${OPENCLAW_REPO_DIR}/bin/<script>.js` exec path, `OPENCLAW_NATS: nats://127.0.0.1:4222` override. mesh-health-publisher.js ran at correct path for 10+ min, published to NATS at :4222 without error. Test baseline 2026-07-10: 2 pre-existing failures (observer.test.mjs, embed-benchmark.test.mjs), 44/44 collab-circling+daemon still assumed good (those suites not re-run today). Paper: docs/circling-strategy-implementationV3.md (gaps §14.1/.2/.3 open). |
+| **Status** | LIVE (step 2.1) — full circling lifecycle observed end-to-end: task submitted → session created → 3 nodes joined → roles assigned (worker=charlie, reviewerA=bravo, reviewerB=alpha) → 4 rounds (init/step1/step2/finalization) all barriers 3/3 → COMPLETE in KV. Paper gaps §14.1/.2/.3 open (steps 2.2/2.3/2.5[D]). |
+| **Verified** | 2026-07-11 (step 2.1) — session collab-step21-mock-002-1783747159329: MESH_COLLAB status=completed; MESH_TASKS step21-mock-002 status=completed, completed_at=2026-07-11T05:19:19.519Z; result.summary="Circling Strategy completed: 1 sub-rounds, 3 nodes."; node_contributions recorded for bravo/alpha/charlie. Test baseline: 1718 pass / 2 fail (observer.test.mjs, embed-benchmark.test.mjs pre-existing) / 1 skipped. |
 
 ### Task kanban + plans layer — mesh.tasks.* / mesh.plans.* subjects
 

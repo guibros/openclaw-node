@@ -1533,6 +1533,15 @@ async function checkRecruitingDeadlines() {
       if (session.mode === 'circling_strategy' && session.circling) {
         // Circling requires exactly 3 nodes (1 worker + 2 reviewers).
         // Even if min_nodes was misconfigured, refuse to start with <3.
+        // Auto-assign roles if all nodes joined as 'worker' (default join role).
+        const noReviewersYet = session.nodes.every(n => n.role === 'worker');
+        if (noReviewersYet && session.nodes.length >= 3) {
+          session.nodes[0].role = 'worker';
+          session.nodes[1].role = 'reviewer';
+          session.nodes[2].role = 'reviewer';
+          await collabStore.put(session);
+          log('CIRCLING: auto-assigned roles (1 worker + 2 reviewers)');
+        }
         const hasWorker = session.nodes.some(n => n.role === 'worker');
         const reviewerCount = session.nodes.filter(n => n.role === 'reviewer').length;
         if (session.nodes.length < 3 || !hasWorker || reviewerCount < 2) {

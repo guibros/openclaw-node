@@ -1,11 +1,23 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** Block-2 prep — defer the gated cutover (1.5 → [D], D7) + fix the collab-session races the audit flagged (#3/#4/#5) so live circling (2.1) runs clean
+**Goal:** step 2.1 — Live end-to-end circling session on the grappe with a mock LLM
 **Set at:** 2026-07-11
-**Expires:** 2026-07-11T15:00:00Z
+**Expires:** 2026-07-11T18:00:00Z
 
-```files block-2-prep
+```files step-2.1-circling-live
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/audits/step21_circling-session-live/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step21_circling-session-live/AUDIT_POST.md
+memory-plan/plans/federation/BLOCKED.md
+bin/mesh-task-daemon.js
+lib/logger.js
+```
+
+```files block-2-prep closed
 bin/mesh-task-daemon.js
 lib/mesh-collab.js
 memory-plan/plans/federation/INVENTORY.md

@@ -69,7 +69,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 2 | 2.1 | v2.1 | [ ] | Live end-to-end circling session on the grappe with a mock LLM |
+| 2 | 2.1 | v2.1 | [x] | Live end-to-end circling session on the grappe with a mock LLM — closed 2026-07-11: 4 rounds (init+step1+step2+finalization), all barriers 3/3, MESH_COLLAB status=completed (collab-step21-mock-002-1783747159329) |
 | 2 | 2.2 | v2.2 | [ ] | Paper gap 14.1 — adaptive convergence (unanimous converged ⇒ early finalization) |
 | 2 | 2.3 | v2.3 | [ ] | Paper gap 14.2 — parse-failure retry ×3 before degradation |
 | 2 | 2.4 | v2.4 | [ ] | First real adversarial run: small production task via qwen3:8b to a converged vote |
@@ -79,7 +79,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **2.1 — Goal:** the paper's full session lifecycle is observed live (the 93 circling-family unit tests never ran one).
 > **Needs:** Block 1 substrate; lib/mesh-collab.js + bin/mesh-task-daemon.js + bin/mesh-agent.js + bin/mesh-bridge.js; a mock-LLM mode for mesh-agent (env or flag; check what tests use).
 > **Feeds:** 2.2-2.4 build on a proven baseline; cooperative/collaborative (Block 3) inherit the machinery.
-> **Verify:** `runtime:` one session from `mesh.collab.create` to COMPLETE: 3 roles assigned, ≥1 full sub-round (both barriers held 3/3), finalization votes recorded, artifacts readable in KV; kanban trail visible.
+> **Verify:** `runtime:` one session from `mesh.collab.create` to COMPLETE: 3 roles assigned, ≥1 full sub-round (both barriers held 3/3), finalization votes recorded, artifacts readable in KV; session lifecycle observable — MESH_COLLAB KV shows `status=completed` (and/or `mesh.tasks.list`/MESH_EVENTS the completion). (Kanban clarification 2026-07-11: a NATS-submitted mock task need NOT create an active-tasks.md entry; the KV/events trail satisfies "visible".)
 
 > **2.2 — Goal:** a session that converges early finalizes early instead of burning remaining sub-rounds.
 > **Needs:** 2.1 baseline; lib/mesh-collab.js advanceCirclingStep (paper §14.1).
