@@ -39,15 +39,15 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 | | |
 |---|---|
-| **Status** | LIVE (step 1.3) — `openclaw-grappe` CLI wired in package.json; GRAPPE_REGISTRY KV bucket created; wg-alpha manifest present with 3 members. |
-| **Verified** | 2026-07-11 — `nats kv get GRAPPE_REGISTRY grappe.wg-alpha --raw` → `{"id":"wg-alpha","mode":"adversarial","members":["alpha","bravo","charlie"],"formed_at":"2026-07-11T01:41:53.440Z","status":"live","join_token_hash":null}`; `openclaw-grappe status` → 3 LIVE members; form/status/dissolve all verified. `join_token_hash: null` — step 1.4 fills this in. |
+| **Status** | LIVE (steps 1.3 + 1.4) — form/status/dissolve/issue-token/join all working; join_token_hash non-null; valid join accepted; forged join rejected. |
+| **Verified** | 2026-07-11 (step 1.4) — `nats kv get GRAPPE_REGISTRY grappe.wg-alpha --raw` → `{"id":"wg-alpha","mode":"adversarial","members":["alpha","bravo","charlie","delta"],"formed_at":"2026-07-11T01:41:53.440Z","status":"live","join_token_hash":"7d562ce0de7e2472e22518dffc25ac57093d972ae775c48bd790ace82afd60ca"}`. Valid join (delta): accepted, in members. Forged join (epsilon): `[grappe-auth] join rejected: invalid-token`, exit 1, not in members. |
 
-### Membership & signing — bin/mesh-join-token.js, lib/deploy-trigger-auth.mjs
+### Membership & signing — bin/mesh-join-token.js, lib/deploy-trigger-auth.mjs, bin/openclaw-grappe.mjs (join/issue-token)
 
 | | |
 |---|---|
-| **Status** | DEGRADED (code + 15/15 auth tests exist; signing opt-in, keys not provisioned, no grappe concept) |
-| **Verified** | 2026-07-06 — deploy-trigger-auth verified via its test suite in the 2026-07-03g batch (signed→verified, forged→rejected observed then); OPENCLAW_REQUIRE_SIGNED_DEPLOY unset on this node. |
+| **Status** | LIVE (step 1.4) — grappe join tokens operational: issue-token provisions SHA-256 hash in KV manifest; join verifies and accepts/rejects with logged reason. deploy-trigger-auth pattern (issue → hash → verify on presentation) adopted. |
+| **Verified** | 2026-07-11 — `openclaw-grappe issue-token --id wg-alpha` → token issued, join_token_hash written to GRAPPE_REGISTRY; `openclaw-grappe join ... --token <valid>` → join accepted; `... --token forged` → `[grappe-auth] join rejected: invalid-token` exit 1. OPENCLAW_REQUIRE_SIGNED_DEPLOY remains unset (deploy signing is a separate layer). |
 
 ## Family 2: worker-grappe machinery (the paper's stack)
 

@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-// openclaw-grappe — Grappe registry CLI (FEDERATION_SPEC §2.4, step 1.3)
+// openclaw-grappe — Grappe registry CLI (FEDERATION_SPEC §2.4, steps 1.3 + 1.4)
 //
 //   openclaw-grappe form --id <id> --mode <mode> --members <n1,n2,n3>
 //   openclaw-grappe status [--id <id>]
 //   openclaw-grappe dissolve --id <id>
+//   openclaw-grappe issue-token --id <id>          (step 1.4)
+//   openclaw-grappe join --id <id> --node <node-id> --token <token>  (step 1.4)
 //
 // KV bucket: GRAPPE_REGISTRY  key pattern: grappe.<id>
 // Member freshness is read from MESH_NODE_HEALTH KV.
 
+import { createHash, randomBytes } from 'node:crypto';
 
 const GRAPPE_BUCKET = 'GRAPPE_REGISTRY';
 const HEALTH_BUCKET = 'MESH_NODE_HEALTH';
@@ -52,6 +55,12 @@ function decode(sc, entry) {
   return JSON.parse(sc.decode(entry.value));
 }
 
+// ── Token helpers (step 1.4) ───────────────────────────────────────────────
+
+function tokenHash(token) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
 // ── Commands ───────────────────────────────────────────────────────────────
 
 async function cmdForm(nc, sc, opts) {
@@ -70,7 +79,7 @@ async function cmdForm(nc, sc, opts) {
     members,
     formed_at: new Date().toISOString(),
     status: 'live',
-    join_token_hash: null,   // step 1.4 fills this in
+    join_token_hash: null,   // step 1.4 fills this in with issue-token
   };
 
   const js = nc.jetstream();
@@ -127,6 +136,7 @@ async function cmdStatus(nc, sc, opts) {
     const headerLine = `Grappe ${g.id} (${g.mode}) — ${g.status}`;
     console.log(headerLine);
     console.log(`  Formed:   ${g.formed_at}`);
+    console.log(`  Token:    ${g.join_token_hash ? 'provisioned' : 'not provisioned'}`);
     console.log(`  Members:`);
     for (const memberId of g.members) {
       let freshness = 'UNKNOWN';
@@ -169,6 +179,83 @@ async function cmdDissolve(nc, sc, opts) {
   console.log(`dissolved grappe ${id}`);
 }
 
+// ── step 1.4: issue-token ──────────────────────────────────────────────────
+// Provisions a join token for the grappe: generates a random token, stores
+// its SHA-256 hash in the KV manifest, prints the raw token to stdout.
+// The operator distributes the raw token to nodes that need to join.
+
+async function cmdIssueToken(nc, sc, opts) {
+  const { id } = opts;
+  if (!id) return die('--id required');
+
+  const js = nc.jetstream();
+  let kv;
+  try {
+    kv = await openKv(js, GRAPPE_BUCKET, { history: 1 });
+  } catch (e) {
+    return die(`GRAPPE_REGISTRY bucket not found: ${e.message}`);
+  }
+
+  const entry = await kv.get(KEY_PREFIX + id);
+  if (!entry || entry.operation === 'DEL' || entry.operation === 'PURGE') {
+    return die(`grappe "${id}" not found — run \`openclaw-grappe form\` first`);
+  }
+
+  const manifest = decode(sc, entry);
+  const token = randomBytes(32).toString('base64url');
+  manifest.join_token_hash = tokenHash(token);
+  await kv.put(KEY_PREFIX + id, encode(sc, manifest));
+
+  console.log(`join token issued for grappe ${id}`);
+  console.log(`token: ${token}`);
+}
+
+// ── step 1.4: join ────────────────────────────────────────────────────────
+// Verifies the presented token against the stored hash. On match, appends
+// the node-id to members and updates the KV manifest. On mismatch or absent
+// token, logs rejection reason to stderr and exits 1.
+
+async function cmdJoin(nc, sc, opts) {
+  const { id, node, token } = opts;
+  if (!id)    return die('--id required');
+  if (!node)  return die('--node required');
+  if (!token) return die('--token required');
+
+  const js = nc.jetstream();
+  let kv;
+  try {
+    kv = await openKv(js, GRAPPE_BUCKET, { history: 1 });
+  } catch (e) {
+    return die(`GRAPPE_REGISTRY bucket not found: ${e.message}`);
+  }
+
+  const entry = await kv.get(KEY_PREFIX + id);
+  if (!entry || entry.operation === 'DEL' || entry.operation === 'PURGE') {
+    return die(`grappe "${id}" not found`);
+  }
+
+  const manifest = decode(sc, entry);
+
+  if (!manifest.join_token_hash) {
+    console.error(`[grappe-auth] join rejected: no-token-provisioned (grappe ${id})`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (tokenHash(token) !== manifest.join_token_hash) {
+    console.error(`[grappe-auth] join rejected: invalid-token (node ${node} → grappe ${id})`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!manifest.members.includes(node)) {
+    manifest.members.push(node);
+    await kv.put(KEY_PREFIX + id, encode(sc, manifest));
+  }
+
+  console.log(`join accepted: ${node} added to ${id}`);
+}
+
 function die(msg) {
   console.error(`error: ${msg}`);
   process.exit(1);
@@ -179,10 +266,12 @@ function die(msg) {
 async function main() {
   const { subcmd, opts } = parseArgs(process.argv.slice(2));
 
-  const USAGE = `usage: openclaw-grappe <form|status|dissolve> [options]
-  form     --id <id> --mode <mode> --members <n1,n2,...>
-  status   [--id <id>]
-  dissolve --id <id>`;
+  const USAGE = `usage: openclaw-grappe <form|status|dissolve|issue-token|join> [options]
+  form         --id <id> --mode <mode> --members <n1,n2,...>
+  status       [--id <id>]
+  dissolve     --id <id>
+  issue-token  --id <id>
+  join         --id <id> --node <node-id> --token <token>`;
 
   if (!subcmd || subcmd === '--help' || subcmd === '-h') {
     console.log(USAGE);
@@ -196,9 +285,11 @@ async function main() {
 
   try {
     switch (subcmd) {
-      case 'form':     await cmdForm(nc, sc, opts);     break;
-      case 'status':   await cmdStatus(nc, sc, opts);   break;
-      case 'dissolve': await cmdDissolve(nc, sc, opts); break;
+      case 'form':         await cmdForm(nc, sc, opts);        break;
+      case 'status':       await cmdStatus(nc, sc, opts);      break;
+      case 'dissolve':     await cmdDissolve(nc, sc, opts);    break;
+      case 'issue-token':  await cmdIssueToken(nc, sc, opts);  break;
+      case 'join':         await cmdJoin(nc, sc, opts);        break;
       default:
         console.error(`unknown subcommand: ${subcmd}\n${USAGE}`);
         await nc.drain();

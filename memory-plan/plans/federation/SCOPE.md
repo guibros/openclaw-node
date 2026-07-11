@@ -1,9 +1,19 @@
 # SCOPE — federation plan
 
 **Status:** done
-**Goal:** step 1.3 — Grappe manifest schema + KV registry + `openclaw-grappe` CLI (form/status/dissolve)
+**Goal:** step 1.4 — Signed grappe membership — join tokens verified, unsigned join rejected
 **Set at:** 2026-07-10
-**Expires:** no-expiry
+**Expires:** 2026-07-11T06:00:00Z
+
+```files step-1.4-signed-grappe-membership closed
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/audits/step14_signed-grappe-membership/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step14_signed-grappe-membership/AUDIT_POST.md
+bin/openclaw-grappe.mjs
+```
 
 ```files step-1.3-grappe-manifest-kv-cli closed
 memory-plan/plans/federation/SCOPE.md
