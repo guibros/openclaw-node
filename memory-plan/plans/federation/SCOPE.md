@@ -1,9 +1,19 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** step 2.1 — Live end-to-end circling session on the grappe with a mock LLM
+**Goal:** step 2.2 — Paper gap 14.1 — adaptive convergence (unanimous converged ⇒ early finalization)
 **Set at:** 2026-07-11
-**Expires:** 2026-07-11T18:00:00Z
+**Expires:** 2026-07-11T23:59:00Z
+
+```files step-2.2-adaptive-convergence closed
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/audits/step22_adaptive-convergence/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step22_adaptive-convergence/AUDIT_POST.md
+lib/mesh-collab.js
+test/circling-adaptive-convergence.test.mjs
+```
 
 ```files step-2.1-circling-live closed
 memory-plan/plans/federation/VERSION

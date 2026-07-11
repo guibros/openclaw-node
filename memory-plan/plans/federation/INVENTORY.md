@@ -70,7 +70,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 2 | 2.1 | v2.1 | [x] | Live end-to-end circling session on the grappe with a mock LLM — closed 2026-07-11: 4 rounds (init+step1+step2+finalization), all barriers 3/3, MESH_COLLAB status=completed (collab-step21-mock-002-1783747159329) |
-| 2 | 2.2 | v2.2 | [ ] | Paper gap 14.1 — adaptive convergence (unanimous converged ⇒ early finalization) |
+| 2 | 2.2 | v2.2 | [x] | Paper gap 14.1 — adaptive convergence (unanimous converged ⇒ early finalization) — closed 2026-07-11: 6 tests (5 unit + 1 NATS integration); runtime: session collab-step22-rt-001, max_subrounds=3, finalized_after_sr=1, skipped_subrounds=2 |
 | 2 | 2.3 | v2.3 | [ ] | Paper gap 14.2 — parse-failure retry ×3 before degradation |
 | 2 | 2.4 | v2.4 | [ ] | First real adversarial run: small production task via qwen3:8b to a converged vote |
 | 2 | 2.5 | v2.5 | [D] | Paper gap 14.3 — reviewer Step-2 dual output (deferred: +20% token cost, v2 enhancement) |

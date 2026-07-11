@@ -55,8 +55,8 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 | | |
 |---|---|
-| **Status** | LIVE (step 2.1) — full circling lifecycle observed end-to-end: task submitted → session created → 3 nodes joined → roles assigned (worker=charlie, reviewerA=bravo, reviewerB=alpha) → 4 rounds (init/step1/step2/finalization) all barriers 3/3 → COMPLETE in KV. Paper gaps §14.1/.2/.3 open (steps 2.2/2.3/2.5[D]). |
-| **Verified** | 2026-07-11 (step 2.1) — session collab-step21-mock-002-1783747159329: MESH_COLLAB status=completed; MESH_TASKS step21-mock-002 status=completed, completed_at=2026-07-11T05:19:19.519Z; result.summary="Circling Strategy completed: 1 sub-rounds, 3 nodes."; node_contributions recorded for bravo/alpha/charlie. Test baseline: 1718 pass / 2 fail (observer.test.mjs, embed-benchmark.test.mjs pre-existing) / 1 skipped. |
+| **Status** | LIVE (steps 2.1 + 2.2) — full circling lifecycle observed end-to-end (2.1); adaptive convergence early-exit proven (2.2). Paper gap §14.1 closed. Paper gaps §14.2/.3 open (steps 2.3/2.5[D]). |
+| **Verified** | 2026-07-11 (step 2.2) — adaptive convergence: session collab-step22-rt-001-1783749418240 in real JetStream KV: max_subrounds=3, finalized_after_sr=1, phase=finalization, skipped_subrounds=2. 6/6 new tests pass (5 unit + 1 NATS integration). Test baseline: 1724 pass / 2 fail / 1 skipped. |
 
 ### Task kanban + plans layer — mesh.tasks.* / mesh.plans.* subjects
 
