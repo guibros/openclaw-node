@@ -29,46 +29,39 @@ npx openclaw-node-harness --mesh-only  # Worker nodes — mesh agent + NATS only
 ```bash
 git clone https://github.com/moltyguibros-design/openclaw-node.git
 cd openclaw-node
-bash install.sh                       # Full install
+bash install.sh --enable-services     # Full install: start everything + acceptance gate
+bash install.sh                       # Files/units only (start later with --update --enable-services)
 bash install.sh --update              # Update existing
 ```
 
+What a node needs and what "running" means is specified in [docs/NODE_SPEC.md](docs/NODE_SPEC.md);
+the verification matrix is [docs/INSTALL_TEST_PROTOCOL.md](docs/INSTALL_TEST_PROTOCOL.md).
+
 The installer will:
-1. Check/install system dependencies (Node.js 18+, Python 3, Git, SQLite3, build-essential)
-2. Create the `~/.openclaw/` directory structure
-3. Install all scripts, identity files, souls, and skills
-4. Generate configuration from templates
-5. Install Mission Control and its dependencies
-6. Set up the memory daemon as a systemd user service
-7. Initialize the memory system
-8. Deploy path-scoped coding rules — installs universal rules (security, test-standards, design-docs, git-hygiene), auto-detects frameworks (Hardhat → Solidity rules, tsconfig → TypeScript rules, ProjectSettings → Unity rules), version-aware upgrades preserve user modifications
-9. Install plan templates — deploys `team-feature`, `team-bugfix`, `team-deploy` YAML pipeline templates (skips if already present)
-10. Set up Claude Code hooks + LLM-agnostic git hooks — deploys 6 lifecycle hooks (session-start, validate-commit, validate-push, pre-compact, session-stop, log-agent), symlinks `.claude/rules` → `~/.openclaw/rules/`, installs pre-commit/pre-push git hooks that delegate to the same scripts
-11. Merge enforcement settings — `jq`-based merge of `settings.json` that appends new hooks and permissions without overwriting existing user configuration
+1. Check/install system dependencies — Node.js 18+, Python 3, Git, SQLite3, build tools, **nats-server** (the bus), **ollama** (the local LLM; skip with `--skip-llm`)
+2. Install the repo's runtime `node_modules` (the mesh daemons exec from the repo tree)
+3. Create the `~/.openclaw/` directory structure and copy scripts, libs (incl. mcp-knowledge), identity files, souls, and skills
+4. Generate configuration from templates — including the **single-node NATS bus** (`nats.conf`, loopback + generated token) and an env file with the **local-first LLM defaults** (`MESH_LLM_PROVIDER=ollama`, RAM-tiered `LLM_MODEL`)
+5. Provision the node's **ed25519 identity** and, unless `--skip-llm`, pull the extraction model and prefetch the BGE-M3 embedder (~2 GB one-time)
+6. Install Mission Control, its dependencies, and its production build
+7. Render + install every service unit from `services/service-manifest.json` (launchd/systemd), fail-loud on any unrendered placeholder
+8. Initialize the memory system, notifications, rules, plan templates, and Claude Code/git hooks
+9. **Run the acceptance gate** (`bin/node-acceptance.mjs`) when services were started — the install exits non-zero if the node is not actually functional
 
 ## Post-Install
 
-1. **Edit your environment file** with API keys:
+1. **Verify** (already ran if you used `--enable-services`):
    ```bash
-   nano ~/.openclaw/openclaw.env
+   node ~/.openclaw/workspace/bin/node-acceptance.mjs   # exit 0 = ACCEPTED
+   node ~/.openclaw/workspace/bin/node-watch.mjs --once # live WORKING/BROKEN map
    ```
 
-2. **Regenerate configs** with your keys:
+2. **Optional feature keys** (cloud LLMs, Discord, TTS, Obsidian) in the env file, then re-render:
    ```bash
-   bash install.sh --update
+   nano ~/.openclaw/openclaw.env && bash install.sh --update
    ```
 
-3. **Check daemon status:**
-   ```bash
-   systemctl --user status openclaw-memory-daemon
-   ```
-
-4. **Start Mission Control:**
-   ```bash
-   cd ~/.openclaw/workspace/projects/mission-control
-   npm run dev
-   # Dashboard at http://localhost:3000
-   ```
+3. **Dashboard:** http://localhost:3000 · **Grappe quickstart:** [docs/NODE_SPEC.md §6](docs/NODE_SPEC.md)
 
 ## Updating
 

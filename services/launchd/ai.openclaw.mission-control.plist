@@ -10,7 +10,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>${HOME}/.openclaw/bin/npm</string>
+        <string>${NPM_BIN}</string>
         <string>start</string>
     </array>
 

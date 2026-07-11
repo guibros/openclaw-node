@@ -4,16 +4,18 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=${NODE_BIN} ${HOME}/openclaw/bin/mesh-bridge.js
+ExecStart=${NODE_BIN} ${OPENCLAW_REPO_DIR}/bin/mesh-bridge.js
 Restart=always
 RestartSec=5
 Environment=HOME=${HOME}
 Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
-Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
+Environment=NODE_PATH=${OPENCLAW_REPO_DIR}/node_modules:${OPENCLAW_REPO_DIR}/lib
 Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
 Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+Environment=OPENCLAW_NODE_ID=${OPENCLAW_NODE_ID}
+Environment=OPENCLAW_REPO_DIR=${OPENCLAW_REPO_DIR}
 Environment=TZ=America/Montreal
-WorkingDirectory=${HOME}/openclaw
+WorkingDirectory=${OPENCLAW_REPO_DIR}
 StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-bridge.log
 StandardError=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-bridge.err
 

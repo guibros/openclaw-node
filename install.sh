@@ -30,6 +30,9 @@ DRY_RUN=false
 UPDATE_ONLY=false
 SKIP_MESH=false
 ENABLE_SERVICES=false
+SKIP_LLM=false
+SKIP_VERIFY=false
+SANDBOX=false
 NODE_ROLE=""
 
 for arg in "$@"; do
@@ -38,12 +41,18 @@ for arg in "$@"; do
     --update)            UPDATE_ONLY=true ;;
     --skip-mesh)         SKIP_MESH=true ;;
     --enable-services)   ENABLE_SERVICES=true ;;
+    --skip-llm)          SKIP_LLM=true ;;
+    --skip-verify)       SKIP_VERIFY=true ;;
+    --sandbox)           SANDBOX=true; SKIP_LLM=true; SKIP_MESH=true ;;
     --role=*)            NODE_ROLE="${arg#--role=}" ;;
     --help|-h)
-      echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--role=lead|worker] [--enable-services]"
+      echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--skip-llm] [--skip-verify] [--role=lead|worker] [--enable-services]"
       echo "  --dry-run           Show what would happen without making changes"
       echo "  --update            Re-copy scripts/configs only (skip system deps)"
       echo "  --skip-mesh         Skip mesh network setup (used by meta-installer)"
+      echo "  --skip-llm          Skip ollama install + model pull + embedder prefetch (extraction degrades to regex)"
+      echo "  --skip-verify       Skip the final acceptance gate"
+      echo "  --sandbox           Wiring-test mode: skip network-heavy installs (implies --skip-llm --skip-mesh)"
       echo "  --role=lead|worker  Set node role (default: macOS=lead, Linux=worker)"
       echo "  --enable-services   Also enable and start services after installing"
       exit 0
@@ -235,6 +244,56 @@ if ! $UPDATE_ONLY; then
       run sudo apt-get install -y scrot || warn "Could not install scrot — screenshots will not work"
     fi
   fi
+
+  # nats-server — the bus. Every subsystem talks through it; without it the node
+  # is a pile of crash-looping clients (2026-07-11 fresh-install audit).
+  if command -v nats-server >/dev/null 2>&1 || [ -x /opt/homebrew/bin/nats-server ] || [ -x /usr/local/bin/nats-server ]; then
+    info "nats-server found"
+  else
+    warn "nats-server not found"
+    if [ "$OS" = "macos" ]; then
+      if command -v brew >/dev/null 2>&1; then
+        run brew install nats-server || { error "brew install nats-server failed — install it and re-run"; exit 1; }
+      else
+        error "Install nats-server first: brew install nats-server (or https://github.com/nats-io/nats-server/releases)"
+        exit 1
+      fi
+    else
+      NATS_VER="${OPENCLAW_NATS_SERVER_VERSION:-2.12.6}"
+      case "$(uname -m)" in
+        x86_64) NATS_ARCH="amd64" ;;
+        aarch64|arm64) NATS_ARCH="arm64" ;;
+        *) NATS_ARCH="amd64" ;;
+      esac
+      info "Installing nats-server v${NATS_VER} (linux-${NATS_ARCH})..."
+      if curl -fsSL "https://github.com/nats-io/nats-server/releases/download/v${NATS_VER}/nats-server-v${NATS_VER}-linux-${NATS_ARCH}.tar.gz" | tar xz -C /tmp; then
+        run sudo install "/tmp/nats-server-v${NATS_VER}-linux-${NATS_ARCH}/nats-server" /usr/local/bin/nats-server
+        info "nats-server installed to /usr/local/bin"
+      else
+        error "nats-server download failed — install it manually and re-run"
+        exit 1
+      fi
+    fi
+  fi
+
+  # ollama — the local LLM runtime (extraction + local mesh agents).
+  if ! $SKIP_LLM; then
+    if command -v ollama >/dev/null 2>&1; then
+      info "ollama found"
+    else
+      warn "ollama not found"
+      if [ "$OS" = "macos" ]; then
+        if command -v brew >/dev/null 2>&1; then
+          run brew install ollama || warn "brew install ollama failed — extraction degrades to regex until installed"
+        else
+          warn "Install ollama for local extraction: https://ollama.com/download (node still installs; extraction degrades to regex)"
+        fi
+      else
+        info "Installing ollama (official script)..."
+        curl -fsSL https://ollama.com/install.sh | sh || warn "ollama install failed — extraction degrades to regex until installed"
+      fi
+    fi
+  fi
 fi
 
 # ── Resolve NODE_BIN (used by service templates) ──
@@ -244,6 +303,31 @@ if [ -z "$NODE_BIN" ]; then
   exit 1
 fi
 export NODE_BIN
+
+# ── Resolve nats-server binary (service templates exec ${NATS_SERVER_BIN}) ──
+NATS_SERVER_BIN="$(command -v nats-server 2>/dev/null || echo "")"
+if [ -z "$NATS_SERVER_BIN" ]; then
+  for p in /opt/homebrew/bin/nats-server /usr/local/bin/nats-server; do
+    if [ -x "$p" ]; then NATS_SERVER_BIN="$p"; break; fi
+  done
+fi
+if [ -z "$NATS_SERVER_BIN" ]; then
+  error "nats-server not found after dependency install — the bus cannot exist"
+  $DRY_RUN || exit 1
+  NATS_SERVER_BIN="/usr/local/bin/nats-server"
+fi
+export NATS_SERVER_BIN
+info "nats-server: $NATS_SERVER_BIN"
+
+# ── Repo runtime dependencies ──
+# The mesh daemons exec from the repo tree and require the repo's node_modules
+# (`nats` above all). The npx path ships them; the git-clone path does not.
+if [ ! -d "$REPO_DIR/node_modules/nats" ]; then
+  info "Installing repo runtime dependencies (npm install --omit=dev)..."
+  (cd "$REPO_DIR" && run npm install --omit=dev) || { error "repo npm install failed — mesh daemons cannot run"; exit 1; }
+else
+  info "Repo node_modules present"
+fi
 
 # ── Resolve node role ──
 if [ -z "$NODE_ROLE" ]; then
@@ -335,45 +419,71 @@ run rsync -av --exclude='*.bak' --exclude='*.bak.*' --exclude='routing-eval-test
 # openclaw-notify.mjs rides along: the viewer, the notify shim, and node-watch
 # all resolve it next to themselves (or at ../bin/) in the deployed tree.
 run cp "$REPO_DIR/bin/node-watch.mjs" "$REPO_DIR/bin/node-acceptance.mjs" \
-  "$REPO_DIR/bin/openclaw-notify.mjs" "$WORKSPACE/bin/"
+  "$REPO_DIR/bin/openclaw-notify.mjs" \
+  "$REPO_DIR/bin/obsidian-graph-cache.mjs" "$REPO_DIR/bin/observer.mjs" \
+  "$REPO_DIR/bin/consolidation-scheduler.mjs" "$WORKSPACE/bin/"
 run chmod +x "$WORKSPACE/bin/"*
 run chmod +x "$WORKSPACE/bin/hooks/"* 2>/dev/null || true
 info "Workspace scripts installed to $WORKSPACE/bin/"
 
 # Shared libs → ~/.openclaw/workspace/lib/  (workspace daemons import from ../lib/)
+# mcp-knowledge MUST be included — memory-daemon.mjs statically imports it;
+# excluding it killed every fresh install (2026-07-11 audit).
 run mkdir -p "$WORKSPACE/lib"
-run rsync -av --exclude='node_modules' --exclude='mcp-knowledge' \
+run rsync -av --exclude='node_modules' \
   "$REPO_DIR/lib/" "$WORKSPACE/lib/"
-info "Shared libraries installed to $WORKSPACE/lib/"
+info "Shared libraries installed to $WORKSPACE/lib/ (incl. mcp-knowledge)"
 
-# Symlink native deps from mesh node_modules → workspace node_modules
-# (ESM static imports don't resolve via NODE_PATH alone)
-# Check ~/openclaw/node_modules first, fall back to REPO_DIR/node_modules (npx)
-MESH_NM="$HOME/openclaw/node_modules"
-if [ ! -d "$MESH_NM/better-sqlite3" ]; then
-  MESH_NM="$REPO_DIR/node_modules"
+# mcp-knowledge (the embedder) carries its own deps — install them for the copy
+# the workspace daemons actually import
+if [ -f "$WORKSPACE/lib/mcp-knowledge/package.json" ] && [ ! -d "$WORKSPACE/lib/mcp-knowledge/node_modules" ]; then
+  info "Installing mcp-knowledge dependencies (workspace copy)..."
+  (cd "$WORKSPACE/lib/mcp-knowledge" && run npm install --production 2>/dev/null) || warn "mcp-knowledge deps failed — embeddings/semantic search will not work"
 fi
 
-# If native deps still missing, install them at ~/openclaw/
+# Event schemas — local-event-log.mjs imports ../packages/event-schemas/dist;
+# without it the daemon's event spine silently degrades off (2026-07-11 boot test)
+if [ -d "$REPO_DIR/packages" ]; then
+  run rsync -av --exclude='node_modules' "$REPO_DIR/packages/" "$WORKSPACE/packages/"
+  info "Event schemas installed to $WORKSPACE/packages/"
+fi
+
+# Symlink shared deps from repo/mesh node_modules → workspace node_modules
+# (ESM static imports don't resolve via NODE_PATH alone). `nats` and `js-yaml`
+# are required by the workspace daemons' import graph (2026-07-11 audit).
+OPENCLAW_MESH_HOME="${OPENCLAW_MESH_HOME:-$HOME/openclaw}"
+MESH_NM="$REPO_DIR/node_modules"
 if [ ! -d "$MESH_NM/better-sqlite3" ]; then
-  info "Installing native dependencies at $HOME/openclaw/..."
-  run mkdir -p "$HOME/openclaw"
-  (cd "$HOME/openclaw" && [ ! -f package.json ] && npm init -y >/dev/null 2>&1; npm install --no-save better-sqlite3 bindings 2>/dev/null) || warn "Native dep install failed — SQLite features may not work"
-  MESH_NM="$HOME/openclaw/node_modules"
+  MESH_NM="$OPENCLAW_MESH_HOME/node_modules"
+fi
+
+# If native deps still missing, install them at the mesh home
+if [ ! -d "$MESH_NM/better-sqlite3" ]; then
+  info "Installing native dependencies at $OPENCLAW_MESH_HOME/..."
+  run mkdir -p "$OPENCLAW_MESH_HOME"
+  (cd "$OPENCLAW_MESH_HOME" && [ ! -f package.json ] && npm init -y >/dev/null 2>&1; npm install --no-save better-sqlite3 bindings 2>/dev/null) || warn "Native dep install failed — SQLite features may not work"
+  MESH_NM="$OPENCLAW_MESH_HOME/node_modules"
 fi
 
 WS_NM="$WORKSPACE/node_modules"
 run mkdir -p "$WS_NM"
-for pkg in better-sqlite3 bindings file-uri-to-path prebuild-install; do
-  if [ -d "$MESH_NM/$pkg" ] && [ ! -e "$WS_NM/$pkg" ]; then
-    run ln -sf "$MESH_NM/$pkg" "$WS_NM/$pkg"
+# The workspace daemons ARE repo code copied out — their import graph is a
+# subset of the repo's dependency set by construction. Symlink every package
+# (a fixed allow-list rots: zod was missed on 2026-07-11, nats before it).
+WS_LINKED=0
+for pkgdir in "$MESH_NM"/*/; do
+  pkg=$(basename "$pkgdir")
+  [ "$pkg" = ".bin" ] && continue
+  if [ ! -e "$WS_NM/$pkg" ]; then
+    run ln -sfn "$MESH_NM/$pkg" "$WS_NM/$pkg"
+    WS_LINKED=$((WS_LINKED + 1))
   fi
 done
-info "Native dependencies symlinked to $WS_NM/"
+info "Shared dependencies symlinked to $WS_NM/ ($WS_LINKED new links from $MESH_NM)"
 
-# Mesh daemons and CLI tools → ~/openclaw/bin/
-MESH_BIN="$HOME/openclaw/bin"
-MESH_LIB="$HOME/openclaw/lib"
+# Mesh daemons and CLI tools → mesh home bin/
+MESH_BIN="$OPENCLAW_MESH_HOME/bin"
+MESH_LIB="$OPENCLAW_MESH_HOME/lib"
 run mkdir -p "$MESH_BIN" "$MESH_LIB"
 run rsync -av "$REPO_DIR/bin/" "$MESH_BIN/"
 run rsync -av "$REPO_DIR/lib/" "$MESH_LIB/"
@@ -426,6 +536,9 @@ run rsync -av --exclude='dist/' --exclude='scripts/' "$REPO_DIR/skills/" "$WORKS
 info "Skills installed to $WORKSPACE/skills/ ($(ls -d "$REPO_DIR/skills"/*/ 2>/dev/null | grep -v dist | grep -v scripts | wc -l | tr -d ' ') skills)"
 
 # Install skill-specific dependencies (npm/pip where needed)
+if $SANDBOX; then
+  info "Sandbox: skipping skill dependencies"
+else
 info "Installing skill dependencies..."
 for skill_dir in "$WORKSPACE/skills"/*/; do
   skill_name=$(basename "$skill_dir")
@@ -439,6 +552,7 @@ for skill_dir in "$WORKSPACE/skills"/*/; do
     info "  pip: $skill_name"
   fi
 done
+fi
 
 # ============================================================
 # Step 7: Environment File
@@ -480,6 +594,26 @@ if [ -z "${OPENCLAW_NATS_TOKEN:-}" ]; then
     info "Generated OPENCLAW_NATS_TOKEN and persisted to $ENV_FILE"
   fi
 fi
+
+# LLM backend defaults (docs/NODE_SPEC.md §3) — local-first. Pre-existing env
+# files may predate these keys; append them so units render with a real brain.
+if [ -f "$ENV_FILE" ] && ! grep -q '^MESH_LLM_PROVIDER=' "$ENV_FILE"; then
+  {
+    echo ""
+    echo "# LLM backend (appended by install.sh — docs/NODE_SPEC.md §3)"
+    echo "MESH_LLM_PROVIDER=ollama"
+  } >> "$ENV_FILE"
+  info "Appended MESH_LLM_PROVIDER=ollama to $ENV_FILE"
+fi
+if [ -f "$ENV_FILE" ] && ! grep -q '^LLM_MODEL=' "$ENV_FILE"; then
+  echo "LLM_MODEL=qwen3:8b" >> "$ENV_FILE"
+fi
+if [ -f "$ENV_FILE" ] && ! grep -q '^LLM_BASE_URL=' "$ENV_FILE"; then
+  echo "LLM_BASE_URL=http://localhost:11434" >> "$ENV_FILE"
+fi
+export MESH_LLM_PROVIDER="${MESH_LLM_PROVIDER:-ollama}"
+export LLM_MODEL="${LLM_MODEL:-qwen3:8b}"
+export LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:11434}"
 
 # Set defaults for template substitution
 export OPENCLAW_NODE_ID="${OPENCLAW_NODE_ID:-$(hostname -s)}"
@@ -533,13 +667,106 @@ generate_config() {
 generate_config "$REPO_DIR/config/daemon.json.template" "$OPENCLAW_ROOT/config/daemon.json"
 generate_config "$REPO_DIR/config/transcript-sources.json.template" "$OPENCLAW_ROOT/config/transcript-sources.json"
 
-# NATS cluster config rendering (federation step 1.1) — templates → ~/.openclaw/config/
-# The rendered files embed OPENCLAW_NATS_TOKEN; the service plists reference these paths.
+# NATS config rendering — templates → ~/.openclaw/config/ (token embedded).
+# nats.conf is the DEFAULT single-node bus every fresh node runs; nats-{1,2,3}
+# are the R=3 cluster (operator-gated upgrade, federation step 1.5).
+run mkdir -p "$OPENCLAW_ROOT/nats"
+generate_config "$REPO_DIR/services/nats/nats-single.conf" "$OPENCLAW_ROOT/config/nats.conf"
 generate_config "$REPO_DIR/services/nats/nats-1.conf" "$OPENCLAW_ROOT/config/nats-1.conf"
 generate_config "$REPO_DIR/services/nats/nats-2.conf" "$OPENCLAW_ROOT/config/nats-2.conf"
 generate_config "$REPO_DIR/services/nats/nats-3.conf" "$OPENCLAW_ROOT/config/nats-3.conf"
 generate_config "$REPO_DIR/config/obsidian-sync.json.template" "$OPENCLAW_ROOT/config/obsidian-sync.json"
 generate_config "$REPO_DIR/config/openclaw.json.template" "$OPENCLAW_ROOT/openclaw.json"
+
+# ============================================================
+# Step 8.5: Node Identity (ed25519 — grappe signing, federation 1.4)
+# ============================================================
+
+step "Step 8.5: Node Identity"
+
+if $DRY_RUN; then
+  info "[dry-run] would provision ed25519 identity at $OPENCLAW_ROOT"
+elif OPENCLAW_IDENTITY_DIR="$OPENCLAW_ROOT" OPENCLAW_REPO_LIB="$REPO_DIR/lib" "$NODE_BIN" --input-type=module -e '
+    const { getOrCreateIdentity } = await import(process.env.OPENCLAW_REPO_LIB + "/node-identity.mjs");
+    const id = getOrCreateIdentity(process.env.OPENCLAW_IDENTITY_DIR);
+    const pub = String(id.publicKey || id.public_key || "");
+    console.log("  identity:", pub ? pub.slice(0, 24) + "…" : "(created)");
+  '; then
+  info "Node identity provisioned"
+else
+  warn "Identity provisioning failed — signed grappe membership unavailable until fixed"
+fi
+
+# ============================================================
+# Step 8.6: LLM Backend (the node's local-first brain)
+# ============================================================
+
+step "Step 8.6: LLM Backend"
+
+if $SKIP_LLM; then
+  info "Skipped (--skip-llm) — extraction degrades to regex; local agents have no provider"
+elif $DRY_RUN; then
+  info "[dry-run] would ensure ollama up, RAM-tier LLM_MODEL, model pulled, embedder prefetched"
+else
+  if ! curl -fsS --max-time 3 "$LLM_BASE_URL/api/tags" >/dev/null 2>&1; then
+    if command -v ollama >/dev/null 2>&1; then
+      info "Starting ollama..."
+      if [ "$OS" = "macos" ]; then
+        brew services start ollama >/dev/null 2>&1 || { nohup ollama serve >"$OPENCLAW_ROOT/logs/ollama.log" 2>&1 & }
+      else
+        sudo systemctl start ollama 2>/dev/null || { nohup ollama serve >"$OPENCLAW_ROOT/logs/ollama.log" 2>&1 & }
+      fi
+      for _ in $(seq 1 15); do
+        curl -fsS --max-time 2 "$LLM_BASE_URL/api/tags" >/dev/null 2>&1 && break
+        sleep 2
+      done
+    fi
+  fi
+
+  if curl -fsS --max-time 3 "$LLM_BASE_URL/api/tags" >/dev/null 2>&1; then
+    # RAM-tier model pick — upgrades only the shipped floor default, never an
+    # operator-customized value
+    TIER_MODEL=$("$NODE_BIN" "$REPO_DIR/bin/check-llm-baseline.mjs" --json 2>/dev/null | "$NODE_BIN" -e '
+      let s = "";
+      process.stdin.on("data", (d) => s += d).on("end", () => {
+        try { console.log(JSON.parse(s).recommendation?.model || ""); } catch { console.log(""); }
+      });
+    ' 2>/dev/null || echo "")
+    if [ -n "$TIER_MODEL" ] && [ "$LLM_MODEL" = "qwen3:8b" ] && [ "$TIER_MODEL" != "qwen3:8b" ]; then
+      sed -i.bak "s|^LLM_MODEL=qwen3:8b$|LLM_MODEL=$TIER_MODEL|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+      export LLM_MODEL="$TIER_MODEL"
+      info "RAM-tier upgrade: LLM_MODEL=$TIER_MODEL"
+    fi
+
+    if curl -fsS --max-time 5 "$LLM_BASE_URL/api/tags" | grep -q "\"$LLM_MODEL\""; then
+      info "$LLM_MODEL present"
+    else
+      info "Pulling $LLM_MODEL (one-time, several GB — this is the node's brain)..."
+      ollama pull "$LLM_MODEL" || warn "ollama pull failed — extraction degrades to regex until pulled"
+    fi
+  else
+    warn "ollama unreachable at $LLM_BASE_URL — extraction degrades to regex; local agents have no provider"
+  fi
+
+  # Embedder prefetch (Xenova/bge-m3, ~2GB one-time HuggingFace download) so the
+  # first real search doesn't stall on it.
+  if [ -d "$WORKSPACE/lib/mcp-knowledge/node_modules" ]; then
+    info "Prefetching embedder Xenova/bge-m3 (~2GB one-time; cached afterwards)..."
+    if OPENCLAW_WS_LIB="$WORKSPACE/lib" "$NODE_BIN" --input-type=module -e '
+        const core = await import(process.env.OPENCLAW_WS_LIB + "/mcp-knowledge/core.mjs");
+        const embed = core.embed || core.getEmbedder;
+        if (!embed) throw new Error("no embed/getEmbedder export");
+        await embed("installation warmup");
+        console.log("  embedder ready");
+      '; then
+      info "Embedder ready"
+    else
+      warn "Embedder prefetch failed — first semantic-search use downloads it (needs internet)"
+    fi
+  else
+    warn "mcp-knowledge deps missing — embedder not prefetched"
+  fi
+fi
 
 # ============================================================
 # Step 9: Boot Manifest
@@ -587,7 +814,8 @@ step "Step 11: Mission Control"
 MC_DIR="$WORKSPACE/projects/mission-control"
 if [ ! -d "$MC_DIR/src" ]; then
   run mkdir -p "$MC_DIR"
-  run rsync -av "$REPO_DIR/mission-control/" "$MC_DIR/"
+  run rsync -av --exclude='node_modules' --exclude='.next' --exclude='*.db' \
+    "$REPO_DIR/mission-control/" "$MC_DIR/"
   info "Mission Control source copied"
 else
   info "Mission Control already exists, updating source..."
@@ -595,7 +823,9 @@ else
     "$REPO_DIR/mission-control/" "$MC_DIR/"
 fi
 
-if [ ! -d "$MC_DIR/node_modules" ]; then
+if $SANDBOX; then
+  info "Sandbox: skipping Mission Control dependencies + build"
+elif [ ! -d "$MC_DIR/node_modules" ]; then
   info "Installing Mission Control dependencies (this may take a minute)..."
   (cd "$MC_DIR" && run npm install)
 elif $UPDATE_ONLY; then
@@ -603,6 +833,18 @@ elif $UPDATE_ONLY; then
   (cd "$MC_DIR" && run npm install)
 else
   info "Mission Control dependencies already installed"
+fi
+
+# Production build — the unit runs `npm start` (= next start), which needs a
+# .next build; without one the unit crash-loops (2026-07-11 audit).
+if ! $SANDBOX && ! $DRY_RUN && [ -d "$MC_DIR/node_modules" ] && [ ! -d "$MC_DIR/.next" ]; then
+  info "Building Mission Control (next build)..."
+  if (cd "$MC_DIR" && npm run build); then
+    info "Mission Control production build ready"
+  else
+    warn "Mission Control build FAILED — the unit cannot serve until fixed (known queued tsc errors)."
+    warn "Interim: cd $MC_DIR && npm run dev   — the acceptance gate reports MC honestly either way"
+  fi
 fi
 
 # Create .env.local for MC if not exists
@@ -632,7 +874,9 @@ run mkdir -p "$MC_DIR/data"
 
 step "Step 12: Playwright Browser"
 
-if [ -f "$WORKSPACE/node_modules/.package-lock.json" ] && grep -q '"playwright"' "$WORKSPACE/node_modules/.package-lock.json" 2>/dev/null; then
+if $SANDBOX; then
+  info "Sandbox: skipping Playwright"
+elif [ -f "$WORKSPACE/node_modules/.package-lock.json" ] && grep -q '"playwright"' "$WORKSPACE/node_modules/.package-lock.json" 2>/dev/null; then
   info "Playwright already installed in workspace"
 else
   info "Installing Playwright + Chromium (web-fetch fallback for anti-bot sites)..."
@@ -646,7 +890,9 @@ fi
 
 step "Step 13: Companion Bridge"
 
-if command -v companion-bridge >/dev/null 2>&1; then
+if $SANDBOX; then
+  info "Sandbox: skipping companion-bridge"
+elif command -v companion-bridge >/dev/null 2>&1; then
   info "companion-bridge already installed: $(companion-bridge --version 2>/dev/null || echo 'found')"
 else
   info "Installing companion-bridge (OpenAI-compatible adapter for Claude Code)..."
@@ -659,7 +905,7 @@ fi
 
 # Deploy harness rules (user-level override for companion-bridge)
 HARNESS_SRC="${REPO_DIR}/config/harness-rules.json"
-HARNESS_DST="${HOME}/.openclaw/harness-rules.json"
+HARNESS_DST="${OPENCLAW_ROOT}/harness-rules.json"
 if [ -f "$HARNESS_SRC" ]; then
   if [ ! -f "$HARNESS_DST" ]; then
     info "Deploying default harness rules to $HARNESS_DST"
@@ -792,7 +1038,7 @@ fi
 step "Step 15.5: HyperAgent Protocol"
 
 if [ -f "$MESH_BIN/hyperagent.mjs" ]; then
-  mkdir -p "$HOME/.openclaw/state"
+  mkdir -p "$OPENCLAW_ROOT/state"
   if node "$MESH_BIN/hyperagent.mjs" status 2>/dev/null; then
     info "HyperAgent store initialized"
   else
@@ -811,13 +1057,25 @@ step "Step 16: Install Services (role=$NODE_ROLE)"
 MANIFEST="$REPO_DIR/services/service-manifest.json"
 LAUNCHD_TEMPLATES="$REPO_DIR/services/launchd"
 SYSTEMD_TEMPLATES="$REPO_DIR/services/systemd"
-LAUNCHD_DEST="$HOME/Library/LaunchAgents"
-SYSTEMD_DEST="$HOME/.config/systemd/user"
+LAUNCHD_DEST="${OPENCLAW_LAUNCHD_DIR:-$HOME/Library/LaunchAgents}"
+SYSTEMD_DEST="${OPENCLAW_SYSTEMD_DIR:-$HOME/.config/systemd/user}"
 INSTALLED_COUNT=0
 SKIPPED_COUNT=0
+RENDER_ERRORS=0
+
+# Fail-loud render audit — a unit shipping a live ${VAR} placeholder is broken
+# by construction (the silent-unrendered class, 2026-07-11 audit).
+check_rendered() {
+  local f="$1" left
+  left=$(grep -oE '\$\{[A-Za-z_]+\}' "$f" 2>/dev/null | sort -u | tr '\n' ' ' || true)
+  if [ -n "${left// /}" ]; then
+    error "  UNRENDERED placeholders in $(basename "$f"): $left"
+    RENDER_ERRORS=$((RENDER_ERRORS + 1))
+  fi
+}
 
 # Ensure log directories exist
-run mkdir -p "$HOME/.openclaw/logs" "$WORKSPACE/.tmp"
+run mkdir -p "$OPENCLAW_ROOT/logs" "$WORKSPACE/.tmp"
 
 if [ ! -f "$MANIFEST" ]; then
   warn "Service manifest not found at $MANIFEST — skipping service installation"
@@ -863,13 +1121,18 @@ else
           -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
           -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
           -e "s|\${NPM_BIN}|$NPM_BIN|g" \
+          -e "s|\${NATS_SERVER_BIN}|$NATS_SERVER_BIN|g" \
+          -e "s|\${MESH_LLM_PROVIDER}|$MESH_LLM_PROVIDER|g" \
+          -e "s|\${LLM_MODEL}|$LLM_MODEL|g" \
+          -e "s|\${LLM_BASE_URL}|$LLM_BASE_URL|g" \
           "$TEMPLATE" > "$DEST"
       fi
+      check_rendered "$DEST"
 
-      # Unload if already loaded
-      launchctl unload "$DEST" 2>/dev/null || true
-
+      # Refresh only when this run manages the lifecycle — a bare unload
+      # without a reload silently downs a running node (2026-07-11 audit).
       if [ "$SVC_AUTO" = "true" ] && $ENABLE_SERVICES; then
+        launchctl unload "$DEST" 2>/dev/null || true
         launchctl load "$DEST"
         info "  Installed + loaded: $SVC_NAME"
       else
@@ -897,11 +1160,18 @@ else
               -e "s|\${NODE_BIN}|$NODE_BIN|g" \
               -e "s|\${OPENCLAW_WORKSPACE}|$OPENCLAW_WORKSPACE|g" \
               -e "s|\${OPENCLAW_NATS}|$OPENCLAW_NATS|g" \
+              -e "s|\${OPENCLAW_NATS_TOKEN}|$OPENCLAW_NATS_TOKEN|g" \
               -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
               -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
               -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
+              -e "s|\${NPM_BIN}|$NPM_BIN|g" \
+              -e "s|\${NATS_SERVER_BIN}|$NATS_SERVER_BIN|g" \
+              -e "s|\${MESH_LLM_PROVIDER}|$MESH_LLM_PROVIDER|g" \
+              -e "s|\${LLM_MODEL}|$LLM_MODEL|g" \
+              -e "s|\${LLM_BASE_URL}|$LLM_BASE_URL|g" \
               "$TEMPLATE" > "$DEST"
           fi
+          check_rendered "$DEST"
         done
         if $ENABLE_SERVICES; then
           systemctl --user enable "${SVC_NAME}.timer"
@@ -925,11 +1195,18 @@ else
             -e "s|\${NODE_BIN}|$NODE_BIN|g" \
             -e "s|\${OPENCLAW_WORKSPACE}|$OPENCLAW_WORKSPACE|g" \
             -e "s|\${OPENCLAW_NATS}|$OPENCLAW_NATS|g" \
+            -e "s|\${OPENCLAW_NATS_TOKEN}|$OPENCLAW_NATS_TOKEN|g" \
             -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
             -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
             -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
+            -e "s|\${NPM_BIN}|$NPM_BIN|g" \
+            -e "s|\${NATS_SERVER_BIN}|$NATS_SERVER_BIN|g" \
+            -e "s|\${MESH_LLM_PROVIDER}|$MESH_LLM_PROVIDER|g" \
+            -e "s|\${LLM_MODEL}|$LLM_MODEL|g" \
+            -e "s|\${LLM_BASE_URL}|$LLM_BASE_URL|g" \
             "$TEMPLATE" > "$DEST"
         fi
+        check_rendered "$DEST"
         if [ "$SVC_AUTO" = "true" ] && $ENABLE_SERVICES; then
           systemctl --user enable "${SVC_NAME}.service"
           systemctl --user start "${SVC_NAME}.service"
@@ -947,6 +1224,11 @@ else
     systemctl --user daemon-reload
     # Enable linger so user services survive logout
     loginctl enable-linger "$(whoami)" 2>/dev/null || warn "loginctl enable-linger failed — services may stop on logout"
+  fi
+
+  if [ "$RENDER_ERRORS" -gt 0 ]; then
+    error "$RENDER_ERRORS unit(s) rendered with live placeholders — aborting (fix the template/render mapping)"
+    exit 1
   fi
 
   info "Services installed: $INSTALLED_COUNT (skipped $SKIPPED_COUNT — wrong role)"
@@ -967,8 +1249,8 @@ fi
 step "Step 16.5: Desktop Notifications"
 
 NOTIFY_ICON_SRC="$REPO_DIR/services/notify-icons"
-NOTIFY_ICON_DEST="$HOME/.openclaw/share/notify-icons"
-run mkdir -p "$NOTIFY_ICON_DEST" "$HOME/.openclaw/notifications" "$HOME/.openclaw/config"
+NOTIFY_ICON_DEST="$OPENCLAW_ROOT/share/notify-icons"
+run mkdir -p "$NOTIFY_ICON_DEST" "$OPENCLAW_ROOT/notifications" "$OPENCLAW_ROOT/config"
 if ls "$NOTIFY_ICON_SRC"/*.png >/dev/null 2>&1; then
   run cp "$NOTIFY_ICON_SRC"/*.png "$NOTIFY_ICON_DEST/"
   info "Notification icons installed → $NOTIFY_ICON_DEST (swap per-kind via config/notify.json)"
@@ -976,7 +1258,7 @@ else
   warn "No notification icons found at $NOTIFY_ICON_SRC"
 fi
 
-NOTIFY_CONFIG="$HOME/.openclaw/config/notify.json"
+NOTIFY_CONFIG="$OPENCLAW_ROOT/config/notify.json"
 if [ -f "$NOTIFY_CONFIG" ] && ! $UPDATE_ONLY; then
   info "Notification config already exists, keeping it"
 else
@@ -997,7 +1279,9 @@ EOF
   info "Default notification config written → $NOTIFY_CONFIG"
 fi
 
-if [ "$OS" = "macos" ]; then
+if $SANDBOX; then
+  info "Sandbox: skipping notifier install + app builds"
+elif [ "$OS" = "macos" ]; then
   if command -v terminal-notifier >/dev/null 2>&1 || [ -x /opt/homebrew/bin/terminal-notifier ] || [ -x /usr/local/bin/terminal-notifier ]; then
     info "terminal-notifier present — popups click through to their origin"
   elif command -v brew >/dev/null 2>&1; then
@@ -1033,7 +1317,9 @@ info "Ledger (every event, clicked or not): ~/.openclaw/notifications/ledger.jso
 # One-click stack launcher: a claw-icon app/desktop entry that runs
 # `openclaw-stack up` (starts every installed unit + companion-bridge, probes,
 # reports via ledgered notification).
-if [ "$OS" = "macos" ]; then
+if $SANDBOX; then
+  : # sandbox — no launcher build
+elif [ "$OS" = "macos" ]; then
   if bash "$REPO_DIR/services/launcher/build-launcher-app.sh" >/dev/null 2>&1; then
     info "Stack launcher built → ~/Applications/OpenClaw Stack.app (double-click or Dock it)"
   else
@@ -1308,40 +1594,74 @@ if [ -d ".git/hooks" ] || [ -d "${WORKSPACE}/../../.git/hooks" ]; then
 fi
 
 # ============================================================
+# Step 21: Acceptance Gate — the node proves itself or the install fails
+# ============================================================
+
+step "Step 21: Acceptance Gate"
+
+GATE_STATE="skipped"
+if $DRY_RUN; then
+  info "[dry-run] would run node-acceptance.mjs against the started services"
+elif $SKIP_VERIFY; then
+  warn "Skipped (--skip-verify) — the node is UNVERIFIED. Run it yourself:"
+  warn "  $NODE_BIN $WORKSPACE/bin/node-acceptance.mjs"
+elif $ENABLE_SERVICES; then
+  info "Letting services settle (10s)..."
+  sleep 10
+  set +e
+  "$NODE_BIN" "$WORKSPACE/bin/node-acceptance.mjs" --report "$OPENCLAW_ROOT/.install-acceptance.md"
+  GATE_RC=$?
+  set -e
+  if [ "$GATE_RC" -eq 0 ]; then
+    GATE_STATE="accepted"
+    info "ACCEPTED — the node is functionally running (evidence: $OPENCLAW_ROOT/.install-acceptance.md)"
+  else
+    error "Acceptance gate FAILED (exit $GATE_RC: 1=REJECTED 2=INCOMPLETE 3=harness error)"
+    error "The node is NOT fully operational. Evidence: $OPENCLAW_ROOT/.install-acceptance.md"
+    error "Fix the failing axes, then re-run: $NODE_BIN $WORKSPACE/bin/node-acceptance.mjs"
+    exit 1
+  fi
+else
+  warn "Services not started (no --enable-services) — a stopped node cannot be verified."
+  warn "Finish with: bash $0 --update --enable-services   (ends with this gate)"
+fi
+
+# ============================================================
 # Done!
 # ============================================================
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║       Installation Complete!             ║"
+if [ "$GATE_STATE" = "accepted" ]; then
+  echo "║   Installation Complete — VERIFIED       ║"
+else
+  echo "║   Installation Complete — NOT VERIFIED   ║"
+fi
 echo "╚══════════════════════════════════════════╝"
 echo ""
 info "Workspace: $WORKSPACE"
 info "Config:    $OPENCLAW_ROOT/config/"
 info "Env file:  $ENV_FILE"
+info "Spec:      docs/NODE_SPEC.md · Test protocol: docs/INSTALL_TEST_PROTOCOL.md"
 echo ""
 
 info "Role: $NODE_ROLE | Services installed: $INSTALLED_COUNT"
 echo ""
 
-if [ "$OS" = "linux" ]; then
-  echo "Next steps:"
-  echo "  1. Edit your env file:  nano $ENV_FILE"
-  echo "  2. Enable services:     bash $0 --update --enable-services"
-  echo "  3. Check services:      systemctl --user list-units 'openclaw-*'"
-  echo "  4. View MC dashboard:   http://localhost:3000"
-  if $MESH_AVAILABLE; then
-    echo ""
-    echo "  Mesh commands:"
-    echo "    mesh status          # online nodes"
-    echo "    mesh health --all    # check all nodes"
-    echo "    mesh repair --all    # fix broken services"
-  fi
+if [ "$GATE_STATE" = "accepted" ]; then
+  echo "The node is running. Useful next:"
+  echo "  Watch it:            $NODE_BIN $WORKSPACE/bin/node-watch.mjs --once"
+  echo "  Dashboard:           http://localhost:3000"
+  echo "  Grappe quickstart:   docs/NODE_SPEC.md §6 (3 local agents + one circling task)"
 else
   echo "Next steps:"
-  echo "  1. Edit your env file:  nano $ENV_FILE"
-  echo "  2. Load services:       bash $0 --update --enable-services"
-  echo "  3. Check services:      launchctl list | grep openclaw"
-  echo "  4. View MC dashboard:   http://localhost:3000"
+  echo "  1. Review the env file:            nano $ENV_FILE"
+  echo "  2. Start + verify the node:        bash $0 --update --enable-services"
+  if [ "$OS" = "linux" ]; then
+    echo "  3. Check services:                 systemctl --user list-units 'openclaw-*'"
+  else
+    echo "  3. Check services:                 launchctl list | grep openclaw"
+  fi
+  echo "  4. Re-verify any time:             $NODE_BIN $WORKSPACE/bin/node-acceptance.mjs"
 fi
 echo ""

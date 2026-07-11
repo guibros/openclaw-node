@@ -82,3 +82,19 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 |---|---|
 | **Status** | LIVE (single-node scope; no federation awareness yet — Block 6 extends) |
 | **Verified** | 2026-07-06 — prior-session evidence ≤48h old: node-watch continuous unit live w/ transition notifications observed; notification ledger + MC /notifications 200; openclaw-stack `up` observed 12/12; MC on 127.0.0.1:3000. No fed.* probes, no federation MC page, no grappe/management/savant notify sources yet. |
+
+## Family 5: install path (deployability — D9)
+
+### install.sh + service-manifest + unit templates + NODE_SPEC/INSTALL_TEST_PROTOCOL
+
+| | |
+|---|---|
+| **Status** | OVERHAULED + SANDBOX-VERIFIED (D9, 2026-07-11) — NOT fresh-machine-verified: the T7 clean-machine gate (6.1) is still open |
+| **Verified** | 2026-07-11 — full `install.sh --sandbox` run against a scratch root: 19 units rendered, 0 unrendered placeholders (new in-install render audit), all plists lint-valid; memory-daemon BOOTS on the deployed tree (5 import kills closed — mcp-knowledge, graph-cache, nats, zod, event-schemas; the last two caught only by the live boot test) with-bus and bus-down; single-node NATS from the rendered conf: JetStream on, token enforced both directions (`Authorization Violation` on wrong token); ed25519 identity provisioned; env carries the full §3 parameter set. Evidence: `audits/deployability_overhaul/AUDIT.md`. |
+
+### Single-node bus — services/nats/nats-single.conf + ai.openclaw.nats.{plist,service}
+
+| | |
+|---|---|
+| **Status** | TEMPLATE VERIFIED (scratch runtime proof); autostart:true in the manifest — the default bus a fresh node runs; live dev :4222 still the hand-built pre-existing unit (unchanged) |
+| **Verified** | 2026-07-11 — rendered conf started on scratch ports: nats-server v2.12.6, server_name carries the node id, jetstream=true, token accept/reject both observed. |

@@ -280,3 +280,35 @@ run solo-vs-grappe gives a clean quality comparison.
 BLOCKS at Phase 5 (visual:) for the operator to review the hardened-spec artifact before closing.
 If the grappe's output is good, it also becomes the basis for actually correcting the spec (a
 follow-on scope), closing the F1/F2/F4 OUT_OF_SCOPE items.
+
+## D9 — Deployability overhaul: the install becomes self-verifying (operator-directed 2026-07-11)
+
+**Decision.** Per the operator's in-session directive (spec sheet → parameters → corrected install
+→ test protocol), the install path was overhauled as scope batch `deployability-install-overhaul`
+(full evidence: `audits/deployability_overhaul/AUDIT.md`). The load-bearing choices:
+
+1. **Single-node NATS is the default bus** — new `ai.openclaw.nats` unit (autostart, loopback,
+   token, JetStream, absolute store_dir). The R=3 cluster stays the 1.5 operator-gated upgrade.
+2. **Local-first brain is wired, not folkloric** — `MESH_LLM_PROVIDER=ollama`, RAM-tiered
+   `LLM_MODEL` (check-llm-baseline), `LLM_BASE_URL` live in openclaw.env AND render into the
+   agent units. install installs ollama, pulls the model, prefetches BGE-M3 (`--skip-llm` opts out).
+3. **Workspace resolves the repo's ENTIRE dependency set** (symlink-all, 168 links) — fixed
+   allow-lists rot: `zod` and `packages/event-schemas` were both missed by every static audit and
+   caught only by the live boot test.
+4. **Agents stay on-demand** (autostart:false); per-node agent units remain Block 6 work.
+5. **Honest demotions** — gateway (exec target not vendored) and mesh-tool-discord (token
+   required) go autostart:false instead of crash-looping.
+6. **The install proves itself or fails** — render audit aborts on live `${VAR}` placeholders;
+   `--update` never bare-unloads a running node; the final phase runs `node-acceptance.mjs`
+   fail-loud when services were started. docs/NODE_SPEC.md is the deployment contract;
+   docs/INSTALL_TEST_PROTOCOL.md the proof ladder.
+
+**Why.** The 2026-07-11 fresh-install audit: a clean install produced a node where exactly two
+subsystems worked (notifications, node-watch); memory-daemon was dead at import; no bus ever ran;
+the deploy gate existed and was never invoked. The operator elevated out-of-box deployability to a
+first-class requirement.
+
+**Consequences.** 6.1 is reworded into the T7 deployability gate (clean-machine run of the test
+protocol — still `[ ]`; sandbox verification is NOT the fresh-machine claim). 2.4/2.6 are
+unaffected (they run on the dev box). Still open from the audit: MC production build (20 tsc
+errors), consolidation LLM wiring, `--dry-run` honesty, full MULTI_NODE_DEPLOY rewrite, Linux T7.

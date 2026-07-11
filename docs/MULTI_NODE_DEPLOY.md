@@ -58,19 +58,22 @@ All 3 nodes run on one machine. Useful for development and testing.
 
 ### 1.1 Start the NATS cluster
 
-The repo ships config files at `services/nats/nats-{1,2,3}.conf`.
+> **Use the RENDERED configs, not the repo templates.** The files at
+> `services/nats/nats-{1,2,3}.conf` are templates containing a literal
+> `${OPENCLAW_NATS_TOKEN}` placeholder — starting them raw gives the server a
+> garbage token while every installed client sends the real generated one
+> (auth mismatch, nothing connects). `install.sh` renders them with the token
+> to `~/.openclaw/config/nats-{1,2,3}.conf`. (A fresh single-node install runs
+> `~/.openclaw/config/nats.conf` instead — the cluster is the upgrade path.)
 
 ```bash
-# Create data + log directories
-mkdir -p ~/.openclaw/nats/jetstream-{1,2,3}
-mkdir -p ~/.openclaw/logs
+# install.sh already created the data/log dirs and rendered the configs.
+# Start all three NATS servers from the RENDERED configs:
+nats-server -c ~/.openclaw/config/nats-1.conf &
+nats-server -c ~/.openclaw/config/nats-2.conf &
+nats-server -c ~/.openclaw/config/nats-3.conf &
 
-# Start all three NATS servers
-nats-server -c services/nats/nats-1.conf &
-nats-server -c services/nats/nats-2.conf &
-nats-server -c services/nats/nats-3.conf &
-
-# Or use launchd (macOS) — see docs/NATS_CLUSTER.md for plist setup
+# Or load the installed units: launchctl load ~/Library/LaunchAgents/ai.openclaw.nats-{1,2,3}.plist
 ```
 
 Verify the cluster formed:

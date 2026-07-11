@@ -1,11 +1,43 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** step 2.4 — record the operator-chosen first real task (harden FEDERATION_SPEC, D8) so the tick can run the qwen3:8b adversarial session
-**Set at:** 2026-07-11
-**Expires:** 2026-07-12T06:00:00Z
+**Goal:** operator-directed deployability overhaul (2026-07-11 directive): NODE_SPEC sheet → functional parameters → corrected install protocol implemented → install test gate. Evidence base: the 2026-07-11 fresh-install audit (OUT_OF_SCOPE entry). Step 2.4 stays blocked-waiting on the operator's manual run in parallel.
+**Set at:** 2026-07-11 (deployability block added 2026-07-11 ~17:45 Montreal, operator-approved in-session)
+**Expires:** 2026-07-13T04:00:00Z
 
-```files step-2.4-task-record
+```files deployability-install-overhaul closed
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/audits/deployability_overhaul/*
+install.sh
+README.md
+openclaw.env.example
+package.json
+services/service-manifest.json
+services/nats/*
+services/launchd/*
+services/systemd/*
+bin/log-rotate
+bin/node-acceptance.mjs
+docs/NODE_SPEC.md
+docs/INSTALL_TEST_PROTOCOL.md
+docs/MULTI_NODE_DEPLOY.md
+```
+
+```files step-2.4-real-adversarial-run
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/BLOCKED.md
+memory-plan/plans/federation/audits/step24_real-adversarial-run/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step24_real-adversarial-run/AUDIT_POST.md
+```
+
+```files step-2.4-task-record closed
 memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/BLOCKED.md
 memory-plan/plans/federation/DECISIONS.md

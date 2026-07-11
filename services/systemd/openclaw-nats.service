@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenClaw NATS — single-node bus (client 4222, monitor 8222, JetStream, token auth)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NATS_SERVER_BIN} --config ${HOME}/.openclaw/config/nats.conf
+Restart=always
+RestartSec=5
+Environment=HOME=${HOME}
+StandardOutput=append:${HOME}/.openclaw/logs/nats.log
+StandardError=append:${HOME}/.openclaw/logs/nats.err
+
+[Install]
+WantedBy=default.target

@@ -30,7 +30,7 @@
       <key>OPENCLAW_NATS</key>
       <string>nats://127.0.0.1:4222</string>
       <key>OPENCLAW_NODE_ID</key>
-      <string>daedalus</string>
+      <string>${OPENCLAW_NODE_ID}</string>
     </dict>
   </dict>
 </plist>

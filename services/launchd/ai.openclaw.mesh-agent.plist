@@ -38,6 +38,13 @@
       <string>${OPENCLAW_NODE_ROLE}</string>
       <key>OPENCLAW_REPO_DIR</key>
       <string>${OPENCLAW_REPO_DIR}</string>
+      <!-- The agent brain — local-first (docs/NODE_SPEC.md §3). Values come from openclaw.env at render time. -->
+      <key>MESH_LLM_PROVIDER</key>
+      <string>${MESH_LLM_PROVIDER}</string>
+      <key>LLM_MODEL</key>
+      <string>${LLM_MODEL}</string>
+      <key>LLM_BASE_URL</key>
+      <string>${LLM_BASE_URL}</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>30</integer>

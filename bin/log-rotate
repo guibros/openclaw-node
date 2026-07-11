@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# bin/log-rotate — weekly rotation for OpenClaw daemon logs.
+# Referenced by services/{launchd,systemd}/*log-rotate*; runs unattended.
+set -euo pipefail
+
+OPENCLAW_ROOT="${OPENCLAW_ROOT:-$HOME/.openclaw}"
+MAX_BYTES=$((10 * 1024 * 1024))
+KEEP=5
+STAMP="$(date +%Y%m%d-%H%M%S)"
+rotated=0
+
+rotate_dir() {
+  local dir="$1"
+  [ -d "$dir" ] || return 0
+  local f size
+  for f in "$dir"/*.log "$dir"/*.err; do
+    [ -f "$f" ] || continue
+    size=$(wc -c < "$f" | tr -d ' ')
+    [ "$size" -gt "$MAX_BYTES" ] || continue
+    gzip -c "$f" > "$f.$STAMP.gz" && : > "$f"
+    rotated=$((rotated + 1))
+    # prune old rotations beyond KEEP (newest first)
+    ls -t "$f".*.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs rm -f 2>/dev/null || true
+  done
+}
+
+rotate_dir "$OPENCLAW_ROOT/logs"
+rotate_dir "$OPENCLAW_ROOT/workspace/.tmp"
+
+echo "[log-rotate] $(date -Iseconds) rotated=$rotated"

@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenClaw NATS Node 1 — R=3 cluster (client 4222, cluster 6222, monitor 8222)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${NATS_SERVER_BIN} --config ${HOME}/.openclaw/config/nats-1.conf
+Restart=always
+RestartSec=5
+Environment=HOME=${HOME}
+StandardOutput=append:${HOME}/.openclaw/logs/nats-1.log
+StandardError=append:${HOME}/.openclaw/logs/nats-1.err
+
+[Install]
+WantedBy=default.target
