@@ -2095,9 +2095,25 @@ async function main() {
   log('Starting mesh task daemon...');
 
   const natsOpts = natsConnectOpts();
-  nc = await connect({ ...natsOpts, timeout: 5000 });
+  nc = await connect({
+    ...natsOpts,
+    timeout: 5000,
+    reconnect: true,
+    maxReconnectAttempts: 10,
+    reconnectTimeWait: 2000,
+  });
   setNatsConnection(nc, sc);
   log(`Connected to NATS at ${NATS_URL}`);
+
+  // Survive NATS blips (incl. the 1.5 cutover bus restart); exit on permanent
+  // disconnect so launchd restarts us instead of hanging alive-but-dead (mirrors mesh-bridge).
+  (async () => {
+    for await (const s of nc.status()) log(`NATS status: ${s.type}`);
+  })();
+  nc.closed().then(() => {
+    log('NATS connection permanently closed — exiting for launchd restart');
+    process.exit(1);
+  });
 
   // Initialize task store
   const js = nc.jetstream();

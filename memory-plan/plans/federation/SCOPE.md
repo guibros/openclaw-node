@@ -1,9 +1,17 @@
 # SCOPE — federation plan
 
-**Status:** done
-**Goal:** step 1.4 — Signed grappe membership — join tokens verified, unsigned join rejected
-**Set at:** 2026-07-10
-**Expires:** 2026-07-11T06:00:00Z
+**Status:** active
+**Goal:** harden mesh-task-daemon NATS reconnect (audit #1 — survive the bus restart; prereq for the 1.5 cutover and for live circling)
+**Set at:** 2026-07-11
+**Expires:** 2026-07-11T14:00:00Z
+
+```files daemon-reconnect-hardening
+bin/mesh-task-daemon.js
+```
+
+```files tick-block-1.5 closed
+memory-plan/plans/federation/BLOCKED.md
+```
 
 ```files step-1.4-signed-grappe-membership closed
 memory-plan/plans/federation/SCOPE.md
