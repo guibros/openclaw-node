@@ -35,6 +35,13 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 | **Status** | LIVE (3 trees: alpha/bravo/charlie; 3 health-publishers running) |
 | **Verified** | 2026-07-10 — `~/.openclaw-{alpha,bravo,charlie}/` present with config/node.json + state.db; PIDs 17515/17516/17517 (mesh-health-publisher.js per node); MESH_NODE_HEALTH KV revisions 312/311/310 at T+10min (2026-07-10 21:23:35 UTC). Publishers are manually-started background processes (not launchd); per-node launchd units are Block 6 (6.1) scope. |
 
+### Grappe registry + CLI — bin/openclaw-grappe.mjs, GRAPPE_REGISTRY KV bucket
+
+| | |
+|---|---|
+| **Status** | LIVE (step 1.3) — `openclaw-grappe` CLI wired in package.json; GRAPPE_REGISTRY KV bucket created; wg-alpha manifest present with 3 members. |
+| **Verified** | 2026-07-11 — `nats kv get GRAPPE_REGISTRY grappe.wg-alpha --raw` → `{"id":"wg-alpha","mode":"adversarial","members":["alpha","bravo","charlie"],"formed_at":"2026-07-11T01:41:53.440Z","status":"live","join_token_hash":null}`; `openclaw-grappe status` → 3 LIVE members; form/status/dissolve all verified. `join_token_hash: null` — step 1.4 fills this in. |
+
 ### Membership & signing — bin/mesh-join-token.js, lib/deploy-trigger-auth.mjs
 
 | | |

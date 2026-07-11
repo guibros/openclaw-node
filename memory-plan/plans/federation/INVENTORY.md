@@ -36,7 +36,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 |-------|------|---------|--------|-------------|
 | 1 | 1.1 | v1.1 | [x] | NATS cluster configs hardened (loopback+token) + manifest/install wired + R=3 proven on scratch ports (non-destructive; live :4222 untouched) — absorbs redesign 7.1 [D] — closed 2026-07-10: loopback+token in all 3 confs, 3 plists in launchd/, manifest wired, install renders token+confs; scratch proof 10/10 PASS |
 | 1 | 1.2 | v1.2 | [x] | 3 spawned logical nodes heartbeating through the bus (mesh daemons revived per the 0.1 triage) — closed 2026-07-10: 4 plist templates corrected (stale path → OPENCLAW_REPO_DIR), 3 publishers live (PIDs 17515/17516/17517), KV revisions 312/311/310 at T+10min |
-| 1 | 1.3 | v1.3 | [ ] | Grappe manifest schema + KV registry + `openclaw-grappe` CLI (form/status/dissolve) |
+| 1 | 1.3 | v1.3 | [x] | Grappe manifest schema + KV registry + `openclaw-grappe` CLI (form/status/dissolve) — closed 2026-07-11: GRAPPE_REGISTRY KV bucket live, wg-alpha manifest present (3 members), form/status/dissolve all observed |
 | 1 | 1.4 | v1.4 | [ ] | Signed grappe membership — join tokens verified, unsigned join rejected |
 | 1 | 1.5 | v1.5 | [ ] | ⛔ OPERATOR-GATED cutover: migrate live single-node :4222 → hardened R=3 cluster, zero data loss, retire single-node (D6) |
 

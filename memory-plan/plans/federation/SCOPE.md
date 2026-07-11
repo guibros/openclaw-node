@@ -1,11 +1,22 @@
 # SCOPE — federation plan
 
-**Status:** active
-**Goal:** step 1.2 — 3 spawned logical nodes (alpha/bravo/charlie) heartbeating through the :4222 bus
+**Status:** done
+**Goal:** step 1.3 — Grappe manifest schema + KV registry + `openclaw-grappe` CLI (form/status/dissolve)
 **Set at:** 2026-07-10
 **Expires:** no-expiry
 
-```files step-1.2-logical-nodes-heartbeat
+```files step-1.3-grappe-manifest-kv-cli closed
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/audits/step13_grappe-manifest-kv-cli/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step13_grappe-manifest-kv-cli/AUDIT_POST.md
+bin/openclaw-grappe.mjs
+package.json
+```
+
+```files step-1.2-logical-nodes-heartbeat closed
 memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/VERSION
 memory-plan/plans/federation/INVENTORY.md
