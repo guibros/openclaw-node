@@ -32,8 +32,8 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 | | |
 |---|---|
-| **Status** | UNBUILT (tool exists, no trees spawned) |
-| **Verified** | 2026-07-06 — `ls ~/.openclaw-*` → none. spawn-node.mjs present (isolated tree per node: own state.db, config, workspace, vault, logs; no containers). |
+| **Status** | LIVE (3 trees: alpha/bravo/charlie; 3 health-publishers running) |
+| **Verified** | 2026-07-10 — `~/.openclaw-{alpha,bravo,charlie}/` present with config/node.json + state.db; PIDs 17515/17516/17517 (mesh-health-publisher.js per node); MESH_NODE_HEALTH KV revisions 312/311/310 at T+10min (2026-07-10 21:23:35 UTC). Publishers are manually-started background processes (not launchd); per-node launchd units are Block 6 (6.1) scope. |
 
 ### Membership & signing — bin/mesh-join-token.js, lib/deploy-trigger-auth.mjs
 
@@ -48,8 +48,8 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 | | |
 |---|---|
-| **Status** | DORMANT — code believed-good, stranded behind **stale-path unit files** (crash-loop root cause diagnosed 2026-07-09, step 0.1 / D5) |
-| **Verified** | 2026-07-09 (step 0.1) — the 6 mesh units + 3 aux + system `com.openclaw.agent` all crash-looped on **one root cause**: plists exec `/Users/moltymac/openclaw/…` (ABSENT — renamed to `~/.openclaw/workspace/` + repo). Disable-time evidence: `Cannot find module '…/openclaw/bin/<script>.js'`, `requireStack:[]` (entry missing); `mesh-task-daemon.err` = **269,948** MODULE_NOT_FOUND records, 72–263 MB per file, frozen Jul 3 17:35. Class-C stale-config; **code health unobservable** (entry never loaded). Revival (1.2) = re-render at live install path, NOT re-enable the stale plist; NATS reachable (1.1) first (class-A breadcrumb in the err heads). Test baseline 2026-07-06: 44/44 (collab-circling+daemon). Paper: docs/circling-strategy-implementationV3.md (gaps §14.1/.2/.3 open). |
+| **Status** | DORMANT-RECOVERED — plist templates corrected (step 1.2); health-publisher confirmed connectable to :4222 (code healthy for this layer); full mesh stack (task-daemon, agent, bridge) revival tested via template fix — not yet running as launchd services (Block 2 activates for circling sessions) |
+| **Verified** | 2026-07-10 (step 1.2) — 4 plist templates (`mesh-health-publisher`, `mesh-task-daemon`, `mesh-agent`, `mesh-bridge`) corrected: `${OPENCLAW_REPO_DIR}/bin/<script>.js` exec path, `OPENCLAW_NATS: nats://127.0.0.1:4222` override. mesh-health-publisher.js ran at correct path for 10+ min, published to NATS at :4222 without error. Test baseline 2026-07-10: 2 pre-existing failures (observer.test.mjs, embed-benchmark.test.mjs), 44/44 collab-circling+daemon still assumed good (those suites not re-run today). Paper: docs/circling-strategy-implementationV3.md (gaps §14.1/.2/.3 open). |
 
 ### Task kanban + plans layer — mesh.tasks.* / mesh.plans.* subjects
 

@@ -9,7 +9,7 @@
     <key>ProgramArguments</key>
     <array>
       <string>${NODE_BIN}</string>
-      <string>${HOME}/openclaw/bin/mesh-task-daemon.js</string>
+      <string>${OPENCLAW_REPO_DIR}/bin/mesh-task-daemon.js</string>
     </array>
     <key>KeepAlive</key>
     <true/>
@@ -26,9 +26,12 @@
       <key>PATH</key>
       <string>${OPENCLAW_WORKSPACE}/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
       <key>NODE_PATH</key>
-      <string>${HOME}/openclaw/node_modules:${HOME}/openclaw/lib</string>
+      <string>${OPENCLAW_REPO_DIR}/node_modules:${OPENCLAW_REPO_DIR}/lib</string>
+      <!-- Local-first: the mesh bus is loopback-only. -->
       <key>OPENCLAW_NATS</key>
-      <string>${OPENCLAW_NATS}</string>
+      <string>nats://127.0.0.1:4222</string>
+      <key>OPENCLAW_REPO_DIR</key>
+      <string>${OPENCLAW_REPO_DIR}</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>10</integer>
