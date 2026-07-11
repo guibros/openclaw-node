@@ -5,7 +5,7 @@
 **Set at:** 2026-07-11
 **Expires:** 2026-07-11T18:00:00Z
 
-```files step-2.1-circling-live
+```files step-2.1-circling-live closed
 memory-plan/plans/federation/VERSION
 memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/COMPONENT_REGISTRY.md
