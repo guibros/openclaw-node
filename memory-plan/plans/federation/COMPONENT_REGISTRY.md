@@ -55,8 +55,8 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 | | |
 |---|---|
-| **Status** | LIVE (steps 2.1 + 2.2) — full circling lifecycle observed end-to-end (2.1); adaptive convergence early-exit proven (2.2). Paper gap §14.1 closed. Paper gaps §14.2/.3 open (steps 2.3/2.5[D]). |
-| **Verified** | 2026-07-11 (step 2.2) — adaptive convergence: session collab-step22-rt-001-1783749418240 in real JetStream KV: max_subrounds=3, finalized_after_sr=1, phase=finalization, skipped_subrounds=2. 6/6 new tests pass (5 unit + 1 NATS integration). Test baseline: 1724 pass / 2 fail / 1 skipped. |
+| **Status** | LIVE (steps 2.1 + 2.2 + 2.3) — full circling lifecycle observed end-to-end (2.1); adaptive convergence early-exit proven (2.2); parse-failure retry ×3 before degradation live (2.3). Paper gaps §14.1 + §14.2 closed. Paper gap §14.3 [D]. |
+| **Verified** | 2026-07-11 (step 2.3) — parse-failure retry: session collab-task-retry-test-rt-001-1783750452601 in real JetStream KV: worker_parse_failures=2, failure_count_at_step1=2, degraded=false, worker_artifact_present=true, barrier_advanced=true. 5/5 new tests pass (4 unit + 1 NATS integration). Test baseline: 1729 pass / 2 fail / 1 skipped. |
 
 ### Task kanban + plans layer — mesh.tasks.* / mesh.plans.* subjects
 

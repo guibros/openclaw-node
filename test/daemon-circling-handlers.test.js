@@ -96,14 +96,28 @@ async function makeActiveSession(storeOverrides = {}) {
 
 /**
  * Simulate the daemon's handleCollabReflect circling branch.
- * This replicates the logic from mesh-task-daemon.js lines 864-900.
+ * Updated for paper §14.2: parse failures are retried up to 3× before degradation.
+ * Mirrors the logic in mesh-task-daemon.js handleCollabReflect + retryCirclingNodeStep.
  */
 async function simulateReflectHandler(store, sessionId, reflection) {
   const session = await store.get(sessionId);
   const events = [];
 
-  // Store artifacts or record failure (mirrors daemon logic)
-  if (reflection.circling_artifacts && reflection.circling_artifacts.length > 0) {
+  // Parse-failure retry (paper §14.2): check before submitReflection.
+  if (reflection.parse_failed && session.mode === 'circling_strategy' && session.circling) {
+    const failCount = await store.recordArtifactFailure(sessionId, reflection.node_id);
+    events.push({ type: 'artifact_parse_failed', node_id: reflection.node_id, failure_count: failCount });
+    if (failCount < 3) {
+      // Retry: barrier does not advance for this node.
+      events.push({ type: 'retry', node_id: reflection.node_id, failure_count: failCount });
+      return { events, session: await store.get(sessionId) };
+    }
+    // failCount >= 3: degrade — fall through to submitReflection.
+    events.push({ type: 'degraded', node_id: reflection.node_id, failure_count: failCount });
+  }
+
+  // Store artifacts (non-failed circling reflections)
+  if (!reflection.parse_failed && reflection.circling_artifacts && reflection.circling_artifacts.length > 0) {
     const { current_subround, current_step } = session.circling;
     const isWorker = reflection.node_id === session.circling.worker_node_id;
     let nodeRole;
@@ -115,17 +129,13 @@ async function simulateReflectHandler(store, sessionId, reflection) {
       const reviewerNodes = session.nodes.filter(n => n.node_id !== session.circling.worker_node_id);
       nodeRole = reviewerNodes[0]?.node_id === reflection.node_id ? 'reviewerA' : 'reviewerB';
     }
-
     for (const art of reflection.circling_artifacts) {
       const key = `sr${current_subround}_step${current_step}_${nodeRole}_${art.type}`;
       await store.storeArtifact(sessionId, key, art.content);
     }
-  } else if (reflection.parse_failed) {
-    const failCount = await store.recordArtifactFailure(sessionId, reflection.node_id);
-    events.push({ type: 'artifact_parse_failed', node_id: reflection.node_id, failure_count: failCount });
   }
 
-  // Submit the reflection
+  // Submit the reflection (not reached for retried parse failures)
   await store.submitReflection(sessionId, reflection);
 
   // Check barrier
@@ -201,8 +211,8 @@ describe('Daemon Circling: reflect → store → barrier → advance', () => {
   });
 });
 
-describe('Daemon Circling: parse_failed artifact tracking', () => {
-  it('records artifact failure and increments counter', async () => {
+describe('Daemon Circling: parse_failed artifact tracking (paper §14.2)', () => {
+  it('first parse failure emits retry event and does NOT submit to round', async () => {
     const { store, sessionId } = await makeActiveSession();
     await store.advanceCirclingStep(sessionId);
     await store.startRound(sessionId);
@@ -212,43 +222,70 @@ describe('Daemon Circling: parse_failed artifact tracking', () => {
       circling_step: 1, parse_failed: true,
     });
 
-    assert.equal(result.events.length, 1);
+    // Events: artifact_parse_failed + retry (no submit, no barrier advance)
+    assert.equal(result.events.length, 2);
     assert.equal(result.events[0].type, 'artifact_parse_failed');
     assert.equal(result.events[0].failure_count, 1);
+    assert.equal(result.events[1].type, 'retry');
+    assert.equal(result.events[1].failure_count, 1);
 
-    // Second failure increments
-    // Need a fresh round for the next reflection from same node (submitReflection may reject dups)
+    // Failure counter is 1 in KV
     const session = await store.get(sessionId);
-    const failCount = store.getArtifactFailureCount(session, 'node-worker');
-    assert.equal(failCount, 1);
+    assert.equal(store.getArtifactFailureCount(session, 'node-worker'), 1);
+
+    // Worker reflection was NOT submitted — round has 0 reflections
+    const currentRound = session.rounds[session.rounds.length - 1];
+    assert.equal(currentRound.reflections.length, 0, 'retry should not add to round');
   });
 
-  it('parse_failed reflection still counts toward barrier', async () => {
+  it('3 failures → degraded + barrier advances when all nodes counted', async () => {
     const { store, sessionId } = await makeActiveSession();
     await store.advanceCirclingStep(sessionId);
     await store.startRound(sessionId);
 
-    // Worker parse fails, but still submits a reflection
+    // Worker fails 3 times (failures 1 and 2 are retried and not submitted)
     await simulateReflectHandler(store, sessionId, {
       node_id: 'node-worker', vote: 'continue', confidence: 0.5, summary: '',
       circling_step: 1, parse_failed: true,
     });
     await simulateReflectHandler(store, sessionId, {
+      node_id: 'node-worker', vote: 'continue', confidence: 0.5, summary: '',
+      circling_step: 1, parse_failed: true,
+    });
+    const r3 = await simulateReflectHandler(store, sessionId, {
+      node_id: 'node-worker', vote: 'continue', confidence: 0.5, summary: '',
+      circling_step: 1, parse_failed: true,
+    });
+
+    // Third failure: degraded event emitted, reflection submitted to round
+    const degradedEvent = r3.events.find(e => e.type === 'degraded');
+    assert.ok(degradedEvent, 'degraded event expected on 3rd failure');
+    assert.equal(degradedEvent.failure_count, 3);
+
+    // Failure counter is 3
+    const s = await store.get(sessionId);
+    assert.equal(store.getArtifactFailureCount(s, 'node-worker'), 3);
+
+    // Worker reflection IS now in the round (degraded counts toward barrier)
+    const currentRound = s.rounds[s.rounds.length - 1];
+    const workerRefl = currentRound.reflections.find(r => r.node_id === 'node-worker');
+    assert.ok(workerRefl, 'degraded node reflection should be in round');
+
+    // Other 2 nodes submit → barrier fires
+    await simulateReflectHandler(store, sessionId, {
       node_id: 'node-revA', vote: 'continue', confidence: 0.7, summary: 'ok',
       circling_step: 1, circling_artifacts: [{ type: 'reviewArtifact', content: 'notes' }],
     });
-    const r3 = await simulateReflectHandler(store, sessionId, {
+    const rLast = await simulateReflectHandler(store, sessionId, {
       node_id: 'node-revB', vote: 'continue', confidence: 0.7, summary: 'ok',
       circling_step: 1, circling_artifacts: [{ type: 'reviewArtifact', content: 'notes' }],
     });
+    assert.equal(rLast.events.length, 1);
+    assert.equal(rLast.events[0].type, 'advance');
 
-    // Barrier should fire — the parse_failed reflection still counts
-    assert.equal(r3.events.length, 1);
-    assert.equal(r3.events[0].type, 'advance');
-
-    // But worker artifact is missing — downstream gets UNAVAILABLE
-    const session = await store.get(sessionId);
-    assert.ok(!store.getArtifactByKey(session, 'sr1_step1_worker_workArtifact'), 'worker artifact should not exist');
+    // Worker artifact still missing (degraded)
+    const final = await store.get(sessionId);
+    assert.ok(!store.getArtifactByKey(final, 'sr1_step1_worker_workArtifact'), 'degraded node has no artifact');
   });
 });
 

@@ -866,6 +866,37 @@ async function handleCollabRecruiting(msg) {
 }
 
 /**
+ * Re-send the current circling step to a single node after a parse failure.
+ * Does NOT create a new round or reset the step timer — the existing timeout still applies.
+ * Paper §14.2: node gets up to 3 attempts before being counted as degraded.
+ */
+async function retryCirclingNodeStep(sessionId, nodeId, failCount, preSession) {
+  const session = preSession || await collabStore.get(sessionId);
+  if (!session || !session.circling) return;
+  const { phase, current_subround, current_step } = session.circling;
+  const node = session.nodes.find(n => n.node_id === nodeId);
+  if (!node) return;
+  const parentTask = await store.get(session.task_id);
+  const taskDescription = parentTask?.description || '';
+  const directedInput = collabStore.compileDirectedInput(session, nodeId, taskDescription);
+  log(`CIRCLING RETRY: ${nodeId} in ${sessionId} (parse failure ${failCount}/2, attempt ${failCount + 1})`);
+  nc.publish(`mesh.collab.${sessionId}.node.${nodeId}.round`, sc.encode(JSON.stringify({
+    session_id: sessionId,
+    task_id: session.task_id,
+    round_number: session.current_round,
+    directed_input: directedInput,
+    shared_intel: '',
+    my_scope: node.scope,
+    my_role: node.role,
+    mode: 'circling_strategy',
+    circling_phase: phase,
+    circling_step: current_step,
+    circling_subround: current_subround,
+    parse_retry: failCount,
+  })));
+}
+
+/**
  * mesh.collab.reflect — Node submits a reflection for the current round.
  * Expects: { session_id, node_id, summary, learnings, artifacts, confidence, vote }
  */
@@ -873,6 +904,30 @@ async function handleCollabReflect(msg) {
   const reflection = parseRequest(msg);
   const { session_id } = reflection;
   if (!session_id || !reflection.node_id) return respondError(msg, 'session_id and node_id required');
+
+  // Parse-failure retry (paper §14.2): check before submitReflection so failed attempts
+  // do not count toward the circling barrier until the node has used all 3 chances.
+  if (reflection.parse_failed) {
+    const preSession = await collabStore.get(session_id);
+    if (preSession && preSession.mode === 'circling_strategy' && preSession.circling) {
+      const failCount = await collabStore.recordArtifactFailure(session_id, reflection.node_id);
+      log(`CIRCLING PARSE FAILURE: ${reflection.node_id} in ${session_id} (attempt ${failCount})`);
+      await collabStore.appendAudit(session_id, 'artifact_parse_failed', {
+        node_id: reflection.node_id,
+        step: preSession.circling.current_step,
+        subround: preSession.circling.current_subround,
+        failure_count: failCount,
+      });
+      if (failCount < 3) {
+        // Retry: resend directed input to this node only; barrier does not advance.
+        await retryCirclingNodeStep(session_id, reflection.node_id, failCount, preSession);
+        respond(msg, { status: 'retried', failure_count: failCount });
+        return;
+      }
+      // failCount >= 3: degrade — fall through to submitReflection so barrier can advance.
+      log(`CIRCLING CRITICAL: ${reflection.node_id} failed ${failCount}x at SR${preSession.circling.current_subround}/Step${preSession.circling.current_step} — degraded, no artifacts available for downstream nodes`);
+    }
+  }
 
   const session = await collabStore.submitReflection(session_id, reflection);
   if (!session) return respondError(msg, `Cannot submit reflection to ${session_id}`);
@@ -912,22 +967,8 @@ async function handleCollabReflect(msg) {
         log(`CIRCLING ARTIFACT: ${key} stored (${(art.content || '').length} chars)`);
       }
     } else if (reflection.parse_failed) {
-      // Parse failure: record and check retry threshold.
-      // If a node consistently fails, the barrier still advances (the reflection counts)
-      // but downstream nodes get [UNAVAILABLE] placeholders. After 3 failures for the
-      // same node+step, log a critical warning — the only full recovery is the daemon's
-      // global stall timeout. See: mesh-collab.js recordArtifactFailure / getArtifactFailureCount
-      const failCount = await collabStore.recordArtifactFailure(session_id, reflection.node_id);
-      log(`CIRCLING PARSE FAILURE: ${reflection.node_id} in ${session_id} (attempt ${failCount})`);
-      await collabStore.appendAudit(session_id, 'artifact_parse_failed', {
-        node_id: reflection.node_id,
-        step: session.circling.current_step,
-        subround: session.circling.current_subround,
-        failure_count: failCount,
-      });
-      if (failCount >= 3) {
-        log(`CIRCLING CRITICAL: ${reflection.node_id} failed ${failCount}x at SR${session.circling.current_subround}/Step${session.circling.current_step} — no artifacts will be available for downstream nodes`);
-      }
+      // Degraded (failCount >= 3): CRITICAL already logged above. Reflection is in the
+      // round and counts toward the barrier — downstream nodes get [UNAVAILABLE] placeholders.
     } else {
       // No artifacts but not a parse failure — unexpected
       log(`CIRCLING WARNING: ${reflection.node_id} submitted reflection without artifacts in ${session_id}`);

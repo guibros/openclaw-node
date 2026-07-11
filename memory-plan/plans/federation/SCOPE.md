@@ -1,9 +1,21 @@
 # SCOPE — federation plan
 
-**Status:** active
-**Goal:** step 2.2 — Paper gap 14.1 — adaptive convergence (unanimous converged ⇒ early finalization)
+**Status:** done
+**Goal:** step 2.3 — Paper gap 14.2 — parse-failure retry ×3 before degradation
 **Set at:** 2026-07-11
 **Expires:** 2026-07-11T23:59:00Z
+
+```files step-2.3-parse-retry closed
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/audits/step23_parse-retry/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step23_parse-retry/AUDIT_POST.md
+bin/mesh-task-daemon.js
+test/daemon-circling-handlers.test.js
+test/circling-parse-retry.test.mjs
+```
 
 ```files step-2.2-adaptive-convergence closed
 memory-plan/plans/federation/VERSION
