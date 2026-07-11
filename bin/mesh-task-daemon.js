@@ -902,7 +902,11 @@ async function handleCollabReflect(msg) {
         nodeRole = reviewerNodes[0]?.node_id === reflection.node_id ? 'reviewerA' : 'reviewerB';
       }
 
-      for (const art of reflection.circling_artifacts) {
+      const arts = Array.isArray(reflection.circling_artifacts) ? reflection.circling_artifacts : [];
+      if (!Array.isArray(reflection.circling_artifacts)) {
+        log(`CIRCLING WARNING: ${reflection.node_id} sent non-array circling_artifacts in ${session_id} — skipping (barrier still counts, downstream gets [UNAVAILABLE])`);
+      }
+      for (const art of arts) {
         const key = `sr${current_subround}_step${current_step}_${nodeRole}_${art.type}`;
         await collabStore.storeArtifact(session_id, key, art.content);
         log(`CIRCLING ARTIFACT: ${key} stored (${(art.content || '').length} chars)`);

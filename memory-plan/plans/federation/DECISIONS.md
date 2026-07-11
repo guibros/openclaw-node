@@ -218,3 +218,31 @@ TICK_PROMPT, `visual:` verification is exactly that gate ("you CANNOT confirm he
 keep single-node up until restore verified → cluster up → restore → verify → retire) is sound and
 is 1.5's execution recipe when the operator runs it. Supersedes D2/D4's framing of 1.1 as a single
 cutover step; the trust-floor hardening stays in 1.1, the destructive migration moves to 1.5.
+
+## D7 — Defer the cutover (1.5 → [D]); build Blocks 2-5 on the single-node bus (2026-07-11)
+
+**Decision.** Step 1.5 (the operator-gated live-bus cutover to R=3) is marked **[D] deferred** — it no
+longer blocks the chain. Blocks 2-5 (circling, modes, management, savant) run on the **existing
+single-node JetStream bus** on :4222; the cutover to the R=3 cluster happens when the operator wants
+production resilience, run manually with the ground-truth runbook (kept from the 2026-07-10 audit).
+
+**Why.** The cutover is a *resilience* upgrade, not a functional prerequisite — circling sessions,
+the grappe registry (already live in GRAPPE_REGISTRY KV), management, and savant all work on the
+single-node bus (it has JetStream). Blocking Block 2 — the premise test that decides whether the
+whole architecture is worth building (2.6) — behind a production data migration is backwards: prove
+the federation *works* first, harden to R=3 later. The 1.5 daemon prereqs are landed regardless
+(mesh-task-daemon reconnect, ec4aad5; artifact-shape guard, this batch), so the cutover is ready when
+wanted.
+
+**Audit reconciliation (the collab races the parallel audit flagged for 2.1).** Assessed against the
+real code: **#3** (malformed `circling_artifacts` → TypeError crash) is real → **fixed** (Array.isArray
+guard). **#5** (TOCTOU double-advance of the circling step) is **NOT applicable** — the reflect
+subscription is a single `for await (const msg of sub) { await handler(msg) }` loop, so same-subject
+reflections are processed strictly serially; two reflect handlers never overlap (the daemon's own
+"single-threaded, no mutex needed" comment is correct). **#4** (evaluateRound non-CAS lost-update) is
+in the *sequential/parallel* collab path, which circling (2.1) does not use — deferred, not a 2.1
+blocker. Net: 2.1 needs only the #3 guard, now in.
+
+**Consequences.** 1.5 → [D]; the chain's next step becomes 2.1 (first live circling session). The 1.5
+contract + runbook are preserved for the operator's eventual cutover. Plan-done (Block 5) does not
+require the cutover; R=3 is an operator-timed hardening.
