@@ -1,5 +1,7 @@
 # AUDIT_PRE — Step 2.4 · First real adversarial run: qwen3:8b to a converged vote
 
+> **⚠ D11 (2026-07-13):** this audit records qwen3:8b **scaffold** runs. Per DECISIONS D11 they are proofs of the choreography **mechanism** only, NOT worker quality — a grappe worker is the node's OpenClaw agent on an advanced LLM, never qwen. 2.4 is re-scoped accordingly.
+
 ## §0 Micro Re-Orient
 
 - **Where:** Block 2 (adversarial circling), step 2.4 of 6 (2.1/2.2/2.3/2.4/2.5[D]/2.6). Last step (2.3) proved parse-failure retry ×3 before degradation.

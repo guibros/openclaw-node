@@ -1,5 +1,7 @@
 # GRANULAR — Phase 1 micro-steps (the basic cluster)
 
+> **⚠ D11 (2026-07-13):** any micro-step pointing agents at qwen3:8b via the ollama queue is **scaffold config, superseded** — a grappe worker is the node's OpenClaw agent on an advanced LLM, never qwen. See DECISIONS D11.
+
 The level beneath [PHASE1_TASKS.md](PHASE1_TASKS.md): each atomic task's concrete micro-steps —
 exact schema fields with types, function signatures, test names, config lines, probe registry
 entries, commands. **Grounded in the real code** (reads done 2026-07-06, MASTER_PLAN §4.5 —

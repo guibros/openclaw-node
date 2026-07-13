@@ -352,3 +352,30 @@ be embedded in step contracts by plan authoring.**
 Block 2 exit / Block 3 entry against the OpenClaw-as-worker contract; the 2.4 visual gate and
 the thinking-stream fix (AUDIT_PRE §5 finding 6) proceed unchanged — the scaffold still has to
 work to prove the choreography.
+
+## D11 — Grappe/cluster workers MUST be a full local OpenClaw with an advanced LLM; qwen is never a node's mind (operator directive, 2026-07-13)
+
+**Decision.** Absolute, enforced restatement of D10 per direct operator directive: **the grappe/
+cluster project is NOT to be used for anything less than a local OpenClaw driven by an advanced
+LLM.** A grappe member = a full OpenClaw node (the frontend-agnostic agent + its local harness),
+one per machine, whose mind is an **advanced LLM** (Claude / GPT / Kimi / DeepSeek-class). The local
+qwen model is the harness's **infrastructure organ ONLY** — memory extraction, embeddings, local
+probes — and is **NEVER** a grappe worker, reviewer, or manager.
+
+**Eradicated.** Every presentation of qwen3:8b (or any raw local model) as the node/worker LLM is
+struck from the plan and docs. The single-box qwen mesh-agent scaffold (spawn-node trees +
+`mesh-agent --model qwen3:8b`) is **retired as a worker.** Steps 2.1–2.4 stand ONLY as proofs of
+the choreography **mechanism** (barriers, retries, budgets, votes, envelopes) — NOT proofs of worker
+quality. No grappe/cluster capability may be exercised, benchmarked (2.6), deployed, or claimed on a
+sub-OpenClaw worker.
+
+**Runtime.** The running qwen mesh-agent scaffold was stopped 2026-07-13; the tick's in-flight 2.4
+qwen worker run is void as a worker-quality proof.
+
+**Consequences.** 2.4 is re-scoped — "first real adversarial run" means the node's real OpenClaw
+agent on an advanced LLM, not qwen; its worker-quality gate folds into the OpenClaw-as-worker
+integration step (D10). 2.6 = grappe-of-OpenClaws vs solo-OpenClaw. The `MESH_LLM_PROVIDER=ollama`
+/ `LLM_MODEL=qwen3:8b` mesh-agent default wired in D9 is now a **defect** (a fresh node must not
+default its grappe worker to a local model) — flagged for the next code pass. qwen survives in the
+docs ONLY where it is the extraction/embedding/probe organ (NODE_SPEC local-model row; llm-client
+extraction), explicitly labelled as such.

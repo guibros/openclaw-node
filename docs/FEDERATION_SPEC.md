@@ -4,6 +4,12 @@
 Implementation-discovered divergences go into DECISIONS.md (append-only), not into silent
 rewrites of this spec.
 
+> **HARD REQUIREMENT (D11):** every grappe/cluster participant — worker, reviewer, or manager —
+> is a **full local OpenClaw node driven by an advanced LLM** (Claude / GPT / Kimi / DeepSeek-class),
+> one per machine. A raw local model (e.g. qwen) is the harness's extraction/embedding/probe organ
+> ONLY and is **NEVER** a node's mind. This protocol MUST NOT be run, benchmarked, deployed, or
+> claimed with anything less than a local OpenClaw on an advanced LLM.
+
 **Read alongside:** docs/circling-strategy-implementationV3.md (the paper — adversarial mode's
 complete reference), ROADMAP.md (block intent and constraints), DECISIONS.md (locked choices).
 
@@ -460,7 +466,7 @@ NO AUTO-APPLY PATH EXISTS (write-jail: gate-security test cells G1–G5, step 5.
 NO write path to any file outside that contract. The gate is structural, not policy — step 5.3's
 Verify includes a grep-asserting test that no apply-path exists that bypasses the gate.
 
-**Self-referential safety note (from D3):** same-model reviewers (qwen3:8b reviewing qwen3:8b)
+**Self-referential safety note (from D3):** same-model reviewers (identical advanced-LLM weights reviewing each other)
 can share failure modes. The write-jail is the safety mechanism, not the review itself. A
 change-set proposing to weaken the gate must be flagged by the G4 test cell (self-referential
 flag) — the review is defence-in-depth, not the primary control.

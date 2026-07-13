@@ -29,9 +29,12 @@ strip + --think=false; 194a189 zero-artifact ⇒ parse failure). Runs 3–4 vali
 (finding 9) — the operator armed the tick (Fable budget limits) and the interactive driver
 stood down ~02:30Z. **The tick now owns the runtime.**
 
-**What remains to close 2.4:** the tick drives ONE clean session on the fixed pipeline
-(daemon+bridge already up with MESH_CIRCLING_STEP_TIMEOUT_MS=2700000; agents need
-`--model qwen3:8b` and loopback OPENCLAW_NATS — see §5 findings 1–2) → artifacts land with
-real content → **BLOCK for the operator's visual verdict (ACCEPT/REJECT/NEEDS_WORK)**.
+**SUPERSEDED 2026-07-13 (D11 — operator directive).** The qwen mesh-agent scaffold was **stopped**
+and **retired as a worker**. 2.4's runs (RUN 1–5, all qwen) count ONLY as proofs of the choreography
+mechanism, never worker quality. **2.4 is re-scoped:** "first real adversarial run" now requires the
+node's real **OpenClaw agent on an advanced LLM** (Claude / GPT / Kimi / DeepSeek-class) — NEVER
+qwen. The grappe/cluster protocol may not be run, benchmarked, or claimed on a sub-OpenClaw worker;
+2.4's worker-quality gate folds into the OpenClaw-as-worker integration step (D10). **Do NOT relaunch
+the qwen scaffold to "close" 2.4.**
 
 The tick MUST NOT self-close this step; the gate is the operator's.

@@ -3,7 +3,7 @@
 **Status:** active
 **Goal:** operator-directed deployability overhaul (2026-07-11 directive): NODE_SPEC sheet → functional parameters → corrected install protocol implemented → install test gate. Evidence base: the 2026-07-11 fresh-install audit (OUT_OF_SCOPE entry). Step 2.4 stays blocked-waiting on the operator's manual run in parallel.
 **Set at:** 2026-07-11 (deployability block added 2026-07-11 ~17:45 Montreal, operator-approved in-session)
-**Expires:** 2026-07-13T08:00:00Z
+**Expires:** 2026-07-14T08:00:00Z
 
 ```files deployability-install-overhaul closed
 memory-plan/plans/federation/SCOPE.md
@@ -36,6 +36,32 @@ memory-plan/plans/federation/DECISIONS.md
 mission-control/*
 install.sh
 docs/NODE_SPEC.md
+memory-plan/plans/federation/SCOPE.md
+```
+
+```files readme-refresh
+README.md
+package.json
+memory-plan/plans/federation/SCOPE.md
+```
+
+```files qwen-worker-eradication
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/ROADMAP.md
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/BLOCKED.md
+memory-plan/plans/federation/PHASE1_TASKS.md
+memory-plan/plans/federation/IMPLEMENTATION_PHASES.md
+memory-plan/plans/federation/GRANULAR_PHASE1.md
+memory-plan/plans/federation/audits/step24_real-adversarial-run/AUDIT_PRE.md
+docs/FEDERATION_SPEC.md
+docs/NODE_SPEC.md
+README.md
+lib/llm-providers.js
+bin/mesh-agent.js
+install.sh
+openclaw.env.example
+test/grappe-worker-provider.test.mjs
 memory-plan/plans/federation/SCOPE.md
 ```
 

@@ -43,7 +43,7 @@ those five up.
 
 | Model | Size | Runtime | Used by |
 |---|---|---|---|
-| `qwen3:8b` (or RAM-tier: 14b/32b — `check-llm-baseline.mjs` picks) | 5–18 GB | ollama | memory extraction, inject analysis, concept notes, mesh-agent local provider, watch probes |
+| `qwen3:8b` (or RAM-tier: 14b/32b — `check-llm-baseline.mjs` picks) | 5–18 GB | ollama | memory extraction, inject analysis, concept notes, watch probes — **harness organ ONLY, never a grappe worker (D11)** |
 | `Xenova/bge-m3` | ~2 GB | in-process (transformers.js, NOT ollama) | embeddings: session indexing, semantic search, inject retrieval |
 
 **The agent frontend — the OpenClaw's mind (D10):** the node is frontend-agnostic (Claude Code /
@@ -67,8 +67,8 @@ Written to `~/.openclaw/openclaw.env` by install (generated where marked ⚙; RA
 | `OPENCLAW_NATS_TOKEN` | ⚙ `openssl rand -hex 32` | ⚙ | nats-resolve + rendered NATS confs | server-side auth (D2 trust floor) |
 | `OPENCLAW_NODE_ID` | hostname (sanitized) | | heartbeats, KV keys, identity, grappe membership | stable node identity string |
 | `OPENCLAW_NODE_ROLE` | macOS `lead` / Linux `worker` | | service-manifest role filter | which units install |
-| `MESH_LLM_PROVIDER` | `ollama` | ⚙ | `lib/llm-providers.js` → mesh-agent | **the agent brain. Local-first; `claude` requires CLI auth** |
-| `LLM_MODEL` | `qwen3:8b` ⚖ | ⚙ | llm-client (extraction) + llm-providers (agents) + probes | the local model tag |
+| `MESH_LLM_PROVIDER` | `ollama` ⚠ | ⚙ | `lib/llm-providers.js` → mesh-agent | **DEFECT (D11): defaulting the grappe worker to a local model is wrong — a grappe worker MUST be the node's OpenClaw agent on an advanced LLM. Fix queued for the next code pass.** |
+| `LLM_MODEL` | `qwen3:8b` ⚖ | ⚙ | llm-client (extraction) + probes | the local model tag — extraction/probe organ ONLY, never a grappe worker's mind (D11) |
 | `LLM_BASE_URL` | `http://localhost:11434` | ⚙ | llm-client, probes | ollama endpoint |
 | `USE_LLM_EXTRACTION` | `true` | | pre-compression-flush | extraction mode (falls back to regex, loudly watched) |
 | `OPENCLAW_TIMEZONE` | `America/Montreal` | | timers, memory files | timestamps |

@@ -18,6 +18,13 @@ grappe member's mind. Wherever this document binds worker roles to `LLM_MODEL` (
 below) or equates nodes with spawn-node trees (L0), read those as **scaffold configuration,
 not architecture**.
 
+> **HARD REQUIREMENT (D11 — operator, 2026-07-13):** the grappe/cluster project is **NOT to be used
+> for anything less than a local OpenClaw driven by an advanced LLM.** A grappe member's mind is an
+> **advanced LLM** (Claude / GPT / Kimi / DeepSeek-class), never the local qwen model. qwen is the
+> harness's extraction / embedding / probe organ only. The single-box qwen mesh-agent scaffold is
+> **retired as a worker**; no capability may be run, benchmarked, deployed, or claimed on a
+> sub-OpenClaw worker. Steps 2.1–2.4 proved the choreography mechanism only, never worker quality.
+
 **Goal:** the node federation system — worker **grappes** (bundles of 3 nodes) running three work
 architectures, deferring results to a 5-node **management grappe** that decomposes, dispatches and
 assembles complex tasks, overseen by a **savant grappe** that observes the whole system and emits
@@ -74,15 +81,17 @@ execution, mesh-bridge kanban; 93 circling-family tests) and DORMANT (mesh units
    Tailscale mesh — never a different code path.
 2. **Local-first.** A node outside any grappe keeps full single-node function. Federation is
    additive.
-3. **LLM-agnostic + budget-aware — and this is a HEADLINE constraint, not a footnote (D3).**
-   Roles bind to `LLM_MODEL` (default qwen3:8b via the ollama queue); **one inference at a time
-   per host.** The arithmetic: one adversarial session ≈ 3 roles × 2 steps × 3 sub-rounds ≈ 18
-   serialized inferences × ~120s ≈ **~35 GPU-minutes, fully serialized**; a management task fanning
-   to 2 grappes ≈ 70+ min wall-clock. So federation is a **quality-amplifier for rare, high-stakes
-   artifacts** (a contract, a migration, a spec) — NOT a throughput engine. The soaks are bounded
-   by GPU serialization, not the cron interval. Because same-model reviewers can share failure
-   modes (qwen3:8b reviewing qwen3:8b), **step 2.6 benchmarks grappe-vs-solo and can BLOCK the whole
-   plan at Phase 1** if circling doesn't observably beat one node.
+3. **A grappe member is a full local OpenClaw with an ADVANCED LLM — never a raw local model (D11, HEADLINE constraint).**
+   The unit of federation is the node's OpenClaw agent (a Claude / GPT / Kimi / DeepSeek-class
+   frontend) plus its local harness — one per machine. The local model (qwen tier) is the harness's
+   extraction / embedding / probe organ **ONLY**; it is **NEVER** a grappe worker, reviewer, or
+   manager. **The grappe/cluster protocol MUST NOT be run, benchmarked, deployed, or claimed with
+   anything less than a local OpenClaw driven by an advanced LLM.** The single-box qwen mesh-agent
+   rig used in 2.1–2.4 was a choreography **scaffold** and is retired as a worker (D11). Budget-
+   awareness stays a headline concern, but it is set by each node's advanced LLM (workers run one
+   per machine), not by a shared local GPU. Because same-model reviewers can share failure modes,
+   **step 2.6 benchmarks a grappe-of-OpenClaws vs a solo OpenClaw and can BLOCK the whole plan at
+   Phase 1** if circling doesn't observably beat one node.
 4. **No parallel implementations (§4.6).** Adversarial mode = the existing circling stack.
    Cooperative/collaborative extend `mesh-collab.js` sessions with an `architecture` field —
    same state layer, same daemon, same agent runner, same bridge.
@@ -118,7 +127,7 @@ execution, mesh-bridge kanban; 93 circling-family tests) and DORMANT (mesh units
 
 - **Intent:** revive the paper's implementation and prove it live. The 93 circling-family unit tests never ran
   a live session. Then close paper gaps 14.1 (adaptive convergence early-exit) and 14.2
-  (parse-failure retry ×3), then the first REAL run through qwen3:8b.
+  (parse-failure retry ×3), then the first REAL run through the node's OpenClaw agent (advanced LLM — NEVER qwen; D11).
 - **Exit criterion:** one observed real adversarial session on the grappe — artifacts in KV,
   kanban trail, barriers held, a converged finalization vote. (Paper gap 14.3 reviewer
   dual-output → deferred [D].)

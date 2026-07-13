@@ -1,5 +1,7 @@
 # PHASE 1 — Atomic task decomposition (the basic cluster)
 
+> **⚠ D11 (2026-07-13):** any task below that binds a worker/agent to qwen3:8b (the ollama queue) is **scaffold config, superseded** — a grappe worker is the node's OpenClaw agent on an advanced LLM, never qwen. See DECISIONS D11.
+
 Every INVENTORY step (0.1–3.5) broken into atomic implementation tasks. A **task** is one
 concrete action with a single observable done-when; a **step** is the commit-grain unit (one
 9-phase cycle, PROTOCOL §3) whose Phase-4 work is the task list below it. Tiers per
@@ -97,7 +99,7 @@ operator-gated **step 1.5**. Granular in [GRANULAR_PHASE1.md](GRANULAR_PHASE1.md
 - **T2.4.5** Record timings/subround/token metrics as Phase-2 planning constants → *DECISIONS / audit* · done-when: metrics logged. [code]
 
 ### Step 2.6 — PREMISE BENCHMARK (does circling actually help?)
-- **T2.6.1** Solo-node baseline path: one agent, same task, same qwen3:8b, no reviewers → *a `--solo` create mode or a direct single-agent call* · done-when: solo produces an artifact for the same brief. [code]
+- **T2.6.1** Solo-node baseline path: one OpenClaw node, same task, **same advanced LLM as the grappe members** (NEVER qwen — D11), no reviewers → *a `--solo` create mode or a direct single-agent call* · done-when: solo produces an artifact for the same brief. [code]
 - **T2.6.2** Pick ≥5 real tasks with the operator spanning the intended use (a doc harden, a small spec, a review) → *AskUserQuestion* · done-when: task set fixed. [visual]
 - **T2.6.3** Run each task both ways (solo + adversarial grappe); strip identifying markers → *runs + anonymizer* · done-when: 10 artifacts, provenance hidden. [runtime T4]
 - **T2.6.4** Operator blind-scores each pair on a pre-agreed rubric (correctness, completeness, catches-a-real-flaw) → *visual* · done-when: scores recorded, which-is-which revealed after. [T7]

@@ -328,6 +328,8 @@ The mesh is optional. Without Tailscale, everything runs as a standalone single 
 
 A **grappe** is a set of full OpenClaw nodes joined by signed membership that execute tasks through a shared worker protocol. The unit of federation is a full OpenClaw node — the frontend-agnostic agent plus its local harness, one per machine — not a model or a bare process. Nodes outside any grappe keep full standalone single-node function; federation is an opt-in layer on top.
 
+> **Requirement (D11):** a grappe/cluster member's mind is an **advanced LLM** (Claude / GPT / Kimi / DeepSeek-class), never a raw local model. The local qwen model is the harness's extraction/embedding/probe organ only. **This project is not to be used for anything less than a local OpenClaw driven by an advanced LLM** — the single-box qwen mesh-agent scaffold that proved the choreography is retired as a worker.
+
 The full contract lives in [docs/FEDERATION_SPEC.md](docs/FEDERATION_SPEC.md) (v0.2). The design layers grappes into three tiers — worker grappes (3 nodes, one mode each), a management grappe (5 nodes: intake → decompose → dispatch → assemble → verify → deliver), and a savant grappe (3 nodes, adversarial; observes the whole system and emits operator-gated change-sets). Today the shipped surface is the **substrate**: the grappe registry, the CLI, and the adversarial worker mode.
 
 ### The `openclaw-grappe` CLI
@@ -903,6 +905,6 @@ See `openclaw.env.example` for all available configuration. Key variables:
 | `OPENCLAW_NATS_TOKEN` | Auto | NATS auth token. `install.sh` generates one via `openssl rand -hex 32` and persists it; do not leave empty on a running node |
 | `OPENCLAW_NODE_ROLE` | Optional | Node role: `lead` or `worker` (default: macOS→lead, Linux→worker) |
 | `MESH_LLM_PROVIDER` | Optional | Mesh-agent LLM provider: `ollama` (local, default) or `claude` (requires the Claude CLI logged in) |
-| `LLM_MODEL` | Optional | Local model tag (default `qwen3:8b`; `check-llm-baseline` recommends a tier by RAM: 16GB→qwen3:8b, 32GB→qwen3:14b, 48GB→qwen3:32b) |
+| `LLM_MODEL` | Optional | Local model tag for the **extraction/embedding/probe organ** (default `qwen3:8b`; RAM tiers: 16GB→qwen3:8b, 32GB→qwen3:14b, 48GB→qwen3:32b). **Not the grappe worker's mind** — grappe/cluster workers require the node's OpenClaw agent on an advanced LLM (D11) |
 | `LLM_BASE_URL` | Optional | Ollama endpoint for extraction, agents, and probes (default `http://localhost:11434`) |
 | `USE_LLM_EXTRACTION` | Optional | `true` (default) uses LLM memory extraction, falling back to regex if the model is unreachable |

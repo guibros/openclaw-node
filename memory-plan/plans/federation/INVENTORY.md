@@ -72,7 +72,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 2 | 2.1 | v2.1 | [x] | Live end-to-end circling session on the grappe with a mock LLM — closed 2026-07-11: 4 rounds (init+step1+step2+finalization), all barriers 3/3, MESH_COLLAB status=completed (collab-step21-mock-002-1783747159329) |
 | 2 | 2.2 | v2.2 | [x] | Paper gap 14.1 — adaptive convergence (unanimous converged ⇒ early finalization) — closed 2026-07-11: 6 tests (5 unit + 1 NATS integration); runtime: session collab-step22-rt-001, max_subrounds=3, finalized_after_sr=1, skipped_subrounds=2 |
 | 2 | 2.3 | v2.3 | [x] | Paper gap 14.2 — parse-failure retry ×3 before degradation — closed 2026-07-11: 5 tests (4 unit + 1 NATS integration); runtime: session collab-task-retry-test-rt-001, double-failure then success, barrier_advanced=true, degraded=false |
-| 2 | 2.4 | v2.4 | [A] | First real adversarial run: small production task via qwen3:8b to a converged vote |
+| 2 | 2.4 | v2.4 | [A] | First real adversarial run: small production task through the node's OpenClaw agent (advanced LLM — NEVER qwen; D11) to a converged vote. The stopped qwen scaffold proved only the choreography mechanism |
 | 2 | 2.5 | v2.5 | [D] | Paper gap 14.3 — reviewer Step-2 dual output (deferred: +20% token cost, v2 enhancement) |
 | 2 | 2.6 | v2.6 | [ ] | PREMISE BENCHMARK: adversarial grappe vs solo node, blind operator comparison (does circling actually help?) |
 
@@ -91,8 +91,8 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Feeds:** real-LLM reliability for 2.4 (local models fail delimiters more than cloud ones).
 > **Verify:** `code:` unit test: 2 failures then success ⇒ barrier satisfied, no degradation; 3 failures ⇒ degraded + CRITICAL log · `runtime:` mock session with an injected double-failure observed completing.
 
-> **2.4 — Goal:** the first production adversarial grappe run completes on the local LLM.
-> **Needs:** 2.1-2.3; ollama with LLM_MODEL (qwen3:8b); a real small task chosen with the operator; an idle-enough window (single GPU).
+> **2.4 — Goal:** the first production adversarial grappe run completes on the node's real OpenClaw agent (advanced LLM — NEVER qwen; D11).
+> **Needs:** 2.1-2.3; a node running its full OpenClaw agent on an advanced LLM (the local qwen is the extraction organ, never a worker — D11); a real small task chosen with the operator.
 > **Feeds:** Block 4 dispatches to this proven mode; DECISIONS records observed round timings/token cost as the planning baseline.
 > **Verify:** `runtime:` session COMPLETE with a converged vote on real LLM output; artifacts non-trivial (operator spot-check `visual:`); wall-clock + per-step timings recorded in the audit.
 

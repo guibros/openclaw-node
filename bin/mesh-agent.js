@@ -49,7 +49,7 @@ const { findRole, formatRoleForPrompt } = require('../lib/role-loader');
 
 const sc = StringCodec();
 const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
-const { resolveProvider, resolveModel, stripLlmOutput } = require('../lib/llm-providers');
+const { resolveProvider, resolveModel, stripLlmOutput, isOpenClawWorkerProvider } = require('../lib/llm-providers');
 const NODE_ID = process.env.OPENCLAW_NODE_ID || process.env.MESH_NODE_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const POLL_INTERVAL = parseInt(process.env.MESH_POLL_INTERVAL || '15000'); // 15s between polls
 const MAX_ATTEMPTS = parseInt(process.env.MESH_MAX_ATTEMPTS || '3');
@@ -982,6 +982,21 @@ function parseCirclingReflection(output) {
 async function executeCollabTask(task) {
   const collabSpec = task.collaboration;
   log(`COLLAB EXECUTING: ${task.task_id} "${task.title}" (mode: ${collabSpec.mode})`);
+
+  // D11: a grappe worker is the node's OpenClaw agent on an ADVANCED LLM — never a
+  // local model. Refuse to run (no silent local fallback) rather than degrade the
+  // grappe to a sub-OpenClaw worker. Mirrors the "refuse silent solo fallback" below.
+  const workerProvider = resolveProvider(task, CLI_PROVIDER, ENV_PROVIDER);
+  if (!isOpenClawWorkerProvider(workerProvider.name)) {
+    log(`COLLAB REFUSED: provider "${workerProvider.name}" is a local model, not an OpenClaw advanced-LLM frontend (D11).`);
+    await natsRequest('mesh.tasks.fail', {
+      task_id: task.task_id,
+      reason: `Grappe worker refused (D11): provider "${workerProvider.name}" is a local model. A grappe/cluster member MUST run through this node's OpenClaw agent on an advanced LLM (claude/openai/gemini/deepseek/kimi/minimax/aider) — set MESH_LLM_PROVIDER or task.llm_provider accordingly. No silent local fallback.`,
+    }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
+    debug('state → idle');
+    writeAgentState('idle', null);
+    return;
+  }
 
   // Discover session ID — three strategies in priority order:
   // 1. task.collab_session_id (set by daemon on auto-create)

@@ -1,5 +1,7 @@
 # IMPLEMENTATION_PHASES — federation plan, three-phase execution detail
 
+> **⚠ D11 (2026-07-13):** wherever this document runs workers/agents on qwen3:8b via the ollama queue, that is **scaffold config, superseded** — a grappe worker is the node's OpenClaw agent on an advanced LLM, never qwen. See DECISIONS D11.
+
 **Authored 2026-07-06 (operator-directed).** This document elaborates
 [ROADMAP.md](ROADMAP.md) into the three delivery phases the operator set: each phase ends with
 its cluster **operationally proven** — built, extensively tested, observable, and soaked — before
