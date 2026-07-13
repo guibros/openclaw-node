@@ -217,6 +217,25 @@ RUN 4 (guard v2, orphaned by driver collision):
                session → run 4 orphaned, self-cleans via the 45-min step timeout.
                Chain-discipline rule: ONE session-driver at a time; interactive driver
                stood down 2026-07-13 ~02:30Z, the tick owns the runtime from here.
+
+  FINDING 10:  CORRUPT KV VALUE KILLS THE COORDINATOR — during the collision's SIGTERM
+               storm, a writer put a ZERO-BYTE value on run 4's session key (observed:
+               length 0 at revision 256). CollabStore.get (lib/mesh-collab.js:158) does
+               a naked JSON.parse → 'Unexpected end of JSON input' → the daemon's
+               step-timeout sweep (handleCirclingStepTimeout, mesh-task-daemon.js:1366)
+               died UNHANDLED → daemon exit 1. Every other reader (agents' status calls,
+               the watch poller) crashed on the same value. Same fragility family the
+               2026-07-10 audit ledgered pre-1.5. Remediation observed: corrupt key
+               PURGED, daemon restarted 02:40:32Z, >5 sweep cycles clean. Code fix for
+               the pre-1.5 hardening batch: CollabStore.get must treat unparseable/empty
+               values as missing (warn + skip), never throw into the sweep.
+
+RUN 5 (the tick's, in flight at handoff): session
+collab-fed-2.4-spec-harden-1783909185003-1783909185026 (submitted 02:19:45Z by the tick's
+driver) SURVIVED the coordinator crash-and-restore — KV-backed session state resumed under
+the restarted daemon with no intervention (an unplanned but observed resilience proof:
+coordinator death mid-session is recoverable). Status at 02:5xZ: init phase, 2 artifacts
+stored, 3/3 nodes working. The tick drives it to the operator's visual gate.
 ```
 
 ## §6 Phase-8 patches anticipated
