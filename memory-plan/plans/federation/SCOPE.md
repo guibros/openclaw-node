@@ -32,6 +32,13 @@ memory-plan/plans/federation/ROADMAP.md
 memory-plan/plans/federation/DECISIONS.md
 ```
 
+```files mc-build-and-agent-frontend
+mission-control/*
+install.sh
+docs/NODE_SPEC.md
+memory-plan/plans/federation/SCOPE.md
+```
+
 ```files step-2.4-thinking-fix
 lib/llm-providers.js
 bin/mesh-agent.js

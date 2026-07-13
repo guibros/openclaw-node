@@ -46,7 +46,16 @@ those five up.
 | `qwen3:8b` (or RAM-tier: 14b/32b — `check-llm-baseline.mjs` picks) | 5–18 GB | ollama | memory extraction, inject analysis, concept notes, mesh-agent local provider, watch probes |
 | `Xenova/bge-m3` | ~2 GB | in-process (transformers.js, NOT ollama) | embeddings: session indexing, semantic search, inject retrieval |
 
-**Explicitly NOT required for a functional core node:** Claude CLI auth (only if `MESH_LLM_PROVIDER=claude`), Discord token (only mesh-tool-discord), Gemini/Google API key (only MC TTS), Tailscale (only multi-machine mesh), the global `openclaw` npm package (only the gateway surface), ClawVault.
+**The agent frontend — the OpenClaw's mind (D10):** the node is frontend-agnostic (Claude Code /
+codex / gemini — whatever drives this OpenClaw). install.sh detects an installed frontend, installs
+the default (`@anthropic-ai/claude-code`) when none exists, and guides sign-in; **authentication is
+inherently human-in-the-loop** (run `claude` once interactively; optional live check:
+`bash install.sh --update --verify-frontend`). The *harness* runs headless without a frontend —
+but a node with no mind seated is a body, not an OpenClaw.
+
+**Explicitly NOT required for a functional harness:** frontend auth (required only to seat the
+mind), Discord token (only mesh-tool-discord), Gemini/Google API key (only MC TTS), Tailscale (only
+multi-machine mesh), the global `openclaw` npm package (only the gateway surface), ClawVault.
 
 ## §3 Functional parameters (the canonical set)
 
@@ -117,7 +126,9 @@ Written to `~/.openclaw/openclaw.env` by install (generated where marked ⚙; RA
 1. macOS only: install Node ≥18 (and Homebrew if you want nats-server/ollama auto-installed). Linux: none.
 2. Run `bash install.sh --enable-services` (add `--role=lead|worker` if the default is wrong).
 3. Wait for model pulls (5–18 GB) and the embedder prefetch (~2 GB) — one-time.
-4. Read the acceptance gate output at the end. **Green (`ACCEPTED`) = the node is running.** Anything else prints exactly what is broken and why.
+4. **Seat the mind:** run `claude` once interactively to sign in (install already put the CLI in
+   place if it was missing). Verify any time: `bash install.sh --update --verify-frontend`.
+5. Read the acceptance gate output at the end. **Green (`ACCEPTED`) = the node is running.** Anything else prints exactly what is broken and why.
 
 **Optional human steps (feature unlocks, not core):**
 - Cloud agent brain: `claude` CLI login, set `MESH_LLM_PROVIDER=claude`.

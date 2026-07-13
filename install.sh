@@ -32,6 +32,8 @@ SKIP_MESH=false
 ENABLE_SERVICES=false
 SKIP_LLM=false
 SKIP_VERIFY=false
+SKIP_FRONTEND=false
+VERIFY_FRONTEND=false
 SANDBOX=false
 NODE_ROLE=""
 
@@ -43,7 +45,9 @@ for arg in "$@"; do
     --enable-services)   ENABLE_SERVICES=true ;;
     --skip-llm)          SKIP_LLM=true ;;
     --skip-verify)       SKIP_VERIFY=true ;;
-    --sandbox)           SANDBOX=true; SKIP_LLM=true; SKIP_MESH=true ;;
+    --skip-frontend)     SKIP_FRONTEND=true ;;
+    --verify-frontend)   VERIFY_FRONTEND=true ;;
+    --sandbox)           SANDBOX=true; SKIP_LLM=true; SKIP_MESH=true; SKIP_FRONTEND=true ;;
     --role=*)            NODE_ROLE="${arg#--role=}" ;;
     --help|-h)
       echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--skip-llm] [--skip-verify] [--role=lead|worker] [--enable-services]"
@@ -52,6 +56,8 @@ for arg in "$@"; do
       echo "  --skip-mesh         Skip mesh network setup (used by meta-installer)"
       echo "  --skip-llm          Skip ollama install + model pull + embedder prefetch (extraction degrades to regex)"
       echo "  --skip-verify       Skip the final acceptance gate"
+      echo "  --skip-frontend     Skip agent-frontend (Claude Code) detection/install"
+      echo "  --verify-frontend   Verify frontend auth with one small live call"
       echo "  --sandbox           Wiring-test mode: skip network-heavy installs (implies --skip-llm --skip-mesh)"
       echo "  --role=lead|worker  Set node role (default: macOS=lead, Linux=worker)"
       echo "  --enable-services   Also enable and start services after installing"
@@ -914,6 +920,57 @@ if [ -f "$HARNESS_SRC" ]; then
   else
     info "Syncing harness rules (smart merge — user edits preserved)..."
     node "${REPO_DIR}/bin/harness-sync.js" apply
+  fi
+fi
+
+# ============================================================
+# Step 13.5: Agent Frontend — the OpenClaw's mind (D10)
+# ============================================================
+
+step "Step 13.5: Agent Frontend"
+
+# The node's agent frontend is agnostic (claude / codex / gemini — whatever
+# drives this OpenClaw). The harness runs headless without one, but a node
+# with no mind seated is just a body: detect, install the default, guide auth.
+if $SKIP_FRONTEND; then
+  info "Skipped (--skip-frontend)"
+else
+  FRONTENDS_FOUND=""
+  for fe in claude codex gemini; do
+    command -v "$fe" >/dev/null 2>&1 && FRONTENDS_FOUND="$FRONTENDS_FOUND $fe"
+  done
+
+  if [ -n "$FRONTENDS_FOUND" ]; then
+    info "Agent frontend(s) present:$FRONTENDS_FOUND"
+  else
+    warn "No agent frontend found (claude/codex/gemini) — the node has no mind seated"
+    info "Installing the default frontend: Claude Code (@anthropic-ai/claude-code)..."
+    if [ "$OS" = "linux" ]; then
+      run sudo npm install -g @anthropic-ai/claude-code || warn "Claude Code install failed — install a frontend manually"
+    else
+      run npm install -g @anthropic-ai/claude-code || warn "Claude Code install failed — install a frontend manually"
+    fi
+    command -v claude >/dev/null 2>&1 && FRONTENDS_FOUND=" claude"
+  fi
+
+  if echo "$FRONTENDS_FOUND" | grep -q claude; then
+    # Auth is human-in-the-loop (OAuth) — install can only detect and guide.
+    if $DRY_RUN; then
+      info "[dry-run] would check Claude Code auth"
+    elif $VERIFY_FRONTEND; then
+      info "Verifying Claude Code auth with one small live call..."
+      # env -u CLAUDECODE: allow the probe even when install.sh itself runs
+      # inside a Claude Code session (the CLI refuses nested sessions otherwise)
+      if FRONTEND_PROBE=$(env -u CLAUDECODE claude -p 'Reply with exactly: OK' --output-format text --model haiku 2>&1) && echo "$FRONTEND_PROBE" | grep -q "OK"; then
+        info "Mind seated: Claude Code authenticated and answering"
+      else
+        warn "Claude Code present but NOT authenticated (probe failed)"
+        warn "Seat the mind: run 'claude' once interactively to sign in, then: bash $0 --update --verify-frontend"
+      fi
+    else
+      info "Claude Code present. Auth is interactive — on a fresh device, run 'claude' once to sign in."
+      info "(Optional live auth check: bash $0 --update --verify-frontend)"
+    fi
   fi
 fi
 

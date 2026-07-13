@@ -1134,10 +1134,12 @@ async function executeCollabTask(task) {
         };
       } else if (isCircling) {
         const circResult = parseCirclingReflection(output);
-        // A converged vote must have something to vote on: artifacts whose content
-        // is empty after sanitization are parse failures, not deliverables
-        // (2.4 findings 6+7 — thinking traces rubber-stamped as converged).
-        const allArtifactsEmpty = (circResult.circling_artifacts || []).length > 0 &&
+        // A converged vote must have something to vote on: every circling step
+        // carries a designated artifact, so ZERO artifacts — or artifacts whose
+        // content is empty after sanitization — are parse failures, not
+        // deliverables (2.4 findings 6+7+8; run 3 escalated on a worker that
+        // submitted none and only drew a daemon warning).
+        const allArtifactsEmpty = (circResult.circling_artifacts || []).length === 0 ||
           circResult.circling_artifacts.every(a => !String((a && a.content) ?? a ?? '').trim());
         if (allArtifactsEmpty && !circResult.parse_failed) {
           circResult.parse_failed = true;
