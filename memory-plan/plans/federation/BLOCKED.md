@@ -23,10 +23,15 @@ VERIFIED end-to-end, but finding 6 (qwen3 thinking-stream contaminates artifacts
 worker artifact carries zero deliverable after stripping) means the step's "artifacts
 non-trivial" contract is NOT met by RUN 2's output.
 
-**Recommended path**: verdict REJECT on artifacts → approve a small scope addition
-(`lib/llm-providers.js` + `bin/mesh-agent.js`) to (a) disable/strip qwen3 thinking in the
-ollama provider and (b) treat empty-after-strip artifacts as parse failures (extends 2.3's
-retry) → rerun the session (expected substantially faster without thinking tokens) → review
-again → close 2.4.
+**Update 2026-07-13:** the artifact-pipeline fixes are DONE and committed (f9e54ae thinking
+strip + --think=false; 194a189 zero-artifact ⇒ parse failure). Runs 3–4 validated them
+(AUDIT_PRE §5: honest escalation, live retries). Run-4 was orphaned by a driver collision
+(finding 9) — the operator armed the tick (Fable budget limits) and the interactive driver
+stood down ~02:30Z. **The tick now owns the runtime.**
 
-The next tick MUST NOT self-close this step; the gate is the operator's.
+**What remains to close 2.4:** the tick drives ONE clean session on the fixed pipeline
+(daemon+bridge already up with MESH_CIRCLING_STEP_TIMEOUT_MS=2700000; agents need
+`--model qwen3:8b` and loopback OPENCLAW_NATS — see §5 findings 1–2) → artifacts land with
+real content → **BLOCK for the operator's visual verdict (ACCEPT/REJECT/NEEDS_WORK)**.
+
+The tick MUST NOT self-close this step; the gate is the operator's.

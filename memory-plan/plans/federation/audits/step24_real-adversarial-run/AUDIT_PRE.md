@@ -193,6 +193,32 @@ RUN 2 (completed):
 role assignment → Init → SR1 → SR2 → finalization → `status=completed`, barriers held, one
 parse-retry consumed, 45-min budget absorbed serialization, KV/event trail complete.
 
+**RUNS 3–4 (2026-07-13, post-fix):**
+
+```
+RUN 3 (completed → ESCALATED, 39 min):
+  SESSION_ID:  collab-fed-2.4-spec-harden-1783904708658-1783904708667
+  FIXES LIVE:  --think=false + stripLlmOutput (f9e54ae) — ~3x faster, artifacts carried
+               real content where present (no thinking traces)
+  OUTCOME:     worker (charlie) emitted ZERO artifact blocks on Init/Step2 (daemon
+               warn-only); reviewers REFUSED to sign → finalization 2x blocked →
+               CIRCLING ESCALATION. Honest anti-rubber-stamp behavior — the run-2
+               failure mode is dead.
+  FINDING 8:   zero-artifact circling submissions must be parse failures, not warnings
+               → guard tightened (zero-or-empty ⇒ parse_failed ⇒ 2.3 retry), 194a189.
+
+RUN 4 (guard v2, orphaned by driver collision):
+  SESSION_ID:  collab-fed-2.4-spec-harden-1783907585200-1783907585225
+  OBSERVED:    reviewers' Init artifacts real (1920/2014 chars); worker (alpha) parse
+               failures correctly RETRIED (attempt 1→2→3) — finding-8 guard working live.
+  FINDING 9:   DRIVER COLLISION — at 02:18:52Z a second Claude session (operator-armed
+               tick, Fable budget limits) SIGTERM'd this session's agents mid-retry and
+               started identical replacements; fresh agents cannot rejoin an in-flight
+               session → run 4 orphaned, self-cleans via the 45-min step timeout.
+               Chain-discipline rule: ONE session-driver at a time; interactive driver
+               stood down 2026-07-13 ~02:30Z, the tick owns the runtime from here.
+```
+
 ## §6 Phase-8 patches anticipated
 
 None — no production code changes this step. Stack is fully in place from 2.1–2.3.
