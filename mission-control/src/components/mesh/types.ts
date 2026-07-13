@@ -21,6 +21,7 @@ export interface NodeHealth {
     currentTask: string | null;
     llm: string | null;
     model: string | null;
+    name?: string;
     budgetRemainingSeconds?: number;
   };
   capabilities: string[];
@@ -33,6 +34,7 @@ export interface NodeHealth {
     peers: TailscalePeer[];
     selfIp: string;
     natType: string;
+    dnsName?: string;
   };
   nats?: {
     serverUrl: string;

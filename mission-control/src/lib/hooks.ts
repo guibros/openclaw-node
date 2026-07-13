@@ -847,10 +847,10 @@ export interface WatcherEvent {
 export interface WatcherHealthStore {
   sessions?: number;
   entities?: number;
-  session_docs?: number;
+  session_documents?: number;
   nodes?: number;
   edges?: number;
-  wal_size?: number;
+  wal_bytes?: number;
   last_indexed?: number;
   last_indexed_iso?: string;
   [key: string]: unknown;
@@ -865,7 +865,7 @@ export interface WatcherHealth {
     knowledge?: WatcherHealthStore | null;
     graph_cache?: WatcherHealthStore | null;
   };
-  drift?: { lib_symlink?: boolean; daemon_symlink?: boolean };
+  drift?: { lib_symlinked?: boolean; daemon_symlinked?: boolean };
   [key: string]: unknown;
 }
 

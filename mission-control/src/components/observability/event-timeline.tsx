@@ -15,15 +15,15 @@ interface EventGroup {
   label: string;
   type: "task" | "session" | "module";
   events: TraceEvent[];
-  firstTimestamp: string;
-  lastTimestamp: string;
+  firstTimestamp: string | number;
+  lastTimestamp: string | number;
   errorCount: number;
   latestStatus: "ok" | "error" | "slow";
 }
 
-function formatTimeRange(first: string, last: string): string {
+function formatTimeRange(first: string | number, last: string | number): string {
   try {
-    const fmt = (iso: string) => {
+    const fmt = (iso: string | number) => {
       const d = new Date(iso);
       return `${d.getHours().toString().padStart(2, "0")}:${d
         .getMinutes()
@@ -52,13 +52,14 @@ export function EventTimeline({
       let label: string;
       let type: "task" | "session" | "module";
 
-      if (ev.meta?.task_id) {
-        key = ev.meta.task_id;
-        label = `Task: ${ev.meta.task_id}`;
+      const meta = typeof ev.meta === "object" ? ev.meta : null;
+      if (meta?.task_id) {
+        key = meta.task_id;
+        label = `Task: ${meta.task_id}`;
         type = "task";
-      } else if (ev.meta?.session_id) {
-        key = ev.meta.session_id;
-        label = `Session: ${ev.meta.session_id}`;
+      } else if (meta?.session_id) {
+        key = meta.session_id;
+        label = `Session: ${meta.session_id}`;
         type = "session";
       } else {
         key = ev.module;
