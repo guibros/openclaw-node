@@ -312,3 +312,43 @@ first-class requirement.
 protocol — still `[ ]`; sandbox verification is NOT the fresh-machine claim). 2.4/2.6 are
 unaffected (they run on the dev box). Still open from the audit: MC production build (20 tsc
 errors), consolidation LLM wiring, `--dry-run` honesty, full MULTI_NODE_DEPLOY rewrite, Linux T7.
+
+## D10 — North star pinned: the unit of federation is an OpenClaw, not a model (operator, 2026-07-12)
+
+**Decision.** The operator's governing statement, now pinned at the top of ROADMAP.md: the
+project sequence is (1) local harness (memory + everything) optimized for an **agnostic
+OpenClaw**, (2) **wire it to another OpenClaw — same setup, different machine**, (3) grappes/
+clusters **of OpenClaws** on distinct working protocols, (4) a management cluster node for meta
+managerial task cognition. **A grappe member is a full OpenClaw node** — the frontend-agnostic
+agent plus its local harness, one per machine, joined by signed membership.
+
+**The drift this corrects.** The 2026-07-06 plan authoring silently substituted the mind of a
+worker: ROADMAP constraint 3 bound roles to `LLM_MODEL` (qwen via the ollama queue) and L0
+defined nodes as spawn-node trees, so a dev convenience (3 logical nodes + raw-model
+mesh-agents on one box) was promoted into the architecture, and multi-machine — the actual
+point — was demoted to a deferral (7.1). The decision was never surfaced to the operator as a
+decision; it traveled inside step contracts (2.4's "via qwen3:8b", D8's payload). **Process
+rule going forward: architecture-defining choices must land in this ledger explicitly, never
+be embedded in step contracts by plan authoring.**
+
+**Reclassifications.**
+- The current single-box rig (spawn-node trees, mesh-agents wrapping ollama) = **protocol
+  scaffold**. Steps 2.1–2.4 evidence stands as scaffold-level proof of the circling
+  choreography (barriers, retries, budgets, votes) — valid and valuable, but NOT proof of a
+  production grappe.
+- The local model (qwen tier) = the harness's infrastructure organ (extraction, embeddings,
+  probes) and scaffold stand-in. Never the definition of a worker's mind.
+- **Production worker integration becomes a first-class step** (Block 3 entry or 2.x addition —
+  next planning pass with the operator): the grappe participant is the node's OpenClaw agent
+  (e.g., Claude Code headless / companion lane / whatever frontend that node runs), driven
+  through the same mesh-collab machinery the scaffold proved.
+- **7.1 (multi-machine) is the spine, not a nice-to-have** — it stays [D] only until a second
+  machine exists to join; the D9 deployability overhaul ("same setup, different machine"
+  install) is its direct prerequisite, now understood as step (2) of the north star.
+- 2.6's premise benchmark ultimately means "N OpenClaws circling vs 1 OpenClaw"; a
+  scaffold-level 2.6 may still run first as a cheap pre-test of the protocol's value.
+
+**Consequences.** ROADMAP carries the north star preamble; the next planning pass re-derives
+Block 2 exit / Block 3 entry against the OpenClaw-as-worker contract; the 2.4 visual gate and
+the thinking-stream fix (AUDIT_PRE §5 finding 6) proceed unchanged — the scaffold still has to
+work to prove the choreography.

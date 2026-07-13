@@ -1,5 +1,23 @@
 # ROADMAP — federation plan
 
+## NORTH STAR (operator, pinned 2026-07-12 — D10; governs every reading of this document)
+
+openclaw-node exists to: **(1)** establish the LOCAL HARNESS — memory + everything a node
+needs — optimized locally for an **agnostic OpenClaw** (the node's agent, whatever LLM
+frontend drives it); **(2)** **wire that OpenClaw to another OpenClaw — same setup, different
+machine**; **(3)** elaborate **grappes/clusters of OpenClaws** on distinct working protocols
+(adversarial / cooperative / collaborative); **(4)** build a **management cluster node** above
+them for meta managerial task cognition.
+
+**The unit of federation is a full OpenClaw node** — the frontend-agnostic agent PLUS its
+local harness — one per machine, joined by signed membership. The single-machine rig
+(spawn-node trees + mesh-agents wrapping a raw local model) is a **protocol scaffold** for
+cheap choreography proofs, NOT the production worker. The local model (qwen tier) is the
+harness's infrastructure organ — extraction, embeddings, probes — never the definition of a
+grappe member's mind. Wherever this document binds worker roles to `LLM_MODEL` (constraint 3
+below) or equates nodes with spawn-node trees (L0), read those as **scaffold configuration,
+not architecture**.
+
 **Goal:** the node federation system — worker **grappes** (bundles of 3 nodes) running three work
 architectures, deferring results to a 5-node **management grappe** that decomposes, dispatches and
 assembles complex tasks, overseen by a **savant grappe** that observes the whole system and emits

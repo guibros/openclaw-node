@@ -27,6 +27,11 @@ docs/INSTALL_TEST_PROTOCOL.md
 docs/MULTI_NODE_DEPLOY.md
 ```
 
+```files north-star-pinning
+memory-plan/plans/federation/ROADMAP.md
+memory-plan/plans/federation/DECISIONS.md
+```
+
 ```files step-2.4-real-adversarial-run
 memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/VERSION
