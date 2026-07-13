@@ -27,9 +27,21 @@ docs/INSTALL_TEST_PROTOCOL.md
 docs/MULTI_NODE_DEPLOY.md
 ```
 
-```files north-star-pinning
+```files north-star-pinning closed
 memory-plan/plans/federation/ROADMAP.md
 memory-plan/plans/federation/DECISIONS.md
+```
+
+```files step-2.4-thinking-fix
+lib/llm-providers.js
+bin/mesh-agent.js
+test/circling-thinking-strip.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/BLOCKED.md
+memory-plan/plans/federation/audits/step24_real-adversarial-run/AUDIT_PRE.md
+memory-plan/plans/federation/audits/step24_real-adversarial-run/AUDIT_POST.md
 ```
 
 ```files step-2.4-real-adversarial-run

@@ -49,7 +49,7 @@ const { findRole, formatRoleForPrompt } = require('../lib/role-loader');
 
 const sc = StringCodec();
 const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
-const { resolveProvider, resolveModel } = require('../lib/llm-providers');
+const { resolveProvider, resolveModel, stripLlmOutput } = require('../lib/llm-providers');
 const NODE_ID = process.env.OPENCLAW_NODE_ID || process.env.MESH_NODE_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const POLL_INTERVAL = parseInt(process.env.MESH_POLL_INTERVAL || '15000'); // 15s between polls
 const MAX_ATTEMPTS = parseInt(process.env.MESH_MAX_ATTEMPTS || '3');
@@ -545,7 +545,9 @@ function runLLM(prompt, task, worktreePath) {
 
     child.on('close', (code) => {
       clearInterval(heartbeatTimer);
-      resolve({ exitCode: code, stdout, stderr, provider: provider.name, model });
+      // Sanitize before any parsing: terminal control codes + thinking blocks
+      // must never reach the artifact pipeline (2.4 finding 6).
+      resolve({ exitCode: code, stdout: stripLlmOutput(stdout), stderr, provider: provider.name, model });
     });
 
     child.on('error', (err) => {
@@ -1132,6 +1134,17 @@ async function executeCollabTask(task) {
         };
       } else if (isCircling) {
         const circResult = parseCirclingReflection(output);
+        // A converged vote must have something to vote on: artifacts whose content
+        // is empty after sanitization are parse failures, not deliverables
+        // (2.4 findings 6+7 — thinking traces rubber-stamped as converged).
+        const allArtifactsEmpty = (circResult.circling_artifacts || []).length > 0 &&
+          circResult.circling_artifacts.every(a => !String((a && a.content) ?? a ?? '').trim());
+        if (allArtifactsEmpty && !circResult.parse_failed) {
+          circResult.parse_failed = true;
+          circResult.vote = 'parse_error';
+          circResult.summary = 'empty artifact content after output sanitization';
+          circResult.circling_artifacts = [];
+        }
         reflection = {
           summary: circResult.summary,
           learnings: '',
