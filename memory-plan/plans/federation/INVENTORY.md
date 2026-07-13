@@ -67,12 +67,19 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 
 ## Block 2 — Worker mode A: adversarial (circling revival)
 
+> **D11 re-derivation (2026-07-13):** the grappe worker is the node's **full OpenClaw** — its
+> advanced-LLM frontend PLUS its local harness — never a raw local model. Steps 2.1–2.3 (mock/qwen)
+> proved the choreography **mechanism** only; they do NOT prove worker quality. **2.4 is the real
+> build:** wire the grappe worker to the node's OpenClaw agent (D11 guard refuses local models — code
+> landed) and run it. 2.6 compares a grappe-of-OpenClaws to a solo OpenClaw. All Block 3–5 worker /
+> reviewer / manager roles inherit this OpenClaw-advanced-LLM contract.
+
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 2 | 2.1 | v2.1 | [x] | Live end-to-end circling session on the grappe with a mock LLM — closed 2026-07-11: 4 rounds (init+step1+step2+finalization), all barriers 3/3, MESH_COLLAB status=completed (collab-step21-mock-002-1783747159329) |
 | 2 | 2.2 | v2.2 | [x] | Paper gap 14.1 — adaptive convergence (unanimous converged ⇒ early finalization) — closed 2026-07-11: 6 tests (5 unit + 1 NATS integration); runtime: session collab-step22-rt-001, max_subrounds=3, finalized_after_sr=1, skipped_subrounds=2 |
 | 2 | 2.3 | v2.3 | [x] | Paper gap 14.2 — parse-failure retry ×3 before degradation — closed 2026-07-11: 5 tests (4 unit + 1 NATS integration); runtime: session collab-task-retry-test-rt-001, double-failure then success, barrier_advanced=true, degraded=false |
-| 2 | 2.4 | v2.4 | [A] | First real adversarial run: small production task through the node's OpenClaw agent (advanced LLM — NEVER qwen; D11) to a converged vote. The stopped qwen scaffold proved only the choreography mechanism |
+| 2 | 2.4 | v2.4 | [A] | Grappe worker = the node's full OpenClaw (advanced-LLM frontend + local harness), wired through mesh-collab and D11-guarded (no local-model fallback — code landed); first real adversarial run through it to a converged vote, artifacts non-trivial |
 | 2 | 2.5 | v2.5 | [D] | Paper gap 14.3 — reviewer Step-2 dual output (deferred: +20% token cost, v2 enhancement) |
 | 2 | 2.6 | v2.6 | [ ] | PREMISE BENCHMARK: adversarial grappe vs solo node, blind operator comparison (does circling actually help?) |
 
@@ -91,15 +98,15 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Feeds:** real-LLM reliability for 2.4 (local models fail delimiters more than cloud ones).
 > **Verify:** `code:` unit test: 2 failures then success ⇒ barrier satisfied, no degradation; 3 failures ⇒ degraded + CRITICAL log · `runtime:` mock session with an injected double-failure observed completing.
 
-> **2.4 — Goal:** the first production adversarial grappe run completes on the node's real OpenClaw agent (advanced LLM — NEVER qwen; D11).
-> **Needs:** 2.1-2.3; a node running its full OpenClaw agent on an advanced LLM (the local qwen is the extraction organ, never a worker — D11); a real small task chosen with the operator.
-> **Feeds:** Block 4 dispatches to this proven mode; DECISIONS records observed round timings/token cost as the planning baseline.
-> **Verify:** `runtime:` session COMPLETE with a converged vote on real LLM output; artifacts non-trivial (operator spot-check `visual:`); wall-clock + per-step timings recorded in the audit.
+> **2.4 — Goal:** the grappe worker runs as the node's FULL OpenClaw — advanced-LLM frontend + local harness (memory inject, rules, role) — through the mesh-collab machinery, and the first real adversarial session completes on it. NEVER qwen; the D11 guard refuses local-model workers (code landed).
+> **Needs:** 2.1-2.3 (mechanism proven); the node's OpenClaw frontend installed + authenticated (NODE_SPEC "seat the mind"); `MESH_LLM_PROVIDER` = an advanced-LLM frontend (default `claude`); the mesh-agent worker path invoking the OpenClaw agent WITH its harness — **today's `claude -p` runs in a clean cwd without memory/rules (mesh-agent.js:498); closing that gap is part of this step**; a real small task chosen with the operator.
+> **Feeds:** Blocks 3–5 inherit the OpenClaw-worker contract; Block 4 dispatches to this proven mode; DECISIONS records observed round timings + advanced-LLM token cost as the planning baseline.
+> **Verify:** `code:` the worker path loads the node's harness (not a bare CLI call) and the D11 guard refuses a local-model provider · `runtime:` session COMPLETE with a converged vote on real OpenClaw output; artifacts non-trivial (operator `visual:`); wall-clock + per-step timings + token cost recorded in the audit.
 
-> **2.6 — Goal:** prove the premise — a circled artifact is observably better than one node alone, or BLOCK the plan here (DECISIONS D3).
-> **Needs:** 2.4 (real adversarial runs work); a solo-node baseline path (single agent, same task, same model); ≥5 real tasks chosen with the operator; a blind-comparison protocol.
+> **2.6 — Goal:** prove the premise — a **grappe-of-OpenClaws** artifact is observably better than a **solo OpenClaw**, or BLOCK the plan here (DECISIONS D3).
+> **Needs:** 2.4 (the OpenClaw grappe worker runs); a solo-OpenClaw baseline path (one OpenClaw node, same task, **same advanced LLM**, no reviewers); ≥5 real tasks chosen with the operator; a blind-comparison protocol.
 > **Feeds:** the Phase-1 gate (3.5 Needs this verdict); the go/no-go on Phases 2–3. A fail is a plan-level BLOCK, not a step failure.
-> **Verify:** `visual:` operator blind-scores grappe-vs-solo output on ≥5 tasks (which is which hidden); `runtime:` the grappe wins a clear majority on a pre-agreed quality rubric — else write BLOCKED.md citing the premise miss. Also record the GPU-cost delta (D3: ~35 GPU-min/grappe-session vs ~2min solo) so the quality gain is weighed against the cost.
+> **Verify:** `visual:` operator blind-scores grappe-vs-solo output on ≥5 tasks (which is which hidden); `runtime:` the grappe wins a clear majority on a pre-agreed quality rubric — else write BLOCKED.md citing the premise miss. Record the cost delta (advanced-LLM tokens + wall-clock, grappe vs solo) so the quality gain is weighed against the cost.
 
 ## Block 3 — Worker modes B + C
 

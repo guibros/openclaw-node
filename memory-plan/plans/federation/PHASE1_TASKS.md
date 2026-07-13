@@ -91,12 +91,13 @@ operator-gated **step 1.5**. Granular in [GRANULAR_PHASE1.md](GRANULAR_PHASE1.md
 - **T2.3.3** Unit tests: 2-fail-then-succeed satisfies barrier; 3-fail degrades → *test/daemon-circling-handlers.test.js (extend)* · done-when: both pass. [T1]
 - **T2.3.4** Live proof: mock session with injected double-failure completes un-degraded → *T3 run* · done-when: observed. [runtime T3]
 
-### Step 2.4 — first real adversarial run
+### Step 2.4 — grappe worker = the node's full OpenClaw; first real adversarial run
+- **T2.4.0** Wire the mesh-agent worker to the node's OpenClaw agent WITH its harness (memory inject, rules, role) — not a bare `claude -p` in a clean cwd (mesh-agent.js:498) → *mesh-agent worker path* · done-when: a worker step runs through the harness-loaded OpenClaw. [code]
 - **T2.4.1** Choose the task with the operator (small, real, useful) → *AskUserQuestion / session note* · done-when: task brief written to the session. [visual]
-- **T2.4.2** Bind agents to qwen3:8b via the ollama queue → *mesh-agent LLM config* · done-when: agents call the real model. [code]
-- **T2.4.3** Run the session, measure per-step wall-times → *live run* · done-when: COMPLETE with a converged vote on real output. [runtime T4]
+- **T2.4.2** Grappe worker runs on the node's advanced-LLM OpenClaw frontend (default `claude`); the D11 guard refuses a local-model provider → *mesh-agent LLM config* · done-when: agents run on an advanced LLM and ollama is refused. [code — landed]
+- **T2.4.3** Run the session, measure per-step wall-times → *live run* · done-when: COMPLETE with a converged vote on real OpenClaw output. [runtime]
 - **T2.4.4** Operator spot-check artifacts are non-trivial → *visual* · done-when: operator confirms usefulness. [visual T7]
-- **T2.4.5** Record timings/subround/token metrics as Phase-2 planning constants → *DECISIONS / audit* · done-when: metrics logged. [code]
+- **T2.4.5** Record timings/subround/advanced-LLM token metrics as Phase-2 planning constants → *DECISIONS / audit* · done-when: metrics logged. [code]
 
 ### Step 2.6 — PREMISE BENCHMARK (does circling actually help?)
 - **T2.6.1** Solo-node baseline path: one OpenClaw node, same task, **same advanced LLM as the grappe members** (NEVER qwen — D11), no reviewers → *a `--solo` create mode or a direct single-agent call* · done-when: solo produces an artifact for the same brief. [code]

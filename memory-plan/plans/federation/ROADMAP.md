@@ -125,13 +125,14 @@ execution, mesh-bridge kanban; 93 circling-family tests) and DORMANT (mesh units
 
 ## Block 2 — Worker mode A: adversarial (circling revival)
 
-- **Intent:** revive the paper's implementation and prove it live. The 93 circling-family unit tests never ran
-  a live session. Then close paper gaps 14.1 (adaptive convergence early-exit) and 14.2
-  (parse-failure retry ×3), then the first REAL run through the node's OpenClaw agent (advanced LLM — NEVER qwen; D11).
-- **Exit criterion:** one observed real adversarial session on the grappe — artifacts in KV,
-  kanban trail, barriers held, a converged finalization vote. (Paper gap 14.3 reviewer
-  dual-output → deferred [D].)
-- **Unblocks:** Block 3 (modes B/C reuse the proven barrier/state machinery), Block 4.
+- **Intent:** prove the paper live, then land the real thing. The mechanism (barriers, adaptive
+  convergence 14.1, parse-retry 14.2) is proven on the mock/qwen **scaffold** (2.1–2.3). **2.4 makes
+  the grappe worker the node's full OpenClaw** (advanced-LLM frontend + local harness, D11-guarded)
+  and runs the first real adversarial session through it.
+- **Exit criterion:** one observed real adversarial session run by **OpenClaw advanced-LLM workers**
+  (not the scaffold) — artifacts in KV, kanban trail, barriers held, a converged finalization vote.
+  (Paper gap 14.3 reviewer dual-output → deferred [D].)
+- **Unblocks:** Block 3 (modes B/C reuse the proven machinery + the OpenClaw-worker contract), Block 4.
 
 ## Block 3 — Worker modes B + C: cooperative, collaborative
 
