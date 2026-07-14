@@ -82,6 +82,7 @@ export function createGraphCache(opts = {}) {
   const db = opts.db || openStore(dbPath);
   const vaultPath = opts.vaultPath || getVaultPath();
   const ownsDb = !opts.db;
+  const extractionStore = opts.extractionStore || null; // P2: source of LLM typed relationships
 
   initDb(db);
 
@@ -113,6 +114,7 @@ export function createGraphCache(opts = {}) {
     const graph = await buildGraph(vaultPath);
     const now = new Date().toISOString();
 
+    let mergedEdges = 0;
     const runTransaction = db.transaction(() => {
       clearEdges.run();
       clearNodes.run();
@@ -125,11 +127,26 @@ export function createGraphCache(opts = {}) {
         insertEdge.run(edge.source, edge.target, edge.type || 'mentions', 1.0);
       }
 
+      // P2: merge LLM-extracted typed relationships (state.db concept_edges) so
+      // spreading-activation isn't vault-'mentions'-only. Best-effort — a bad store
+      // must not break the vault refresh (survives full-replace: re-added each refresh).
+      if (extractionStore && typeof extractionStore.getConceptEdges === 'function') {
+        try {
+          for (const e of extractionStore.getConceptEdges()) {
+            if (!e.source || !e.target) continue;
+            if (!graph.nodes.has(e.source)) insertNode.run(e.source, e.source, null, 1.0);
+            if (!graph.nodes.has(e.target)) insertNode.run(e.target, e.target, null, 1.0);
+            insertEdge.run(e.source, e.target, e.edge_type || 'related', 1.0);
+            mergedEdges++;
+          }
+        } catch { /* vault refresh must not fail on the store */ }
+      }
+
       setMeta.run('last_refresh_at', now);
     });
 
     runTransaction();
-    return { nodeCount: graph.nodes.size, edgeCount: graph.edges.length, refreshedAt: now };
+    return { nodeCount: graph.nodes.size, edgeCount: graph.edges.length + mergedEdges, refreshedAt: now, mergedEdges };
   }
 
   /**

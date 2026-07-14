@@ -3,7 +3,7 @@
 **Status:** active
 **Goal:** operator-directed deployability overhaul (2026-07-11 directive): NODE_SPEC sheet → functional parameters → corrected install protocol implemented → install test gate. Evidence base: the 2026-07-11 fresh-install audit (OUT_OF_SCOPE entry). Step 2.4 stays blocked-waiting on the operator's manual run in parallel.
 **Set at:** 2026-07-11 (deployability block added 2026-07-11 ~17:45 Montreal, operator-approved in-session)
-**Expires:** 2026-07-14T08:00:00Z
+**Expires:** 2026-07-15T08:00:00Z
 
 ```files deployability-install-overhaul closed
 memory-plan/plans/federation/SCOPE.md

@@ -130,7 +130,7 @@ let _graphCache = null;
 function getGraphCache() {
   if (_graphCache) return _graphCache;
   try {
-    _graphCache = createGraphCache();
+    _graphCache = createGraphCache({ extractionStore: getExtractionStore() }); // P2: merge LLM typed edges
     log('Graph cache initialized');
     return _graphCache;
   } catch (err) {
