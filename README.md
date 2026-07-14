@@ -232,6 +232,56 @@ hyperagent seed-strategy '<json>'          # import strategy manually
 node test/hyperagent-store.test.js   # 28 tests, no external deps
 ```
 
+## Memory System
+
+Every OpenClaw node runs a **local-first memory system**: it watches your work, distills what matters, and feeds the relevant pieces back into future prompts — so the agent gets more useful over time without you managing anything. It runs entirely on the node (a local model + local databases); cloud keys are optional and it works fully offline.
+
+### In one picture
+
+```mermaid
+flowchart LR
+  T["Session transcript"] -->|"flush before context loss"| X["Extract"]
+  X -->|"local model (qwen)<br/>· regex fallback (loud)"| S[("state.db<br/>entities · decisions<br/>themes · relationships")]
+  X -->|"chunks"| E["Embed · bge-m3"]
+  E --> K[("knowledge.db<br/>vector index")]
+  S --> R{"Recall<br/>5 channels · scored · budgeted"}
+  K --> R
+  G[("concept graph<br/>vault links + typed edges")] --> R
+  R -->|"[memory:] block"| I["Inject into the prompt<br/>(main agent + grappe workers)"]
+  I -.->|"reconsolidate: bump salience"| S
+  S -.->|"decay unused"| S
+  S --> M["MEMORY.md<br/>(one-line index)"]
+  S --> Vault["Obsidian vault<br/>(browsable notes)"]
+  Vault --> G
+```
+
+### How it works (plain language)
+
+- **Capture** — as a session grows, a background daemon *flushes* the recent transcript before context is lost.
+- **Distill** — a small **local** model (qwen) reads the flush and pulls out entities, decisions, themes, and the relationships between them. If the model is unreachable it falls back to regex — and says so **loudly** (`memory.error`), never silently, and never into your clean index.
+- **File** — the facts go into a local SQLite database (`state.db`), and each chunk is embedded (bge-m3, multilingual) into a vector index (`knowledge.db`). Everything is **private by default**.
+- **Recall** — when the agent starts a task, the system retrieves the most relevant memories across five channels (concepts, decisions, snippets, theme→decision, and a walk over the concept graph), scores them by *recency × frequency × salience*, and fits the top ones into a token budget.
+- **Inject** — the winners become a `[memory:]` block slipped into the prompt. Grappe workers query the same recall service, so a federated worker carries the node's memory too.
+- **Strengthen & fade** — each recalled memory gets its salience bumped (*reconsolidation*); unused memories decay by a recency half-life. The system self-tunes toward what's actually used.
+- **Two faces** — `MEMORY.md` is a human-readable one-line-per-memory index; the databases hold the queryable substance; and an **Obsidian vault** mirrors it as linked notes for browsing (and supplies the concept graph).
+
+### Technical breakdown
+
+| Stage | Component(s) | Notes |
+|---|---|---|
+| **Capture** | `lib/pre-compression-flush.mjs` | tail flush on a token threshold; driven by `workspace-bin/memory-daemon.mjs` |
+| **Extract** | `lib/llm-client.mjs` (qwen) + `lib/extraction-{prompt,schema}.mjs`; regex fallback | structured entities / decisions / themes / relationships. Degradation emits `memory.error` and **cannot corrupt** the structured `MEMORY.md` (regex output diverts to a sibling file) |
+| **Store** | `lib/extraction-store.mjs` → `state.db` | entities, mentions, decisions, themes, `concept_edges` (typed relationships); private-by-default |
+| **Index** | `lib/mcp-knowledge/core.mjs` (bge-m3, 1024-dim) → `knowledge.db` | per-turn chunks in sqlite-vec; also the MCP semantic-search surface (below) |
+| **Recall** | `lib/memory-injector.mjs` + `lib/retrieval-pipeline.mjs` | 5 channels → RRF fusion → `recallScore` (recency½-life × frequency × salience × graph × rrf) → token budget |
+| **Graph** | `bin/obsidian-graph-cache.mjs` | vault wikilinks **+ the LLM's typed edges** → spreading-activation (channel 5) |
+| **Inject** | `lib/memory-formatter.mjs` + `lib/memory-inject-server.mjs` (loopback `:7893`) | `[memory:]` block into the LLM publisher wrappers; grappe workers query the same endpoint |
+| **Reconsolidate** | `writeBackReconsolidation` (memory-injector) | recalled → salience / `last_recalled` bump; unused decays |
+| **Privacy** | retrieval-pipeline filter | **session-grain**, fail-closed; the finer federation gating is off locally |
+| **Durable views** | `MEMORY.md` + Obsidian vault | the index + the browsable notes |
+
+**Local-model boundary (D11):** the local model (qwen) is the memory **extraction / embedding / probe organ only** — never a grappe worker's mind (workers run an advanced-LLM OpenClaw; see [Federation](#federation-grappes)). Embeddings are bge-m3 (in-process via transformers.js, **not** the LLM). Cloud keys are optional; the whole loop works offline.
+
 ## Semantic Knowledge Search (MCP)
 
 Local, LLM-agnostic semantic search over your markdown knowledge base. Uses vector embeddings to find documents by meaning, not just keywords.
