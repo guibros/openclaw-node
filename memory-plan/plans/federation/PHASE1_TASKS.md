@@ -92,7 +92,7 @@ operator-gated **step 1.5**. Granular in [GRANULAR_PHASE1.md](GRANULAR_PHASE1.md
 - **T2.3.4** Live proof: mock session with injected double-failure completes un-degraded → *T3 run* · done-when: observed. [runtime T3]
 
 ### Step 2.4 — grappe worker = the node's full OpenClaw; first real adversarial run
-- **T2.4.0** Wire the mesh-agent worker to the node's OpenClaw agent WITH its harness (memory inject, rules, role) — not a bare `claude -p` in a clean cwd (mesh-agent.js:498) → *mesh-agent worker path* · done-when: a worker step runs through the harness-loaded OpenClaw. [code]
+- **T2.4.0** Wire the mesh-agent worker to the node's OpenClaw agent WITH its harness (memory, rules, role) — not a bare `claude -p` in a clean cwd → *mesh-agent worker path* · done-when: a worker step runs through the harness-loaded OpenClaw. [code — **landed 2026-07-14**: buildCirclingPrompt now injects coding+harness rules, role profile, and the node's long-term memory (MEMORY.md); mesh-agent made importable (main-guard + exports); test/circling-worker-harness.test.mjs 3/3 against the real builder. Follow-on: relevance-ranked semantic recall (lib/memory-injector.mjs) + running the full companion agent as the worker.]
 - **T2.4.1** Choose the task with the operator (small, real, useful) → *AskUserQuestion / session note* · done-when: task brief written to the session. [visual]
 - **T2.4.2** Grappe worker runs on the node's advanced-LLM OpenClaw frontend (default `claude`); the D11 guard refuses a local-model provider → *mesh-agent LLM config* · done-when: agents run on an advanced LLM and ollama is refused. [code — landed]
 - **T2.4.3** Run the session, measure per-step wall-times → *live run* · done-when: COMPLETE with a converged vote on real OpenClaw output. [runtime]

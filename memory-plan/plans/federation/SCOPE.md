@@ -62,6 +62,7 @@ bin/mesh-agent.js
 install.sh
 openclaw.env.example
 test/grappe-worker-provider.test.mjs
+test/circling-worker-harness.test.mjs
 memory-plan/plans/federation/SCOPE.md
 ```
 

@@ -132,6 +132,31 @@ function injectRole(parts, roleId) {
   }
 }
 
+// 2.4 / D11: a grappe worker is a harness-loaded OpenClaw, not a bare LLM call. Inject
+// the node's long-term memory (MEMORY.md) as ambient context — the durable "who this
+// node is and what it has learned" a full OpenClaw carries into any task. Bounded so a
+// large memory file can't blow the prompt (set MESH_MEMORY_INJECT_CHARS=0 to disable).
+// Relevance-ranked semantic recall via lib/memory-injector.mjs is the richer follow-on.
+const MEMORY_INJECT_CAP = Number(process.env.MESH_MEMORY_INJECT_CHARS ?? 4000);
+let cachedNodeMemory;
+function injectMemory(parts) {
+  if (!(MEMORY_INJECT_CAP > 0)) return;
+  if (cachedNodeMemory === undefined) {
+    try {
+      const p = path.join(WORKSPACE, 'MEMORY.md');
+      cachedNodeMemory = fs.existsSync(p) ? fs.readFileSync(p, 'utf8').trim() : '';
+    } catch { cachedNodeMemory = ''; }
+  }
+  if (!cachedNodeMemory) return;
+  const mem = cachedNodeMemory.length > MEMORY_INJECT_CAP
+    ? cachedNodeMemory.slice(0, MEMORY_INJECT_CAP) + '\n…(truncated)'
+    : cachedNodeMemory;
+  parts.push("## Node memory (long-term — this OpenClaw's durable context)");
+  parts.push('');
+  parts.push(mem);
+  parts.push('');
+}
+
 // ── CLI args ──────────────────────────────────────────
 
 const args = process.argv.slice(2);
@@ -884,6 +909,13 @@ function buildCirclingPrompt(task, circlingData) {
       }
       break;
   }
+
+  // 2.4 / D11: a grappe worker is a harness-loaded OpenClaw, not a bare LLM call —
+  // inject the node's coding + harness rules, role profile, and long-term memory as
+  // context (the other collab/task builders already do this; circling did not).
+  injectRules(parts, task.scope);
+  injectRole(parts, task.role);
+  injectMemory(parts);
 
   // Add directed input
   if (directed_input) {
@@ -1666,8 +1698,13 @@ async function main() {
 process.on('SIGINT', () => { running = false; log('Received SIGINT, finishing current task...'); });
 process.on('SIGTERM', () => { running = false; log('Received SIGTERM, finishing current task...'); });
 
-main().catch(err => {
-  console.error(`[mesh-agent] Fatal: ${err.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error(`[mesh-agent] Fatal: ${err.message}`);
+    process.exit(1);
+  });
+}
+
+// Test surface: the pure prompt builders + harness injectors (no NATS / side effects).
+module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, injectRules, injectRole, injectMemory };
 // deploy-v7f0130b
