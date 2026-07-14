@@ -13,6 +13,7 @@ import { createRequire } from 'node:module';
 const ws = mkdtempSync(join(tmpdir(), 'mesh-ws-'));
 writeFileSync(join(ws, 'MEMORY.md'), '- [Test memory](t.md) — the node remembers project ACME-42.');
 process.env.MESH_WORKSPACE = ws;
+process.env.MESH_MEMORY_RECALL = 'off'; // force the deterministic MEMORY.md fallback (this host has a live inject-server)
 
 const require = createRequire(import.meta.url);
 const { buildCirclingPrompt } = require('../bin/mesh-agent.js');

@@ -132,28 +132,63 @@ function injectRole(parts, roleId) {
   }
 }
 
-// 2.4 / D11: a grappe worker is a harness-loaded OpenClaw, not a bare LLM call. Inject
-// the node's long-term memory (MEMORY.md) as ambient context — the durable "who this
-// node is and what it has learned" a full OpenClaw carries into any task. Bounded so a
-// large memory file can't blow the prompt (set MESH_MEMORY_INJECT_CHARS=0 to disable).
-// Relevance-ranked semantic recall via lib/memory-injector.mjs is the richer follow-on.
+// 2.4 / D11 / P1: a grappe worker is a harness-loaded OpenClaw, not a bare LLM call, so
+// it carries the node's memory into every task. Two tiers:
+//   1. Task-relevant recall — query the loopback memory-inject-server (BGE-M3 resident
+//      there; no per-call model reload) with the task text, get a query-ranked, budgeted
+//      [memory:] block. This is what the main agent already gets.
+//   2. Fallback — the node's long-term index (MEMORY.md), mtime-guarded so a long-lived
+//      worker never injects a superseded snapshot. Bounded; MESH_MEMORY_INJECT_CHARS=0
+//      disables memory entirely.
 const MEMORY_INJECT_CAP = Number(process.env.MESH_MEMORY_INJECT_CHARS ?? 4000);
-let cachedNodeMemory;
-function injectMemory(parts) {
+const MEMORY_INJECT_PORT = Number(process.env.MEMORY_INJECT_PORT || 7893);
+const MEMORY_INJECT_TOKEN_PATH = path.join(process.env.HOME || '', '.openclaw', 'config', 'memory-injection-token');
+
+function recallForTask(task) {
+  if (process.env.MESH_MEMORY_RECALL === 'off' || !task) return null;
+  const query = [task.title, task.description].filter(Boolean).join('\n').trim().slice(0, 4000);
+  if (!query) return null;
+  let token;
+  try { token = fs.readFileSync(MEMORY_INJECT_TOKEN_PATH, 'utf8').trim(); } catch { return null; }
+  if (!token) return null;
+  try {
+    const out = execFileSync('curl', [
+      '-s', '--max-time', '4',
+      '-X', 'POST', `http://127.0.0.1:${MEMORY_INJECT_PORT}/memory/inject`,
+      '-H', 'content-type: application/json',
+      '-H', `authorization: Bearer ${token}`,
+      '-d', JSON.stringify({ prompt: query }),
+    ], { encoding: 'utf8', timeout: 6000, stdio: ['ignore', 'pipe', 'ignore'] });
+    const block = JSON.parse(out).block;
+    return (typeof block === 'string' && block.trim()) ? block.trim() : null;
+  } catch { return null; }
+}
+
+let memCache = { mtime: -1, content: '' };
+function readNodeMemory() {
+  try {
+    const p = path.join(WORKSPACE, 'MEMORY.md');
+    const st = fs.statSync(p);
+    if (st.mtimeMs !== memCache.mtime) memCache = { mtime: st.mtimeMs, content: fs.readFileSync(p, 'utf8').trim() };
+    return memCache.content;
+  } catch { return ''; }
+}
+
+function injectMemory(parts, task) {
   if (!(MEMORY_INJECT_CAP > 0)) return;
-  if (cachedNodeMemory === undefined) {
-    try {
-      const p = path.join(WORKSPACE, 'MEMORY.md');
-      cachedNodeMemory = fs.existsSync(p) ? fs.readFileSync(p, 'utf8').trim() : '';
-    } catch { cachedNodeMemory = ''; }
+  const recalled = recallForTask(task);
+  if (recalled) {
+    parts.push('## Node memory (task-relevant recall)');
+    parts.push('');
+    parts.push(recalled.length > MEMORY_INJECT_CAP ? recalled.slice(0, MEMORY_INJECT_CAP) + '\n…(truncated)' : recalled);
+    parts.push('');
+    return;
   }
-  if (!cachedNodeMemory) return;
-  const mem = cachedNodeMemory.length > MEMORY_INJECT_CAP
-    ? cachedNodeMemory.slice(0, MEMORY_INJECT_CAP) + '\n…(truncated)'
-    : cachedNodeMemory;
-  parts.push("## Node memory (long-term — this OpenClaw's durable context)");
+  const mem = readNodeMemory();
+  if (!mem) return;
+  parts.push("## Node memory (long-term index — this OpenClaw's durable context)");
   parts.push('');
-  parts.push(mem);
+  parts.push(mem.length > MEMORY_INJECT_CAP ? mem.slice(0, MEMORY_INJECT_CAP) + '\n…(truncated)' : mem);
   parts.push('');
 }
 
@@ -261,6 +296,7 @@ function buildInitialPrompt(task) {
 
   // Inject role profile (responsibilities, boundaries, framework)
   injectRole(parts, task.role);
+  injectMemory(parts, task);
 
   parts.push('## Instructions');
   parts.push('- Read the relevant files before making changes.');
@@ -331,6 +367,7 @@ function buildRetryPrompt(task, previousAttempts, attemptNumber) {
 
   // Inject role profile (responsibilities, boundaries, framework)
   injectRole(parts, task.role);
+  injectMemory(parts, task);
 
   parts.push('## Instructions');
   parts.push('- Do NOT repeat a failed approach. Try something different.');
@@ -680,6 +717,7 @@ function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole) {
   const collabScope = Array.isArray(myScope) ? myScope.map(s => s.replace('[REVIEW-ONLY] ', '')) : task.scope;
   injectRules(parts, collabScope);
   injectRole(parts, task.role);
+  injectMemory(parts, task);
 
   if (task.success_criteria && task.success_criteria.length > 0) {
     parts.push('## Success Criteria');
@@ -915,7 +953,7 @@ function buildCirclingPrompt(task, circlingData) {
   // context (the other collab/task builders already do this; circling did not).
   injectRules(parts, task.scope);
   injectRole(parts, task.role);
-  injectMemory(parts);
+  injectMemory(parts, task);
 
   // Add directed input
   if (directed_input) {
@@ -1706,5 +1744,5 @@ if (require.main === module) {
 }
 
 // Test surface: the pure prompt builders + harness injectors (no NATS / side effects).
-module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, injectRules, injectRole, injectMemory };
+module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, buildRetryPrompt, injectRules, injectRole, injectMemory, recallForTask, readNodeMemory };
 // deploy-v7f0130b
