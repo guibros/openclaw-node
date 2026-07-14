@@ -66,6 +66,30 @@ test/circling-worker-harness.test.mjs
 memory-plan/plans/federation/SCOPE.md
 ```
 
+```files memory-remediation-p0-p4
+lib/pre-compression-flush.mjs
+lib/extraction-store.mjs
+lib/extraction-prompt.mjs
+lib/extraction-schema.mjs
+lib/memory-injector.mjs
+lib/retrieval-pipeline.mjs
+lib/memory-budget.mjs
+lib/memory-formatter.mjs
+bin/obsidian-graph-cache.mjs
+bin/mesh-agent.js
+lib/mesh-memory-bridge.mjs
+workspace-bin/memory-daemon.mjs
+bin/openclaw-memory-daemon.mjs
+README.md
+docs/NODE_SPEC.md
+test/memory-extraction-degradation.test.mjs
+test/mesh-memory-bridge.test.mjs
+test/memory-relationships-store.test.mjs
+test/recall-score-factors.test.mjs
+test/privacy-turn-index.test.mjs
+memory-plan/plans/federation/SCOPE.md
+```
+
 ```files step-2.4-thinking-fix
 lib/llm-providers.js
 bin/mesh-agent.js

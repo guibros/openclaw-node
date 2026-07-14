@@ -460,6 +460,24 @@ function emitExtractEvent(sessionId, extraction) {
   );
 }
 
+// P0: extraction degradation must be LOUD, not silent. When the LLM path fails and the
+// regex fallback runs (diverting away from the structured MEMORY.md), emit memory.error
+// so the watcher/observer sees the degradation instead of it hiding in a stderr line.
+function emitDegradeEvent(sessionId, result) {
+  if (!localEventLog) return;
+  const event = buildMemoryEvent('memory.error', sessionId, 'memory', {
+    session_id: sessionId,
+    kind: 'extraction-degraded',
+    detail: `LLM extraction failed; regex fallback used${result.fallback_path ? ` (diverted to ${result.fallback_path}; structured MEMORY.md protected)` : ''}`,
+    extraction_error: result.extraction_error || null,
+    mode: result.mode,
+    model: DEFAULT_MODEL,
+  }, NODE_ID);
+  localEventLog.publishLocal(event).catch(err =>
+    log(`[event] memory.error emit failed: ${err.message}`)
+  );
+}
+
 function emitSynthesizeEvent(sessionId, trigger, synthesis) {
   if (!localEventLog) return;
   const event = buildMemoryEvent('memory.synthesized', sessionId, 'memory', {
@@ -989,6 +1007,10 @@ async function runPhase2ThrottledWork(config, sessionState) {
             extractionStore: getExtractionStore(),
           }));
           log(`  Phase 2: interval synthesis [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added`);
+          if (result.degraded) {
+            log(`  Phase 2: ⚠ EXTRACTION DEGRADED — LLM failed, regex fallback used${result.fallback_path ? ` (diverted to ${result.fallback_path}; structured MEMORY.md protected)` : ''}: ${result.extraction_error || ''}`);
+            emitDegradeEvent(result.extraction?.session_id || path.basename(currentJsonl, '.jsonl'), result);
+          }
           if (result.extraction) {
             emitExtractEvent(result.extraction.session_id, result.extraction);
           }
