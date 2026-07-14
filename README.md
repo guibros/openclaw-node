@@ -2,7 +2,7 @@
 
 Installable package for deploying an OpenClaw node. Includes the full infrastructure stack:
 
-- **Memory Daemon** — persistent background service managing session lifecycle, memory maintenance, Obsidian sync, and — via `bin/openclaw-memory-daemon.mjs` — the federation broadcaster/offerer/acceptor and consolidation cycle
+- **Memory Daemon** — persistent background service managing session lifecycle, memory maintenance, Obsidian sync, and the consolidation cycle (the live unit execs `workspace-bin/memory-daemon.mjs`). A federation-hardened variant (`bin/openclaw-memory-daemon.mjs` — broadcaster/offerer/acceptor) exists but ships without a service unit yet, dormant until multi-node federation lands
 - **Federation / Grappe** — signed multi-node memory federation: grappes are signed-membership clusters of full OpenClaw nodes (`bin/openclaw-grappe.mjs`, `GRAPPE_REGISTRY` KV, join-token verified). The unit of federation is an OpenClaw, not a model
 - **HyperAgent Protocol** — self-improving agent loop: telemetry, structured reflection, strategy archive, and self-modifying proposals with human-gated approval
 - **Mission Control** — Next.js web dashboard (kanban, timeline, graph visualization, memory browser)
