@@ -424,10 +424,15 @@ run rsync -av --exclude='*.bak' --exclude='*.bak.*' --exclude='routing-eval-test
 # these live in repo bin/ (not workspace-bin/) and must land at that path too.
 # openclaw-notify.mjs rides along: the viewer, the notify shim, and node-watch
 # all resolve it next to themselves (or at ../bin/) in the deployed tree.
-run cp "$REPO_DIR/bin/node-watch.mjs" "$REPO_DIR/bin/node-acceptance.mjs" \
-  "$REPO_DIR/bin/openclaw-notify.mjs" \
-  "$REPO_DIR/bin/obsidian-graph-cache.mjs" "$REPO_DIR/bin/observer.mjs" \
-  "$REPO_DIR/bin/consolidation-scheduler.mjs" "$WORKSPACE/bin/"
+# -ef guard: when the workspace copy is a symlink/same inode as the repo file
+# (live-dev setups), macOS cp exits 1 ("are identical") and set -e kills the
+# install (observed 2026-07-14 on the VM). Same file = already deployed = skip.
+for _wsbin in node-watch.mjs node-acceptance.mjs openclaw-notify.mjs \
+              obsidian-graph-cache.mjs observer.mjs consolidation-scheduler.mjs; do
+  if [ ! "$REPO_DIR/bin/$_wsbin" -ef "$WORKSPACE/bin/$_wsbin" ]; then
+    run cp "$REPO_DIR/bin/$_wsbin" "$WORKSPACE/bin/$_wsbin"
+  fi
+done
 run chmod +x "$WORKSPACE/bin/"*
 run chmod +x "$WORKSPACE/bin/hooks/"* 2>/dev/null || true
 info "Workspace scripts installed to $WORKSPACE/bin/"
@@ -781,7 +786,7 @@ fi
 
 step "Step 9: Boot System"
 
-if [ -f "$REPO_DIR/boot/manifest.yaml" ]; then
+if [ -f "$REPO_DIR/boot/manifest.yaml" ] && [ ! "$REPO_DIR/boot/manifest.yaml" -ef "$WORKSPACE/.boot/manifest.yaml" ]; then
   run cp "$REPO_DIR/boot/manifest.yaml" "$WORKSPACE/.boot/manifest.yaml"
   info "Boot manifest installed"
 fi
