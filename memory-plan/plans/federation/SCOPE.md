@@ -1,7 +1,7 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** step 6.3 CLOSED [x] v6.3 — node-watch `fed.*` probe family (coordinator, cluster quorum, grappe members, session liveness) honoring the honesty rules + `grappe` notification source; live grading + BROKEN→ledgered popup observed. Remaining open batch: step 3.5 Phase-1 gate ([A] — awaiting R=3 cluster cells C2/C3/C4/C6/C8, ≥12h soak, 6.4 CI census, operator T7 sign-off; not autonomously closeable).
+**Goal:** 6.3 CLOSED [x] v6.3 (fed.* probes + grappe notify). 6.4 [A] — code done + locally green (acceptance `federation` axis, census completeness guard, node-watch quorum honesty bug fixed: cluster is really R=3/3-up, not "single-node"); `runtime:` observed-green-CI half PENDING an operator push. Remaining open batch: step 3.5 Phase-1 gate ([A] — R=3 cells C2/C3/C4/C6/C8, ≥12h soak, operator T7; not autonomously closeable).
 **Set at:** 2026-07-15 (operator directive "go" in-session)
 **Expires:** 2026-07-17T00:00:00Z
 
@@ -49,6 +49,17 @@ memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/VERSION
 memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step63_fed_probes/*
+```
+
+```files step-6.4-fed-census-acceptance closed
+lib/node-acceptance-probes.mjs
+lib/node-watch.mjs
+test/fed-acceptance.test.mjs
+test/mesh-skip-census.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
 ```files step-3.5-phase1-gate

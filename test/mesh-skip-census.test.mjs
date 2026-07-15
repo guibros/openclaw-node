@@ -62,3 +62,31 @@ function natsServerBinReason() {
 test(`nats-server-binary census (${natsBinFiles.length} federation suite file(s))`, (t) => {
   censusCheck(t, { files: natsBinFiles, reason: natsServerBinReason(), label: 'nats-server-dependent' });
 });
+
+// Completeness guard (step 6.4): the census finds nats-gated suites by the exact
+// marker 'nats-server not found on PATH'. A new suite that gates a describe/test
+// on NATS with a *different* skip string would run neither in CI (no nats) nor be
+// censused — it would vanish with `skipped 0`. This HARD-FAILS (never skips) if any
+// test file carries a skip whose reason mentions nats but isn't the canonical marker,
+// forcing new nats-gated suites through a censused mechanism.
+const CANONICAL_NATS_SKIP = 'nats-server not found on PATH';
+const SKIP_GATE_RE = /\{\s*skip:\s*([^}]{0,200})\}/g;
+test('census completeness: every nats-gated skip uses the censused canonical marker', () => {
+  const offenders = [];
+  for (const f of readdirSync(TEST_DIR).filter((x) => /\.test\.(js|mjs)$/.test(x) && x !== SELF)) {
+    const src = readFileSync(join(TEST_DIR, f), 'utf8');
+    // The census is file-granular (filesContaining), so require the canonical
+    // marker somewhere in the FILE — a nats-named skip const is fine as long as
+    // the file carries the marker the census greps for.
+    if (src.includes(CANONICAL_NATS_SKIP)) continue;
+    for (const m of src.matchAll(SKIP_GATE_RE)) {
+      const expr = m[1];
+      if (/nats/i.test(expr)) {
+        offenders.push(`${f}: { skip: ${expr.trim().slice(0, 80)} }`);
+      }
+    }
+  }
+  assert.equal(offenders.length, 0,
+    `nats-gated skip(s) not using the canonical census marker '${CANONICAL_NATS_SKIP}' ` +
+    `— the census can't see them, so they'd vanish in CI:\n  ${offenders.join('\n  ')}`);
+});
