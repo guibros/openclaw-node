@@ -668,7 +668,7 @@ function evaluateMetric(metric, cwd) {
  * Build a prompt for a collaborative round.
  * Includes: task description, round number, shared intel from previous round, scope.
  */
-function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole, cooperativeRole) {
+function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole, roundRole) {
   log(`Building collab prompt: round=${roundNumber || 0} mode=${task.collaboration?.mode}`);
   const parts = [];
 
@@ -728,14 +728,26 @@ function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole, coop
   }
 
   parts.push('## Instructions');
-  if (cooperativeRole === 'integrator') {
+  if (roundRole === 'integrator') {
     // Cooperative (3.2): this round's integrator synthesizes the proposals.
     parts.push('- You are THIS ROUND\'S INTEGRATOR. Read the other nodes\' proposals in the shared intelligence above.');
     parts.push('- Synthesize them into ONE coherent integrated artifact — merge the best of each, resolve conflicts, do not just concatenate.');
     parts.push('- Your reflection `summary` is the integrated result other rounds build on.');
-  } else if (cooperativeRole === 'proposer') {
+  } else if (roundRole === 'proposer') {
     parts.push('- You are a PROPOSER this round. Contribute your own distinct proposal/approach to the shared goal.');
     parts.push('- Differentiate from what other nodes are likely to propose; the integrator will merge all proposals.');
+  } else if (roundRole === 'subtask_worker') {
+    // Collaborative (3.3): work your partitioned slice in parallel.
+    parts.push('- You own ONE SUBTASK of a decomposed task (your scope above is your slice). Complete only your slice, fully.');
+    parts.push('- Work independently and in parallel with the other nodes; do not touch their slices.');
+    parts.push('- Your reflection `summary` is your subtask result — the merger will assemble all subtasks.');
+  } else if (roundRole === 'merger') {
+    parts.push('- You are the MERGER. The shared intelligence above holds every node\'s subtask result.');
+    parts.push('- Assemble them into ONE coherent merged artifact — reconcile seams, remove overlap, ensure the whole is consistent.');
+    parts.push('- Your reflection `summary` is the merged deliverable.');
+  } else if (roundRole === 'merge_reviewer') {
+    parts.push('- You are a MERGE-REVIEWER. Review the assembled subtasks for coherence, gaps, and conflicts.');
+    parts.push('- Vote `converged` if the merge is sound, `continue` if it needs another pass, `blocked` on a critical defect.');
   } else {
     parts.push('- Read the relevant files before making changes.');
     parts.push('- Make minimal, focused changes within your scope.');
@@ -1187,7 +1199,7 @@ async function executeCollabTask(task) {
 
       const roundData = JSON.parse(sc.decode(roundMsg.data));
       const { round_number, shared_intel, directed_input, my_scope, my_role, mode, current_turn,
-              cooperative_role, circling_phase, circling_step, circling_subround } = roundData;
+              round_role, circling_phase, circling_step, circling_subround } = roundData;
 
       // Sequential mode safety guard: skip if it's not our turn.
       if (mode === 'sequential' && current_turn && current_turn !== NODE_ID) {
@@ -1204,7 +1216,7 @@ async function executeCollabTask(task) {
       // Build prompt — circling uses directed inputs, other modes use shared intel
       const prompt = isCircling
         ? buildCirclingPrompt(task, roundData)
-        : buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role, cooperative_role);
+        : buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role, round_role);
 
       if (DRY_RUN) {
         log(`[DRY RUN] Collab prompt:\n${prompt}`);

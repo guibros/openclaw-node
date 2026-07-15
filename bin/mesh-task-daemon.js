@@ -1076,6 +1076,64 @@ async function evaluateCooperativeRound(sessionId, session, currentRound) {
 }
 
 /**
+ * Collaborative round evaluation (step 3.3). Two phases:
+ *   work  — all nodes worked partitioned subtasks in parallel (barrier met);
+ *           record the subtask results, advance to the merge round.
+ *   merge — the merger assembled the subtasks and the others merge-reviewed
+ *           (barrier met); record the merged artifact + review votes, complete.
+ */
+async function evaluateCollaborativeRound(sessionId, session, currentRound) {
+  const collab = session.collaborative;
+
+  if (collab.phase === 'work') {
+    for (const r of currentRound.reflections) {
+      collab.subtasks[r.node_id] = { summary: r.summary, artifacts: r.artifacts || [] };
+    }
+    collab.phase = 'merge';
+    await collabStore.put(session);
+    log(`COLLABORATIVE ${sessionId}: ${Object.keys(collab.subtasks).length} subtasks done (${Object.keys(collab.subtasks).join(', ')}), merge round → merger=${collab.merger_node_id}`);
+    await collabStore.appendAudit(sessionId, 'collaborative_subtasks_done', {
+      subtask_nodes: Object.keys(collab.subtasks),
+    });
+    await startCollabRound(sessionId);
+    return;
+  }
+
+  // merge phase — record the merger's artifact + the reviewers' votes, then complete.
+  const mergerReflection = currentRound.reflections.find(r => r.node_id === collab.merger_node_id);
+  collab.merged = mergerReflection
+    ? { summary: mergerReflection.summary, artifacts: mergerReflection.artifacts || [] }
+    : { summary: '(merger submitted no reflection)', artifacts: [] };
+  collab.review_votes = currentRound.reflections
+    .filter(r => r.node_id !== collab.merger_node_id)
+    .map(r => ({ node_id: r.node_id, vote: r.vote, confidence: r.confidence }));
+  collab.phase = 'done';
+  await collabStore.put(session);
+  log(`COLLABORATIVE ${sessionId}: merged by ${collab.merger_node_id}; merge-review votes: ${collab.review_votes.map(v => `${v.node_id}=${v.vote}`).join(', ')}`);
+  await collabStore.appendAudit(sessionId, 'collaborative_merged', {
+    merger: collab.merger_node_id, review_votes: collab.review_votes,
+  });
+
+  const allArtifacts = [];
+  const contributions = {};
+  for (const round of session.rounds) {
+    for (const r of round.reflections) { allArtifacts.push(...(r.artifacts || [])); contributions[r.node_id] = r.summary; }
+  }
+  await collabStore.markCompleted(sessionId, {
+    artifacts: [...new Set(allArtifacts)],
+    summary: `Collaborative: ${Object.keys(collab.subtasks).length} parallel subtasks merged by ${collab.merger_node_id}; ${collab.review_votes.length} merge-review vote(s).`,
+    node_contributions: contributions,
+    collaborative: { subtasks: collab.subtasks, merged: collab.merged, review_votes: collab.review_votes },
+  });
+  log(`COLLABORATIVE COMPLETED ${sessionId}: merge + merge-review done`);
+  const done = await collabStore.get(sessionId);
+  await collabStore.appendAudit(sessionId, 'session_completed', { outcome: 'collaborative_merged', merger: collab.merger_node_id });
+  publishCollabEvent('completed', done);
+  await store.markCompleted(session.task_id, done.result);
+  publishEvent('completed', await store.get(session.task_id));
+}
+
+/**
  * Compute per-node scopes based on scope_strategy.
  *
  * Strategies:
@@ -1186,10 +1244,18 @@ async function startCollabRound(sessionId) {
 
   for (const node of nodesToNotify) {
     const effectiveScope = nodeScopes[node.node_id] || node.scope;
-    // Cooperative: this round's integrator synthesizes; everyone else proposes.
-    const cooperativeRole = session.mode === COLLAB_MODE.COOPERATIVE && session.cooperative
-      ? (node.node_id === session.cooperative.current_integrator ? 'integrator' : 'proposer')
-      : null;
+    // Per-round sub-role for the multi-role modes:
+    //  cooperative  → this round's integrator synthesizes; others propose.
+    //  collaborative→ work phase: everyone works a subtask; merge phase: the
+    //                 merger assembles, others merge-review.
+    let roundRole = null;
+    if (session.mode === COLLAB_MODE.COOPERATIVE && session.cooperative) {
+      roundRole = node.node_id === session.cooperative.current_integrator ? 'integrator' : 'proposer';
+    } else if (session.mode === COLLAB_MODE.COLLABORATIVE && session.collaborative) {
+      roundRole = session.collaborative.phase === 'merge'
+        ? (node.node_id === session.collaborative.merger_node_id ? 'merger' : 'merge_reviewer')
+        : 'subtask_worker';
+    }
     debug(`ROUND NOTIFY: session=${sessionId} node=${node.node_id} round=${round.round_number}`);
     nc.publish(`mesh.collab.${sessionId}.node.${node.node_id}.round`, sc.encode(JSON.stringify({
       session_id: sessionId,
@@ -1199,7 +1265,7 @@ async function startCollabRound(sessionId) {
       my_scope: effectiveScope,
       my_role: node.role,
       mode: session.mode,
-      cooperative_role: cooperativeRole,
+      round_role: roundRole,
       current_turn: session.current_turn,  // for sequential mode
       scope_strategy: scopeStrategy,
     })));
@@ -1273,6 +1339,12 @@ async function evaluateRound(sessionId) {
   // rotate the integrator, run rounds_target rounds. Bypass the vote-convergence path.
   if (session.mode === COLLAB_MODE.COOPERATIVE && session.cooperative) {
     await evaluateCooperativeRound(sessionId, session, currentRound);
+    return;
+  }
+
+  // Collaborative (3.3): work phase → advance to merge; merge phase → complete.
+  if (session.mode === COLLAB_MODE.COLLABORATIVE && session.collaborative) {
+    await evaluateCollaborativeRound(sessionId, session, currentRound);
     return;
   }
 
@@ -1681,6 +1753,16 @@ async function checkRecruitingDeadlines() {
         session.cooperative.current_integrator = session.cooperative.integrator_order[0];
         await collabStore.put(session);
         log(`COOPERATIVE ${session.session_id}: integrator rotation ${session.cooperative.integrator_order.join(' → ')}, R1 integrator=${session.cooperative.current_integrator}`);
+        await startCollabRound(session.session_id);
+      } else if (session.mode === COLLAB_MODE.COLLABORATIVE && session.collaborative) {
+        // Collaborative (3.3): partition the task into per-node subtasks (partitioned
+        // scope), designate a merger, and run the work round. evaluateRound advances
+        // work → merge (merger assembles, others review + vote).
+        session.collaborative.merger_node_id = session.nodes[0].node_id;
+        session.scope_strategy = 'partitioned';
+        session.collaborative.phase = 'work';
+        await collabStore.put(session);
+        log(`COLLABORATIVE ${session.session_id}: ${session.nodes.length} subtasks (partitioned), merger=${session.collaborative.merger_node_id}, work round starting`);
         await startCollabRound(session.session_id);
       } else if (isModeImplemented(session.mode)) {
         // Legacy protocols (parallel / sequential / review) share startCollabRound.

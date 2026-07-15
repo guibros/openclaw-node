@@ -29,13 +29,13 @@ test('createSession defaults to parallel when no mode given', () => {
   assert.equal(createSession('t-3', {}).mode, COLLAB_MODE.PARALLEL);
 });
 
-test('isModeImplemented: legacy + circling + cooperative live; collaborative/management not', () => {
+test('isModeImplemented: legacy + circling + cooperative + collaborative live; management not', () => {
   assert.ok(isModeImplemented(COLLAB_MODE.PARALLEL));
   assert.ok(isModeImplemented(COLLAB_MODE.SEQUENTIAL));
   assert.ok(isModeImplemented(COLLAB_MODE.REVIEW));
   assert.ok(isModeImplemented(COLLAB_MODE.CIRCLING_STRATEGY));
   assert.ok(isModeImplemented(COLLAB_MODE.COOPERATIVE), 'cooperative went live in 3.2');
-  assert.ok(!isModeImplemented(COLLAB_MODE.COLLABORATIVE), 'collaborative is 3.3, not yet live');
+  assert.ok(isModeImplemented(COLLAB_MODE.COLLABORATIVE), 'collaborative went live in 3.3');
   assert.ok(!isModeImplemented(COLLAB_MODE.MANAGEMENT), 'management is Block 4, not yet live');
 });
 
