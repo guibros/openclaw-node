@@ -1,9 +1,9 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** operator-directed deployability overhaul (2026-07-11 directive): NODE_SPEC sheet → functional parameters → corrected install protocol implemented → install test gate. Evidence base: the 2026-07-11 fresh-install audit (OUT_OF_SCOPE entry). Step 2.4 stays blocked-waiting on the operator's manual run in parallel.
-**Set at:** 2026-07-11 (deployability block added 2026-07-11 ~17:45 Montreal, operator-approved in-session)
-**Expires:** 2026-07-15T08:00:00Z
+**Goal:** step 2.6 — the premise benchmark (grappe-of-OpenClaws vs solo OpenClaw, blind operator scoring on ≥5 tasks). 2.4 closed [x] 2026-07-15 (operator ACCEPTED, "proven — move on"). This phase: harness + protocol + candidate tasks only (no LLM spend); benchmark runs fire on operator task-confirmation.
+**Set at:** 2026-07-15 (operator directive "1" in-session)
+**Expires:** 2026-07-17T00:00:00Z
 
 ```files deployability-install-overhaul closed
 memory-plan/plans/federation/SCOPE.md
@@ -38,6 +38,14 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step26_premise_benchmark/*
 bin/grappe-benchmark.mjs
 docs/PREMISE_BENCHMARK.md
+```
+
+```files step-2.6-premise-benchmark
+bin/fed-benchmark.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step26_premise-benchmark/*
 ```
 
 ```files daemon-circling-step-budget
