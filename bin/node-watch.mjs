@@ -94,16 +94,24 @@ function notifyTransitions(report) {
     if (status === STATUS.BROKEN) broke.push(id);
     else if (was === STATUS.BROKEN && status === STATUS.WORKING) recovered.push(id);
   }
-  const fire = (kind, title, message) => {
+  const fire = (source, kind, title, message) => {
     try {
       execFile(process.execPath, [
-        NOTIFY_CLI, '--source', 'node-watch', '--kind', kind,
+        NOTIFY_CLI, '--source', source, '--kind', kind,
         '--title', title, '--message', message, '--url', MC_WATCH_URL,
       ], { timeout: 10_000 }, () => {});
     } catch { /* best-effort; the watcher never dies for a popup */ }
   };
-  if (broke.length) fire('error', `Node watch — ${broke.length} BROKEN`, broke.join(', '));
-  if (recovered.length) fire('success', 'Node watch — recovered', recovered.join(', '));
+  // Federation transitions (fed.*) ledger under the `grappe` source (step 6.3) so a
+  // killed grappe member is attributable to the grappe subsystem, not the generic
+  // watcher; everything else stays `node-watch`.
+  const isFed = (id) => id.startsWith('fed.');
+  const fedBroke = broke.filter(isFed), otherBroke = broke.filter((id) => !isFed(id));
+  const fedRec = recovered.filter(isFed), otherRec = recovered.filter((id) => !isFed(id));
+  if (otherBroke.length) fire('node-watch', 'error', `Node watch — ${otherBroke.length} BROKEN`, otherBroke.join(', '));
+  if (otherRec.length) fire('node-watch', 'success', 'Node watch — recovered', otherRec.join(', '));
+  if (fedBroke.length) fire('grappe', 'error', `Grappe — ${fedBroke.length} BROKEN`, fedBroke.join(', '));
+  if (fedRec.length) fire('grappe', 'success', 'Grappe — recovered', fedRec.join(', '));
 }
 
 async function main() {

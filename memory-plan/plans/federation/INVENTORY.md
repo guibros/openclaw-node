@@ -225,7 +225,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 |-------|------|---------|--------|-------------|
 | 6 | 6.1 | v6.1 | [ ] | DEPLOYABILITY GATE (reframed per D9 + the 2026-07-11 audit): a clean machine runs INSTALL_TEST_PROTOCOL T0→T7 signed — install → ACCEPTED node → mock circling session → grappe join by token. Base overhaul landed + sandbox-verified 2026-07-11 (D9); the clean-machine T7 run is this step's remaining work |
 | 6 | 6.2 | v6.2 | [ ] | MC federation page: grappes, sessions, rounds, votes, gates — live views |
-| 6 | 6.3 | v6.3 | [ ] | node-watch `fed.*` probe family + grappe/management/savant notification sources |
+| 6 | 6.3 | v6.3 | [x] | node-watch `fed.*` probe family (coordinator, cluster quorum, grappe members, session liveness) + `grappe` notification source — honest grading + BROKEN→ledgered popup observed. management/savant sources forward-deferred (no `fed.mgmt.*`/savant subsystem until 4.2+) |
 | 6 | 6.4 | v6.4 | [ ] | Federation test census in CI (nats-binary-gated) + NODE_ACCEPTANCE federation axis |
 
 > **6.1 — Goal:** federation is deployable, not hand-built: a fresh install can join an existing grappe — and the legacy fleet path is retired (D4: no `npx openclaw-mesh` delegation, no `openclaw.*` exec channel, no com.openclaw.agent).

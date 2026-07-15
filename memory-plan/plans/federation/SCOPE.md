@@ -1,7 +1,7 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** step 3.5 — Phase-1 operational gate. Full close needs a 12h soak + 6.3/6.4 ops prereqs + operator T7 (NOT autonomously closeable). This session: build the chaos harness + run the runnable chaos cells (mock grappe, cheap) as real evidence; document the gate checklist; 3.5 stays [A].
+**Goal:** step 6.3 CLOSED [x] v6.3 — node-watch `fed.*` probe family (coordinator, cluster quorum, grappe members, session liveness) honoring the honesty rules + `grappe` notification source; live grading + BROKEN→ledgered popup observed. Remaining open batch: step 3.5 Phase-1 gate ([A] — awaiting R=3 cluster cells C2/C3/C4/C6/C8, ≥12h soak, 6.4 CI census, operator T7 sign-off; not autonomously closeable).
 **Set at:** 2026-07-15 (operator directive "go" in-session)
 **Expires:** 2026-07-17T00:00:00Z
 
@@ -38,6 +38,17 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step26_premise_benchmark/*
 bin/grappe-benchmark.mjs
 docs/PREMISE_BENCHMARK.md
+```
+
+```files step-6.3-fed-probes closed
+lib/node-watch.mjs
+bin/node-watch.mjs
+lib/fed-probes.mjs
+test/fed-probes.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step63_fed_probes/*
 ```
 
 ```files step-3.5-phase1-gate
