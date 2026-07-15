@@ -40,7 +40,17 @@ bin/grappe-benchmark.mjs
 docs/PREMISE_BENCHMARK.md
 ```
 
-```files step-2.6-premise-benchmark
+```files step-3.1-mode-dispatch closed
+lib/mesh-collab.js
+bin/mesh-task-daemon.js
+test/collab-mode-dispatch.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step31_mode-dispatch/*
+```
+
+```files step-2.6-premise-benchmark closed
 bin/fed-benchmark.mjs
 bin/fed-benchmark-driver.mjs
 bin/mesh-agent.js

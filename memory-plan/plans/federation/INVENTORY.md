@@ -112,7 +112,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 3 | 3.1 | v3.1 | [ ] | `architecture` field on collab sessions + daemon dispatch by mode (adversarial default) |
+| 3 | 3.1 | v3.1 | [x] | `architecture` field on collab sessions + daemon dispatch by mode (adversarial default) |
 | 3 | 3.2 | v3.2 | [ ] | Cooperative protocol: propose-all / integrate-one / rotate-integrator rounds, live run |
 | 3 | 3.3 | v3.3 | [ ] | Collaborative protocol: decompose → per-node subtasks → parallel work → merge + merge-review, live run |
 | 3 | 3.4 | v3.4 | [ ] | Mode-selection guidance in FEDERATION_SPEC + task-envelope `preferred_mode` honored |

@@ -35,7 +35,7 @@ const { connect, StringCodec } = require('nats');
 const { createTracer, setNatsConnection } = require('../lib/tracer');
 const tracer = createTracer('mesh-task-daemon');
 const { createTask, TaskStore, TASK_STATUS, KV_BUCKET } = require('../lib/mesh-tasks');
-const { createSession, CollabStore, COLLAB_STATUS, COLLAB_KV_BUCKET } = require('../lib/mesh-collab');
+const { createSession, CollabStore, COLLAB_STATUS, COLLAB_KV_BUCKET, COLLAB_MODE, isModeImplemented } = require('../lib/mesh-collab');
 const { createPlan, autoRoutePlan, PlanStore, PLAN_STATUS, SUBTASK_STATUS, PLANS_KV_BUCKET } = require('../lib/mesh-plans');
 const { findRole, findRoleByScope, validateRequiredOutputs, checkForbiddenPatterns } = require('../lib/role-loader');
 const os = require('os');
@@ -1602,8 +1602,18 @@ async function checkRecruitingDeadlines() {
           await collabStore.put(session);
         }
         await startCirclingStep(session.session_id);
-      } else {
+      } else if (isModeImplemented(session.mode)) {
+        // Legacy protocols (parallel / sequential / review) share startCollabRound.
         await startCollabRound(session.session_id);
+      } else {
+        // Declared but unbuilt (cooperative → 3.2, collaborative → 3.3,
+        // management → Block 4). Refuse to start rather than silently running
+        // the legacy parallel path in the wrong protocol (step 3.1 seam).
+        log(`COLLAB RECRUIT FAILED ${session.session_id}: mode '${session.mode}' has no daemon protocol yet. Aborting (not silently downgrading to parallel).`);
+        await collabStore.markAborted(session.session_id, `Mode '${session.mode}' not yet implemented`);
+        publishCollabEvent('aborted', await collabStore.get(session.session_id));
+        await store.markReleased(session.task_id, `Collab mode '${session.mode}' not yet implemented`);
+        continue;
       }
     } else {
       log(`COLLAB RECRUIT FAILED ${session.session_id}: only ${session.nodes.length}/${session.min_nodes} nodes. Aborting.`);
