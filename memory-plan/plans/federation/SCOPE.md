@@ -1,8 +1,8 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** step 3.4 — mode-selection contract: FEDERATION_SPEC decision table + task-envelope `preferred_mode` honored by dispatch. 3.1–3.3 modes live. Runtime: a session per preferred_mode lands in the matching protocol (cheap — session-mode check, no full runs).
-**Set at:** 2026-07-15 (operator directive "3.4" in-session)
+**Goal:** step 3.5 — Phase-1 operational gate. Full close needs a 12h soak + 6.3/6.4 ops prereqs + operator T7 (NOT autonomously closeable). This session: build the chaos harness + run the runnable chaos cells (mock grappe, cheap) as real evidence; document the gate checklist; 3.5 stays [A].
+**Set at:** 2026-07-15 (operator directive "go" in-session)
 **Expires:** 2026-07-17T00:00:00Z
 
 ```files deployability-install-overhaul closed
@@ -38,6 +38,14 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step26_premise_benchmark/*
 bin/grappe-benchmark.mjs
 docs/PREMISE_BENCHMARK.md
+```
+
+```files step-3.5-phase1-gate
+bin/fed-chaos.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step35_phase1_gate/*
 ```
 
 ```files step-3.4-mode-selection closed
