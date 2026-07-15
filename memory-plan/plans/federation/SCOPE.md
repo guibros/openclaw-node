@@ -1,8 +1,8 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** step 2.6 — the premise benchmark (grappe-of-OpenClaws vs solo OpenClaw, blind operator scoring on ≥5 tasks). 2.4 closed [x] 2026-07-15 (operator ACCEPTED, "proven — move on"). This phase: harness + protocol + candidate tasks only (no LLM spend); benchmark runs fire on operator task-confirmation.
-**Set at:** 2026-07-15 (operator directive "1" in-session)
+**Goal:** step 3.2 — cooperative protocol (propose-all / integrate-one / rotate-integrator), live mock-LLM run. Block 2 complete + premise evidenced (2.6); 3.1 dispatch seam closed. Verify uses the shell/mock provider — near-zero Claude spend.
+**Set at:** 2026-07-15 (operator directive "continue" in-session)
 **Expires:** 2026-07-17T00:00:00Z
 
 ```files deployability-install-overhaul closed
@@ -38,6 +38,18 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step26_premise_benchmark/*
 bin/grappe-benchmark.mjs
 docs/PREMISE_BENCHMARK.md
+```
+
+```files step-3.2-cooperative closed
+lib/mesh-collab.js
+bin/mesh-task-daemon.js
+bin/mesh-agent.js
+test/collab-cooperative.test.mjs
+test/collab-mode-dispatch.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step32_cooperative/*
 ```
 
 ```files step-3.1-mode-dispatch closed

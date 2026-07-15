@@ -668,7 +668,7 @@ function evaluateMetric(metric, cwd) {
  * Build a prompt for a collaborative round.
  * Includes: task description, round number, shared intel from previous round, scope.
  */
-function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole) {
+function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole, cooperativeRole) {
   log(`Building collab prompt: round=${roundNumber || 0} mode=${task.collaboration?.mode}`);
   const parts = [];
 
@@ -728,9 +728,19 @@ function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole) {
   }
 
   parts.push('## Instructions');
-  parts.push('- Read the relevant files before making changes.');
-  parts.push('- Make minimal, focused changes within your scope.');
-  parts.push('- Focus on YOUR contribution — other nodes handle their parts.');
+  if (cooperativeRole === 'integrator') {
+    // Cooperative (3.2): this round's integrator synthesizes the proposals.
+    parts.push('- You are THIS ROUND\'S INTEGRATOR. Read the other nodes\' proposals in the shared intelligence above.');
+    parts.push('- Synthesize them into ONE coherent integrated artifact — merge the best of each, resolve conflicts, do not just concatenate.');
+    parts.push('- Your reflection `summary` is the integrated result other rounds build on.');
+  } else if (cooperativeRole === 'proposer') {
+    parts.push('- You are a PROPOSER this round. Contribute your own distinct proposal/approach to the shared goal.');
+    parts.push('- Differentiate from what other nodes are likely to propose; the integrator will merge all proposals.');
+  } else {
+    parts.push('- Read the relevant files before making changes.');
+    parts.push('- Make minimal, focused changes within your scope.');
+    parts.push('- Focus on YOUR contribution — other nodes handle their parts.');
+  }
   if (roundNumber > 1) {
     parts.push('- Incorporate learnings from the shared intelligence above.');
   }
@@ -1177,7 +1187,7 @@ async function executeCollabTask(task) {
 
       const roundData = JSON.parse(sc.decode(roundMsg.data));
       const { round_number, shared_intel, directed_input, my_scope, my_role, mode, current_turn,
-              circling_phase, circling_step, circling_subround } = roundData;
+              cooperative_role, circling_phase, circling_step, circling_subround } = roundData;
 
       // Sequential mode safety guard: skip if it's not our turn.
       if (mode === 'sequential' && current_turn && current_turn !== NODE_ID) {
@@ -1194,7 +1204,7 @@ async function executeCollabTask(task) {
       // Build prompt — circling uses directed inputs, other modes use shared intel
       const prompt = isCircling
         ? buildCirclingPrompt(task, roundData)
-        : buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role);
+        : buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role, cooperative_role);
 
       if (DRY_RUN) {
         log(`[DRY RUN] Collab prompt:\n${prompt}`);

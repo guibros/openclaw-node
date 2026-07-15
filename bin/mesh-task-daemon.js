@@ -1016,6 +1016,66 @@ async function handleCollabReflect(msg) {
 // ── Collab Round Management ─────────────────────────
 
 /**
+ * Cooperative round evaluation (step 3.2). Barrier met = all nodes proposed and
+ * the round's integrator synthesized. Record the integration, rotate the
+ * integrator, run rounds_target rounds, then complete with the final integration
+ * assembled from all proposals.
+ */
+async function evaluateCooperativeRound(sessionId, session, currentRound) {
+  const coop = session.cooperative;
+  const integratorId = coop.current_integrator;
+  const integratorReflection = currentRound.reflections.find(r => r.node_id === integratorId);
+  const proposers = currentRound.reflections.filter(r => r.node_id !== integratorId).map(r => r.node_id);
+
+  coop.integrations.push({
+    round: session.current_round,
+    integrator_node_id: integratorId,
+    artifact: integratorReflection
+      ? { summary: integratorReflection.summary, artifacts: integratorReflection.artifacts || [] }
+      : { summary: '(integrator submitted no reflection)', artifacts: [] },
+    proposers,
+  });
+  // Persist the integration BEFORE branching — else markCompleted() below
+  // re-fetches a stale session and the final round's integration is lost
+  // (non-CAS lost-update, the pre-1.5 evaluateRound finding).
+  await collabStore.put(session);
+  log(`COOPERATIVE ${sessionId} R${session.current_round}: integrated by ${integratorId} (proposers: ${proposers.join(', ')})`);
+  await collabStore.appendAudit(sessionId, 'cooperative_integration', {
+    round: session.current_round, integrator: integratorId, proposers,
+  });
+
+  if (coop.integrations.length >= coop.rounds_target) {
+    const allArtifacts = [];
+    const contributions = {};
+    for (const round of session.rounds) {
+      for (const r of round.reflections) { allArtifacts.push(...(r.artifacts || [])); contributions[r.node_id] = r.summary; }
+    }
+    await collabStore.markCompleted(sessionId, {
+      artifacts: [...new Set(allArtifacts)],
+      summary: `Cooperative: ${coop.integrations.length} rounds, integrator rotated ${coop.integrator_order.join(' → ')}; final integration by ${integratorId}.`,
+      node_contributions: contributions,
+      cooperative_integrations: coop.integrations,
+    });
+    log(`COOPERATIVE COMPLETED ${sessionId}: ${coop.integrations.length} rounds, ${coop.integrator_order.length} rotating integrators`);
+    const done = await collabStore.get(sessionId);
+    await collabStore.appendAudit(sessionId, 'session_completed', {
+      outcome: 'cooperative_rounds_done', rounds: coop.integrations.length, integrators: coop.integrator_order,
+    });
+    publishCollabEvent('completed', done);
+    await store.markCompleted(session.task_id, done.result);
+    publishEvent('completed', await store.get(session.task_id));
+    return;
+  }
+
+  // Rotate the integrator and start the next round.
+  const idx = coop.integrator_order.indexOf(integratorId);
+  coop.current_integrator = coop.integrator_order[(idx + 1) % coop.integrator_order.length];
+  await collabStore.put(session);
+  log(`COOPERATIVE ${sessionId}: next integrator=${coop.current_integrator}, starting round ${session.current_round + 1}`);
+  await startCollabRound(sessionId);
+}
+
+/**
  * Compute per-node scopes based on scope_strategy.
  *
  * Strategies:
@@ -1126,6 +1186,10 @@ async function startCollabRound(sessionId) {
 
   for (const node of nodesToNotify) {
     const effectiveScope = nodeScopes[node.node_id] || node.scope;
+    // Cooperative: this round's integrator synthesizes; everyone else proposes.
+    const cooperativeRole = session.mode === COLLAB_MODE.COOPERATIVE && session.cooperative
+      ? (node.node_id === session.cooperative.current_integrator ? 'integrator' : 'proposer')
+      : null;
     debug(`ROUND NOTIFY: session=${sessionId} node=${node.node_id} round=${round.round_number}`);
     nc.publish(`mesh.collab.${sessionId}.node.${node.node_id}.round`, sc.encode(JSON.stringify({
       session_id: sessionId,
@@ -1135,6 +1199,7 @@ async function startCollabRound(sessionId) {
       my_scope: effectiveScope,
       my_role: node.role,
       mode: session.mode,
+      cooperative_role: cooperativeRole,
       current_turn: session.current_turn,  // for sequential mode
       scope_strategy: scopeStrategy,
     })));
@@ -1203,6 +1268,13 @@ async function evaluateRound(sessionId) {
   const currentRound = session.rounds[session.rounds.length - 1];
   currentRound.completed_at = new Date().toISOString();
   await collabStore.put(session);
+
+  // Cooperative (3.2) has its own advance/complete: record the integration,
+  // rotate the integrator, run rounds_target rounds. Bypass the vote-convergence path.
+  if (session.mode === COLLAB_MODE.COOPERATIVE && session.cooperative) {
+    await evaluateCooperativeRound(sessionId, session, currentRound);
+    return;
+  }
 
   // Check convergence
   const converged = collabStore.checkConvergence(session);
@@ -1602,6 +1674,14 @@ async function checkRecruitingDeadlines() {
           await collabStore.put(session);
         }
         await startCirclingStep(session.session_id);
+      } else if (session.mode === COLLAB_MODE.COOPERATIVE && session.cooperative) {
+        // Cooperative (3.2): fix the integrator rotation order at recruiting
+        // close, integrator[0] leads round 1, then start the round machinery.
+        session.cooperative.integrator_order = session.nodes.map(n => n.node_id);
+        session.cooperative.current_integrator = session.cooperative.integrator_order[0];
+        await collabStore.put(session);
+        log(`COOPERATIVE ${session.session_id}: integrator rotation ${session.cooperative.integrator_order.join(' → ')}, R1 integrator=${session.cooperative.current_integrator}`);
+        await startCollabRound(session.session_id);
       } else if (isModeImplemented(session.mode)) {
         // Legacy protocols (parallel / sequential / review) share startCollabRound.
         await startCollabRound(session.session_id);
