@@ -1,7 +1,7 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** 6.3 CLOSED [x] v6.3 (fed.* probes + grappe notify). 6.4 [A] — code done + locally green (acceptance `federation` axis, census completeness guard, node-watch quorum honesty bug fixed: cluster is really R=3/3-up, not "single-node"); `runtime:` observed-green-CI half PENDING an operator push. Remaining open batch: step 3.5 Phase-1 gate ([A] — R=3 cells C2/C3/C4/C6/C8, ≥12h soak, operator T7; not autonomously closeable).
+**Goal:** 6.3 CLOSED [x] v6.3 (fed.* probes + grappe notify). 6.4 [A] — code done + locally green (acceptance `federation` axis, census guard, node-watch quorum honesty bug fixed: cluster is really R=3/3-up); `runtime:` observed-green-CI PENDING operator push. 6.2 [A] — MC federation page rendering done + runtime-verified live (sessions/rounds/votes/mode-badges render; fixed MC nats-token auth bug + `[object Object]`; MC build "broken" was STALE); `visual:` operator sign-off pending, gate-approval deferred to Block 4. Remaining open batch: step 3.5 Phase-1 gate ([A] — R=3 cells, ≥12h soak, operator T7; not autonomously closeable).
 **Set at:** 2026-07-15 (operator directive "go" in-session)
 **Expires:** 2026-07-17T00:00:00Z
 
@@ -49,6 +49,17 @@ memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/VERSION
 memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step63_fed_probes/*
+```
+
+```files step-6.2-mc-federation-page closed
+mission-control/src/lib/hooks.ts
+mission-control/src/lib/nats.ts
+mission-control/src/components/cowork/session-card.tsx
+mission-control/src/app/cowork/page.tsx
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step62_mc_federation_page/*
 ```
 
 ```files step-6.4-fed-census-acceptance closed

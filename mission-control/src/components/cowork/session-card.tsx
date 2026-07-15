@@ -8,9 +8,16 @@ import {
   XCircle,
   UserMinus,
 } from "lucide-react";
-import type { CollabSession, Task } from "@/lib/hooks";
+import type { CollabSession, CollabArtifact, Task } from "@/lib/hooks";
 import { interveneSession } from "@/lib/hooks";
 import { RoleBadge } from "./role-picker";
+
+// Worker artifacts are stored as { summary, artifacts } objects (or bare strings
+// on simpler paths). Render the human summary — never a raw "[object Object]".
+function artifactText(a: CollabArtifact | null | undefined): string {
+  if (!a) return "";
+  return typeof a === "string" ? a : (a.summary ?? "");
+}
 
 const STATUS_COLORS: Record<string, string> = {
   recruiting: "bg-blue-400",
@@ -24,6 +31,10 @@ const MODE_BADGE: Record<string, string> = {
   parallel: "bg-cyan-400/10 text-cyan-400",
   sequential: "bg-amber-400/10 text-amber-400",
   review: "bg-purple-400/10 text-purple-400",
+  circling_strategy: "bg-indigo-400/10 text-indigo-400",
+  cooperative: "bg-emerald-400/10 text-emerald-400",
+  collaborative: "bg-pink-400/10 text-pink-400",
+  management: "bg-orange-400/10 text-orange-400",
 };
 
 function NodeChip({
@@ -214,6 +225,137 @@ export function SessionCard({ session, linkedTask }: { session: CollabSession; l
             <XCircle className="h-3 w-3" />
             Abort
           </button>
+        </div>
+      )}
+
+      {/* Expanded: cooperative — integrate-one / rotate-integrator (step 3.2) */}
+      {expanded && session.cooperative && (
+        <div className="border-t border-border px-4 py-3 space-y-2">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Cooperative — propose-all / integrate-one / rotate
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Round {session.current_round}/{session.cooperative.rounds_target} · integrator:{" "}
+            <span className="font-mono">
+              {session.cooperative.current_integrator?.split("-")[0] ?? "—"}
+            </span>{" "}
+            · rotation:{" "}
+            {session.cooperative.integrator_order.map((n) => n.split("-")[0]).join(" → ") || "—"}
+          </div>
+          {session.cooperative.integrations.length > 0 ? (
+            session.cooperative.integrations.map((intg, i) => (
+              <div key={i} className="ml-2 rounded bg-accent/30 px-3 py-2 text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">R{intg.round}</span>
+                  <span className="text-muted-foreground">integrated by</span>
+                  <span className="font-mono text-[11px]">
+                    {intg.integrator_node_id.split("-")[0]}
+                  </span>
+                  {intg.proposers && (
+                    <span className="text-muted-foreground">
+                      from {intg.proposers.length} proposer(s)
+                    </span>
+                  )}
+                </div>
+                {artifactText(intg.artifact) && (
+                  <p className="text-muted-foreground line-clamp-3">
+                    {artifactText(intg.artifact)}
+                  </p>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="ml-2 text-xs text-muted-foreground">no integrations yet</div>
+          )}
+        </div>
+      )}
+
+      {/* Expanded: collaborative — decompose / parallel subtasks / merge + review (step 3.3) */}
+      {expanded && session.collaborative && (
+        <div className="border-t border-border px-4 py-3 space-y-2">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Collaborative — decompose / parallel / merge · phase:{" "}
+            <span className="text-foreground/80">{session.collaborative.phase}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            merger:{" "}
+            <span className="font-mono">
+              {session.collaborative.merger_node_id?.split("-")[0] ?? "—"}
+            </span>
+          </div>
+          {Object.entries(session.collaborative.subtasks).length > 0 ? (
+            Object.entries(session.collaborative.subtasks).map(([nodeId, sub]) => (
+              <div key={nodeId} className="ml-2 rounded bg-accent/30 px-3 py-2 text-xs space-y-1">
+                <span className="font-mono text-[11px]">{nodeId.split("-")[0]}</span>
+                <p className="text-muted-foreground line-clamp-2">{artifactText(sub)}</p>
+              </div>
+            ))
+          ) : (
+            <div className="ml-2 text-xs text-muted-foreground">no subtask results yet</div>
+          )}
+          {session.collaborative.merged && (
+            <div className="ml-2 rounded border border-green-500/20 bg-green-500/5 px-3 py-2 text-xs">
+              <span className="font-medium text-green-400">merged</span>
+              {artifactText(session.collaborative.merged) && (
+                <p className="mt-1 text-muted-foreground line-clamp-3">
+                  {artifactText(session.collaborative.merged)}
+                </p>
+              )}
+            </div>
+          )}
+          {session.collaborative.review_votes.length > 0 && (
+            <div className="ml-2 space-y-1">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                merge-review gate
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {session.collaborative.review_votes.map((rv, i) => (
+                  <span
+                    key={i}
+                    className={`rounded px-1.5 py-0.5 text-[10px] ${
+                      rv.vote === "approve" || rv.vote === "converged"
+                        ? "bg-green-500/10 text-green-400"
+                        : rv.vote === "reject" || rv.vote === "blocked"
+                          ? "bg-red-500/10 text-red-400"
+                          : "bg-zinc-700 text-zinc-300"
+                    }`}
+                  >
+                    {rv.node_id.split("-")[0]}: {rv.vote} {Math.round(rv.confidence * 100)}%
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Expanded: circling strategy state (step 2.x / 3.1) */}
+      {expanded && session.circling && (
+        <div className="border-t border-border px-4 py-3 space-y-1 text-xs">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Circling strategy — worker + 2 reviewers
+          </div>
+          <div className="text-muted-foreground">
+            subround {session.circling.current_subround}/{session.circling.max_subrounds} · step{" "}
+            {session.circling.current_step} · phase {session.circling.phase}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {session.circling.worker_node_id && (
+              <span className="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] text-indigo-400">
+                worker: {session.circling.worker_node_id.split("-")[0]}
+              </span>
+            )}
+            {session.circling.reviewerA_node_id && (
+              <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                reviewer A: {session.circling.reviewerA_node_id.split("-")[0]}
+              </span>
+            )}
+            {session.circling.reviewerB_node_id && (
+              <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                reviewer B: {session.circling.reviewerB_node_id.split("-")[0]}
+              </span>
+            )}
+          </div>
         </div>
       )}
 

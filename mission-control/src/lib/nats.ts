@@ -43,7 +43,29 @@ function resolveNatsUrl(): string {
   return NATS_FALLBACK;
 }
 
+/**
+ * Resolve the NATS auth token using the same chain (env → openclaw.env → none).
+ * Returns null when no token is configured (auth disabled — backward compatible).
+ * Without this, MC connects tokenless and an authenticated bus rejects it with an
+ * Authorization Violation, so every KV read silently returns natsAvailable:false.
+ */
+function resolveNatsToken(): string | null {
+  if (process.env.OPENCLAW_NATS_TOKEN) return process.env.OPENCLAW_NATS_TOKEN;
+  try {
+    const envFile = join(homedir(), ".openclaw", "openclaw.env");
+    if (existsSync(envFile)) {
+      const content = readFileSync(envFile, "utf8");
+      const match = content.match(/^\s*OPENCLAW_NATS_TOKEN\s*=\s*(.+)/m);
+      if (match && match[1].trim()) return match[1].trim();
+    }
+  } catch {
+    // File unreadable — fall through
+  }
+  return null;
+}
+
 const NATS_URL = resolveNatsUrl();
+const NATS_TOKEN = resolveNatsToken();
 
 // KV bucket name — nodes write here, MC reads
 const HEALTH_BUCKET = "MESH_NODE_HEALTH";
@@ -67,6 +89,7 @@ export async function getNats(): Promise<NatsConnection | null> {
   try {
     g.__nats_nc = await connect({
       servers: NATS_URL,
+      ...(NATS_TOKEN ? { token: NATS_TOKEN } : {}),
       name: "mission-control",
       reconnect: true,
       maxReconnectAttempts: -1,

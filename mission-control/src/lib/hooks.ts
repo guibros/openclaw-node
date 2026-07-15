@@ -509,6 +509,10 @@ export interface CollabRound {
   reflections: CollabReflection[];
 }
 
+// A worker artifact as the daemon stores it: an object with a summary (+ raw
+// artifacts), or a bare string on older/simple paths. Rendered via artifactText().
+export type CollabArtifact = { summary?: string; artifacts?: unknown[] } | string;
+
 export interface CollabSession {
   session_id: string;
   task_id: string;
@@ -531,6 +535,36 @@ export interface CollabSession {
   audit_log: Array<{ ts: string; event: string; [k: string]: unknown }>;
   created_at: string;
   completed_at: string | null;
+  // Block-3 mode substructures (present only for the matching mode; the API passes
+  // the full session object through unchanged). Optional so legacy/circling sessions
+  // that lack them still type-check.
+  circling?: {
+    worker_node_id: string | null;
+    reviewerA_node_id: string | null;
+    reviewerB_node_id: string | null;
+    max_subrounds: number;
+    current_subround: number;
+    current_step: number; // 0 init · 1 review · 2 integration
+    phase: string; // init | circling | finalization | complete
+  } | null;
+  cooperative?: {
+    integrator_order: string[];
+    rounds_target: number;
+    current_integrator: string | null;
+    integrations: Array<{
+      round: number;
+      integrator_node_id: string;
+      artifact?: CollabArtifact;
+      proposers?: string[];
+    }>;
+  } | null;
+  collaborative?: {
+    merger_node_id: string | null;
+    phase: string; // work | merge | done
+    subtasks: Record<string, CollabArtifact>; // node_id → { summary, artifacts }
+    merged: CollabArtifact | null;
+    review_votes: Array<{ node_id: string; vote: string; confidence: number }>;
+  } | null;
 }
 
 export function useClusters() {
