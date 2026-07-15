@@ -109,12 +109,13 @@ async function findSession(nc, taskId) {
 
 function grappeFinalArtifact(session) {
   const arts = session?.circling?.artifacts || {};
-  // Highest sub-round workArtifact is the deliverable; integrator analyses excluded.
-  const keys = Object.keys(arts).filter((k) => k.includes('worker_workArtifact')).sort();
-  const key = keys[keys.length - 1];
-  if (!key) return null;
-  const a = arts[key];
-  return { key, content: typeof a === 'string' ? a : a.content ?? '' };
+  // The deliverable is the LARGEST worker workArtifact — the "last" one is often
+  // a 50-char "now producing the artifacts" preamble (2.4 finding 6 / 2.6).
+  const cand = Object.keys(arts)
+    .filter((k) => k.includes('worker_workArtifact'))
+    .map((k) => { const a = arts[k]; return { key: k, content: String(typeof a === 'string' ? a : a.content ?? '') }; })
+    .sort((x, y) => y.content.length - x.content.length);
+  return cand[0]?.content.trim() ? cand[0] : null;
 }
 
 async function status(taskId) {

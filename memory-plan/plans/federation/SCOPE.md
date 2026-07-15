@@ -42,6 +42,9 @@ docs/PREMISE_BENCHMARK.md
 
 ```files step-2.6-premise-benchmark
 bin/fed-benchmark.mjs
+bin/fed-benchmark-driver.mjs
+bin/mesh-agent.js
+benchmark/*
 memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/VERSION
 memory-plan/plans/federation/INVENTORY.md

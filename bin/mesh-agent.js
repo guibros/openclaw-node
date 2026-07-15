@@ -1493,6 +1493,9 @@ async function executeTask(task) {
         result: {
           success: true,
           summary: `Metric passed on attempt ${attempt}. ${summary.slice(0, 200)}`,
+          // Full worker deliverable — the 200-char summary loses text-artifact
+          // tasks (2.6 benchmark needs the whole answer, not a tail).
+          output: llmResult.stdout,
           artifacts: [],
           cost: sessionInfo?.cost || null,
           sha: mergeResult?.sha || null,
