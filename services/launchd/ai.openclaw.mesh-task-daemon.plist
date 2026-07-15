@@ -32,6 +32,11 @@
       <string>nats://127.0.0.1:4222</string>
       <key>OPENCLAW_REPO_DIR</key>
       <string>${OPENCLAW_REPO_DIR}</string>
+      <!-- Circling step budget: an OpenClaw (advanced-LLM) worker's finalization
+           turn can exceed the 10-min code default; 30 min bounds a real hang
+           without aborting a healthy session (2.4 finalization abort, 2026-07-15). -->
+      <key>MESH_CIRCLING_STEP_TIMEOUT_MS</key>
+      <string>1800000</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>10</integer>

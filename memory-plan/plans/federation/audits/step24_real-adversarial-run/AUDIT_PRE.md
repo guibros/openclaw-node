@@ -232,6 +232,34 @@ RUN 4 (guard v2, orphaned by driver collision):
                the pre-1.5 hardening batch: CollabStore.get must treat unparseable/empty
                values as missing (warn + skip), never throw into the sweep.
 
+RUN 7 (2026-07-15 — THE OpenClaw-worker run, D11 satisfied): session
+collab-fed-2.4-spec-harden-1784073104338-1784073104346, driven on the node's LAUNCHD
+mesh-task-daemon (the production service — now live from the operator's install; survives
+harness restarts). Workers = 3 harness-loaded Claude/sonnet OpenClaws (MESH_LLM_PROVIDER=claude),
+inferencing in PARALLEL. **14 substantive artifacts** (reviewer critiques 4k–10k chars each — no
+thinking contamination, the strip/guard stack held). **Genuine adversarial behavior**: votes ranged
+continue(0.87-0.91) → converged(0.93) → BLOCKED(0.97 alpha, 0.91 charlie) — reviewers dissented on
+real findings, the rubber-stamp failure mode is dead. **The worker deliverable is real and correct**:
+sr0/sr2 workArtifacts give corrected F1/F2/F4 blocks with file:line rationale
+(lib/node-identity.mjs:419 checkEventFreshness, :374-404 signEvent), and the worker VERIFIED against
+the live file — honestly reporting F1/F2 "already correct, no edit needed" and finding one real gap
+(SS3.1 missing its session.mode anchor for F4). This MEETS 2.4's "artifacts non-trivial" contract and
+demonstrates the OpenClaw-worker quality lift the premise predicts.
+
+  OUTCOME: aborted at FINALIZATION — the launchd daemon ran the 10-min code-default step budget
+           (my MESH_CIRCLING_STEP_TIMEOUT_MS override applies only to manually-launched daemons, not
+           the service); bravo's finalization turn exceeded 10 min → startRound failed → abort.
+           ENVIRONMENT CONFIG, not a quality/code failure — the deliverable was already produced.
+  FIX (this batch): mesh-task-daemon launchd + systemd units now set
+           MESH_CIRCLING_STEP_TIMEOUT_MS=1800000 (30 min) so a deployed node can finish a real
+           OpenClaw circling session. Rerun on the re-rendered unit expected to close cleanly.
+  FINDINGS 11-12: (11) TWO coordinators on one bus = session-id split + "already joined"/full aborts —
+           the operator's install brought the launchd mesh-task-daemon live while a manual daemon ran;
+           one bus MUST have one coordinator (killed the manual stack, launchd owns it). (12) harness
+           process restarts orphan child-launched stacks mid-session — mitigated by driving through the
+           launchd service (survives restarts) + a detached notify-watcher (desktop popup + on-disk
+           result, independent of the interactive session).
+
 RUN 5 (the tick's, in flight at handoff): session
 collab-fed-2.4-spec-harden-1783909185003-1783909185026 (submitted 02:19:45Z by the tick's
 driver) SURVIVED the coordinator crash-and-restore — KV-backed session state resumed under

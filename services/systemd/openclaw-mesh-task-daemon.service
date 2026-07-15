@@ -14,6 +14,7 @@ Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
 Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
 Environment=OPENCLAW_NODE_ID=${OPENCLAW_NODE_ID}
 Environment=OPENCLAW_REPO_DIR=${OPENCLAW_REPO_DIR}
+Environment=MESH_CIRCLING_STEP_TIMEOUT_MS=1800000
 Environment=TZ=America/Montreal
 WorkingDirectory=${OPENCLAW_REPO_DIR}
 StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-task-daemon.log

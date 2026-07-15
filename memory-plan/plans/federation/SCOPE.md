@@ -32,6 +32,13 @@ memory-plan/plans/federation/ROADMAP.md
 memory-plan/plans/federation/DECISIONS.md
 ```
 
+```files daemon-circling-step-budget
+services/launchd/ai.openclaw.mesh-task-daemon.plist
+services/systemd/openclaw-mesh-task-daemon.service
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/audits/step24_real-adversarial-run/AUDIT_PRE.md
+```
+
 ```files mc-build-and-agent-frontend
 mission-control/*
 install.sh
