@@ -1,0 +1,4 @@
+Analysis + fix proposal: strict verifyEvent node-id check reads the wrong field
+In lib/node-identity.mjs, verifyEvent with opts.expectedNodeId is the registry impersonation defense. The envelopes (per FEDERATION_SPEC hardening) carry signer_node_id, but the strict verify path reads event.node_id — which is undefined on federation envelopes, so undefined !== expectedNodeId is always true and every such envelope fails with node-id-mismatch.
+
+Produce: (1) confirm the exact lines in lib/node-identity.mjs where the mismatch check reads the field (cite file:line); (2) the exact one-line fix (which field it should read); (3) whether any caller depends on the current event.node_id behavior (grep-level reasoning, cite sites); (4) a test that would have caught this. Ground every claim in the real code at file:line; if the field name or line differs from this description, report the real state.

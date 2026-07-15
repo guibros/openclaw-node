@@ -1,0 +1,4 @@
+Draft the node-watch fed.* probe family spec (design input for step 6.3)
+node-watch grades a node WORKING/BROKEN/OFF/UNKNOWN with honesty rules (UNKNOWN where unobservable, never green on no evidence). Federation adds a bus, grappe registry, sessions, and grappe members. Draft the fed.* probe family: for each probe give name, what it checks, the observable signal, and the WORKING/BROKEN/OFF/UNKNOWN mapping.
+
+Cover at minimum: bus reachability + JetStream, grappe registry liveness, grappe member heartbeats, session liveness (a running circling session not stalled), and coordinator (task-daemon) health. Add the notification sources (what fires a ledgered popup). Apply the existing node-watch honesty rules explicitly. Where you can, cite the real probe pattern in lib/node-watch.mjs / lib/node-acceptance-probes.mjs at file:line.

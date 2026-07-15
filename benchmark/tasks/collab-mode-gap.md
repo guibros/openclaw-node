@@ -1,0 +1,4 @@
+Design note + patch plan: COLLAB_MODE missing cooperative/collaborative/management
+lib/mesh-collab.js:29-34 defines COLLAB_MODE with PARALLEL, SEQUENTIAL, REVIEW, CIRCLING_STRATEGY. The federation plan's Block 3 needs cooperative and collaborative worker protocols, and Block 4 needs a management mode, but those mode strings have no constant — createSession() falls through to PARALLEL for any unrecognized mode.
+
+Produce: (1) the exact COLLAB_MODE constant additions; (2) which createSession/dispatch sites (cite file:line) must branch on the new modes; (3) a minimal patch plan (ordered steps) to add cooperative + collaborative + management without breaking the 93 existing circling tests; (4) the risk of the current silent PARALLEL fallthrough and how to make an unknown mode fail loud instead. Ground every claim in the real code at file:line.

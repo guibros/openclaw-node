@@ -62,7 +62,13 @@ async function submit(taskId, arm, file) {
     title,
     description,
     budget_minutes: 60,
-    metric: 'Benchmark 2.6 rubric: correctness, completeness, evidence, actionability, discovery',
+    // Trivially-passing metric: benchmark quality is judged by BLIND operator
+    // scoring, not a test gate. The solo path runs `metric` as a shell
+    // verification and discards the attempt on non-zero — a rubric string there
+    // fails the security filter and retries forever (2.6 harness bug, 2026-07-15).
+    // `node --version` matches the allowed-prefix filter and exits 0, so the
+    // worker produces its artifact in one shot.
+    metric: 'node --version',
     llm_provider: 'claude',
   };
   if (arm === 'grappe') {
@@ -79,8 +85,17 @@ async function submit(taskId, arm, file) {
 }
 
 async function getTask(nc, taskId) {
-  const resp = await nc.request('mesh.tasks.get', sc.encode(JSON.stringify({ task_id: taskId })), { timeout: 10000 });
-  return JSON.parse(sc.decode(resp.data));
+  const kv = await nc.jetstream().views.kv('MESH_TASKS');
+  const e = await kv.get(taskId).catch(() => null);
+  if (!e) return null;
+  try { return JSON.parse(new TextDecoder().decode(e.value)); } catch { return null; }
+}
+
+function soloOutput(task) {
+  if (!task) return null;
+  const r = task.result;
+  const out = (r && typeof r === 'object') ? (r.output ?? r.artifact ?? r.text ?? r.summary) : r;
+  return out && String(out).trim() && String(out).trim() !== 'null' ? String(out) : null;
 }
 
 async function findSession(nc, taskId) {
@@ -105,7 +120,7 @@ function grappeFinalArtifact(session) {
 async function status(taskId) {
   const nc = await bus();
   const t = await getTask(nc, taskId).catch(() => null);
-  console.log('task:', t?.task?.status ?? t?.status ?? 'unknown');
+  console.log('task:', t?.status ?? 'unknown', '· has-output:', !!soloOutput(t));
   const s = await findSession(nc, taskId);
   if (s) {
     console.log('session:', s.status, '· phase:', s.circling?.phase, '· arts:', Object.keys(s.circling?.artifacts || {}).length);
@@ -115,9 +130,8 @@ async function status(taskId) {
 
 async function collect(name, soloId, grappeId) {
   const nc = await bus();
-  const solo = await getTask(nc, soloId);
-  const soloTask = solo?.task ?? solo;
-  const soloOut = soloTask?.result?.output ?? soloTask?.result ?? soloTask?.output;
+  const soloTask = await getTask(nc, soloId);
+  const soloOut = soloOutput(soloTask);
   if (!soloOut) throw new Error(`solo task ${soloId}: no result yet (status ${soloTask?.status})`);
 
   const session = await findSession(nc, grappeId);

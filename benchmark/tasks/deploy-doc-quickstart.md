@@ -1,0 +1,4 @@
+Rewrite MULTI_NODE_DEPLOY.md Part 1 (single-machine setup) against installer reality
+docs/MULTI_NODE_DEPLOY.md Part 1 predates the deployability overhaul. Current reality: install.sh renders NATS configs to ~/.openclaw/config/ (nats.conf single-node is the default bus; nats-{1,2,3}.conf are the R=3 upgrade), embeds the generated OPENCLAW_NATS_TOKEN, provisions ed25519 identity, and requires 'seat the mind' (claude login) for the agent frontend. Starting NATS from the repo template confs gives a literal ${OPENCLAW_NATS_TOKEN} — must use the rendered configs.
+
+Produce a corrected Part 1: prerequisites (incl. nats-server + ollama + a frontend), the exact ordered commands using the RENDERED configs, seat-the-mind step, and a verification step (node-acceptance). Match the doc's existing voice. Cite the real install.sh behavior at file:line where you assert what it does.
