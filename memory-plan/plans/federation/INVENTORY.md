@@ -115,7 +115,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 3 | 3.1 | v3.1 | [x] | `architecture` field on collab sessions + daemon dispatch by mode (adversarial default) |
 | 3 | 3.2 | v3.2 | [x] | Cooperative protocol: propose-all / integrate-one / rotate-integrator rounds, live run |
 | 3 | 3.3 | v3.3 | [x] | Collaborative protocol: decompose → per-node subtasks → parallel work → merge + merge-review, live run |
-| 3 | 3.4 | v3.4 | [ ] | Mode-selection guidance in FEDERATION_SPEC + task-envelope `preferred_mode` honored |
+| 3 | 3.4 | v3.4 | [x] | Mode-selection guidance in FEDERATION_SPEC + task-envelope `preferred_mode` honored |
 | 3 | 3.5 | v3.5 | [ ] | PHASE-1 GATE: worker-cluster operational testing program (T3 matrix, 8-cell chaos, ≥12h soak, T7 acceptance) |
 
 > **3.1 — Goal:** one session schema carries all three architectures without forking the stack (§4.6).

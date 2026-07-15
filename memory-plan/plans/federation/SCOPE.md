@@ -1,8 +1,8 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** step 3.3 — collaborative protocol (decompose → per-node subtasks in parallel → merge + merge-review), live mock-LLM run. 3.1 seam + 3.2 cooperative closed. Verify uses the shell/mock provider — near-zero Claude spend.
-**Set at:** 2026-07-15 (operator directive "3.3" in-session)
+**Goal:** step 3.4 — mode-selection contract: FEDERATION_SPEC decision table + task-envelope `preferred_mode` honored by dispatch. 3.1–3.3 modes live. Runtime: a session per preferred_mode lands in the matching protocol (cheap — session-mode check, no full runs).
+**Set at:** 2026-07-15 (operator directive "3.4" in-session)
 **Expires:** 2026-07-17T00:00:00Z
 
 ```files deployability-install-overhaul closed
@@ -38,6 +38,17 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step26_premise_benchmark/*
 bin/grappe-benchmark.mjs
 docs/PREMISE_BENCHMARK.md
+```
+
+```files step-3.4-mode-selection closed
+lib/mesh-collab.js
+bin/mesh-task-daemon.js
+docs/FEDERATION_SPEC.md
+test/collab-mode-selection.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step34_mode-selection/*
 ```
 
 ```files step-3.3-collaborative closed

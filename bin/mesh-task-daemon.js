@@ -121,9 +121,13 @@ async function handleSubmit(msg) {
   log(`SUBMIT ${task.task_id}: "${task.title}" (budget: ${task.budget_minutes}m, metric: ${task.metric || 'none'})`);
   publishEvent('submitted', task);
 
-  // Auto-create collab session if task has collaboration spec
+  // Auto-create collab session if task has collaboration spec.
+  // 3.4: envelope-level task.preferred_mode is a fallback for the spec's own.
   if (task.collaboration && collabStore) {
-    const session = createSession(task.task_id, task.collaboration);
+    const spec = task.preferred_mode && !task.collaboration.preferred_mode && !task.collaboration.mode
+      ? { ...task.collaboration, preferred_mode: task.preferred_mode }
+      : task.collaboration;
+    const session = createSession(task.task_id, spec);
     await collabStore.put(session);
 
     // Store session_id back in task for agent discovery
