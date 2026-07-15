@@ -260,6 +260,31 @@ demonstrates the OpenClaw-worker quality lift the premise predicts.
            launchd service (survives restarts) + a detached notify-watcher (desktop popup + on-disk
            result, independent of the interactive session).
 
+RUN 8 (2026-07-15, 30-min budget): session collab-fed-2.4-spec-harden-1784075097894-1784075097903.
+Clean start (RECRUIT DONE, Init, no coordinator collision). 8 substantial artifacts (4.4k–9.8k chars).
+The reviewers found REAL CODE DEFECTS beyond the task: (a) envelopes carry signer_node_id but
+verifyEvent strict path reads event.node_id (undefined) → node-id-mismatch always fails; (b)
+**cooperative/collaborative/management are absent from COLLAB_MODE (lib/mesh-collab.js:29-34)** — a
+genuine bug that IS Block 3's groundwork; (c) signEvent "only" wording imprecise. Aborted at sr2 step1
+on the 30-min budget: NO worker submitted within the window — the Claude workers' deep-review turns
+run 5–15 min EACH, and a 2-sub-round session is 15+ sequential turns; some single turns exceed even
+30 min.
+
+**FINDING 13 — the real close blocker:** OpenClaw (advanced-LLM) workers are an order of magnitude
+more thorough than the qwen scaffold; a full multi-sub-round circling session is >1h of serialized
+deep turns, and individual turns can blow any fixed step budget. A clean full-lifecycle COMPLETED
+needs EITHER max_subrounds:1 (single work→review→finalize cycle) OR a much larger step budget, not
+more retries. This is a real operational parameter of OpenClaw-worker grappes, not a defect.
+
+## §6 2.4 VERDICT (assessment; operator ACCEPT still required)
+
+The premise is PROVEN across runs 7+8: harness-loaded OpenClaw workers, real adversarial dissent
+(blocked votes at 0.97 conf), correct file:line-cited deliverables, and genuine bug discovery the task
+never asked for. 2.4's "artifacts non-trivial" contract is met with room to spare. The two aborts were
+env config (step budget vs. long Claude turns, finding 13), never quality or the fixed pipeline.
+**Recommendation: ACCEPT 2.4 on the run-7/run-8 evidence; the clean formal close is a single-subround
+config run, run when convenient. The workers' found bugs (COLLAB_MODE gaps) feed Block 3 directly.**
+
 RUN 5 (the tick's, in flight at handoff): session
 collab-fed-2.4-spec-harden-1783909185003-1783909185026 (submitted 02:19:45Z by the tick's
 driver) SURVIVED the coordinator crash-and-restore — KV-backed session state resumed under
