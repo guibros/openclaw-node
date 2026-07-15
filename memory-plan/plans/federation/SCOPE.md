@@ -32,6 +32,14 @@ memory-plan/plans/federation/ROADMAP.md
 memory-plan/plans/federation/DECISIONS.md
 ```
 
+```files step-2.6-benchmark-harness
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step26_premise_benchmark/*
+bin/grappe-benchmark.mjs
+docs/PREMISE_BENCHMARK.md
+```
+
 ```files daemon-circling-step-budget
 services/launchd/ai.openclaw.mesh-task-daemon.plist
 services/systemd/openclaw-mesh-task-daemon.service
