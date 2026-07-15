@@ -81,7 +81,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 2 | 2.3 | v2.3 | [x] | Paper gap 14.2 — parse-failure retry ×3 before degradation — closed 2026-07-11: 5 tests (4 unit + 1 NATS integration); runtime: session collab-task-retry-test-rt-001, double-failure then success, barrier_advanced=true, degraded=false |
 | 2 | 2.4 | v2.4 | [x] | Grappe worker = the node's full OpenClaw (advanced-LLM frontend + local harness), D11-guarded — closed 2026-07-15: runs 7+8, 3 harness-loaded Claude workers parallel; 14+8 non-trivial artifacts, real adversarial dissent (blocked votes 0.97/0.91), correct self-verifying F1/F2/F4 deliverable + bonus real bugs (COLLAB_MODE gap → Block 3); operator ACCEPTED premise. Finding 13: OpenClaw turns outrun fixed step budgets (config, not defect); daemon units now 30-min budget |
 | 2 | 2.5 | v2.5 | [D] | Paper gap 14.3 — reviewer Step-2 dual output (deferred: +20% token cost, v2 enhancement) |
-| 2 | 2.6 | v2.6 | [ ] | PREMISE BENCHMARK: adversarial grappe vs solo node, blind operator comparison (does circling actually help?) |
+| 2 | 2.6 | v2.6 | [x] | PREMISE BENCHMARK: adversarial grappe vs solo node, blind operator comparison (does circling actually help?) |
 
 > **2.1 — Goal:** the paper's full session lifecycle is observed live (the 93 circling-family unit tests never ran one).
 > **Needs:** Block 1 substrate; lib/mesh-collab.js + bin/mesh-task-daemon.js + bin/mesh-agent.js + bin/mesh-bridge.js; a mock-LLM mode for mesh-agent (env or flag; check what tests use).
