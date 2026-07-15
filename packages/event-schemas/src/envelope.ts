@@ -33,6 +33,9 @@ export const EventEnvelopeSchema = z.object({
   // verifyEvent's downstream length check.
   signature: z.string().regex(SIG_B64_RE).max(128).optional(),
   signer_pubkey: z.string().regex(PUBKEY_B64_RE).length(44).optional(),
+  // F2: signer_node_id enables opts.expectedNodeId check in verifyEvent().
+  // Optional for backward-compat with events signed before this field was added.
+  signer_node_id: z.string().min(1).max(128).regex(NODE_ID_RE).optional(),
 }).passthrough();
 // F-P403 fix: .passthrough() preserves unknown keys on parse. Previously the
 // default .strip() silently dropped signature/signer_pubkey on the boundary

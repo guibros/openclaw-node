@@ -91,10 +91,13 @@ Each node holds an ed25519 keypair at `<nodeRoot>/identity.key` provisioned by
 `lib/node-identity.mjs:76` (`getOrCreateIdentity()`). Signing pattern:
 
 ```
-lib/node-identity.mjs:374  signEvent(event, privateKey)   → adds { signature, signer_pubkey, event_id }
+lib/node-identity.mjs:374  signEvent(event, privateKey)   → adds { signature, signer_pubkey }; event_id is caller-injected before signEvent
+lib/node-identity.mjs:463  verifyEvent(event, opts)       → boolean (legacy) or { ok, reason } (strict); opts.expectedNodeId validates event.node_id
 lib/node-identity.mjs:76   getOrCreateIdentity(dir)       → { privateKey, publicKey, publicKeyBase64 }
 lib/deploy-trigger-auth.mjs:58  signDeployTrigger(trigger) → reuses signEvent for deploy triggers
 ```
+
+Callers MUST populate `event_id` on the event object before invoking `signEvent`; `signEvent` does not generate this field. All four current call sites comply: `buildMemoryEvent()` (`lib/local-event-log.mjs:104`), `lib/broadcast-emitter.mjs:266`, `lib/broadcast-offerer.mjs:444`, and `lib/broadcast-acceptor.mjs:472`.
 
 The same sign/verify pair is used for **join tokens** (1.4) and **task envelopes** (4.2, §5).
 Token authenticates *connection to the bus*; envelope signature authenticates *the sender*.
@@ -125,8 +128,9 @@ Management layer addresses grappes by registry `id`.
 
 All three architectures share the same state layer (`lib/mesh-collab.js`), session subject
 namespace (`mesh.collab.*`), and daemon handlers (`bin/mesh-task-daemon.js`). The only
-structural difference is the session `architecture` field (step 3.1 adds it; `mode` stays
-`circling_strategy` for adversarial; cooperative/collaborative get new values).
+structural difference is the session `mode` field (set in `lib/mesh-collab.js:54`
+`createSession()`): `"circling_strategy"` for adversarial; new values for
+cooperative/collaborative.
 
 ### 3.1 Mode A — Adversarial (the circling paper)
 
@@ -190,6 +194,9 @@ Default `CIRCLING_STEP_TIMEOUT_MS` = 10 min (`bin/mesh-task-daemon.js:54`).
 **Prompt construction:** `bin/mesh-agent.js:779` `buildCirclingPrompt(task, circlingData)` builds
 phase-specific instructions; agent imports the standalone parser at `bin/mesh-agent.js:962`.
 
+**Session field anchor:** `session.mode = "circling_strategy"` (`lib/mesh-collab.js:34`
+`COLLAB_MODE.CIRCLING_STRATEGY`; set at `lib/mesh-collab.js:59` in `createSession()`).
+
 ### 3.2 Mode B — Cooperative
 
 Cooperative sessions are **proposal-all / integrate-one / rotate-integrator** rounds. Three
@@ -219,7 +226,7 @@ TASK SUBMITTED
 DONE — integrationArtifact is the work product
 ```
 
-**Session field anchor (step 3.1):** `session.architecture = "cooperative"` on the
+**Session field anchor (step 3.1):** `session.mode = "cooperative"` on the
 `lib/mesh-collab.js:54` (`createSession()`) schema. Existing `circling` block stays null.
 The round-state (integrator_node_id, round_number) is the cooperative equivalent of the
 circling sub-round state — added to the session schema in step 3.2.
@@ -253,7 +260,7 @@ TASK SUBMITTED
 DONE — mergeArtifact is the work product
 ```
 
-**Session field anchor:** `session.architecture = "collaborative"` (step 3.1). Subtask tracking
+**Session field anchor:** `session.mode = "collaborative"` (step 3.1). Subtask tracking
 reuses the `mesh.plans.{create,subtask.update}` subject family already implemented.
 
 ### 3.4 Mode selection guidance
@@ -274,7 +281,7 @@ honors it.
 
 ### 4.1 Session type
 
-Management sessions use `session.type = "management"` (new value alongside `collab`) within
+Management sessions use `session.mode = "management"` (new value alongside existing modes) within
 `bin/mesh-task-daemon.js`. Handlers are added to the existing daemon (D2 — no separate daemon).
 Five stored roles: coordinator, decomposer, assembler, verifier-A, verifier-B.
 
@@ -341,12 +348,13 @@ management: {
   preferred_mode: "adversarial",    // "adversarial" | "cooperative" | "collaborative"
   description: "<task text>",
   deadline_ms: 3600000,             // wall-clock budget (ms)
-  issued_at: "<ISO timestamp>",
+  timestamp: "<ISO timestamp>",     // read by checkEventFreshness (lib/node-identity.mjs:419)
 
   // ed25519 signature (from lib/deploy-trigger-auth.mjs:58 signDeployTrigger pattern)
   signature: "<base64>",
   signer_pubkey: "<base64>",        // coordinator node's public key
-  event_id: "<uuid>",               // replay-prevention
+  signer_node_id: "<node id>",      // enables opts.expectedNodeId check in verifyEvent
+  event_id: "<uuid>",               // caller-injected before signEvent is called
 }
 ```
 
@@ -368,11 +376,12 @@ the sender. Both required.
   artifact: "<text content>",       // the work product (or null on failure)
   artifact_key: "<KV key>",         // JetStream KV key for the full artifact
   converged: true,                  // whether finalization was unanimous
-  issued_at: "<ISO timestamp>",
+  timestamp: "<ISO timestamp>",     // read by checkEventFreshness (lib/node-identity.mjs:419)
 
   signature: "<base64>",
   signer_pubkey: "<base64>",
-  event_id: "<uuid>",
+  signer_node_id: "<node id>",      // enables opts.expectedNodeId check in verifyEvent
+  event_id: "<uuid>",               // caller-injected before signEvent is called
 }
 ```
 
@@ -406,8 +415,9 @@ the sender. Both required.
   // Signed by the savant session coordinator (same pattern as §5.1)
   signature: "<base64>",
   signer_pubkey: "<base64>",
-  event_id: "<uuid>",
-  issued_at: "<ISO timestamp>",
+  signer_node_id: "<node id>",      // enables opts.expectedNodeId check in verifyEvent
+  event_id: "<uuid>",               // caller-injected before signEvent is called
+  timestamp: "<ISO timestamp>",     // read by checkEventFreshness (lib/node-identity.mjs:419)
 }
 ```
 
@@ -430,7 +440,7 @@ context of step 5.1).
 
 ### 6.2 Session type
 
-Savant sessions are **adversarial sessions** (`architecture = "adversarial"`, same circling
+Savant sessions are **adversarial sessions** (`mode = "circling_strategy"`, same circling
 paper protocol) whose TASK is "review the telemetry feed and produce a change-set" and whose
 ARTIFACT is a change-set (§5.3). No new session type; no new protocol machinery.
 
@@ -505,7 +515,7 @@ All federation subjects use `mesh.*` — the `openclaw.*` fleet namespace is ret
 | File:line | What | Spec section |
 |---|---|---|
 | `lib/mesh-collab.js:30` | `COLLAB_MODE` enum | §3 (session layer shared by all modes) |
-| `lib/mesh-collab.js:54` | `createSession()` | §3.1/3.2/3.3 (architecture field added in 3.1) |
+| `lib/mesh-collab.js:54` | `createSession()` | §3.1/3.2/3.3 (mode field — real discriminator) |
 | `lib/mesh-collab.js:65` | `min_nodes` default (3 for circling) | §3.1 adversarial recruiting |
 | `lib/mesh-collab.js:105` | `circling` block in session schema | §3.1 flow (role IDs) |
 | `lib/mesh-collab.js:619` | `compileDirectedInput()` | §3.1 per-node directed input |
@@ -525,5 +535,6 @@ All federation subjects use `mesh.*` — the `openclaw.*` fleet namespace is ret
 | `lib/deploy-trigger-auth.mjs:58` | `signDeployTrigger()` | §5.1 envelope signing pattern |
 | `lib/node-identity.mjs:76` | `getOrCreateIdentity()` | §2.3 node identity |
 | `lib/node-identity.mjs:374` | `signEvent()` | §5.1/5.3 envelope + change-set signing |
+| `lib/node-identity.mjs:463` | `verifyEvent()` | §5.1/5.2/5.3 envelope verification; `opts.expectedNodeId` guards |
 | `bin/spawn-node.mjs:131` | `spawnNode()` | §2.2 logical node trees |
 | `services/nats/nats-1.conf:16` | cluster block | §2.1 NATS cluster (step 1.1 hardens) |
