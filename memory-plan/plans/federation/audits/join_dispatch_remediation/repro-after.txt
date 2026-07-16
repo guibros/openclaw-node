@@ -1,0 +1,21 @@
+submitted repro-joindispatch-after-1784211625827 (cooperative, min=3, max=3)
+
+=== AT RECRUITING CLOSE (join path — max_nodes reached) ===
+status            : completed
+nodes             : alpha, charlie, bravo
+integrator_order  : ["alpha","charlie","bravo"]
+current_integrator: "charlie"
+
+=== TERMINAL ===
+status            : completed
+integrator_order  : ["alpha","charlie","bravo"]
+integrations      : 2
+  R1 by "alpha": {"summary":"repro work","artifacts":[]}
+  R2 by "charlie": {"summary":"repro work","artifacts":[]}
+
+(cleaned up repro sessions/tasks; agents stopped)
+submitted repro-mgmt-failloud-1784211662597 (management — unbuilt mode, min=max=3)
+terminal status : aborted
+rounds started  : 0
+abort reason    : {"success":false,"summary":"Mode 'management' not yet implemented","aborted":true}
+(cleaned up)

@@ -112,7 +112,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 3 | 3.1 | v3.1 | [x] | `architecture` field on collab sessions + daemon dispatch by mode (adversarial default) |
+| 3 | 3.1 | v3.1 | [x] | `architecture` field on collab sessions + daemon dispatch by mode (adversarial default). ⚠️ **CORRECTION 2026-07-16:** the fail-loud seam landed on the deadline-sweep close path ONLY — the join-time close (`handleCollabJoin`, fires when max_nodes is reached) kept the pre-3.1 binary dispatch, so under the natural min=max=3 config cooperative started with an empty rotation and "completed" placeholder rounds, and unbuilt modes silently ran legacy (deep-review P0-2; reproduced live). Fixed by extracting ONE `startRecruitedSession` shared by both close paths + real-function daemon tests — audits/join_dispatch_remediation (before/after live evidence) |
 | 3 | 3.2 | v3.2 | [x] | Cooperative protocol: propose-all / integrate-one / rotate-integrator rounds, live run |
 | 3 | 3.3 | v3.3 | [x] | Collaborative protocol: decompose → per-node subtasks → parallel work → merge + merge-review, live run |
 | 3 | 3.4 | v3.4 | [x] | Mode-selection guidance in FEDERATION_SPEC + task-envelope `preferred_mode` honored |

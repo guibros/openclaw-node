@@ -766,25 +766,13 @@ async function handleCollabJoin(msg) {
   await collabStore.appendAudit(session_id, 'node_joined', { node_id, role: role || 'worker', total_nodes: session.nodes.length });
   publishCollabEvent('joined', session);
 
-  // Check if recruiting should close → start first round
+  // Nth join reached max_nodes → recruiting closes NOW, through the same mode
+  // dispatch as the deadline sweep. This branch used to keep a stale pre-3.1
+  // binary copy (circling role-assign OR legacy startCollabRound), so under the
+  // natural grappe config (min=max=3) cooperative/collaborative/management
+  // sessions silently ran the wrong protocol. One dispatch, two callers.
   if (collabStore.isRecruitingDone(session)) {
-    // Circling Strategy: assign worker_node_id before starting
-    if (session.mode === 'circling_strategy' && session.circling) {
-      const freshSession = await collabStore.get(session.session_id);
-      if (freshSession.circling && !freshSession.circling.worker_node_id) {
-        // Assign all role IDs at recruiting close — stable for the session lifetime.
-        const workerNode = freshSession.nodes.find(n => n.role === 'worker') || freshSession.nodes[0];
-        freshSession.circling.worker_node_id = workerNode.node_id;
-        const reviewers = freshSession.nodes.filter(n => n.node_id !== workerNode.node_id);
-        freshSession.circling.reviewerA_node_id = reviewers[0]?.node_id || null;
-        freshSession.circling.reviewerB_node_id = reviewers[1]?.node_id || null;
-        await collabStore.put(freshSession);
-        log(`CIRCLING: Roles assigned → Worker: ${workerNode.node_id}, RevA: ${reviewers[0]?.node_id}, RevB: ${reviewers[1]?.node_id}`);
-      }
-      await startCirclingStep(session.session_id);
-    } else {
-      await startCollabRound(session.session_id);
-    }
+    await startRecruitedSession(session.session_id);
   }
 
   respond(msg, session);
@@ -1712,82 +1700,104 @@ async function handleCirclingGateReject(msg) {
  * Check recruiting sessions whose join window has expired.
  * If min_nodes reached → start first round. Otherwise → abort.
  */
+/**
+ * Recruiting has closed — run the mode dispatch, exactly once, for BOTH close
+ * paths: the Nth-join close (handleCollabJoin, fires synchronously when
+ * max_nodes is reached) and the deadline sweep (checkRecruitingDeadlines).
+ *
+ * This function exists because the join path kept a stale pre-3.1 binary copy
+ * of this dispatch: under the natural grappe config (min=max=3, third join
+ * closes recruiting) cooperative sessions started with an EMPTY integrator
+ * rotation and "completed" rounds of "(integrator submitted no reflection)"
+ * placeholders, collaborative got no merger/decomposition, and unbuilt modes
+ * silently ran the legacy parallel protocol — the exact silent-wrong-protocol
+ * failure the 3.1 fail-loud seam exists to prevent. One dispatch, two callers.
+ *
+ * Fresh-reads the session and only proceeds from RECRUITING, so a join-close
+ * and a concurrent sweep tick can't both dispatch (the loser no-ops).
+ */
+async function startRecruitedSession(session_id) {
+  const session = await collabStore.get(session_id);
+  if (!session || session.status !== COLLAB_STATUS.RECRUITING) return false;
+  if (!collabStore.isRecruitingDone(session)) return false;
+
+  if (session.nodes.length < session.min_nodes) {
+    log(`COLLAB RECRUIT FAILED ${session.session_id}: only ${session.nodes.length}/${session.min_nodes} nodes. Aborting.`);
+    await collabStore.markAborted(session.session_id, `Not enough nodes: ${session.nodes.length} < ${session.min_nodes}`);
+    publishCollabEvent('aborted', await collabStore.get(session.session_id));
+    await store.markReleased(session.task_id, `Collab session failed to recruit: ${session.nodes.length}/${session.min_nodes} nodes`);
+    return true;
+  }
+
+  log(`COLLAB RECRUIT DONE ${session.session_id}: ${session.nodes.length} nodes joined. Starting round 1.`);
+  if (session.mode === 'circling_strategy' && session.circling) {
+    // Circling requires exactly 3 nodes (1 worker + 2 reviewers).
+    // Even if min_nodes was misconfigured, refuse to start with <3.
+    // Auto-assign roles if all nodes joined as 'worker' (default join role).
+    const noReviewersYet = session.nodes.every(n => n.role === 'worker');
+    if (noReviewersYet && session.nodes.length >= 3) {
+      session.nodes[0].role = 'worker';
+      session.nodes[1].role = 'reviewer';
+      session.nodes[2].role = 'reviewer';
+      await collabStore.put(session);
+      log('CIRCLING: auto-assigned roles (1 worker + 2 reviewers)');
+    }
+    const hasWorker = session.nodes.some(n => n.role === 'worker');
+    const reviewerCount = session.nodes.filter(n => n.role === 'reviewer').length;
+    if (session.nodes.length < 3 || !hasWorker || reviewerCount < 2) {
+      log(`COLLAB RECRUIT FAILED ${session.session_id}: circling requires 1 worker + 2 reviewers, got ${session.nodes.length} nodes (worker: ${hasWorker}, reviewers: ${reviewerCount}). Aborting.`);
+      await collabStore.markAborted(session.session_id, `Circling requires 1 worker + 2 reviewers; got ${session.nodes.length} nodes`);
+      publishCollabEvent('aborted', await collabStore.get(session.session_id));
+      await store.markReleased(session.task_id, `Circling session failed: insufficient role distribution`);
+      return true;
+    }
+    // Assign all role IDs if not yet assigned
+    if (!session.circling.worker_node_id) {
+      const workerNode = session.nodes.find(n => n.role === 'worker') || session.nodes[0];
+      session.circling.worker_node_id = workerNode.node_id;
+      const reviewers = session.nodes.filter(n => n.node_id !== workerNode.node_id);
+      session.circling.reviewerA_node_id = reviewers[0]?.node_id || null;
+      session.circling.reviewerB_node_id = reviewers[1]?.node_id || null;
+      await collabStore.put(session);
+    }
+    await startCirclingStep(session.session_id);
+  } else if (session.mode === COLLAB_MODE.COOPERATIVE && session.cooperative) {
+    // Cooperative (3.2): fix the integrator rotation order at recruiting
+    // close, integrator[0] leads round 1, then start the round machinery.
+    session.cooperative.integrator_order = session.nodes.map(n => n.node_id);
+    session.cooperative.current_integrator = session.cooperative.integrator_order[0];
+    await collabStore.put(session);
+    log(`COOPERATIVE ${session.session_id}: integrator rotation ${session.cooperative.integrator_order.join(' → ')}, R1 integrator=${session.cooperative.current_integrator}`);
+    await startCollabRound(session.session_id);
+  } else if (session.mode === COLLAB_MODE.COLLABORATIVE && session.collaborative) {
+    // Collaborative (3.3): partition the task into per-node subtasks (partitioned
+    // scope), designate a merger, and run the work round. evaluateRound advances
+    // work → merge (merger assembles, others review + vote).
+    session.collaborative.merger_node_id = session.nodes[0].node_id;
+    session.scope_strategy = 'partitioned';
+    session.collaborative.phase = 'work';
+    await collabStore.put(session);
+    log(`COLLABORATIVE ${session.session_id}: ${session.nodes.length} subtasks (partitioned), merger=${session.collaborative.merger_node_id}, work round starting`);
+    await startCollabRound(session.session_id);
+  } else if (isModeImplemented(session.mode)) {
+    // Legacy protocols (parallel / sequential / review) share startCollabRound.
+    await startCollabRound(session.session_id);
+  } else {
+    // Declared but unbuilt (management → Block 4). Refuse to start rather than
+    // silently running the legacy parallel path in the wrong protocol (3.1 seam).
+    log(`COLLAB RECRUIT FAILED ${session.session_id}: mode '${session.mode}' has no daemon protocol yet. Aborting (not silently downgrading to parallel).`);
+    await collabStore.markAborted(session.session_id, `Mode '${session.mode}' not yet implemented`);
+    publishCollabEvent('aborted', await collabStore.get(session.session_id));
+    await store.markReleased(session.task_id, `Collab mode '${session.mode}' not yet implemented`);
+  }
+  return true;
+}
+
 async function checkRecruitingDeadlines() {
   const recruiting = await collabStore.list({ status: COLLAB_STATUS.RECRUITING });
   for (const session of recruiting) {
     if (!collabStore.isRecruitingDone(session)) continue;
-
-    if (session.nodes.length >= session.min_nodes) {
-      log(`COLLAB RECRUIT DONE ${session.session_id}: ${session.nodes.length} nodes joined. Starting round 1.`);
-      if (session.mode === 'circling_strategy' && session.circling) {
-        // Circling requires exactly 3 nodes (1 worker + 2 reviewers).
-        // Even if min_nodes was misconfigured, refuse to start with <3.
-        // Auto-assign roles if all nodes joined as 'worker' (default join role).
-        const noReviewersYet = session.nodes.every(n => n.role === 'worker');
-        if (noReviewersYet && session.nodes.length >= 3) {
-          session.nodes[0].role = 'worker';
-          session.nodes[1].role = 'reviewer';
-          session.nodes[2].role = 'reviewer';
-          await collabStore.put(session);
-          log('CIRCLING: auto-assigned roles (1 worker + 2 reviewers)');
-        }
-        const hasWorker = session.nodes.some(n => n.role === 'worker');
-        const reviewerCount = session.nodes.filter(n => n.role === 'reviewer').length;
-        if (session.nodes.length < 3 || !hasWorker || reviewerCount < 2) {
-          log(`COLLAB RECRUIT FAILED ${session.session_id}: circling requires 1 worker + 2 reviewers, got ${session.nodes.length} nodes (worker: ${hasWorker}, reviewers: ${reviewerCount}). Aborting.`);
-          await collabStore.markAborted(session.session_id, `Circling requires 1 worker + 2 reviewers; got ${session.nodes.length} nodes`);
-          publishCollabEvent('aborted', await collabStore.get(session.session_id));
-          await store.markReleased(session.task_id, `Circling session failed: insufficient role distribution`);
-          continue;
-        }
-        // Assign all role IDs if not yet assigned
-        if (!session.circling.worker_node_id) {
-          const workerNode = session.nodes.find(n => n.role === 'worker') || session.nodes[0];
-          session.circling.worker_node_id = workerNode.node_id;
-          const reviewers = session.nodes.filter(n => n.node_id !== workerNode.node_id);
-          session.circling.reviewerA_node_id = reviewers[0]?.node_id || null;
-          session.circling.reviewerB_node_id = reviewers[1]?.node_id || null;
-          await collabStore.put(session);
-        }
-        await startCirclingStep(session.session_id);
-      } else if (session.mode === COLLAB_MODE.COOPERATIVE && session.cooperative) {
-        // Cooperative (3.2): fix the integrator rotation order at recruiting
-        // close, integrator[0] leads round 1, then start the round machinery.
-        session.cooperative.integrator_order = session.nodes.map(n => n.node_id);
-        session.cooperative.current_integrator = session.cooperative.integrator_order[0];
-        await collabStore.put(session);
-        log(`COOPERATIVE ${session.session_id}: integrator rotation ${session.cooperative.integrator_order.join(' → ')}, R1 integrator=${session.cooperative.current_integrator}`);
-        await startCollabRound(session.session_id);
-      } else if (session.mode === COLLAB_MODE.COLLABORATIVE && session.collaborative) {
-        // Collaborative (3.3): partition the task into per-node subtasks (partitioned
-        // scope), designate a merger, and run the work round. evaluateRound advances
-        // work → merge (merger assembles, others review + vote).
-        session.collaborative.merger_node_id = session.nodes[0].node_id;
-        session.scope_strategy = 'partitioned';
-        session.collaborative.phase = 'work';
-        await collabStore.put(session);
-        log(`COLLABORATIVE ${session.session_id}: ${session.nodes.length} subtasks (partitioned), merger=${session.collaborative.merger_node_id}, work round starting`);
-        await startCollabRound(session.session_id);
-      } else if (isModeImplemented(session.mode)) {
-        // Legacy protocols (parallel / sequential / review) share startCollabRound.
-        await startCollabRound(session.session_id);
-      } else {
-        // Declared but unbuilt (cooperative → 3.2, collaborative → 3.3,
-        // management → Block 4). Refuse to start rather than silently running
-        // the legacy parallel path in the wrong protocol (step 3.1 seam).
-        log(`COLLAB RECRUIT FAILED ${session.session_id}: mode '${session.mode}' has no daemon protocol yet. Aborting (not silently downgrading to parallel).`);
-        await collabStore.markAborted(session.session_id, `Mode '${session.mode}' not yet implemented`);
-        publishCollabEvent('aborted', await collabStore.get(session.session_id));
-        await store.markReleased(session.task_id, `Collab mode '${session.mode}' not yet implemented`);
-        continue;
-      }
-    } else {
-      log(`COLLAB RECRUIT FAILED ${session.session_id}: only ${session.nodes.length}/${session.min_nodes} nodes. Aborting.`);
-      await collabStore.markAborted(session.session_id, `Not enough nodes: ${session.nodes.length} < ${session.min_nodes}`);
-      publishCollabEvent('aborted', await collabStore.get(session.session_id));
-      // Release the parent task
-      await store.markReleased(session.task_id, `Collab session failed to recruit: ${session.nodes.length}/${session.min_nodes} nodes`);
-    }
+    await startRecruitedSession(session.session_id);
   }
 }
 
@@ -2465,7 +2475,24 @@ async function main() {
   await nc.closed();
 }
 
-main().catch(err => {
-  console.error(`[mesh-task-daemon] Fatal: ${err.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error(`[mesh-task-daemon] Fatal: ${err.message}`);
+    process.exit(1);
+  });
+} else {
+  // Test surface (daemon-recruit-dispatch.test.js): expose the REAL recruiting-close
+  // dispatch with injectable state, so tests exercise this file's code instead of
+  // replicating it — replicated copies are how the join-path divergence shipped green.
+  module.exports.__test = {
+    setContext(ctx) {
+      if (ctx.nc !== undefined) nc = ctx.nc;
+      if (ctx.store !== undefined) store = ctx.store;
+      if (ctx.collabStore !== undefined) collabStore = ctx.collabStore;
+      if (ctx.planStore !== undefined) planStore = ctx.planStore;
+    },
+    startRecruitedSession: (id) => startRecruitedSession(id),
+    handleCollabJoinDispatch: async (session) =>
+      collabStore.isRecruitingDone(session) ? startRecruitedSession(session.session_id) : false,
+  };
+}

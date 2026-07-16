@@ -1,0 +1,16 @@
+submitted repro-joindispatch-before-1784211375930 (cooperative, min=3, max=3)
+
+=== AT RECRUITING CLOSE (join path — max_nodes reached) ===
+status            : completed
+nodes             : bravo, alpha, charlie
+integrator_order  : []
+current_integrator: undefined
+
+=== TERMINAL ===
+status            : completed
+integrator_order  : []
+integrations      : 2
+  R1 by null: {"summary":"(integrator submitted no reflection)","artifacts":[]}
+  R2 by undefined: {"summary":"(integrator submitted no reflection)","artifacts":[]}
+
+(cleaned up repro sessions/tasks; agents stopped)

@@ -51,6 +51,16 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step63_fed_probes/*
 ```
 
+```files join-dispatch-remediation closed
+bin/mesh-task-daemon.js
+test/daemon-recruit-dispatch.test.js
+test/collab-mode-dispatch.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/audits/join_dispatch_remediation/*
+```
+
 ```files probe-honesty-remediation closed
 lib/fed-probes.mjs
 lib/node-watch.mjs
