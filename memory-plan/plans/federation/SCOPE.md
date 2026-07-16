@@ -120,6 +120,14 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files live-session-import closed
+workspace-bin/memory-daemon.mjs
+lib/node-watch.mjs
+test/node-watch.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/audits/memory_ingest_remediation/*
+```
+
 ```files ci-observed-close-64 closed
 memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/INVENTORY.md

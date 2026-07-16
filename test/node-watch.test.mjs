@@ -282,3 +282,16 @@ describe('gradeExtraction (keeps pace with ingest)', () => {
     assert.equal(gradeExtraction({ entityCount: 0, lastEntityMs: NaN, lastMessageMs: T_MSG_LAST }).status, STATUS.UNKNOWN);
   });
 });
+
+describe('gradeIngest lag budget calibration (tool-marathon tolerance)', () => {
+  it('45min mtime-lead during a tool-heavy stretch → WORKING (not a false alarm)', () => {
+    const now = Date.parse('2026-07-16T21:30:00Z');
+    const v = gradeIngest({ messageCount: 554, lastMessageMs: now - 45 * 60_000, newestTranscriptMs: now });
+    assert.equal(v.status, STATUS.WORKING);
+  });
+  it('a real 3h lag still grades BROKEN', () => {
+    const now = Date.parse('2026-07-16T21:30:00Z');
+    const v = gradeIngest({ messageCount: 554, lastMessageMs: now - 3 * 3600_000, newestTranscriptMs: now });
+    assert.equal(v.status, STATUS.BROKEN);
+  });
+});

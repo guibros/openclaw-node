@@ -844,6 +844,28 @@ async function runPhase2ThrottledWork(config, sessionState) {
     }
   }
 
+  // Live session import (every 10min while a session is running) — state.db
+  // ingest used to happen only at boot + session end, so a marathon session
+  // lagged hours behind its own transcript (and the mem.ingest freshness probe
+  // rightly flagged it). importSession is offset-incremental, so this is cheap.
+  if (now - (throttle.lastLiveImport || 0) >= config.intervals.sessionRecapMs) {
+    throttle.lastLiveImport = now;
+    stage1.push((async () => {
+      const store = await getSessionStore();
+      const currentJsonl = findCurrentJsonl(loadTranscriptSources());
+      if (!store || !currentJsonl) return;
+      const activity = detectActivity(loadTranscriptSources(), config.intervals.activityWindowMs);
+      const result = await store.importSession(currentJsonl, {
+        source: activity.newestSource || 'unknown',
+        format: activity.newestFormat,
+      });
+      if (result.imported) {
+        log(`  Phase 2: live session import — ${result.sessionId.slice(0, 8)} (${result.messageCount} msgs)`);
+        emitIngestEvent(result.sessionId, activity.newestSource || 'unknown', result.messageCount);
+      }
+    })().catch(e => log(`  Phase 2: live session import failed: ${e.message}`)));
+  }
+
   // Memory maintenance (every 30min)
   if (now - throttle.lastMaintenance >= config.intervals.maintenanceMs) {
     throttle.lastMaintenance = now;

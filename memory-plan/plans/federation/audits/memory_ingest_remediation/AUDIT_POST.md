@@ -69,3 +69,25 @@ blocker precisely characterized (native crash) and QUEUED — not silently absor
 Deployed daemon copy synced (repo → workspace/bin, real file not symlink — the deploy gap bit
 again: first restart ran the old copy). Watcher restarted onto the new graders. Repro/evidence in
 this audit dir; commit carries the Runtime-Evidence trailer.
+
+## FOLLOW-UP ADDENDUM — 2026-07-16T21:35Z (live import + budget calibration + crash reframed)
+
+- **The "native crash" is reframed with crash-report evidence:** the `.ips` reports show the abort
+  happens in `exit → __cxa_finalize_ranges` — a native static destructor (onnxruntime-class)
+  aborting while the process was ALREADY exiting via `node::Exit` — i.e., exit-path NOISE, not a
+  mid-work crash. Most reports correspond to one-shot CLIs (acceptance/node-watch) exiting. A calm
+  full flush later ran 5.5min and completed with the daemon surviving. The earlier daemon deaths
+  coincided with restart churn + acceptance runs; no daemon death reproduced on a calm system.
+- **Extraction is LANDING again:** entities 1112 → 1117, newest 2026-07-16T20:26Z (the 115h stall
+  is broken). Flush LLM leg still degrades to regex under timeouts ("aborted"/"fetch failed") —
+  the honest ⚠ EXTRACTION DEGRADED path, queued, not dark.
+- **Live session import added** (daemon Phase 2, sessionRecapMs cadence): state.db imports used to
+  happen only at boot + session end, so marathon sessions lagged by design. Verified: block runs
+  (throttle stamped), correctly no-ops when the parse has no new turns.
+- **Ingest lag budget calibrated 30min → 2h:** proven live that the transcript FILE grows with tool
+  noise while the parser ingests only conversational turns (parsed 554 == stored 554 as the file
+  grew 30+ min) — 30min false-alarms during tool marathons; 2h still catches real darkness. Tests
+  32/32 incl. the marathon-tolerance + 3h-BROKEN cases.
+- Machine rebooted ~16:44 local (fresh pids); post-reboot "disk I/O error" on extraction/graph DB
+  opens seen at boot then recovered on retry — integrity_check ok on state/graph DBs; inject-server
+  on the current boot reported extractionDb open failure (privacy filter degraded) — worth watching.
