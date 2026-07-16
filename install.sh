@@ -36,6 +36,7 @@ SKIP_FRONTEND=false
 VERIFY_FRONTEND=false
 SANDBOX=false
 NODE_ROLE=""
+CLUSTER_PEERS=""
 
 for arg in "$@"; do
   case "$arg" in
@@ -49,6 +50,7 @@ for arg in "$@"; do
     --verify-frontend)   VERIFY_FRONTEND=true ;;
     --sandbox)           SANDBOX=true; SKIP_LLM=true; SKIP_MESH=true; SKIP_FRONTEND=true ;;
     --role=*)            NODE_ROLE="${arg#--role=}" ;;
+    --cluster-peers=*)   CLUSTER_PEERS="${arg#--cluster-peers=}" ;;
     --help|-h)
       echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--skip-llm] [--skip-verify] [--role=lead|worker] [--enable-services]"
       echo "  --dry-run           Show what would happen without making changes"
@@ -60,6 +62,9 @@ for arg in "$@"; do
       echo "  --verify-frontend   Verify frontend auth with one small live call"
       echo "  --sandbox           Wiring-test mode: skip network-heavy installs (implies --skip-llm --skip-mesh)"
       echo "  --role=lead|worker  Set node role (default: macOS=lead, Linux=worker)"
+      echo "  --cluster-peers=A,B Join a multi-MACHINE NATS cluster: A,B are the OTHER"
+      echo "                      machines' addresses (Tailscale/LAN IPs). Renders THIS"
+      echo "                      machine's nats.conf to cluster with them (R=3 failsafe)."
       echo "  --enable-services   Also enable and start services after installing"
       exit 0
       ;;
@@ -687,6 +692,44 @@ generate_config "$REPO_DIR/services/nats/nats-single.conf" "$OPENCLAW_ROOT/confi
 generate_config "$REPO_DIR/services/nats/nats-1.conf" "$OPENCLAW_ROOT/config/nats-1.conf"
 generate_config "$REPO_DIR/services/nats/nats-2.conf" "$OPENCLAW_ROOT/config/nats-2.conf"
 generate_config "$REPO_DIR/services/nats/nats-3.conf" "$OPENCLAW_ROOT/config/nats-3.conf"
+
+# Multi-MACHINE cluster (federation 1.5). With --cluster-peers=<ip>,<ip> this node
+# joins a real cross-machine NATS cluster: render THIS machine's nats.conf binding
+# 0.0.0.0 with routes to the PEER machines (replaces the single-node nats.conf), and
+# set the KV replica target from the council size so mesh buckets/streams go R=3
+# ACROSS the machines. No flag → single-node default above, untouched. Real failover
+# can only be proven on separate hardware; this renders the config that gets deployed.
+if [ -n "$CLUSTER_PEERS" ]; then
+  step "Multi-machine NATS cluster (peers: $CLUSTER_PEERS)"
+  CLUSTER_SERVER_NAME="openclaw-nats-${OPENCLAW_NODE_ID}"
+  if [ "$DRY_RUN" = true ]; then
+    info "[dry-run] would render cluster nats.conf (server=$CLUSTER_SERVER_NAME) routing to: $CLUSTER_PEERS"
+  else
+    KV_REPLICAS="$(OPENCLAW_NATS_SERVER_NAME="$CLUSTER_SERVER_NAME" \
+      OPENCLAW_NATS_TOKEN="$OPENCLAW_NATS_TOKEN" \
+      CLUSTER_PEERS="$CLUSTER_PEERS" \
+      node -e '
+        const fs = require("fs"), os = require("os");
+        const { renderClusterRoutes, replicasForPeers, parsePeers } = require(process.argv[1]);
+        let t = fs.readFileSync(process.argv[2], "utf8");
+        t = t.replaceAll("${OPENCLAW_NATS_SERVER_NAME}", process.env.OPENCLAW_NATS_SERVER_NAME)
+             .replaceAll("${OPENCLAW_NATS_TOKEN}", process.env.OPENCLAW_NATS_TOKEN)
+             .replaceAll("${HOME}", os.homedir())
+             .replace("${OPENCLAW_NATS_CLUSTER_ROUTES}", renderClusterRoutes(process.env.CLUSTER_PEERS));
+        fs.writeFileSync(process.argv[3], t, { mode: 0o600 });
+        process.stdout.write(String(replicasForPeers(parsePeers(process.env.CLUSTER_PEERS).length)));
+      ' "$REPO_DIR/lib/nats-cluster-config.js" "$REPO_DIR/services/nats/nats-cluster-node.conf" "$OPENCLAW_ROOT/config/nats.conf")"
+    # Persist the replica target so the daemons create buckets/streams at council size.
+    if grep -q '^OPENCLAW_KV_REPLICAS=' "$ENV_FILE" 2>/dev/null; then
+      sed -i.bak "s|^OPENCLAW_KV_REPLICAS=.*|OPENCLAW_KV_REPLICAS=$KV_REPLICAS|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+    else
+      echo "OPENCLAW_KV_REPLICAS=$KV_REPLICAS" >> "$ENV_FILE"
+    fi
+    info "Rendered cluster nats.conf (0.0.0.0 binds, routes → $CLUSTER_PEERS) · KV replica target R=$KV_REPLICAS"
+    warn "Start nats-server on ALL machines (cluster must form) BEFORE the daemons, so R=$KV_REPLICAS streams can be created."
+  fi
+fi
+
 generate_config "$REPO_DIR/config/obsidian-sync.json.template" "$OPENCLAW_ROOT/config/obsidian-sync.json"
 generate_config "$REPO_DIR/config/openclaw.json.template" "$OPENCLAW_ROOT/openclaw.json"
 

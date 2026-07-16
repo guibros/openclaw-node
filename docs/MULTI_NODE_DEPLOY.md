@@ -278,7 +278,25 @@ npm install
 
 ### 2.2 NATS cluster config
 
-Each machine needs a config file. The key difference from local dev: routes point to peer machine IPs.
+**Automated (recommended).** On each machine, point the installer at the OTHER machines'
+addresses — it renders that machine's `~/.openclaw/config/nats.conf` (binds `0.0.0.0`, routes
+to the peers) and records the R=3 replica target (`OPENCLAW_KV_REPLICAS`) in `openclaw.env`:
+
+```bash
+# Machine A (100.64.0.1) — peers are B and C:
+bash install.sh --cluster-peers=100.64.0.2,100.64.0.3
+# Machine B (100.64.0.2):
+bash install.sh --cluster-peers=100.64.0.1,100.64.0.3
+# Machine C (100.64.0.3):
+bash install.sh --cluster-peers=100.64.0.1,100.64.0.2
+```
+
+This replaces the single-node `nats.conf` with the cross-machine cluster config from
+`services/nats/nats-cluster-node.conf`. **Order of operations matters:** start `nats-server` on
+ALL machines first (so the cluster forms and can hold 3 replicas), THEN start the daemons — a
+stream can't be created at R=3 until ≥3 cluster members are up.
+
+**Manual (what the automated path produces).** Each machine's config, routes → peer IPs:
 
 **Machine A** (e.g., `10.0.1.10`):
 ```

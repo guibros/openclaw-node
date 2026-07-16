@@ -51,6 +51,19 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step63_fed_probes/*
 ```
 
+```files step-1.5-multimachine-cluster closed
+lib/nats-cluster-config.js
+test/nats-cluster-config.test.mjs
+services/nats/nats-cluster-node.conf
+install.sh
+openclaw.env.example
+docs/MULTI_NODE_DEPLOY.md
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step15_multimachine_cluster/*
+```
+
 ```files step-6.2-mc-federation-page closed
 mission-control/src/lib/hooks.ts
 mission-control/src/lib/nats.ts
