@@ -379,3 +379,54 @@ integration step (D10). 2.6 = grappe-of-OpenClaws vs solo-OpenClaw. The `MESH_LL
 default its grappe worker to a local model) — flagged for the next code pass. qwen survives in the
 docs ONLY where it is the extraction/embedding/probe organ (NODE_SPEC local-model row; llm-client
 extraction), explicitly labelled as such.
+
+## D12 — Reconciling the ledger with the running box: the cutover happened, the probes lied, and the cluster template regresses D2/D4 (2026-07-16, after the deep review)
+
+**Why this entry exists.** D10's process rule requires a DECISIONS entry before a decision's terms
+are weakened or superseded. Three things happened on this box without one. This records them
+retroactively and honestly rather than leaving the ledger contradicting the runtime.
+
+**1. The R=3 cutover already happened — undocumented (Jul 14, 19:41 EDT).** A real 3-node
+`openclaw-cluster` (nats-1/2/3, ports 4222/4223/4224) has been live since Jul 14 19:41 — configs
+rendered 19:11, plists 19:31, processes up 19:41: a deliberate manual cutover. Step **1.5 is still
+`[D]`**, no step close, no decision entry, and COMPONENT_REGISTRY still claimed "single node,
+cluster=NONE, verified 2026-07-10" until today. The old single-node unit (`ai.openclaw.nats`) remains
+loaded and dead (exit 1). **The registry is corrected in this commit; 1.5 stays `[D]`** — the row's
+gate is the operator's, and machine-loss failover remains unproven (all three nodes are procs on ONE
+box, which is not failsafe).
+
+**2. The Jul-15 R=1→R=3 KV migration was a production mutation of the class 1.5 reserves.** The five
+mesh buckets were migrated live with no before/after numbers recorded, no audit, no decision. It is
+done and the buckets are R=3/3 peers; `GRAPPE_REGISTRY` was recreated **empty** in the process (the
+wg-alpha manifest is gone — see also the probe side-effect below). Recorded here as the missing
+provenance.
+
+**3. `services/nats/nats-cluster-node.conf` regresses D2/D4 — ACKNOWLEDGED, NOT YET FIXED.** D2/D4
+record, with evidence, "never all-interfaces; bind the Tailscale interface." The committed template
+binds `0.0.0.0` on client/monitor/**cluster** and leaves the **cluster port unauthenticated**,
+mitigated only by a comment. This was not a considered trade: NATS rejected the *token* form of
+cluster auth and the author dropped auth instead of using the user/password form NATS does support.
+**This entry does NOT supersede D2/D4 — it records a known violation.** Not currently exploitable
+(the template is deployed nowhere; no second machine exists). **Binding constraint: the correct fix
+— bind the node's own tailscale address + cluster user/password credentials (which requires route
+credentials in `nats-cluster-config.js` + install) — MUST land before any second machine joins.**
+
+**4. Probe honesty remediation (this commit).** The 6.4 "honesty fix" shipped a quorum probe that
+could not detect quorum loss (`connect_urls` includes self; `1 + min(routes, connect_urls.length)`
+counted self twice ⇒ both peers dead graded "quorum held 2/3, WORKING"). Now graded from
+`jsz.meta_cluster` (raft leader ⇒ majority reachable), **verified by inducing a real outage**:
+2 of 3 nodes unloaded → raft stepped down at ~24s → node-watch `BROKEN — quorum LOST`, acceptance
+`GATE: REJECTED`; restored. Also fixed: the grappe heartbeat field mapping (`reportedAt`/`nodeId` —
+the WORKING branch was unreachable against production data), and the "read-only" probe that CREATED
+KV buckets (`bindOnly`) — the likely cause of the empty GRAPPE_REGISTRY in item 2.
+
+**5. Step 6.3 is REOPENED to `[A]`.** It was closed `[x]` on inference: the contracted observation
+("a killed grappe member flips a probe and fires a ledgered popup, observed") was replaced by a
+hand-fired `openclaw-notify` popup plus the reasoning "a literal member-kill produces the same edge."
+Additionally the live watcher had never loaded the probe code (it started Jul 14, ~23h before the
+code existed) — so nothing it was closed on ran in the running system. The watcher is now restarted
+and grading fed.* live; the literal member-kill is still owed and the grappe substrate is cold.
+
+**Standing consequence.** A step whose Verify contract says *observed* does not close on inference.
+Where an observation is impossible today, the step stays `[A]` with the reason — it does not close
+with prose that reads like evidence.

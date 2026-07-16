@@ -14,12 +14,12 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 ## Family 1: substrate (NATS, nodes, identity)
 
-### NATS — :4222, ai.openclaw.nats
+### NATS — :4222, ai.openclaw.nats-{1,2,3}
 
 | | |
 |---|---|
-| **Status** | LIVE (single node — NOT the R=3 cluster this plan needs; cluster configs hardened + manifest/install wired by step 1.1; cutover gated at step 1.5) |
-| **Verified** | 2026-07-10 — curl :8222/varz → server_name=openclaw-local, pid=1989, port=4222, cluster=NONE, in_msgs≈12716; config at `~/.openclaw/nats/nats.conf` (separate from repo cluster templates). Scratch proof 2026-07-10: R=3 cluster on ports 4322-4324 formed, token-auth enforced, quorum 2/3 survived node kill, live :4222 undisturbed. Hardened templates in services/nats/nats-{1,2,3}.conf; plists in services/launchd/ai.openclaw.nats-{1,2,3}.plist; rendered to ~/.openclaw/config/ by install.sh. |
+| **Status** | LIVE as a real 3-node `openclaw-cluster` **on ONE machine** (nats-1/2/3, client 4222/4223/4224, monitor 8222/8224/8223) since **2026-07-14 19:41 EDT** — an undocumented manual cutover, retro-ledgered in **D12**. Mesh KV buckets migrated R=1→R=3 on 07-15 (also retro-ledgered). ⚠️ **This is NOT failsafe**: three procs on one box die together. Step **1.5 stays `[D]`** — machine-loss failover is unproven and needs real separate hardware. The old single-node unit `ai.openclaw.nats` is still loaded and **dead (exit 1)**. |
+| **Verified** | **2026-07-16 11:21–11:35Z** — `:8222/jsz` → `meta_cluster {cluster_size:3, leader:openclaw-nats-3}`; `varz` → `cluster.name=openclaw-cluster`, `cluster.urls=[127.0.0.1:6223, 127.0.0.1:6224]`, `connect_urls=[4222,4223,4224]` (**includes self** — the fact that broke the old quorum probe). 3 `nats-server` procs live. **Quorum-loss detection proven by induced outage**: unloaded nats-2+nats-3 → raft stepped down at ~24s → node-watch `BROKEN — quorum LOST — no raft leader elected`; `node-acceptance --axis federation` → `GATE: REJECTED`; both units reloaded → 3/3, `WORKING — raft leader openclaw-nats-3`. All 5 mesh KV buckets R=3, 2/2 healthy followers. Detection latency ~24s (raft election timeout) — honest characteristic. Hardened templates in services/nats/nats-{1,2,3}.conf (loopback dev sim); the multi-MACHINE template `nats-cluster-node.conf` exists but is **deployed nowhere** and regresses D2/D4 (binds 0.0.0.0, unauthenticated cluster port — see D12 §3, must be fixed before a second machine joins). |
 
 ### NATS cluster configs — services/nats/nats-{1,2,3}.conf
 

@@ -51,6 +51,20 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step63_fed_probes/*
 ```
 
+```files probe-honesty-remediation closed
+lib/fed-probes.mjs
+lib/node-watch.mjs
+lib/node-acceptance-probes.mjs
+services/nats/nats-cluster-node.conf
+test/fed-probes.test.mjs
+test/fed-acceptance.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/audits/probe_honesty_remediation/*
+```
+
 ```files step-1.5-multimachine-cluster closed
 lib/nats-cluster-config.js
 test/nats-cluster-config.test.mjs
