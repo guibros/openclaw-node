@@ -232,3 +232,53 @@ describe('node-watch runner', () => {
     assert.ok(report.results.find((r) => r.id === 'obs.links').status !== STATUS.WORKING);
   });
 });
+
+// ── mem.ingest / mem.extraction honesty graders (memory_ingest_remediation) ──
+// Regression fixtures are the REAL 2026-07-16 failure values: newest transcript
+// Jul 16 14:50Z while state.db's newest message was Jul 14 23:04:49Z (~40h lag)
+// and newest entity landing Jul 11 — all graded WORKING by the old presence-only
+// probes while ingest ran dark.
+import { gradeIngest, gradeExtraction } from '../lib/node-watch.mjs';
+
+const T_MSG_LAST = Date.parse('2026-07-14T23:04:49.727Z');
+const T_TRANSCRIPT = Date.parse('2026-07-16T14:50:00Z');
+const T_ENTITY_LAST = Date.parse('2026-07-11T19:46:58.327Z');
+
+describe('gradeIngest (freshness, not presence)', () => {
+  it('REGRESSION: the live 40h-dark state grades BROKEN, not WORKING', () => {
+    const v = gradeIngest({ messageCount: 13117, lastMessageMs: T_MSG_LAST, newestTranscriptMs: T_TRANSCRIPT });
+    assert.equal(v.status, STATUS.BROKEN);
+    assert.match(v.detail, /LAGGING 39\.8h/);
+  });
+  it('REGRESSION: enabled source dirs missing grades BROKEN naming them (the silent-skip failure)', () => {
+    const v = gradeIngest({
+      messageCount: 13117, lastMessageMs: T_MSG_LAST, newestTranscriptMs: null,
+      missingSources: ['claude-code-workspace (/Users/x/.claude/projects/Users-x--openclaw-workspace)'],
+    });
+    assert.equal(v.status, STATUS.BROKEN);
+    assert.match(v.detail, /MISSING/);
+    assert.match(v.detail, /claude-code-workspace/);
+  });
+  it('keeping pace (transcript newer by < budget) → WORKING', () => {
+    const now = Date.parse('2026-07-16T15:00:00Z');
+    const v = gradeIngest({ messageCount: 100, lastMessageMs: now - 5 * 60_000, newestTranscriptMs: now });
+    assert.equal(v.status, STATUS.WORKING);
+  });
+  it('no sources observable → UNKNOWN (never green blind); transcripts but zero messages → BROKEN', () => {
+    assert.equal(gradeIngest({ messageCount: 5, lastMessageMs: T_MSG_LAST, newestTranscriptMs: null }).status, STATUS.UNKNOWN);
+    assert.equal(gradeIngest({ messageCount: 0, lastMessageMs: NaN, newestTranscriptMs: T_TRANSCRIPT }).status, STATUS.BROKEN);
+    assert.equal(gradeIngest({ messageCount: 0, lastMessageMs: NaN, newestTranscriptMs: null }).status, STATUS.UNKNOWN);
+  });
+});
+
+describe('gradeExtraction (keeps pace with ingest)', () => {
+  it('REGRESSION: entities 5 days behind flowing ingest grades BROKEN', () => {
+    const v = gradeExtraction({ entityCount: 1112, lastEntityMs: T_ENTITY_LAST, lastMessageMs: T_MSG_LAST });
+    assert.equal(v.status, STATUS.BROKEN);
+    assert.match(v.detail, /STALLED/);
+  });
+  it('entities within the stall budget of the newest message → WORKING; none yet → UNKNOWN', () => {
+    assert.equal(gradeExtraction({ entityCount: 10, lastEntityMs: T_MSG_LAST - 3600_000, lastMessageMs: T_MSG_LAST }).status, STATUS.WORKING);
+    assert.equal(gradeExtraction({ entityCount: 0, lastEntityMs: NaN, lastMessageMs: T_MSG_LAST }).status, STATUS.UNKNOWN);
+  });
+});

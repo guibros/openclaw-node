@@ -13,6 +13,12 @@
       "enabled": true
     },
     {
+      "name": "claude-code-repo",
+      "path": "~/.claude/projects/${CLAUDE_PROJECT_REPO}/",
+      "format": "claude-code",
+      "enabled": true
+    },
+    {
       "name": "gateway",
       "path": "~/.openclaw/agents/main/sessions/",
       "format": "openclaw-gateway",

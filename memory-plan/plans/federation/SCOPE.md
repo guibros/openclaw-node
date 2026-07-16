@@ -51,6 +51,16 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step63_fed_probes/*
 ```
 
+```files memory-ingest-remediation closed
+install.sh
+config/transcript-sources.json.template
+workspace-bin/memory-daemon.mjs
+lib/node-watch.mjs
+test/node-watch.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/audits/memory_ingest_remediation/*
+```
+
 ```files join-dispatch-remediation closed
 bin/mesh-task-daemon.js
 test/daemon-recruit-dispatch.test.js

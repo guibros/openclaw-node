@@ -256,6 +256,8 @@ function loadTranscriptSources() {
 // No touchfiles. No hooks. The JSONL write IS the heartbeat.
 // ============================================================
 
+const _missingSourceWarned = new Set();
+
 function _detectActivity(sources, activityWindowMs) {
   const now = Date.now();
   const cutoff = now - activityWindowMs;
@@ -266,7 +268,17 @@ function _detectActivity(sources, activityWindowMs) {
   let newestFormat = null;
 
   for (const source of sources) {
-    if (!fs.existsSync(source.path)) continue;
+    if (!fs.existsSync(source.path)) {
+      // An enabled source whose dir doesn't exist is a config failure, not a
+      // quiet day. Silently skipping these is how a mis-rendered registry
+      // (2026-07-14: paths missing Claude Code's leading dash) ran ingest dark
+      // for 39h with zero log evidence. Warn once per path, loudly.
+      if (!_missingSourceWarned.has(source.path)) {
+        _missingSourceWarned.add(source.path);
+        log(`[ingest] WARNING: enabled transcript source '${source.name}' points at a nonexistent dir: ${source.path} — no sessions from it will EVER ingest until this is fixed`);
+      }
+      continue;
+    }
 
     let files;
     try {

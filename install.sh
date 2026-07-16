@@ -367,12 +367,17 @@ export OPENCLAW_NATS="${OPENCLAW_NATS:-nats://127.0.0.1:4222}"
 export OPENCLAW_NATS_TOKEN="${OPENCLAW_NATS_TOKEN:-}"
 
 # ── Claude Code project path encoding (for transcript-sources.json) ──
-# Claude encodes workspace paths as: strip leading /, replace / and . with -
+# Claude encodes a project path by replacing / and . with - INCLUDING the leading
+# slash: /Users/x/repo → -Users-x-repo (leading dash kept). An earlier version
+# stripped the leading / first, so every rendered source path matched nothing on
+# disk and _detectActivity silently skipped them — memory ingest ran dark for 39h
+# after the 2026-07-14 re-render (memory_ingest_remediation audit).
 claude_project_path() {
-  echo "$1" | sed 's|^/||; s|[/.]|-|g'
+  echo "$1" | sed 's|[/.]|-|g'
 }
 export CLAUDE_PROJECT_WORKSPACE="$(claude_project_path "$WORKSPACE")"
 export CLAUDE_PROJECT_HOME="$(claude_project_path "$HOME")"
+export CLAUDE_PROJECT_REPO="$(claude_project_path "$REPO_DIR")"
 
 # ── Resolve paths for service templates ──
 export OPENCLAW_WORKSPACE="$WORKSPACE"
@@ -675,6 +680,7 @@ generate_config() {
       -e "s|\${OPENCLAW_NATS_TOKEN}|${OPENCLAW_NATS_TOKEN:-}|g" \
       -e "s|\${CLAUDE_PROJECT_WORKSPACE}|${CLAUDE_PROJECT_WORKSPACE}|g" \
       -e "s|\${CLAUDE_PROJECT_HOME}|${CLAUDE_PROJECT_HOME}|g" \
+      -e "s|\${CLAUDE_PROJECT_REPO}|${CLAUDE_PROJECT_REPO}|g" \
       "$template" > "$output"
   fi
   chmod 600 "$output"
