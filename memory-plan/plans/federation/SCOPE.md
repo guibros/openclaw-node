@@ -128,6 +128,12 @@ memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/audits/memory_ingest_remediation/*
 ```
 
+```files inject-open-retry closed
+lib/memory-inject-server.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/audits/memory_ingest_remediation/*
+```
+
 ```files ci-observed-close-64 closed
 memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/INVENTORY.md

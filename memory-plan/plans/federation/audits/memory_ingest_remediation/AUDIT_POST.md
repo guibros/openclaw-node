@@ -91,3 +91,19 @@ this audit dir; commit carries the Runtime-Evidence trailer.
 - Machine rebooted ~16:44 local (fresh pids); post-reboot "disk I/O error" on extraction/graph DB
   opens seen at boot then recovered on retry — integrity_check ok on state/graph DBs; inject-server
   on the current boot reported extractionDb open failure (privacy filter degraded) — worth watching.
+
+## FINAL ADDENDUM — 2026-07-16T21:48Z (inject characterized: event-loop starvation)
+
+- **mem.inject "operation was aborted" root-caused by thread sample:** the daemon's MAIN THREAD is
+  saturated in V8 string ops (`CopyChars`/`String::WriteToFlat`) while a flush grinds — the inject
+  HTTP server shares that event loop and starves (manual request: 60s, zero bytes). Inject isn't
+  broken; it is BLOCKED whenever a flush/synthesis pass does its synchronous string work over the
+  ~11MB transcript. **QUEUED (architecture):** move flush parsing/string work off the main thread
+  (worker) or chunk it; until then mem.inject honestly reads BROKEN during flush windows and
+  recovers between them.
+- **extractionDb open race fixed properly:** the inject-server's one-shot open raced Phase-0's
+  wholesale re-import (SQLITE_IOERR) and gave up permanently (privacy filter rejecting everything
+  for the whole boot). Now retries 5×15s inside resolveDeps (the first version used a setInterval
+  assigning a dead local — caught and replaced before commit).
+- Ingest continues to track live (13612 msgs, latest 21:37Z — the live-import cadence landing
+  mid-session as designed).
