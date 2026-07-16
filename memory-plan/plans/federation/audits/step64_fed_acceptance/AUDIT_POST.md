@@ -69,3 +69,22 @@ Building the QUORUM probe surfaced a contradiction between runtime and documente
   Captured, not done here.
 - JetStream stream replication factor (R=1 vs R=3) — the real step 1.5 substance — is unmeasured;
   operator's call whether 1.5 is partially done.
+
+## CLOSE ADDENDUM — 2026-07-16T20:56Z: the runtime half is now OBSERVED
+
+Push `c94dca2..914c556` → GitHub Actions run **29533778476**: **success, 4/4 jobs**
+(unit-tests node 18/20/22 + mission-control-tests). In the log, the federation census
+did exactly what the contract requires on a nats-less runner:
+
+- `ok 390 - nats-server-binary census (5 federation suite file(s)) # SKIP … nats-server binary
+  not found on PATH:` listing all five filenames (circling-adaptive-convergence,
+  circling-parse-retry, federation-2node, federation-3node, federation-resilience) — a VISIBLE
+  skip with filenames, not a silent green.
+- `ok 391 - census completeness: every nats-gated skip uses the censused canonical marker` — the
+  guard ran green.
+- `ok 389 - mesh-skip census (7 …)` — Class-1 census also visible.
+
+> `runtime:` one observed green CI including the federation census — **MET.** Step 6.4 → [x].
+(The quorum-probe defect this step originally shipped is documented above and was fixed +
+outage-proven in audits/probe_honesty_remediation — the [x] closes the census/axis contract, not
+that claim.)

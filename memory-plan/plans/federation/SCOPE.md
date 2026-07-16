@@ -120,6 +120,12 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files ci-observed-close-64 closed
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/audits/step64_fed_acceptance/*
+```
+
 ```files step-3.5-phase1-gate
 bin/fed-chaos.mjs
 memory-plan/plans/federation/SCOPE.md
