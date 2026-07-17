@@ -11,6 +11,7 @@ import {
   slugifyName,
   buildConceptFrontmatter,
   buildConceptBody,
+  extractExistingSummary,
   generateConceptSummary,
   queryConceptData,
   generateConceptNotes,
@@ -413,5 +414,90 @@ describe('queryConceptData + generateConceptNotes integration', () => {
     } finally {
       db.close();
     }
+  });
+
+  it('preserves an existing summary when the LLM returns nothing (prose is monotonic)', async () => {
+    const db = seedDb();
+    const vaultPath = join(tmpDir, 'vault-keep');
+    const proseClient = {
+      generate: async () => ({ content: 'NATS JetStream is the persistence layer of the mesh.' }),
+    };
+
+    try {
+      await generateConceptNotes({ db, vaultPath, threshold: 5, client: proseClient });
+      const withProse = await readFile(join(vaultPath, 'concepts', 'nats-jetstream.md'), 'utf-8');
+      assert.ok(withProse.includes('persistence layer of the mesh'));
+
+      // Next cycle: LLM unavailable. The note must keep its prose, not
+      // regress to the placeholder.
+      await generateConceptNotes({ db, vaultPath, threshold: 5, client: null });
+      const afterOutage = await readFile(join(vaultPath, 'concepts', 'nats-jetstream.md'), 'utf-8');
+      assert.ok(afterOutage.includes('persistence layer of the mesh'));
+      assert.ok(!afterOutage.includes('_Summary not yet generated._'));
+    } finally {
+      db.close();
+    }
+  });
+
+  it('skips byte-identical rewrites and reports them as unchanged', async () => {
+    const db = seedDb();
+    const vaultPath = join(tmpDir, 'vault-unchanged');
+
+    try {
+      const first = await generateConceptNotes({ db, vaultPath, threshold: 5, client: null });
+      assert.equal(first.generated, 2);
+      assert.equal(first.unchanged, 0);
+
+      const second = await generateConceptNotes({ db, vaultPath, threshold: 5, client: null });
+      assert.equal(second.generated, 0, 'identical data must not rewrite notes');
+      assert.equal(second.unchanged, 2);
+      assert.equal(second.attempted, 2);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('spends the budget frontier-first: a noteless concept beats an already-written hub', async () => {
+    const db = seedDb();
+    const vaultPath = join(tmpDir, 'vault-frontier');
+
+    try {
+      // Write only the hub (highest mentions) first.
+      await generateConceptNotes({ db, vaultPath, threshold: 5, client: null, names: ['NATS JetStream'] });
+
+      // Budget of 1: the old top-N-by-mentions slice would re-take the hub
+      // forever; tier 0 (no note yet) must win the slot instead.
+      const result = await generateConceptNotes({ db, vaultPath, threshold: 5, client: null, maxConcepts: 1 });
+      assert.deepEqual(result.notes, ['spreading-activation.md']);
+      assert.equal(result.skipped, 1);
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe('extractExistingSummary', () => {
+  it('returns the prose between the H1 and the first section', () => {
+    const note = [
+      '---', 'type: concept', '---', '',
+      '# NATS', '',
+      'NATS is the mesh transport.', '',
+      '## Related', '- [[openclaw]]', '',
+    ].join('\n');
+    assert.equal(extractExistingSummary(note), 'NATS is the mesh transport.');
+  });
+
+  it('returns null for the placeholder, empty prose, and unparseable bodies', () => {
+    const placeholder = '---\ntype: concept\n---\n\n# NATS\n\n_Summary not yet generated._\n\n## Related\n- [[x]]\n';
+    assert.equal(extractExistingSummary(placeholder), null);
+    assert.equal(extractExistingSummary('---\ntype: concept\n---\n\n# NATS\n\n## Related\n- [[x]]\n'), null);
+    assert.equal(extractExistingSummary('no heading at all'), null);
+    assert.equal(extractExistingSummary(''), null);
+  });
+
+  it('round-trips the prose a data-only rewrite would carry forward', () => {
+    const summary = 'Multi-line prose.\nStill the same paragraph block.';
+    const note = `---\ntype: concept\n---\n\n${buildConceptBody('NATS', { summary, related: ['OpenClaw'] })}`;
+    assert.equal(extractExistingSummary(note), summary);
   });
 });

@@ -8,7 +8,27 @@ import {
   parseNote,
   extractWikilinks,
   buildGraph,
+  computeBoundaryDegrees,
 } from '../lib/obsidian-graph.mjs';
+
+describe('computeBoundaryDegrees', () => {
+  it('counts out/in per node; dangling targets still feed the source out-degree', () => {
+    const graph = {
+      nodes: new Map([['a', {}], ['b', {}], ['c', {}]]),
+      edges: [
+        { source: 'a', target: 'b' },
+        { source: 'a', target: 'c' },
+        { source: 'b', target: 'a' },
+        { source: 'a', target: 'ghost' },
+      ],
+    };
+    const d = computeBoundaryDegrees(graph);
+    assert.deepEqual(d.get('a'), { out: 3, in: 1 });
+    assert.deepEqual(d.get('b'), { out: 1, in: 1 });
+    assert.deepEqual(d.get('c'), { out: 0, in: 1 });
+    assert.equal(d.has('ghost'), false);
+  });
+});
 
 describe('walkVault', () => {
   let tmpDir;

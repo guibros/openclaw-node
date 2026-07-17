@@ -80,3 +80,28 @@ must not trip the stall-block) and derives paths from $HOME, not a hardcoded ope
 (loading is an explicit operator decision, viewer Automation tab). D3's repair note ("29 open
 rows need contract retrofit") is superseded: repair closed 49/49 on 2026-06-11; its remaining
 lint FAILs are the missing automation surfaces of a dormant, complete plan.
+
+## D7 — The concept-summary budget is spent frontier-first, and prose is monotonic (2026-07-16)
+
+**Decision.** `generateConceptNotes` no longer slices the blind top-N-by-mention_count. Candidates
+are tiered — 0: no note on disk (coverage first, mention-ordered) · 1: note carries the placeholder ·
+2: note has prose (refresh) — and within tiers 1/2 ordered by a boundary score ported from the
+AgriciDaniel/claude-obsidian comparison (operator "go", 2026-07-16):
+`(out_degree − in_degree) × exp(−age_days/30)` over the vault wikilink graph
+(`computeBoundaryDegrees` in lib/obsidian-graph.mjs). Two hardening rules ride along: an existing
+LLM summary is preserved when this cycle's LLM returns null (prose never regresses to the
+placeholder), and byte-identical rewrites are skipped (`unchanged` in the result).
+
+**Why.** The top-N slice had two structural failures observed live: rank N+1 never got a note
+(starvation — the tail was invisible forever), and the same hubs re-rolled the LLM dice every cycle
+so one busy-Ollama cycle wiped prose a previous cycle had paid for (Arcane: `last_seen 2026-06-02`,
+still placeholder on 2026-07-16 despite daily rewrites). The boundary score sends the scarce
+summary budget to recently-active notes that link out more than the graph links back — the growing
+edge — instead of to whatever is merely most mentioned.
+
+**Consequences.** Repair 2.9 slug ownership is resolved by mention order *before* prioritization
+(colliders can't flip note ownership); repair 2.7 `opts.names` targeting still bypasses nothing —
+it filters candidates, then the same tiering orders them. Unchanged-skip spares cloud-sync churn
+and no-op graph-cache invalidations. The same batch quoted the decision/session frontmatter
+wikilink arrays (the concept writer's 2026-07-04 YAML fix, propagated) — Obsidian/Dataview can now
+read `related:`/`concepts:`, and `flattenRelated` in buildGraph is legacy-only from this date.

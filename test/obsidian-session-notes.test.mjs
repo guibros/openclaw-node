@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, readdir } from 'node:fs/promis
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
+import yaml from 'js-yaml';
 
 import {
   querySessionNoteData,
@@ -131,6 +132,14 @@ describe('buildSessionFrontmatter', () => {
     const session = { id: 'x', start_time: '2026-01-01T00:00:00Z' };
     const fm = buildSessionFrontmatter(session, []);
     assert.ok(!fm.includes('concepts:'));
+  });
+
+  it('frontmatter is valid YAML — concepts is a flat string array (Obsidian/Dataview readable)', () => {
+    const session = { id: 'sess-abc12345', start_time: '2026-05-30T10:00:00Z' };
+    const entities = [{ name: 'NATS JetStream' }, { name: 'below threshold' }];
+    const fm = buildSessionFrontmatter(session, entities, { conceptSlugs: new Set(['nats-jetstream']) });
+    const parsed = yaml.load(fm.replace(/^---\n/, '').replace(/\n---$/, ''));
+    assert.deepEqual(parsed.concepts, ['[[nats-jetstream]]', 'below-threshold']);
   });
 });
 

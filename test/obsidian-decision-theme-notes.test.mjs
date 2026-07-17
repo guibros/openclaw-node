@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
+import yaml from 'js-yaml';
 import {
   decisionNoteFilename,
   buildDecisionNote,
@@ -42,9 +43,21 @@ describe('decision notes (repair 2.9)', () => {
       { concepts: ['NATS JetStream'], sessionNote: '2026-06-02-verify-s1' }
     );
     assert.match(note, /type: decision/);
-    assert.match(note, /related: \[\[\[nats-jetstream\|NATS JetStream\]\]\]/);
+    assert.match(note, /related: \["\[\[nats-jetstream\|NATS JetStream\]\]"\]/);
     assert.match(note, /Simpler ops/);
     assert.match(note, /\[\[sessions\/2026-06-02-verify-s1\]\]/);
+  });
+
+  it('frontmatter is valid YAML — related is a flat string array (Obsidian/Dataview readable)', () => {
+    const note = buildDecisionNote(
+      { decision: 'Use NATS', rationale: 'Simpler ops', confidence: 0.9, salience: 0.6, created_at: '2026-06-02T19:00:00Z', session_id: 's1' },
+      { concepts: ['NATS JetStream', 'name with "quotes", commas, [brackets]'] }
+    );
+    const fm = yaml.load(note.match(/^---\n([\s\S]*?)\n---/)[1]);
+    assert.deepEqual(fm.related, [
+      '[[nats-jetstream|NATS JetStream]]',
+      "[[name-with-quotes-commas-brackets|name with 'quotes', commas, [brackets]]]",
+    ]);
   });
 
   it('selects top-N by salience — decayed decisions still qualify (memory review V1-3)', async () => {

@@ -159,6 +159,24 @@ describe('runScheduledCycle', () => {
     assert.equal(result.ok, false);
     assert.ok(result.error.includes('db crashed'));
   });
+
+  it('hands the cycle an LLM client (regression: cycles ran data-only forever)', async () => {
+    const sentinel = { generateAnalysis: async () => ({ mode: 'fallback' }) };
+    let seen;
+    await runScheduledCycle({
+      hardCapMs: 5000,
+      client: sentinel,
+      runCycle: async (args) => { seen = args.client; return {}; },
+    });
+    assert.equal(seen, sentinel, 'an injected client must reach the cycle');
+
+    await runScheduledCycle({
+      hardCapMs: 5000,
+      runCycle: async (args) => { seen = args.client; return {}; },
+    });
+    assert.ok(seen && typeof seen.generateAnalysis === 'function',
+      'without injection the scheduler must construct a real client');
+  });
 });
 
 // ─── createConsolidationScheduler ───────────────────────────────────────────

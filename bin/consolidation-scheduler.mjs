@@ -163,6 +163,15 @@ export async function runScheduledCycle(opts = {}) {
   // Dynamically import runConsolidationCycle unless injected
   const runCycle = opts.runCycle || (await import('./consolidate.mjs')).runConsolidationCycle;
 
+  // The summary stage was structurally LLM-less: no caller ever passed a
+  // client, so every scheduled cycle ran data-only and concept prose could
+  // never arrive (found 2026-07-16). The idle gate has already verified
+  // Ollama is free by the time a cycle starts — hand the cycle a client.
+  let client = opts.client ?? null;
+  if (!client) {
+    try { client = (await import('../lib/llm-client.mjs')).createLlmClient(); } catch { /* data-only */ }
+  }
+
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(new Error('hard cap')), hardCap);
 
@@ -176,6 +185,7 @@ export async function runScheduledCycle(opts = {}) {
       dbPath: opts.dbPath,
       vaultPath: opts.vaultPath,
       db: opts.db,
+      client,
       signal: ac.signal,
       eventLog: opts.eventLog,
       nodeId: opts.nodeId,

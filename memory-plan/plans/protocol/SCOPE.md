@@ -339,8 +339,45 @@ obsidian-vault.test.mjs isolated from the live fused config (my config layer bro
 getVaultPath assumption — fixed with env-pointed nonexistent config); vault tests 18/18.
 Daemon Phase 2 spawns the deployed sync fresh each tick — extraRoots active next cycle without
 restart. Full suite 1718/1721 (census skip + the 2 known external fails).
-**Set at:** 2026-07-03 (operator-directed, interactive session)
-**Expires:** 2026-07-10T23:59:00Z
+**Addendum 2026-07-16a (operator-directed "go" — claude-obsidian comparison remediation):** from the
+AgriciDaniel/claude-obsidian repo comparison (session 2026-07-16): (1) decision/session writers still
+emit the legacy unquoted-wikilink YAML arrays the concept writer was cured of on 2026-07-04
+(Obsidian/Dataview can't parse them; an entity name containing `,` or `]` bombs the whole frontmatter
+block — buildGraph survives only via the flattenRelated shim); (2) concept summaries are
+non-monotonic — an Ollama-busy cycle rewrites a prose-carrying note back to `_Summary not yet
+generated._` (unconditional write, no preservation) — and regenerateSummaries' blind
+top-25-by-mentions slice starves the tail (rank 26+ never gets a note) while re-attempting the same
+hubs every cycle. Batch: quote the YAML link arrays (match the concept writer); keep the existing
+summary when the LLM returns null + skip byte-identical rewrites; frontier-first summary budget —
+boundary-score port from claude-obsidian: (out−in degree)×exp(−age/30d) over the wikilink graph,
+tier 0 = concepts with no note yet (coverage first), tier 1 = placeholder notes, tier 2 = refresh.
+Files under "vault-frontier".
+In-batch discovery (2026-07-16, live verify): the scheduler NEVER passes an LLM client into
+runConsolidationCycle — every scheduled cycle ran regenerateSummaries with client:null, so concept
+prose was structurally impossible (the 2026-07-04d "hub summaries pending an Ollama-free window"
+was chasing the wrong constraint). Scheduler + its test added to the files block to wire
+createLlmClient through — the frontier budget is meaningless without an LLM to spend it on.
+— VAULT-FRONTIER CLOSED 2026-07-16, OBSERVED on the live node: (YAML) live audit found 72/120 notes
+with nested-array frontmatter; after writer fixes + one-time heal (top-30 decisions rewrite, 28
+out-of-window decision notes, 39 session notes + 1 legacy-id session, 1 stale twin removed, vault
+backed up to scratchpad first) the full-vault audit reads **164/164 valid, 0 nested, 0 parse-fail**.
+(frontier) live runs exposed true starvation: **79 concepts above threshold, only 25 had notes**;
+three data-only runs generated the 46 missing tail notes coverage-first (25+19+2), and the fourth
+run was the clean no-op proof — 0 generated / 25 unchanged. (preservation) unit-locked; live concept
+prose N/A until the LLM lands one. (client wire) scheduler now constructs+passes createLlmClient;
+15/15 scheduler tests incl. the pass-through regression. Live prose attempts (3×12s + 1×60s waits)
+all fell back — ollama-queue saturated by this session's own live extraction; honest state: prose
+arrives at the next idle-gated cycle, which will be the FIRST ever to carry a client. (runtime) no
+deploy gap: workspace/lib is a repo symlink, scheduler spawns fresh per tick, and the live daemon
+(pid 10367) booted 22:29 — after the 20:01 edits — so the flush path already holds the fixed
+writer. graph-cache picked the heal up via fs.watch (129→145+ nodes mid-heal, converging on the
+10-min interval). Suites: obsidian 126/126, scheduler+consolidation 39/39, full suite 1830/1832
+(1 census skip + 1 pre-existing observer flake — no obsidian imports, fails/passes independent of
+this diff). Protocol DECISIONS gains D7; two comparison takeaways + the disabled sync leg captured
+in OUT_OF_SCOPE.
+**Set at:** 2026-07-03 (operator-directed, interactive session; Expires refreshed 2026-07-16 for the
+vault-frontier batch)
+**Expires:** 2026-07-17T23:59:00Z
 
 Per-addendum blocks (2026-07-04h restructure). A `closed` word on a ```files fence re-locks that
 batch: the hook skips closed blocks. Reopen by deleting the word (operator approval, as ever).
@@ -578,6 +615,20 @@ memory-plan/plans/redesign/automation.json
 memory-plan/plans/protocol/automation.json
 memory-plan/plans/protocol/DECISIONS.md
 test/plan-protocol.test.mjs
+```
+
+```files vault-frontier closed
+lib/obsidian-decision-notes.mjs
+lib/obsidian-session-notes.mjs
+lib/obsidian-summarizer.mjs
+lib/obsidian-graph.mjs
+bin/consolidation-scheduler.mjs
+test/obsidian-decision-theme-notes.test.mjs
+test/obsidian-session-notes.test.mjs
+test/obsidian-summarizer.test.mjs
+test/obsidian-graph.test.mjs
+test/consolidation-scheduler.test.mjs
+memory-plan/plans/protocol/DECISIONS.md
 ```
 
 ## Prior closed scopes (retained for history)
