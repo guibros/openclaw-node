@@ -269,7 +269,7 @@ flowchart LR
 
 | Stage | Component(s) | Notes |
 |---|---|---|
-| **Capture** | `lib/pre-compression-flush.mjs` | tail flush on a token threshold; driven by `workspace-bin/memory-daemon.mjs` |
+| **Capture** | `lib/pre-compression-flush.mjs` via `workspace-bin/flush-worker.mjs` | tail flush on a token threshold; ALL transcript parsing (flush, token check, live import) runs in a worker thread so the recall server never starves during a flush. A live import lands the active session into `state.db` every 10 min mid-session (not just at boot/session-end) |
 | **Extract** | `lib/llm-client.mjs` (qwen) + `lib/extraction-{prompt,schema}.mjs`; regex fallback | structured entities / decisions / themes / relationships. Degradation emits `memory.error` and **cannot corrupt** the structured `MEMORY.md` (regex output diverts to a sibling file) |
 | **Store** | `lib/extraction-store.mjs` → `state.db` | entities, mentions, decisions, themes, `concept_edges` (typed relationships); private-by-default |
 | **Index** | `lib/mcp-knowledge/core.mjs` (bge-m3, 1024-dim) → `knowledge.db` | per-turn chunks in sqlite-vec; also the MCP semantic-search surface (below) |
@@ -343,14 +343,30 @@ node test.mjs
 
 ## Mesh Network (Multi-Node)
 
-By default every node runs a single-node loopback NATS bus (`nats://127.0.0.1:4222`) and operates standalone. The multi-node mesh — a Tailscale-linked, optionally R=3-replicated NATS cluster — is an opt-in upgrade the installer enables only when it detects a connected Tailscale. When enabled, nodes execute remote commands (`mesh exec`), dispatch and run tasks across the fleet via the NATS task-daemon, and exchange ad-hoc broadcast messages (`mesh broadcast`).
+By default every node runs a single-node loopback NATS bus (`nats://127.0.0.1:4222`) and operates standalone. The multi-node mesh — a Tailscale-linked, R=3-replicated, route-authenticated NATS cluster — is an opt-in upgrade: `install.sh --cluster-peers=… --cluster-bind=…` builds it explicitly (recommended, below). When enabled, nodes execute remote commands (`mesh exec`), dispatch and run tasks across the fleet via the NATS task-daemon, and exchange ad-hoc broadcast messages (`mesh broadcast`).
 
-### Setup
+### Setup — multi-machine NATS council (recommended)
 
-1. Install [Tailscale](https://tailscale.com) on both machines and connect them
-2. Run `bash install.sh` — Step 17 (Mesh Network) auto-detects Tailscale and, if connected, deploys the mesh via `npx openclaw-mesh`; without a connected Tailscale the installer stays in single-node mode
-3. Set `OPENCLAW_NATS=nats://<ubuntu-tailscale-ip>:4222` in `~/.openclaw/openclaw.env`
-4. Re-run `bash install.sh --update` to regenerate configs
+One command per machine builds a secured, credentialed, R=3-replicated cluster:
+
+```bash
+# On each machine, list the OTHER machines' Tailscale/LAN IPs and its OWN address:
+bash install.sh --cluster-peers=100.64.0.2,100.64.0.3 --cluster-bind=100.64.0.1
+# (--cluster-bind auto-detects from `tailscale ip -4`; the installer REFUSES to bind 0.0.0.0)
+```
+
+This renders a hardened `nats.conf` (binds the machine's own tailnet address only, loopback-only
+monitor, authenticated cluster routes), generates the shared route password, and sets the KV
+replica target from the council size so mesh data replicates across machines. **Copy both shared
+secrets** (`OPENCLAW_NATS_TOKEN`, `OPENCLAW_NATS_CLUSTER_PASS`) to every machine's
+`~/.openclaw/openclaw.env` before starting; a machine with the wrong route password is rejected
+with an authentication failure (verified). Start nats-server on ALL machines before the daemons.
+Full walkthrough: [docs/MULTI_NODE_DEPLOY.md](docs/MULTI_NODE_DEPLOY.md). *Honest status: the
+config/auth mechanism is built and drill-verified; real machine-loss failover awaits a
+multi-machine T7 run.*
+
+> The older Tailscale auto-mesh (installer Step 17, `npx openclaw-mesh`) still exists but is the
+> legacy path, slated for retirement (D4).
 
 ### Mesh commands
 
@@ -364,7 +380,7 @@ mesh exec "cmd"      # run command on remote node
 ### Architecture
 
 - **NATS** — message bus for commands, task dispatch, and heartbeats (single-node loopback by default; the R=3 cluster runs across the mesh)
-- **Mesh worker** (`bin/mesh-agent.js`) — LLM-agnostic task executor: connects to NATS, claims tasks from the mesh task-daemon, runs the configured LLM CLI (claude / openai / shell), and reports results. (`mesh put`/`mesh ls` operate on a local `~/openclaw/shared/` directory — there is no cross-node shared-folder syncer)
+- **Mesh worker** (`bin/mesh-agent.js`) — LLM-agnostic task executor: connects to NATS, claims tasks from the mesh task-daemon, runs the configured LLM CLI, and reports results. For grappe/collab work the D11 guard applies (local models declined; `shell` mocks gated behind `MESH_ALLOW_MOCK_WORKERS=1`). (`mesh put`/`mesh ls` operate on a local `~/openclaw/shared/` directory — there is no cross-node shared-folder syncer)
 - **Task Bridge** (`bin/mesh-bridge.js`) — dispatches kanban tasks marked `execution=mesh` to the mesh task-daemon over NATS and writes results/logs back to `active-tasks.md` on completion (subscribes to `mesh.events.>`)
 - **Knowledge over NATS** *(planned)* — the `mesh.tool.{nodeId}.<tool>.*` request/reply pattern exists but is wired only for `discord-history` today; there is no knowledge-over-NATS responder yet (mesh workers query the lead's index over HTTP)
 - **Tailscale** — encrypted WireGuard tunnel between nodes
@@ -412,10 +428,12 @@ Worker grappes run one of three collaboration architectures:
 | Mode | Shape | Best for | Status |
 |---|---|---|---|
 | **adversarial** (circling) | 1 Worker + 2 Reviewers, asymmetric directed sub-rounds (see [Circling Strategy](#circling-strategy-asymmetric-multi-agent-review)) | High-stakes single artifact | **Built** — `COLLAB_MODE.CIRCLING_STRATEGY` in `lib/mesh-collab.js`, 112 tests; mesh agents run on-demand (service units ship autostart-off per the deployability overhaul) |
-| **cooperative** | propose-all / integrate-one / rotate-integrator rounds | Exploratory, no natural owner | **Planned** (FEDERATION_SPEC §3.2) |
-| **collaborative** | decompose → per-node subtasks → parallel work → merge + merge-review | Decomposable work (N independent pieces) | **Planned** (FEDERATION_SPEC §3.3) |
+| **cooperative** | propose-all / integrate-one / rotate-integrator rounds | Exploratory, no natural owner | **Built** — rotating integrator fixed at recruiting close; rotation skips dead members (aborts if none remain); a missing integration is recorded `degraded` and loud, never a silent placeholder |
+| **collaborative** | decompose → per-node subtasks → parallel work → merge + merge-review | Decomposable work (N independent pieces) | **Built** — merge-review votes are **binding**: completion requires a real merge artifact and approvals strictly above rejections, else the session aborts and the parent task fails |
 
-All three share one state layer (`lib/mesh-collab.js`), one subject namespace (`mesh.collab.*`), and one daemon (`bin/mesh-task-daemon.js`) — there is no second daemon. See [docs/FEDERATION_SPEC.md](docs/FEDERATION_SPEC.md) for the message flows, envelope schemas, and the management/savant tiers.
+All three share one state layer (`lib/mesh-collab.js`), one subject namespace (`mesh.collab.*`), and one daemon (`bin/mesh-task-daemon.js`) — there is no second daemon. A grappe's `--mode` maps to its session protocol automatically (`preferred_mode` resolution: adversarial→circling, cooperative→cooperative, collaborative→collaborative).
+
+**Shared hardening (all modes):** rounds time out (`MESH_COLLAB_ROUND_TIMEOUT_MS`, default 15 min — non-reflected members are marked dead and the session aborts below `min_nodes` or evaluates with the quorum, never hangs forever); round evaluation is claim-once (concurrent triggers cannot double-integrate); reflections are membership-checked (a removed node cannot trip a barrier); and task failure over the bus requires ownership (`node_id === task.owner`) — one misconfigured node can no longer abort tasks mesh-wide. Provider policy is enforced mechanically: local-model providers are refused as workers, and the `shell` mock runs only with an explicit `MESH_ALLOW_MOCK_WORKERS=1` (choreography testing). See [docs/FEDERATION_SPEC.md](docs/FEDERATION_SPEC.md) for the message flows, envelope schemas, and the management/savant tiers (not yet built).
 
 ## Mechanical Enforcement
 
@@ -931,8 +949,8 @@ The package installs these commands (npm `bin`); after a global install they're 
 |---|---|
 | `openclaw-node` | The installer / CLI entrypoint (`cli.js`) — full install, `--update`, `--mesh-only`. |
 | `openclaw-stack up\|status\|down` | Whole-node control: `up` starts every installed launchd/systemd unit + probes + a status popup; `status` prints the probe table (no side effects); `down` stops every openclaw unit. `.disabled` units are reported but never resurrected. |
-| `openclaw-node-check` | Deployment acceptance gate (`bin/node-acceptance.mjs`). Hard-tests memory/LLM/network on the running runtime. `--axis <name>` one axis, `--deep` invasive probes, `--no-mutate` skip synthetic writes, `--json --report <path>`. Exit 0 ACCEPTED / 1 REJECTED / 2 INCOMPLETE / 3 error. |
-| `openclaw-node-watch` | Read-only node watcher (`bin/node-watch.mjs`). One-shot by default (all probes); `--watch` runs continuous (default 60s, `--interval`, `--deep`); `--json` / `--html` / `--report`. Never reports WORKING without an observed signal. Exit 0 = none BROKEN / 1 = ≥1 BROKEN / 3 = error. |
+| `openclaw-node-check` | Deployment acceptance gate (`bin/node-acceptance.mjs`). Hard-tests memory/LLM/network/**federation** on the running runtime (the federation axis grades coordinator presence + raft quorum from `jsz.meta_cluster` — verified against an induced quorum loss). `--axis <name>` one axis, `--deep` invasive probes, `--no-mutate` skip synthetic writes, `--json --report <path>`. Exit 0 ACCEPTED / 1 REJECTED / 2 INCOMPLETE / 3 error. |
+| `openclaw-node-watch` | Read-only node watcher (`bin/node-watch.mjs`). One-shot by default (all probes); `--watch` runs continuous (default 60s, `--interval`, `--deep`); `--json` / `--html` / `--report`. Families include memory (ingest/extraction graded on FRESHNESS, not existence) and federation (`fed.*` — quorum, grappe heartbeats, session liveness; federation transitions notify under the `grappe` source). Never reports WORKING without an observed signal; `bindOnly` KV reads — the watcher can never create what it observes. Exit 0 = none BROKEN / 1 = ≥1 BROKEN / 3 = error. |
 | `openclaw-notify` | Fire a ledgered, click-through desktop notification. `--kind <info\|success\|warn\|error\|block>` (default info) `--title T [--message M] [--url U] [--source NAME] [--strict] [--json]`; `--list [N]` recent ledger; `--test` fires one per kind. Every event lands in `~/.openclaw/notifications/ledger.jsonl` regardless of popup delivery. |
 | `openclaw-grappe form\|status\|dissolve\|issue-token\|join` | Grappe registry CLI (federation, experimental — see [Federation](#federation-grappes)). Backed by the `GRAPPE_REGISTRY` NATS KV bucket; defaults to loopback `nats://127.0.0.1:4222`. |
 
@@ -951,10 +969,14 @@ See `openclaw.env.example` for all available configuration. Key variables:
 | `TELEGRAM_BOT_TOKEN` | Optional | For Telegram integration |
 | `WEB_SEARCH_API_KEY` | Optional | For web search capability |
 | `OBSIDIAN_API_KEY` | Optional | For Obsidian vault sync |
-| `OPENCLAW_NATS` | Optional | NATS bus URL. Defaults to single-node loopback `nats://127.0.0.1:4222`; point it at a Tailscale peer only when joining an R=3 mesh cluster |
-| `OPENCLAW_NATS_TOKEN` | Auto | NATS auth token. `install.sh` generates one via `openssl rand -hex 32` and persists it; do not leave empty on a running node |
+| `OPENCLAW_NATS` | Optional | NATS bus URL. Defaults to single-node loopback `nats://127.0.0.1:4222`; `install.sh --cluster-peers` rewrites it to the machine's bound cluster address |
+| `OPENCLAW_NATS_TOKEN` | Auto | NATS client auth token. `install.sh` generates one via `openssl rand -hex 32` and persists it; do not leave empty on a running node |
+| `OPENCLAW_NATS_CLUSTER_PASS` | Auto (councils) | Cluster-route password (user `openclaw-route`) shared by every machine in a multi-machine council; generated by `install.sh --cluster-peers`. A wrong password is rejected at the route |
+| `OPENCLAW_KV_REPLICAS` | Auto (councils) | How many machines keep a copy of the mesh KV data (1 solo, 3 for a council); set by `install.sh --cluster-peers` from the council size |
 | `OPENCLAW_NODE_ROLE` | Optional | Node role: `lead` or `worker` (default: macOS→lead, Linux→worker) |
-| `MESH_LLM_PROVIDER` | Optional | Mesh-agent LLM provider: `ollama` (local, default) or `claude` (requires the Claude CLI logged in) |
+| `MESH_LLM_PROVIDER` | Optional | Mesh-agent LLM provider. For grappe/collab work the D11 guard applies mechanically: local-model providers (`ollama`, `llamacpp`, `lmstudio`, `vllm`, `mlx`) are **declined**, and `shell` runs only with `MESH_ALLOW_MOCK_WORKERS=1`; use `claude` (or another advanced-LLM frontend) for real workers |
+| `MESH_ALLOW_MOCK_WORKERS` | Optional | `1` lets the `shell` mock provider act as a collab worker — choreography testing only (the chaos harness sets it); never for real work |
+| `MESH_COLLAB_ROUND_TIMEOUT_MS` | Optional | Cooperative/collaborative round timeout (default 15 min): non-reflected members are marked dead and the session aborts or proceeds with the quorum — sessions cannot hang forever |
 | `LLM_MODEL` | Optional | Local model tag for the **extraction/embedding/probe organ** (default `qwen3:8b`; RAM tiers: 16GB→qwen3:8b, 32GB→qwen3:14b, 48GB→qwen3:32b). **Not the grappe worker's mind** — grappe/cluster workers require the node's OpenClaw agent on an advanced LLM (D11) |
 | `LLM_BASE_URL` | Optional | Ollama endpoint for extraction, agents, and probes (default `http://localhost:11434`) |
 | `USE_LLM_EXTRACTION` | Optional | `true` (default) uses LLM memory extraction, falling back to regex if the model is unreachable |
