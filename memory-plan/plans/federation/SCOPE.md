@@ -1,9 +1,9 @@
 # SCOPE — federation plan
 
 **Status:** active
-**Goal:** 6.3 CLOSED [x] v6.3 (fed.* probes + grappe notify). 6.4 [A] — code done + locally green (acceptance `federation` axis, census guard, node-watch quorum honesty bug fixed: cluster is really R=3/3-up); `runtime:` observed-green-CI PENDING operator push. 6.2 [A] — MC federation page rendering done + runtime-verified live (sessions/rounds/votes/mode-badges render; fixed MC nats-token auth bug + `[object Object]`; MC build "broken" was STALE); `visual:` operator sign-off pending, gate-approval deferred to Block 4. Remaining open batch: step 3.5 Phase-1 gate ([A] — R=3 cells, ≥12h soak, operator T7; not autonomously closeable).
-**Set at:** 2026-07-15 (operator directive "go" in-session)
-**Expires:** 2026-07-17T00:00:00Z
+**Goal:** Post-deep-review remediation queue, operator-approved 2026-07-16 ("ok" on the step-by-step plan): (5) flush off the daemon main thread — fixes mem.inject event-loop starvation; (6) flush LLM timeout calibration (stop regex-divert); (7) memory.error event schema fix + observer test flake; (8) collab-mode P1 batch (decorative merge votes, missing barrier timeout, frozen integrator rotation, evaluateRound reentrancy, D11 denylist, non-owner fail poisoning); (9) multi-machine template security (tailscale binds + cluster auth) — MUST land before any second machine. NATS token rotation executed as runtime ops. Still operator-gated: 2.6 premise decision, 6.2 visual sign-off, MiniMax key rotation, hardware steps (real failover T7, 3.5 soak). CI is green as of run 29533778476 — keep it green.
+**Set at:** 2026-07-16 (operator "ok" on the queued plan)
+**Expires:** 2026-07-23T00:00:00Z
 
 ```files deployability-install-overhaul closed
 memory-plan/plans/federation/SCOPE.md
@@ -118,6 +118,13 @@ memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/VERSION
 memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
+```
+
+```files flush-worker closed
+workspace-bin/memory-daemon.mjs
+workspace-bin/flush-worker.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/audits/flush_worker/*
 ```
 
 ```files live-session-import closed

@@ -25,6 +25,7 @@
  */
 
 import { fileURLToPath } from 'url';
+import { Worker } from 'worker_threads';
 import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
@@ -38,7 +39,7 @@ const { createTracer } = require('../lib/tracer');
 const tracer = createTracer('memory-daemon');
 
 // --- Hermes-inspired modules ---
-import { shouldFlush, runFlush, USE_LLM_EXTRACTION } from '../lib/pre-compression-flush.mjs';
+import { shouldFlush, USE_LLM_EXTRACTION } from '../lib/pre-compression-flush.mjs';
 import { createBudget } from '../lib/memory-budget.mjs';
 import { createSessionTraceEmitter } from './session-trace-emitter.mjs';
 import { createLocalEventLog, buildMemoryEvent } from '../lib/local-event-log.mjs';
@@ -437,6 +438,36 @@ function serializeFlush(fn) {
   const next = flushChain.then(run, run);
   flushChain = next.catch(() => {});
   return next;
+}
+
+// Run the flush OFF this thread. The flush's transcript parse + prompt assembly
+// is synchronous string work over a multi-MB JSONL; on the main event loop it
+// starved the :7893 inject server for the whole window (thread-sample evidence:
+// audits/memory_ingest_remediation). The worker builds its own LLM client +
+// extraction store (not structured-cloneable) and returns the plain result.
+const FLUSH_WORKER = path.join(__dirname, 'flush-worker.mjs');
+const FLUSH_WORKER_TIMEOUT_MS = 30 * 60_000;
+function runMemoryWorker(data, timeoutMs = FLUSH_WORKER_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const w = new Worker(FLUSH_WORKER, { workerData: data });
+    let settled = false;
+    const timer = setTimeout(() => {
+      settled = true;
+      w.terminate();
+      reject(new Error(`memory worker (${data.kind || 'flush'}) timed out after ${timeoutMs / 60_000}min`));
+    }, timeoutMs);
+    timer.unref();
+    const settle = (fn, v) => { if (!settled) { settled = true; clearTimeout(timer); fn(v); } };
+    w.once('message', (m) => settle(m.ok ? resolve : reject, m.ok ? m.result : new Error(m.error)));
+    w.once('error', (e) => settle(reject, e));
+    w.once('exit', (code) => { if (code !== 0) settle(reject, new Error(`memory worker (${data.kind || 'flush'}) exited with code ${code}`)); });
+  });
+}
+function runFlushInWorker(jsonlPath, memoryMdPath, opts = {}) {
+  return runMemoryWorker({ kind: 'flush', jsonlPath, memoryMdPath, ...opts });
+}
+function runImportInWorker(jsonlPath, { source, format } = {}) {
+  return runMemoryWorker({ kind: 'import', jsonlPath, source, format }, 10 * 60_000);
 }
 
 function emitIngestEvent(sessionId, source, messageCount) {
@@ -851,11 +882,13 @@ async function runPhase2ThrottledWork(config, sessionState) {
   if (now - (throttle.lastLiveImport || 0) >= config.intervals.sessionRecapMs) {
     throttle.lastLiveImport = now;
     stage1.push((async () => {
-      const store = await getSessionStore();
       const currentJsonl = findCurrentJsonl(loadTranscriptSources());
-      if (!store || !currentJsonl) return;
+      if (!currentJsonl) return;
       const activity = detectActivity(loadTranscriptSources(), config.intervals.activityWindowMs);
-      const result = await store.importSession(currentJsonl, {
+      // importSession fully re-parses the JSONL and bulk-replaces rows — on the
+      // main thread that starved the inject server (same class as the flush);
+      // it runs in the memory worker instead.
+      const result = await runImportInWorker(currentJsonl, {
         source: activity.newestSource || 'unknown',
         format: activity.newestFormat,
       });
@@ -1035,10 +1068,8 @@ async function runPhase2ThrottledWork(config, sessionState) {
           if (!currentJsonl) return;
           const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
           const budget = initMemoryBudget(config);
-          const result = await serializeFlush(() => runFlush(currentJsonl, memoryMd, {
+          const result = await serializeFlush(() => runFlushInWorker(currentJsonl, memoryMd, {
             charBudget: budget.charBudget,
-            llmClient: getLlmClient(),
-            extractionStore: getExtractionStore(),
           }));
           log(`  Phase 2: interval synthesis [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added`);
           if (result.degraded) {
@@ -1113,10 +1144,8 @@ async function handleTransitions(transitions, config) {
         try {
           const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
           const budget = initMemoryBudget(config);
-          const result = await serializeFlush(() => runFlush(endingJsonl, memoryMd, {
+          const result = await serializeFlush(() => runFlushInWorker(endingJsonl, memoryMd, {
             charBudget: budget.charBudget,
-            llmClient: getLlmClient(),
-            extractionStore: getExtractionStore(),
           }));
           if (result.extraction) {
             emitExtractEvent(result.extraction.session_id, result.extraction);
@@ -1157,18 +1186,17 @@ async function handleTransitions(transitions, config) {
       const currentJsonl = findCurrentJsonl(sources);
       if (currentJsonl) {
         try {
-          const flushCheck = await shouldFlush(currentJsonl, {
+          // shouldFlush parses the whole transcript — it runs IN the worker
+          // (checkShouldFlush) so the event loop never touches the JSONL.
+          const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
+          const budget = initMemoryBudget(config);
+          const result = await serializeFlush(() => runFlushInWorker(currentJsonl, memoryMd, {
+            charBudget: budget.charBudget,
+            checkShouldFlush: true,
             contextWindowTokens: config.contextWindowTokens || 200000,
-          });
-          if (flushCheck.shouldFlush) {
-            log(`  pre-compression flush triggered (${flushCheck.pctUsed}% of ${flushCheck.threshold} token threshold)`);
-            const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
-            const budget = initMemoryBudget(config);
-            const result = await serializeFlush(() => runFlush(currentJsonl, memoryMd, {
-              charBudget: budget.charBudget,
-              llmClient: getLlmClient(),
-              extractionStore: getExtractionStore(),
-            }));
+          }));
+          if (!result.skippedByCheck) {
+            log(`  pre-compression flush triggered (${result.check?.pctUsed}% of ${result.check?.threshold} token threshold)`);
             log(`  flush [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped`);
             if (result.extraction) {
               emitExtractEvent(result.extraction.session_id, result.extraction);
@@ -1215,10 +1243,8 @@ async function handleTransitions(transitions, config) {
         try {
           const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
           const budget = initMemoryBudget(config);
-          const result = await serializeFlush(() => runFlush(currentJsonl, memoryMd, {
+          const result = await serializeFlush(() => runFlushInWorker(currentJsonl, memoryMd, {
             charBudget: budget.charBudget,
-            llmClient: getLlmClient(),
-            extractionStore: getExtractionStore(),
           }));
           if (result.extraction) {
             emitExtractEvent(result.extraction.session_id, result.extraction);
@@ -1513,17 +1539,16 @@ async function main() {
           if (!currentJsonl) return;
           natsFlushQueued = true;
           try {
-            const flushCheck = await shouldFlush(currentJsonl, {
+            // shouldFlush parses the whole transcript — it runs IN the worker
+            // (checkShouldFlush) so the event loop never touches the JSONL.
+            const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
+            const budget = initMemoryBudget(config);
+            const result = await serializeFlush(() => runFlushInWorker(currentJsonl, memoryMd, {
+              charBudget: budget.charBudget,
+              checkShouldFlush: true,
               contextWindowTokens: config.contextWindowTokens || 200000,
-            });
-            if (flushCheck.shouldFlush) {
-              const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
-              const budget = initMemoryBudget(config);
-              const result = await serializeFlush(() => runFlush(currentJsonl, memoryMd, {
-                charBudget: budget.charBudget,
-                llmClient: getLlmClient(),
-                extractionStore: getExtractionStore(),
-              }));
+            }));
+            if (!result.skippedByCheck) {
               log(`  nats-triggered flush [${result.mode || 'regex'}]: ${result.facts} facts, ${result.added} added, ${result.merged} merged`);
               if (result.extraction) {
                 emitExtractEvent(result.extraction.session_id, result.extraction);
