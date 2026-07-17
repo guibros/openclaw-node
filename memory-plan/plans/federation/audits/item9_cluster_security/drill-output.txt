@@ -1,0 +1,20 @@
+=== drill: n1 routez ===
+{
+  "server_id": "NCZZQLMJ2BNCWECYXSCDGVYNRFP6IY66VFO2SAFR74YVJ4CCXCESKPYU",
+  "server_name": "n1",
+  "now": "2026-07-17T16:01:54.132137Z",
+  "num_routes": 4,
+  "routes": [
+    {
+      "rid": 9,
+      "remote_id": "NDCSQGKNY2H42YIEC2JBQZIF3LPZECOCQ6GA4JUVSV7SWIEKJ4EJ2DCS",
+      "remote_name": "n2",
+      "did_solicit": true,
+      "is_configured": true,
+      "ip": "127.0.0.1",
+      "port": 5224
+=== n3 rejection (n1 log) ===
+[5305] 2026/07/17 12:01:16.570991 [ERR] 127.0.0.1:52253 - rid:13 - authentication error - User "openclaw-route"
+[5305] 2026/07/17 12:01:16.571024 [INF] 127.0.0.1:52253 - rid:13 - Router connection closed: Authentication Failure
+[5305] 2026/07/17 12:01:16.571095 [ERR] 127.0.0.1:52254 - rid:12 - authentication error - User "openclaw-route"
+[5305] 2026/07/17 12:01:16.571113 [INF] 127.0.0.1:52254 - rid:12 - Router connection closed: Authentication Failure

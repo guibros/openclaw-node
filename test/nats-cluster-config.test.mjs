@@ -50,3 +50,15 @@ test('resolveKvReplicas: env-driven; solo box (no env) → 1 (never crashes a lo
   assert.equal(resolveKvReplicas({ OPENCLAW_KV_REPLICAS: '3' }), 3);
   assert.equal(resolveKvReplicas({ OPENCLAW_KV_REPLICAS: '1' }), 1);
 });
+
+test('item 9: routes carry cluster credentials when provided', () => {
+  assert.equal(
+    peerToRoute('100.64.0.2', undefined, { user: 'openclaw-route', pass: 's3cret' }),
+    'nats-route://openclaw-route:s3cret@100.64.0.2:6222',
+  );
+  const block = renderClusterRoutes('100.64.0.2,100.64.0.3', { user: 'openclaw-route', pass: 'pw' });
+  assert.equal(block,
+    '    nats-route://openclaw-route:pw@100.64.0.2:6222\n    nats-route://openclaw-route:pw@100.64.0.3:6222');
+  // no credentials → unchanged legacy form
+  assert.equal(peerToRoute('100.64.0.2'), 'nats-route://100.64.0.2:6222');
+});

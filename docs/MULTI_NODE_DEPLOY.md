@@ -284,12 +284,20 @@ to the peers) and records the R=3 replica target (`OPENCLAW_KV_REPLICAS`) in `op
 
 ```bash
 # Machine A (100.64.0.1) — peers are B and C:
-bash install.sh --cluster-peers=100.64.0.2,100.64.0.3
+bash install.sh --cluster-peers=100.64.0.2,100.64.0.3 --cluster-bind=100.64.0.1
 # Machine B (100.64.0.2):
-bash install.sh --cluster-peers=100.64.0.1,100.64.0.3
+bash install.sh --cluster-peers=100.64.0.1,100.64.0.3 --cluster-bind=100.64.0.2
 # Machine C (100.64.0.3):
-bash install.sh --cluster-peers=100.64.0.1,100.64.0.2
+bash install.sh --cluster-peers=100.64.0.1,100.64.0.2 --cluster-bind=100.64.0.3
+# (--cluster-bind auto-detects from `tailscale ip -4` when omitted; the install
+#  REFUSES to bind 0.0.0.0.)
 ```
+
+**Security (D2/D4):** each server binds its OWN tailnet address only; the monitor stays on
+loopback; the cluster port is authenticated (user `openclaw-route` + `OPENCLAW_NATS_CLUSTER_PASS`).
+**Copy BOTH shared secrets to every machine's `~/.openclaw/openclaw.env` before starting:**
+`OPENCLAW_NATS_TOKEN` (clients) and `OPENCLAW_NATS_CLUSTER_PASS` (routes) — a machine with the
+wrong route password is rejected with an authentication failure (verified).
 
 This replaces the single-node `nats.conf` with the cross-machine cluster config from
 `services/nats/nats-cluster-node.conf`. **Order of operations matters:** start `nats-server` on

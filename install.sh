@@ -37,6 +37,7 @@ VERIFY_FRONTEND=false
 SANDBOX=false
 NODE_ROLE=""
 CLUSTER_PEERS=""
+CLUSTER_BIND=""
 
 for arg in "$@"; do
   case "$arg" in
@@ -51,6 +52,7 @@ for arg in "$@"; do
     --sandbox)           SANDBOX=true; SKIP_LLM=true; SKIP_MESH=true; SKIP_FRONTEND=true ;;
     --role=*)            NODE_ROLE="${arg#--role=}" ;;
     --cluster-peers=*)   CLUSTER_PEERS="${arg#--cluster-peers=}" ;;
+    --cluster-bind=*)    CLUSTER_BIND="${arg#--cluster-bind=}" ;;
     --help|-h)
       echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--skip-llm] [--skip-verify] [--role=lead|worker] [--enable-services]"
       echo "  --dry-run           Show what would happen without making changes"
@@ -65,6 +67,8 @@ for arg in "$@"; do
       echo "  --cluster-peers=A,B Join a multi-MACHINE NATS cluster: A,B are the OTHER"
       echo "                      machines' addresses (Tailscale/LAN IPs). Renders THIS"
       echo "                      machine's nats.conf to cluster with them (R=3 failsafe)."
+      echo "  --cluster-bind=IP   THIS machine's own tailnet/LAN address to bind (never"
+      echo "                      0.0.0.0). Auto-detected from 'tailscale ip -4' if omitted."
       echo "  --enable-services   Also enable and start services after installing"
       exit 0
       ;;
@@ -699,20 +703,43 @@ generate_config "$REPO_DIR/services/nats/nats-1.conf" "$OPENCLAW_ROOT/config/nat
 generate_config "$REPO_DIR/services/nats/nats-2.conf" "$OPENCLAW_ROOT/config/nats-2.conf"
 generate_config "$REPO_DIR/services/nats/nats-3.conf" "$OPENCLAW_ROOT/config/nats-3.conf"
 
-# Multi-MACHINE cluster (federation 1.5). With --cluster-peers=<ip>,<ip> this node
-# joins a real cross-machine NATS cluster: render THIS machine's nats.conf binding
-# 0.0.0.0 with routes to the PEER machines (replaces the single-node nats.conf), and
-# set the KV replica target from the council size so mesh buckets/streams go R=3
-# ACROSS the machines. No flag → single-node default above, untouched. Real failover
-# can only be proven on separate hardware; this renders the config that gets deployed.
+# Multi-MACHINE cluster (federation 1.5, hardened per item 9 / D2-D4). With
+# --cluster-peers=<ip>,<ip> this node joins a real cross-machine NATS cluster:
+# render THIS machine's nats.conf binding its OWN tailnet address (never 0.0.0.0)
+# with credentialed routes to the PEER machines, and set the KV replica target
+# from the council size. No flag → single-node default above, untouched. Real
+# failover can only be proven on separate hardware; this renders what deploys.
 if [ -n "$CLUSTER_PEERS" ]; then
   step "Multi-machine NATS cluster (peers: $CLUSTER_PEERS)"
   CLUSTER_SERVER_NAME="openclaw-nats-${OPENCLAW_NODE_ID}"
+
+  # The machine's OWN address to bind (D2/D4: the tailnet interface, never all-interfaces).
+  if [ -z "$CLUSTER_BIND" ] && command -v tailscale >/dev/null 2>&1; then
+    CLUSTER_BIND="$(tailscale ip -4 2>/dev/null | head -1)"
+    [ -n "$CLUSTER_BIND" ] && info "Auto-detected Tailscale address for binds: $CLUSTER_BIND"
+  fi
+  if [ -z "$CLUSTER_BIND" ]; then
+    error "--cluster-peers requires --cluster-bind=<this machine's tailnet/LAN IP> (no tailscale auto-detect available). Refusing to bind 0.0.0.0."
+    exit 1
+  fi
+
+  # Cluster-route password — shared across the council like the client token.
+  if [ -z "${OPENCLAW_NATS_CLUSTER_PASS:-}" ]; then
+    OPENCLAW_NATS_CLUSTER_PASS="$(grep '^OPENCLAW_NATS_CLUSTER_PASS=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2)"
+  fi
+  if [ -z "${OPENCLAW_NATS_CLUSTER_PASS:-}" ]; then
+    OPENCLAW_NATS_CLUSTER_PASS="$(openssl rand -hex 32)"
+    info "Generated OPENCLAW_NATS_CLUSTER_PASS (copy it — with OPENCLAW_NATS_TOKEN — to every council machine's openclaw.env)"
+  fi
+  export OPENCLAW_NATS_CLUSTER_PASS
+
   if [ "$DRY_RUN" = true ]; then
-    info "[dry-run] would render cluster nats.conf (server=$CLUSTER_SERVER_NAME) routing to: $CLUSTER_PEERS"
+    info "[dry-run] would render cluster nats.conf (server=$CLUSTER_SERVER_NAME, bind=$CLUSTER_BIND) routing to: $CLUSTER_PEERS"
   else
     KV_REPLICAS="$(OPENCLAW_NATS_SERVER_NAME="$CLUSTER_SERVER_NAME" \
       OPENCLAW_NATS_TOKEN="$OPENCLAW_NATS_TOKEN" \
+      OPENCLAW_NATS_CLUSTER_PASS="$OPENCLAW_NATS_CLUSTER_PASS" \
+      OPENCLAW_NATS_BIND_ADDR="$CLUSTER_BIND" \
       CLUSTER_PEERS="$CLUSTER_PEERS" \
       node -e '
         const fs = require("fs"), os = require("os");
@@ -720,18 +747,26 @@ if [ -n "$CLUSTER_PEERS" ]; then
         let t = fs.readFileSync(process.argv[2], "utf8");
         t = t.replaceAll("${OPENCLAW_NATS_SERVER_NAME}", process.env.OPENCLAW_NATS_SERVER_NAME)
              .replaceAll("${OPENCLAW_NATS_TOKEN}", process.env.OPENCLAW_NATS_TOKEN)
+             .replaceAll("${OPENCLAW_NATS_CLUSTER_PASS}", process.env.OPENCLAW_NATS_CLUSTER_PASS)
+             .replaceAll("${OPENCLAW_NATS_BIND_ADDR}", process.env.OPENCLAW_NATS_BIND_ADDR)
              .replaceAll("${HOME}", os.homedir())
-             .replace("${OPENCLAW_NATS_CLUSTER_ROUTES}", renderClusterRoutes(process.env.CLUSTER_PEERS));
+             .replace("${OPENCLAW_NATS_CLUSTER_ROUTES}", renderClusterRoutes(process.env.CLUSTER_PEERS, {
+               user: "openclaw-route", pass: process.env.OPENCLAW_NATS_CLUSTER_PASS,
+             }));
         fs.writeFileSync(process.argv[3], t, { mode: 0o600 });
         process.stdout.write(String(replicasForPeers(parsePeers(process.env.CLUSTER_PEERS).length)));
       ' "$REPO_DIR/lib/nats-cluster-config.js" "$REPO_DIR/services/nats/nats-cluster-node.conf" "$OPENCLAW_ROOT/config/nats.conf")"
-    # Persist the replica target so the daemons create buckets/streams at council size.
-    if grep -q '^OPENCLAW_KV_REPLICAS=' "$ENV_FILE" 2>/dev/null; then
-      sed -i.bak "s|^OPENCLAW_KV_REPLICAS=.*|OPENCLAW_KV_REPLICAS=$KV_REPLICAS|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-    else
-      echo "OPENCLAW_KV_REPLICAS=$KV_REPLICAS" >> "$ENV_FILE"
-    fi
-    info "Rendered cluster nats.conf (0.0.0.0 binds, routes → $CLUSTER_PEERS) · KV replica target R=$KV_REPLICAS"
+    # Persist: replica target, cluster pass, and point every local consumer at the
+    # bound address (the server no longer listens on 127.0.0.1).
+    for kv in "OPENCLAW_KV_REPLICAS=$KV_REPLICAS" "OPENCLAW_NATS_CLUSTER_PASS=$OPENCLAW_NATS_CLUSTER_PASS" "OPENCLAW_NATS=nats://$CLUSTER_BIND:4222"; do
+      key="${kv%%=*}"
+      if grep -q "^$key=" "$ENV_FILE" 2>/dev/null; then
+        sed -i.bak "s|^$key=.*|$kv|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+      else
+        echo "$kv" >> "$ENV_FILE"
+      fi
+    done
+    info "Rendered cluster nats.conf (binds $CLUSTER_BIND, credentialed routes → $CLUSTER_PEERS) · KV replica target R=$KV_REPLICAS · OPENCLAW_NATS → nats://$CLUSTER_BIND:4222"
     warn "Start nats-server on ALL machines (cluster must form) BEFORE the daemons, so R=$KV_REPLICAS streams can be created."
   fi
 fi

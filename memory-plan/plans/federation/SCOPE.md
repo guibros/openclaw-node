@@ -120,6 +120,18 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files item9-cluster-security closed
+services/nats/nats-cluster-node.conf
+lib/nats-cluster-config.js
+test/nats-cluster-config.test.mjs
+install.sh
+docs/MULTI_NODE_DEPLOY.md
+openclaw.env.example
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/audits/item9_cluster_security/*
+```
+
 ```files ci-green-wiring closed
 test/wiring-manifest.test.mjs
 memory-plan/plans/federation/SCOPE.md

@@ -430,3 +430,15 @@ and grading fed.* live; the literal member-kill is still owed and the grappe sub
 **Standing consequence.** A step whose Verify contract says *observed* does not close on inference.
 Where an observation is impossible today, the step stays `[A]` with the reason — it does not close
 with prose that reads like evidence.
+
+### D12 §3 CLOSURE (2026-07-17, item 9)
+
+The `nats-cluster-node.conf` D2/D4 violation recorded above is FIXED before any second machine
+exists: the template now binds the machine's OWN tailnet address (install refuses 0.0.0.0 —
+`--cluster-bind` required or tailscale-detected), the monitor is loopback-only, and the cluster
+port is authenticated (user/password; routes carry credentials — the original auth was dropped when
+the TOKEN form was rejected; the user/password form NATS supports is now used). Verified live on a
+scratch 2-server cluster: correct credentials → authed cluster forms (jsz meta cluster_size 2);
+wrong password → "authentication error – User openclaw-route … Router connection closed:
+Authentication Failure" and the cluster is untouched. Evidence:
+audits/item9_cluster_security/drill-output.txt. D2/D4 conformance restored.
