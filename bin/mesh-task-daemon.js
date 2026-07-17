@@ -358,8 +358,19 @@ async function handleComplete(msg) {
  * Expects: { task_id, reason, attempts? }
  */
 async function handleFail(msg) {
-  const { task_id, reason, attempts } = parseRequest(msg);
+  const { task_id, reason, attempts, node_id } = parseRequest(msg);
   if (!task_id) return respondError(msg, 'task_id is required');
+
+  // Ownership check (P1 #9b): only the node that CLAIMED a task may fail it over
+  // the bus. Without this, one misconfigured node's mesh.tasks.fail aborted any
+  // task — and its collab session — mesh-wide. Daemon-internal failure paths call
+  // store.markFailed directly and are unaffected.
+  const existing = await store.get(task_id);
+  if (!existing) return respondError(msg, `Task ${task_id} not found`);
+  if (!existing.owner || !node_id || existing.owner !== node_id) {
+    log(`FAIL REJECTED ${task_id}: node "${node_id || '(none)'}" is not the owner ("${existing.owner || 'unclaimed'}") — external fail refused (reason was: ${String(reason || '').slice(0, 120)})`);
+    return respondError(msg, `Fail refused: node ${node_id || '(none)'} does not own task ${task_id}`);
+  }
 
   const task = await store.markFailed(task_id, reason || 'unknown', attempts || []);
   if (!task) return respondError(msg, `Task ${task_id} not found`);
@@ -1019,12 +1030,20 @@ async function evaluateCooperativeRound(sessionId, session, currentRound) {
   const integratorReflection = currentRound.reflections.find(r => r.node_id === integratorId);
   const proposers = currentRound.reflections.filter(r => r.node_id !== integratorId).map(r => r.node_id);
 
+  // P1 #5: a missing integrator reflection is DEGRADED and loud, never a silent
+  // placeholder — it means the integrator died/left mid-round and this round
+  // produced no integration.
+  const integrationDegraded = !integratorReflection;
+  if (integrationDegraded) {
+    log(`COOPERATIVE DEGRADED ${sessionId} R${session.current_round}: integrator ${integratorId} submitted NO reflection (dead or absent) — round recorded as degraded, no integration artifact`);
+  }
   coop.integrations.push({
     round: session.current_round,
     integrator_node_id: integratorId,
     artifact: integratorReflection
       ? { summary: integratorReflection.summary, artifacts: integratorReflection.artifacts || [] }
       : { summary: '(integrator submitted no reflection)', artifacts: [] },
+    degraded: integrationDegraded,
     proposers,
   });
   // Persist the integration BEFORE branching — else markCompleted() below
@@ -1035,6 +1054,13 @@ async function evaluateCooperativeRound(sessionId, session, currentRound) {
   await collabStore.appendAudit(sessionId, 'cooperative_integration', {
     round: session.current_round, integrator: integratorId, proposers,
   });
+  // Audit AFTER the put above — appendAudit is CAS but a later non-CAS put of a
+  // pre-append snapshot clobbers it (the review's blind-put-after-CAS class).
+  if (integrationDegraded) {
+    await collabStore.appendAudit(sessionId, 'cooperative_integration_degraded', {
+      round: session.current_round, integrator: integratorId,
+    });
+  }
 
   if (coop.integrations.length >= coop.rounds_target) {
     const allArtifacts = [];
@@ -1059,10 +1085,37 @@ async function evaluateCooperativeRound(sessionId, session, currentRound) {
     return;
   }
 
-  // Rotate the integrator and start the next round.
-  const idx = coop.integrator_order.indexOf(integratorId);
-  coop.current_integrator = coop.integrator_order[(idx + 1) % coop.integrator_order.length];
-  await collabStore.put(session);
+  // Rotate the integrator, SKIPPING dead/removed nodes (P1 #5) — the frozen
+  // integrator_order used to walk straight onto a dead member, producing
+  // placeholder rounds forever. No alive candidate ⇒ abort loudly.
+  const aliveIds = new Set(session.nodes.filter(n => n.status !== 'dead').map(n => n.node_id));
+  const order = coop.integrator_order;
+  const startIdx = order.indexOf(integratorId);
+  let next = null;
+  const skipped = [];
+  for (let step = 1; step <= order.length; step++) {
+    const candidate = order[(startIdx + step) % order.length];
+    if (aliveIds.has(candidate)) { next = candidate; break; }
+    skipped.push(candidate);
+  }
+  if (!next) {
+    log(`COOPERATIVE ABORT ${sessionId}: no alive integrator candidates remain (order: ${order.join(' → ')})`);
+    await collabStore.markAborted(sessionId, 'No alive integrator candidates remain');
+    publishCollabEvent('aborted', await collabStore.get(sessionId));
+    await store.markFailed(session.task_id, 'Cooperative session lost all integrator candidates');
+    publishEvent('failed', await store.get(session.task_id));
+    return;
+  }
+  // CAS, not a blind put: this session object predates the audit appends above —
+  // putting it wholesale erased them (the review's blind-put-after-CAS class).
+  await collabStore._updateWithCAS(sessionId, (s) => {
+    s.cooperative.current_integrator = next;
+    return s;
+  });
+  if (skipped.length) {
+    log(`COOPERATIVE ${sessionId}: rotation skipped dead node(s) ${skipped.join(', ')} → ${next}`);
+    await collabStore.appendAudit(sessionId, 'cooperative_rotation_skipped_dead', { skipped, next });
+  }
   log(`COOPERATIVE ${sessionId}: next integrator=${coop.current_integrator}, starting round ${session.current_round + 1}`);
   await startCollabRound(sessionId);
 }
@@ -1091,17 +1144,43 @@ async function evaluateCollaborativeRound(sessionId, session, currentRound) {
     return;
   }
 
-  // merge phase — record the merger's artifact + the reviewers' votes, then complete.
+  // merge phase — record the merger's artifact + the reviewers' votes. The votes
+  // are a BINDING GATE (P1 #3): completion requires a real merge artifact and
+  // approvals strictly above rejections — two `blocked` votes used to complete
+  // identically to two `converged`.
   const mergerReflection = currentRound.reflections.find(r => r.node_id === collab.merger_node_id);
-  collab.merged = mergerReflection
-    ? { summary: mergerReflection.summary, artifacts: mergerReflection.artifacts || [] }
-    : { summary: '(merger submitted no reflection)', artifacts: [] };
   collab.review_votes = currentRound.reflections
     .filter(r => r.node_id !== collab.merger_node_id)
     .map(r => ({ node_id: r.node_id, vote: r.vote, confidence: r.confidence }));
+
+  const approvals = collab.review_votes.filter(v => v.vote === 'converged').length;
+  const rejections = collab.review_votes.length - approvals;
+  const gateFailure = !mergerReflection
+    ? `merger ${collab.merger_node_id} submitted no merge (dead or absent) — a merge that never happened cannot pass review` // P1 #5: never a silent placeholder
+    : collab.review_votes.length === 0
+      ? 'no merge-review votes received — merge unreviewed'
+      : approvals <= rejections
+        ? `merge REJECTED by review: ${collab.review_votes.map(v => `${v.node_id}=${v.vote}`).join(', ')}`
+        : null;
+
+  if (gateFailure) {
+    collab.phase = 'done';
+    await collabStore.put(session);
+    log(`COLLABORATIVE MERGE GATE FAILED ${sessionId}: ${gateFailure}`);
+    await collabStore.appendAudit(sessionId, 'collaborative_merge_rejected', {
+      merger: collab.merger_node_id, review_votes: collab.review_votes, reason: gateFailure,
+    });
+    await collabStore.markAborted(sessionId, `Merge gate failed: ${gateFailure}`);
+    publishCollabEvent('aborted', await collabStore.get(sessionId));
+    await store.markFailed(session.task_id, `Collaborative merge gate failed: ${gateFailure}`);
+    publishEvent('failed', await store.get(session.task_id));
+    return;
+  }
+
+  collab.merged = { summary: mergerReflection.summary, artifacts: mergerReflection.artifacts || [] };
   collab.phase = 'done';
   await collabStore.put(session);
-  log(`COLLABORATIVE ${sessionId}: merged by ${collab.merger_node_id}; merge-review votes: ${collab.review_votes.map(v => `${v.node_id}=${v.vote}`).join(', ')}`);
+  log(`COLLABORATIVE ${sessionId}: merged by ${collab.merger_node_id}; merge-review votes: ${collab.review_votes.map(v => `${v.node_id}=${v.vote}`).join(', ')} (${approvals} approve / ${rejections} reject)`);
   await collabStore.appendAudit(sessionId, 'collaborative_merged', {
     merger: collab.merger_node_id, review_votes: collab.review_votes,
   });
@@ -1320,12 +1399,14 @@ async function notifySequentialTurn(sessionId, nextNodeId) {
  * Evaluate the current round: check convergence, advance or complete.
  */
 async function evaluateRound(sessionId) {
-  const session = await collabStore.get(sessionId);
+  // Atomic claim (P1 #6): the reflect barrier, the leave handler, and the
+  // round-timeout sweep can all reach here for the same round — without this,
+  // two callers both integrate/advance (double integrations, double round
+  // starts). One winner; losers observe null and return.
+  const session = await collabStore.claimRoundEvaluation(sessionId);
   if (!session) return;
 
   const currentRound = session.rounds[session.rounds.length - 1];
-  currentRound.completed_at = new Date().toISOString();
-  await collabStore.put(session);
 
   // Cooperative (3.2) has its own advance/complete: record the integration,
   // rotate the integrator, run rounds_target rounds. Bypass the vote-convergence path.
@@ -1838,6 +1919,49 @@ async function sweepCirclingStepTimeouts() {
     }
   } catch (err) {
     log(`CIRCLING SWEEP ERROR: ${err.message}`);
+  }
+}
+
+// Round timeout for the barrier modes (P1 #4): circling has step timers, but a
+// cooperative/collaborative round used to hang FOREVER on one crashed member.
+const COLLAB_ROUND_TIMEOUT_MS = parseInt(process.env.MESH_COLLAB_ROUND_TIMEOUT_MS || '', 10) || 15 * 60_000;
+
+async function sweepCollabRoundTimeouts() {
+  try {
+    const active = await collabStore.list({ status: COLLAB_STATUS.ACTIVE });
+    for (const session of active) {
+      if (session.mode !== COLLAB_MODE.COOPERATIVE && session.mode !== COLLAB_MODE.COLLABORATIVE) continue;
+      const round = session.rounds[session.rounds.length - 1];
+      if (!round || round.completed_at || round.evaluated || !round.started_at) continue;
+      const elapsed = Date.now() - new Date(round.started_at).getTime();
+      if (elapsed <= COLLAB_ROUND_TIMEOUT_MS) continue;
+
+      const reflected = new Set(round.reflections.map(r => r.node_id));
+      const missing = session.nodes
+        .filter(n => n.status !== 'dead' && !reflected.has(n.node_id))
+        .map(n => n.node_id);
+      log(`COLLAB ROUND TIMEOUT ${session.session_id} (${session.mode}) R${session.current_round}: ${(elapsed / 60000).toFixed(1)}m elapsed, non-reflected: ${missing.join(', ') || 'none'}`);
+      await collabStore.appendAudit(session.session_id, 'round_timeout', {
+        round: session.current_round, elapsed_ms: elapsed, marked_dead: missing,
+      });
+      await collabStore.markNodesDead(session.session_id, missing);
+
+      const fresh = await collabStore.get(session.session_id);
+      const alive = fresh.nodes.filter(n => n.status !== 'dead').length;
+      if (alive < fresh.min_nodes) {
+        log(`COLLAB ROUND TIMEOUT ${session.session_id}: only ${alive}/${fresh.min_nodes} members alive — aborting`);
+        await collabStore.markAborted(session.session_id, `Round ${fresh.current_round} timed out; ${alive}/${fresh.min_nodes} members alive`);
+        publishCollabEvent('aborted', await collabStore.get(session.session_id));
+        await store.markFailed(fresh.task_id, `Collab round timed out with too few members (${alive}/${fresh.min_nodes})`);
+        publishEvent('failed', await store.get(fresh.task_id));
+      } else {
+        // Evaluate with the quorum that DID reflect — the claim in evaluateRound
+        // keeps this single-fire even if a straggler reflection races the sweep.
+        await evaluateRound(session.session_id);
+      }
+    }
+  } catch (err) {
+    log(`COLLAB ROUND SWEEP ERROR: ${err.message}`);
   }
 }
 
@@ -2437,6 +2561,7 @@ async function main() {
     try { await checkRecruitingDeadlines(); } catch (err) { logError(`checkRecruitingDeadlines: ${err.message}`); }
   }, 5000); // check every 5s
   const circlingStepSweepTimer = setInterval(sweepCirclingStepTimeouts, 60000); // every 60s
+  const collabRoundSweepTimer = setInterval(sweepCollabRoundTimeouts, 60000); // every 60s (P1 #4)
   log(`Proposal processing: every ${BUDGET_CHECK_INTERVAL / 1000}s`);
   log(`Budget enforcement: every ${BUDGET_CHECK_INTERVAL / 1000}s`);
   log(`Stall detection: every ${BUDGET_CHECK_INTERVAL / 1000}s (threshold: ${STALL_MINUTES}m)`);
@@ -2455,6 +2580,7 @@ async function main() {
     clearInterval(stallTimer);
     clearInterval(recruitTimer);
     if (circlingStepSweepTimer) clearInterval(circlingStepSweepTimer);
+    if (collabRoundSweepTimer) clearInterval(collabRoundSweepTimer);
     if (circlingStepTimers) {
       log(`Clearing ${circlingStepTimers.size} circling step timers...`);
       for (const timer of circlingStepTimers.values()) clearTimeout(timer);
@@ -2494,5 +2620,8 @@ if (require.main === module) {
     startRecruitedSession: (id) => startRecruitedSession(id),
     handleCollabJoinDispatch: async (session) =>
       collabStore.isRecruitingDone(session) ? startRecruitedSession(session.session_id) : false,
+    evaluateRound: (id) => evaluateRound(id),
+    sweepCollabRoundTimeouts: () => sweepCollabRoundTimeouts(),
+    handleFail: (msg) => handleFail(msg),
   };
 }

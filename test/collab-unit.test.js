@@ -140,14 +140,16 @@ describe('isRoundComplete — dead node exclusion', () => {
     assert.equal(store.isRoundComplete(session), false);
   });
 
-  it('all nodes dead → round complete (0 active = 0 reflections needed)', async () => {
+  it('all nodes dead → round NOT complete (P1 #7: a zero-participant round must never evaluate)', async () => {
     const store = makeStore();
     const sid = await setupActiveSession(store);
     await store.setNodeStatus(sid, 'node-A', 'dead');
     await store.setNodeStatus(sid, 'node-B', 'dead');
     const session = await store.get(sid);
-    // 0 reflections >= 0 active nodes = true (degenerate case, daemon should abort)
-    assert.equal(store.isRoundComplete(session), true);
+    // Previously vacuous-true ("0 reflections >= 0 active"), which let a fully-dead
+    // session EVALUATE as if work happened. Dead sessions are terminated by the
+    // abort paths (leave handler / round-timeout sweep), not by faking completion.
+    assert.equal(store.isRoundComplete(session), false);
   });
 });
 

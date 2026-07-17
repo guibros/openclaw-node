@@ -1,0 +1,16 @@
+submitted p1-hardening-after-1784263039948 (cooperative, min=3, max=3)
+
+=== AT RECRUITING CLOSE (join path — max_nodes reached) ===
+status            : active
+nodes             : bravo, alpha, charlie
+integrator_order  : ["bravo","alpha","charlie"]
+current_integrator: "bravo"
+
+=== TERMINAL ===
+status            : completed
+integrator_order  : ["bravo","alpha","charlie"]
+integrations      : 2
+  R1 by "bravo": {"summary":"repro work","artifacts":[]}
+  R2 by "alpha": {"summary":"repro work","artifacts":[]}
+
+(cleaned up repro sessions/tasks; agents stopped)

@@ -1080,11 +1080,11 @@ async function executeCollabTask(task) {
   // grappe to a sub-OpenClaw worker. Mirrors the "refuse silent solo fallback" below.
   const workerProvider = resolveProvider(task, CLI_PROVIDER, ENV_PROVIDER);
   if (!isOpenClawWorkerProvider(workerProvider.name)) {
-    log(`COLLAB REFUSED: provider "${workerProvider.name}" is a local model, not an OpenClaw advanced-LLM frontend (D11).`);
-    await natsRequest('mesh.tasks.fail', {
-      task_id: task.task_id,
-      reason: `Grappe worker refused (D11): provider "${workerProvider.name}" is a local model. A grappe/cluster member MUST run through this node's OpenClaw agent on an advanced LLM (claude/openai/gemini/deepseek/kimi/minimax/aider) — set MESH_LLM_PROVIDER or task.llm_provider accordingly. No silent local fallback.`,
-    }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
+    // P1 #9a: refusal is a DECLINE — this node stays out of the session (it has
+    // not joined yet), and the recruit deadline / round timeout handles a grappe
+    // that can't fill. It used to publish mesh.tasks.fail, letting ONE
+    // misconfigured node abort every collab task mesh-wide.
+    log(`COLLAB DECLINED (D11): provider "${workerProvider.name}" is not an OpenClaw advanced-LLM frontend — this node will not join ${task.task_id}. Set MESH_LLM_PROVIDER/task.llm_provider (claude/openai/gemini/deepseek/kimi/minimax/aider), or MESH_ALLOW_MOCK_WORKERS=1 for choreography testing with 'shell'.`);
     debug('state → idle');
     writeAgentState('idle', null);
     return;
@@ -1121,6 +1121,7 @@ async function executeCollabTask(task) {
     log(`COLLAB FAILED: No session found for task ${task.task_id}. Refusing silent solo fallback.`);
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
+      node_id: NODE_ID,
       reason: `Collab session not found for task ${task.task_id}. Task requires collaborative execution (mode: ${collabSpec.mode}) but no session could be discovered. Solo fallback refused — collab tasks must run collaboratively.`,
     }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
     debug('state → idle');
@@ -1148,6 +1149,7 @@ async function executeCollabTask(task) {
     roundSub.unsubscribe();
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
+      node_id: NODE_ID,
       reason: `Failed to join collab session ${sessionId}: ${err.message}`,
     }).catch(err2 => warn(`mesh.tasks.fail: ${err2.message}`));
     debug('state → idle');
@@ -1158,10 +1160,11 @@ async function executeCollabTask(task) {
   if (!session) {
     log(`COLLAB JOIN RETURNED NULL for session ${sessionId}`);
     roundSub.unsubscribe();
-    await natsRequest('mesh.tasks.fail', {
-      task_id: task.task_id,
-      reason: `Collab session ${sessionId} rejected join (full, closed, or duplicate node).`,
-    }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
+    // P1 #9a: a rejected join (full/closed/duplicate) means the session is
+    // proceeding WITHOUT this node — that is a personal decline, not a task
+    // failure. Failing the task here let a late-arriving node abort a healthy
+    // running grappe (the 2.4-era "already joined"/"full" aborts).
+    log(`COLLAB DECLINED: session ${sessionId} rejected this node's join (full, closed, or duplicate) — task proceeds without ${NODE_ID}.`);
     debug('state → idle');
     writeAgentState('idle', null);
     return;

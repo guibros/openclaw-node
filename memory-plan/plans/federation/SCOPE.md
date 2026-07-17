@@ -120,6 +120,21 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files collab-p1-hardening closed
+bin/mesh-task-daemon.js
+bin/fed-chaos.mjs
+test/collab-unit.test.js
+lib/mesh-collab.js
+lib/llm-providers.js
+bin/mesh-agent.js
+test/collab-p1-hardening.test.js
+test/collab-cooperative.test.mjs
+test/collab-collaborative.test.mjs
+test/grappe-worker-provider.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/audits/collab_p1_hardening/*
+```
+
 ```files item7-error-schema-observer closed
 workspace-bin/memory-daemon.mjs
 lib/observer.mjs

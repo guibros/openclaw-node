@@ -56,7 +56,7 @@ async function waitStatus(nc, taskId, statuses, timeoutMs) {
 function startAgents(ids, tag) {
   for (const n of ids) {
     const out = fs.openSync(`/tmp/chaos-${tag}-${n}.log`, 'a');
-    const env = { ...process.env, OPENCLAW_NATS: NATS, MESH_LLM_PROVIDER: 'shell', OPENCLAW_NODE_ID: n };
+    const env = { ...process.env, OPENCLAW_NATS: NATS, MESH_LLM_PROVIDER: 'shell', MESH_ALLOW_MOCK_WORKERS: '1', OPENCLAW_NODE_ID: n };
     delete env.CLAUDECODE;
     const p = spawn('node', ['bin/mesh-agent.js'], { cwd: REPO, env, detached: true, stdio: ['ignore', out, out] });
     p.unref();
