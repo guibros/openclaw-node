@@ -107,3 +107,16 @@ this audit dir; commit carries the Runtime-Evidence trailer.
   assigning a dead local — caught and replaced before commit).
 - Ingest continues to track live (13612 msgs, latest 21:37Z — the live-import cadence landing
   mid-session as designed).
+
+## ITEM-7 ADDENDUM — 2026-07-17 (error-reporter fixed + observer test root-caused)
+
+- **memory.error schema mismatch FIXED:** the culprit was `emitDegradeEvent` — the P0
+  "degradation must be LOUD" event shipped `{kind, detail, extraction_error, mode, model}` while
+  MemoryErrorSchema requires `{boundary, error_code, error_message}`, so every degrade alert died
+  in validation and never reached the watcher. Reshaped to conform; proven against the compiled
+  schema (fixed payload validates ✓, old shape correctly rejected ✓). Deployed + daemon restarted.
+- **observer test root-caused — not a date flake:** the test injects `lastExtraction: null`
+  meaning "none exists", but `opts.lastExtraction ?? readLastExtraction(...)` treats null as
+  not-provided and reads the REAL state.db. The test only ever passed while live extraction was
+  5+ days stale; healing extraction this morning broke it. Fixed the opts contract
+  (`!== undefined`) so explicit null is respected. 8/8.

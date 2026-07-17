@@ -508,13 +508,18 @@ function emitExtractEvent(sessionId, extraction) {
 // so the watcher/observer sees the degradation instead of it hiding in a stderr line.
 function emitDegradeEvent(sessionId, result) {
   if (!localEventLog) return;
+  // MemoryErrorSchema requires {boundary, error_code, error_message} — the original
+  // shape ({kind, detail, ...}) never validated, so the "degradation must be LOUD"
+  // event failed silently on every single degrade. The details ride error_message.
   const event = buildMemoryEvent('memory.error', sessionId, 'memory', {
-    session_id: sessionId,
-    kind: 'extraction-degraded',
-    detail: `LLM extraction failed; regex fallback used${result.fallback_path ? ` (diverted to ${result.fallback_path}; structured MEMORY.md protected)` : ''}`,
-    extraction_error: result.extraction_error || null,
-    mode: result.mode,
-    model: DEFAULT_MODEL,
+    boundary: 'extract',
+    error_code: 'EXTRACTION_DEGRADED',
+    error_message: (
+      `LLM extraction failed; regex fallback used (model ${DEFAULT_MODEL})`
+      + (result.extraction_error ? `: ${result.extraction_error}` : '')
+      + (result.fallback_path ? ` (diverted to ${result.fallback_path}; structured MEMORY.md protected)` : '')
+    ).slice(0, 500),
+    ...(sessionId ? { session_id: String(sessionId) } : {}),
   }, NODE_ID);
   localEventLog.publishLocal(event).catch(err =>
     log(`[event] memory.error emit failed: ${err.message}`)

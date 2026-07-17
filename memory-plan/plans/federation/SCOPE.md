@@ -120,6 +120,14 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files item7-error-schema-observer closed
+workspace-bin/memory-daemon.mjs
+lib/observer.mjs
+test/observer.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/audits/memory_ingest_remediation/*
+```
+
 ```files flush-worker closed
 workspace-bin/memory-daemon.mjs
 workspace-bin/flush-worker.mjs
