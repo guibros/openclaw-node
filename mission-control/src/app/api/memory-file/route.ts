@@ -30,6 +30,22 @@ export async function GET(request: NextRequest) {
     if (real !== OPENCLAW_ROOT && !real.startsWith(OPENCLAW_ROOT + path.sep)) {
       return NextResponse.json({ error: "symlink escape denied" }, { status: 403 });
     }
+    // The jail (~/.openclaw) CONTAINS the node's secrets — env file, identity
+    // signing key, auth tokens, rendered NATS confs with embedded credentials.
+    // A read-anything-in-the-jail API is a secret-disclosure API without this.
+    const rel = real === OPENCLAW_ROOT ? "" : real.slice(OPENCLAW_ROOT.length + 1);
+    const base = path.basename(real).toLowerCase();
+    const DENIED =
+      base.startsWith("openclaw.env") ||
+      base === "identity.key" ||
+      base.includes("token") ||
+      base.includes("secret") ||
+      base.endsWith(".pem") ||
+      rel.startsWith("config/nats") ||          // rendered confs embed auth credentials
+      rel.startsWith("identity/");
+    if (DENIED) {
+      return NextResponse.json({ error: "secret path denied" }, { status: 403 });
+    }
     let content = fs.readFileSync(real, "utf-8");
     if (tail > 0) {
       const lines = content.trim().split("\n");

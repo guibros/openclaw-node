@@ -1,7 +1,7 @@
 {
   "name": "openclaw-node-harness",
   "version": "2.0.0",
-  "description": "One-command installer for the OpenClaw node layer — identity, skills, souls, daemon, and Mission Control.",
+  "description": "One-command installer for the OpenClaw node layer \u2014 identity, skills, souls, daemon, and Mission Control.",
   "bin": {
     "openclaw-node": "./cli.js",
     "openclaw-node-harness": "./cli.js",
@@ -30,7 +30,10 @@
     "workspace-bin/",
     "workspace-docs/",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "packages/",
+    "packages/event-schemas/dist/",
+    "packages/event-schemas/package.json"
   ],
   "keywords": [
     "openclaw",
@@ -58,10 +61,11 @@
     "test:integration": "node test/distributed-mc.test.js",
     "test:all": "npm run test:unit && npm run test:mc && npm run test:integration",
     "node-check": "node bin/node-acceptance.mjs",
-    "node-watch": "node bin/node-watch.mjs"
+    "node-watch": "node bin/node-watch.mjs",
+    "prepack": "npm run --workspaces --if-present build"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.0.0",

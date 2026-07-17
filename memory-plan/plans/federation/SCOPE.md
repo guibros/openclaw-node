@@ -120,6 +120,20 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files security-review-2 closed
+packages/event-schemas/.npmignore
+packages/event-schemas/package.json
+mission-control/src/app/api/memory-file/route.ts
+mission-control/package.json
+services/systemd/openclaw-mesh-deploy-listener.service
+services/launchd/ai.openclaw.mesh-deploy-listener.plist
+install.sh
+package.json
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/OUT_OF_SCOPE.md
+memory-plan/plans/federation/audits/security_review_2/*
+```
+
 ```files repo-hygiene-leftovers closed
 .gitignore
 memory-plan/plans/federation/SCOPE.md

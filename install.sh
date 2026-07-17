@@ -142,10 +142,10 @@ if ! $UPDATE_ONLY; then
   # Node.js
   if command -v node >/dev/null 2>&1; then
     NODE_VERSION=$(node -e "console.log(process.versions.node.split('.')[0])")
-    if [ "$NODE_VERSION" -ge 18 ]; then
+    if [ "$NODE_VERSION" -ge 22 ]; then
       info "Node.js v$(node -v | tr -d 'v') found"
     else
-      warn "Node.js v$NODE_VERSION found but v18+ required"
+      warn "Node.js v$NODE_VERSION found but v22+ required (Mission Control requires 22; the whole product standardizes on it)"
       if [ "$OS" = "linux" ]; then
         info "Installing Node.js 22 LTS..."
         run sudo mkdir -p /etc/apt/keyrings
@@ -793,6 +793,20 @@ else
   warn "Identity provisioning failed — signed grappe membership unavailable until fixed"
 fi
 
+# Deploy-trigger trust (security review 2, F2): the deploy listener now REQUIRES
+# signed triggers. Provision the trust allowlist from the node's own pubkey (the
+# operator appends other machines' identity.pub values for fleet deploys).
+if ! $DRY_RUN && [ -f "$OPENCLAW_ROOT/identity.pub" ]; then
+  OPENCLAW_DEPLOY_TRUSTED_KEYS="$(tr -d '\n' < "$OPENCLAW_ROOT/identity.pub")"
+  export OPENCLAW_DEPLOY_TRUSTED_KEYS
+  if grep -q '^OPENCLAW_DEPLOY_TRUSTED_KEYS=' "$ENV_FILE" 2>/dev/null; then
+    sed -i.bak "s|^OPENCLAW_DEPLOY_TRUSTED_KEYS=.*|OPENCLAW_DEPLOY_TRUSTED_KEYS=$OPENCLAW_DEPLOY_TRUSTED_KEYS|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+  else
+    echo "OPENCLAW_DEPLOY_TRUSTED_KEYS=$OPENCLAW_DEPLOY_TRUSTED_KEYS" >> "$ENV_FILE"
+  fi
+  info "Deploy-trigger trust provisioned (this node's identity.pub; signing REQUIRED by the listener unit)"
+fi
+
 # ============================================================
 # Step 8.6: LLM Backend (the node's local-first brain)
 # ============================================================
@@ -1252,6 +1266,13 @@ else
 
       run mkdir -p "$LAUNCHD_DEST"
 
+      # F4 (security review 2): the raw redirects below bypassed run()'s dry-run
+      # guard — --dry-run was overwriting real LaunchAgents/systemd units.
+      if $DRY_RUN; then
+        info "  [dry-run] would render $TEMPLATE -> $DEST"
+        continue
+      fi
+
       if command -v envsubst >/dev/null 2>&1; then
         envsubst < "$TEMPLATE" > "$DEST"
       else
@@ -1266,6 +1287,7 @@ else
           -e "s|\${OPENCLAW_NATS_TOKEN}|$OPENCLAW_NATS_TOKEN|g" \
           -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
           -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
+          -e "s|\${OPENCLAW_DEPLOY_TRUSTED_KEYS}|${OPENCLAW_DEPLOY_TRUSTED_KEYS:-}|g" \
           -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
           -e "s|\${NPM_BIN}|$NPM_BIN|g" \
           -e "s|\${NATS_SERVER_BIN}|$NATS_SERVER_BIN|g" \
@@ -1299,6 +1321,10 @@ else
             warn "  Template not found: $TEMPLATE"
             continue
           fi
+          if $DRY_RUN; then
+            info "  [dry-run] would render $TEMPLATE -> $DEST"
+            continue
+          fi
           if command -v envsubst >/dev/null 2>&1; then
             envsubst < "$TEMPLATE" > "$DEST"
           else
@@ -1310,6 +1336,7 @@ else
               -e "s|\${OPENCLAW_NATS_TOKEN}|$OPENCLAW_NATS_TOKEN|g" \
               -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
               -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
+          -e "s|\${OPENCLAW_DEPLOY_TRUSTED_KEYS}|${OPENCLAW_DEPLOY_TRUSTED_KEYS:-}|g" \
               -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
               -e "s|\${NPM_BIN}|$NPM_BIN|g" \
               -e "s|\${NATS_SERVER_BIN}|$NATS_SERVER_BIN|g" \
@@ -1334,6 +1361,10 @@ else
           warn "  Template not found: $TEMPLATE"
           continue
         fi
+        if $DRY_RUN; then
+          info "  [dry-run] would render $TEMPLATE -> $DEST"
+          continue
+        fi
         if command -v envsubst >/dev/null 2>&1; then
           envsubst < "$TEMPLATE" > "$DEST"
         else
@@ -1345,6 +1376,7 @@ else
             -e "s|\${OPENCLAW_NATS_TOKEN}|$OPENCLAW_NATS_TOKEN|g" \
             -e "s|\${OPENCLAW_NODE_ID}|$OPENCLAW_NODE_ID|g" \
             -e "s|\${OPENCLAW_NODE_ROLE}|$OPENCLAW_NODE_ROLE|g" \
+          -e "s|\${OPENCLAW_DEPLOY_TRUSTED_KEYS}|${OPENCLAW_DEPLOY_TRUSTED_KEYS:-}|g" \
             -e "s|\${OPENCLAW_REPO_DIR}|$OPENCLAW_REPO_DIR|g" \
             -e "s|\${NPM_BIN}|$NPM_BIN|g" \
             -e "s|\${NATS_SERVER_BIN}|$NATS_SERVER_BIN|g" \
