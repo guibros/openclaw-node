@@ -120,6 +120,11 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files repo-hygiene-leftovers closed
+.gitignore
+memory-plan/plans/federation/SCOPE.md
+```
+
 ```files item9-cluster-security closed
 services/nats/nats-cluster-node.conf
 lib/nats-cluster-config.js
