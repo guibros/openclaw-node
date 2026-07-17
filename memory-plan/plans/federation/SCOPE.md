@@ -120,6 +120,12 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files ci-green-wiring closed
+test/wiring-manifest.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/audits/flush_worker/*
+```
+
 ```files collab-p1-hardening closed
 bin/mesh-task-daemon.js
 bin/fed-chaos.mjs
