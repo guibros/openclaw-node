@@ -1417,6 +1417,133 @@ handleTransitions = tracer.wrapAsync('handleTransitions', handleTransitions, { t
 runSubprocess = tracer.wrap('runSubprocess', runSubprocess, { tier: 2 });
 
 // ============================================================
+// FEDERATION SUBSYSTEMS — OPT-IN (OPENCLAW_FEDERATION=1)
+//
+// Folded in from the retired bin/openclaw-memory-daemon.mjs (the dormant
+// "federation-hardened variant" that shipped without a service unit and never
+// ran). One daemon now owns everything; the federation wiring below is
+// dormant by design until multi-node lands. Default (env unset) is OFF —
+// none of this section executes and no federation module is even imported.
+//
+// What starts when OPENCLAW_FEDERATION=1:
+//   - startFederation (lib/federation-startup.mjs): identity + strict trust
+//     registry + seen-event replay cache + broadcaster/offerer/acceptor
+//     (F-N1/N2/N3). Offerer+acceptor need both DBs; broadcast-only otherwise.
+//   - memory-subscriber (bin/memory-subscriber.mjs): still gated on
+//     OPENCLAW_SUBSCRIBER_PROJECTION=stub (F-P107/F-P113 — no Block 11
+//     projection yet).
+//   - in-process consolidation scheduler (bin/consolidation-scheduler.mjs):
+//     the multi-node mode the dormant daemon wired. Single-node production
+//     keeps using the standalone openclaw-consolidation-scheduler timer unit.
+// The graph cache and extraction trigger are NOT duplicated here — the live
+// daemon already wires both (getGraphCache above, createExtractionTrigger in
+// initNatsSubsystems); federation reuses the same graphCache instance.
+// ============================================================
+
+const federationState = {
+  started: false,
+  federation: null,
+  subscriber: null,
+  scheduler: null,
+  knowledgeDb: null,
+  extractionDb: null,
+};
+
+async function initFederationSubsystems(nc) {
+  if (federationState.started) return;
+  federationState.started = true;
+  log('[federation] OPENCLAW_FEDERATION=1 — initializing federation subsystems');
+
+  // Same nodeId convention as the retired daemon: sanitized so it satisfies
+  // the envelope schema's NODE_ID_RE (F-Q101 — apostrophes/spaces in macOS
+  // hostnames otherwise kill every signed event at parse).
+  let fedNodeId = NODE_ID;
+  try {
+    const { defaultNodeId } = await import('../lib/federation-startup.mjs');
+    fedNodeId = defaultNodeId();
+  } catch (err) {
+    log(`[federation] federation-startup unavailable (${err.message}) — using raw NODE_ID`);
+  }
+
+  // DB handles — same resolution as the retired daemon. Knowledge DB lives in
+  // the workspace (same path the daemon's own knowledge indexing uses);
+  // extraction tables live in state.db (C1 fix — one DB for reads and writes).
+  const dbDir = process.env.OPENCLAW_DB_DIR || path.join(HOME, '.openclaw');
+  const workspaceDir = process.env.OPENCLAW_WORKSPACE || path.join(HOME, '.openclaw', 'workspace');
+  const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || path.join(workspaceDir, '.knowledge.db');
+  const extractionDbPath = process.env.OPENCLAW_EXTRACTION_DB || path.join(dbDir, 'state.db');
+  try {
+    const { openStore } = await import('../lib/sqlite-store.mjs');
+    federationState.knowledgeDb = fs.existsSync(knowledgeDbPath) ? openStore(knowledgeDbPath) : null;
+    federationState.extractionDb = fs.existsSync(extractionDbPath) ? openStore(extractionDbPath) : null;
+    if (!federationState.knowledgeDb || !federationState.extractionDb) {
+      log(`[federation] WARNING: missing DB (knowledge=${federationState.knowledgeDb ? 'ok' : knowledgeDbPath} ` +
+          `extraction=${federationState.extractionDb ? 'ok' : extractionDbPath}) — ` +
+          `federation will run in broadcast-only mode (no offerer/acceptor)`);
+    }
+  } catch (err) {
+    log(`[federation] DB open failed (${err.message}) — broadcast-only mode`);
+  }
+
+  // Broadcast trio + identity + registry + replay cache (F-N1/N2/N3).
+  try {
+    const { startFederation } = await import('../lib/federation-startup.mjs');
+    federationState.federation = await startFederation(nc, fedNodeId, {
+      extractionDb: federationState.extractionDb,
+      knowledgeDb: federationState.knowledgeDb,
+      graphCache: getGraphCache(),
+      log: (m) => log(m),
+    });
+  } catch (err) {
+    log(`[federation] startFederation failed (${err.message}) — continuing without broadcast/offer/accept`);
+  }
+
+  // Memory subscriber — consumes shared-stream events. F-P107/F-P113: still
+  // DISABLED unless OPENCLAW_SUBSCRIBER_PROJECTION=stub (no Block 11
+  // projection exists; stub mode acks WITHOUT projecting, for testing only).
+  try {
+    if (process.env.OPENCLAW_SUBSCRIBER_PROJECTION === 'stub') {
+      const { createSubscriber } = await import('../bin/memory-subscriber.mjs');
+      federationState.subscriber = await createSubscriber(nc, fedNodeId, {
+        onIngest: (event, parsed) => {
+          log(`[federation] SUBSCRIBER-STUB acked-without-projection ${parsed.category} ${event.event_id}`);
+        },
+        onSkip: (_event, result) => {
+          if (result.reason !== 'deferred_to_block_9') {
+            log(`[federation] subscriber skipped (${result.reason})`);
+          }
+        },
+        onError: (ctx, err) => log(`[federation] subscriber error in ${ctx}: ${err.message}`),
+      });
+      log(`[federation] subscriber started in STUB mode — events will be ACKED WITHOUT PROJECTION`);
+    } else {
+      log(`[federation] subscriber DISABLED (Block 11 projection not yet implemented). ` +
+          `Set OPENCLAW_SUBSCRIBER_PROJECTION=stub to ack-without-project for testing.`);
+    }
+  } catch (err) {
+    log(`[federation] subscriber startup failed (${err.message}) — continuing without subscriber`);
+  }
+
+  // In-process consolidation scheduler — periodic cycle with hard-cap
+  // (F-N100: signal propagates through runConsolidationCycle to each step).
+  try {
+    const { createConsolidationScheduler } = await import('../bin/consolidation-scheduler.mjs');
+    federationState.scheduler = createConsolidationScheduler({
+      dbPath: extractionDbPath,
+      log: (m) => log(m),
+    });
+    if (federationState.extractionDb) {
+      federationState.scheduler.start();
+      log('[federation] consolidation scheduler started (in-process)');
+    }
+  } catch (err) {
+    log(`[federation] consolidation scheduler startup failed (${err.message}) — continuing without it`);
+  }
+
+  log('[federation] init complete');
+}
+
+// ============================================================
 // MAIN LOOP
 // ============================================================
 
@@ -1575,6 +1702,15 @@ async function main() {
     } catch (trigErr) {
       log(`Extraction trigger unavailable (${trigErr.message}) — continuing without trigger`);
     }
+
+    // Federation subsystems — OPT-IN, default OFF. See section banner above.
+    if (process.env.OPENCLAW_FEDERATION === '1') {
+      try {
+        await initFederationSubsystems(natsConn);
+      } catch (fedErr) {
+        log(`[federation] init failed (${fedErr.message}) — daemon continues without federation`);
+      }
+    }
     return true;
   } catch (e) {
     log(`NATS unavailable (${e.message}) — retrying every 60s until the broker is reachable`);
@@ -1634,6 +1770,17 @@ async function main() {
     if (extractionTrigger) {
       extractionTrigger.stop();
     }
+    // Federation teardown (no-ops unless OPENCLAW_FEDERATION=1 wired them) —
+    // same order as the retired daemon: scheduler, subscriber, then federation.
+    if (federationState.scheduler) {
+      try { federationState.scheduler.stop(); } catch (_) {}
+    }
+    if (federationState.subscriber) {
+      try { await federationState.subscriber.stop(); } catch (_) {}
+    }
+    if (federationState.federation) {
+      try { await federationState.federation.stop(); } catch (_) {}
+    }
     saveDaemonState(sm);
     if (healthProbeTimer) clearInterval(healthProbeTimer);
     if (memoryWatcher) {
@@ -1660,6 +1807,12 @@ async function main() {
     }
     if (natsConn) {
       try { await natsConn.drain(); } catch (_) {}
+    }
+    if (federationState.knowledgeDb) {
+      try { federationState.knowledgeDb.close(); } catch (_) {}
+    }
+    if (federationState.extractionDb) {
+      try { federationState.extractionDb.close(); } catch (_) {}
     }
     log('Daemon stopped');
     process.exit(0);

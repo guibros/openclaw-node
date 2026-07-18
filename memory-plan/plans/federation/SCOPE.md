@@ -125,6 +125,7 @@ memory-plan/plans/federation/audits/step64_fed_acceptance/*
 config/mcp.json.template
 install.sh
 bin/openclaw-memory-daemon.mjs
+bin/openclaw-status.mjs
 workspace-bin/memory-daemon.mjs
 workspace-bin/flush-worker.mjs
 lib/shared-event-stream.mjs

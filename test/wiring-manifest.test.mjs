@@ -26,30 +26,34 @@ const REPO_ROOT = new URL('..', import.meta.url).pathname;
 
 const REQUIRED_PRODUCTION_WIRES = [
   // F-N1: federation factories must be called from the memory daemon.
+  // Since the daemon consolidation (structural_cleanups, 2026-07-18) there is
+  // ONE daemon: workspace-bin/memory-daemon.mjs. The federation wiring that
+  // used to live in the dormant bin/openclaw-memory-daemon.mjs is now its
+  // initFederationSubsystems() section (opt-in via OPENCLAW_FEDERATION=1;
+  // the manifest asserts call-position, which the gated section satisfies).
   { factory: 'createBroadcaster',      calledIn: 'lib/federation-startup.mjs' },
   { factory: 'createOfferer',          calledIn: 'lib/federation-startup.mjs' },
   { factory: 'createAcceptor',         calledIn: 'lib/federation-startup.mjs' },
-  { factory: 'startFederation',        calledIn: 'bin/openclaw-memory-daemon.mjs' },
+  { factory: 'startFederation',        calledIn: 'workspace-bin/memory-daemon.mjs' },
 
   // F-N2: registry + seenIds must be constructed at startup, not left null.
   { factory: 'createIdentityRegistry', calledIn: 'lib/federation-startup.mjs' },
   { factory: 'createSeenEventCache',   calledIn: 'lib/federation-startup.mjs' },
 
-  // Subscriber + scheduler should be wired from the daemon too.
-  { factory: 'createSubscriber',       calledIn: 'bin/openclaw-memory-daemon.mjs' },
-  { factory: 'createConsolidationScheduler', calledIn: 'bin/openclaw-memory-daemon.mjs' },
-  // STUB_AUDIT wirings: Channel 5 (spreading activation) + real-time
-  // extraction trigger. Lock them in via the manifest so a future refactor
-  // that drops them fails the test.
-  { factory: 'createGraphCache',       calledIn: 'bin/openclaw-memory-daemon.mjs' },
-  { factory: 'createExtractionTrigger', calledIn: 'bin/openclaw-memory-daemon.mjs' },
-  { factory: 'runFlush',               calledIn: 'bin/openclaw-memory-daemon.mjs' },
+  // Subscriber + in-process consolidation scheduler are wired from the same
+  // federation section of the one daemon.
+  { factory: 'createSubscriber',       calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'createConsolidationScheduler', calledIn: 'workspace-bin/memory-daemon.mjs' },
+  // STUB_AUDIT wiring: Channel 5 (spreading activation) — the daemon's
+  // getGraphCache() constructs it and both the inject server and federation
+  // reuse the instance. (The extraction trigger + runFlush wires are locked
+  // by the rows below — one daemon, no duplicate rows.)
+  { factory: 'createGraphCache',       calledIn: 'workspace-bin/memory-daemon.mjs' },
 
-  // R29 fix (repair 7.3): everything above defends the DORMANT federation
-  // daemon. The daemon launchd actually runs is workspace-bin/memory-daemon
-  // — these rows lock its production wires (Block-1 event producers, the
-  // watcher, the inject server, the tick guard, the queue snapshot) so a
-  // refactor can't silently drop them. That exact failure mode shipped once.
+  // R29 fix (repair 7.3): rows locking the live daemon's production wires
+  // (Block-1 event producers, the watcher, the inject server, the tick
+  // guard, the queue snapshot) so a refactor can't silently drop them. That
+  // exact failure mode shipped once.
   { factory: 'emitIngestEvent',         calledIn: 'workspace-bin/memory-daemon.mjs' },
   { factory: 'emitExtractEvent',        calledIn: 'workspace-bin/memory-daemon.mjs' },
   { factory: 'emitSynthesizeEvent',     calledIn: 'workspace-bin/memory-daemon.mjs' },

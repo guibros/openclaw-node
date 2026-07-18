@@ -14,7 +14,7 @@
  *   node bin/openclaw-status.mjs --json
  *
  * Each row is computed by:
- *   - grep for the factory/component in bin/openclaw-memory-daemon.mjs
+ *   - grep for the factory/component in workspace-bin/memory-daemon.mjs
  *   - grep for the factory in lib/federation-startup.mjs
  *   - cross-check against the call-position rule (was it actually invoked?)
  *
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const DAEMON_PATH = join(REPO_ROOT, 'bin', 'openclaw-memory-daemon.mjs');
+const DAEMON_PATH = join(REPO_ROOT, 'workspace-bin', 'memory-daemon.mjs');
 const FED_STARTUP_PATH = join(REPO_ROOT, 'lib', 'federation-startup.mjs');
 
 function readOrEmpty(p) {
@@ -65,7 +65,8 @@ function isImportedNotCalled(src, factoryName) {
 const subsystems = [
   {
     name: 'NATS connection',
-    check: () => isInvoked(daemonSrc, 'connect'),
+    // The live daemon aliases the import: `const { connect: natsConnect } = require('nats')`
+    check: () => isInvoked(daemonSrc, 'connect') || isInvoked(daemonSrc, 'natsConnect'),
     notWiredFix: 'Daemon must connect to NATS at startup (currently it does)',
   },
   {
@@ -129,12 +130,14 @@ const subsystems = [
   },
   {
     name: 'Memory budget event recorder',
-    check: () => isInvoked(daemonSrc, 'createMemoryBudget') || isInvoked(daemonSrc, 'new MemoryBudget'),
+    // Live daemon: `import { createBudget } from '../lib/memory-budget.mjs'` via initMemoryBudget()
+    check: () => isInvoked(daemonSrc, 'createMemoryBudget') || isInvoked(daemonSrc, 'new MemoryBudget') || isInvoked(daemonSrc, 'createBudget'),
     notWiredFix: 'Daemon must instantiate MemoryBudget if memory.session_*/fact_extracted events are wanted',
   },
   {
     name: 'Session store',
-    check: () => isInvoked(daemonSrc, 'createSessionStore'),
+    // Live daemon: `new SessionStore()` inside the lazy getSessionStore() singleton
+    check: () => isInvoked(daemonSrc, 'createSessionStore') || /new\s+SessionStore\s*\(/.test(daemonSrc),
     notWiredFix: 'Daemon must call createSessionStore() for session/message ingest. Today, only backfill scripts read the DB; nothing in production writes to it via this API.',
   },
   {
