@@ -126,17 +126,25 @@ describe('generate — native /api/chat path (LLM_NATIVE_API=true default)', () 
     assert.equal(lastRequest.body.options.num_predict, 123);
   });
 
-  it('includes format:json when jsonMode true and LLM_FORCE_FREE_FORM unset', async () => {
+  it('includes format:json for non-thinking models when jsonMode true', async () => {
     delete process.env.LLM_FORCE_FREE_FORM;
-    const c = createLlmClient({ baseUrl: baseUrl() });
+    const c = createLlmClient({ baseUrl: baseUrl(), model: 'llama3.1:8b' });
     nextResponse = { status: 200, body: { message: { content: '{}' }, done_reason: 'stop' } };
     await c.generate([], { bypassQueue: true, jsonMode: true });
     assert.equal(lastRequest.body.format, 'json');
   });
 
-  it('omits format:json when LLM_FORCE_FREE_FORM=1 even with jsonMode:true', async () => {
+  it('never sends format:json to thinking-family models (the 2026-07-18 stall)', async () => {
+    delete process.env.LLM_FORCE_FREE_FORM;
+    const c = createLlmClient({ baseUrl: baseUrl(), model: 'qwen3:8b' });
+    nextResponse = { status: 200, body: { message: { content: '{}' }, done_reason: 'stop' } };
+    await c.generate([], { bypassQueue: true, jsonMode: true });
+    assert.equal(lastRequest.body.format, undefined);
+  });
+
+  it('omits format:json when LLM_FORCE_FREE_FORM=1 even for non-thinking models', async () => {
     process.env.LLM_FORCE_FREE_FORM = '1';
-    const c = createLlmClient({ baseUrl: baseUrl() });
+    const c = createLlmClient({ baseUrl: baseUrl(), model: 'llama3.1:8b' });
     nextResponse = { status: 200, body: { message: { content: '{}' }, done_reason: 'stop' } };
     await c.generate([], { bypassQueue: true, jsonMode: true });
     assert.equal(lastRequest.body.format, undefined);

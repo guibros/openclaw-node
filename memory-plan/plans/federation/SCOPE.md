@@ -122,6 +122,7 @@ memory-plan/plans/federation/audits/step64_fed_acceptance/*
 
 ```files extraction-stall closed
 lib/llm-client.mjs
+test/llm-client.test.mjs
 openclaw.env.example
 test/llm-client-format.test.mjs
 docs/NODE_SPEC.md
