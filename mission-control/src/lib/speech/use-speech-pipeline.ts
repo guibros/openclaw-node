@@ -50,7 +50,7 @@ export function useSpeechPipeline(
   }, []);
 
   // Play next buffer from queue
-  const playNext = useCallback(() => {
+  const playNext = useCallback(function playNextFn() {
     const ctx = audioCtxRef.current;
     if (!ctx || queueRef.current.length === 0) {
       playingRef.current = false;
@@ -75,7 +75,7 @@ export function useSpeechPipeline(
 
     source.onended = () => {
       currentSourceRef.current = null;
-      playNext();
+      playNextFn();
     };
 
     source.start(0);
