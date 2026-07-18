@@ -120,6 +120,16 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files extraction-stall closed
+lib/llm-client.mjs
+openclaw.env.example
+test/llm-client-format.test.mjs
+docs/NODE_SPEC.md
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/OUT_OF_SCOPE.md
+memory-plan/plans/federation/audits/extraction_stall/*
+```
+
 ```files structural-cleanups closed
 .mcp.json
 config/mcp.json.template
