@@ -178,6 +178,7 @@ export default function DiagnosticsPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetchers flip their loading flags synchronously; data lands async
     fetchHealth();
     fetchWatch();
   }, []);

@@ -60,6 +60,7 @@ export default function NodeWatchPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration mount flag: standard Next client-only gate
     setMounted(true);
     fetchWatch();
     const t = setInterval(fetchWatch, 15000);

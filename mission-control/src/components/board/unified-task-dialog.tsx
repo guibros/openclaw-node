@@ -119,6 +119,7 @@ export function UnifiedTaskDialog({
     initializedForOpen.current = true;
 
     if (item) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot form init when the dialog opens (ref-guarded); key-remount refactor queued
       setId(item.id);
       setTitle(item.title);
       setType((item.type as HierarchyType) || defaultType || "project");

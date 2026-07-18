@@ -68,6 +68,7 @@ export function KanbanColumn({
     if (column !== "done" || doneWindow === "all") return tasks;
     const windowDef = DONE_WINDOWS.find((w) => w.key === doneWindow);
     if (!windowDef || windowDef.ms === 0) return tasks;
+    // eslint-disable-next-line react-hooks/purity -- done-window cutoff is a snapshot relative to render time; re-derived when tasks/window change
     const cutoff = Date.now() - windowDef.ms;
     return tasks.filter((t) => {
       const ts = new Date(t.updatedAt).getTime();
