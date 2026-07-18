@@ -1,0 +1,14 @@
+## Dry-run write-nothing proof (guarded render targets), after-split run
+marker: /private/tmp/claude-501/-Users-moltymac-openclaw-nodedev/b24b3011-9579-424e-b687-ba57b7a7ba6c/scratchpad/marker.after touched before the run
+
+$ find ~/Library/LaunchAgents -name 'ai.openclaw.*' -newer marker.after
+(count: 0)
+
+$ find ~/.config/systemd/user -newer marker.after   (macOS: dir may not exist)
+(count: 0)
+
+$ find ~/.openclaw/config -type f -newer marker.after   (generate_config targets)
+(count: 0)
+
+## LaunchAgents plist mtimes unchanged across BOTH runs (before-baseline snapshot vs now)
+IDENTICAL: all 23 ai.openclaw.*.plist mtimes unchanged since before the baseline dry-run

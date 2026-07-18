@@ -1,0 +1,230 @@
+
+╔══════════════════════════════════════════╗
+║       OpenClaw Node Installer            ║
+║       Platform: macos                       
+╚══════════════════════════════════════════╝
+
+
+[0;32m━━━ Step 1: System Dependencies ━━━[0m
+[0;32m[+][0m Node.js v24.13.0 found
+[0;32m[+][0m Python 3 found: Python 3.9.6
+[0;32m[+][0m Git found: git version 2.50.1 (Apple Git-155)
+[0;32m[+][0m SQLite3 found
+[0;32m[+][0m curl found
+[0;32m[+][0m jq found
+[0;32m[+][0m PyYAML found
+[0;32m[+][0m nats-server found
+[0;32m[+][0m ollama found
+[0;32m[+][0m nats-server: /opt/homebrew/bin/nats-server
+[0;32m[+][0m Repo node_modules present
+[0;32m[+][0m Node role: lead
+[0;32m[+][0m Node ID: moltymacs-virtual-machine
+
+[0;32m━━━ Step 2: Directory Structure ━━━[0m
+[0;32m[+][0m Directory structure ready
+
+[0;32m━━━ Step 3: Install Workspace Scripts ━━━[0m
+  [dry-run] rsync -av --exclude=*.bak --exclude=*.bak.* --exclude=routing-eval-tests.json /Users/moltymac/openclaw-nodedev/workspace-bin/ /Users/moltymac/.openclaw/workspace/bin/
+  [dry-run] cp /Users/moltymac/openclaw-nodedev/bin/openclaw-notify.mjs /Users/moltymac/.openclaw/workspace/bin/openclaw-notify.mjs
+  [dry-run] cp /Users/moltymac/openclaw-nodedev/bin/obsidian-graph-cache.mjs /Users/moltymac/.openclaw/workspace/bin/obsidian-graph-cache.mjs
+  [dry-run] chmod +x /Users/moltymac/.openclaw/workspace/bin/archive-transcripts.sh /Users/moltymac/.openclaw/workspace/bin/auto-checkpoint /Users/moltymac/.openclaw/workspace/bin/brainstorm-server /Users/moltymac/.openclaw/workspace/bin/clawvault-access-control /Users/moltymac/.openclaw/workspace/bin/clawvault-local /Users/moltymac/.openclaw/workspace/bin/compile-boot /Users/moltymac/.openclaw/workspace/bin/consolidate.mjs /Users/moltymac/.openclaw/workspace/bin/consolidation-scheduler.mjs /Users/moltymac/.openclaw/workspace/bin/daily-log-writer.mjs /Users/moltymac/.openclaw/workspace/bin/evolve /Users/moltymac/.openclaw/workspace/bin/federation-tick.sh /Users/moltymac/.openclaw/workspace/bin/fitness_score.py /Users/moltymac/.openclaw/workspace/bin/flush-worker.mjs /Users/moltymac/.openclaw/workspace/bin/health-watch.mjs /Users/moltymac/.openclaw/workspace/bin/hooks /Users/moltymac/.openclaw/workspace/bin/install-daemon /Users/moltymac/.openclaw/workspace/bin/lane-watchdog.js /Users/moltymac/.openclaw/workspace/bin/legacy-tick.sh /Users/moltymac/.openclaw/workspace/bin/lib /Users/moltymac/.openclaw/workspace/bin/mc-health.mjs /Users/moltymac/.openclaw/workspace/bin/memory-daemon.bash.bak /Users/moltymac/.openclaw/workspace/bin/memory-daemon.mjs /Users/moltymac/.openclaw/workspace/bin/memory-daemon.mjs.bak-2026-05-23 /Users/moltymac/.openclaw/workspace/bin/memory-maintenance.bash.bak /Users/moltymac/.openclaw/workspace/bin/memory-maintenance.mjs /Users/moltymac/.openclaw/workspace/bin/memory-plan-notify.sh /Users/moltymac/.openclaw/workspace/bin/memory-plan-pretty-stream.sh /Users/moltymac/.openclaw/workspace/bin/memory-plan-status.sh /Users/moltymac/.openclaw/workspace/bin/memory-plan-timeline.sh /Users/moltymac/.openclaw/workspace/bin/mesh-bridge.mjs /Users/moltymac/.openclaw/workspace/bin/migrate-skill-frontmatter /Users/moltymac/.openclaw/workspace/bin/multi-review /Users/moltymac/.openclaw/workspace/bin/new-plan.sh /Users/moltymac/.openclaw/workspace/bin/node-acceptance.mjs /Users/moltymac/.openclaw/workspace/bin/node-watch.mjs /Users/moltymac/.openclaw/workspace/bin/observer.mjs /Users/moltymac/.openclaw/workspace/bin/obsidian /Users/moltymac/.openclaw/workspace/bin/obsidian-graph-cache.mjs /Users/moltymac/.openclaw/workspace/bin/obsidian-sync.mjs /Users/moltymac/.openclaw/workspace/bin/openclaw-notify.mjs /Users/moltymac/.openclaw/workspace/bin/openclaw-register-source /Users/moltymac/.openclaw/workspace/bin/pair-session.js /Users/moltymac/.openclaw/workspace/bin/plan-lint.sh /Users/moltymac/.openclaw/workspace/bin/plan-tick.sh /Users/moltymac/.openclaw/workspace/bin/proactive-scan /Users/moltymac/.openclaw/workspace/bin/protocol-tick.sh /Users/moltymac/.openclaw/workspace/bin/quality-gate /Users/moltymac/.openclaw/workspace/bin/redesign-tick.sh /Users/moltymac/.openclaw/workspace/bin/routing-eval-tests.json /Users/moltymac/.openclaw/workspace/bin/screenshot /Users/moltymac/.openclaw/workspace/bin/session-recap /Users/moltymac/.openclaw/workspace/bin/session-search.mjs /Users/moltymac/.openclaw/workspace/bin/session-trace-emitter.mjs /Users/moltymac/.openclaw/workspace/bin/skill-audit /Users/moltymac/.openclaw/workspace/bin/skill-batch-fix /Users/moltymac/.openclaw/workspace/bin/skill-quality-check /Users/moltymac/.openclaw/workspace/bin/skill-routing-eval /Users/moltymac/.openclaw/workspace/bin/soul-prompt /Users/moltymac/.openclaw/workspace/bin/subagent-audit.mjs /Users/moltymac/.openclaw/workspace/bin/sync-canonical.sh /Users/moltymac/.openclaw/workspace/bin/sync-to-harness /Users/moltymac/.openclaw/workspace/bin/test-multi-soul-workflow /Users/moltymac/.openclaw/workspace/bin/trust-registry /Users/moltymac/.openclaw/workspace/bin/web-fetch.mjs /Users/moltymac/.openclaw/workspace/bin/workplan-viewer.mjs
+  [dry-run] chmod +x /Users/moltymac/.openclaw/workspace/bin/hooks/pre-commit
+[0;32m[+][0m Workspace scripts installed to /Users/moltymac/.openclaw/workspace/bin/
+  [dry-run] mkdir -p /Users/moltymac/.openclaw/workspace/lib
+  [dry-run] rsync -av --exclude=node_modules /Users/moltymac/openclaw-nodedev/lib/ /Users/moltymac/.openclaw/workspace/lib/
+[0;32m[+][0m Shared libraries installed to /Users/moltymac/.openclaw/workspace/lib/ (incl. mcp-knowledge)
+  [dry-run] rsync -av --exclude=node_modules /Users/moltymac/openclaw-nodedev/packages/ /Users/moltymac/.openclaw/workspace/packages/
+[0;32m[+][0m Event schemas installed to /Users/moltymac/.openclaw/workspace/packages/
+  [dry-run] mkdir -p /Users/moltymac/.openclaw/workspace/node_modules
+[0;32m[+][0m Shared dependencies symlinked to /Users/moltymac/.openclaw/workspace/node_modules/ (0 new links from /Users/moltymac/openclaw-nodedev/node_modules)
+  [dry-run] mkdir -p /Users/moltymac/openclaw/bin /Users/moltymac/openclaw/lib
+  [dry-run] rsync -av /Users/moltymac/openclaw-nodedev/bin/ /Users/moltymac/openclaw/bin/
+  [dry-run] rsync -av /Users/moltymac/openclaw-nodedev/lib/ /Users/moltymac/openclaw/lib/
+  [dry-run] chmod +x /Users/moltymac/openclaw/bin/openclaw-restart.sh
+[0;32m[+][0m Mesh daemons installed to /Users/moltymac/openclaw/bin/ (49 files)
+[0;32m[+][0m Shared libraries installed to /Users/moltymac/openclaw/lib/
+
+[0;32m━━━ Step 4: Identity Files ━━━[0m
+[0;32m[+][0m CLAUDE.md up to date
+[0;32m[+][0m SOUL.md up to date
+[0;32m[+][0m PRINCIPLES.md up to date
+[0;32m[+][0m AGENTS.md up to date
+[0;32m[+][0m DELEGATION.md up to date
+[0;32m[+][0m HEARTBEAT.md up to date
+[0;32m[+][0m MEMORY_SPEC.md up to date
+[0;32m[+][0m TOOLS.md up to date
+
+[0;32m━━━ Step 5: Soul Definitions ━━━[0m
+  [dry-run] rsync -av /Users/moltymac/openclaw-nodedev/souls/ /Users/moltymac/.openclaw/souls/
+[0;32m[+][0m Souls installed to /Users/moltymac/.openclaw/souls/
+
+[0;32m━━━ Step 6: Skills ━━━[0m
+  [dry-run] rsync -av --exclude=dist/ --exclude=scripts/ /Users/moltymac/openclaw-nodedev/skills/ /Users/moltymac/.openclaw/workspace/skills/
+[0;32m[+][0m Skills installed to /Users/moltymac/.openclaw/workspace/skills/ (107 skills)
+[0;32m[+][0m Installing skill dependencies...
+  [dry-run] npm install --production
+[0;32m[+][0m   npm: capability-evolver
+  [dry-run] npm install --production
+[0;32m[+][0m   npm: clawdbot-filesystem
+  [dry-run] npm install --production
+[0;32m[+][0m   npm: clawddocs
+  [dry-run] pip3 install --user -r /Users/moltymac/.openclaw/workspace/skills/crypto-price//requirements.txt
+[0;32m[+][0m   pip: crypto-price
+  [dry-run] npm install --production
+[0;32m[+][0m   npm: fast-browser-use
+  [dry-run] npm install --production
+[0;32m[+][0m   npm: markdown-formatter
+  [dry-run] pip3 install --user -r /Users/moltymac/.openclaw/workspace/skills/prompt-guard//requirements.txt
+[0;32m[+][0m   pip: prompt-guard
+
+[0;32m━━━ Step 7: Environment Configuration ━━━[0m
+[0;32m[+][0m Environment file already exists at /Users/moltymac/.openclaw/openclaw.env
+
+[0;32m━━━ Step 8: Configuration Files ━━━[0m
+[0;32m[+][0m Config daemon.json already exists, skipping (use --update to overwrite)
+[0;32m[+][0m Config transcript-sources.json already exists, skipping (use --update to overwrite)
+  [dry-run] mkdir -p /Users/moltymac/.openclaw/nats
+[0;32m[+][0m Config nats.conf already exists, skipping (use --update to overwrite)
+[0;32m[+][0m Config nats-1.conf already exists, skipping (use --update to overwrite)
+[0;32m[+][0m Config nats-2.conf already exists, skipping (use --update to overwrite)
+[0;32m[+][0m Config nats-3.conf already exists, skipping (use --update to overwrite)
+[0;32m[+][0m Config obsidian-sync.json already exists, skipping (use --update to overwrite)
+[0;32m[+][0m Config openclaw.json already exists, skipping (use --update to overwrite)
+
+[0;32m━━━ Step 8.5: Node Identity ━━━[0m
+[0;32m[+][0m [dry-run] would provision ed25519 identity at /Users/moltymac/.openclaw
+
+[0;32m━━━ Step 8.6: LLM Backend ━━━[0m
+[0;32m[+][0m [dry-run] would ensure ollama up, RAM-tier LLM_MODEL, model pulled, embedder prefetched
+
+[0;32m━━━ Step 9: Boot System ━━━[0m
+  [dry-run] cp /Users/moltymac/openclaw-nodedev/boot/manifest.yaml /Users/moltymac/.openclaw/workspace/.boot/manifest.yaml
+[0;32m[+][0m Boot manifest installed
+[0;32m[+][0m Compiling boot profiles...
+  [dry-run] python3 /Users/moltymac/.openclaw/workspace/bin/compile-boot --all
+
+[0;32m━━━ Step 10: Obsidian Vault ━━━[0m
+[0;32m[+][0m Obsidian vault already exists, skipping
+
+[0;32m━━━ Step 11: Mission Control ━━━[0m
+[0;32m[+][0m Mission Control already exists, updating source...
+  [dry-run] rsync -av --exclude=node_modules --exclude=.next --exclude=*.db /Users/moltymac/openclaw-nodedev/mission-control/ /Users/moltymac/.openclaw/workspace/projects/mission-control/
+[0;32m[+][0m Mission Control dependencies already installed
+  [dry-run] mkdir -p /Users/moltymac/.openclaw/workspace/projects/mission-control/data
+
+[0;32m━━━ Step 12: Playwright Browser ━━━[0m
+[0;32m[+][0m Playwright already installed in workspace
+
+[0;32m━━━ Step 13: Companion Bridge ━━━[0m
+[0;32m[+][0m Installing companion-bridge (OpenAI-compatible adapter for Claude Code)...
+  [dry-run] npm install -g companion-bridge
+[0;32m[+][0m Syncing harness rules (smart merge — user edits preserved)...
+harness-rules: already in sync (nothing to apply).
+
+[0;32m━━━ Step 13.5: Agent Frontend ━━━[0m
+[0;32m[+][0m Agent frontend(s) present: claude gemini
+[0;32m[+][0m [dry-run] would check Claude Code auth
+
+[0;32m━━━ Step 14: ClawVault ━━━[0m
+[0;32m[+][0m ClawVault: checking npm-global...
+[0;32m[+][0m ClawVault found in .npm-global
+
+[0;32m━━━ Step 15: Initialize Memory ━━━[0m
+
+[0;32m━━━ Step 15.5: HyperAgent Protocol ━━━[0m
+[1;33m[!][0m HyperAgent init deferred (will init on first use)
+
+[0;32m━━━ Step 16: Install Services (role=lead) ━━━[0m
+  [dry-run] mkdir -p /Users/moltymac/.openclaw/logs /Users/moltymac/.openclaw/workspace/.tmp
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.nats.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.nats.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.nats-1.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.nats-1.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.nats-2.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.nats-2.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.nats-3.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.nats-3.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.mesh-task-daemon.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-task-daemon.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.mesh-bridge.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-bridge.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.mesh-agent.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-agent.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.mesh-health-publisher.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-health-publisher.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.mesh-deploy-listener.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-deploy-listener.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.mesh-tool-discord.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-tool-discord.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.mission-control.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.mission-control.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.gateway.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.gateway.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.lane-watchdog.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.lane-watchdog.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.memory-daemon.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.memory-daemon.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.consolidation-scheduler.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.consolidation-scheduler.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.node-watch.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.node-watch.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.scheduler-heartbeat.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.scheduler-heartbeat.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.log-rotate.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.log-rotate.plist
+  [dry-run] mkdir -p /Users/moltymac/Library/LaunchAgents
+[0;32m[+][0m   [dry-run] would render /Users/moltymac/openclaw-nodedev/services/launchd/ai.openclaw.observer.plist -> /Users/moltymac/Library/LaunchAgents/ai.openclaw.observer.plist
+[0;32m[+][0m Services installed: 0 (skipped 0 — wrong role)
+[0;32m[+][0m Services installed but NOT started. Use --enable-services to also start them.
+[0;32m[+][0m Or load individually: launchctl load ~/Library/LaunchAgents/ai.openclaw.<name>.plist
+
+[0;32m━━━ Step 16.5: Desktop Notifications ━━━[0m
+  [dry-run] mkdir -p /Users/moltymac/.openclaw/share/notify-icons /Users/moltymac/.openclaw/notifications /Users/moltymac/.openclaw/config
+  [dry-run] cp /Users/moltymac/openclaw-nodedev/services/notify-icons/app.png /Users/moltymac/openclaw-nodedev/services/notify-icons/block.png /Users/moltymac/openclaw-nodedev/services/notify-icons/default.png /Users/moltymac/openclaw-nodedev/services/notify-icons/error.png /Users/moltymac/openclaw-nodedev/services/notify-icons/info.png /Users/moltymac/openclaw-nodedev/services/notify-icons/success.png /Users/moltymac/openclaw-nodedev/services/notify-icons/warn.png /Users/moltymac/.openclaw/share/notify-icons/
+[0;32m[+][0m Notification icons installed → /Users/moltymac/.openclaw/share/notify-icons (swap per-kind via config/notify.json)
+[0;32m[+][0m Notification config already exists, keeping it
+[0;32m[+][0m terminal-notifier present — popups click through to their origin
+[0;32m[+][0m OpenClaw notifier bundle built → ~/.openclaw/share/OpenClawNotifier.app (branded banner icon)
+[0;32m[+][0m Smoke test: node /Users/moltymac/openclaw-nodedev/bin/openclaw-notify.mjs --test
+[0;32m[+][0m Ledger (every event, clicked or not): ~/.openclaw/notifications/ledger.jsonl · UI: Mission Control /notifications
+[0;32m[+][0m Stack launcher built → ~/Applications/OpenClaw Stack.app (double-click or Dock it)
+
+[0;32m━━━ Step 17: Mesh Network ━━━[0m
+[0;32m[+][0m Tailscale connected: 100.65.201.114
+[0;32m[+][0m Setting up mesh network (NATS, agent, shared folder, health/repair)...
+  [dry-run] npx openclaw-mesh
+  [dry-run] mkdir -p /Users/moltymac/.openclaw/skills/mesh
+  [dry-run] cp /Users/moltymac/openclaw-nodedev/skills/mesh/SKILL.md /Users/moltymac/.openclaw/skills/mesh/SKILL.md
+[0;32m[+][0m Mesh skill installed to ~/.openclaw/skills/mesh/ (all agents)
+
+[0;32m━━━ Step 18: Path-Scoped Rules ━━━[0m
+[0;32m[+][0m Rules directory: /Users/moltymac/.openclaw/rules (4 rules)
+
+[0;32m━━━ Step 19: Plan Templates ━━━[0m
+[0;32m[+][0m Templates directory: /Users/moltymac/.openclaw/plan-templates
+
+[0;32m━━━ Step 20: Claude Code Integration ━━━[0m
+[0;32m[+][0m Merged OpenClaw hooks into existing settings.json (permissions preserved)
+[0;32m[+][0m Deployed Claude Code hooks
+
+[0;32m━━━ Step 21: Acceptance Gate ━━━[0m
+[0;32m[+][0m [dry-run] would run node-acceptance.mjs against the started services
+
+╔══════════════════════════════════════════╗
+║   Installation Complete — NOT VERIFIED   ║
+╚══════════════════════════════════════════╝
+
+[0;32m[+][0m Workspace: /Users/moltymac/.openclaw/workspace
+[0;32m[+][0m Config:    /Users/moltymac/.openclaw/config/
+[0;32m[+][0m Env file:  /Users/moltymac/.openclaw/openclaw.env
+[0;32m[+][0m Spec:      docs/NODE_SPEC.md · Test protocol: docs/INSTALL_TEST_PROTOCOL.md
+
+[0;32m[+][0m Role: lead | Services installed: 0
+
+Next steps:
+  1. Review the env file:            nano /Users/moltymac/.openclaw/openclaw.env
+  2. Start + verify the node:        bash install.sh --update --enable-services
+  3. Check services:                 launchctl list | grep openclaw
+  4. Re-verify any time:             /usr/local/bin/node /Users/moltymac/.openclaw/workspace/bin/node-acceptance.mjs
+
+exit: 0

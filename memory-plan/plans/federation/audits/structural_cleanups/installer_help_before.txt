@@ -1,0 +1,17 @@
+Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--skip-llm] [--skip-verify] [--role=lead|worker] [--enable-services]
+  --dry-run           Show what would happen without making changes
+  --update            Re-copy scripts/configs only (skip system deps)
+  --skip-mesh         Skip mesh network setup (used by meta-installer)
+  --skip-llm          Skip ollama install + model pull + embedder prefetch (extraction degrades to regex)
+  --skip-verify       Skip the final acceptance gate
+  --skip-frontend     Skip agent-frontend (Claude Code) detection/install
+  --verify-frontend   Verify frontend auth with one small live call
+  --sandbox           Wiring-test mode: skip network-heavy installs (implies --skip-llm --skip-mesh)
+  --role=lead|worker  Set node role (default: macOS=lead, Linux=worker)
+  --cluster-peers=A,B Join a multi-MACHINE NATS cluster: A,B are the OTHER
+                      machines' addresses (Tailscale/LAN IPs). Renders THIS
+                      machine's nats.conf to cluster with them (R=3 failsafe).
+  --cluster-bind=IP   THIS machine's own tailnet/LAN address to bind (never
+                      0.0.0.0). Auto-detected from 'tailscale ip -4' if omitted.
+  --enable-services   Also enable and start services after installing
+help exit: 0

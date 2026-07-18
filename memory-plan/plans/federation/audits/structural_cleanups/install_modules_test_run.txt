@@ -1,0 +1,15 @@
+✔ install.sh passes bash -n (4.299625ms)
+✔ every module passes bash -n (48.29625ms)
+✔ install.sh sources every module, in order (0.241042ms)
+✔ flag parser still accepts the full flag inventory (13.941083ms)
+✔ the 3 unit-render dry-run guards live in services.sh (0.295833ms)
+✔ cluster dry-run guard and cluster security live in config.sh (0.136292ms)
+✔ preserved behaviors sit in their modules (0.230042ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 117.390375

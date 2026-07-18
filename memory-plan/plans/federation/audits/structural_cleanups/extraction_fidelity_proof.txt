@@ -1,0 +1,31 @@
+## Extraction fidelity — every module byte-diffed against its line range in the pre-split install.sh
+pristine copy: md5 12e908c1a91f011f9baeb58cec30f29c (1846 lines; captured before any edit)
+
+IDENTICAL  scripts/install/helpers.sh  == orig lines 78-126
+IDENTICAL  scripts/install/system-deps.sh  == orig lines 135-312
+IDENTICAL  scripts/install/env.sh  == orig lines 314-389
+IDENTICAL  scripts/install/workspace.sh  == orig lines 391-580
+IDENTICAL  scripts/install/config.sh  == orig lines 582-808
+IDENTICAL  scripts/install/components.sh  == orig lines 810-1210
+IDENTICAL  scripts/install/services.sh  == orig lines 1212-1519
+IDENTICAL  scripts/install/integrations.sh  == orig lines 1521-1773
+IDENTICAL  scripts/install/verify.sh  == orig lines 1775-1806
+IDENTICAL  install.sh lines 1-76 (header+set+config+flag parse) == orig 1-76
+IDENTICAL  install.sh lines 80-85 (banner) == orig 128-133
+IDENTICAL  install.sh last 39 lines (done block) == orig 1808-1846
+
+Dropped from the original: only the inert single blank seam lines between extracted ranges
+(orig lines 77,127,134,313,390,581,809,1211,1520,1774,1807). Added: 9 source lines + layout blanks.
+
+## Line counts
+     134 install.sh
+     401 scripts/install/components.sh
+     227 scripts/install/config.sh
+      76 scripts/install/env.sh
+      49 scripts/install/helpers.sh
+     253 scripts/install/integrations.sh
+     308 scripts/install/services.sh
+     178 scripts/install/system-deps.sh
+      32 scripts/install/verify.sh
+     190 scripts/install/workspace.sh
+    1848 total

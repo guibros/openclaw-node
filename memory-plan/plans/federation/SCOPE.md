@@ -120,10 +120,11 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
-```files structural-cleanups
+```files structural-cleanups closed
 .mcp.json
 config/mcp.json.template
 install.sh
+package.json
 bin/openclaw-memory-daemon.mjs
 bin/openclaw-status.mjs
 workspace-bin/memory-daemon.mjs
