@@ -120,6 +120,31 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files structural-cleanups
+.mcp.json
+config/mcp.json.template
+install.sh
+bin/openclaw-memory-daemon.mjs
+workspace-bin/memory-daemon.mjs
+workspace-bin/flush-worker.mjs
+lib/shared-event-stream.mjs
+lib/broadcast-emitter.mjs
+lib/broadcast-offerer.mjs
+lib/broadcast-acceptor.mjs
+lib/federation-startup.mjs
+lib/federation-resilience.mjs
+scripts/install/*
+test/wiring-manifest.test.mjs
+test/shared-stream-startup.test.mjs
+test/shared-event-stream.test.mjs
+test/install-modules.test.mjs
+services/service-manifest.json
+services/launchd/*
+services/systemd/*
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/audits/structural_cleanups/*
+```
+
 ```files lint-gate closed
 .github/workflows/test.yml
 memory-plan/plans/federation/SCOPE.md
