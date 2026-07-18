@@ -120,6 +120,18 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files item2-inject closed
+lib/node-acceptance-probes.mjs
+workspace-bin/memory-daemon.mjs
+workspace-bin/flush-worker.mjs
+workspace-bin/knowledge-index-job.mjs
+test/wiring-manifest.test.mjs
+test/node-watch.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/OUT_OF_SCOPE.md
+memory-plan/plans/federation/audits/inject_hang/*
+```
+
 ```files extraction-stall closed
 lib/llm-client.mjs
 test/llm-client.test.mjs

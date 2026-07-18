@@ -72,6 +72,12 @@ const REQUIRED_PRODUCTION_WIRES = [
   // are locked so neither half can be silently dropped.
   { factory: 'runFlushInWorker',        calledIn: 'workspace-bin/memory-daemon.mjs' },
   { factory: 'runFlush',                calledIn: 'workspace-bin/flush-worker.mjs' },
+  // Knowledge-index moved off the main thread as a CHILD PROCESS (not the flush
+  // worker: onnxruntime-node fatally crashes worker_threads — audits/inject_hang).
+  // The daemon spawns bin/knowledge-index-job.mjs via runSubprocess; the job
+  // calls the real indexer (no call-position anchor exists for a spawned path,
+  // so the job side carries the lock).
+  { factory: 'indexSessionTurns',       calledIn: 'workspace-bin/knowledge-index-job.mjs' },
 ];
 
 /**

@@ -51,7 +51,7 @@ import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 import { exportStateSnapshot } from '../lib/ollama-queue.mjs';
 import { createMemoryWatcher, runStoreHealthProbes, appendWatcherRecord } from '../lib/memory-watcher.mjs';
-import { initDatabase as initKnowledgeDb, indexSessionTurns } from '../lib/mcp-knowledge/core.mjs';
+import { initDatabase as initKnowledgeDb } from '../lib/mcp-knowledge/core.mjs';
 import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
@@ -960,49 +960,34 @@ async function runPhase2ThrottledWork(config, sessionState) {
     stage1.push(
       (async () => {
         try {
-          const knowledgeDb = getKnowledgeDb();
-          if (!knowledgeDb) return;
-          const { openStore } = await import('../lib/sqlite-store.mjs');
           const stateDbPath = path.join(HOME, '.openclaw/state.db');
           if (!fs.existsSync(stateDbPath)) return;
-          // R22 (repair 5.6): no integrity scan on the 10-min indexing path.
-          const stateDb = openStore(stateDbPath, { readonly: true, integrityCheck: false });
+          // Child process, NOT the flush worker and NOT this thread: the
+          // transformers embedder pinned the daemon's microtask queue for
+          // minutes per grown session and deafened :7893, and its
+          // onnxruntime-node native addon fatally crashes the whole process
+          // when loaded in a worker_thread (both observed —
+          // audits/inject_hang).
+          const jobArgs = [
+            path.join(WORKSPACE, 'bin/knowledge-index-job.mjs'),
+            stateDbPath,
+            path.join(HOME, '.openclaw/workspace/.knowledge.db'),
+          ];
+          let out = '';
           try {
-            const allSessions = stateDb.prepare(
-              'SELECT id, source FROM sessions ORDER BY start_time ASC'
-            ).all();
-            let indexed = 0, chunks = 0;
-            const BATCH_LIMIT = 5;
-            for (const session of allSessions) {
-              if (indexed >= BATCH_LIMIT) break;
-              // R18 fix (repair 5.1): existence is not freshness. A session
-              // indexed mid-flight froze at first sighting forever — FTS and
-              // vector search served truncated prefixes of every grown
-              // session. Cheap growth pre-filter via turn_count (= message
-              // count at index time); indexSessionTurns hash-verifies and
-              // delete+reinserts when content actually changed.
-              const existing = knowledgeDb.prepare(
-                'SELECT content_hash, turn_count FROM session_documents WHERE session_id = ?'
-              ).get(session.id);
-              const liveCount = stateDb.prepare(
-                'SELECT COUNT(*) AS n FROM messages WHERE session_id = ?'
-              ).get(session.id).n;
-              if (existing && existing.turn_count === liveCount) continue;
-              const messages = stateDb.prepare(
-                'SELECT role, content FROM messages WHERE session_id = ? ORDER BY turn_index ASC'
-              ).all(session.id);
-              if (messages.length === 0) continue;
-              const turns = messages.map(m => ({ role: m.role, content: m.content }));
-              const result = await indexSessionTurns(knowledgeDb, session.id, `session-store://${session.id}`, turns);
-              if (result.indexed) {
-                indexed++;
-                chunks += result.chunks;
-              }
-            }
-            if (indexed > 0) log(`  Phase 2: knowledge-index: ${indexed} sessions indexed (${chunks} chunks)`);
-          } finally {
-            stateDb.close();
+            const r = await execFileAsync(process.execPath, jobArgs,
+              { timeout: 30 * 60_000, maxBuffer: 4 * 1024 * 1024, cwd: WORKSPACE });
+            out = r.stdout;
+          } catch (e) {
+            // onnxruntime-node aborts in C++ static teardown AFTER the job has
+            // printed its result (dispose() doesn't prevent it — repro'd in
+            // audits/inject_hang). The trailing JSON line is the completion
+            // certificate; the exit code of this job is noise.
+            out = e.stdout || '';
+            if (!out.trim()) throw e;
           }
+          const { indexed, chunks } = JSON.parse(out.trim().split('\n').pop());
+          if (indexed > 0) log(`  Phase 2: knowledge-index: ${indexed} sessions indexed (${chunks} chunks)`);
         } catch (e) { log(`  Phase 2: knowledge-index failed: ${e.message}`); emitErrorEvent('knowledge_index', e); }
       })()
     );
