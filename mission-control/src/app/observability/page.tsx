@@ -113,6 +113,7 @@ export default function ObservabilityPage() {
     const incoming = historyData.events;
     const ids = new Set(incoming.map((e) => e.id));
     eventIdSet.current = ids;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds an append-only live event list from the initial fetch; live SSE appends afterwards
     setEvents(incoming);
   }, [historyData]);
 

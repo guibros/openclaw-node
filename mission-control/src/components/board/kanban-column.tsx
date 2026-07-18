@@ -186,7 +186,7 @@ export function KanbanColumn({
             <TaskCard
               key={task.id}
               task={task}
-              children={childrenMap[task.id] ?? []}
+              childTasks={childrenMap[task.id] ?? []}
               currentColumn={column}
               onClick={() => {
                 if (isExpandedSignet) {

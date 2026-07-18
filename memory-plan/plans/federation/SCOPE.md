@@ -120,6 +120,11 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files lint-gate closed
+.github/workflows/test.yml
+memory-plan/plans/federation/SCOPE.md
+```
+
 ```files security-review-2 closed
 packages/event-schemas/.npmignore
 packages/event-schemas/package.json

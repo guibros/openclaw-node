@@ -28,7 +28,7 @@ export const GET = withTrace("observability", "GET /api/observability/events", a
       const h = parseFloat(hours);
       if (!isNaN(h)) since = String(Date.now() - h * 3600000);
     }
-    const module = url.searchParams.get("module");
+    const moduleFilter = url.searchParams.get("module");
     const node = url.searchParams.get("node");
     const category = url.searchParams.get("category");
     const tier = url.searchParams.get("tier");
@@ -49,9 +49,9 @@ export const GET = withTrace("observability", "GET /api/observability/events", a
       }
     }
 
-    if (module) {
+    if (moduleFilter) {
       conditions.push("module = ?");
-      params.push(module);
+      params.push(moduleFilter);
     }
 
     if (node) {

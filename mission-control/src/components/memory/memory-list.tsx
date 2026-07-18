@@ -70,11 +70,10 @@ export function MemoryList({
   }
 
   // Group by date for chronological display
-  let lastDateGroup = "";
 
   return (
     <div className="space-y-1">
-      {docs.map((doc) => {
+      {docs.map((doc, docIndex) => {
         const style = SOURCE_STYLES[doc.source] ?? SOURCE_STYLES.daily_log;
         const Icon = style.icon;
         const isSelected = doc.filePath === selectedPath;
@@ -97,8 +96,13 @@ export function MemoryList({
           }
         }
 
-        const showDateHeader = dateGroup && dateGroup !== lastDateGroup;
-        if (dateGroup) lastDateGroup = dateGroup;
+        const prev = docIndex > 0 ? docs[docIndex - 1] : undefined;
+        let prevGroup = "";
+        const prevDate = prev?.date ?? prev?.modifiedAt;
+        if (prevDate) {
+          try { prevGroup = format(new Date(prevDate), "MMMM yyyy"); } catch { /* no group */ }
+        }
+        const showDateHeader = dateGroup && dateGroup !== prevGroup;
 
         const fileName = doc.filePath.split("/").pop() ?? "";
 

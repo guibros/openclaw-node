@@ -17,14 +17,11 @@ export default function BurndownPage() {
   const { projects } = useProjects();
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
-  // Auto-select first project
-  useEffect(() => {
-    if (!selectedProject && projects.length > 0) {
-      setSelectedProject(projects[0].id);
-    }
-  }, [projects, selectedProject]);
+  // Derived, not state-synced: falls back to the first project until the user
+  // picks one (avoids a setState-in-effect render cascade).
+  const effectiveProject = selectedProject ?? projects[0]?.id ?? null;
 
-  const { burndown } = useBurndown(selectedProject);
+  const { burndown } = useBurndown(effectiveProject);
 
   const statusEntries = useMemo(() => {
     if (!burndown) return [];
@@ -53,7 +50,7 @@ export default function BurndownPage() {
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-semibold text-foreground">Burndown</h1>
           <select
-            value={selectedProject ?? ""}
+            value={effectiveProject ?? ""}
             onChange={(e) => setSelectedProject(e.target.value || null)}
             className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >

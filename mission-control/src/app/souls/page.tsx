@@ -303,7 +303,6 @@ export default function SoulsPage() {
 
   useEffect(() => {
     if (selectedSoul) {
-      setShowGuide(false);
       fetch(`/api/souls/${selectedSoul}/evolution?status=all`)
         .then((res) => res.json())
         .then((data) => setEvents(data));
@@ -400,7 +399,7 @@ export default function SoulsPage() {
           {souls.map((soul) => (
             <button
               key={soul.id}
-              onClick={() => setSelectedSoul(soul.id)}
+              onClick={() => { setSelectedSoul(soul.id); setShowGuide(false); }}
               className={`w-full text-left p-3 rounded mb-2 transition-colors ${
                 selectedSoul === soul.id
                   ? "bg-accent text-foreground"

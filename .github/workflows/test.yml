@@ -34,5 +34,7 @@ jobs:
         with:
           node-version: 22
       - run: cd mission-control && npm ci
+      - name: Mission Control lint (gate: zero errors — warnings are the visible burn-down list)
+        run: cd mission-control && npx eslint .
       - name: Mission Control unit tests
         run: cd mission-control && npx vitest run src/lib/__tests__/

@@ -464,7 +464,7 @@ export const GET = withTrace("mesh", "GET /api/mesh/nodes", async () => {
 
   // ── Token usage stats (optional table) ─────────────────────────────
   const raw = getRawDb();
-  let tokenStats: Record<
+  const tokenStats: Record<
     string,
     { tasks: number; cost: number; success: number; total: number }
   > = {};

@@ -62,7 +62,7 @@ const COLUMNS_ORDER = ["backlog", "in_progress", "review", "done"];
 
 interface TaskCardProps {
   task: Task;
-  children: Task[];
+  childTasks: Task[];
   currentColumn: string;
   onClick: () => void;
   onTaskClick: (task: Task) => void;
@@ -73,7 +73,7 @@ interface TaskCardProps {
 
 export function TaskCard({
   task,
-  children: subItems,
+  childTasks: subItems,
   currentColumn,
   onClick,
   onTaskClick,

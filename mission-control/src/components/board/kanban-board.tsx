@@ -118,6 +118,11 @@ export function KanbanBoard() {
     return { columns: colMap, childrenMap: cMap };
   }, [filteredTasks]);
 
+  const handleNewTask = () => {
+    setEditTask(null);
+    setDialogOpen(true);
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -238,11 +243,6 @@ export function KanbanBoard() {
       return;
     }
     setEditTask(task);
-    setDialogOpen(true);
-  };
-
-  const handleNewTask = () => {
-    setEditTask(null);
     setDialogOpen(true);
   };
 

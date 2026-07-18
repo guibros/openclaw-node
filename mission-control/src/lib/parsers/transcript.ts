@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import os from "os";
 
 /**
  * Represents a single activity event extracted from the JSONL transcript.
@@ -22,7 +23,7 @@ function toAgentProjectPath(workspacePath: string): string {
   return workspacePath.replace(/\\/g, "/").replace(/:/g, "").replace(/[/.]/g, "-");
 }
 
-const HOME = process.env.HOME || require("os").homedir();
+const HOME = process.env.HOME || os.homedir();
 const WORKSPACE = process.env.WORKSPACE_ROOT || path.join(HOME, ".openclaw/workspace");
 
 /**

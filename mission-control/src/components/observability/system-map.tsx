@@ -32,6 +32,7 @@ const STATUS_DOT: Record<string, string> = {
 function useDaemonActivity(events: TraceEvent[]) {
   return useMemo(() => {
     const map = new Map<string, number>(); // "nodeId:module" -> latest timestamp ms
+    // eslint-disable-next-line react-hooks/purity -- liveness is a snapshot relative to render time; re-derived on every event-stream update
     const now = Date.now();
     for (const ev of events) {
       const key = `${ev.node_id}:${ev.module}`;

@@ -350,7 +350,7 @@ export default function DiagnosticsPage() {
             {!testReport && !testRunning && !testError && (
               <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
                 <Play className="h-8 w-8 opacity-30" />
-                <p className="text-sm">Click "Run All Tests" to start the integration test suite</p>
+                <p className="text-sm">Click &quot;Run All Tests&quot; to start the integration test suite</p>
                 <p className="text-xs text-muted-foreground/60 max-w-md text-center">
                   Tests exercise: status mapping, task CRUD, done-gate enforcement, markdown parser round-trip,
                   DB sync, cowork clusters, memory/graph tables, schema integrity, NATS connectivity, and workspace health.

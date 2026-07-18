@@ -178,9 +178,12 @@ function flattenTree(
 export default function RoadmapPage() {
   const { projects, isLoading: projectsLoading } = useProjects();
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const { tree: treeData } = useProjectTree(selectedProject);
-  const { dependencies } = useProjectDependencies(selectedProject);
-  const { criticalPath } = useCriticalPath(selectedProject);
+  // Derived, not state-synced: falls back to the first project until the user
+  // picks one (avoids a setState-in-effect render cascade).
+  const effectiveProject = selectedProject ?? projects[0]?.id ?? null;
+  const { tree: treeData } = useProjectTree(effectiveProject);
+  const { dependencies } = useProjectDependencies(effectiveProject);
+  const { criticalPath } = useCriticalPath(effectiveProject);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [viewStart, setViewStart] = useState(startOfMonth(new Date()));
@@ -204,13 +207,6 @@ export default function RoadmapPage() {
   const stripDragRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
   const stripWasDragged = useRef(false);
   const resizingRef = useRef<{ startX: number; startWidth: number } | null>(null);
-
-  // Auto-select first project
-  useEffect(() => {
-    if (!selectedProject && projects.length > 0) {
-      setSelectedProject(projects[0].id);
-    }
-  }, [projects, selectedProject]);
 
   // Build tree from flat data
   const treeRoots = useMemo(() => buildTree(treeData), [treeData]);
@@ -308,7 +304,8 @@ export default function RoadmapPage() {
   useEffect(() => {
     if (!ganttSearch.trim()) {
       // Use functional update to avoid new [] reference on every render
-      // (prevents infinite loop when allNodes changes due to SWR revalidation)
+      // (prevents infinite loop when allNodes changes due to SWR revalidation).
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- search state derived from debounced input + SWR data; functional updates keep it stable
       setGanttSearchResults((prev) => (prev.length === 0 ? prev : []));
       setGanttSearchOpen(false);
       return;
@@ -837,7 +834,7 @@ export default function RoadmapPage() {
 
           {/* Project selector */}
           <select
-            value={selectedProject ?? ""}
+            value={effectiveProject ?? ""}
             onChange={(e) => setSelectedProject(e.target.value || null)}
             className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
@@ -1621,6 +1618,7 @@ function GanttBar({ id, left, width, color, label, type, status, onDragEnd, onDo
 
   useEffect(() => {
     if (!dragging) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- controlled-while-idle drag geometry: external left/width win only when not dragging
       setCurrentLeft(left);
       setCurrentWidth(width);
     }
