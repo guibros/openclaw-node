@@ -23,6 +23,7 @@
     "cron-parser": "^5.5.0",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.1",
+    "geist": "^1.7.2",
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.575.0",
     "nats": "^2.29.3",
