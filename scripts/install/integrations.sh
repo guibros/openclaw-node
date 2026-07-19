@@ -170,12 +170,12 @@ step "Step 20: Claude Code Integration"
 
 # Create .claude directory structure (in workspace root)
 CLAUDE_DIR="${WORKSPACE}/.claude"
-mkdir -p "${CLAUDE_DIR}/hooks"
+run mkdir -p "${CLAUDE_DIR}/hooks"
 
 # Symlink rules directory
 RULES_LINK="${CLAUDE_DIR}/rules"
 if [ ! -L "$RULES_LINK" ] && [ ! -d "$RULES_LINK" ]; then
-  ln -s "${RULES_DIR}" "$RULES_LINK"
+  run ln -s "${RULES_DIR}" "$RULES_LINK"
   info "Symlinked .claude/rules → ${RULES_DIR}"
 fi
 
@@ -185,8 +185,10 @@ SETTINGS_DST="${CLAUDE_DIR}/settings.json"
 if [ -f "$SETTINGS_SRC" ]; then
   if [ ! -f "$SETTINGS_DST" ]; then
     # Fresh install — copy wholesale
-    cp "$SETTINGS_SRC" "$SETTINGS_DST"
+    run cp "$SETTINGS_SRC" "$SETTINGS_DST"
     info "Deployed Claude Code settings.json"
+  elif $DRY_RUN; then
+    echo "  [dry-run] jq-merge OpenClaw hooks into $SETTINGS_DST"
   elif command -v jq &>/dev/null; then
     # Existing settings — merge hooks only, preserve user permissions
     # Strategy: for each hook lifecycle key (SessionStart, PreToolUse, etc.),
@@ -220,7 +222,7 @@ if [ -f "$SETTINGS_SRC" ]; then
     info "Merged OpenClaw hooks into existing settings.json (permissions preserved)"
   else
     # No jq — can't safely merge. Dump patch file for manual merge.
-    cp "$SETTINGS_SRC" "${SETTINGS_DST}.openclaw-hooks"
+    run cp "$SETTINGS_SRC" "${SETTINGS_DST}.openclaw-hooks"
     warn "jq not found — hooks config saved to settings.json.openclaw-hooks for manual merge"
   fi
 fi
@@ -230,8 +232,8 @@ for hook in session-start validate-commit validate-push pre-compact session-stop
   HOOK_SRC="${REPO_DIR}/.claude/hooks/${hook}.sh"
   HOOK_DST="${CLAUDE_DIR}/hooks/${hook}.sh"
   if [ -f "$HOOK_SRC" ]; then
-    cp "$HOOK_SRC" "$HOOK_DST"
-    chmod +x "$HOOK_DST"
+    run cp "$HOOK_SRC" "$HOOK_DST"
+    run chmod +x "$HOOK_DST"
   fi
 done
 info "Deployed Claude Code hooks"

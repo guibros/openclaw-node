@@ -210,11 +210,11 @@ HARNESS_DST="${OPENCLAW_ROOT}/harness-rules.json"
 if [ -f "$HARNESS_SRC" ]; then
   if [ ! -f "$HARNESS_DST" ]; then
     info "Deploying default harness rules to $HARNESS_DST"
-    mkdir -p "$(dirname "$HARNESS_DST")"
-    cp "$HARNESS_SRC" "$HARNESS_DST"
+    run mkdir -p "$(dirname "$HARNESS_DST")"
+    run cp "$HARNESS_SRC" "$HARNESS_DST"
   else
     info "Syncing harness rules (smart merge — user edits preserved)..."
-    node "${REPO_DIR}/bin/harness-sync.js" apply
+    run node "${REPO_DIR}/bin/harness-sync.js" apply
   fi
 fi
 
@@ -390,8 +390,10 @@ fi
 step "Step 15.5: HyperAgent Protocol"
 
 if [ -f "$MESH_BIN/hyperagent.mjs" ]; then
-  mkdir -p "$OPENCLAW_ROOT/state"
-  if node "$MESH_BIN/hyperagent.mjs" status 2>/dev/null; then
+  run mkdir -p "$OPENCLAW_ROOT/state"
+  if $DRY_RUN; then
+    echo "  [dry-run] node $MESH_BIN/hyperagent.mjs status (initializes the store)"
+  elif node "$MESH_BIN/hyperagent.mjs" status 2>/dev/null; then
     info "HyperAgent store initialized"
   else
     warn "HyperAgent init deferred (will init on first use)"

@@ -260,7 +260,9 @@ elif [ "$OS" = "macos" ]; then
   fi
   # Branded sender bundle: the banner's LEFT icon is the sending app's icon, so
   # ship our own (claw-badged) copy — lib/notify.mjs prefers it when present.
-  if bash "$REPO_DIR/services/notify-icons/build-notifier-app.sh" >/dev/null 2>&1; then
+  if $DRY_RUN; then
+    echo "  [dry-run] bash $REPO_DIR/services/notify-icons/build-notifier-app.sh"
+  elif bash "$REPO_DIR/services/notify-icons/build-notifier-app.sh" >/dev/null 2>&1; then
     info "OpenClaw notifier bundle built → ~/.openclaw/share/OpenClawNotifier.app (branded banner icon)"
   else
     warn "Branded notifier bundle not built (terminal-notifier missing?) — stock icon will show"
@@ -288,7 +290,9 @@ info "Ledger (every event, clicked or not): ~/.openclaw/notifications/ledger.jso
 if $SANDBOX; then
   : # sandbox — no launcher build
 elif [ "$OS" = "macos" ]; then
-  if bash "$REPO_DIR/services/launcher/build-launcher-app.sh" >/dev/null 2>&1; then
+  if $DRY_RUN; then
+    echo "  [dry-run] bash $REPO_DIR/services/launcher/build-launcher-app.sh"
+  elif bash "$REPO_DIR/services/launcher/build-launcher-app.sh" >/dev/null 2>&1; then
     info "Stack launcher built → ~/Applications/OpenClaw Stack.app (double-click or Dock it)"
   else
     warn "Stack launcher app not built — start manually: node $REPO_DIR/bin/openclaw-stack.mjs up"
