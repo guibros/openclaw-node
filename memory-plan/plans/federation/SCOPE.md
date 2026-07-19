@@ -120,6 +120,13 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files item4-ci-gates closed
+.github/workflows/test.yml
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/OUT_OF_SCOPE.md
+memory-plan/plans/federation/audits/ci_gates/*
+```
+
 ```files item3-mc-auth closed
 memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/OUT_OF_SCOPE.md

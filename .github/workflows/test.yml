@@ -25,6 +25,15 @@ jobs:
         env:
           OPENCLAW_NO_EMBED_MODEL: "1"
         run: npm test
+      - name: Root dependency audit — high severity gate
+        run: npm audit --audit-level=high
+      - name: Packed-tarball smoke — the two past packaging escapes stay caught
+        if: matrix.node-version == 22
+        run: |
+          npm pack --dry-run 2>&1 | tee /tmp/pack.txt
+          grep -q " install.sh" /tmp/pack.txt
+          test "$(grep -c " scripts/install/.*\.sh" /tmp/pack.txt)" = "9"
+          grep -q " packages/event-schemas/dist/" /tmp/pack.txt
 
   mission-control-tests:
     runs-on: ubuntu-latest
@@ -38,3 +47,7 @@ jobs:
         run: cd mission-control && npx eslint .
       - name: Mission Control unit tests
         run: cd mission-control && npx vitest run src/lib/__tests__/
+      - name: Mission Control dependency audit — high severity gate
+        run: cd mission-control && npm audit --audit-level=high
+      - name: Mission Control production build gate
+        run: cd mission-control && npm run build
