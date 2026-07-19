@@ -120,6 +120,16 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files item5-small-batch
+test/embed-benchmark.test.mjs
+scripts/install/*
+install.sh
+test/install-modules.test.mjs
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/OUT_OF_SCOPE.md
+memory-plan/plans/federation/audits/item5_small_batch/*
+```
+
 ```files item4-ci-gates closed
 .github/workflows/test.yml
 memory-plan/plans/federation/SCOPE.md

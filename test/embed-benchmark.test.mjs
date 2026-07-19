@@ -16,6 +16,7 @@ const EMBED_SKIP = await embedderSkipReason();
 embedderCensus(test, EMBED_SKIP, 'embed-benchmark');
 
 import assert from 'node:assert/strict';
+import os from 'node:os';
 
 import {
   embed,
@@ -84,7 +85,16 @@ describe('embedding model identity', { skip: EMBED_SKIP }, () => {
   });
 });
 
-describe('embedding latency benchmark', { skip: EMBED_SKIP }, () => {
+// A latency benchmark on a saturated box measures the load, not the model —
+// observed 1334ms (load 18) and 53s (load 32, live embed job running) against
+// an idle-box reality of ~200-400ms. Skip VISIBLY above 1.5×cores so the
+// regression signal only fires where it means something.
+const perCoreLoad = os.loadavg()[0] / os.cpus().length;
+const LOAD_SKIP = perCoreLoad > 1.5
+  ? `box saturated (load ${os.loadavg()[0].toFixed(1)} on ${os.cpus().length} cores) — latency numbers meaningless`
+  : false;
+
+describe('embedding latency benchmark', { skip: EMBED_SKIP || LOAD_SKIP }, () => {
   before(async () => {
     // Warm up the model (first call loads ONNX weights from cache)
     await getEmbedder();
