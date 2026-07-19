@@ -120,6 +120,12 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files item3-mc-auth closed
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/OUT_OF_SCOPE.md
+memory-plan/plans/federation/audits/mc_auth/*
+```
+
 ```files item2-inject closed
 lib/node-acceptance-probes.mjs
 workspace-bin/memory-daemon.mjs
