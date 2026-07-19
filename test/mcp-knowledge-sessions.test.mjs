@@ -120,6 +120,56 @@ describe('indexSessionTurns + searchSessions', { skip: EMBED_SKIP }, () => {
     assert.strictEqual(result.chunks, 0);
   });
 
+  it('appended turns index incrementally — earlier rows byte-untouched', async () => {
+    const before = db.prepare(
+      'SELECT id, turn_index, text FROM session_chunks WHERE session_id = ? ORDER BY id'
+    ).all('test-session-001');
+
+    const APPENDED = [
+      ...SYNTHETIC_TURNS,
+      { role: 'user', content: 'One more question: how does the grappe registry verify join tokens?' },
+      { role: 'assistant', content: 'Join tokens are ed25519-signed by the grappe founder key; the registry verifies the signature and membership window before admitting the node to GRAPPE_REGISTRY.' },
+    ];
+    const result = await indexSessionTurns(db, 'test-session-001', '/fake/path.jsonl', APPENDED);
+    assert.strictEqual(result.indexed, true);
+    assert.strictEqual(result.mode, 'incremental', 'pure append takes the incremental path');
+    assert.strictEqual(result.chunks, 2, 'only the two new turns embedded');
+
+    const after = db.prepare(
+      'SELECT id, turn_index, text FROM session_chunks WHERE session_id = ? ORDER BY id'
+    ).all('test-session-001');
+    assert.deepStrictEqual(after.slice(0, before.length), before, 'pre-existing chunk rows identical (same rowids, same text)');
+    assert.strictEqual(after.length, before.length + 2);
+    assert.strictEqual(after[after.length - 1].turn_index, APPENDED.length - 1, 'new chunks carry absolute turn_index');
+
+    const doc = db.prepare('SELECT turn_count FROM session_documents WHERE session_id = ?').get('test-session-001');
+    assert.strictEqual(doc.turn_count, APPENDED.length);
+
+    const found = await searchSessions(db, 'grappe join token signature verification', 5);
+    assert.ok(found.some(r => r.session_id === 'test-session-001' && r.turn_index >= SYNTHETIC_TURNS.length), 'new content searchable');
+    const old = await searchSessions(db, 'NATS JetStream configuration', 5);
+    assert.ok(old.some(r => r.session_id === 'test-session-001'), 'old content still searchable');
+  });
+
+  it('mutated history falls back to a full rebuild', async () => {
+    const current = db.prepare('SELECT turn_count FROM session_documents WHERE session_id = ?').get('test-session-001');
+    const MUTATED = [
+      { role: 'user', content: 'REWRITTEN first turn — the prefix hash can no longer match.' },
+      ...SYNTHETIC_TURNS.slice(1),
+      { role: 'user', content: 'plus growth beyond the stored turn_count so only the prefix check can reject it' },
+      { role: 'assistant', content: 'padding turn' },
+      { role: 'user', content: 'padding turn two' },
+    ];
+    assert.ok(MUTATED.length > current.turn_count, 'grew past stored turn_count so the append guard is what rejects it');
+    const result = await indexSessionTurns(db, 'test-session-001', '/fake/path.jsonl', MUTATED);
+    assert.strictEqual(result.indexed, true);
+    assert.strictEqual(result.mode, 'full', 'prefix mismatch forces full rebuild');
+    const chunkCount = db.prepare('SELECT COUNT(*) as c FROM session_chunks WHERE session_id = ?').get('test-session-001').c;
+    const vecCount = db.prepare('SELECT COUNT(*) as c FROM session_chunk_vectors').get().c;
+    assert.strictEqual(chunkCount, result.chunks, 'chunk rows match the rebuild');
+    assert.strictEqual(vecCount, chunkCount, 'no orphaned vectors after rebuild');
+  });
+
   it('finds relevant session turns via searchSessions', async () => {
     const results = await searchSessions(db, 'NATS JetStream configuration', 5);
     assert.ok(results.length > 0, 'search returns results');
