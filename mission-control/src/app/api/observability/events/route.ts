@@ -39,7 +39,7 @@ export const GET = withTrace("observability", "GET /api/observability/events", a
     const db = getRawDb();
 
     const conditions: string[] = [];
-    const params: any[] = [];
+    const params: Array<string | number> = [];
 
     if (since) {
       const sinceTs = parseInt(since, 10);

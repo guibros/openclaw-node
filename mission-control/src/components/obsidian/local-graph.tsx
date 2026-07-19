@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
+import type { NodeObject } from "react-force-graph-2d";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
@@ -15,8 +16,11 @@ const SOURCE_COLORS: Record<string, string> = {
   unknown: "#6b7280",
 };
 
+type LocalGraphNode = { id: string; title: string; source: string };
+type LocalGraphLink = { source: string; target: string };
+
 interface LocalGraphProps {
-  graph: { nodes: any[]; links: any[] };
+  graph: { nodes: LocalGraphNode[]; links: LocalGraphLink[] };
   selectedNode: string;
   onNodeClick: (filePath: string) => void;
 }
@@ -45,7 +49,7 @@ export function LocalGraph({
   }, []);
 
   const paintNode = useCallback(
-    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    (node: NodeObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const isCenter = node.id === selectedNode;
       const size = isCenter ? 5 : 3;
       const color = isCenter
@@ -53,7 +57,7 @@ export function LocalGraph({
         : SOURCE_COLORS[node.source] || "#6b7280";
 
       ctx.beginPath();
-      ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
+      ctx.arc(node.x!, node.y!, size, 0, 2 * Math.PI);
       ctx.fillStyle = color;
       ctx.fill();
 
@@ -65,15 +69,15 @@ export function LocalGraph({
         node.title?.length > 20
           ? node.title.slice(0, 18) + "..."
           : node.title || "";
-      ctx.fillText(label, node.x, node.y + size + 6 / globalScale);
+      ctx.fillText(label, node.x!, node.y! + size + 6 / globalScale);
     },
     [selectedNode]
   );
 
   const pointerAreaPaint = useCallback(
-    (node: any, color: string, ctx: CanvasRenderingContext2D) => {
+    (node: NodeObject, color: string, ctx: CanvasRenderingContext2D) => {
       ctx.beginPath();
-      ctx.arc(node.x, node.y, 8, 0, 2 * Math.PI);
+      ctx.arc(node.x!, node.y!, 8, 0, 2 * Math.PI);
       ctx.fillStyle = color;
       ctx.fill();
     },
@@ -95,7 +99,7 @@ export function LocalGraph({
           nodePointerAreaPaint={pointerAreaPaint}
           linkColor={() => "rgba(113, 113, 122, 0.25)"}
           linkWidth={0.5}
-          onNodeClick={(node: any) => onNodeClick(node.id)}
+          onNodeClick={(node: NodeObject) => onNodeClick(node.id as string)}
           backgroundColor="#09090b"
           cooldownTicks={50}
           enableZoomInteraction={false}

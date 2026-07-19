@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "./db";
-import { observabilityEvents } from "./db/schema";
+import { observabilityEvents, type NewObservabilityEvent } from "./db/schema";
 import { getNats, sc } from "./nats";
 import { NODE_ID } from "./config";
 
@@ -37,10 +37,10 @@ async function summarizeBody(request: NextRequest): Promise<string> {
 export function withTrace(
   module: string,
   method: string,
-  handler: (request: NextRequest, context?: any) => Promise<NextResponse>,
+  handler: (request: NextRequest, context?: unknown) => Promise<NextResponse>,
   opts: { tier?: number; category?: string } = {}
 ) {
-  return async (request: NextRequest, context?: any): Promise<NextResponse> => {
+  return async (request: NextRequest, context?: unknown): Promise<NextResponse> => {
     const start = Date.now();
     const url = request.nextUrl;
     const params = summarizeParams(url);
@@ -56,7 +56,7 @@ export function withTrace(
     if (params) argsParts.push(params);
     if (bodySummary) argsParts.push(bodySummary);
 
-    const event = {
+    const event: NewObservabilityEvent = {
       id: crypto.randomUUID(),
       timestamp: start,
       nodeId: NODE_ID,
@@ -85,9 +85,9 @@ export function withTrace(
         console.log(`[${module}] ${result.status} ${event.durationMs}ms ${request.method} /${pathSegment}`);
       }
       return result;
-    } catch (err: any) {
+    } catch (err) {
       event.durationMs = Date.now() - start;
-      event.error = err?.message || String(err);
+      event.error = (err as { message?: string } | null)?.message || String(err);
       event.category = "error";
       insertEvent(event);
       publishEvent(event);
@@ -97,7 +97,7 @@ export function withTrace(
 }
 
 /** Insert trace event into SQLite */
-function insertEvent(event: any) {
+function insertEvent(event: NewObservabilityEvent) {
   try {
     const db = getDb();
     db.insert(observabilityEvents).values(event).run();
@@ -107,7 +107,7 @@ function insertEvent(event: any) {
 }
 
 /** Publish trace event to NATS */
-async function publishEvent(event: any) {
+async function publishEvent(event: NewObservabilityEvent) {
   try {
     const nats = await getNats();
     if (nats) {
@@ -124,10 +124,10 @@ export function traceCall(
   module: string,
   fn: string,
   start: number,
-  result?: any,
-  error?: any
+  result?: unknown,
+  error?: unknown
 ) {
-  const event = {
+  const event: NewObservabilityEvent = {
     id: crypto.randomUUID(),
     timestamp: start,
     nodeId: NODE_ID,
@@ -146,7 +146,7 @@ export function traceCall(
 }
 
 /** Batch insert events (for NATS ingestion) */
-export function batchInsertEvents(events: any[]) {
+export function batchInsertEvents(events: NewObservabilityEvent[]) {
   try {
     const db = getDb();
     for (const e of events) {

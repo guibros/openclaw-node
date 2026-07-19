@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import type { KV } from "nats";
 import { getHealthKv, sc } from "@/lib/nats";
 import { getDb, getRawDb } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
@@ -20,6 +21,17 @@ interface TailscalePeer {
   online: boolean;
   latencyMs: number | null;
   relay: boolean;
+}
+
+// Shape of a peer entry in `tailscale status --json` output
+interface TailscaleStatusPeer {
+  HostName?: string;
+  TailscaleIPs?: string[];
+  Online?: boolean;
+  OS?: string;
+  LastSeen?: string;
+  CurAddr?: string;
+  Relay?: string;
 }
 
 interface NodeHealth {
@@ -131,7 +143,7 @@ function normalizeNodeId(id: string): string {
 const localNormalized = normalizeNodeId(NODE_ID);
 
 /** Discover all node IDs from available sources */
-async function discoverNodes(kv: any): Promise<string[]> {
+async function discoverNodes(kv: KV | null): Promise<string[]> {
   const discovered = new Set<string>();
 
   // Source 1: NATS KV keys — most authoritative
@@ -155,7 +167,7 @@ async function discoverNodes(kv: any): Promise<string[]> {
       if (status.Self?.HostName) discovered.add(status.Self.HostName);
       // Add peers
       if (status.Peer) {
-        for (const peer of Object.values(status.Peer) as any[]) {
+        for (const peer of Object.values(status.Peer) as TailscaleStatusPeer[]) {
           if (peer.HostName) discovered.add(peer.HostName);
         }
       }
@@ -225,16 +237,35 @@ function gatherLocalHealth(): NodeHealth {
     if (match) diskPercent = parseInt(match[1], 10);
   } catch (err) { console.warn(`[mesh/nodes] disk usage check failed: ${(err as Error).message}`); }
 
+  interface LocalTailscalePeer {
+    hostname: string;
+    ip: string;
+    online: boolean;
+    os: string;
+    lastSeen: string | null;
+    direct: boolean;
+    relay: string | null;
+    latency: null;
+  }
+
   let tailscaleIp = "unknown";
-  let tailscaleData: any = null;
+  let tailscaleData: {
+    peers: LocalTailscalePeer[];
+    selfIp: string;
+    natType: string;
+    dnsName: string;
+  } | null = null;
   try {
     tailscaleIp = execSafe("tailscale ip -4") || "unknown";
     const raw = execSafe("tailscale status --json");
     if (raw) {
       const status = JSON.parse(raw);
-      const peers: any[] = [];
+      const peers: LocalTailscalePeer[] = [];
       if (status.Peer) {
-        for (const [, peer] of Object.entries(status.Peer) as [string, any][]) {
+        for (const [, peer] of Object.entries(status.Peer) as [
+          string,
+          TailscaleStatusPeer,
+        ][]) {
           const peerIp = (peer.TailscaleIPs || []).find((ip: string) => !ip.includes(":")) || "";
           peers.push({
             hostname: peer.HostName || "unknown",
@@ -309,7 +340,7 @@ function gatherLocalHealth(): NodeHealth {
         }
       } catch (err) { console.warn(`[mesh/nodes] agent-state.json read failed: ${(err as Error).message}`); }
       // No runtime state — derive from config + service status
-      const agentSvc = services.find((s: any) => s.name.includes("agent") && !s.name.includes("audit"));
+      const agentSvc = services.find((s) => s.name.includes("agent") && !s.name.includes("audit"));
       // Read configured agent name and LLM from env/defaults
       const agentName = process.env.OPENCLAW_AGENT_NAME || "Daedalus";
       const llmProvider = process.env.LLM_PROVIDER || "anthropic";
@@ -327,7 +358,9 @@ function gatherLocalHealth(): NodeHealth {
     nats: { serverUrl: natsUrl, connected: false, serverVersion: "unknown", isHost: false },
     deployVersion: execSafe("cd ~/openclaw && git rev-parse --short HEAD 2>/dev/null") || "unknown",
     reportedAt: new Date().toISOString(),
-  } as any;
+    // Local fallback blob drifts from the mesh NodeHealth contract
+    // (peer field names, extra dnsName/agent.name) — cast, don't reshape.
+  } as unknown as NodeHealth;
 }
 
 // ── Route Handler ────────────────────────────────────────────────────────

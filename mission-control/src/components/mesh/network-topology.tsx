@@ -1,6 +1,6 @@
 "use client";
 
-import { Wifi, Database, Globe, Clock, AlertTriangle, CheckCircle2, XCircle, Info } from "lucide-react";
+import { Wifi, Database, Globe, AlertTriangle, CheckCircle2, XCircle, Info } from "lucide-react";
 import { useState } from "react";
 
 function InfoBubble({ text }: { text: string }) {
@@ -23,17 +23,11 @@ function InfoBubble({ text }: { text: string }) {
     </span>
   );
 }
-import type { MeshNode } from "./types";
+import type { MeshNode, MeshStatus, PeerView } from "./types";
 
 interface Props {
   nodes: MeshNode[];
-  meshStatus?: {
-    natsConnected: boolean;
-    natsUrl: string;
-    localNodeId: string;
-    nodesOnline: number;
-    nodesTotal: number;
-  };
+  meshStatus?: MeshStatus;
 }
 
 function formatLastSeen(ts: string | null | undefined): string {
@@ -77,9 +71,9 @@ export function NetworkTopology({ nodes, meshStatus }: Props) {
 
   // ── Tailscale state ──
   const localNode = nodes.find((n) => n.health !== null);
-  const allPeers = localNode?.tailscale?.peers || [];
-  const onlinePeers = allPeers.filter((p: any) => p.online);
-  const offlinePeers = allPeers.filter((p: any) => !p.online);
+  const allPeers: PeerView[] = localNode?.tailscale?.peers || [];
+  const onlinePeers = allPeers.filter((p) => p.online);
+  const offlinePeers = allPeers.filter((p) => !p.online);
   const localIp = localNode?.tailscale?.selfIp || localNode?.health?.tailscaleIp || null;
   const natType = localNode?.tailscale?.natType || null;
 
@@ -121,8 +115,8 @@ export function NetworkTopology({ nodes, meshStatus }: Props) {
       {/* ── Infrastructure Identity ── */}
       {(() => {
         const svcList = localNode?.health?.services || [];
-        const svcUp = svcList.filter((s: any) => s.status === "active").length;
-        const svcDown = svcList.filter((s: any) => s.status === "error" || s.status === "down").length;
+        const svcUp = svcList.filter((s) => s.status === "active").length;
+        const svcDown = svcList.filter((s) => s.status === "error" || s.status === "down").length;
         const agentStatus = localNode?.health?.agent?.status || "unknown";
         const localPlatform = localNode?.health?.platform || "unknown";
         const localRole = localNode?.health?.role || "unknown";
@@ -360,7 +354,7 @@ export function NetworkTopology({ nodes, meshStatus }: Props) {
           {/* Peer details */}
           {allPeers.length > 0 && (
             <div className="mt-1 space-y-1.5 border-t border-border/30 pt-2">
-              {allPeers.map((peer: any, i: number) => (
+              {allPeers.map((peer, i) => (
                 <div
                   key={peer.hostname || i}
                   className="flex items-start gap-2 text-[9px] leading-tight"
@@ -388,7 +382,7 @@ export function NetworkTopology({ nodes, meshStatus }: Props) {
                           )}
                           {(peer.latency?.latencyMs ?? peer.latencyMs) != null && (
                             <span className="font-mono ml-2">
-                              {Math.round(peer.latency?.latencyMs ?? peer.latencyMs)}ms RTT
+                              {Math.round(peer.latency?.latencyMs ?? peer.latencyMs ?? 0)}ms RTT
                             </span>
                           )}
                         </>

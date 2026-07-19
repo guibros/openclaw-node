@@ -64,7 +64,7 @@ function getDurationColor(ms: number): string {
   return "text-muted-foreground/50";
 }
 
-function EventRow({ event, mode }: { event: TraceEvent; mode: "dev" | "smart" }) {
+function EventRow({ event, mode: _mode }: { event: TraceEvent; mode: "dev" | "smart" }) {
   const [expanded, setExpanded] = useState(false);
   const rowColor = getRowColor(event);
 

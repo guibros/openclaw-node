@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import {
-  dispatchCollabTask,
-  useClusters,
-  type ClusterView,
-} from "@/lib/hooks";
+import { dispatchCollabTask, useClusters } from "@/lib/hooks";
 import { RolePicker, RoleBadge } from "./role-picker";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());

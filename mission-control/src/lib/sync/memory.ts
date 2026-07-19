@@ -42,7 +42,8 @@ export function indexAllMemory(db: DrizzleDb): SyncStats {
         content: entry.content,
         modifiedAt: entry.modifiedAt,
       });
-      isUpdate ? stats.updated++ : stats.indexed++;
+      if (isUpdate) stats.updated++;
+      else stats.indexed++;
     }
   } catch {
     // daily logs directory may not exist yet
@@ -64,7 +65,8 @@ export function indexAllMemory(db: DrizzleDb): SyncStats {
           content: mem.fullContent,
           modifiedAt: mem.modifiedAt,
         });
-        isUpdate ? stats.updated++ : stats.indexed++;
+        if (isUpdate) stats.updated++;
+        else stats.indexed++;
       }
     }
   } catch {
@@ -90,7 +92,8 @@ export function indexAllMemory(db: DrizzleDb): SyncStats {
           content: doc.content,
           modifiedAt: doc.modifiedAt,
         });
-        isUpdate ? stats.updated++ : stats.indexed++;
+        if (isUpdate) stats.updated++;
+        else stats.indexed++;
       }
     }
   } catch {
@@ -128,7 +131,8 @@ export function indexAllMemory(db: DrizzleDb): SyncStats {
           content,
           modifiedAt: stat.mtime.toISOString(),
         });
-        isUpdate ? stats.updated++ : stats.indexed++;
+        if (isUpdate) stats.updated++;
+        else stats.indexed++;
       }
     } catch {
       // lore directory may not exist

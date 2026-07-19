@@ -48,12 +48,6 @@ function isMetaTask(task: Task): boolean {
   return task.type === "project" || task.type === "pipeline" || task.type === "phase";
 }
 
-const META_TYPE_LABELS: Record<string, string> = {
-  project: "PRJ",
-  pipeline: "PIPE",
-  phase: "PH",
-};
-
 type ViewMode = "month" | "week" | "day";
 
 const VIEW_LABELS: Record<ViewMode, string> = {

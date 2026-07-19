@@ -12,18 +12,28 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-export function encode(obj: any): Uint8Array {
+export interface MockKvWatchEntry {
+  key: string;
+  value: Uint8Array | null;
+  revision: number;
+  operation: "PUT" | "DEL";
+}
+
+export function encode(obj: unknown): Uint8Array {
   return encoder.encode(JSON.stringify(obj));
 }
 
-export function decode(buf: Uint8Array): any {
+export function decode(buf: Uint8Array): unknown {
   return JSON.parse(decoder.decode(buf));
 }
 
 export class MockKV {
   store = new Map<string, { value: Uint8Array; revision: number }>();
   private rev = 0;
-  watchers: Array<{ callback: (entry: any) => void; stopped: boolean }> = [];
+  watchers: Array<{
+    callback: (entry: MockKvWatchEntry) => void;
+    stopped: boolean;
+  }> = [];
 
   async put(key: string, value: Uint8Array) {
     this.rev++;
@@ -85,13 +95,15 @@ export class MockKV {
     };
   }
 
-  async watch(_opts?: any) {
-    const entries: any[] = [];
-    let resolveNext: ((v: any) => void) | null = null;
+  async watch(_opts?: unknown) {
+    const entries: MockKvWatchEntry[] = [];
+    let resolveNext:
+      | ((v: IteratorResult<MockKvWatchEntry | undefined>) => void)
+      | null = null;
     let stopped = false;
 
     const watcher = {
-      callback: (entry: any) => {
+      callback: (entry: MockKvWatchEntry) => {
         if (resolveNext) {
           const r = resolveNext;
           resolveNext = null;
@@ -113,9 +125,11 @@ export class MockKV {
             if (entries.length > 0) {
               return Promise.resolve({ value: entries.shift(), done: false });
             }
-            return new Promise((resolve) => {
-              resolveNext = resolve;
-            });
+            return new Promise<IteratorResult<MockKvWatchEntry | undefined>>(
+              (resolve) => {
+                resolveNext = resolve;
+              }
+            );
           },
         };
       },

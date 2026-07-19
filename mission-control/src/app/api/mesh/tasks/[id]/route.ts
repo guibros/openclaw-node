@@ -72,7 +72,7 @@ export async function PATCH(
   // CAS write
   try {
     await kv.update(id, sc.encode(JSON.stringify(updated)), revision);
-  } catch (err: any) {
+  } catch {
     // Revision mismatch — return current state so client can retry
     const freshEntry = await kv.get(id);
     const freshTask = freshEntry?.value

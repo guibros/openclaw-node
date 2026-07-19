@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCollabKv, sc } from "@/lib/nats";
+import type { CollabSession } from "@/lib/hooks";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
   const statusParam = request.nextUrl.searchParams.get("status");
   const statusFilter = statusParam ? new Set(statusParam.split(",")) : null;
 
-  const sessions: unknown[] = [];
+  const sessions: CollabSession[] = [];
   try {
     const keys: string[] = [];
     const keyIter = await kv.keys();
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
     aborted: 4,
   };
 
-  sessions.sort((a: any, b: any) => {
+  sessions.sort((a, b) => {
     const aOrder = statusOrder[a.status] ?? 5;
     const bOrder = statusOrder[b.status] ?? 5;
     if (aOrder !== bOrder) return aOrder - bOrder;

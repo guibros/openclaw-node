@@ -31,7 +31,7 @@ async function loadRegistry(): Promise<SoulRegistry> {
   try {
     const content = await fs.readFile(REGISTRY_PATH, "utf-8");
     return JSON.parse(content);
-  } catch (error) {
+  } catch {
     // If registry doesn't exist, return empty registry
     return { version: "1.0.0", souls: [] };
   }

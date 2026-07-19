@@ -67,6 +67,29 @@ export interface MeshNode {
   peerConnectivity: "all_direct" | "some_relay" | "degraded" | "unknown";
 }
 
+// Peers arrive in two shapes: the KV-published TailscalePeer contract
+// (nodeId/latencyMs) and the local-fallback blob from /api/mesh/nodes
+// (hostname/os/lastSeen). This view type covers both.
+export interface PeerView {
+  online?: boolean;
+  hostname?: string;
+  ip?: string;
+  os?: string;
+  direct?: boolean;
+  relay?: boolean | string | null;
+  latency?: { latencyMs?: number } | null;
+  latencyMs?: number | null;
+  lastSeen?: string | null;
+}
+
+export interface MeshStatus {
+  natsConnected: boolean;
+  natsUrl: string;
+  localNodeId: string;
+  nodesOnline: number;
+  nodesTotal: number;
+}
+
 export interface MeshEvent {
   event: string;
   task_id: string;

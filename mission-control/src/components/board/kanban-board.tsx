@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { KanbanColumn } from "./kanban-column";
 import { UnifiedTaskDialog } from "./unified-task-dialog";
 import { useTasks, updateTask, type Task } from "@/lib/hooks";
-import { Plus, Search, X, CheckSquare, ArrowRight } from "lucide-react";
+import { Plus, Search, X, CheckSquare } from "lucide-react";
 
 const COLUMNS = ["backlog", "in_progress", "review", "done"] as const;
 const NUM_COLS = COLUMNS.length;
@@ -59,7 +59,7 @@ export function KanbanBoard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkSelection, setBulkSelection] = useState<Set<string>>(new Set());
-  const [bulkAction, setBulkAction] = useState<string | null>(null);
+  const [_bulkAction, setBulkAction] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   // Column widths as flex-basis percentages (default: equal)
   const [colWidths, setColWidths] = useState<number[]>(
@@ -172,14 +172,6 @@ export function KanbanBoard() {
   const handleBulkMove = async (targetColumn: string) => {
     for (const id of bulkSelection) {
       await updateTask(id, { kanbanColumn: targetColumn });
-    }
-    setBulkSelection(new Set());
-    setBulkAction(null);
-  };
-
-  const handleBulkStatus = async (status: string) => {
-    for (const id of bulkSelection) {
-      await updateTask(id, { status } as Record<string, unknown>);
     }
     setBulkSelection(new Set());
     setBulkAction(null);

@@ -1,5 +1,6 @@
 import { getTasksKv, sc } from "@/lib/nats";
 import { NODE_ID, NODE_ROLE } from "@/lib/config";
+import type { MeshTaskEntry } from "@/lib/sync/mesh-kv";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET() {
     return Response.json({ tasks: [], natsAvailable: false });
   }
 
-  const tasks: any[] = [];
+  const tasks: MeshTaskEntry[] = [];
   const keys = await kv.keys();
   for await (const key of keys) {
     const entry = await kv.get(key);

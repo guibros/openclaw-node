@@ -42,7 +42,7 @@ export default function CoworkPage() {
     return map;
   }, [tasks]);
 
-  const handleDispatchFromCluster = (clusterId: string) => {
+  const handleDispatchFromCluster = (_clusterId: string) => {
     setTab("dispatch");
   };
 

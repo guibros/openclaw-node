@@ -13,15 +13,11 @@ import {
   ChevronDown,
   ChevronRight,
   Star,
-  Globe,
-  Database,
-  Gauge,
   MemoryStick,
   CheckCircle2,
   XCircle,
-  Circle,
 } from "lucide-react";
-import type { MeshNode } from "./types";
+import type { MeshNode, PeerView } from "./types";
 
 interface Props {
   node: MeshNode;
@@ -250,7 +246,7 @@ export function NodeCard({ node, isExpanded: controlledExpanded, onToggle }: Pro
             <div className="pt-1 border-t border-border/30">
               <div className="text-muted-foreground/50 mb-1">Peers</div>
               <div className="space-y-1 pl-1">
-                {node.tailscale!.peers!.map((peer: any, i: number) => (
+                {(node.tailscale!.peers! as PeerView[]).map((peer, i) => (
                   <div key={peer.hostname || i} className="flex items-center gap-2">
                     <span className={`h-1.5 w-1.5 rounded-full ${peer.online ? "bg-green-400" : "bg-red-400"}`} />
                     <span className="text-foreground/70">{peer.hostname || "unknown"}</span>
@@ -298,8 +294,8 @@ export function NodeCard({ node, isExpanded: controlledExpanded, onToggle }: Pro
           <div className="flex items-center gap-2">
             <Activity className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs text-foreground">
-              {(h.agent as any).name && (
-                <span className="font-medium text-foreground/80">{(h.agent as any).name} · </span>
+              {h.agent.name && (
+                <span className="font-medium text-foreground/80">{h.agent.name} · </span>
               )}
               <span
                 className={

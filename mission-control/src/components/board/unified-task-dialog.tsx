@@ -217,7 +217,6 @@ export function UnifiedTaskDialog({
         needs_approval: true,
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, item, defaultType, defaultParentId, defaultScheduledDate]);
 
   const resolveBasenames = useCallback(async (names: string[]) => {

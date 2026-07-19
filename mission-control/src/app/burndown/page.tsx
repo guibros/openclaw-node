@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useProjects, useBurndown, type BurndownData } from "@/lib/hooks";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -28,10 +28,6 @@ export default function BurndownPage() {
     return Object.entries(burndown.counts).sort((a, b) => b[1] - a[1]);
   }, [burndown]);
 
-  const maxTimelineValue = useMemo(() => {
-    if (!burndown) return 0;
-    return burndown.total;
-  }, [burndown]);
 
   if (!burndown) {
     return (
@@ -210,10 +206,6 @@ function BurndownChart({ data }: { data: BurndownData }) {
   const donePath = points
     .map((p, i) => `${i === 0 ? "M" : "L"} ${PAD.left + i * xStep} ${yScale(p.done)}`)
     .join(" ");
-
-  // Ideal line (straight from total to 0)
-  const idealStart = `${PAD.left} ${yScale(maxVal)}`;
-  const idealEnd = `${PAD.left + plotW} ${yScale(0)}`;
 
   // Y-axis ticks
   const yTicks = [0, Math.round(maxVal / 4), Math.round(maxVal / 2), Math.round((maxVal * 3) / 4), maxVal];

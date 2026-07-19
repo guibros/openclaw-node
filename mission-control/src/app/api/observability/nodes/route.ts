@@ -51,7 +51,7 @@ export async function GET() {
           let status: "online" | "degraded" | "offline" = "offline";
           if (staleSeconds < 45) {
             const hasDownService = (health.services || []).some(
-              (s: any) => s.status === "down" || s.status === "error"
+              (s: { status?: string }) => s.status === "down" || s.status === "error"
             );
             status = hasDownService ? "degraded" : "online";
           } else if (staleSeconds < 120) {

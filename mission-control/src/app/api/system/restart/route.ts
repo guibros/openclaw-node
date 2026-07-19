@@ -34,9 +34,9 @@ export async function POST() {
     }, 500);
 
     return response;
-  } catch (err: any) {
+  } catch (err) {
     return NextResponse.json(
-      { error: err.message || "Restart failed" },
+      { error: (err as { message?: string }).message || "Restart failed" },
       { status: 500 }
     );
   }

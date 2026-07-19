@@ -28,8 +28,6 @@ import {
   GitBranch,
   Layers,
   CheckSquare,
-  ZoomIn,
-  ZoomOut,
   Filter,
   X,
   Diamond,
@@ -48,7 +46,6 @@ import {
   updateTask,
   createDependency,
   type Task,
-  type Dependency,
 } from "@/lib/hooks";
 import { UnifiedTaskDialog } from "@/components/board/unified-task-dialog";
 

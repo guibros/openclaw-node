@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, getRawDb } from "@/lib/db";
-import { tasks, clusters, clusterMembers, dependencies, memoryDocs, memoryEntities, memoryRelations } from "@/lib/db/schema";
+import { tasks, clusters, clusterMembers, dependencies } from "@/lib/db/schema";
 import { eq, or } from "drizzle-orm";
 import { statusToKanban, kanbanToStatus, parseTasksMarkdown, serializeTasksMarkdown } from "@/lib/parsers/task-markdown";
 import { syncTasksToMarkdown, syncTasksFromMarkdown } from "@/lib/sync/tasks";
@@ -478,7 +478,6 @@ export async function POST() {
 
     // Simulate completion — should be caught by done-gate (redirect to waiting-user)
     // (This simulates what sync/tasks.ts does with needsApproval=1, default)
-    const targetStatus = "done";
     const effectiveStatus = row?.needsApproval === 1 ? "waiting-user" : "done";
     db.update(tasks).set({
       status: effectiveStatus,

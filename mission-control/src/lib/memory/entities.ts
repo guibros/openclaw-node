@@ -264,7 +264,7 @@ export function extractRelationsFromFact(
  * @param factText - The fact text
  * @param category - The fact category (used to infer entity types)
  */
-export function processFactEntities(itemId: number, factText: string, category?: string): {
+export function processFactEntities(itemId: number, factText: string, _category?: string): {
   entities: number;
   relations: number;
 } {
@@ -303,8 +303,8 @@ export function getTopEntities(limit = 10): Array<{
   id: number;
   name: string;
   type: string;
-  accessCount: number;
-  lastSeen: string;
+  access_count: number;
+  last_seen: string;
 }> {
   const raw = getRawDb();
   return raw.prepare(`
@@ -313,7 +313,13 @@ export function getTopEntities(limit = 10): Array<{
     ORDER BY
       access_count * (1.0 / (1 + (julianday('now') - julianday(last_seen)))) DESC
     LIMIT ?
-  `).all(limit) as any[];
+  `).all(limit) as Array<{
+    id: number;
+    name: string;
+    type: string;
+    access_count: number;
+    last_seen: string;
+  }>;
 }
 
 /**
@@ -395,7 +401,9 @@ export function expandQueryWithGraph(query: string): string[] {
     // Get 1-hop related entities
     const related = getEntityRelations(entity.id, 3);
     for (const rel of related) {
-      const relName = rel.relatedEntityName || (rel as any).related_entity_name;
+      const relName =
+        rel.relatedEntityName ||
+        (rel as unknown as { related_entity_name: string }).related_entity_name;
       if (!seen.has(relName.toLowerCase()) && !queryLower.includes(relName.toLowerCase())) {
         seen.add(relName.toLowerCase());
         expansions.push(relName);
@@ -420,7 +428,10 @@ export function formatEntityContextBlock(): string {
     const relParts = relations.map(r => {
       const arrow = r.direction === "outgoing" ? "→" : "←";
       // SQLite raw queries return snake_case; typed interface has camelCase
-      const raw = r as any;
+      const raw = r as unknown as {
+        relation_type?: string;
+        related_entity_name?: string;
+      };
       const relType = r.relationType || raw.relation_type;
       const relName = r.relatedEntityName || raw.related_entity_name;
       return `${arrow} ${relType} ${relName}`;

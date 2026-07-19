@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
+import type {
+  ForceGraphMethods,
+  LinkObject,
+  NodeObject,
+} from "react-force-graph-3d";
 
 // Dynamic import — react-force-graph-3d requires WebGL, no SSR
 const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), {
@@ -38,6 +43,14 @@ interface GraphStats {
   topTypes: Array<{ type: string; count: number }>;
 }
 
+type FGNode = NodeObject<GraphNode>;
+
+// After first render the force engine swaps numeric link endpoints for node refs
+type LiveLink = Omit<GraphEdge, "source" | "target"> & {
+  source: number | FGNode;
+  target: number | FGNode;
+};
+
 // ── Color Scheme ──
 
 const TYPE_COLORS: Record<string, string> = {
@@ -69,7 +82,7 @@ export default function GraphPage() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const containerRef = useRef<HTMLDivElement>(null);
-  const fgRef = useRef<any>(null);
+  const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
 
   // Resize observer
   useEffect(() => {
@@ -112,38 +125,39 @@ export default function GraphPage() {
   }, []);
 
   // Node click handler
-  const handleNodeClick = useCallback((node: any) => {
-    setSelectedNode(node);
+  const handleNodeClick = useCallback((node: NodeObject) => {
+    const n = node as FGNode;
+    setSelectedNode(n);
 
     // Fly camera to the clicked node
     if (fgRef.current) {
       const distance = 120;
-      const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z);
+      const distRatio = 1 + distance / Math.hypot(n.x!, n.y!, n.z!);
       fgRef.current.cameraPosition(
-        { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
-        node,
+        { x: n.x! * distRatio, y: n.y! * distRatio, z: n.z! * distRatio },
+        n as { x: number; y: number; z: number },
         1000
       );
     }
   }, []);
 
   // Node color
-  const nodeColor = useCallback((node: any) => {
+  const nodeColor = useCallback((node: NodeObject) => {
     return TYPE_COLORS[node.type] || "#6b7280";
   }, []);
 
   // Node size by access count
-  const nodeVal = useCallback((node: any) => {
+  const nodeVal = useCallback((node: NodeObject) => {
     return Math.max(2, Math.min(12, 2 + (node.accessCount || 0) * 0.8));
   }, []);
 
   // Link color
-  const linkColor = useCallback((link: any) => {
+  const linkColor = useCallback((link: LinkObject) => {
     return RELATION_COLORS[link.relationType] || "#9ca3af";
   }, []);
 
   // Node label (shown on hover)
-  const nodeLabel = useCallback((node: any) => {
+  const nodeLabel = useCallback((node: NodeObject) => {
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const name = esc(String(node.name ?? ""));
     const type = esc(String(node.type ?? ""));
@@ -161,7 +175,7 @@ export default function GraphPage() {
   }, []);
 
   // Link label (shown on hover)
-  const linkLabel = useCallback((link: any) => {
+  const linkLabel = useCallback((link: LinkObject) => {
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const srcName = esc(String(typeof link.source === "object" ? link.source.name : link.source));
     const tgtName = esc(String(typeof link.target === "object" ? link.target.name : link.target));
@@ -174,13 +188,13 @@ export default function GraphPage() {
   // Connected nodes for selected node
   const connectedInfo = useMemo(() => {
     if (!selectedNode || !graphData) return [];
-    return graphData.links
-      .filter((l: any) => {
+    return (graphData.links as LiveLink[])
+      .filter((l) => {
         const sid = typeof l.source === "object" ? l.source.id : l.source;
         const tid = typeof l.target === "object" ? l.target.id : l.target;
         return sid === selectedNode.id || tid === selectedNode.id;
       })
-      .map((l: any) => {
+      .map((l) => {
         const sid = typeof l.source === "object" ? l.source.id : l.source;
         const tid = typeof l.target === "object" ? l.target.id : l.target;
         const otherId = sid === selectedNode.id ? tid : sid;

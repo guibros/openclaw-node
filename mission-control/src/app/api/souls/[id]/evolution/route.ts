@@ -62,7 +62,7 @@ export async function GET(
       const content = await fs.readFile(eventsPath, "utf-8");
       const lines = content.trim().split("\n").filter(Boolean);
       fullEvents = lines.map((line) => JSON.parse(line));
-    } catch (error) {
+    } catch {
       // events.jsonl might be empty or not exist yet
     }
 

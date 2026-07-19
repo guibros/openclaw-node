@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 import { NetworkTopology, NodeCard, ConnectionMatrix } from "@/components/mesh";
-import type { MeshNode, MeshEvent } from "@/components/mesh";
+import type { MeshNode, MeshEvent, MeshStatus } from "@/components/mesh";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -52,7 +52,7 @@ function MeshEvents({ events }: { events: MeshEvent[] }) {
 }
 
 export default function MeshPage() {
-  const { data, error, isLoading } = useSWR<{ nodes: MeshNode[]; meshStatus?: any }>(
+  const { data, error, isLoading } = useSWR<{ nodes: MeshNode[]; meshStatus?: MeshStatus }>(
     "/api/mesh/nodes",
     fetcher,
     { refreshInterval: 10_000 }

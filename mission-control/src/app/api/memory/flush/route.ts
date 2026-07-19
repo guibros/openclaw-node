@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { memoryItems, memoryAudit } from "@/lib/db/schema";
+import { memoryAudit } from "@/lib/db/schema";
 import { storeExtractedFacts, getDocIdByPath, type GatedFact } from "@/lib/memory/extract";
 import { logActivity } from "@/lib/activity";
 
@@ -87,16 +87,6 @@ export async function POST(request: NextRequest) {
  */
 export async function GET() {
   try {
-    const db = getDb();
-    const raw = db
-      .select()
-      .from(memoryAudit)
-      .where(
-        // @ts-expect-error — raw SQL for operation filter
-        { operation: "session_flush" }
-      )
-      .limit(1);
-
     // Use raw SQL for this query since Drizzle doesn't handle the filter well
     const { getRawDb } = await import("@/lib/db");
     const rawDb = getRawDb();

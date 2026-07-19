@@ -61,7 +61,10 @@ export default function SettingsPage() {
     setSaved(false);
     setError(null);
     try {
-      const body: Record<string, any> = {
+      const body: {
+        heartbeat: { target: string; every?: string };
+        maxConcurrent: number;
+      } = {
         heartbeat: { target: heartbeatTarget },
         maxConcurrent,
       };

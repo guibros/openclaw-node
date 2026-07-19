@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { tieredSearch, formatInjectionBlock, getMemoryInjection } from "@/lib/memory/retrieval";
+import { tieredSearch, getMemoryInjection } from "@/lib/memory/retrieval";
 
 /**
  * GET /api/memory/retrieve?q=query&limit=10&format=block

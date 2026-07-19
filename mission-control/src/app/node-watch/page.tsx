@@ -113,7 +113,7 @@ export default function NodeWatchPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-        {/* global health + tally */}
+        {/* overall health + tally */}
         <div className="flex items-center gap-5 rounded-lg border border-border bg-card px-5 py-4">
           <div className="text-center shrink-0">
             <div className={`text-5xl font-bold tabular-nums leading-none ${healthColor}`}>{health === null ? "—" : `${health}%`}</div>

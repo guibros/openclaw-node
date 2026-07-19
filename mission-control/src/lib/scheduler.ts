@@ -89,7 +89,7 @@ export function computeWaves(
 
     traceCall("scheduler", "computeWaves", _start, `${waves.length} waves`);
     return waves;
-  } catch (err: any) {
+  } catch (err) {
     traceCall("scheduler", "computeWaves", _start, undefined, err);
     throw err;
   }
@@ -426,7 +426,7 @@ export function schedulerTick(): TickResult {
 
   traceCall("scheduler", "schedulerTick", _start, `t:${result.triggered.length} d:${result.dispatched.length} r:${result.recurring.length}`);
   return result;
-  } catch (err: any) {
+  } catch (err) {
     traceCall("scheduler", "schedulerTick", _start, undefined, err);
     throw err;
   }

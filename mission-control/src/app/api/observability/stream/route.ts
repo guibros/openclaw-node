@@ -1,5 +1,4 @@
 import { getNats, sc } from "@/lib/nats";
-import { NODE_ID } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 

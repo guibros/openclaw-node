@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 interface Soul {
   id: string;
@@ -23,7 +23,7 @@ interface EvolutionEvent {
   proposedChange?: {
     target: string;
     action: string;
-    content?: any;
+    content?: unknown;
   };
 }
 
@@ -493,7 +493,7 @@ export default function SoulsPage() {
                           {event.proposedChange.action} &rarr;{" "}
                           {event.proposedChange.target}
                         </div>
-                        {event.proposedChange.content && (
+                        {(event.proposedChange.content && (
                           <pre className="mt-2 text-xs overflow-auto">
                             {JSON.stringify(
                               event.proposedChange.content,
@@ -501,7 +501,7 @@ export default function SoulsPage() {
                               2
                             )}
                           </pre>
-                        )}
+                        )) as ReactNode}
                       </div>
                     )}
 

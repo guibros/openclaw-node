@@ -1,3 +1,4 @@
+import type { KvEntry, QueuedIterator } from "nats";
 import { getNats, getTasksKv, sc } from "@/lib/nats";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export async function GET() {
 
   const sub = nc.subscribe("mesh.events.>");
   const kv = await getTasksKv();
-  let watcher: any = null;
+  let watcher: QueuedIterator<KvEntry> | null = null;
   let closed = false;
 
   const stream = new ReadableStream({

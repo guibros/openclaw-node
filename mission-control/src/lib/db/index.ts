@@ -511,8 +511,9 @@ function runMigrations(sqlite: Database.Database) {
   try {
     sqlite.exec(`DELETE FROM observability_events WHERE timestamp < ${Date.now() - 86400000}`);
     console.log("[db] Observability events cleanup done");
-  } catch (err: any) {
-    if (err?.code === "SQLITE_CORRUPT_INDEX" || err?.message?.includes("malformed")) {
+  } catch (err) {
+    const e = err as { code?: string; message?: string } | null;
+    if (e?.code === "SQLITE_CORRUPT_INDEX" || e?.message?.includes("malformed")) {
       console.warn("[db] Corrupt index detected — running REINDEX...");
       try {
         sqlite.exec("REINDEX");
@@ -653,7 +654,7 @@ export function dbHealth(): {
     } catch { /* stat failures are non-fatal */ }
 
     return { ok: true, taskCount, obsEventCount: obsCount, dbSizeBytes, walSizeBytes };
-  } catch (err: any) {
-    return { ok: false, error: err?.message || String(err) };
+  } catch (err) {
+    return { ok: false, error: (err as { message?: string } | null)?.message || String(err) };
   }
 }

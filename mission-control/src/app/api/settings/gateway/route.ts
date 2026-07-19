@@ -8,12 +8,32 @@ const CONFIG_PATH = path.join(
   "openclaw.json"
 );
 
-async function loadConfig(): Promise<Record<string, any>> {
+interface OpenclawConfig {
+  agents?: {
+    defaults?: {
+      heartbeat?: Record<string, string>;
+      model?: Record<string, unknown>;
+      compaction?: unknown;
+      maxConcurrent?: number;
+      [k: string]: unknown;
+    };
+    [k: string]: unknown;
+  };
+  gateway?: {
+    port?: number;
+    mode?: string;
+    bind?: string;
+    [k: string]: unknown;
+  };
+  [k: string]: unknown;
+}
+
+async function loadConfig(): Promise<OpenclawConfig> {
   const raw = await fs.readFile(CONFIG_PATH, "utf-8");
   return JSON.parse(raw);
 }
 
-async function saveConfig(config: Record<string, any>): Promise<void> {
+async function saveConfig(config: OpenclawConfig): Promise<void> {
   await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
 }
 

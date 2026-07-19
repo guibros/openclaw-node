@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { RefreshCw, CheckCircle, XCircle, Play, AlertTriangle, Clock } from "lucide-react";
+import { RefreshCw, CheckCircle, XCircle, Play, Clock } from "lucide-react";
 
 // ── Types ──
 
@@ -181,6 +181,7 @@ export default function DiagnosticsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetchers flip their loading flags synchronously; data lands async
     fetchHealth();
     fetchWatch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only fetch; the fetchers are recreated every render, listing them would refetch in a loop
   }, []);
 
   // ── Group test results by suite ──

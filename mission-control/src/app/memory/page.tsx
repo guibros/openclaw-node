@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useRef } from "react";
-import { useMemorySearch, useMemoryDocs, useMemoryDoc } from "@/lib/hooks";
+import { useMemorySearch, useMemoryDocs } from "@/lib/hooks";
 import { MemoryList } from "@/components/memory/memory-list";
 import { SearchResults } from "@/components/memory/search-results";
 import { DocReader } from "@/components/memory/doc-reader";

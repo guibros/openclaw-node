@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { syncTasksToMarkdown } from "@/lib/sync/tasks";
+import type { CollabSession } from "@/lib/hooks";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Read current session
-  let session: any;
+  let session: CollabSession;
   try {
     const entry = await kv.get(sessionId);
     if (!entry || !entry.value) {
@@ -110,10 +111,10 @@ export async function POST(request: NextRequest) {
           session.rounds?.[session.rounds.length - 1];
         if (currentRound) {
           const submittedNodes = new Set(
-            (currentRound.reflections || []).map((r: any) => r.node_id)
+            (currentRound.reflections || []).map((r) => r.node_id)
           );
           const activeNodes = (session.nodes || []).filter(
-            (n: any) => n.status !== "dead"
+            (n) => n.status !== "dead"
           );
 
           for (const node of activeNodes) {
@@ -211,7 +212,7 @@ export async function POST(request: NextRequest) {
         } catch {
           // Fallback: direct KV write if daemon doesn't handle leave RPC
           const node = (session.nodes || []).find(
-            (n: any) => n.node_id === nodeId
+            (n) => n.node_id === nodeId
           );
           if (node) {
             node.status = "dead";

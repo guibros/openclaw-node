@@ -187,9 +187,7 @@ export async function watchMeshTasks(): Promise<{
     [Symbol.asyncIterator]() {
       return {
         async next() {
-          const result = await (
-            watcher as AsyncIterable<any>
-          )[Symbol.asyncIterator]().next();
+          const result = await watcher[Symbol.asyncIterator]().next();
           if (result.done) return { value: undefined, done: true };
 
           const entry = result.value;
@@ -219,8 +217,8 @@ export async function watchMeshTasks(): Promise<{
   return {
     events,
     stop: () => {
-      if (typeof (watcher as any).stop === "function") {
-        (watcher as any).stop();
+      if (typeof watcher.stop === "function") {
+        watcher.stop();
       }
     },
   };

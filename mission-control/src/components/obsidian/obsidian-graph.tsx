@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
+import type { ForceGraphMethods, NodeObject } from "react-force-graph-2d";
 import type { WikilinkGraphData } from "@/lib/hooks";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
@@ -35,7 +36,7 @@ export function ObsidianGraph({
   onNodeClick,
 }: ObsidianGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const fgRef = useRef<any>(null);
+  const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export function ObsidianGraph({
   }, []);
 
   const paintNode = useCallback(
-    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    (node: NodeObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const isSelected = node.id === selectedNode;
       const hasLinks = (node.linkCount || 0) > 0;
       const size = Math.max(3, Math.min(8, 3 + (node.linkCount || 0) * 0.4));
@@ -66,7 +67,7 @@ export function ObsidianGraph({
       // Glow for selected
       if (isSelected) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, size + 5, 0, 2 * Math.PI);
+        ctx.arc(node.x!, node.y!, size + 5, 0, 2 * Math.PI);
         ctx.fillStyle = "rgba(109, 40, 217, 0.25)";
         ctx.fill();
       }
@@ -74,14 +75,14 @@ export function ObsidianGraph({
       // Subtle glow for connected nodes
       if (hasLinks && !isSelected) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, size + 2, 0, 2 * Math.PI);
+        ctx.arc(node.x!, node.y!, size + 2, 0, 2 * Math.PI);
         ctx.fillStyle = color + "26"; // 26 hex = 15% opacity (works with hex color strings)
         ctx.fill();
       }
 
       // Node dot
       ctx.beginPath();
-      ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
+      ctx.arc(node.x!, node.y!, size, 0, 2 * Math.PI);
       ctx.fillStyle = color;
       ctx.fill();
 
@@ -99,17 +100,17 @@ export function ObsidianGraph({
           node.title.length > 28
             ? node.title.slice(0, 26) + "..."
             : node.title;
-        ctx.fillText(label, node.x, node.y + size + 8 / globalScale);
+        ctx.fillText(label, node.x!, node.y! + size + 8 / globalScale);
       }
     },
     [selectedNode]
   );
 
   const pointerAreaPaint = useCallback(
-    (node: any, color: string, ctx: CanvasRenderingContext2D) => {
+    (node: NodeObject, color: string, ctx: CanvasRenderingContext2D) => {
       const size = Math.max(4, Math.min(10, 4 + (node.linkCount || 0) * 0.3));
       ctx.beginPath();
-      ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
+      ctx.arc(node.x!, node.y!, size, 0, 2 * Math.PI);
       ctx.fillStyle = color;
       ctx.fill();
     },
@@ -117,8 +118,8 @@ export function ObsidianGraph({
   );
 
   const handleNodeClick = useCallback(
-    (node: any) => {
-      onNodeClick(node.id);
+    (node: NodeObject) => {
+      onNodeClick(node.id as string);
     },
     [onNodeClick]
   );

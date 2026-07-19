@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { soulEvolutionLog } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";

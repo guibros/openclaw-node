@@ -65,13 +65,13 @@ function checkAndSupersede(newFactText: string, newItemId: number, category?: st
       `SELECT id, fact_text FROM memory_items
        WHERE status = 'active' AND valid_to IS NULL AND category = ? AND id != ?
        ORDER BY created_at DESC LIMIT 100`
-    ).all(category, newItemId) as any[];
+    ).all(category, newItemId) as Array<{ id: number; fact_text: string }>;
   } else {
     existingFacts = raw.prepare(
       `SELECT id, fact_text FROM memory_items
        WHERE status = 'active' AND valid_to IS NULL AND id != ?
        ORDER BY created_at DESC LIMIT 100`
-    ).all(newItemId) as any[];
+    ).all(newItemId) as Array<{ id: number; fact_text: string }>;
   }
 
   for (const existing of existingFacts) {

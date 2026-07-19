@@ -52,7 +52,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (Array.isArray(manualNodes) && manualNodes.length > 0) {
-    const manualIds = manualNodes.map((n: any) => n.node_id || n.nodeId);
+    // Pre-existing behavior: entries missing both keys flow through as
+    // undefined rather than being filtered.
+    const manualIds = manualNodes.map(
+      (n: { node_id?: string; nodeId?: string }) => n.node_id || n.nodeId
+    ) as string[];
     nodeIds = [...new Set([...nodeIds, ...manualIds])];
   }
 
