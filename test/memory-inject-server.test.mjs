@@ -55,7 +55,9 @@ before(async () => {
 
 after(async () => {
   if (serverHandle) await serverHandle.close();
-  rmSync(TMP_HOME, { recursive: true, force: true });
+  // Async writes (token/ledger) can land mid-removal → ENOTEMPTY on CI
+  // (observed run 2026-07-20, hookFailed). Retry rides out the race.
+  rmSync(TMP_HOME, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 function url(path) {

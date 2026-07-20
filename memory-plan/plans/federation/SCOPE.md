@@ -145,6 +145,7 @@ memory-plan/plans/federation/audits/incremental_indexing/*
 
 ```files item5-small-batch
 test/embed-benchmark.test.mjs
+test/memory-inject-server.test.mjs
 scripts/install/*
 install.sh
 test/install-modules.test.mjs
