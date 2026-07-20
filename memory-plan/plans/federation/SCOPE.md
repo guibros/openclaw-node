@@ -120,6 +120,14 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
+```files runbooks closed
+workspace-docs/RUNBOOK_MC_DEPLOY.md
+workspace-docs/RUNBOOK_MEMORY_DIAG.md
+README.md
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/OUT_OF_SCOPE.md
+```
+
 ```files gate-mutation closed
 test/gate-mutation.test.mjs
 memory-plan/plans/federation/SCOPE.md

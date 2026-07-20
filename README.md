@@ -66,6 +66,8 @@ The installer will:
 
 4. **Dashboard:** http://localhost:3000 · **Grappe quickstart:** [docs/NODE_SPEC.md §6](docs/NODE_SPEC.md)
 
+5. **When something breaks:** [workspace-docs/RUNBOOK_MEMORY_DIAG.md](workspace-docs/RUNBOOK_MEMORY_DIAG.md) (extraction/inject/indexing triage tree) · [workspace-docs/RUNBOOK_MC_DEPLOY.md](workspace-docs/RUNBOOK_MC_DEPLOY.md) (dashboard deploy incl. the two landmines: npm-major lockfile skew, service-PATH node ABI skew)
+
 ## Updating
 
 Pull latest and re-run with `--update` to refresh scripts and configs without reinstalling system deps:
