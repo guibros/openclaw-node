@@ -16,6 +16,7 @@ install.sh
 README.md
 openclaw.env.example
 package.json
+package-lock.json
 services/service-manifest.json
 services/nats/*
 services/launchd/*
@@ -75,6 +76,7 @@ memory-plan/plans/federation/audits/join_dispatch_remediation/*
 lib/fed-probes.mjs
 lib/node-watch.mjs
 lib/node-acceptance-probes.mjs
+lib/node-watch.mjs
 services/nats/nats-cluster-node.conf
 test/fed-probes.test.mjs
 test/fed-acceptance.test.mjs
@@ -118,6 +120,21 @@ memory-plan/plans/federation/SCOPE.md
 memory-plan/plans/federation/VERSION
 memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
+```
+
+```files hyperagent-review
+workspace-bin/memory-daemon.mjs
+scripts/install/workspace.sh
+scripts/install/components.sh
+bin/hyperagent.mjs
+lib/hyperagent-store.mjs
+test/hyperagent-store.test.js
+test/wiring-manifest.test.mjs
+README.md
+docs/OBSERVABILITY.md
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/OUT_OF_SCOPE.md
+memory-plan/plans/federation/audits/hyperagent_review/*
 ```
 
 ```files runbooks closed
@@ -600,6 +617,36 @@ memory-plan/plans/federation/VERSION
 memory-plan/plans/federation/COMPONENT_REGISTRY.md
 memory-plan/plans/federation/audits/step11_nats-cluster-harden/AUDIT_PRE.md
 memory-plan/plans/federation/audits/step11_nats-cluster-harden/AUDIT_POST.md
+```
+
+```files hyperagent-deep-review-remediation closed
+memory-plan/plans/federation/SCOPE.md
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/audits/hyperagent_deep_review/*
+README.md
+package.json
+package-lock.json
+config/harness-rules.json
+scripts/install/workspace.sh
+scripts/install/components.sh
+workspace-bin/memory-daemon.mjs
+bin/hyperagent.mjs
+bin/harness-sync.js
+bin/mesh-agent.js
+lib/hyperagent-store.mjs
+lib/mesh-harness.js
+lib/node-acceptance-probes.mjs
+lib/node-watch.mjs
+test/hyperagent-store.test.js
+test/hyperagent-integration.test.mjs
+test/harness-sync.test.js
+test/mesh-harness.test.js
+test/mesh-memory-bridge.test.mjs
+test/daemon-tick-guard.test.mjs
+test/node-acceptance-probes.test.mjs
+test/node-watch.test.mjs
 ```
 
 ## How this file works

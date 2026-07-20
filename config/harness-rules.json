@@ -137,13 +137,14 @@
     "description": "After task completion, log structured performance telemetry",
     "tier": 2,
     "type": "inject",
-    "scope": ["local", "mesh"],
+    "scope": ["local"],
 
-    "content": "RULE: After completing any task, log telemetry via: OPENCLAW_NODE_ID=<node> OPENCLAW_SOUL_ID=<soul> node $OPENCLAW_HOME/bin/hyperagent.mjs log '{\"domain\":\"...\",\"subdomain\":\"...\",\"outcome\":\"success|partial|failure\",\"iterations\":N,\"duration_minutes\":N,\"meta_notes\":\"what approach, why, key moment, one hypothesis\"}'. Pattern flags are auto-detected. $OPENCLAW_HOME defaults to ~/.openclaw.",
+    "content": "RULE: After completing a non-trivial local task, send one JSON object to `node $HOME/.openclaw/workspace/bin/hyperagent.mjs log --stdin` with domain, optional subdomain/task_id/strategy_id, outcome (success|partial|failure), iterations, duration_minutes, and a concrete meta_notes summary. Pass JSON through stdin, never interpolate it into a shell command. Mesh tasks are logged mechanically and must not be logged again.",
     "pattern": null,
     "activateOn": ["task complete", "waiting-user", "status: waiting"],
     "active": true,
-    "tags": ["hyperagent", "telemetry"]
+    "tags": ["hyperagent", "telemetry"],
+    "managed": true
   },
   {
     "id": "hyperagent-task-start",
@@ -152,23 +153,25 @@
     "type": "inject",
     "scope": ["local", "mesh"],
 
-    "content": "RULE: Before starting any non-trivial task, check strategies: node $OPENCLAW_HOME/bin/hyperagent.mjs strategies --domain <domain>. If a strategy exists, use it as starting approach.",
+    "content": "RULE: Before starting a non-trivial task, run `node $HOME/.openclaw/workspace/bin/hyperagent.mjs consult --domain <domain> [--subdomain <subdomain>]`. If JSON is returned, use its content as the starting approach and retain strategy_id for telemetry.",
     "pattern": null,
     "activateOn": ["task start", "claimed", "begin task", "status: running"],
     "active": true,
-    "tags": ["hyperagent", "strategy"]
+    "tags": ["hyperagent", "strategy"],
+    "managed": true
   },
   {
     "id": "hyperagent-reflection-ready",
     "description": "When a pending reflection exists, synthesize hypotheses and proposals",
     "tier": 2,
     "type": "inject",
-    "scope": ["local"],
+    "scope": ["local", "mesh"],
 
-    "content": "RULE: At session start, run: node $OPENCLAW_HOME/bin/hyperagent.mjs reflect --pending. If output is non-empty JSON, it contains performance stats from recent tasks awaiting synthesis. Analyze the data: identify what worked (with causal hypotheses), what didn't (with root causes), and 1-2 forward proposals (specific changes to strategies or workflows). Then call: node $OPENCLAW_HOME/bin/hyperagent.mjs reflect --write-synthesis '<json>' where json = {reflection_id, hypotheses: [...], proposals: [{title, description, proposal_type, target_ref, diff_content}]}. If output is empty, do nothing.",
+    "content": "RULE: At task start, run `node $HOME/.openclaw/workspace/bin/hyperagent.mjs reflect --pending`. If it returns JSON, analyze the evidence and send synthesis JSON through stdin to `node $HOME/.openclaw/workspace/bin/hyperagent.mjs reflect --write-synthesis --stdin`. Use {reflection_id, hypotheses:[...], proposals:[...]}; proposals must be actionable strategy_new or strategy_update records with valid diff_content. If pending output is empty, continue immediately.",
     "pattern": null,
-    "activateOn": ["session start"],
+    "activateOn": ["task start", "claimed", "begin task", "status: running"],
     "active": true,
-    "tags": ["hyperagent", "reflection"]
+    "tags": ["hyperagent", "reflection"],
+    "managed": true
   }
 ]

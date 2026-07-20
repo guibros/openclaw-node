@@ -116,6 +116,21 @@ describe('node-watch OFF semantics (intentionally not active ≠ broken)', () =>
 });
 
 describe('node-watch observed verdicts', () => {
+  it('HyperAgent is WORKING only with a successful deploy probe and fresh scheduler tick', async () => {
+    const probes = { 'L0-HYPERAGENT': { run: async () => ({ status: 'PASS', detail: 'imports' }) } };
+    const fresh = makeCtx({
+      fsp: { ...makeCtx().fsp, readFile: async () => JSON.stringify({ lastHyperagentReflect: Date.now() - 60_000 }) },
+      queryDb: makeQueryDb({ count: 2 }),
+    });
+    assert.equal((await target('ops.hyperagent').run(envFor(fresh, { probes }))).status, STATUS.WORKING);
+
+    const stale = makeCtx({
+      fsp: { ...makeCtx().fsp, readFile: async () => JSON.stringify({ lastHyperagentReflect: Date.now() - 2 * 3600_000 }) },
+      queryDb: makeQueryDb({ count: 2 }),
+    });
+    assert.equal((await target('ops.hyperagent').run(envFor(stale, { probes }))).status, STATUS.BROKEN);
+  });
+
   it('daemon WORKING/BROKEN from health-check', async () => {
     assert.equal((await target('mem.daemon').run(envFor(makeCtx(), { hc: { daemon: { ok: true, detail: 'pid=1' } } }))).status, STATUS.WORKING);
     assert.equal((await target('mem.daemon').run(envFor(makeCtx(), { hc: { daemon: { ok: false, detail: 'down' } } }))).status, STATUS.BROKEN);

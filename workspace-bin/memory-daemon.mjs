@@ -840,23 +840,64 @@ If this file says \`status: active\` but the session is dead:
 // ============================================================
 
 const THROTTLE_STATE_FILE = path.join(STATE_DIR, 'daemon-throttle.json');
+const THROTTLE_DEFAULTS = Object.freeze({
+  lastRecap: 0, lastMaintenance: 0, lastObsidianSync: 0, lastTrustHealth: 0,
+  lastClawvaultReflect: 0, lastClawvaultArchive: 0, lastClawvaultObserve: 0,
+  lastSessionImport: 0, lastHyperagentReflect: 0, lastSynthesis: 0,
+  lastKnowledgeIndex: 0, lastGraphCacheRefresh: 0,
+});
 
 function loadThrottleState() {
   if (fs.existsSync(THROTTLE_STATE_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(THROTTLE_STATE_FILE, 'utf-8'));
+      return { ...THROTTLE_DEFAULTS, ...JSON.parse(fs.readFileSync(THROTTLE_STATE_FILE, 'utf-8')) };
     } catch (err) { console.warn(`[memory-daemon] throttle state parse failed: ${err.message}`); }
   }
-  return {
-    lastRecap: 0, lastMaintenance: 0, lastObsidianSync: 0, lastTrustHealth: 0,
-    lastClawvaultReflect: 0, lastClawvaultArchive: 0, lastClawvaultObserve: 0,
-    lastSessionImport: 0, lastHyperagentReflect: 0, lastSynthesis: 0,
-    lastKnowledgeIndex: 0, lastGraphCacheRefresh: 0,
-  };
+  return { ...THROTTLE_DEFAULTS };
 }
 
 function saveThrottleState(state) {
   fs.writeFileSync(THROTTLE_STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+async function runHyperagentMaintenance(config) {
+  const now = Date.now();
+  const throttle = loadThrottleState();
+  if (now - throttle.lastHyperagentReflect < (config.intervals.hyperagentReflectMs || 1800000)) return;
+
+  const ha = await getHyperAgentStore();
+  if (!ha) return;
+  let succeeded = true;
+  try {
+    const reflections = ha.createPendingReflections(5);
+    if (reflections.length > 0) {
+      const summary = reflections.map((r) => `#${r.id}:${r.node_id}/${r.soul_id}=${r.telemetry_count}`).join(', ');
+      log(`  HyperAgent: reflections created (${summary})`);
+    }
+  } catch (e) {
+    succeeded = false;
+    log(`  HyperAgent: reflection failed: ${e.message}`);
+  }
+  try {
+    const expired = ha.expireStalePending();
+    if (expired > 0) log(`  HyperAgent: stale reflections expired=${expired}`);
+  } catch (e) {
+    succeeded = false;
+    log(`  HyperAgent: expiry failed: ${e.message}`);
+  }
+  try {
+    const observed = ha.checkObservationWindows();
+    if (observed > 0) log(`  HyperAgent: observations closed=${observed}`);
+  } catch (e) {
+    succeeded = false;
+    log(`  HyperAgent: observation failed: ${e.message}`);
+  }
+
+  if (succeeded) {
+    throttle.lastHyperagentReflect = now;
+    saveThrottleState(throttle);
+    log('  HyperAgent: maintenance tick complete');
+  }
 }
 
 async function runPhase2ThrottledWork(config, sessionState) {
@@ -989,27 +1030,6 @@ async function runPhase2ThrottledWork(config, sessionState) {
           const { indexed, chunks } = JSON.parse(out.trim().split('\n').pop());
           if (indexed > 0) log(`  Phase 2: knowledge-index: ${indexed} sessions indexed (${chunks} chunks)`);
         } catch (e) { log(`  Phase 2: knowledge-index failed: ${e.message}`); emitErrorEvent('knowledge_index', e); }
-      })()
-    );
-  }
-
-  // HyperAgent: reflection check + shadow window expiry (every 30min)
-  if (now - throttle.lastHyperagentReflect >= (config.intervals.hyperagentReflectMs || 1800000)) {
-    throttle.lastHyperagentReflect = now;
-    stage1.push(
-      (async () => {
-        try {
-          const ha = await getHyperAgentStore();
-          if (!ha) return;
-          const unreflected = ha.getUnreflectedCount(); // sync — better-sqlite3
-          if (unreflected >= 5) {
-            await runSubprocess('node', [
-              path.join(HOME, '.openclaw/bin/hyperagent.mjs'), 'reflect'
-            ], 30000);
-            log(`  Phase 2: hyperagent reflect (${unreflected} entries)`);
-          }
-          ha.checkShadowWindows(); // sync
-        } catch (e) { log(`  Phase 2: hyperagent failed: ${e.message}`); }
       })()
     );
   }
@@ -1397,6 +1417,7 @@ function loadDaemonState() {
 // ── Tracer wrapping ──────────────────────────────────
 runPhase0Bootstrap = tracer.wrapAsync('runPhase0Bootstrap', runPhase0Bootstrap, { tier: 1, category: 'lifecycle' });
 runPhase1StatusSync = tracer.wrap('runPhase1StatusSync', runPhase1StatusSync, { tier: 1, category: 'lifecycle' });
+runHyperagentMaintenance = tracer.wrapAsync('runHyperagentMaintenance', runHyperagentMaintenance, { tier: 1, category: 'lifecycle' });
 runPhase2ThrottledWork = tracer.wrapAsync('runPhase2ThrottledWork', runPhase2ThrottledWork, { tier: 1, category: 'lifecycle' });
 handleTransitions = tracer.wrapAsync('handleTransitions', handleTransitions, { tier: 1, category: 'state_transition' });
 runSubprocess = tracer.wrap('runSubprocess', runSubprocess, { tier: 2 });
@@ -1859,7 +1880,10 @@ async function main() {
         }
       }
 
-      // 5. Phase 2: Throttled work (when ACTIVE or IDLE)
+      // 5. HyperAgent maintenance is node-scoped, not session-scoped.
+      await runHyperagentMaintenance(config);
+
+      // 5.1. Phase 2: Throttled work (when ACTIVE or IDLE)
       if (sm.state === STATES.ACTIVE || sm.state === STATES.IDLE) {
         await runPhase2ThrottledWork(config, sm.state);
       }

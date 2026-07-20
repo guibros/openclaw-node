@@ -47,7 +47,7 @@ The dashboard UI includes a live feed, event timeline, and system map for real-t
 | Memory System | 2 | 16 | 4 | 22 |
 | Local Workspace Daemons | 4 | 44 | 7 | 55 |
 | Kanban & Scheduler | 2 | 4 | 3 | 9 |
-| Hyperagent Self-Improvement | 2 | 18 | 2 | 22 |
+| HyperAgent Evidence Loop | 2 | 18 | 2 | 22 |
 | Knowledge & Search | 1 | 4 | 3 | 8 |
 | Communication | 1 | 4 | 1 | 6 |
 | Deployment & Provisioning | 3 | 16 | 4 | 23 |
@@ -542,7 +542,7 @@ The dashboard UI includes a live feed, event timeline, and system map for real-t
 
 ---
 
-## 10. HYPERAGENT SELF-IMPROVEMENT
+## 10. HYPERAGENT EVIDENCE LOOP
 
 ### 10.1 Telemetry & Strategies
 
@@ -550,14 +550,14 @@ The dashboard UI includes a live feed, event timeline, and system map for real-t
 |----------|--------|------|------------|
 | `logTelemetry` | hyperagent-store | 2 | Records telemetry data point — logs metric name and value for trend analysis. |
 | `getTelemetry` | hyperagent-store | 3 | Retrieves telemetry data — read operation for dashboards. |
-| `getStrategies` | hyperagent-store | 2 | Lists active strategies — logged to track strategy inventory. |
-| `addStrategy` | hyperagent-store | 2 | Adds a new self-improvement strategy — logs strategy definition and activation status. |
-| `seedStrategy` | hyperagent-store | 2 | Seeds an initial strategy — logged to track bootstrapping of the self-improvement system. |
-| `updateStrategy` | hyperagent-store | 2 | Updates strategy parameters — logs what changed for strategy evolution tracking. |
+| `listStrategies` | hyperagent-store | 2 | Lists active or archived strategies — logged to track strategy inventory. |
+| `getStrategy` | hyperagent-store | 2 | Selects the best domain/subdomain strategy for consultation. |
+| `putStrategy` | hyperagent-store | 2 | Creates or supersedes a strategy atomically. |
 | `cmdStatus` | hyperagent CLI | 2 | Shows hyperagent system status — operator-facing health view. |
 | `cmdLog` | hyperagent CLI | 3 | Displays hyperagent log — diagnostic read. |
 | `cmdTelemetry` | hyperagent CLI | 2 | Displays telemetry data — operator query interface. |
 | `cmdStrategies` | hyperagent CLI | 2 | Lists strategies from CLI — operator view. |
+| `cmdConsult` | hyperagent CLI | 2 | Returns the selected strategy and full content as JSON. |
 | `cmdStrategy` | hyperagent CLI | 2 | Shows single strategy detail — operator inspection. |
 | `cmdSeedStrategy` | hyperagent CLI | 2 | Seeds strategy from CLI — logged for audit of manual seeding. |
 
@@ -565,9 +565,10 @@ The dashboard UI includes a live feed, event timeline, and system map for real-t
 
 | Function | Module | Tier | Why Logged |
 |----------|--------|------|------------|
-| `reflect` | hyperagent-store | 1 | Triggers self-reflection on recent performance — logs reflection output and identified improvement areas. |
+| `createPendingReflections` | hyperagent-store | 1 | Creates identity-scoped raw-stat reflections for every eligible node/soul group. |
 | `getPendingSynthesis` | hyperagent-store | 2 | Retrieves pending synthesis items — tracks synthesis backlog. |
 | `writeSynthesis` | hyperagent-store | 2 | Writes synthesis results — logs synthesized insights for knowledge evolution tracking. |
+| `synthesizeReflection` | hyperagent-store | 1 | Atomically writes one synthesis and up to two actionable proposals. |
 | `cmdReflect` | hyperagent CLI | 2 | Triggers reflection from CLI — operator-initiated reflection. |
 
 ### 10.3 Proposals & Approval
@@ -575,22 +576,22 @@ The dashboard UI includes a live feed, event timeline, and system map for real-t
 | Function | Module | Tier | Why Logged |
 |----------|--------|------|------------|
 | `getProposals` | hyperagent-store | 2 | Lists improvement proposals — tracks proposal queue. |
-| `submitProposal` | hyperagent-store | 1 | Submits a self-improvement proposal — logged to audit all proposed changes to agent behavior. |
+| `putProposal` | hyperagent-store | 1 | Submits an actionable strategy proposal linked to a reflection. |
 | `approveProposal` | hyperagent-store | 2 | Approves a proposal for implementation — logs approval decision and who approved. |
 | `rejectProposal` | hyperagent-store | 2 | Rejects a proposal — logs rejection reason for learning feedback. |
 | `cmdProposals` | hyperagent CLI | 2 | Lists proposals from CLI — operator view. |
 | `cmdApprove` | hyperagent CLI | 2 | Approves proposal from CLI — operator action. |
 | `cmdReject` | hyperagent CLI | 2 | Rejects proposal from CLI — operator action. |
 
-### 10.4 Shadow Evaluation
+### 10.4 Observation Windows
 
 | Function | Module | Tier | Why Logged |
 |----------|--------|------|------------|
-| `startShadowEval` | hyperagent-store | 2 | Starts a shadow evaluation (A/B test of a strategy) — logs strategy under test and evaluation criteria. |
-| `endShadowEval` | hyperagent-store | 2 | Ends shadow evaluation — logs comparison results and recommendation. |
+| `startObservation` | hyperagent-store | 2 | Starts a scoped telemetry window without applying the proposal. |
+| `checkObservationWindows` | hyperagent-store | 2 | Closes expired windows and records a descriptive, explicitly non-causal comparison. |
 | `getStats` | hyperagent-store | 2 | Returns hyperagent system statistics — periodic health metric. |
 | `close` | hyperagent-store | 2 | Closes the hyperagent store — logged for clean shutdown confirmation. |
-| `cmdShadow` | hyperagent CLI | 2 | Manages shadow evaluation from CLI — operator interface. |
+| `cmdObserve` | hyperagent CLI | 2 | Starts an observation window from the CLI. |
 
 ---
 

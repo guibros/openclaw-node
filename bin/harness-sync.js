@@ -56,6 +56,13 @@ const SOURCE_OWNED = new Set([
 const USER_OWNED = new Set([
   'content', 'active', 'activateOn', 'tags', 'description',
 ]);
+const MANAGED_SOURCE_OWNED = new Set([
+  'content', 'activateOn', 'tags', 'description', 'tier', 'type', 'managed',
+]);
+
+function sourceOwns(rule, key) {
+  return SOURCE_OWNED.has(key) || (rule.managed === true && MANAGED_SOURCE_OWNED.has(key));
+}
 
 // Fields to skip in diff display (noise)
 const SKIP_DIFF = new Set(['_note', '_mesh_note']);
@@ -107,7 +114,7 @@ const diffRules = tracer.wrap('diffRules', function diffRules(srcRules, dstRules
 
       if (deepEqual(srcVal, dstVal)) continue;
 
-      if (SOURCE_OWNED.has(key)) {
+      if (sourceOwns(srcRule, key)) {
         // Source-owned field differs or missing in deployed
         updates.push({ key, src: srcVal, dst: dstVal });
       } else if (USER_OWNED.has(key)) {
@@ -162,7 +169,7 @@ const mergeRules = tracer.wrap('mergeRules', function mergeRules(srcRules, dstRu
     for (const [key, val] of Object.entries(srcRule)) {
       if (key === 'id') continue;
 
-      if (SOURCE_OWNED.has(key)) {
+      if (sourceOwns(srcRule, key)) {
         // Always sync from source
         result[key] = val;
       } else if (USER_OWNED.has(key)) {
@@ -322,4 +329,6 @@ function main() {
   process.exit(1);
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { diffRules, mergeRules, sourceOwns };

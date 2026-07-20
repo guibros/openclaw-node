@@ -442,3 +442,25 @@ scratch 2-server cluster: correct credentials → authed cluster forms (jsz meta
 wrong password → "authentication error – User openclaw-route … Router connection closed:
 Authentication Failure" and the cluster is untouched. Evidence:
 audits/item9_cluster_security/drill-output.txt. D2/D4 conformance restored.
+
+## D13 — HyperAgent is an evidence-driven, human-gated strategy loop, not autonomous self-modification (2026-07-20)
+
+**Decision.** HyperAgent may mechanically collect mesh task telemetry, select and inject an approved
+strategy, create identity-scoped reflection windows, and maintain proposal observations. LLM synthesis
+may propose strategy changes, but a human must approve every change. The only apply surface is
+structured strategy data; no harness, workflow, source-code, or filesystem mutation may be presented
+as HyperAgent behavior without a separate explicit design and gate.
+
+**Identity boundary.** Strategies with `node_id=NULL` are shared fallbacks. Node-owned strategies are
+visible only to that node and take precedence over shared fallbacks. Updating a shared fallback from a
+node reflection creates a node-local override; it does not deactivate the shared strategy fleet-wide.
+
+**Evidence language.** The existing window is observational: the proposal is not applied, assignment
+is not randomized, and the output is not causal. Product/docs/UI must not call it A/B testing. A future
+causal trial requires an explicit treatment application and experimental contract.
+
+**Runtime truth.** The 2026-07-20 remediation made the mesh producer, strategy application,
+attribution, scheduler, deployment probe, and watcher mechanical. Local companion logging and LLM
+synthesis remain prompt-assisted. At verification time the live database held one telemetry row and no
+strategies/reflections/proposals, so no learning or improvement claim is yet permitted. Full evidence:
+`audits/hyperagent_deep_review/DEEP_REVIEW_2026-07-20.md`.

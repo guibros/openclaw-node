@@ -17,6 +17,9 @@ const require = createRequire(import.meta.url);
 const m = require('../bin/mesh-agent.js');
 
 const task = { title: 'Harden the spec', description: 'fix F1/F2', scope: [], role: null, collaboration: { mode: 'review' } };
+Object.defineProperty(task, '_hyperagentStrategy', {
+  value: { id: 7, content: 'Start with a focused regression test.' },
+});
 
 test('P1: all four prompt builders inject the node memory (was circling-only)', () => {
   const builders = [
@@ -26,6 +29,19 @@ test('P1: all four prompt builders inject the node memory (was circling-only)', 
     ['circling', m.buildCirclingPrompt(task, { circling_phase: 'init', circling_step: 0, my_role: 'worker' })],
   ];
   for (const [name, p] of builders) assert.match(p, /ZED-9/, `${name} builder injects node memory`);
+});
+
+test('HyperAgent strategy is mechanically injected into all worker prompt shapes', () => {
+  const builders = [
+    m.buildInitialPrompt(task),
+    m.buildRetryPrompt(task, [], 1),
+    m.buildCollabPrompt(task, 1, '', [], 'worker'),
+    m.buildCirclingPrompt(task, { circling_phase: 'init', circling_step: 0, my_role: 'worker' }),
+  ];
+  for (const prompt of builders) {
+    assert.match(prompt, /Approved Strategy \(HyperAgent #7\)/);
+    assert.match(prompt, /Start with a focused regression test/);
+  }
 });
 
 test('P1: recallForTask returns null when disabled / no task (clean fallback, never throws)', () => {

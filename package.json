@@ -7,6 +7,7 @@
     "openclaw-node-harness": "./cli.js",
     "openclaw-node-check": "./bin/node-acceptance.mjs",
     "openclaw-node-watch": "./bin/node-watch.mjs",
+    "hyperagent": "./bin/hyperagent.mjs",
     "openclaw-notify": "./bin/openclaw-notify.mjs",
     "openclaw-stack": "./bin/openclaw-stack.mjs",
     "openclaw-grappe": "./bin/openclaw-grappe.mjs"

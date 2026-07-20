@@ -52,7 +52,8 @@ run rsync -av --exclude='*.bak' --exclude='*.bak.*' --exclude='routing-eval-test
 # (live-dev setups), macOS cp exits 1 ("are identical") and set -e kills the
 # install (observed 2026-07-14 on the VM). Same file = already deployed = skip.
 for _wsbin in node-watch.mjs node-acceptance.mjs openclaw-notify.mjs \
-              obsidian-graph-cache.mjs observer.mjs consolidation-scheduler.mjs; do
+              obsidian-graph-cache.mjs observer.mjs consolidation-scheduler.mjs \
+              hyperagent.mjs; do
   if [ ! "$REPO_DIR/bin/$_wsbin" -ef "$WORKSPACE/bin/$_wsbin" ]; then
     run cp "$REPO_DIR/bin/$_wsbin" "$WORKSPACE/bin/$_wsbin"
   fi

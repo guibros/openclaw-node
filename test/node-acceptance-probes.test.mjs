@@ -31,6 +31,7 @@ function baseCtx(over = {}) {
     natsConnect: async () => mockNc(),
     importSession: async () => ({ sessionId: 'acc-probe-testrun', messageCount: 4, imported: true }),
     publishTrigger: async () => {},
+    exec: async () => ({ code: 0, stdout: 'hyperagent help', stderr: '' }),
   };
   return Object.assign(ctx, over);
 }
@@ -73,6 +74,15 @@ describe('node-acceptance probes — L0 presence', () => {
   it('L0-TOKEN PASS when token present', async () => {
     const r = await probeById(baseCtx(), 'L0-TOKEN').run();
     assert.equal(r.status, VERDICT.PASS);
+  });
+  it('L0-HYPERAGENT PASS when workspace CLI and store import', async () => {
+    const r = await probeById(baseCtx(), 'L0-HYPERAGENT').run();
+    assert.equal(r.status, VERDICT.PASS);
+  });
+  it('L0-HYPERAGENT FAIL when the CLI import fails', async () => {
+    const ctx = baseCtx({ exec: async () => ({ code: 1, stdout: '', stderr: 'ERR_MODULE_NOT_FOUND' }) });
+    const r = await probeById(ctx, 'L0-HYPERAGENT').run();
+    assert.equal(r.status, VERDICT.FAIL);
   });
 });
 

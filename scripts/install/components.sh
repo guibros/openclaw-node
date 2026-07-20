@@ -389,15 +389,17 @@ fi
 
 step "Step 15.5: HyperAgent Protocol"
 
-if [ -f "$MESH_BIN/hyperagent.mjs" ]; then
-  run mkdir -p "$OPENCLAW_ROOT/state"
+HYPERAGENT_BIN="$WORKSPACE/bin/hyperagent.mjs"
+if [ -f "$HYPERAGENT_BIN" ]; then
   if $DRY_RUN; then
-    echo "  [dry-run] node $MESH_BIN/hyperagent.mjs status (initializes the store)"
-  elif node "$MESH_BIN/hyperagent.mjs" status 2>/dev/null; then
+    echo "  [dry-run] node $HYPERAGENT_BIN status (initializes the store)"
+  elif node "$HYPERAGENT_BIN" status; then
     info "HyperAgent store initialized"
   else
-    warn "HyperAgent init deferred (will init on first use)"
+    error "HyperAgent initialization failed at $HYPERAGENT_BIN"
+    exit 1
   fi
 else
-  warn "hyperagent.mjs not found in $MESH_BIN — skipping"
+  error "hyperagent.mjs not found in $WORKSPACE/bin"
+  exit 1
 fi

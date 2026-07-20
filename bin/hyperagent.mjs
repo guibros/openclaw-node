@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * hyperagent.mjs — CLI for the HyperAgent self-improving agent protocol.
+ * hyperagent.mjs — CLI for the HyperAgent evidence-driven strategy protocol.
  *
  * Pure data infrastructure — no LLM calls. Manages telemetry, strategies,
  * reflections, and proposals in SQLite. LLM synthesis happens at the agent
@@ -18,7 +18,7 @@
  *   hyperagent proposals
  *   hyperagent approve <id>
  *   hyperagent reject <id> [reason]
- *   hyperagent shadow <id> [--window 60]
+ *   hyperagent observe <id> [--window 60]
  */
 
 import path from 'path';
@@ -57,6 +57,13 @@ function printJson(obj) {
   console.log(JSON.stringify(obj, null, 2));
 }
 
+function readJsonInput(args, usage) {
+  const raw = hasFlag(args, '--stdin') ? fs.readFileSync(0, 'utf8').trim() : args[0];
+  if (!raw) die(`usage: ${usage}`);
+  try { return JSON.parse(raw); }
+  catch { die('invalid JSON'); }
+}
+
 function printTable(rows, columns) {
   if (rows.length === 0) { console.log('(none)'); return; }
   const widths = columns.map(c => Math.max(c.label.length, ...rows.map(r => String(c.get(r)).length)));
@@ -84,12 +91,7 @@ function cmdStatus(store) {
 }
 
 function cmdLog(store, args) {
-  const jsonStr = args[0];
-  if (!jsonStr) die('usage: hyperagent log <json>');
-
-  let entry;
-  try { entry = JSON.parse(jsonStr); }
-  catch { die('invalid JSON'); }
+  const entry = readJsonInput(args, 'hyperagent log <json|--stdin>');
 
   if (!entry.domain) die('domain is required');
   if (!entry.outcome) die('outcome is required');
@@ -100,11 +102,11 @@ function cmdLog(store, args) {
     task_id: entry.task_id || null,
     domain: entry.domain,
     subdomain: entry.subdomain || null,
-    strategy_id: entry.strategy_id || null,
+    strategy_id: entry.strategy_id ?? null,
     outcome: entry.outcome,
-    iterations: entry.iterations || 1,
-    duration_minutes: entry.duration_minutes || null,
-    meta_notes: entry.meta_notes || null,
+    iterations: entry.iterations ?? 1,
+    duration_minutes: entry.duration_minutes ?? null,
+    meta_notes: entry.meta_notes ?? null,
   });
 
   const flags = JSON.parse(row.pattern_flags || '[]');
@@ -142,11 +144,27 @@ function cmdStrategies(store, args) {
   ]);
 }
 
+function cmdConsult(store, args) {
+  const domain = parseArg(args, '--domain');
+  const subdomain = parseArg(args, '--subdomain');
+  if (!domain) die('usage: hyperagent consult --domain <domain> [--subdomain <subdomain>]');
+  const row = store.getStrategy(domain, subdomain, NODE_ID);
+  if (!row) return;
+  printJson({
+    strategy_id: row.id,
+    domain: row.domain,
+    subdomain: row.subdomain,
+    title: row.title,
+    content: row.content,
+    version: row.version,
+  });
+}
+
 function cmdStrategy(store, args) {
   const id = parseInt(args[0]);
   if (!id) die('usage: hyperagent strategy <id>');
 
-  const row = store.listStrategies({}).find(r => r.id === id);
+  const row = store.getStrategyById(id);
   if (!row) die(`strategy ${id} not found`);
 
   console.log(`# Strategy: ${row.title}`);
@@ -158,12 +176,7 @@ function cmdStrategy(store, args) {
 }
 
 function cmdSeedStrategy(store, args) {
-  const jsonStr = args[0];
-  if (!jsonStr) die('usage: hyperagent seed-strategy <json>');
-
-  let data;
-  try { data = JSON.parse(jsonStr); }
-  catch { die('invalid JSON'); }
+  const data = readJsonInput(args, 'hyperagent seed-strategy <json|--stdin>');
 
   if (!data.domain || !data.title || !data.content) {
     die('required: domain, title, content');
@@ -190,36 +203,27 @@ function cmdReflect(store, args) {
 
   // --write-synthesis: accept LLM output and write to DB
   if (hasFlag(args, '--write-synthesis')) {
-    const jsonStr = args[args.indexOf('--write-synthesis') + 1];
-    if (!jsonStr) die('usage: hyperagent reflect --write-synthesis <json>');
-
-    let data;
-    try { data = JSON.parse(jsonStr); }
-    catch { die('invalid JSON'); }
+    const valueIndex = args.indexOf('--write-synthesis') + 1;
+    const data = readJsonInput(
+      hasFlag(args, '--stdin') ? ['--stdin'] : [args[valueIndex]],
+      'hyperagent reflect --write-synthesis <json|--stdin>'
+    );
 
     if (!data.reflection_id) die('reflection_id required');
-
-    store.writeSynthesis(data.reflection_id, {
+    const proposals = (data.proposals || []).map((proposal) => ({
+      ...proposal,
+      proposal_type: proposal.proposal_type,
+      target_ref: proposal.target_ref ?? null,
+      diff_content: proposal.diff_content == null
+        ? null
+        : (typeof proposal.diff_content === 'string' ? proposal.diff_content : JSON.stringify(proposal.diff_content)),
+    }));
+    const created = store.synthesizeReflection(data.reflection_id, {
       hypotheses: data.hypotheses || [],
+      proposals,
     });
-
-    // Create proposals if provided
-    if (data.proposals && data.proposals.length > 0) {
-      const maxProposals = Math.min(data.proposals.length, 2); // cap at 2
-      for (let i = 0; i < maxProposals; i++) {
-        const p = data.proposals[i];
-        const row = store.putProposal({
-          reflection_id: data.reflection_id,
-          node_id: NODE_ID,
-          soul_id: SOUL_ID,
-          title: p.title,
-          description: p.description,
-          proposal_type: p.proposal_type || 'workflow_change',
-          target_ref: p.target_ref || null,
-          diff_content: p.diff_content ? (typeof p.diff_content === 'string' ? p.diff_content : JSON.stringify(p.diff_content)) : null,
-        });
-        console.log(`proposal created: id=${row.id} type=${row.proposal_type} "${row.title}"`);
-      }
+    for (const row of created) {
+      console.log(`proposal created: id=${row.id} type=${row.proposal_type} "${row.title}"`);
     }
 
     console.log(`synthesis written to reflection ${data.reflection_id}`);
@@ -228,7 +232,8 @@ function cmdReflect(store, args) {
 
   // Regular reflect: compute stats from unreflected telemetry
   const force = hasFlag(args, '--force');
-  const unreflected = store.getUnreflectedCount();
+  const identity = { node_id: NODE_ID, soul_id: SOUL_ID };
+  const unreflected = store.getUnreflectedCount(identity);
 
   if (unreflected < 5 && !force) {
     console.log(`only ${unreflected} unreflected tasks (need 5). Use --force to override.`);
@@ -236,11 +241,11 @@ function cmdReflect(store, args) {
   }
 
   // Get the last reflection's to_id
-  const lastReflection = store.getLastReflection();
+  const lastReflection = store.getLastReflection(identity);
   const sinceId = lastReflection ? lastReflection.telemetry_to_id : 0;
 
   // Compute stats
-  const stats = store.computeStats(sinceId);
+  const stats = store.computeStats(sinceId, identity);
   if (!stats) {
     console.log('no telemetry to reflect on.');
     return;
@@ -255,21 +260,6 @@ function cmdReflect(store, args) {
     telemetry_count: stats.totalTasks,
     raw_stats: stats,
   });
-
-  // Get recent telemetry sample for the agent
-  const sample = store.getTelemetrySince(sinceId).slice(-5).map(e => ({
-    id: e.id,
-    domain: e.domain,
-    outcome: e.outcome,
-    iterations: e.iterations,
-    flags: JSON.parse(e.pattern_flags || '[]'),
-    meta_notes: e.meta_notes,
-  }));
-
-  // Get previous hypotheses for continuity
-  const previousHypotheses = lastReflection && lastReflection.hypotheses
-    ? JSON.parse(lastReflection.hypotheses)
-    : null;
 
   // Auto-expire stale pending reflections (>24h without synthesis)
   store.expireStalePending();
@@ -290,7 +280,10 @@ function cmdReflectPending(store) {
   }
 
   // Get the telemetry in the reflection window
-  const entries = store.getTelemetrySince(pending.telemetry_from_id - 1)
+  const entries = store.getTelemetrySince(pending.telemetry_from_id - 1, {
+    node_id: pending.node_id,
+    soul_id: pending.soul_id,
+  })
     .filter(e => e.id >= pending.telemetry_from_id && e.id <= pending.telemetry_to_id);
 
   const sample = entries.slice(-5).map(e => ({
@@ -311,6 +304,8 @@ function cmdReflectPending(store) {
 
   const output = {
     reflection_id: pending.id,
+    node_id: pending.node_id,
+    soul_id: pending.soul_id,
     stats: JSON.parse(pending.raw_stats),
     telemetry_sample: sample,
     previous_hypotheses: previousHypotheses,
@@ -338,7 +333,6 @@ function cmdApprove(store, args) {
   if (!id) die('usage: hyperagent approve <id>');
 
   const result = store.approveProposal(id, 'human');
-  if (!result) die(`proposal ${id} not found`);
 
   console.log(`approved: id=${result.id} type=${result.proposal_type} "${result.title}"`);
 }
@@ -347,21 +341,20 @@ function cmdReject(store, args) {
   const id = parseInt(args[0]);
   if (!id) die('usage: hyperagent reject <id> [reason]');
 
-  const result = store.rejectProposal(id, args.slice(1).join(' ') || 'human');
-  if (!result) die(`proposal ${id} not found`);
+  const reason = args.slice(1).join(' ') || null;
+  const result = store.rejectProposal(id, 'human', reason);
 
   console.log(`rejected: id=${result.id} "${result.title}"`);
 }
 
-function cmdShadow(store, args) {
+function cmdObserve(store, args) {
   const id = parseInt(args[0]);
-  if (!id) die('usage: hyperagent shadow <id> [--window 60]');
+  if (!id) die('usage: hyperagent observe <id> [--window 60]');
 
   const window = parseInt(parseArg(args, '--window', '60'));
-  const result = store.startShadowEval(id, window);
-  if (!result) die(`proposal ${id} not found`);
+  const result = store.startObservation(id, window);
 
-  console.log(`shadow eval started: id=${result.id} window=${window}min`);
+  console.log(`observation started: id=${result.id} window=${window}min (proposal not applied)`);
   console.log(`  start: ${result.eval_window_start}`);
   console.log(`  end:   ${result.eval_window_end}`);
 }
@@ -373,22 +366,23 @@ const command = args[0];
 const commandArgs = args.slice(1);
 
 if (!command || command === '--help' || command === '-h') {
-  console.log(`hyperagent — self-improving agent protocol CLI
+  console.log(`hyperagent — evidence-driven strategy protocol CLI
 
 commands:
   status                         overview stats
-  log <json>                     log telemetry entry
+  log <json|--stdin>             log telemetry entry
   telemetry [--domain X] [--last N]  list entries
   strategies [--domain X]        list active strategies
+  consult --domain X [--subdomain Y]  print the best strategy as JSON
   strategy <id>                  show strategy detail
-  seed-strategy <json>           import strategy
+  seed-strategy <json|--stdin>   import strategy
   reflect [--force]              trigger reflection
   reflect --pending              get pending reflection for synthesis (JSON)
-  reflect --write-synthesis <json>  write LLM synthesis
+  reflect --write-synthesis <json|--stdin>  write LLM synthesis
   proposals                      list proposals
   approve <id>                   approve proposal
   reject <id> [reason]           reject proposal
-  shadow <id> [--window 60]      start shadow eval
+  observe <id> [--window 60]     collect a non-causal observation window
 
 env:
   OPENCLAW_HOME      base dir (default: ~/.openclaw)
@@ -409,13 +403,14 @@ cmdStatus = tracer.wrap('cmdStatus', cmdStatus, { tier: 3 });
 cmdLog = tracer.wrap('cmdLog', cmdLog, { tier: 3 });
 cmdTelemetry = tracer.wrap('cmdTelemetry', cmdTelemetry, { tier: 3 });
 cmdStrategies = tracer.wrap('cmdStrategies', cmdStrategies, { tier: 3 });
+cmdConsult = tracer.wrap('cmdConsult', cmdConsult, { tier: 3 });
 cmdStrategy = tracer.wrap('cmdStrategy', cmdStrategy, { tier: 3 });
 cmdSeedStrategy = tracer.wrap('cmdSeedStrategy', cmdSeedStrategy, { tier: 3 });
 cmdReflect = tracer.wrap('cmdReflect', cmdReflect, { tier: 3 });
 cmdProposals = tracer.wrap('cmdProposals', cmdProposals, { tier: 3 });
 cmdApprove = tracer.wrap('cmdApprove', cmdApprove, { tier: 3 });
 cmdReject = tracer.wrap('cmdReject', cmdReject, { tier: 3 });
-cmdShadow = tracer.wrap('cmdShadow', cmdShadow, { tier: 3 });
+cmdObserve = tracer.wrap('cmdObserve', cmdObserve, { tier: 3 });
 
 try {
   switch (command) {
@@ -423,15 +418,19 @@ try {
     case 'log': cmdLog(store, commandArgs); break;
     case 'telemetry': cmdTelemetry(store, commandArgs); break;
     case 'strategies': cmdStrategies(store, commandArgs); break;
+    case 'consult': cmdConsult(store, commandArgs); break;
     case 'strategy': cmdStrategy(store, commandArgs); break;
     case 'seed-strategy': cmdSeedStrategy(store, commandArgs); break;
     case 'reflect': cmdReflect(store, commandArgs); break;
     case 'proposals': cmdProposals(store); break;
     case 'approve': cmdApprove(store, commandArgs); break;
     case 'reject': cmdReject(store, commandArgs); break;
-    case 'shadow': cmdShadow(store, commandArgs); break;
+    case 'observe': cmdObserve(store, commandArgs); break;
     default: die(`unknown command: ${command}. Run hyperagent --help`);
   }
+} catch (err) {
+  console.error(`error: ${err.message}`);
+  process.exitCode = 1;
 } finally {
   store.close();
 }

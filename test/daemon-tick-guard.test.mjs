@@ -74,6 +74,14 @@ test('the interval logs the skip observable', () => {
   assert.match(daemonSrc, /tick skipped \(in-flight\)/);
 });
 
+test('HyperAgent maintenance ticks even when the session state is ENDED', () => {
+  const tickBody = daemonSrc.match(/async function tick\(\) \{[\s\S]*?\n  \}/)[0];
+  const hyperagentCall = tickBody.indexOf('await runHyperagentMaintenance(config)');
+  const sessionGate = tickBody.indexOf('if (sm.state === STATES.ACTIVE || sm.state === STATES.IDLE)', hyperagentCall);
+  assert.ok(hyperagentCall > 0, 'tick must invoke HyperAgent maintenance');
+  assert.ok(sessionGate > hyperagentCall, 'HyperAgent maintenance must run outside the ACTIVE/IDLE Phase 2 gate');
+});
+
 test('synthesis trigger labels are truthful per call site (R10, repair 2.11)', () => {
   const labels = [...daemonSrc.matchAll(/emitSynthesizeEvent\([^,]+, '([a-z_]+)'/g)].map((m) => m[1]);
   labels.sort();

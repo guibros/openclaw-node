@@ -81,7 +81,7 @@ function getHarnessRules() {
 /**
  * Inject matching coding rules into a prompt parts array based on task scope.
  */
-function injectRules(parts, scope) {
+function injectRules(parts, scope, activationText = '') {
   // Path-scoped coding standards
   const matched = matchRules(getRules(), scope || []);
   if (matched.length > 0) {
@@ -93,11 +93,55 @@ function injectRules(parts, scope) {
   }
 
   // Harness behavioral rules (soft enforcement — LLM-agnostic prompt injection)
-  const harnessText = formatHarnessForPrompt(getHarnessRules());
+  const harnessText = formatHarnessForPrompt(getHarnessRules(), activationText);
   if (harnessText) {
     parts.push(harnessText);
     parts.push('');
   }
+}
+
+function taskActivationText(task) {
+  return ['task start', 'status: running', task.title, task.description].filter(Boolean).join('\n');
+}
+
+function taskTaxonomy(task) {
+  return {
+    domain: task.domain || task.role || (task.collaboration ? 'collaboration' : 'mesh-task'),
+    subdomain: task.subdomain || (task.collaboration ? 'collaboration' : 'solo'),
+  };
+}
+
+async function prepareHyperagentStrategy(task) {
+  try {
+    const { createHyperAgentStore } = await import('../lib/hyperagent-store.mjs');
+    const store = createHyperAgentStore({ dbPath: path.join(os.homedir(), '.openclaw', 'state.db') });
+    try {
+      const { domain, subdomain } = taskTaxonomy(task);
+      const strategy = store.getStrategy(domain, subdomain, NODE_ID);
+      if (!strategy) return null;
+      Object.defineProperty(task, '_hyperagentStrategy', {
+        value: strategy,
+        configurable: true,
+        writable: true,
+      });
+      log(`HyperAgent strategy selected: id=${strategy.id} domain=${strategy.domain}`);
+      return strategy;
+    } finally {
+      store.close();
+    }
+  } catch (err) {
+    warn(`HyperAgent strategy consultation failed for ${task.task_id}: ${err.message}`);
+    return null;
+  }
+}
+
+function injectHyperagentStrategy(parts, task) {
+  const strategy = task?._hyperagentStrategy;
+  if (!strategy) return;
+  parts.push(`## Approved Strategy (HyperAgent #${strategy.id})`);
+  parts.push(strategy.content);
+  parts.push('Use this as the starting approach, adapting it when the task evidence requires.');
+  parts.push('');
 }
 
 // ── Role loading (cached per role ID) ─────────────────
@@ -224,6 +268,33 @@ function writeAgentState(status, taskId, provider, model) {
   } catch { /* best-effort */ }
 }
 
+async function recordHyperagentTask(task, { outcome, iterations, startedAt, notes }) {
+  try {
+    const { createHyperAgentStore } = await import('../lib/hyperagent-store.mjs');
+    const store = createHyperAgentStore({ dbPath: path.join(os.homedir(), '.openclaw', 'state.db') });
+    try {
+      const { domain, subdomain } = taskTaxonomy(task);
+      const row = store.logTelemetry({
+        node_id: NODE_ID,
+        soul_id: process.env.OPENCLAW_SOUL_ID || NODE_ID,
+        task_id: task.task_id,
+        domain,
+        subdomain,
+        strategy_id: task._hyperagentStrategy?.id,
+        outcome,
+        iterations: Math.max(1, iterations || 1),
+        duration_minutes: Math.max(0, (Date.now() - startedAt) / 60000),
+        meta_notes: notes,
+      });
+      log(`HyperAgent telemetry: id=${row.id} outcome=${row.outcome} iterations=${row.iterations}`);
+    } finally {
+      store.close();
+    }
+  } catch (err) {
+    warn(`HyperAgent telemetry failed for ${task.task_id}: ${err.message}`);
+  }
+}
+
 // ── Logging ───────────────────────────────────────────
 
 const _logger = require('../lib/logger').createLogger('mesh-agent');
@@ -292,11 +363,12 @@ function buildInitialPrompt(task) {
   }
 
   // Inject path-scoped coding rules matching task scope
-  injectRules(parts, task.scope);
+  injectRules(parts, task.scope, taskActivationText(task));
 
   // Inject role profile (responsibilities, boundaries, framework)
   injectRole(parts, task.role);
   injectMemory(parts, task);
+  injectHyperagentStrategy(parts, task);
 
   parts.push('## Instructions');
   parts.push('- Read the relevant files before making changes.');
@@ -363,11 +435,12 @@ function buildRetryPrompt(task, previousAttempts, attemptNumber) {
   }
 
   // Inject path-scoped coding rules matching task scope
-  injectRules(parts, task.scope);
+  injectRules(parts, task.scope, taskActivationText(task));
 
   // Inject role profile (responsibilities, boundaries, framework)
   injectRole(parts, task.role);
   injectMemory(parts, task);
+  injectHyperagentStrategy(parts, task);
 
   parts.push('## Instructions');
   parts.push('- Do NOT repeat a failed approach. Try something different.');
@@ -715,9 +788,10 @@ function buildCollabPrompt(task, roundNumber, sharedIntel, myScope, myRole, roun
 
   // Inject path-scoped coding rules matching task scope
   const collabScope = Array.isArray(myScope) ? myScope.map(s => s.replace('[REVIEW-ONLY] ', '')) : task.scope;
-  injectRules(parts, collabScope);
+  injectRules(parts, collabScope, taskActivationText(task));
   injectRole(parts, task.role);
   injectMemory(parts, task);
+  injectHyperagentStrategy(parts, task);
 
   if (task.success_criteria && task.success_criteria.length > 0) {
     parts.push('## Success Criteria');
@@ -973,9 +1047,10 @@ function buildCirclingPrompt(task, circlingData) {
   // 2.4 / D11: a grappe worker is a harness-loaded OpenClaw, not a bare LLM call —
   // inject the node's coding + harness rules, role profile, and long-term memory as
   // context (the other collab/task builders already do this; circling did not).
-  injectRules(parts, task.scope);
+  injectRules(parts, task.scope, taskActivationText(task));
   injectRole(parts, task.role);
   injectMemory(parts, task);
+  injectHyperagentStrategy(parts, task);
 
   // Add directed input
   if (directed_input) {
@@ -1072,6 +1147,7 @@ function parseCirclingReflection(output) {
  * Execute a collaborative task: join session, work in rounds, submit reflections.
  */
 async function executeCollabTask(task) {
+  const startedAt = Date.now();
   const collabSpec = task.collaboration;
   log(`COLLAB EXECUTING: ${task.task_id} "${task.title}" (mode: ${collabSpec.mode})`);
 
@@ -1087,6 +1163,10 @@ async function executeCollabTask(task) {
     log(`COLLAB DECLINED (D11): provider "${workerProvider.name}" is not an OpenClaw advanced-LLM frontend — this node will not join ${task.task_id}. Set MESH_LLM_PROVIDER/task.llm_provider (claude/openai/gemini/deepseek/kimi/minimax/aider), or MESH_ALLOW_MOCK_WORKERS=1 for choreography testing with 'shell'.`);
     debug('state → idle');
     writeAgentState('idle', null);
+    await recordHyperagentTask(task, {
+      outcome: 'failure', iterations: 1, startedAt,
+      notes: `Collaboration declined because provider ${workerProvider.name} is not an approved advanced-LLM frontend.`,
+    });
     return;
   }
 
@@ -1172,6 +1252,7 @@ async function executeCollabTask(task) {
 
   log(`COLLAB JOINED: ${sessionId} (${session.nodes.length} nodes)`);
   writeAgentState('working', task.task_id);
+  await prepareHyperagentStrategy(task);
 
   // Create worktree for isolation
   const worktreePath = createWorktree(`${task.task_id}-${NODE_ID}`);
@@ -1335,6 +1416,13 @@ async function executeCollabTask(task) {
   }
 
   writeAgentState('idle', null);
+  const successful = ['completed', 'converged'].includes(lastKnownSessionStatus);
+  await recordHyperagentTask(task, {
+    outcome: successful ? 'success' : 'failure',
+    iterations: Math.max(1, session.current_round || 1),
+    startedAt,
+    notes: `Collaboration session ${sessionId} ended with status ${lastKnownSessionStatus || 'unknown'}.`,
+  });
   log(`COLLAB DONE: ${task.task_id} (node: ${NODE_ID})`);
 }
 
@@ -1345,7 +1433,9 @@ async function executeCollabTask(task) {
  * Try → measure → keep/discard → retry.
  */
 async function executeTask(task) {
+  const startedAt = Date.now();
   log(`EXECUTING: ${task.task_id} "${task.title}" (budget: ${task.budget_minutes}m, metric: ${task.metric || 'none'}, max attempts: ${MAX_ATTEMPTS})`);
+  await prepareHyperagentStrategy(task);
 
   // Create isolated worktree for this task (falls back to shared workspace on failure)
   const worktreePath = createWorktree(task.task_id);
@@ -1487,6 +1577,10 @@ async function executeTask(task) {
       });
       cleanupWorktree(worktreePath, keepBranch);
       writeAgentState('idle', null);
+      await recordHyperagentTask(task, {
+        outcome: 'success', iterations: attempts.length, startedAt,
+        notes: `Completed without a configured metric. ${summary}`,
+      });
       log(`COMPLETED: ${task.task_id} (no metric, attempt ${attempt})`);
       return;
     }
@@ -1533,6 +1627,10 @@ async function executeTask(task) {
       });
       cleanupWorktree(worktreePath, keepBranch);
       writeAgentState('idle', null);
+      await recordHyperagentTask(task, {
+        outcome: 'success', iterations: attempts.length, startedAt,
+        notes: `Configured metric passed on attempt ${attempt}. ${summary}`,
+      });
       log(`COMPLETED: ${task.task_id} (metric passed, attempt ${attempt})`);
       return;
     }
@@ -1564,6 +1662,10 @@ async function executeTask(task) {
   // Keep worktree branch on release for post-mortem debugging (don't merge partial work)
   cleanupWorktree(worktreePath, true);
   writeAgentState('idle', null);
+  await recordHyperagentTask(task, {
+    outcome: 'failure', iterations: attempts.length, startedAt,
+    notes: `Task released for human triage. ${reason}`,
+  });
   log(`RELEASED: ${task.task_id} — ${reason}`);
 }
 
@@ -1712,6 +1814,8 @@ async function main() {
     } catch (err) { warn(`recruiting poll: ${err.message}`); }
   }
 
+  let claimedTask = null;
+  let claimedAt = 0;
   while (running) {
     try {
       // Check for recruiting collab sessions before trying to claim
@@ -1735,6 +1839,8 @@ async function main() {
       }
 
       log(`CLAIMED: ${task.task_id} "${task.title}"`);
+      claimedTask = task;
+      claimedAt = Date.now();
 
       // Execute the task (collab or solo)
       currentTaskId = task.task_id;
@@ -1744,9 +1850,18 @@ async function main() {
         await executeTask(task);
       }
       currentTaskId = null;
+      claimedTask = null;
 
     } catch (err) {
       log(`ERROR: ${err.message}`);
+      if (claimedTask) {
+        await recordHyperagentTask(claimedTask, {
+          outcome: 'failure', iterations: 1, startedAt: claimedAt,
+          notes: `Unhandled worker error: ${err.message}`,
+        });
+        claimedTask = null;
+      }
+      currentTaskId = null;
       // Don't crash the loop — wait and retry
       await new Promise(r => setTimeout(r, POLL_INTERVAL));
     }
@@ -1772,5 +1887,5 @@ if (require.main === module) {
 }
 
 // Test surface: the pure prompt builders + harness injectors (no NATS / side effects).
-module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, buildRetryPrompt, injectRules, injectRole, injectMemory, recallForTask, readNodeMemory };
+module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, buildRetryPrompt, injectRules, injectRole, injectMemory, injectHyperagentStrategy, recallForTask, readNodeMemory };
 // deploy-v7f0130b

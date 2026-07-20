@@ -4,7 +4,7 @@ Installable package for deploying an OpenClaw node. Includes the full infrastruc
 
 - **Memory Daemon** — persistent background service managing session lifecycle, memory maintenance, Obsidian sync, and the consolidation cycle (the live unit execs `workspace-bin/memory-daemon.mjs`). The federation wiring (broadcaster/offerer/acceptor + subscriber + in-process consolidation scheduler) lives inside the same daemon behind `OPENCLAW_FEDERATION=1` — default off, dormant until multi-node federation lands
 - **Federation / Grappe** — signed multi-node memory federation: grappes are signed-membership clusters of full OpenClaw nodes (`bin/openclaw-grappe.mjs`, `GRAPPE_REGISTRY` KV, join-token verified). The unit of federation is an OpenClaw, not a model
-- **HyperAgent Protocol** — self-improving agent loop: telemetry, structured reflection, strategy archive, and self-modifying proposals with human-gated approval
+- **HyperAgent Protocol** — evidence-driven strategy loop: task telemetry, structured reflection, and human-gated strategy proposals
 - **Mission Control** — Next.js web dashboard (kanban, timeline, graph visualization, memory browser)
 - **Soul System** — multi-soul orchestration with trust registry and evolution
 - **Skill Library** — 100+ skills for AI agent capabilities
@@ -168,18 +168,18 @@ If not using Obsidian, the sync is disabled by default in `config/obsidian-sync.
 
 ## HyperAgent Protocol
 
-A self-improving loop that makes any agent on any node better over time. Based on the DGM-Hyperagents framework (Zhang et al., 2026): the mechanism that generates improvements is itself subject to improvement.
+An evidence-driven loop for improving reusable agent strategies over time. It records task outcomes, groups evidence by node and soul, asks an agent to synthesize hypotheses, and requires human approval before a strategy changes. It does not modify code, harness rules, or its own learning mechanism.
 
 ### How It Works
 
 ```
-Task completes → Telemetry logged (auto-detected pattern flags)
+Mesh task completes → Executor logs telemetry (local tasks are prompt-assisted)
                       ↓
               5 tasks accumulate
                       ↓
-        Daemon triggers reflection (raw stats)
+        Daemon creates identity-scoped reflection (raw stats)
                       ↓
-     Agent synthesizes hypotheses + proposals (autonomous)
+     Next task-start agent synthesizes hypotheses + proposals
                       ↓
           Human reviews proposals (safety gate)
                       ↓
@@ -188,20 +188,25 @@ Task completes → Telemetry logged (auto-detected pattern flags)
         Next task consults strategies at start
 ```
 
-The loop is fully autonomous except proposal approval. Telemetry, reflection, synthesis, and strategy consultation all happen without human intervention.
+Mesh telemetry and raw reflection creation are mechanical. Local companion telemetry, synthesis, and consultation are prompt-assisted and therefore best-effort. Proposal approval is always a CLI-operated human gate. Only `strategy_new` and `strategy_update` proposals are accepted because they have complete apply logic.
 
 ### Components
 
 | Component | Location | Purpose |
 |---|---|---|
 | `lib/hyperagent-store.mjs` | SQLite in `state.db` | 5 tables: telemetry, strategies, reflections, proposals, junction |
-| `bin/hyperagent.mjs` | CLI | `status`, `log`, `reflect`, `strategies`, `approve`, `reject` |
-| Harness rules (3) | `config/harness-rules.json` | Injected into any agent: task-close telemetry, task-start strategy lookup, reflection synthesis |
-| Daemon phase | `workspace-bin/memory-daemon.mjs` | Triggers reflection every 30min when 5+ unreflected tasks exist |
+| `bin/hyperagent.mjs` | CLI | Telemetry, consultation, reflection synthesis, proposals, and approval |
+| `bin/mesh-agent.js` | Producer | Mechanically records solo and collaborative mesh-task outcomes |
+| Harness rules (3) | `config/harness-rules.json` | Best-effort local telemetry plus task-start consultation and synthesis |
+| Daemon phase | `workspace-bin/memory-daemon.mjs` | Every 30 minutes creates per-node/per-soul reflections at 5+ tasks and closes maintenance windows |
 
 ### Agent-Agnostic
 
-Works for any soul (daedalus, infra-ops, blockchain-auditor, etc.) on any node. Telemetry is tagged with `node_id` and `soul_id`. Strategies are queryable by domain. The harness rules inject into any agent session via companion-bridge.
+Telemetry and reflection watermarks are isolated by `node_id` and `soul_id`; one soul cannot consume another soul's evidence. Strategies are queryable by normalized domain and subdomain. Companion-bridge can inject the local rules when that separate adapter is installed and running.
+
+### Observation Windows
+
+`hyperagent observe` collects matching telemetry for the same node, soul, domain, and optional subdomain. The proposal is not applied during the window, so the result is an observational before/during comparison, not an A/B test and not evidence of causality.
 
 ### Pattern Flags
 
@@ -216,22 +221,23 @@ Pathology detection is automatic. The store detects these flags at telemetry wri
 
 ```bash
 hyperagent status                          # overview
-hyperagent log '<json>'                    # log telemetry
+hyperagent log --stdin                     # log telemetry JSON safely via stdin
 hyperagent strategies [--domain X]         # list strategies
+hyperagent consult --domain X [--subdomain Y]  # print best strategy + content as JSON
 hyperagent reflect [--force]               # trigger reflection
 hyperagent reflect --pending               # get pending synthesis (JSON)
-hyperagent reflect --write-synthesis '<json>'  # write agent synthesis
+hyperagent reflect --write-synthesis --stdin   # atomically write synthesis + proposals
 hyperagent proposals                       # list proposals
 hyperagent approve <id>                    # approve (human gate)
 hyperagent reject <id> [reason]            # reject
-hyperagent shadow <id> [--window 60]       # start shadow eval
-hyperagent seed-strategy '<json>'          # import strategy manually
+hyperagent observe <id> [--window 60]      # start non-causal observation window
+hyperagent seed-strategy --stdin            # import strategy JSON safely via stdin
 ```
 
 ### Tests
 
 ```bash
-node test/hyperagent-store.test.js   # 28 tests, no external deps
+node --test test/hyperagent-store.test.js test/hyperagent-integration.test.mjs
 ```
 
 ## Memory System

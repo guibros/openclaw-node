@@ -188,7 +188,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 5 | 5.1 | v5.1 | [ ] | Telemetry substrate: federation-wide feed (watch snapshots, ledger, session outcomes, digests) |
+| 5 | 5.1 | v5.1 | [ ] | Telemetry substrate: federation-wide feed (watch snapshots, ledger, session outcomes, digests). The node-local HyperAgent loop is now mechanically wired and observed (2026-07-20), but its 1-row local database is not the federation-wide feed and does not close this step. |
 | 5 | 5.2 | v5.2 | [ ] | Change-set artifact: savant adversarial session producing {level, rationale, edit, evidence} |
 | 5 | 5.3 | v5.3 | [ ] | Proposal pipeline: signed change-set → notification + PROPOSED OUT_OF_SCOPE entry → operator gate |
 | 5 | 5.4 | v5.4 | [ ] | First savant cycle over ≥7 days of real telemetry: ≥1 gated change-set per level, zero auto-applies |

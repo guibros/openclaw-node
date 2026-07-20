@@ -76,6 +76,13 @@ Current state of every component this plan touches. **Reality, not aspiration** 
 
 ## Family 4: surfaces this plan will extend
 
+### HyperAgent evidence loop — bin/hyperagent.mjs · lib/hyperagent-store.mjs · memory-daemon · mesh-agent
+
+| | |
+|---|---|
+| **Status** | **LIVE SUBSTRATE, NOT YET LEARNING-PROVEN.** Mesh telemetry, global-or-own strategy selection/injection, strategy attribution, identity-scoped reflection scheduling, transactional human-gated apply, deployment acceptance, and node-watch are mechanical. Local companion telemetry and synthesis remain prompt-assisted. Observation windows are descriptive, not A/B tests. |
+| **Verified** | **2026-07-20 00:48–00:49 EDT** — deployed daemon PID 29245; repository/deploy hashes match; daemon logged `HyperAgent store initialized` + `maintenance tick complete` while session state was ENDED; throttle age 8s; deployed CLI status: telemetry=1, strategies=0, reflections=0, proposals=0; SQLite integrity `ok`; node-watch `ops.hyperagent=WORKING`. Focused + installer suite 173/173. No synthetic production rows inserted. See `audits/hyperagent_deep_review/DEEP_REVIEW_2026-07-20.md`. |
+
 ### Observability & control — node-watch, openclaw-notify, Mission Control, openclaw-stack
 
 | | |

@@ -153,15 +153,25 @@ describe('scanOutputForBlocks', () => {
 describe('formatHarnessForPrompt', () => {
   it('formats inject rules into prompt text', () => {
     const rules = [
-      { id: 'r1', type: 'inject', content: 'RULE: do X' },
-      { id: 'r2', type: 'inject', content: 'RULE: do Y' },
+      { id: 'r1', tier: 1, type: 'inject', content: 'RULE: do X' },
+      { id: 'r2', tier: 2, type: 'inject', content: 'RULE: do Y', activateOn: ['task start'] },
       { id: 'r3', type: 'enforce', content: 'mechanical only' }, // should be excluded
     ];
-    const output = formatHarnessForPrompt(rules);
+    const output = formatHarnessForPrompt(rules, 'task start');
     assert.ok(output.includes('## Harness Rules'), 'Should have header');
     assert.ok(output.includes('RULE: do X'), 'Should include r1');
     assert.ok(output.includes('RULE: do Y'), 'Should include r2');
     assert.ok(!output.includes('mechanical only'), 'Should exclude enforce type');
+  });
+
+  it('does not inject inactive lifecycle phases', () => {
+    const rules = [
+      { id: 'start', tier: 2, type: 'inject', content: 'START RULE', activateOn: ['task start'] },
+      { id: 'close', tier: 2, type: 'inject', content: 'CLOSE RULE', activateOn: ['task complete'] },
+    ];
+    const output = formatHarnessForPrompt(rules, 'task start\nstatus: running');
+    assert.match(output, /START RULE/);
+    assert.doesNotMatch(output, /CLOSE RULE/);
   });
 
   it('returns empty for no inject rules', () => {

@@ -66,6 +66,9 @@ const REQUIRED_PRODUCTION_WIRES = [
   { factory: 'createConcurrencyGuard',  calledIn: 'workspace-bin/memory-daemon.mjs' },
   { factory: 'exportStateSnapshot',     calledIn: 'workspace-bin/memory-daemon.mjs' },
   { factory: 'appendWatcherRecord',     calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'createHyperAgentStore',   calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'createPendingReflections', calledIn: 'workspace-bin/memory-daemon.mjs' },
+  { factory: 'recordHyperagentTask',     calledIn: 'bin/mesh-agent.js' },
   // The flush runs OFF the daemon's main thread since the flush-worker change
   // (audits/flush_worker): the daemon invokes runFlushInWorker at every flush
   // site, and the worker is the one that calls the real runFlush. Both wires
