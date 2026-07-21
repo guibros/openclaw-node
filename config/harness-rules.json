@@ -4,66 +4,113 @@
     "description": "Never declare work complete without running a build or test",
     "tier": 1,
     "type": "inject",
-    "scope": ["local", "mesh"],
+    "scope": [
+      "local",
+      "mesh"
+    ],
     "content": "HARD RULE: Never declare a task complete without running the build/test and showing the actual output. Files existing on disk is not proof of success.",
     "pattern": null,
     "activateOn": null,
     "active": true,
-    "tags": ["build", "completion", "verification"],
+    "tags": [
+      "build",
+      "completion",
+      "verification"
+    ],
     "mesh_enforcement": "metric_required",
     "_mesh_note": "On mesh: if task has no metric, post-completion scan flags for review. Karpathy loop already enforces this for tasks WITH metrics."
   },
   {
     "id": "no-silent-failure",
-    "description": "Never silently swallow errors — always surface them explicitly",
+    "description": "Never silently swallow errors \u2014 always surface them explicitly",
     "tier": 1,
     "type": "inject",
-    "scope": ["local", "mesh"],
+    "scope": [
+      "local",
+      "mesh"
+    ],
     "content": "HARD RULE: Never hide, swallow, or skip past errors. If something fails, stop and report it immediately with the full error output.",
     "pattern": null,
     "activateOn": null,
     "active": true,
-    "tags": ["errors", "visibility"],
+    "tags": [
+      "errors",
+      "visibility"
+    ],
     "mesh_enforcement": "post_scan",
-    "mesh_scan_patterns": ["error:", "Error:", "FAIL", "FAILED", "exception", "Exception", "panic", "PANIC", "Traceback"]
+    "mesh_scan_patterns": [
+      "error:",
+      "Error:",
+      "FAIL",
+      "FAILED",
+      "exception",
+      "Exception",
+      "panic",
+      "PANIC",
+      "Traceback"
+    ]
   },
   {
     "id": "no-assume-running",
     "description": "Never assume a server/process is running without checking",
     "tier": 1,
     "type": "inject",
-    "scope": ["local", "mesh"],
+    "scope": [
+      "local",
+      "mesh"
+    ],
     "content": "HARD RULE: Never assume a server, daemon, or process is running. Verify with a process check or health probe before acting on that assumption.",
     "pattern": null,
     "activateOn": null,
     "active": true,
-    "tags": ["process", "verification"],
+    "tags": [
+      "process",
+      "verification"
+    ],
     "mesh_enforcement": "pre_check",
-    "mesh_pre_checks": ["nats"]
+    "mesh_pre_checks": [
+      "nats"
+    ]
   },
   {
     "id": "session-boot-context",
     "description": "Read session state files before first reply so companion knows where we left off",
     "tier": 1,
     "type": "inject",
-    "scope": ["local"],
+    "scope": [
+      "local"
+    ],
     "content": "HARD RULE: At session start, BEFORE your first reply, silently read memory/last-session-recap.md, memory/active-tasks.md (first 50 lines), and .companion-state.md. Lead your first message with a brief status of where we left off. Never make the user re-orient you.",
     "pattern": null,
     "activateOn": null,
     "active": true,
-    "tags": ["boot", "context", "session"]
+    "tags": [
+      "boot",
+      "context",
+      "session"
+    ]
   },
   {
     "id": "git-conventional-commits",
     "description": "Use conventional commit format for all git commits",
     "tier": 2,
     "type": "inject",
-    "scope": ["local", "mesh"],
-    "content": "RULE: All git commits must use conventional commit format: type(scope): description — e.g. fix(auth): correct token refresh logic",
+    "scope": [
+      "local",
+      "mesh"
+    ],
+    "content": "RULE: All git commits must use conventional commit format: type(scope): description \u2014 e.g. fix(auth): correct token refresh logic",
     "pattern": null,
-    "activateOn": ["git commit", "commit -m", "git add"],
+    "activateOn": [
+      "git commit",
+      "commit -m",
+      "git add"
+    ],
     "active": true,
-    "tags": ["git", "commits"],
+    "tags": [
+      "git",
+      "commits"
+    ],
     "mesh_enforcement": "post_validate",
     "mesh_validate_command": "git log -1 --format=%s | grep -qE '^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\\(.+\\))?: .+'"
   },
@@ -72,12 +119,25 @@
     "description": "Never hardcode API keys, tokens, or passwords in source files",
     "tier": 2,
     "type": "inject",
-    "scope": ["local", "mesh"],
+    "scope": [
+      "local",
+      "mesh"
+    ],
     "content": "RULE: Never hardcode API keys, tokens, passwords, or secrets directly in source code. Use environment variables or config files excluded from git.",
     "pattern": null,
-    "activateOn": ["api key", "apikey", "secret", "password", "token", "credential"],
+    "activateOn": [
+      "api key",
+      "apikey",
+      "secret",
+      "password",
+      "token",
+      "credential"
+    ],
     "active": true,
-    "tags": ["security", "secrets"],
+    "tags": [
+      "security",
+      "secrets"
+    ],
     "mesh_enforcement": "pre_commit_scan"
   },
   {
@@ -85,24 +145,45 @@
     "description": "Use Playwright web-fetch when WebFetch is blocked or returns empty/broken content",
     "tier": 2,
     "type": "inject",
-    "scope": ["local"],
+    "scope": [
+      "local"
+    ],
     "content": "RULE: When WebFetch fails, returns empty content, or a site blocks automated access (anti-bot, JS-rendered, login wall), fall back to Playwright via: node bin/web-fetch.mjs <url> [--html] [--selector \"css\"] [--wait ms] [--screenshot file.png]. This renders the full page with a real Chromium browser.",
     "pattern": null,
-    "activateOn": ["WebFetch", "web fetch", "scrape", "blocked", "403", "access denied", "anti-bot", "cloudflare"],
+    "activateOn": [
+      "WebFetch",
+      "web fetch",
+      "scrape",
+      "blocked",
+      "403",
+      "access denied",
+      "anti-bot",
+      "cloudflare"
+    ],
     "active": true,
-    "tags": ["web", "scraping", "fallback"]
+    "tags": [
+      "web",
+      "scraping",
+      "fallback"
+    ]
   },
   {
     "id": "scope-enforcement",
     "description": "Reject file changes outside task scope boundaries",
     "tier": 1,
     "type": "enforce",
-    "scope": ["mesh"],
+    "scope": [
+      "mesh"
+    ],
     "content": "Files modified outside the declared task scope will be reverted before commit.",
     "pattern": null,
     "activateOn": null,
     "active": true,
-    "tags": ["scope", "boundaries", "safety"],
+    "tags": [
+      "scope",
+      "boundaries",
+      "safety"
+    ],
     "mesh_enforcement": "scope_check"
   },
   {
@@ -110,68 +191,53 @@
     "description": "Scripts must not contain bare sudo commands",
     "tier": 3,
     "type": "block",
-    "scope": ["local", "mesh"],
+    "scope": [
+      "local",
+      "mesh"
+    ],
     "content": "Generated scripts must not contain sudo commands without explicit user acknowledgment",
     "pattern": "\\bsudo\\s+\\S+",
     "activateOn": null,
     "active": false,
-    "tags": ["security", "scripts"],
+    "tags": [
+      "security",
+      "scripts"
+    ],
     "mesh_enforcement": "output_block",
-    "_note": "Disabled by default — too aggressive for general use."
+    "_note": "Disabled by default \u2014 too aggressive for general use."
   },
   {
     "id": "block-rm-rf",
     "description": "Never generate rm -rf without an explicit safety check",
     "tier": 3,
     "type": "block",
-    "scope": ["local", "mesh"],
+    "scope": [
+      "local",
+      "mesh"
+    ],
     "content": "Destructive file operations must include a safety confirmation",
     "pattern": "rm\\s+-rf\\s+[^{]",
     "activateOn": null,
     "active": true,
-    "tags": ["safety", "filesystem"],
+    "tags": [
+      "safety",
+      "filesystem"
+    ],
     "mesh_enforcement": "output_block"
   },
   {
     "id": "hyperagent-task-close",
-    "description": "After task completion, log structured performance telemetry",
-    "tier": 2,
-    "type": "inject",
-    "scope": ["local"],
-
-    "content": "RULE: After completing a non-trivial local task, send one JSON object to `node $HOME/.openclaw/workspace/bin/hyperagent.mjs log --stdin` with domain, optional subdomain/task_id/strategy_id, outcome (success|partial|failure), iterations, duration_minutes, and a concrete meta_notes summary. Pass JSON through stdin, never interpolate it into a shell command. Mesh tasks are logged mechanically and must not be logged again.",
-    "pattern": null,
-    "activateOn": ["task complete", "waiting-user", "status: waiting"],
-    "active": true,
-    "tags": ["hyperagent", "telemetry"],
-    "managed": true
+    "managed": true,
+    "retired": true
   },
   {
     "id": "hyperagent-task-start",
-    "description": "At task start, consult strategy archive for relevant approaches",
-    "tier": 2,
-    "type": "inject",
-    "scope": ["local", "mesh"],
-
-    "content": "RULE: Before starting a non-trivial task, run `node $HOME/.openclaw/workspace/bin/hyperagent.mjs consult --domain <domain> [--subdomain <subdomain>]`. If JSON is returned, use its content as the starting approach and retain strategy_id for telemetry.",
-    "pattern": null,
-    "activateOn": ["task start", "claimed", "begin task", "status: running"],
-    "active": true,
-    "tags": ["hyperagent", "strategy"],
-    "managed": true
+    "managed": true,
+    "retired": true
   },
   {
     "id": "hyperagent-reflection-ready",
-    "description": "When a pending reflection exists, synthesize hypotheses and proposals",
-    "tier": 2,
-    "type": "inject",
-    "scope": ["local", "mesh"],
-
-    "content": "RULE: At task start, run `node $HOME/.openclaw/workspace/bin/hyperagent.mjs reflect --pending`. If it returns JSON, analyze the evidence and send synthesis JSON through stdin to `node $HOME/.openclaw/workspace/bin/hyperagent.mjs reflect --write-synthesis --stdin`. Use {reflection_id, hypotheses:[...], proposals:[...]}; proposals must be actionable strategy_new or strategy_update records with valid diff_content. If pending output is empty, continue immediately.",
-    "pattern": null,
-    "activateOn": ["task start", "claimed", "begin task", "status: running"],
-    "active": true,
-    "tags": ["hyperagent", "reflection"],
-    "managed": true
+    "managed": true,
+    "retired": true
   }
 ]

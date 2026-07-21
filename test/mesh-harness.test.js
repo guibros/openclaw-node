@@ -174,6 +174,28 @@ describe('formatHarnessForPrompt', () => {
     assert.doesNotMatch(output, /CLOSE RULE/);
   });
 
+  it('retired rules are inert even when a stale copy still carries content (0.1)', () => {
+    const rules = [
+      { id: 'live', tier: 1, type: 'inject', content: 'LIVE RULE' },
+      { id: 'ghost', tier: 1, type: 'inject', content: 'GHOST RULE', retired: true },
+    ];
+    const output = formatHarnessForPrompt(rules, 'task start');
+    assert.match(output, /LIVE RULE/);
+    assert.doesNotMatch(output, /GHOST RULE/);
+  });
+
+  it('the shipped source config carries no active hyperagent rule (mesh-only boundary)', () => {
+    const shipped = JSON.parse(
+      require('node:fs').readFileSync(path.join(__dirname, '../config/harness-rules.json'), 'utf-8'));
+    for (const r of shipped) {
+      if (String(r.id || '').startsWith('hyperagent-')) {
+        assert.equal(r.retired, true, `${r.id} must be retired`);
+        assert.equal(r.content, undefined, `${r.id} must carry no content`);
+      }
+    }
+    assert.equal(formatHarnessForPrompt(shipped, 'task start task complete').toLowerCase().includes('hyperagent'), false);
+  });
+
   it('returns empty for no inject rules', () => {
     const output = formatHarnessForPrompt([{ id: 'x', type: 'enforce', content: 'y' }]);
     assert.strictEqual(output, '');

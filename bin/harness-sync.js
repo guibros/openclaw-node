@@ -91,10 +91,17 @@ function deepEqual(a, b) {
 const diffRules = tracer.wrap('diffRules', function diffRules(srcRules, dstRules) {
   const srcMap = indexById(srcRules);
   const dstMap = indexById(dstRules);
-  const report = { newRules: [], fieldUpdates: [], userEdits: [], userOnly: [] };
+  const report = { newRules: [], fieldUpdates: [], userEdits: [], userOnly: [], retirements: [] };
 
   // Rules in source not in deployed
   for (const [id, srcRule] of srcMap) {
+    // Retired managed rules: never installed; removed from deployed if present.
+    // Plain source deletion CANNOT retire a rule — deployed-not-in-source is
+    // classified userOnly and preserved forever (step 0.1, hyperagent-evidence).
+    if (srcRule.retired === true && srcRule.managed === true) {
+      if (dstMap.has(id)) report.retirements.push(id);
+      continue;
+    }
     if (!dstMap.has(id)) {
       report.newRules.push(srcRule);
       continue;
@@ -164,6 +171,7 @@ const mergeRules = tracer.wrap('mergeRules', function mergeRules(srcRules, dstRu
     }
 
     const srcRule = srcMap.get(dstRule.id);
+    if (srcRule.retired === true && srcRule.managed === true) continue; // retired: drop from deployed
     const result = { ...dstRule };
 
     for (const [key, val] of Object.entries(srcRule)) {
@@ -189,9 +197,9 @@ const mergeRules = tracer.wrap('mergeRules', function mergeRules(srcRules, dstRu
     merged.push(result);
   }
 
-  // Append new rules from source (not in deployed)
+  // Append new rules from source (not in deployed) — never retired ones
   for (const srcRule of srcRules) {
-    if (!dstMap.has(srcRule.id)) {
+    if (!dstMap.has(srcRule.id) && !(srcRule.retired === true && srcRule.managed === true)) {
       merged.push({ ...srcRule });
     }
   }
@@ -212,7 +220,8 @@ function printReport(report) {
   const clean = report.newRules.length === 0 &&
     report.fieldUpdates.length === 0 &&
     report.userEdits.length === 0 &&
-    report.userOnly.length === 0;
+    report.userOnly.length === 0 &&
+    (report.retirements || []).length === 0;
 
   if (clean) {
     console.log('harness-rules: in sync.');
@@ -223,6 +232,13 @@ function printReport(report) {
     console.log(`\n  NEW RULES (${report.newRules.length}):`);
     for (const r of report.newRules) {
       console.log(`    + ${r.id}  — ${r.description}`);
+    }
+  }
+
+  if ((report.retirements || []).length > 0) {
+    console.log(`\n  RETIREMENTS (${report.retirements.length}):`);
+    for (const id of report.retirements) {
+      console.log(`    - ${id}  — retired in source; removed from deployed on apply`);
     }
   }
 
@@ -278,8 +294,11 @@ function main() {
       return;
     }
     fs.mkdirSync(path.dirname(opts.dst), { recursive: true });
-    fs.copyFileSync(opts.src, opts.dst);
-    console.log(`Deployed ${srcRules.length} rules to ${opts.dst}`);
+    // Merge against empty rather than raw-copy: retired stubs must never
+    // materialize on a fresh deploy.
+    const freshRules = mergeRules(srcRules, [], false);
+    fs.writeFileSync(opts.dst, JSON.stringify(freshRules, null, 2) + '\n');
+    console.log(`Deployed ${freshRules.length} rules to ${opts.dst}`);
     return;
   }
 
@@ -295,7 +314,8 @@ function main() {
 
   if (opts.cmd === 'apply') {
     const clean = report.newRules.length === 0 &&
-      report.fieldUpdates.length === 0;
+      report.fieldUpdates.length === 0 &&
+      (report.retirements || []).length === 0;
 
     if (clean && !opts.force) {
       console.log('harness-rules: already in sync (nothing to apply).');

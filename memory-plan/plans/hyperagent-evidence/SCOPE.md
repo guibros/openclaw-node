@@ -20,7 +20,7 @@ memory-plan/plans/hyperagent-evidence/VERSION
 memory-plan/plans/hyperagent-evidence/audits/*
 ```
 
-```files step-0.1-mesh-only-boundary
+```files step-0.1-mesh-only-boundary closed
 config/harness-rules.json
 bin/harness-sync.js
 lib/mesh-harness.js
