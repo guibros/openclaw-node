@@ -21,7 +21,7 @@ discipline per federation D13; workers per D11.
 |-------|------|---------|--------|-------------|
 | 0 | 0.1 | v0.1 | [x] | Mesh-only boundary — closed 2026-07-20: retirement semantics in harness-sync (report+apply+fresh-deploy; 2 apply-path gaps caught live), 3 rules retired, deployed 13→10 with hyperagent NONE + user edits preserved, prompt-side retired guard, synthesis runbook; suites 28/0 |
 | 0 | 0.2 | v0.2 | [x] | Cohort provenance — closed 2026-07-21: 7 additive columns + validation (invalid class throws; NULL=unknown, cohort-ineligible), mechanical derivation in the single producer funnel (6 sites), scratch-DB override for real-funnel tests, CLI Class/Run columns; production migration observed live (1|unknown); suites 46/0 |
-| 0 | 0.3 | v0.3 | [ ] | Honest evidence report: one reproducible command emitting cohort accounting (tasks vs sessions vs rows; real/mock/chaos/synthetic/unknown; strategy COVERAGE never "hit rate") |
+| 0 | 0.3 | v0.3 | [x] | Honest evidence report — closed 2026-07-21: cohortReport(runId) deterministic aggregation + CLI `report --run` (JSON artifact); fixture proves distinct-logical-task counting, exclusions, induced-vs-natural split, byte-identical reruns; deployed-CLI production run sha-identical twice; suites 47/0 |
 
 > **0.1 — Goal:** HyperAgent has exactly one production telemetry lane — mechanically recorded mesh work; local sessions are no longer prompted to log, consult, or synthesize.
 > **Needs:** operator approval (recorded 2026-07-20, D1); federation D13; the mechanical consultation+telemetry writer in bin/mesh-agent.js (live since the 07-20 remediation); config/harness-rules.json carrying the 3 hyperagent-* rules; bin/harness-sync.js managed-rule update path.

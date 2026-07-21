@@ -131,6 +131,23 @@ function cmdTelemetry(store, args) {
   ]);
 }
 
+// Cohort accounting (hyperagent-evidence 0.3). JSON is the audit artifact:
+// deterministic — same DB snapshot + run id ⇒ byte-identical output.
+function cmdReport(store, args) {
+  const runId = parseArg(args, '--run');
+  if (!runId) { console.error('usage: hyperagent report --run <run_id> [--json]'); process.exitCode = 1; return; }
+  const report = store.cohortReport(runId);
+  if (args.includes('--json')) { process.stdout.write(JSON.stringify(report, null, 2) + '\n'); return; }
+  const c = report.cohort;
+  console.log(`Evidence report — run ${report.run_id}`);
+  console.log(`  Rows: ${report.totals.rows} (sessions ${report.totals.sessions}, logical tasks ${report.totals.logical_tasks})`);
+  console.log(`  By class: ${Object.entries(report.by_execution_class).map(([k, v]) => `${k}=${v}`).join(' ') || 'none'}`);
+  console.log(`  Cohort (real): ${c.rows} rows / ${c.logical_tasks} logical tasks / ${c.sessions} sessions`);
+  console.log(`  Outcomes: ${Object.entries(c.outcomes).map(([k, v]) => `${k}=${v}`).join(' ') || 'none'}`);
+  console.log(`  Strategy coverage: ${c.strategy_coverage.rows_with_strategy}/${c.rows} rows (coverage, not effectiveness)`);
+  console.log(`  Failures: natural=${report.failures.natural} induced=${report.failures.induced}`);
+}
+
 function cmdStrategies(store, args) {
   const domain = parseArg(args, '--domain');
   const rows = store.listStrategies({ domain });
@@ -419,6 +436,7 @@ try {
     case 'status': cmdStatus(store); break;
     case 'log': cmdLog(store, commandArgs); break;
     case 'telemetry': cmdTelemetry(store, commandArgs); break;
+    case 'report': cmdReport(store, commandArgs); break;
     case 'strategies': cmdStrategies(store, commandArgs); break;
     case 'consult': cmdConsult(store, commandArgs); break;
     case 'strategy': cmdStrategy(store, commandArgs); break;

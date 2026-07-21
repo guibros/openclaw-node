@@ -20,6 +20,17 @@ memory-plan/plans/hyperagent-evidence/VERSION
 memory-plan/plans/hyperagent-evidence/audits/*
 ```
 
+```files step-0.3-evidence-report closed
+lib/hyperagent-store.mjs
+bin/hyperagent.mjs
+test/hyperagent-store.test.js
+test/hyperagent-integration.test.mjs
+memory-plan/plans/hyperagent-evidence/VERSION
+memory-plan/plans/hyperagent-evidence/INVENTORY.md
+memory-plan/plans/hyperagent-evidence/COMPONENT_REGISTRY.md
+memory-plan/plans/hyperagent-evidence/audits/step03_evidence_report/*
+```
+
 ```files step-0.2-cohort-provenance closed
 lib/hyperagent-store.mjs
 bin/mesh-agent.js

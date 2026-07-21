@@ -645,6 +645,31 @@ describe('HyperAgentStore: integrity regressions', () => {
     assert.equal(row.execution_class, null);
   }));
 
+  it('cohortReport: distinct logical tasks, exclusions, and determinism (0.3)', async () => withFreshStore((fresh) => {
+    // duplicated worker rows: 3 rows, ONE logical task
+    for (const t of ['w1', 'w2', 'w3']) {
+      fresh.logTelemetry({
+        node_id: 'n1', soul_id: 's1', task_id: t, domain: 'testing', outcome: 'success',
+        run_id: 'run-x', logical_task_id: 'LT-1', session_id: 'sess-a', execution_class: 'real',
+        collaboration_mode: 'collaborative', provider: 'claude', model: 'm',
+      });
+    }
+    fresh.logTelemetry({ node_id: 'n1', soul_id: 's1', task_id: 'mock1', domain: 'testing', outcome: 'success', run_id: 'run-x', logical_task_id: 'LT-M', execution_class: 'mock', provider: 'shell' });
+    fresh.logTelemetry({ node_id: 'n1', soul_id: 's1', task_id: 'chaos1', domain: 'testing', outcome: 'failure', run_id: 'run-x', logical_task_id: 'LT-C', execution_class: 'chaos' });
+    fresh.logTelemetry({ node_id: 'n1', soul_id: 's1', task_id: 'other-run', domain: 'testing', outcome: 'success', run_id: 'run-y', execution_class: 'real' });
+
+    const r = fresh.cohortReport('run-x');
+    assert.equal(r.totals.rows, 5, 'other-run excluded');
+    assert.equal(r.cohort.rows, 3, 'mock+chaos excluded from cohort');
+    assert.equal(r.cohort.logical_tasks, 1, 'duplicated worker rows = ONE logical task');
+    assert.equal(r.by_execution_class.mock, 1);
+    assert.equal(r.failures.induced, 1, 'chaos failure counted as induced');
+    assert.equal(r.failures.natural, 0);
+    assert.equal(r.cohort.by_identity['n1/s1'].reflection_eligible, false, '3 rows < threshold 5');
+    assert.equal(r.cohort.strategy_coverage.rows_with_strategy, 0, 'zero coverage is the honest baseline');
+    assert.equal(JSON.stringify(r), JSON.stringify(fresh.cohortReport('run-x')), 'byte-identical on rerun');
+  }));
+
   it('provenance fields round-trip and separate by one SQL predicate', async () => withFreshStore((fresh) => {
     fresh.logTelemetry({
       node_id: 'n', soul_id: 's', domain: 'testing', outcome: 'success',
