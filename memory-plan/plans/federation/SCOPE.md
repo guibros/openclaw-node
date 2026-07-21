@@ -122,7 +122,7 @@ memory-plan/plans/federation/INVENTORY.md
 memory-plan/plans/federation/audits/step64_fed_acceptance/*
 ```
 
-```files hyperagent-review
+```files hyperagent-review closed
 workspace-bin/memory-daemon.mjs
 scripts/install/workspace.sh
 scripts/install/components.sh
