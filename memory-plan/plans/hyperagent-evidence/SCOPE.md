@@ -20,6 +20,21 @@ memory-plan/plans/hyperagent-evidence/VERSION
 memory-plan/plans/hyperagent-evidence/audits/*
 ```
 
+```files step-1.1-notifications closed
+lib/notify.mjs
+lib/hyperagent-store.mjs
+workspace-bin/memory-daemon.mjs
+bin/hyperagent.mjs
+test/notify.test.mjs
+test/hyperagent-store.test.js
+test/hyperagent-integration.test.mjs
+memory-plan/plans/hyperagent-evidence/VERSION
+memory-plan/plans/hyperagent-evidence/INVENTORY.md
+memory-plan/plans/hyperagent-evidence/COMPONENT_REGISTRY.md
+memory-plan/plans/hyperagent-evidence/DECISIONS.md
+memory-plan/plans/hyperagent-evidence/audits/step11_notifications/*
+```
+
 ```files step-0.3-evidence-report closed
 lib/hyperagent-store.mjs
 bin/hyperagent.mjs

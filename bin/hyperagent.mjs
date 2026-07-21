@@ -214,7 +214,7 @@ function cmdSeedStrategy(store, args) {
   console.log(`created: id=${row.id} domain=${row.domain} title="${row.title}"`);
 }
 
-function cmdReflect(store, args) {
+async function cmdReflect(store, args) {
   // --pending: query DB for reflections awaiting synthesis
   if (hasFlag(args, '--pending')) {
     return cmdReflectPending(store);
@@ -243,6 +243,24 @@ function cmdReflect(store, args) {
     });
     for (const row of created) {
       console.log(`proposal created: id=${row.id} type=${row.proposal_type} "${row.title}"`);
+    }
+    // 1.1: fire the operator signal now rather than waiting for the daemon
+    // tick — dedup makes the daemon's later drain a no-op for these.
+    try {
+      const { notify } = await import('../lib/notify.mjs');
+      const drained = await store.drainNotifyOutbox((evt) => notify({
+        id: evt.id, source: 'hyperagent', kind: 'info',
+        title: evt.item_type === 'reflection'
+          ? 'HyperAgent: reflection awaits synthesis (24h window)'
+          : 'HyperAgent: proposal awaits review',
+        message: evt.item_type === 'reflection'
+          ? `Reflection #${evt.item?.id} (${evt.item?.node_id}/${evt.item?.soul_id}) — run the synthesis runbook.`
+          : `Proposal #${evt.item?.id}: ${evt.item?.title}`,
+        url: `${process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000'}/hyperagent`,
+      }));
+      if (drained.delivered > 0) console.log(`operator signals delivered: ${drained.delivered}`);
+    } catch (e) {
+      console.error(`notify drain failed (daemon tick will retry): ${e.message}`);
     }
 
     console.log(`synthesis written to reflection ${data.reflection_id}`);
@@ -441,7 +459,7 @@ try {
     case 'consult': cmdConsult(store, commandArgs); break;
     case 'strategy': cmdStrategy(store, commandArgs); break;
     case 'seed-strategy': cmdSeedStrategy(store, commandArgs); break;
-    case 'reflect': cmdReflect(store, commandArgs); break;
+    case 'reflect': await cmdReflect(store, commandArgs); break;
     case 'proposals': cmdProposals(store); break;
     case 'approve': cmdApprove(store, commandArgs); break;
     case 'reject': cmdReject(store, commandArgs); break;

@@ -645,6 +645,37 @@ describe('HyperAgentStore: integrity regressions', () => {
     assert.equal(row.execution_class, null);
   }));
 
+  it('notify outbox: obligation is atomic with creation; drain retries land one identity (1.1)', async () => withFreshStore(async (fresh) => {
+    for (let i = 0; i < 5; i++) {
+      fresh.logTelemetry({ node_id: 'nb', soul_id: 'sb', domain: 'testing', outcome: 'success', task_id: `t${i}` });
+    }
+    const [reflection] = fresh.createPendingReflections(5);
+    assert.ok(reflection, 'reflection created');
+
+    // Atomicity: the obligation row exists the moment the reflection does.
+    const seen = [];
+    // First drain attempt: deliver THROWS after seeing the event (interrupted delivery).
+    await assert.rejects(fresh.drainNotifyOutbox(async (evt) => { seen.push(evt.id); throw new Error('interrupted'); }));
+    assert.deepEqual(seen, [`hyperagent-reflection:${reflection.id}`], 'obligation existed and was attempted');
+
+    // Retry twice with a working deliver that records identities.
+    const delivered = [];
+    const r1 = await fresh.drainNotifyOutbox(async (evt) => { delivered.push(evt.id); });
+    const r2 = await fresh.drainNotifyOutbox(async (evt) => { delivered.push(evt.id); });
+    assert.equal(r1.delivered, 1);
+    assert.equal(r2.pending, 0, 'second retry finds nothing pending');
+    assert.deepEqual(delivered, [`hyperagent-reflection:${reflection.id}`], 'one delivery identity across retries');
+
+    // Proposal path: synthesis creates the proposal + obligation atomically.
+    fresh.synthesizeReflection(reflection.id, {
+      hypotheses: ['h1'],
+      proposals: [{ title: 'Proposal one', description: 'd'.repeat(20), proposal_type: 'strategy_new', diff_content: JSON.stringify({ domain: 'testing', content: 'strategy body text here twenty+' }) }],
+    });
+    const drained = await fresh.drainNotifyOutbox(async (evt) => { delivered.push(evt.id); });
+    assert.equal(drained.delivered, 1);
+    assert.match(delivered[1], /^hyperagent-proposal:\d+$/);
+  }));
+
   it('cohortReport: distinct logical tasks, exclusions, and determinism (0.3)', async () => withFreshStore((fresh) => {
     // duplicated worker rows: 3 rows, ONE logical task
     for (const t of ['w1', 'w2', 'w3']) {

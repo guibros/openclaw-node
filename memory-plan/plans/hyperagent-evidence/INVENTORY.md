@@ -42,7 +42,7 @@ discipline per federation D13; workers per D11.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 1 | 1.1 | v1.1 | [ ] | Durable idempotent notifications for BOTH pending reflections (amendment — replaces the removed prompt rule as the synthesis signal) and pending proposals; ledger-deduped, atomic with row creation |
+| 1 | 1.1 | v1.1 | [x] | Durable idempotent notifications — closed 2026-07-21: notify() stable-id dedup + ha_notify_outbox atomic with creation + drainNotifyOutbox (daemon tick + post-synthesis CLI hooks); worst-case forced redelivery observed landing exactly one ledger identity each, real popups; suites 74/0; ledger-pollution incident confessed+cleaned in POST |
 | 1 | 1.2 | v1.2 | [ ] | Read-only MC evidence/proposals page — cohort accounting + reflections + proposals; zero mutation routes; drizzle stub reconciled or dropped |
 
 > **1.1 — Goal:** a pending reflection or pending proposal always produces exactly one operator signal, surviving crashes between creation and delivery — reflections included because 0.1 removes the prompt rule that used to announce them and 2.2's 24h synthesis window must not expire silently.

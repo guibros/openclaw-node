@@ -45,3 +45,20 @@ Block 3 items stay [D] behind measured triggers; opening them early is a plan vi
 strongest claim this plan can ever produce: "mechanically captured a preregistered real cohort,
 produced identity-scoped reflections, surfaced proposals through a human-only gate, preserved an
 auditable trail."
+
+## D2 — The notification outbox lives in state.db, dedup lives in the ledger (2026-07-21, step 1.1 Phase-1 decision)
+
+**Decision.** The durable operator-signal obligation is a `ha_notify_outbox` table in the same
+SQLite DB as the ha_* rows — enqueued inside the creating transaction — and exactly-once is
+enforced at the LEDGER via notify()'s new stable-id dedup, not by the outbox alone.
+
+**Why.** Atomicity with row creation is free only in the same DB (one transaction). The outbox
+alone cannot give exactly-once (crash between dispatch and mark ⇒ redelivery); the ledger is the
+observable end-state, so identity belongs there. Composing both makes every crash/retry
+interleaving land exactly one ledger identity — proven by forced full redelivery in the 1.1
+runtime verification.
+
+**Consequences.** Deliveries are at-least-once popups but exactly-once ledger identities; any
+future signal source can reuse the same pattern (enqueue-in-transaction + stable id). The ledger
+scan cost for dedup is linear per drained event — bounded by log-rotate; revisit at 3.3 if ha_*
+retention ever matters.

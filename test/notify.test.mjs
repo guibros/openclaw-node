@@ -232,6 +232,17 @@ describe('notify (end to end, mocked dispatch)', () => {
     const evt = await notify({ title: 'T' }, { paths });
     assert.equal(evt.delivery.method, 'muted');
   });
+  it('stable-id dedup: second notify with the same id neither dispatches nor appends (1.1)', async () => {
+    const first = await notify({ id: 'hyperagent-proposal:7', title: 'P7' }, { paths, platform: 'win32' });
+    assert.equal(first.id, 'hyperagent-proposal:7');
+    const second = await notify(
+      { id: 'hyperagent-proposal:7', title: 'P7 again' },
+      { paths, platform: 'darwin', exec: () => { throw new Error('must not dispatch'); } },
+    );
+    assert.equal(second.deduped, true);
+    const events = readLedger({}, paths).events.filter((e) => e.id === 'hyperagent-proposal:7');
+    assert.equal(events.length, 1, 'exactly one ledger identity');
+  });
   it('every kind has a default sound and icon mapping', () => {
     for (const k of KINDS) {
       assert.ok(DEFAULT_CONFIG.sounds[k], `sound for ${k}`);

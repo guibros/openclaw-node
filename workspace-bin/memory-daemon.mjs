@@ -892,6 +892,27 @@ async function runHyperagentMaintenance(config) {
     succeeded = false;
     log(`  HyperAgent: observation failed: ${e.message}`);
   }
+  try {
+    // 1.1: pending reflections/proposals owe the operator exactly one durable
+    // signal — the ledger's stable-id dedup makes redelivery retries harmless.
+    const { notify } = await import('../lib/notify.mjs');
+    const drained = await ha.drainNotifyOutbox((evt) => notify({
+      id: evt.id,
+      source: 'hyperagent',
+      kind: 'info',
+      title: evt.item_type === 'reflection'
+        ? 'HyperAgent: reflection awaits synthesis (24h window)'
+        : 'HyperAgent: proposal awaits review',
+      message: evt.item_type === 'reflection'
+        ? `Reflection #${evt.item?.id} (${evt.item?.node_id}/${evt.item?.soul_id}, ${evt.item?.telemetry_count} tasks) — run the synthesis runbook.`
+        : `Proposal #${evt.item?.id}: ${evt.item?.title}`,
+      url: `${process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000'}/hyperagent`,
+    }));
+    if (drained.delivered > 0) log(`  HyperAgent: operator signals delivered=${drained.delivered}`);
+  } catch (e) {
+    succeeded = false;
+    log(`  HyperAgent: notify drain failed: ${e.message}`);
+  }
 
   if (succeeded) {
     throttle.lastHyperagentReflect = now;
