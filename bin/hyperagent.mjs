@@ -124,6 +124,8 @@ function cmdTelemetry(store, args) {
     { label: 'Sub', get: r => r.subdomain || '-' },
     { label: 'Outcome', get: r => r.outcome },
     { label: 'Iter', get: r => r.iterations },
+    { label: 'Class', get: r => r.execution_class || 'unknown' },
+    { label: 'Run', get: r => r.run_id || '-' },
     { label: 'Flags', get: r => { const f = JSON.parse(r.pattern_flags || '[]'); return f.length ? f.join(',') : '-'; }},
     { label: 'Date', get: r => r.created_at?.slice(0, 10) || '-' },
   ]);

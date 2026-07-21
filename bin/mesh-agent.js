@@ -114,7 +114,7 @@ function taskTaxonomy(task) {
 async function prepareHyperagentStrategy(task) {
   try {
     const { createHyperAgentStore } = await import('../lib/hyperagent-store.mjs');
-    const store = createHyperAgentStore({ dbPath: path.join(os.homedir(), '.openclaw', 'state.db') });
+    const store = createHyperAgentStore({ dbPath: process.env.OPENCLAW_STATE_DB || path.join(os.homedir(), '.openclaw', 'state.db') });
     try {
       const { domain, subdomain } = taskTaxonomy(task);
       const strategy = store.getStrategy(domain, subdomain, NODE_ID);
@@ -268,12 +268,29 @@ function writeAgentState(status, taskId, provider, model) {
   } catch { /* best-effort */ }
 }
 
-async function recordHyperagentTask(task, { outcome, iterations, startedAt, notes }) {
+// Cohort provenance (hyperagent-evidence 0.2): derived MECHANICALLY here, the
+// single funnel every telemetry write flows through. Priority: an explicit
+// valid task.execution_class (cohort/chaos envelopes) → 'shell' provider =
+// mock → env OPENCLAW_EXECUTION_CLASS (the 3.5 feeder's blanket) → 'real'.
+const EXEC_CLASSES = new Set(['real', 'mock', 'chaos', 'synthetic']);
+function deriveExecutionClass(task, providerName) {
+  if (EXEC_CLASSES.has(task?.execution_class)) return task.execution_class;
+  if (providerName === 'shell') return 'mock';
+  if (EXEC_CLASSES.has(process.env.OPENCLAW_EXECUTION_CLASS)) return process.env.OPENCLAW_EXECUTION_CLASS;
+  return 'real';
+}
+
+async function recordHyperagentTask(task, { outcome, iterations, startedAt, notes, sessionId = null }) {
   try {
     const { createHyperAgentStore } = await import('../lib/hyperagent-store.mjs');
-    const store = createHyperAgentStore({ dbPath: path.join(os.homedir(), '.openclaw', 'state.db') });
+    const store = createHyperAgentStore({ dbPath: process.env.OPENCLAW_STATE_DB || path.join(os.homedir(), '.openclaw', 'state.db') });
     try {
       const { domain, subdomain } = taskTaxonomy(task);
+      // Deterministic per task — recomputed here rather than threaded through
+      // six call sites.
+      const workerProvider = resolveProvider(task, CLI_PROVIDER, ENV_PROVIDER);
+      const providerName = workerProvider?.name ?? null;
+      const model = resolveModel(task, CLI_MODEL, workerProvider) ?? null;
       const row = store.logTelemetry({
         node_id: NODE_ID,
         soul_id: process.env.OPENCLAW_SOUL_ID || NODE_ID,
@@ -285,6 +302,13 @@ async function recordHyperagentTask(task, { outcome, iterations, startedAt, note
         iterations: Math.max(1, iterations || 1),
         duration_minutes: Math.max(0, (Date.now() - startedAt) / 60000),
         meta_notes: notes,
+        run_id: task.run_id ?? process.env.OPENCLAW_HA_RUN_ID ?? null,
+        logical_task_id: task.logical_task_id ?? task.parent_task_id ?? task.plan_id ?? task.task_id,
+        session_id: sessionId ?? task.collab_session_id ?? null,
+        execution_class: deriveExecutionClass(task, providerName),
+        collaboration_mode: task.collaboration?.mode ?? null,
+        provider: providerName,
+        model,
       });
       log(`HyperAgent telemetry: id=${row.id} outcome=${row.outcome} iterations=${row.iterations}`);
     } finally {
@@ -1421,6 +1445,7 @@ async function executeCollabTask(task) {
     outcome: successful ? 'success' : 'failure',
     iterations: Math.max(1, session.current_round || 1),
     startedAt,
+    sessionId,
     notes: `Collaboration session ${sessionId} ended with status ${lastKnownSessionStatus || 'unknown'}.`,
   });
   log(`COLLAB DONE: ${task.task_id} (node: ${NODE_ID})`);
@@ -1887,5 +1912,5 @@ if (require.main === module) {
 }
 
 // Test surface: the pure prompt builders + harness injectors (no NATS / side effects).
-module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, buildRetryPrompt, injectRules, injectRole, injectMemory, injectHyperagentStrategy, recallForTask, readNodeMemory };
+module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, buildRetryPrompt, injectRules, injectRole, injectMemory, injectHyperagentStrategy, recallForTask, readNodeMemory, recordHyperagentTask, deriveExecutionClass };
 // deploy-v7f0130b

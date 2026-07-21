@@ -20,6 +20,19 @@ memory-plan/plans/hyperagent-evidence/VERSION
 memory-plan/plans/hyperagent-evidence/audits/*
 ```
 
+```files step-0.2-cohort-provenance closed
+lib/hyperagent-store.mjs
+bin/mesh-agent.js
+bin/hyperagent.mjs
+test/hyperagent-store.test.js
+test/hyperagent-integration.test.mjs
+memory-plan/plans/hyperagent-evidence/VERSION
+memory-plan/plans/hyperagent-evidence/INVENTORY.md
+memory-plan/plans/hyperagent-evidence/COMPONENT_REGISTRY.md
+memory-plan/plans/hyperagent-evidence/DECISIONS.md
+memory-plan/plans/hyperagent-evidence/audits/step02_cohort_provenance/*
+```
+
 ```files step-0.1-mesh-only-boundary closed
 config/harness-rules.json
 bin/harness-sync.js

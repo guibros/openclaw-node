@@ -82,3 +82,48 @@ describe('hyperagent CLI integration', () => {
     assert.match(run(['consult', '--domain', 'integration']).stdout, /Keep integration tasks focused/);
   });
 });
+
+// Cohort provenance (hyperagent-evidence 0.2): the REAL producer funnel writes
+// rows a single SQL query separates by execution class — no free text.
+describe('cohort provenance through the real producer funnel', () => {
+  it('real and mock tasks are mechanically separable; provenance survives round-trip', async () => {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-prov-'));
+    const dbPath = path.join(scratch, 'state.db');
+    process.env.OPENCLAW_STATE_DB = dbPath;
+    process.env.OPENCLAW_HA_RUN_ID = 'run-prov-test';
+    try {
+      const { recordHyperagentTask, deriveExecutionClass } = await import('../bin/mesh-agent.js');
+
+      assert.equal(deriveExecutionClass({ execution_class: 'chaos' }, 'claude'), 'chaos');
+      assert.equal(deriveExecutionClass({}, 'shell'), 'mock');
+      assert.equal(deriveExecutionClass({}, 'claude'), 'real');
+
+      await recordHyperagentTask(
+        { task_id: 'prov-real-1', title: 'real one', domain: 'integration', collaboration: { mode: 'adversarial' }, llm_provider: 'claude' },
+        { outcome: 'success', iterations: 2, startedAt: Date.now() - 60000, notes: 'real', sessionId: 'sess-1' });
+      await recordHyperagentTask(
+        { task_id: 'prov-mock-1', title: 'mock one', domain: 'integration', llm_provider: 'shell', plan_id: 'plan-9' },
+        { outcome: 'failure', iterations: 1, startedAt: Date.now() - 1000, notes: 'mock' });
+
+      const { createHyperAgentStore } = await import('../lib/hyperagent-store.mjs');
+      const store = createHyperAgentStore({ dbPath });
+      const rows = store.getTelemetry({ limit: 10 });
+      const real = rows.filter((r) => r.execution_class === 'real');
+      const mock = rows.filter((r) => r.execution_class === 'mock');
+      assert.equal(real.length, 1);
+      assert.equal(mock.length, 1);
+      assert.equal(real[0].session_id, 'sess-1');
+      assert.equal(real[0].collaboration_mode, 'adversarial');
+      assert.equal(real[0].run_id, 'run-prov-test');
+      assert.equal(real[0].provider, 'claude');
+      assert.equal(real[0].logical_task_id, 'prov-real-1', 'solo task is its own logical task');
+      assert.equal(mock[0].logical_task_id, 'plan-9', 'plan linkage wins for subtask rows');
+      assert.equal(mock[0].provider, 'shell');
+      store.close();
+    } finally {
+      delete process.env.OPENCLAW_STATE_DB;
+      delete process.env.OPENCLAW_HA_RUN_ID;
+      fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 3 });
+    }
+  });
+});

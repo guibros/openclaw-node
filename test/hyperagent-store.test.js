@@ -636,6 +636,33 @@ describe('HyperAgentStore: integrity regressions', () => {
     }), /positive integer/);
   }));
 
+  // Cohort provenance (hyperagent-evidence 0.2)
+  it('rejects invalid execution_class loudly; NULL reads as unknown and stays cohort-ineligible', async () => withFreshStore((fresh) => {
+    assert.throws(() => fresh.logTelemetry({
+      node_id: 'n', soul_id: 's', domain: 'testing', outcome: 'success', execution_class: 'production',
+    }), /invalid execution_class/);
+    const row = fresh.logTelemetry({ node_id: 'n', soul_id: 's', domain: 'testing', outcome: 'success' });
+    assert.equal(row.execution_class, null);
+  }));
+
+  it('provenance fields round-trip and separate by one SQL predicate', async () => withFreshStore((fresh) => {
+    fresh.logTelemetry({
+      node_id: 'n', soul_id: 's', domain: 'testing', outcome: 'success',
+      run_id: 'r1', logical_task_id: 'lt1', session_id: 'sess-1', execution_class: 'real',
+      collaboration_mode: 'adversarial', provider: 'claude', model: 'claude-fable-5',
+    });
+    fresh.logTelemetry({
+      node_id: 'n', soul_id: 's', domain: 'testing', outcome: 'failure',
+      run_id: 'r1', logical_task_id: 'lt2', execution_class: 'mock', provider: 'shell',
+    });
+    const rows = fresh.getTelemetry({ limit: 10 });
+    const real = rows.filter((r) => r.execution_class === 'real');
+    assert.equal(real.length, 1);
+    assert.equal(real[0].session_id, 'sess-1');
+    assert.equal(real[0].model, 'claude-fable-5');
+    assert.equal(rows.filter((r) => r.execution_class === 'mock').length, 1);
+  }));
+
   it('keeps historical strategy attribution after archival and rejects cross-node use', async () => withFreshStore((fresh) => {
     const owned = fresh.putStrategy({
       domain: 'testing', title: 'Owned', content: 'Node-specific approach.', node_id: 'node-a',
