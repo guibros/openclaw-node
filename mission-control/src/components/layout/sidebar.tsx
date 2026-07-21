@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity, Radar, RotateCcw, Eye, Brain, HeartPulse, Bell } from "lucide-react";
+import { LayoutDashboard, Search, RefreshCw, Users, Users2, Calendar, GitBranch, BarChart3, MessageCircle, Network, Waypoints, Settings, Server, Activity, Radar, RotateCcw, Eye, Brain, HeartPulse, Bell, FlaskConical } from "lucide-react";
 import { useState, useEffect } from "react";
 import { LiveStream } from "@/components/board/live-stream";
 
@@ -20,6 +20,7 @@ const NAV = [
   { href: "/mesh", label: "Mesh Nodes", icon: Server },
   { href: "/observability", label: "Observability", icon: Radar },
   { href: "/node-watch", label: "Node Watch", icon: HeartPulse },
+  { href: "/hyperagent", label: "HyperAgent", icon: FlaskConical },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/watcher", label: "Memory Watcher", icon: Eye },
   { href: "/cowork", label: "Cowork", icon: Users2 },

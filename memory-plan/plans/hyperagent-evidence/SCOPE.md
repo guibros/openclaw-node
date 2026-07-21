@@ -20,6 +20,14 @@ memory-plan/plans/hyperagent-evidence/VERSION
 memory-plan/plans/hyperagent-evidence/audits/*
 ```
 
+```files step-1.2-mc-page
+mission-control/*
+memory-plan/plans/hyperagent-evidence/VERSION
+memory-plan/plans/hyperagent-evidence/INVENTORY.md
+memory-plan/plans/hyperagent-evidence/COMPONENT_REGISTRY.md
+memory-plan/plans/hyperagent-evidence/audits/step12_mc_page/*
+```
+
 ```files step-1.1-notifications closed
 lib/notify.mjs
 lib/hyperagent-store.mjs
