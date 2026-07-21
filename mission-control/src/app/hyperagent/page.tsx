@@ -76,7 +76,10 @@ export default function HyperagentPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount fetch sets loading synchronously; house pattern (node-watch page)
+    load();
+  }, [load]);
 
   const loadReport = useCallback(async () => {
     if (!runInput.trim()) return;
