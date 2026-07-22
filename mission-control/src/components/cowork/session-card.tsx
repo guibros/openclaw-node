@@ -91,6 +91,19 @@ const KANBAN_STATUS_CHIP: Record<string, string> = {
   done: "bg-zinc-500/15 text-zinc-400",
 };
 
+function relativeTime(iso: string | undefined): string {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
 export function SessionCard({ session, linkedTask }: { session: CollabSession; linkedTask?: Task | null }) {
   const [expanded, setExpanded] = useState(false);
   const isActive = ["recruiting", "active"].includes(session.status);
@@ -157,6 +170,12 @@ export function SessionCard({ session, linkedTask }: { session: CollabSession; l
             </span>
           )}
         </div>
+        <span
+          className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap"
+          title={session.created_at}
+        >
+          {relativeTime(session.created_at)}
+        </span>
       </div>
 
       {/* Quick stats */}
