@@ -24,3 +24,6 @@
 ## OPEN — the `visual:` clause
 Operator has not yet confirmed evidence + proposal detail legible. Step holds [A]; flips [x] on
 their confirmation (the 1.1 notification click-through now lands on this live page).
+
+## CLOSE ADDENDUM (2026-07-21)
+Operator visual sign-off received: "hyperagent page ok". Step closed [x]; Block 1 complete.

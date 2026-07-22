@@ -43,7 +43,7 @@ discipline per federation D13; workers per D11.
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 1 | 1.1 | v1.1 | [x] | Durable idempotent notifications — closed 2026-07-21: notify() stable-id dedup + ha_notify_outbox atomic with creation + drainNotifyOutbox (daemon tick + post-synthesis CLI hooks); worst-case forced redelivery observed landing exactly one ledger identity each, real popups; suites 74/0; ledger-pollution incident confessed+cleaned in POST |
-| 1 | 1.2 | v1.2 | [A] | Read-only MC evidence page — BUILT+DEPLOYED 2026-07-21 (live 200, honest production data, POST 401-blocked, stub dropped, gates green 102/102, eslint 0/0 kept); [A] pending the visual: operator-legibility confirmation |
+| 1 | 1.2 | v1.2 | [x] | Read-only MC evidence page — closed 2026-07-21: built+deployed (live 200, honest production data, POST 401-blocked, stub dropped, gates 102/102, eslint 0/0 kept); operator visual sign-off "hyperagent page ok" received |
 
 > **1.1 — Goal:** a pending reflection or pending proposal always produces exactly one operator signal, surviving crashes between creation and delivery — reflections included because 0.1 removes the prompt rule that used to announce them and 2.2's 24h synthesis window must not expire silently.
 > **Needs:** ha_reflections pending-synthesis semantics + ha_proposals (live); openclaw-notify ledger dedup; a durable outbox location decided in Phase 1 (log in DECISIONS).

@@ -20,7 +20,7 @@ memory-plan/plans/hyperagent-evidence/VERSION
 memory-plan/plans/hyperagent-evidence/audits/*
 ```
 
-```files step-1.2-mc-page
+```files step-1.2-mc-page closed
 mission-control/*
 memory-plan/plans/hyperagent-evidence/VERSION
 memory-plan/plans/hyperagent-evidence/INVENTORY.md
