@@ -161,6 +161,7 @@ memory-plan/plans/federation/audits/incremental_indexing/*
 ```
 
 ```files item5-small-batch
+.github/workflows/test.yml
 test/embed-benchmark.test.mjs
 test/memory-inject-server.test.mjs
 scripts/install/*

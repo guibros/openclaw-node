@@ -10,7 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20, 22]
+        # package.json engines.node is >=22; 20 kept for lower-bound breadth.
+        # 18 dropped — EOL (2025-04) + below the floor; it only stayed green
+        # until a security-patched sharp (>=0.35, the libvips-CVE fix) required
+        # a newer Node than 18 to load the transformers embedder.
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
