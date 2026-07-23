@@ -39,5 +39,12 @@ what a runtime probe verified, and date it. Claims older than 14 days decay (MAS
 
 | | |
 |---|---|
-| **Status** | Mechanical telemetry + strategy consultation live (remediation); D11 guard refuses local-model workers; collab modes hardened (federation collab-p1 batch). Cohort execution ALSO needs authenticated advanced-LLM workers + the federation 3.5 window for co-scheduling — operator-dependent. |
-| **Verified** | 2026-07-20 — 169/169 focused suites at remediation close; daemon maintenance tick observed. |
+| **Status** | Mechanical telemetry + strategy consultation live (remediation); D11 guard refuses local-model workers; collab modes hardened (federation collab-p1 batch). Cohort execution ALSO needs authenticated advanced-LLM workers + the federation 3.5 window for co-scheduling — operator-dependent. `ai.openclaw.mesh-agent` unit loaded, NO process running (2.2 prerequisite). |
+| **Verified** | 2026-07-20 — 169/169 focused suites at remediation close; daemon maintenance tick observed. 2026-07-22 — `launchctl list ai.openclaw.mesh-agent` exit 0, pid `-`. |
+
+### Companion lane (step 2.0 design) — LOCAL_LANE_DESIGN.md · companion-bridge (external repo)
+
+| | |
+|---|---|
+| **Status** | DESIGNED 2026-07-22, ZERO RUNTIME — no schema (`ha_lane_metrics`/`ha_observations`/lane columns do not exist), no daemon strategy GET, no bridge task boundary, no unit. Bridge DOWN (:8787 closed) and deliberately unit-less until I4; canonical repo `~/Documents/openclaw infrastructure/companion-bridge` (injectRules :2094 / injectMemory :2101 confirmed); commitless Downloads stray archived as `companion-bridge.stray-20260722`. Implementation queue I1–I5 recorded in the design, none opened. |
+| **Verified** | 2026-07-22 (2.0 batch): live probes — port closed, launchctl states, store counts 1/0/0/0, adapter greps, stray git state (zero commits). |

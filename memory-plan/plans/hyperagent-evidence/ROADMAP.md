@@ -1,10 +1,10 @@
 # hyperagent-evidence — Roadmap
 
-**Goal.** Mesh-only, evidence-driven, human-gated HyperAgent strategy loop — first operational
-iteration (cohort → evidence report → operator gate)
+**Goal.** Lane-stratified (D3 2026-07-22; was mesh-only), evidence-driven, human-gated HyperAgent
+strategy loop — first operational iteration (cohort → evidence report → operator gate)
 **Created:** 2026-07-20 · **Approved:** operator "so go?" 2026-07-20 on
 `../federation/audits/hyperagent_review/IMPLEMENTATION_PLAN.md` + the reflection-notification
-amendment.
+amendment · operator "ok go" 2026-07-22 on step 2.0 (`LOCAL_LANE_DESIGN.md`, D3).
 
 ## Why this plan exists
 
@@ -42,9 +42,13 @@ deterministic.
 read-only MC evidence page. The approval gate remains CLI-only.
 *Exit:* seeded reflection + proposal each produce exactly one ledgered signal and render read-only.
 
-**Block 2 — The evidence cohort.** Operator-signed preregistration (≥20 real tasks, ≥2 domains,
-spend ceiling) → frozen execution observing the full path → operator-signed report + disposition.
-Both ends are `visual:` hard gates — a headless tick BLOCKS.
+**Block 2 — The evidence cohort.** Opens with 2.0 (closed 2026-07-22): the local-lane design —
+lanes `mesh|companion`, evidence grades `attested|operational|derived` on three storage surfaces,
+attested-only thresholds, explicit task boundaries, bridge lifecycle ownership — superseding D1's
+mesh-only boundary through D3. Then: operator-signed preregistration (≥20 real tasks, ≥2 domains,
+spend ceiling, lane strata) → frozen execution observing the full path → operator-signed report +
+disposition, stratified by lane. Both cohort ends are `visual:` hard gates — a headless tick
+BLOCKS. Implementation of the companion lane itself (I1–I5) opens as separate steps.
 *Exit:* the operator's continue/revise/park decision is recorded with reproducible aggregates.
 
 **Block 3 — Deferred.** Causal trials, controlled taxonomy, retention — each behind an explicit

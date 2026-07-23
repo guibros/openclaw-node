@@ -1,9 +1,11 @@
 # hyperagent-evidence — Step Inventory
 
-Mesh-only, evidence-driven, human-gated HyperAgent strategy loop — first operational iteration
-(cohort → evidence report → operator gate). Source contract:
-`../federation/audits/hyperagent_review/IMPLEMENTATION_PLAN.md` (approved 2026-07-20); claims
-discipline per federation D13; workers per D11.
+Lane-stratified (D3, 2026-07-22 — mesh primary + designed companion lane; was mesh-only per D1),
+evidence-driven, human-gated HyperAgent strategy loop — first operational iteration
+(cohort → evidence report → operator gate). Source contracts:
+`../federation/audits/hyperagent_review/IMPLEMENTATION_PLAN.md` (approved 2026-07-20) +
+`LOCAL_LANE_DESIGN.md` (step 2.0, approved 2026-07-22); claims discipline per federation D13;
+workers per D11.
 
 **One step = one independently-verifiable runtime outcome = one 9-phase cycle = one commit**
 (PROTOCOL §3). Done-evidence is runtime-observable (MASTER_PLAN §5), never just tests-green.
@@ -59,24 +61,30 @@ discipline per federation D13; workers per D11.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 2 | 2.1 | v2.1 | [ ] | ⛔ OPERATOR-GATED preregistration: cohort manifest signed BEFORE outcomes visible — consecutive enrollment ≥20 real tasks, ≥2 domains ≥5 each, D11 providers, spend ceiling, outcome rubric, exclusion rules |
+| 2 | 2.0 | v2.0 | [x] | Local-lane design + D1 supersession — closed 2026-07-22 (design-only, zero production code): LOCAL_LANE_DESIGN.md (three-surface evidence model — ha_telemetry attested-only, ha_lane_metrics operational, ha_observations derived; lanes mesh\|companion; explicit task-open/close boundary, friction never outcome; strategy consult via read-only daemon GET; bridge lifecycle = launchd unit on the canonical Documents repo, Downloads stray archived); D3 supersedes D1 boundary 1 only, D13 + D1 §2–4 reaffirmed; 2.1–2.3 contracts amended to lane-stratified reporting; I1–I5 implementation queue recorded, none opened |
+| 2 | 2.1 | v2.1 | [ ] | ⛔ OPERATOR-GATED preregistration: cohort manifest signed BEFORE outcomes visible — consecutive enrollment ≥20 real tasks, ≥2 domains ≥5 each, D11 providers, spend ceiling, outcome rubric, exclusion rules, lane strata (D3: mesh primary; companion attested-only, own floor) |
 | 2 | 2.2 | v2.2 | [ ] | Execute the cohort: complete telemetry→reflection→synthesis→proposal path observed with ZERO mid-cohort tuning/approvals; any gate breach fails the run (new run_id, no dataset patching) |
 | 2 | 2.3 | v2.3 | [ ] | ⛔ OPERATOR-GATED evidence report + disposition: reproducible aggregates, failure taxonomy, 5-binary proposal rubric, continue/revise/park recorded |
 
+> **2.0 — Goal:** the local lane exists as a binding design before any cohort is preregistered: lanes, evidence grades, attested-only threshold eligibility, identity/attribution contracts, bridge lifecycle ownership, and the lane-stratified cohort revision — with D1's mesh-only boundary superseded through the ledger, not silently.
+> **Needs:** operator approval (recorded 2026-07-22, "ok go" after the four-review verification chain); the verified P0s from that chain (friction≠outcome; hook data absence; execution_class throw); D13; the 0.2 additive-migration precedent.
+> **Feeds:** 2.1's lane-stratified manifest; the I1–I5 implementation steps when opened; D3.
+> **Verify:** `code:` LOCAL_LANE_DESIGN.md present with the threshold-eligibility matrix + I1–I5 queue; D3 appended superseding D1 boundary 1 only; plan-lint CONFORMANT. `runtime:` zero production-code diff in this batch (git show --stat lists plan docs only); Downloads stray archived (path renamed, canonical Documents repo untouched).
+>
 > **2.1 — Goal:** inclusion, labels, judging, and spend fixed before any outcome is visible — the anti-cherry-pick contract.
-> **Needs:** 0.1–1.2 closed; D11 worker path authenticated; operator-selected domains + spend ceiling + task acceptance criteria; one named node/soul scheduled for ≥5 eligible rows (threshold reachability). **HARD GATE: `visual:` — a headless tick MUST BLOCK here.**
+> **Needs:** 0.1–1.2 closed; **2.0 design (lane strata; companion rows attested-only)**; D11 worker path authenticated; operator-selected domains + spend ceiling + task acceptance criteria; one named node/soul scheduled for ≥5 eligible rows (threshold reachability). **HARD GATE: `visual:` — a headless tick MUST BLOCK here.**
 > **Feeds:** 2.2's executable manifest; 2.3's decision rules; co-scheduling with federation 3.5's window (separately accounted — execution_class keeps the ledgers apart).
 > **Verify:** `visual:` operator signs manifest + ceiling before the first eligible task. `code:` manifest validates; its run_id accepted by the producer.
 
 > **2.2 — Goal:** the complete HyperAgent path observed on real work with frozen behavior — integration and usefulness evidence, NOT calibration.
 > **Needs:** 2.1 signed; daemon + ops.hyperagent watcher healthy; pre-run DB snapshot; D11 workers live.
 > **Feeds:** 2.3; the 3.1/3.2/3.3 un-defer triggers.
-> **Verify:** `runtime:` ≥20 distinct eligible logical_task_ids with 100% telemetry accountability; ≥2 domains at the 5-task floor; every counted row execution_class=real with full provenance; ≥1 node/soul group crosses 5 rows; ≥1 daemon-created reflection synthesized inside its 24h window (operator triggered via the 1.1 notification); every proposal (if any) has one ledger identity + renders in MC; ZERO strategy approvals + zero un-gated mutations during the cohort; spend + wall-clock recorded against the ceiling. Any breach → fix substrate, new run_id.
+> **Verify:** `runtime:` ≥20 distinct eligible logical_task_ids with 100% telemetry accountability; ≥2 domains at the 5-task floor; every counted row execution_class=real with full provenance AND lane-labeled (D3 — companion rows counted only when evidence_grade=attested); ≥1 node/soul group crosses 5 rows; ≥1 daemon-created reflection synthesized inside its 24h window (operator triggered via the 1.1 notification); every proposal (if any) has one ledger identity + renders in MC; ZERO strategy approvals + zero un-gated mutations during the cohort; spend + wall-clock recorded against the ceiling. Any breach → fix substrate, new run_id.
 
 > **2.3 — Goal:** one auditable verdict: does the observational loop merit further investment.
 > **Needs:** 2.2 complete; immutable post-run snapshot; 0.3 report output. **HARD GATE: `visual:`.**
 > **Feeds:** continue/revise/park; explicit 3.x un-defer triggers.
-> **Verify:** `visual:` operator signs report + disposition. `code:` every aggregate reproducible from archived snapshot + manifest + report JSON. Decision rule: causal-trial design (3.1) only if ≥1 proposal scores 4/5 with evidence-traceable AND domain-bounded passing and the operator names an explicit treatment + outcome; zero qualifying proposals = park or revise, never a retroactive rubric loosening.
+> **Verify:** `visual:` operator signs report + disposition. `code:` every aggregate reproducible from archived snapshot + manifest + report JSON, stratified by lane (D3 — no pooled mesh+companion aggregate anywhere; operational/derived surfaces appendix-only, labelled). Decision rule: causal-trial design (3.1) only if ≥1 proposal scores 4/5 with evidence-traceable AND domain-bounded passing and the operator names an explicit treatment + outcome; zero qualifying proposals = park or revise, never a retroactive rubric loosening.
 
 ## Block 3 — DEFERRED (explicit un-defer triggers, IMPLEMENTATION_PLAN §6)
 

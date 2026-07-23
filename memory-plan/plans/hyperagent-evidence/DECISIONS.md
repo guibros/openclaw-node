@@ -62,3 +62,34 @@ runtime verification.
 future signal source can reuse the same pattern (enqueue-in-transaction + stable id). The ledger
 scan cost for dedup is linear per drained event — bounded by log-rotate; revisit at 3.3 if ha_*
 retention ever matters.
+
+## D3 — Evidence is lane-stratified and graded; D1's mesh-only boundary is superseded (operator-approved 2026-07-22)
+
+**Decision.** HyperAgent evidence gains two orthogonal dimensions — `lane` (`mesh|companion`) and
+`evidence_grade` (`attested|operational|derived`) — realized as three storage surfaces so
+contamination is structurally impossible: `ha_telemetry` stays the attested-task-outcome ledger
+(CHECK-constrained to `evidence_grade='attested'`, `unit_kind='task'`), new `ha_lane_metrics`
+holds mechanical transport facts with NO outcome column, new `ha_observations` holds LLM-derived
+session signals (themes, friction) with NO outcome column. Only attested rows feed success rates,
+reflection thresholds, and cohort claims; reflections become lane-scoped `(node, soul, lane)`.
+Companion attested outcomes come ONLY from an explicit task-open/close signal; session end and
+friction are never outcomes. Full contracts: `LOCAL_LANE_DESIGN.md` (step 2.0). This supersedes
+**D1 boundary 1 only** (mesh-only production lane). D1 boundaries 2–4 and federation D13 are
+reaffirmed unchanged.
+
+**Why.** A 2026-07-22 local-integration pivot proposal was rejected after a four-review
+verification chain, but its diagnosis held: the loop is starved (live: 1 telemetry / 0 / 0 / 0),
+the daemon schedules reflections no producer feeds, and the only permitted lane (mesh) has no
+running workers. The rejection reasons became this design's constraints: friction measures
+difficulty, not success (no mapping to `success|partial|failure`); the flush hook lacks the
+claimed data; extraction is LLM judgment with a regex fallback, not attestation; and
+`execution_class` is workload realness (`real|mock|chaos|synthetic`, throws on `companion`), so
+lane must be its own field. Grading evidence honestly lets local work in without letting inference
+masquerade as outcome.
+
+**Consequences.** Step 2.0 amends 2.1/2.2/2.3 to lane-stratified reporting (mesh = primary
+cohort; companion = separate stratum, attested-only, own floor; no pooling). Implementation is
+queued as five atomic steps (I1–I5, design §7) that open individually — nothing ships with 2.0.
+Bridge lifecycle ownership is decided (launchd unit, canonical Documents repo, Downloads stray
+archived; unit precedes lane activation). The mesh-runtime prerequisite for 2.2 is unchanged and
+now recorded. The plan's strongest-claim language is unchanged — D13's ceiling still governs.

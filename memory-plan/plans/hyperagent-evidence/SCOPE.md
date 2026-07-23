@@ -7,8 +7,25 @@ strategy loop, first operational iteration. Source contract:
 `../federation/audits/hyperagent_review/IMPLEMENTATION_PLAN.md` (§4 rows, §5 contracts,
 §7 exclusions). Claims discipline per federation D13; workers per D11. Approval scope: plan-doc
 instantiation + step 0.1 only; each subsequent step opens its own batch.
+**Addendum 2026-07-22 (operator "ok go" — step 2.0, local-lane design):** after a four-review
+verification chain (local-integration pivot proposal → counter-review → file:line verification →
+final endorsement with corrections), the operator approved a DESIGN-ONLY step before 2.1:
+`LOCAL_LANE_DESIGN.md` (lane / unit_kind / evidence_grade model, attested-only thresholds,
+identity + strategy attribution contracts, bridge lifecycle ownership, lane-stratified cohort) +
+DECISIONS D3 superseding D1's boundary 1 ONLY (mesh-only production lane); D13 and D1 boundaries
+2–4 reaffirmed. Zero production code in this batch. Files under "step-2.0-local-lane-design".
 **Set at:** 2026-07-20 (operator "so go?")
 **Expires:** 2026-07-27T00:00:00Z
+
+```files step-2.0-local-lane-design closed
+memory-plan/plans/hyperagent-evidence/audits/step20_local_lane_design/*
+memory-plan/plans/hyperagent-evidence/LOCAL_LANE_DESIGN.md
+memory-plan/plans/hyperagent-evidence/DECISIONS.md
+memory-plan/plans/hyperagent-evidence/INVENTORY.md
+memory-plan/plans/hyperagent-evidence/ROADMAP.md
+memory-plan/plans/hyperagent-evidence/COMPONENT_REGISTRY.md
+memory-plan/plans/hyperagent-evidence/VERSION
+```
 
 ```files plan-instantiation closed
 memory-plan/plans/hyperagent-evidence/ROADMAP.md
