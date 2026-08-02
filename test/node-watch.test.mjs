@@ -2,7 +2,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { WATCH_TARGETS, runWatch, formatHtml, STATUS } from '../lib/node-watch.mjs';
+import {
+  WATCH_TARGETS, runWatch, formatHtml, STATUS,
+  parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway,
+} from '../lib/node-watch.mjs';
 import { resolveNodeConfig } from '../lib/node-acceptance.mjs';
 
 const config = resolveNodeConfig({ OPENCLAW_HOME: '/tmp/acc', OPENCLAW_NODE_ID: 'tn' });
@@ -43,6 +46,44 @@ const target = (id) => WATCH_TARGETS.find((t) => t.id === id);
 const envFor = (ctx, extra = {}) => ({ ctx, config: ctx.config, hc: {}, probes: {}, includeHeavy: true, ...extra });
 
 describe('node-watch honesty invariants', () => {
+  it('launchd parsing distinguishes a running PID from a loaded stopped job', () => {
+    assert.deepEqual(
+      parseLaunchdPrint({ code: 0, stdout: 'state = running\npid = 56662\nlast exit code = 1\n' }),
+      { observable: true, loaded: true, running: true, pid: 56662, state: 'running' },
+    );
+    assert.deepEqual(
+      parseLaunchdPrint({ code: 0, stdout: 'state = not running\nlast exit code = (never exited)\n' }),
+      { observable: true, loaded: true, running: false, pid: null, state: 'not running' },
+    );
+  });
+
+  it('loaded PID-less mesh labels cannot earn WORKING', () => {
+    const stopped = [{ label: 'ai.openclaw.mesh-agent', observable: true, loaded: true, running: false, pid: null }];
+    assert.equal(gradeMeshServices(stopped).status, STATUS.BROKEN);
+    const mixed = [...stopped, { label: 'ai.openclaw.mesh-bridge', observable: true, loaded: true, running: true, pid: 42 }];
+    assert.equal(gradeMeshServices(mixed).status, STATUS.BROKEN);
+    assert.match(gradeMeshServices(mixed).detail, /no PID/);
+    const running = [{ label: 'ai.openclaw.mesh-bridge', observable: true, loaded: true, running: true, pid: 42 }];
+    assert.equal(gradeMeshServices(running).status, STATUS.WORKING);
+    assert.match(gradeMeshServices(running).detail, /PID evidence/);
+  });
+
+  it('required core labels need a running PID, not mere loaded state', () => {
+    const running = { label: 'ai.openclaw.nats', observable: true, loaded: true, running: true, pid: 10 };
+    assert.equal(gradeRequiredServices([running]).status, STATUS.WORKING);
+    assert.equal(gradeRequiredServices([{ ...running, running: false, pid: null }]).status, STATUS.BROKEN);
+    assert.equal(gradeRequiredServices([{ ...running, loaded: false, running: false, pid: null }]).status, STATUS.BROKEN);
+    assert.equal(gradeRequiredServices([{ ...running, observable: false }]).status, STATUS.UNKNOWN);
+  });
+
+  it('an old gateway JSONL cannot earn WORKING even when the service has a PID', () => {
+    const service = { observable: true, loaded: true, running: true, pid: 77, state: 'running' };
+    const verdict = gradeGateway({ service, newestSessionMs: Date.now() - 18 * 24 * 3600_000 });
+    assert.equal(verdict.status, STATUS.UNKNOWN);
+    assert.match(verdict.detail, /stale/);
+    assert.equal(gradeGateway({ service: { ...service, running: false, pid: null }, newestSessionMs: Date.now() }).status, STATUS.BROKEN);
+  });
+
   it('a slow target is UNKNOWN (never WORKING) when not probed this cycle', async () => {
     const report = await runWatch({
       ctx: makeCtx(), config,

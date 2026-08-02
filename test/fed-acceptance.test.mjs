@@ -45,22 +45,27 @@ describe('node-acceptance federation axis (step 6.4)', () => {
     assert.ok(fed.every((p) => p.required === false), 'federation probes must be non-required (on-demand)');
   });
 
-  it('FED-L2-COORD: coordinator loaded → PASS; absent → SKIP (worker/standalone still ACCEPTED)', async () => {
+  it('FED-L2-COORD: coordinator running → PASS; absent → SKIP; loaded without PID → FAIL', async () => {
     if (!IS_DARWIN) {
       const r = await fedProbe('FED-L2-COORD').run();
       assert.equal(r.status, VERDICT.SKIP);
       assert.match(r.detail, /darwin-only/);
       return;
     }
-    const loaded = await fedProbe('FED-L2-COORD', {
-      exec: async () => ({ code: 0, stdout: '123\t0\tai.openclaw.mesh-task-daemon\n', stderr: '' }),
+    const running = await fedProbe('FED-L2-COORD', {
+      exec: async () => ({ code: 0, stdout: 'state = running\npid = 123\n', stderr: '' }),
     }).run();
-    assert.equal(loaded.status, VERDICT.PASS);
+    assert.equal(running.status, VERDICT.PASS);
 
     const absent = await fedProbe('FED-L2-COORD', {
-      exec: async () => ({ code: 0, stdout: '456\t0\tsome.other.daemon\n', stderr: '' }),
+      exec: async () => ({ code: 113, stdout: '', stderr: 'Could not find service "ai.openclaw.mesh-task-daemon"' }),
     }).run();
     assert.equal(absent.status, VERDICT.SKIP);
+
+    const stopped = await fedProbe('FED-L2-COORD', {
+      exec: async () => ({ code: 0, stdout: 'state = not running\nlast exit code = 1\n', stderr: '' }),
+    }).run();
+    assert.equal(stopped.status, VERDICT.FAIL);
   });
 
   // These drive the probe's PARSE (jsz.json → meta_cluster) as well as the grade —

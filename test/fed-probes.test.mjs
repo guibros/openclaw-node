@@ -3,7 +3,7 @@
 // UNKNOWN when unobservable. Never green without evidence.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gradeClusterQuorum, gradeGrappeMembers, gradeSessionLiveness, gradeCoordinator, toMemberHealth, FED_STATUS } from '../lib/fed-probes.mjs';
+import { gradeClusterQuorum, gradeGrappeMembers, gradeSessionLiveness, gradeCoordinator, parseLaunchdPrint, toMemberHealth, FED_STATUS } from '../lib/fed-probes.mjs';
 
 // Real `jsz.meta_cluster`, captured verbatim from the live 3-node cluster
 // (curl :8222/jsz, 2026-07-16T11:21Z). Tests feed the SHAPE production emits —
@@ -17,6 +17,13 @@ const META_HEALTHY = Object.freeze({
 // so `leader` goes empty. THIS is the case the old connect_urls math could not see.
 const META_NO_LEADER = Object.freeze({
   name: 'openclaw-cluster', leader: '', peer: 'h6jWRkW8', cluster_size: 3, pending: 0,
+});
+
+test('launchd print parser distinguishes running, stopped, absent, and unobservable', () => {
+  assert.equal(parseLaunchdPrint({ code: 0, stdout: 'state = running\npid = 123\n' }).running, true);
+  assert.equal(parseLaunchdPrint({ code: 0, stdout: 'state = not running\n' }).running, false);
+  assert.equal(parseLaunchdPrint({ code: 113, stderr: 'Could not find service' }).loaded, false);
+  assert.equal(parseLaunchdPrint({ code: 1, stderr: 'permission denied' }).observable, false);
 });
 
 test('cluster quorum: bus down → BROKEN (never green without evidence)', () => {
@@ -105,7 +112,8 @@ test('session liveness: KV unreadable → UNKNOWN', () => {
   assert.equal(gradeSessionLiveness({ sessions: null, now: Date.now() }).status, FED_STATUS.UNKNOWN);
 });
 
-test('coordinator: loaded → WORKING; absent → OFF', () => {
-  assert.equal(gradeCoordinator({ loaded: true }).status, FED_STATUS.WORKING);
+test('coordinator: running PID → WORKING; loaded without PID → BROKEN; absent → OFF', () => {
+  assert.equal(gradeCoordinator({ loaded: true, running: true, pid: 123 }).status, FED_STATUS.WORKING);
+  assert.equal(gradeCoordinator({ loaded: true, running: false, pid: null, state: 'not running' }).status, FED_STATUS.BROKEN);
   assert.equal(gradeCoordinator({ loaded: false }).status, FED_STATUS.OFF);
 });

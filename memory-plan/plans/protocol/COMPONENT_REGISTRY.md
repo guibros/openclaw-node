@@ -64,3 +64,10 @@ older implementation history remains in git and audits.
 |---|---|
 | **Status** | REPAIRED — mcp-knowledge is a root npm workspace, deployed trees resolve root Sharp 0.35.3/libvips 8.18.3, and the watcher isolates native embedding teardown in a child process |
 | **Verified** | 2026-08-02 — source, workspace, and mesh resolve the same root Sharp path with no nested node_modules; root audit has no high/critical findings; full deep watcher completed and exited normally (rc 1 for one reported BROKEN probe), with no duplicate-libvips warning or mutex abort |
+
+### Node-watch service evidence
+
+| | |
+|---|---|
+| **Status** | HONEST — gateway activity, mesh services, coordinator, and required core services require current artifacts and/or running launchd PIDs; loaded labels alone cannot grade WORKING |
+| **Verified** | 2026-08-02 — deployed daemon snapshot grades mesh BROKEN with four PID-bearing services and two PID-less labels named, gateway non-green with a 69773-minute stale session, coordinator WORKING at pid 56662, and five R=3/core services WORKING with explicit PIDs |

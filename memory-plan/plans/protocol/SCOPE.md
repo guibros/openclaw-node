@@ -1,12 +1,11 @@
 # SCOPE — protocol plan
 
 **Status:** done
-**Goal:** Runtime repair 4.2, under the operator-approved 2026-08-02 four-step runtime block:
-remove nested `mcp-knowledge/node_modules` installs from source and deployed paths, resolve the
-package through the root npm workspace/dependency tree, and prove the full deep watcher loads one
-Sharp/libvips generation and exits normally. Watcher verdict semantics, heartbeat auth, and the
-consolidation hard-cap performance finding remain separate steps.
-**Set at:** 2026-08-02T17:13:00-04:00
+**Goal:** Runtime repair 4.3, under the operator-approved 2026-08-02 four-step runtime block:
+make gateway artifact freshness and actual launchd process state load-bearing node-watch evidence,
+so historical JSONLs and PID-less loaded labels cannot earn WORKING. Heartbeat authentication and
+the consolidation hard-cap performance finding remain separate steps.
+**Set at:** 2026-08-02T17:47:00-04:00
 **Expires:** 2026-08-04T00:00:00Z
 
 ```files governance-recovery-2026-08-02 closed
@@ -72,6 +71,20 @@ test/install-modules.test.mjs
 test/node-acceptance-probes.test.mjs
 ```
 
+```files runtime-repair-4.3-watcher-process-truth closed
+memory-plan/plans/protocol/SCOPE.md
+memory-plan/plans/protocol/INVENTORY.md
+memory-plan/plans/protocol/VERSION
+memory-plan/plans/protocol/COMPONENT_REGISTRY.md
+memory-plan/plans/protocol/audits/step43_watcher_process_truth/*
+lib/node-watch.mjs
+lib/fed-probes.mjs
+lib/node-acceptance-probes.mjs
+test/node-watch.test.mjs
+test/fed-probes.test.mjs
+test/fed-acceptance.test.mjs
+```
+
 ## Retired scope history
 
 The previous protocol scope accumulated implementation batches from 2026-06-15 through
@@ -135,6 +148,30 @@ the associated audits, and DECISIONS D4-D7. They are not carried as writable fil
   environment-sensitive embedding budget failure (888.7ms mean against 500ms).
 - `npm pack --dry-run --json` succeeds and contains the new helper plus workspace metadata while the
   removed child lock is absent; its unrelated 1.015 GB unpacked footprint is captured in OUT_OF_SCOPE.
+
+## Runtime repair 4.3 close gate
+
+- Gateway WORKING requires a recent session artifact; missing or stale artifacts cannot grade green.
+- Launchd-backed mesh and coordinator WORKING requires a positive integer PID from parsed service
+  state; a loaded label with no running process grades non-green and explains why.
+- Focused regressions cover the live stale-gateway and PID-less-label fixtures; the deployed watcher
+  completes and reports the host from the corrected evidence.
+
+## Runtime repair 4.3 done evidence
+
+- One shared `launchctl print` parser distinguishes running PID, loaded/stopped, absent, and
+  unobservable states. Node-watch and federation acceptance both use it.
+- Gateway requires a running PID plus a JSONL newer than 24h. Across live retries it graded BROKEN
+  with `spawn scheduled, no PID` or UNKNOWN with a PID and a 69,773-minute stale session, never green.
+- Mesh graded BROKEN with four PID-bearing services and two loaded/no-PID labels named; coordinator
+  graded WORKING only from pid 56662. Required core services graded WORKING from explicit PIDs for
+  memory-daemon, all three R=3 NATS servers, and Mission Control.
+- The restarted watcher daemon wrote the corrected machine snapshot. Repository, workspace symlink,
+  and legacy mesh library hashes match.
+- Focused watcher/federation/acceptance tests pass 88/88. The final broad host suite passes
+  1931/1933 with one skip and only the known embedding performance failure (1224.2ms mean against
+  500ms; batch 100 completes in 9.62s). The deployed full deep watcher completes normally at
+  27 WORKING / 3 BROKEN / 3 OFF / 3 UNKNOWN; rc 1 reflects its honest BROKEN findings.
 
 ## How this file works
 
