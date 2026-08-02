@@ -52,7 +52,7 @@ test). Steps below use the four-field contract they introduce.
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 4 | 4.1 | v4.1 | [x] | Restore scheduled consolidation liveness and authenticated local event emission — closed 2026-08-02; queue-aware gate and event path live, cycle completion remains explicitly degraded at the five-minute cap |
-| 4 | 4.2 | v4.2 | [ ] | Remove nested Sharp/libvips dependency trees from source and deployment paths |
+| 4 | 4.2 | v4.2 | [x] | Remove nested Sharp/libvips dependency trees from source and deployment paths — closed 2026-08-02; all mcp-knowledge imports resolve root Sharp 0.35.3 and the full watcher exits normally through isolated native probing |
 | 4 | 4.3 | v4.3 | [ ] | Make gateway freshness and launchd PID state load-bearing watcher evidence |
 | 4 | 4.4 | v4.4 | [ ] | Authenticate the scheduler-heartbeat one-shot against Mission Control |
 

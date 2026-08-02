@@ -53,7 +53,7 @@ run rsync -av --exclude='*.bak' --exclude='*.bak.*' --exclude='routing-eval-test
 # install (observed 2026-07-14 on the VM). Same file = already deployed = skip.
 for _wsbin in node-watch.mjs node-acceptance.mjs openclaw-notify.mjs \
               obsidian-graph-cache.mjs observer.mjs consolidation-scheduler.mjs \
-              hyperagent.mjs; do
+              hyperagent.mjs embed-probe.mjs; do
   if [ ! "$REPO_DIR/bin/$_wsbin" -ef "$WORKSPACE/bin/$_wsbin" ]; then
     run cp "$REPO_DIR/bin/$_wsbin" "$WORKSPACE/bin/$_wsbin"
   fi
@@ -69,13 +69,6 @@ run mkdir -p "$WORKSPACE/lib"
 run rsync -av --exclude='node_modules' \
   "$REPO_DIR/lib/" "$WORKSPACE/lib/"
 info "Shared libraries installed to $WORKSPACE/lib/ (incl. mcp-knowledge)"
-
-# mcp-knowledge (the embedder) carries its own deps — install them for the copy
-# the workspace daemons actually import
-if [ -f "$WORKSPACE/lib/mcp-knowledge/package.json" ] && [ ! -d "$WORKSPACE/lib/mcp-knowledge/node_modules" ]; then
-  info "Installing mcp-knowledge dependencies (workspace copy)..."
-  (cd "$WORKSPACE/lib/mcp-knowledge" && run npm install --production 2>/dev/null) || warn "mcp-knowledge deps failed — embeddings/semantic search will not work"
-fi
 
 # Event schemas — local-event-log.mjs imports ../packages/event-schemas/dist;
 # without it the daemon's event spine silently degrades off (2026-07-11 boot test)
@@ -102,35 +95,50 @@ if [ ! -d "$MESH_NM/better-sqlite3" ]; then
 fi
 
 WS_NM="$WORKSPACE/node_modules"
-run mkdir -p "$WS_NM"
-# The workspace daemons ARE repo code copied out — their import graph is a
-# subset of the repo's dependency set by construction. Symlink every package
-# (a fixed allow-list rots: zod was missed on 2026-07-11, nats before it).
-WS_LINKED=0
-for pkgdir in "$MESH_NM"/*/; do
-  pkg=$(basename "$pkgdir")
-  [ "$pkg" = ".bin" ] && continue
-  if [ ! -e "$WS_NM/$pkg" ]; then
-    run ln -sfn "$MESH_NM/$pkg" "$WS_NM/$pkg"
-    WS_LINKED=$((WS_LINKED + 1))
-  fi
-done
-info "Shared dependencies symlinked to $WS_NM/ ($WS_LINKED new links from $MESH_NM)"
+link_dependency_tree() {
+  local src="$1" dest="$2" pkgdir pkg scoped_dir scoped
+  LINKED_COUNT=0
+  run mkdir -p "$dest"
+  for pkgdir in "$src"/*/; do
+    [ -d "$pkgdir" ] || continue
+    pkg=$(basename "$pkgdir")
+    [ "$pkg" = ".bin" ] && continue
+    if [[ "$pkg" == @* ]]; then
+      run mkdir -p "$dest/$pkg"
+      for scoped_dir in "$pkgdir"*/; do
+        [ -d "$scoped_dir" ] || continue
+        scoped=$(basename "$scoped_dir")
+        if [ ! -e "$dest/$pkg/$scoped" ]; then
+          run ln -sfn "$pkgdir$scoped" "$dest/$pkg/$scoped"
+          LINKED_COUNT=$((LINKED_COUNT + 1))
+        fi
+      done
+    elif [ ! -e "$dest/$pkg" ]; then
+      run ln -sfn "$src/$pkg" "$dest/$pkg"
+      LINKED_COUNT=$((LINKED_COUNT + 1))
+    fi
+  done
+}
+
+# The copied daemons and mesh libraries are the root package's runtime code.
+# Their parent node_modules trees resolve to this one installed dependency set.
+link_dependency_tree "$MESH_NM" "$WS_NM"
+info "Shared dependencies symlinked to $WS_NM/ ($LINKED_COUNT new links from $MESH_NM)"
 
 # Mesh daemons and CLI tools → mesh home bin/
 MESH_BIN="$OPENCLAW_MESH_HOME/bin"
 MESH_LIB="$OPENCLAW_MESH_HOME/lib"
 run mkdir -p "$MESH_BIN" "$MESH_LIB"
 run rsync -av "$REPO_DIR/bin/" "$MESH_BIN/"
-run rsync -av "$REPO_DIR/lib/" "$MESH_LIB/"
+run rsync -av --exclude='node_modules' "$REPO_DIR/lib/" "$MESH_LIB/"
 run chmod +x "$MESH_BIN/"*.sh 2>/dev/null || true
 info "Mesh daemons installed to $MESH_BIN/ ($(ls -1 "$REPO_DIR/bin/" | wc -l | tr -d ' ') files)"
 info "Shared libraries installed to $MESH_LIB/"
 
-# Install mcp-knowledge dependencies if it has its own package.json
-if [ -f "$MESH_LIB/mcp-knowledge/package.json" ] && [ ! -d "$MESH_LIB/mcp-knowledge/node_modules" ]; then
-  info "Installing MCP knowledge server dependencies..."
-  (cd "$MESH_LIB/mcp-knowledge" && npm install --production 2>/dev/null) || warn "mcp-knowledge deps failed — semantic search may not work"
+MESH_HOME_NM="$OPENCLAW_MESH_HOME/node_modules"
+if [ "$MESH_NM" != "$MESH_HOME_NM" ]; then
+  link_dependency_tree "$MESH_NM" "$MESH_HOME_NM"
+  info "Shared dependencies symlinked to $MESH_HOME_NM/ ($LINKED_COUNT new links from $MESH_NM)"
 fi
 
 # ============================================================

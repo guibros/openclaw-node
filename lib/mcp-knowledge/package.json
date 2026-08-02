@@ -1,6 +1,7 @@
 {
   "name": "@openclaw/mcp-knowledge",
   "version": "0.1.0",
+  "private": true,
   "description": "LLM-agnostic MCP server for semantic search over markdown knowledge bases",
   "type": "module",
   "main": "server.mjs",

@@ -62,5 +62,5 @@ older implementation history remains in git and audits.
 
 | | |
 |---|---|
-| **Status** | SECURITY + PROCESS-STABILITY DEBT — standalone nested install loads Sharp 0.34.5 beside root Sharp 0.35.3 |
-| **Verified** | 2026-08-02 — full watcher aborted in duplicate native Sharp/libvips state; nested `npm audit --package-lock-only` reports 13 findings (2 critical, 5 high), including GHSA-f88m-g3jw-g9cj; root audit has no Sharp finding |
+| **Status** | REPAIRED — mcp-knowledge is a root npm workspace, deployed trees resolve root Sharp 0.35.3/libvips 8.18.3, and the watcher isolates native embedding teardown in a child process |
+| **Verified** | 2026-08-02 — source, workspace, and mesh resolve the same root Sharp path with no nested node_modules; root audit has no high/critical findings; full deep watcher completed and exited normally (rc 1 for one reported BROKEN probe), with no duplicate-libvips warning or mutex abort |

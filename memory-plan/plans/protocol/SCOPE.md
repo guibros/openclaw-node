@@ -1,12 +1,12 @@
 # SCOPE — protocol plan
 
 **Status:** done
-**Goal:** Runtime repair 4.1, operator-approved 2026-08-02 (`gogogogogogog`): restore the
-scheduled consolidation path's liveness and event emission by grading the daemon's exported queue
-state instead of Ollama model residency, authenticating standalone NATS clients, and deriving a
-valid local stream name from any node id. Dependency cleanup, watcher verdicts, heartbeat auth,
-and federation evidence remain separate steps.
-**Set at:** 2026-08-02T16:52:00-04:00
+**Goal:** Runtime repair 4.2, under the operator-approved 2026-08-02 four-step runtime block:
+remove nested `mcp-knowledge/node_modules` installs from source and deployed paths, resolve the
+package through the root npm workspace/dependency tree, and prove the full deep watcher loads one
+Sharp/libvips generation and exits normally. Watcher verdict semantics, heartbeat auth, and the
+consolidation hard-cap performance finding remain separate steps.
+**Set at:** 2026-08-02T17:13:00-04:00
 **Expires:** 2026-08-04T00:00:00Z
 
 ```files governance-recovery-2026-08-02 closed
@@ -54,6 +54,24 @@ test/daemon-tick-guard.test.mjs
 test/wiring-manifest.test.mjs
 ```
 
+```files runtime-repair-4.2-native-dependency-topology closed
+memory-plan/plans/protocol/SCOPE.md
+memory-plan/plans/protocol/INVENTORY.md
+memory-plan/plans/protocol/VERSION
+memory-plan/plans/protocol/COMPONENT_REGISTRY.md
+memory-plan/plans/protocol/audits/step42_native_dependency_topology/*
+package.json
+package-lock.json
+lib/mcp-knowledge/package.json
+lib/mcp-knowledge/package-lock.json
+scripts/install/workspace.sh
+scripts/install/components.sh
+bin/embed-probe.mjs
+lib/node-acceptance-probes.mjs
+test/install-modules.test.mjs
+test/node-acceptance-probes.test.mjs
+```
+
 ## Retired scope history
 
 The previous protocol scope accumulated implementation batches from 2026-06-15 through
@@ -92,6 +110,31 @@ the associated audits, and DECISIONS D4-D7. They are not carried as writable fil
   performance failure: embedding mean 530.4ms against the fixed 500ms budget.
 - The real consolidation cycle failed loudly at its separate 300000ms hard cap. Completion cadence
   remains degraded and is carried forward without weakening the v4.1 scheduler-path verdict.
+
+## Runtime repair 4.2 close gate
+
+- Root `npm ci` owns `mcp-knowledge` and its transitive Sharp override; no installer path runs npm
+  inside a copied `lib/mcp-knowledge` directory or copies nested `node_modules` into deployment.
+- Source, workspace, and mesh imports resolve Sharp 0.35.x through a parent dependency tree, with no
+  nested Sharp/libvips tree on disk.
+- A deployed full deep watcher completes without duplicate-libvips warnings, native mutex abort, or
+  a second Sharp load; focused install/dependency tests and audits pass.
+
+## Runtime repair 4.2 done evidence
+
+- Root npm owns `lib/mcp-knowledge` as a private workspace; the child lockfile is removed, installers
+  exclude nested node_modules, and both deployed parent trees link the root dependency authority.
+- Source, workspace, and mesh imports all resolve
+  `/Users/moltymac/openclaw-nodedev/node_modules/sharp/dist/index.cjs` at Sharp 0.35.3/libvips 8.18.3;
+  no nested mcp-knowledge node_modules remains on disk.
+- The deployed full deep watcher completed every axis and exited rc 1 for its one reported BROKEN
+  graph-cache probe, not a process abort: 28 WORKING / 1 BROKEN / 3 OFF / 4 UNKNOWN, embedding
+  dimension 1024 and norm 1.000, with no duplicate-libvips warning or mutex failure.
+- Focused dependency tests pass 20/20 and acceptance/isolation tests pass 39/39. Root npm audit has
+  no high/critical findings. The full host suite passes 1927/1929 with one skip and the known
+  environment-sensitive embedding budget failure (888.7ms mean against 500ms).
+- `npm pack --dry-run --json` succeeds and contains the new helper plus workspace metadata while the
+  removed child lock is absent; its unrelated 1.015 GB unpacked footprint is captured in OUT_OF_SCOPE.
 
 ## How this file works
 

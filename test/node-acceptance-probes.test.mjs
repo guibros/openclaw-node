@@ -2,7 +2,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { buildProbes } from '../lib/node-acceptance-probes.mjs';
+import { buildProbes, parseIsolatedEmbedResult } from '../lib/node-acceptance-probes.mjs';
 import { runAcceptance, resolveNodeConfig, VERDICT } from '../lib/node-acceptance.mjs';
 
 // A fully-mocked runtime context — no live system is touched.
@@ -87,6 +87,17 @@ describe('node-acceptance probes — L0 presence', () => {
 });
 
 describe('node-acceptance probes — LLM backing', () => {
+  it('isolated embed output requires a clean child exit and valid vector', () => {
+    assert.deepEqual(Array.from(parseIsolatedEmbedResult({ stdout: '{"ok":true,"vector":[0.5,0.25]}' })), [0.5, 0.25]);
+    assert.throws(
+      () => parseIsolatedEmbedResult({ error: Object.assign(new Error('aborted'), { signal: 'SIGABRT' }), stdout: '{"ok":true,"vector":[1]}' }),
+      /SIGABRT/,
+    );
+    assert.throws(
+      () => parseIsolatedEmbedResult({ error: Object.assign(new Error('exit 2'), { code: 2 }), stdout: '{"ok":false,"error":"model not cached"}' }),
+      /model not cached/,
+    );
+  });
   it('LLM-L2-MODEL PASS when configured model in tags', async () => {
     const ctx = baseCtx({ httpGet: async () => ({ status: 200, json: { models: [{ name: 'qwen3:8b' }] } }) });
     assert.equal((await probeById(ctx, 'LLM-L2-MODEL').run()).status, VERDICT.PASS);

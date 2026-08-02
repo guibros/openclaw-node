@@ -51,7 +51,7 @@ else
 
   # Embedder prefetch (Xenova/bge-m3, ~2GB one-time HuggingFace download) so the
   # first real search doesn't stall on it.
-  if [ -d "$WORKSPACE/lib/mcp-knowledge/node_modules" ]; then
+  if [ -d "$WORKSPACE/node_modules/@huggingface/transformers" ]; then
     info "Prefetching embedder Xenova/bge-m3 (~2GB one-time; cached afterwards)..."
     if OPENCLAW_WS_LIB="$WORKSPACE/lib" "$NODE_BIN" --input-type=module -e '
         const core = await import(process.env.OPENCLAW_WS_LIB + "/mcp-knowledge/core.mjs");
@@ -65,7 +65,7 @@ else
       warn "Embedder prefetch failed — first semantic-search use downloads it (needs internet)"
     fi
   else
-    warn "mcp-knowledge deps missing — embedder not prefetched"
+    warn "workspace dependencies missing — embedder not prefetched"
   fi
 fi
 
