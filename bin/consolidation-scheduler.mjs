@@ -9,18 +9,21 @@
  *
  * Idle detection has two paths:
  *   - In-process: reads ollama-queue.getState() directly (when imported by daemon)
- *   - Standalone: probes Ollama HTTP API /api/ps (when run by launchd)
+ *   - Standalone: reads the daemon's fresh exported queue-state snapshot
  *
  * Usage:
  *   node bin/consolidation-scheduler.mjs [--db <path>] [--vault-path <path>] [--interval <ms>]
  */
 
-import { setTimeout as delay } from 'node:timers/promises';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
+import { QUEUE_STATE_PATH, readStateSnapshot } from '../lib/ollama-queue.mjs';
+
+const _require = createRequire(import.meta.url);
 
 // A failed consolidation cycle breaks the memory cadence silently (launchd
 // just restarts the one-shot) — escalate it to a ledgered desktop popup.
@@ -49,33 +52,6 @@ export const ANALYSIS_QUIET_MS = 60 * 1000; // 60 seconds
 
 /** Default scheduler interval (30 minutes). */
 export const DEFAULT_INTERVAL_MS = 30 * 60 * 1000;
-
-const OLLAMA_BASE = process.env.LLM_BASE_URL || 'http://localhost:11434';
-
-// ─── Idle Detection: Ollama HTTP ────────────────────────────────────────────
-
-/**
- * Check if Ollama has no active inference requests via the HTTP API.
- * Returns true if idle (no models currently running inference).
- *
- * @param {string} [baseUrl] — Ollama base URL
- * @returns {Promise<boolean>}
- */
-export async function isOllamaIdle(baseUrl) {
-  const url = `${baseUrl || OLLAMA_BASE}/api/ps`;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return false;
-    const data = await res.json();
-    // Ollama /api/ps returns { models: [...] } — empty array means idle
-    if (!data.models || data.models.length === 0) return true;
-    // Check if any model has active requests
-    return data.models.every(m => !m.size_vram || m.size_vram === 0);
-  } catch {
-    // Ollama not reachable — treat as idle (consolidation doesn't need LLM for all jobs)
-    return true;
-  }
-}
 
 // ─── Idle Detection: In-process Queue ───────────────────────────────────────
 
@@ -124,23 +100,19 @@ export function isQueueIdle(getStateFn) {
  *
  * @param {object} [opts]
  * @param {() => object} [opts.getStateFn] — in-process queue state function
- * @param {string} [opts.ollamaBaseUrl] — Ollama API base URL
+ * @param {(path: string) => object|null} [opts.readStateSnapshotFn]
+ * @param {string} [opts.queueStatePath]
  * @returns {Promise<{ idle: boolean, reason: string|null }>}
  */
 export async function isSystemIdle(opts = {}) {
-  // Path 1: In-process queue state (preferred — more precise)
   if (opts.getStateFn) {
-    const queueResult = isQueueIdle(opts.getStateFn);
-    if (!queueResult.idle) return queueResult;
+    return isQueueIdle(opts.getStateFn);
   }
 
-  // Path 2: Ollama HTTP API (standalone fallback)
-  const ollamaIdle = await isOllamaIdle(opts.ollamaBaseUrl);
-  if (!ollamaIdle) {
-    return { idle: false, reason: 'Ollama has active inference (HTTP /api/ps)' };
-  }
-
-  return { idle: true, reason: null };
+  const readSnapshot = opts.readStateSnapshotFn || readStateSnapshot;
+  const snapshot = readSnapshot(opts.queueStatePath || QUEUE_STATE_PATH);
+  if (!snapshot) return { idle: false, reason: 'daemon queue snapshot missing or stale' };
+  return isQueueIdle(() => snapshot);
 }
 
 // ─── Run With Timeout ───────────────────────────────────────────────────────
@@ -220,7 +192,8 @@ export async function runScheduledCycle(opts = {}) {
  * @param {string} [opts.dbPath]
  * @param {string} [opts.vaultPath]
  * @param {() => object} [opts.getStateFn] — in-process queue state
- * @param {string} [opts.ollamaBaseUrl]
+ * @param {(path: string) => object|null} [opts.readStateSnapshotFn]
+ * @param {string} [opts.queueStatePath]
  * @param {number} [opts.hardCapMs]
  * @param {(msg: string) => void} [opts.log] — logger
  * @returns {{ start: () => void, stop: () => void, runOnce: () => Promise<object> }}
@@ -251,7 +224,8 @@ export function createConsolidationScheduler(opts = {}) {
   async function runOnce() {
     const idleCheck = await isSystemIdle({
       getStateFn: opts.getStateFn,
-      ollamaBaseUrl: opts.ollamaBaseUrl,
+      readStateSnapshotFn: opts.readStateSnapshotFn,
+      queueStatePath: opts.queueStatePath,
     });
 
     if (!idleCheck.idle) {
@@ -321,7 +295,8 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     try {
       const { connect } = await import('nats');
       const { createLocalEventLog } = await import('../lib/local-event-log.mjs');
-      nc = await connect({ servers: natsUrl });
+      const { natsConnectOpts } = _require('../lib/nats-resolve.js');
+      nc = await connect(natsConnectOpts({ servers: natsUrl, name: 'consolidation-scheduler', timeout: 5000 }));
       cliOpts.eventLog = await createLocalEventLog(nc, nodeId);
       console.log(`NATS connected (${natsUrl}), events will be emitted.`);
     } catch (err) {

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { buildMemoryEvent } from '../lib/local-event-log.mjs';
+import { buildMemoryEvent, canonicalNodeId, localEventStreamName } from '../lib/local-event-log.mjs';
 import { MemoryBudget } from '../lib/memory-budget.mjs';
 import {
   MemoryEventSchema,
@@ -94,6 +94,21 @@ describe('buildMemoryEvent', () => {
     );
     const result = FactExtractedSchema.safeParse(event);
     assert.equal(result.success, true, `Validation errors: ${JSON.stringify(result.error?.issues)}`);
+  });
+});
+
+describe('local event stream naming', () => {
+  it('preserves a valid deployed node id', () => {
+    assert.equal(localEventStreamName('moltymacs-virtual-machine'), 'local-events-moltymacs-virtual-machine');
+  });
+
+  it('maps the dotted macOS hostname to the deployed canonical node id', () => {
+    assert.equal(canonicalNodeId('MoltyMacs-Virtual-Machine.local'), 'moltymacs-virtual-machine');
+    assert.equal(localEventStreamName('MoltyMacs-Virtual-Machine.local'), 'local-events-moltymacs-virtual-machine');
+  });
+
+  it('rejects an empty node identity', () => {
+    assert.throws(() => localEventStreamName('...'), /nodeId/);
   });
 });
 

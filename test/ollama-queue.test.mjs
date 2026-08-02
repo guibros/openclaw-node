@@ -25,6 +25,7 @@ import {
   exportStateSnapshot,
   readStateSnapshot,
   snapshotLooksStuck,
+  setStateObserver,
   _resetForTesting,
 } from '../lib/ollama-queue.mjs';
 
@@ -70,6 +71,16 @@ describe('requestExtraction happy path', () => {
     assert.equal(events[1], 'a:end');
     assert.equal(events[2], 'b:start');
     assert.equal(events[3], 'b:end');
+  });
+
+  it('publishes current-job and idle transitions to the state observer', async () => {
+    const observed = [];
+    const stop = setStateObserver((snapshot) => observed.push(snapshot));
+    await requestExtraction(async () => 'done', { model: 'qwen3:8b' });
+    stop();
+    assert.ok(observed.some((snapshot) => snapshot.current_job?.type === 'extraction'));
+    assert.equal(observed.at(-1).current_job, null);
+    assert.equal(observed.at(-1).queue_depth, 0);
   });
 });
 

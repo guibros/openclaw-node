@@ -20,6 +20,7 @@ import { openStore } from '../lib/sqlite-store.mjs';
 import path from 'path';
 import os from 'os';
 import { createHash } from 'crypto';
+import { createRequire } from 'node:module';
 import {
   initConsolidationTables,
   decayWeights,
@@ -34,6 +35,8 @@ import { backfillSessionNotes } from '../lib/obsidian-session-notes.mjs';
 import { generateDecisionNotes } from '../lib/obsidian-decision-notes.mjs';
 import { generateThemeNotes } from '../lib/obsidian-theme-notes.mjs';
 import { generateDailyDigest } from '../lib/obsidian-digest.mjs';
+
+const require = createRequire(import.meta.url);
 
 const DEFAULT_DB_PATH = path.join(os.homedir(), '.openclaw/state.db');
 
@@ -252,7 +255,8 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     try {
       const { connect } = await import('nats');
       const { createLocalEventLog } = await import('../lib/local-event-log.mjs');
-      nc = await connect({ servers: natsUrl });
+      const { natsConnectOpts } = require('../lib/nats-resolve.js');
+      nc = await connect(natsConnectOpts({ servers: natsUrl, name: 'consolidate-cli', timeout: 5000 }));
       opts.eventLog = await createLocalEventLog(nc, nodeId);
       console.log(`NATS connected (${natsUrl}), events will be emitted.`);
     } catch (err) {

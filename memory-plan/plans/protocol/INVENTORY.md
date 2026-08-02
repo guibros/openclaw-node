@@ -47,6 +47,35 @@ test). Steps below use the four-field contract they introduce.
 > **Feeds:** the next runtime-repair scope; federation 2.6/3.5 ordering; HyperAgent 2.1 preregistration; every agent bootstrap through CLAUDE.md/AGENTS.md.
 > **Verify:** `runtime:` exactly one unexpired active scope during execution and no stale active scope at close; protocol/federation/hyperagent-evidence lint with zero FAILs; federation and HyperAgent preflights name the intended frontier. `code:` README/CLAUDE/AGENTS and registries agree on the probed facts; staged diff is governance/docs only. `runtime:` commit pushed without force.
 
+## Block 4 — Runtime repair
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 4 | 4.1 | v4.1 | [x] | Restore scheduled consolidation liveness and authenticated local event emission — closed 2026-08-02; queue-aware gate and event path live, cycle completion remains explicitly degraded at the five-minute cap |
+| 4 | 4.2 | v4.2 | [ ] | Remove nested Sharp/libvips dependency trees from source and deployment paths |
+| 4 | 4.3 | v4.3 | [ ] | Make gateway freshness and launchd PID state load-bearing watcher evidence |
+| 4 | 4.4 | v4.4 | [ ] | Authenticate the scheduler-heartbeat one-shot against Mission Control |
+
+> **4.1 — Goal:** the standalone consolidation scheduler starts a real cycle when the daemon queue is freshly idle and can emit through the authenticated, validly named local event stream.
+> **Needs:** v3.1 governance recovery closed; live memory daemon exports `.tmp/ollama-queue-state.json`; R=3 NATS cluster and token resolver live; consolidation scheduler launchd unit loaded; operator approval 2026-08-02.
+> **Feeds:** daily digest/vault cadence; memory event observability; watcher `net.stream`; stable substrate for federation 2.6.
+> **Verify:** `code:` focused scheduler/event/watcher/acceptance tests pass and no runtime path uses `/api/ps` as queue activity evidence. `runtime:` deployed scheduler authenticates to NATS, resolves the canonical local stream, and logs a cycle start from a fresh idle queue snapshot while a model remains resident; repo/runtime hashes match.
+
+> **4.2 — Goal:** every in-repo and deployed OpenClaw import resolves one Sharp/libvips version, with the vulnerable nested 0.34.5 tree absent.
+> **Needs:** 4.1 closed; root Sharp override 0.35.x installed; current nested source/workspace/legacy-tree copies inventoried; installer dependency topology understood.
+> **Feeds:** full node-watch stability; semantic index/embedding imports; dependency-security baseline.
+> **Verify:** `code:` install tests and dependency audits pass with no vulnerable Sharp resolution. `runtime:` source and deployed trees contain no nested Sharp install; a full deep watcher exits normally with no duplicate-libvips warning or native mutex abort.
+
+> **4.3 — Goal:** node-watch reports WORKING for gateway and mesh/coordinator services only from fresh artifacts plus running process evidence, never mere historical files or loaded labels.
+> **Needs:** 4.2 closes the watcher crash; live launchctl output has both PID and PID-less fixtures; an old gateway JSONL reproduces the false green.
+> **Feeds:** operator health dashboard; federation 3.5/6.3 evidence quality; stack incident diagnosis.
+> **Verify:** `code:` watcher regressions prove an 18-day gateway file and PID-less mesh/coordinator labels are not WORKING. `runtime:` deployed deep watcher grades the current gateway and mesh/coordinator state from freshness/PIDs and completes without false-green wording.
+
+> **4.4 — Goal:** the launchd/systemd scheduler heartbeat authenticates through Mission Control's existing bearer-token gate and executes scheduler ticks without a browser tab.
+> **Needs:** Mission Control auth token file and POST gate live; heartbeat unit currently reproduces exit 22/HTTP 401; workspace installer owns one-shot scripts and service templates.
+> **Feeds:** at/cron task dispatch; `ops.calendar` watcher; Mission Control scheduler status.
+> **Verify:** `code:` helper/unit/install tests pass and the mutation route remains auth-gated. `runtime:` deployed launchd unit uses the helper, records HTTP 200/tick output, increments its run count with last exit 0, and Mission Control remains reachable.
+
 > **2.1 — Goal:** the rules exist in one place: PROTOCOL.md gains §10 (six-surface conformance: what "functionally implements" each tab means) + §11 (the Goal/Needs/Feeds/Verify step contract); INVENTORY + TICK_PROMPT templates carry both.
 > **Needs:** PROTOCOL.md §1/§6 (present, v1.1) · the viewer tab↔file map (verified live in Block 1) · redesign's LOOPS.md flow framing as lineage (connects-with/produces-for/WIN-FAIL).
 > **Feeds:** 2.2 (the lint checks exactly these rules) · every future plan's INVENTORY/TICK_PROMPT via the templates.

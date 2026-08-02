@@ -39,3 +39,14 @@ steps ran — this doc consolidates the block framing per PROTOCOL §1.2).
   active at close; federation and HyperAgent preflights name their real next gates; README,
   CLAUDE.md, and AGENTS.md agree with fresh 2026-08-02 probes; the recovery commit is pushed.
 - **Unblocks:** the runtime-repair batch, followed by federation 2.6 evidence and the 3.5 gate.
+
+## Block 4 — Runtime repair
+
+- **Intent:** remove the concrete failures that make the node's memory cadence, dependency graph,
+  process watcher, and scheduler heartbeat either nonfunctional or dishonest. Each defect class is
+  an atomic step with its own deploy/restart/runtime proof.
+- **Exit criterion:** a scheduled consolidation crosses its queue-aware idle gate and emits to the
+  authenticated local event stream; one Sharp/libvips tree loads in a full watcher run; stale
+  gateway artifacts and PID-less launchd jobs cannot grade WORKING; scheduler-heartbeat records an
+  authenticated HTTP 200 and launchd exit 0.
+- **Unblocks:** federation 2.6's five-task premise benchmark on a stable, honestly observed node.

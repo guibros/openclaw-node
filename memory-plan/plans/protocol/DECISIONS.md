@@ -123,3 +123,24 @@ that cannot identify the next executable gate is not enforcing the system it des
 not fix consolidation liveness, NATS event-auth, the invalid local-event stream name, nested native
 dependencies, watcher honesty gaps, heartbeat auth, or worker startup. No management work starts
 before 2.6 and 3.5 close. Every future batch opens one fresh labeled scope block with a bounded expiry.
+
+## D9 — Runtime repair uses authoritative activity/process signals and one dependency tree (2026-08-02)
+
+**Decision.** The runtime-repair block is split into four independently closable steps. Queue
+activity comes from the memory daemon's fresh exported queue snapshot, never Ollama model residency.
+Local event stream names are derived through one canonical helper, and standalone NATS clients use
+the existing token resolver. Native dependencies resolve from one parent install; nested
+`mcp-knowledge/node_modules` trees are forbidden in source and deployed copies. Watcher service
+health requires fresh work evidence and/or a real PID, not an old file or loaded launchd label.
+Mission Control mutations retain bearer authentication; the heartbeat becomes an authenticated
+client instead of weakening middleware.
+
+**Why.** All four old signals were mechanically false on the live node: `OLLAMA_KEEP_ALIVE=24h`
+made `/api/ps` look permanently busy; a dotted hostname generated an illegal stream name; two Sharp
+copies loaded incompatible libvips dylibs and terminated the watcher; an 18-day gateway JSONL and
+PID-less launchd labels graded WORKING; unauthenticated curl received 401 forever. These are signal
+ownership defects, not threshold-tuning problems.
+
+**Consequences.** Each step must deploy and observe its corrected signal before closing. No auth
+exemption, watcher downgrade, dependency duplication, or retrospective health claim is accepted.
+Federation 2.6 remains blocked until Block 4 closes.

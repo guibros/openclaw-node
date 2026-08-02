@@ -1,7 +1,7 @@
 # COMPONENT_REGISTRY — protocol plan
 
-Current control-plane state for this governance batch. Every claim below was probed on
-2026-08-02 EDT; older implementation history remains in git and audits.
+Current control-plane and runtime-repair state. Every claim below was probed on 2026-08-02 EDT;
+older implementation history remains in git and audits.
 
 ## Family 1: plan control plane
 
@@ -9,8 +9,8 @@ Current control-plane state for this governance batch. Every claim below was pro
 
 | | |
 |---|---|
-| **Status** | RECOVERED — no expired scope remains active; the sole recovery scope closes with v3.1, leaving every plan idle until the next operator-approved batch |
-| **Verified** | 2026-08-02 — during execution, the status/expiry scan found exactly one active scope (`protocol`); its only open allow-list block is closed in the v3.1 commit |
+| **Status** | RECOVERED — expired scope history is retired; runtime repair now advances through one bounded protocol step at a time |
+| **Verified** | 2026-08-02 — step 4.1 used the only active scope and closes its only open allow-list block at v4.1; step 4.2 is the next contract |
 
 ### Plan lint — workspace-bin/plan-lint.sh
 
@@ -42,14 +42,14 @@ Current control-plane state for this governance batch. Every claim below was pro
 | **Status** | LIVE SUBSTRATE, EVIDENCE-EMPTY — next step 2.1 operator-gated preregistration; companion I1-I5 design-only |
 | **Verified** | 2026-08-02 — deployed CLI reports telemetry=1, strategies=0, reflections=0, proposals=0; MC `/hyperagent` HTTP 200; companion bridge down |
 
-## Family 3: runtime findings queued behind governance
+## Family 3: runtime repair
 
 ### Consolidation scheduler
 
 | | |
 |---|---|
-| **Status** | BROKEN LIVENESS GATE — no observed completion after the last logged success; one hard-cap failure then 359 `Ollama has active inference` skips |
-| **Verified** | 2026-08-02 — `/api/ps` showed a loaded qwen3:8b while the internal queue reported `current_job=null`, `queue_depth=0`; the scheduler mistakes loaded VRAM for active inference |
+| **Status** | SCHEDULER PATH RESTORED; CYCLE COMPLETION DEGRADED — queue-authoritative idle detection and authenticated event emission are live, but the first repaired cycle reached the independent five-minute hard cap |
+| **Verified** | 2026-08-02 — launchd logged authenticated NATS connection and `system idle — starting consolidation cycle` from a fresh daemon queue snapshot while qwen3:8b remained resident; the cycle then failed explicitly at 300029ms instead of silently skipping |
 
 ### Scheduler heartbeat
 

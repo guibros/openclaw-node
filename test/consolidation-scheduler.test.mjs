@@ -7,7 +7,6 @@ import {
   ANALYSIS_QUIET_MS,
   DEFAULT_INTERVAL_MS,
   isQueueIdle,
-  isOllamaIdle,
   isSystemIdle,
   runScheduledCycle,
   createConsolidationScheduler,
@@ -87,16 +86,6 @@ describe('isQueueIdle', () => {
   });
 });
 
-// ─── isOllamaIdle ───────────────────────────────────────────────────────────
-
-describe('isOllamaIdle', () => {
-  it('returns true when Ollama is unreachable (graceful fallback)', async () => {
-    // Port that is almost certainly not listening
-    const result = await isOllamaIdle('http://127.0.0.1:19999');
-    assert.equal(result, true);
-  });
-});
-
 // ─── isSystemIdle ───────────────────────────────────────────────────────────
 
 describe('isSystemIdle', () => {
@@ -107,20 +96,51 @@ describe('isSystemIdle', () => {
       history: { extraction: { count: 1, avg_ms: 5000 }, analysis: { count: 0, avg_ms: 0 } },
       recent_fallbacks: [],
     });
-    const result = await isSystemIdle({ getStateFn, ollamaBaseUrl: 'http://127.0.0.1:19999' });
+    const result = await isSystemIdle({ getStateFn });
     assert.equal(result.idle, false);
     assert.ok(result.reason.includes('active extraction'));
   });
 
-  it('returns idle when queue is idle and Ollama unreachable', async () => {
+  it('returns idle when the in-process queue is idle even if a model remains loaded', async () => {
     const getStateFn = () => ({
       current_job: null,
       queue_depth: 0,
       history: { extraction: { count: 0, avg_ms: 0 }, analysis: { count: 0, avg_ms: 0 } },
       recent_fallbacks: [],
     });
-    const result = await isSystemIdle({ getStateFn, ollamaBaseUrl: 'http://127.0.0.1:19999' });
+    const result = await isSystemIdle({ getStateFn });
     assert.equal(result.idle, true);
+  });
+
+  it('returns idle from a fresh exported queue snapshot', async () => {
+    const result = await isSystemIdle({
+      readStateSnapshotFn: () => ({
+        current_job: null,
+        queue_depth: 0,
+        history: { extraction: { count: 0, avg_ms: 0 }, analysis: { count: 0, avg_ms: 0 } },
+        recent_fallbacks: [],
+      }),
+    });
+    assert.equal(result.idle, true);
+  });
+
+  it('returns not idle from a busy exported queue snapshot', async () => {
+    const result = await isSystemIdle({
+      readStateSnapshotFn: () => ({
+        current_job: { type: 'analysis', elapsed_ms: 500 },
+        queue_depth: 0,
+        history: { extraction: { count: 0, avg_ms: 0 }, analysis: { count: 1, avg_ms: 500 } },
+        recent_fallbacks: [],
+      }),
+    });
+    assert.equal(result.idle, false);
+    assert.match(result.reason, /active analysis/);
+  });
+
+  it('fails closed when the exported queue snapshot is missing or stale', async () => {
+    const result = await isSystemIdle({ readStateSnapshotFn: () => null });
+    assert.equal(result.idle, false);
+    assert.match(result.reason, /missing or stale/);
   });
 });
 
@@ -200,7 +220,6 @@ describe('createConsolidationScheduler', () => {
     const logs = [];
     const scheduler = createConsolidationScheduler({
       getStateFn,
-      ollamaBaseUrl: 'http://127.0.0.1:19999',
       log: msg => logs.push(msg),
     });
     const result = await scheduler.runOnce();

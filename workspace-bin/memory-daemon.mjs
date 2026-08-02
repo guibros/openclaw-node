@@ -49,7 +49,7 @@ import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
 import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
-import { exportStateSnapshot } from '../lib/ollama-queue.mjs';
+import { exportStateSnapshot, getState as getOllamaQueueState, setStateObserver } from '../lib/ollama-queue.mjs';
 import { createMemoryWatcher, runStoreHealthProbes, appendWatcherRecord } from '../lib/memory-watcher.mjs';
 import { initDatabase as initKnowledgeDb } from '../lib/mcp-knowledge/core.mjs';
 import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
@@ -1557,6 +1557,7 @@ async function initFederationSubsystems(nc) {
     const { createConsolidationScheduler } = await import('../bin/consolidation-scheduler.mjs');
     federationState.scheduler = createConsolidationScheduler({
       dbPath: extractionDbPath,
+      getStateFn: getOllamaQueueState,
       log: (m) => log(m),
     });
     if (federationState.extractionDb) {
@@ -1583,6 +1584,9 @@ async function main() {
   log(`Transcript sources: ${sources.map(s => s.name).join(', ')}`);
 
   const sm = new SessionStateMachine(config);
+  const stopQueueStateObserver = setStateObserver(() => {
+    try { exportStateSnapshot(); } catch (snapErr) { log(`queue snapshot export failed: ${snapErr.message}`); }
+  });
 
   // Restore state from previous run (crash recovery)
   const savedState = loadDaemonState();
@@ -1787,6 +1791,7 @@ async function main() {
     // a native mutex abort in .err).
     if (tickInterval) clearInterval(tickInterval);
     if (natsRetryTimer) clearInterval(natsRetryTimer);
+    stopQueueStateObserver();
     if (inFlightTick) {
       const drained = await Promise.race([
         inFlightTick.then(() => true).catch(() => true),

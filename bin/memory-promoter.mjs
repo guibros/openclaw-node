@@ -24,6 +24,7 @@ import os from 'node:os';
 import { createRequire } from 'node:module';
 import { loadPromotionPolicy } from '../lib/promotion-policy.mjs';
 import { ensureSharedStream, SHARED_STREAM_NAME } from '../lib/shared-event-stream.mjs';
+import { canonicalNodeId, localEventStreamName } from '../lib/local-event-log.mjs';
 
 const _require = createRequire(import.meta.url);
 
@@ -238,8 +239,9 @@ export async function createPromoter(nc, nodeId, opts = {}) {
   const jsm = await nc.jetstreamManager();
   const backoff = createBackoff(opts.backoffOpts);
 
-  const streamName = `local-events-${nodeId}`;
-  const consumerName = `promoter-${nodeId}`;
+  const canonicalId = canonicalNodeId(nodeId);
+  const streamName = localEventStreamName(canonicalId);
+  const consumerName = `promoter-${canonicalId}`;
 
   // Ensure durable consumer on local stream
   try {
