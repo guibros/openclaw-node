@@ -54,7 +54,7 @@ test). Steps below use the four-field contract they introduce.
 | 4 | 4.1 | v4.1 | [x] | Restore scheduled consolidation liveness and authenticated local event emission — closed 2026-08-02; queue-aware gate and event path live, cycle completion remains explicitly degraded at the five-minute cap |
 | 4 | 4.2 | v4.2 | [x] | Remove nested Sharp/libvips dependency trees from source and deployment paths — closed 2026-08-02; all mcp-knowledge imports resolve root Sharp 0.35.3 and the full watcher exits normally through isolated native probing |
 | 4 | 4.3 | v4.3 | [x] | Make gateway freshness and launchd PID state load-bearing watcher evidence — closed 2026-08-02; stale gateway activity and PID-less loaded services now grade non-green, while running coordinator/core services carry explicit PID evidence |
-| 4 | 4.4 | v4.4 | [ ] | Authenticate the scheduler-heartbeat one-shot against Mission Control |
+| 4 | 4.4 | v4.4 | [x] | Authenticate the scheduler-heartbeat one-shot against Mission Control — closed 2026-08-02; loopback helper preserves the POST auth gate and launchd recurs with HTTP 200 / exit 0 |
 
 > **4.1 — Goal:** the standalone consolidation scheduler starts a real cycle when the daemon queue is freshly idle and can emit through the authenticated, validly named local event stream.
 > **Needs:** v3.1 governance recovery closed; live memory daemon exports `.tmp/ollama-queue-state.json`; R=3 NATS cluster and token resolver live; consolidation scheduler launchd unit loaded; operator approval 2026-08-02.

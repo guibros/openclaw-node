@@ -42,6 +42,8 @@ const moduleSrc = Object.fromEntries(
 );
 const rootPackage = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const rootLock = JSON.parse(readFileSync(join(ROOT, 'package-lock.json'), 'utf8'));
+const heartbeatLaunchd = readFileSync(join(ROOT, 'services/launchd/ai.openclaw.scheduler-heartbeat.plist'), 'utf8');
+const heartbeatSystemd = readFileSync(join(ROOT, 'services/systemd/openclaw-scheduler-heartbeat.service'), 'utf8');
 
 function bashN(file) {
   return spawnSync('bash', ['-n', file], { encoding: 'utf8' });
@@ -130,4 +132,14 @@ test('installer links scoped packages into both deployed parent trees', () => {
   assert.ok(workspace.includes('link_dependency_tree "$MESH_NM" "$MESH_HOME_NM"'));
   assert.ok(moduleSrc['components.sh'].includes('$WORKSPACE/node_modules/@huggingface/transformers'));
   assert.ok(!moduleSrc['components.sh'].includes('$WORKSPACE/lib/mcp-knowledge/node_modules'));
+});
+
+test('scheduler heartbeat helper is installer-owned and both units invoke it', () => {
+  assert.ok(moduleSrc['workspace.sh'].includes('scheduler-heartbeat.mjs'));
+  assert.ok(heartbeatLaunchd.includes('${NODE_BIN}'));
+  assert.ok(heartbeatLaunchd.includes('${OPENCLAW_WORKSPACE}/bin/scheduler-heartbeat.mjs'));
+  assert.ok(heartbeatSystemd.includes('${NODE_BIN} ${OPENCLAW_WORKSPACE}/bin/scheduler-heartbeat.mjs'));
+  assert.doesNotMatch(heartbeatLaunchd, /\/usr\/bin\/curl/);
+  assert.doesNotMatch(heartbeatSystemd, /\/usr\/bin\/curl/);
+  assert.doesNotMatch(`${heartbeatLaunchd}\n${heartbeatSystemd}`, /Authorization|Bearer/);
 });

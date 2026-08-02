@@ -1,11 +1,12 @@
 # SCOPE — protocol plan
 
 **Status:** done
-**Goal:** Runtime repair 4.3, under the operator-approved 2026-08-02 four-step runtime block:
-make gateway artifact freshness and actual launchd process state load-bearing node-watch evidence,
-so historical JSONLs and PID-less loaded labels cannot earn WORKING. Heartbeat authentication and
-the consolidation hard-cap performance finding remain separate steps.
-**Set at:** 2026-08-02T17:47:00-04:00
+**Goal:** Runtime repair 4.4, under the operator-approved 2026-08-02 four-step runtime block:
+replace the unauthenticated scheduler-heartbeat curl with one installer-owned, loopback-only helper
+that reads Mission Control's existing session token internally, preserves the POST auth gate, and
+proves recurring launchd ticks return HTTP 200 with exit 0. Consolidation hard-cap performance and
+the runtime failures exposed by 4.3 remain separate findings.
+**Set at:** 2026-08-02T18:04:00-04:00
 **Expires:** 2026-08-04T00:00:00Z
 
 ```files governance-recovery-2026-08-02 closed
@@ -83,6 +84,20 @@ lib/node-acceptance-probes.mjs
 test/node-watch.test.mjs
 test/fed-probes.test.mjs
 test/fed-acceptance.test.mjs
+```
+
+```files runtime-repair-4.4-scheduler-heartbeat-auth closed
+memory-plan/plans/protocol/SCOPE.md
+memory-plan/plans/protocol/INVENTORY.md
+memory-plan/plans/protocol/VERSION
+memory-plan/plans/protocol/COMPONENT_REGISTRY.md
+memory-plan/plans/protocol/audits/step44_scheduler_heartbeat_auth/*
+bin/scheduler-heartbeat.mjs
+services/launchd/ai.openclaw.scheduler-heartbeat.plist
+services/systemd/openclaw-scheduler-heartbeat.service
+scripts/install/workspace.sh
+test/scheduler-heartbeat.test.mjs
+test/install-modules.test.mjs
 ```
 
 ## Retired scope history
@@ -172,6 +187,28 @@ the associated audits, and DECISIONS D4-D7. They are not carried as writable fil
   1931/1933 with one skip and only the known embedding performance failure (1224.2ms mean against
   500ms; batch 100 completes in 9.62s). The deployed full deep watcher completes normally at
   27 WORKING / 3 BROKEN / 3 OFF / 3 UNKNOWN; rc 1 reflects its honest BROKEN findings.
+
+## Runtime repair 4.4 close gate
+
+- A one-shot helper reads the existing Mission Control token without exposing it in process argv,
+  accepts only loopback HTTP targets, POSTs the scheduler tick, and exits nonzero on auth/HTTP errors.
+- Launchd and systemd units invoke the deployed helper; the installer owns its workspace copy.
+- The route still rejects an unauthenticated POST. The deployed authenticated helper returns HTTP
+  200, and launchd records a newer run with last exit 0.
+
+## Runtime repair 4.4 done evidence
+
+- The one-shot reads the 0600 session token internally, rejects non-loopback/non-tick URLs, follows
+  no redirects, sends Bearer auth, and never places the token in service argv or error output.
+- Both service templates invoke the helper through rendered Node/workspace paths; the workspace
+  installer copies it before service installation. Focused helper/installer tests pass 16/16.
+- Mission Control auth tests pass 102/102. A live unauthenticated POST remains HTTP 401; the same
+  route through the helper returns HTTP 200 with bounded tick JSON.
+- A 10-second run timed out only while the full host suite saturated the node. The helper timeout was
+  raised to a measured, still-bounded 30 seconds below the 60-second service interval; subsequent
+  launchd runs advanced through runs=4 and 5 with last exit 0 and HTTP 200 records.
+- The final broad host suite passes 1938/1939 with one environment skip and zero failures. Source,
+  workspace, and legacy mesh helper hashes match.
 
 ## How this file works
 

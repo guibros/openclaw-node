@@ -5,21 +5,11 @@
     <key>Label</key>
     <string>ai.openclaw.scheduler-heartbeat</string>
     <key>Comment</key>
-    <string>OpenClaw Scheduler Heartbeat — POSTs /api/scheduler/tick every 60s so at-triggers and cron tasks fire without a Mission Control browser tab open (curl; no node spawn)</string>
+    <string>OpenClaw Scheduler Heartbeat — authenticated POST /api/scheduler/tick every 60s without a Mission Control browser tab</string>
     <key>ProgramArguments</key>
     <array>
-      <string>/usr/bin/curl</string>
-      <!-- -fsS not -s: an HTTP 4xx/5xx or refused connection must exit
-           non-zero and land in the .err log, not heartbeat "successfully"
-           against a dead or drifted MC forever -->
-      <string>-fsS</string>
-      <string>-o</string>
-      <string>/dev/null</string>
-      <string>--max-time</string>
-      <string>10</string>
-      <string>-X</string>
-      <string>POST</string>
-      <string>http://127.0.0.1:3000/api/scheduler/tick</string>
+      <string>${NODE_BIN}</string>
+      <string>${OPENCLAW_WORKSPACE}/bin/scheduler-heartbeat.mjs</string>
     </array>
     <key>StartInterval</key>
     <integer>60</integer>

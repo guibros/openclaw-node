@@ -55,8 +55,8 @@ older implementation history remains in git and audits.
 
 | | |
 |---|---|
-| **Status** | BROKEN — launchd fires an unauthenticated POST against an auth-gated Mission Control route |
-| **Verified** | 2026-08-02 — launchd runs=87, last exit=22; unit argv has no credential, stderr reports HTTP 401 |
+| **Status** | LIVE — installer-owned loopback helper reads the Mission Control token internally and performs authenticated scheduler POSTs every 60 seconds |
+| **Verified** | 2026-08-02 — unauthenticated POST remains HTTP 401; deployed helper returns HTTP 200; launchd advanced to runs=5 with last exit=0 and four bounded success records; source/workspace/mesh hashes match |
 
 ### Nested mcp-knowledge dependency tree
 

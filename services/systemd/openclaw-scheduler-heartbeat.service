@@ -1,7 +1,7 @@
 [Unit]
-Description=OpenClaw Scheduler Heartbeat — POST /api/scheduler/tick so at-triggers and cron tasks fire without a Mission Control browser tab open
+Description=OpenClaw Scheduler Heartbeat - authenticated POST /api/scheduler/tick without a Mission Control browser tab
 After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/curl -fsS -o /dev/null --max-time 10 -X POST http://127.0.0.1:3000/api/scheduler/tick
+ExecStart=${NODE_BIN} ${OPENCLAW_WORKSPACE}/bin/scheduler-heartbeat.mjs
