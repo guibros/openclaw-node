@@ -11,6 +11,8 @@ self-contained plan dir under `memory-plan/plans/<id>/`:
 - [`memory-plan/plans/redesign/`](memory-plan/plans/redesign/) — local-first memory redesign. **COMPLETE at v6.5** (Blocks 0–6 delivered; Block 7 federation DEFERRED per its DECISIONS D4).
 - [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **COMPLETE at v7.8** (49/49 steps, all active blocks closed, suite 1550/0; scope idle).
 - [`memory-plan/plans/protocol/`](memory-plan/plans/protocol/) — the meta-plan: the workplan operating base itself (canonical docs, generic engine, scaffolder).
+- [`memory-plan/plans/federation/`](memory-plan/plans/federation/) — worker/management/savant grappes. **EVIDENCE FRONTIER at v2.6-pre**; management has not started.
+- [`memory-plan/plans/hyperagent-evidence/`](memory-plan/plans/hyperagent-evidence/) — human-gated strategy evidence loop. **SUBSTRATE LIVE, COHORT NOT STARTED at v2.0**.
 - [`memory-plan/plans/legacy/`](memory-plan/plans/legacy/) — the **completed** 58-step framework plan (archive / reference).
 
 **Read these BEFORE any tool use, in this order:**
@@ -27,45 +29,34 @@ Then the per-plan documents of the silo you are working in — every silo carrie
 7. [`plans/<id>/SCOPE.md`](memory-plan/plans/redesign/SCOPE.md) — the plan's work contract. If no plan's `SCOPE.md` has `Status: active`, you MUST set scope with the operator before editing anything.
 8. [`plans/<id>/OUT_OF_SCOPE.md`](memory-plan/plans/redesign/OUT_OF_SCOPE.md) — captured drift awaiting triage.
 
-The most recent verified ground-truth audit is [`memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md`](memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md) (six-agent review, every claim file:line- or runtime-verified). Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them. `git log --oneline -20` shows the recent committed work.
+The current ground-truth reconciliation is protocol step 3.1 under
+[`memory-plan/plans/protocol/audits/step31_governance_recovery/`](memory-plan/plans/protocol/audits/step31_governance_recovery/).
+Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 days before acting on them.
+`git log --oneline -20` shows the recent committed work.
 
 ## Where we are / next action
 
-As of 2026-07-03: the **protocol base is live** (canonical docs synced, `new-plan.sh` scaffolds
-viewer-valid silos, `plan-tick.sh <id>` drives any plan). Redesign is **complete at v6.5**; repair is
-**complete at v7.8** (49/49 steps — the old "BLOCKED at v2.11" status was stale for a month). The June
-workstream (hosted in the protocol silo) built the **node test+watch system**: `bin/node-acceptance.mjs`
-(deploy gate) + `bin/node-watch.mjs` (WORKING/BROKEN/OFF/UNKNOWN watcher engine) + Mission Control
-`/node-watch` page + launchd/systemd unit *files*. Runtime status is honest-UNKNOWN, not live: only one
-manual one-shot run has ever been observed (2026-07-03, health 75%, 21 W / 5 B / 3 OFF / 2 U); the
-continuous-mode units are NOT installed and currently cannot be (unrendered `${VAR}` placeholders +
-install.sh never places node-watch.mjs at the unit exec path). Of the one-shot's findings, the 5 BROKEN
-are real node findings; the 2 UNKNOWN are a watcher defect (30s timeout clamp on 120s LLM probes).
+As of 2026-08-02, the protocol base is live; redesign is complete at v6.5 and repair at v7.8.
+Federation is **not** at management: step 2.6 is reopened at `v2.6-pre` because its five-task
+premise contract was not met. The July one-task blind win remains qualified evidence. Step 3.5
+is in-flight but blocked on 2.6; 6.2 and 6.3 retain their visual/runtime gates. Block 4 has not started.
 
-A first **deep review (2026-07-03)** drove P0/P1/P2 remediation on branch `feat/node-test-watch-system`.
-A second **full deep review (2026-07-03 evening,
-[`plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md`](memory-plan/plans/protocol/audits/DEEP_REVIEW_2026-07-03_FULL.md))**
-verified that work (10 VERIFIED / 7 PARTIAL / 3 NOT-DONE) and found the runtime running pre-fix code
-almost everywhere. Its remediation is now DONE: **P1 round 2** (SCOPE 2026-07-03g: C2 catch-up bypass
-closed, acceptance-axis false-ACCEPT fixed, watch timeout clamp fixed, live-daemon flush serialization,
-broadcast fail-loud, census widened, mesh-kv tests rewritten against production, **CI observed green**
-4/4 jobs — first after 5+ reds), then **deploy day 2026-07-03/04**: branch merged to main (PR #5),
-state.db migrated to v3 OBSERVED (0 dup groups, 337/337 decisions FTS-indexed, 0 count drift, backup
-kept), daemon restarted on new code, the drifted MC hand-copy replaced with the repo tree (data/env
-preserved, loopback-only), and the **continuous node-watch + scheduler-heartbeat launchd units are LIVE
-for the first time** (5h+ soak observed; install.sh now renders+places them for fresh nodes;
-health-watch report converted to a per-tick heartbeat). Live state (deep one-shot 2026-07-04T04:39Z):
-**health 74%** — 20 W / 5 B / 4 OFF / 2 U. The 2 UNKNOWN are honest (Ollama gen/extract exceeding their
-30s/120s budgets on this VM); the 5 BROKEN are real queued findings: (a) daemon Phase 2
-(obsidian-sync + graph-cache refresh) has not fired since 2026-07-03 15:02 — caught by the watcher
-overnight; (b) NATS client-connect TIMEOUT while the :8222 monitor answers (pre-existing); (c) MC
-dev-mode cold-compile beats the 2.5s diagnostics probe (resolves when `next build` is fixed — 25 tsc
-errors, queued). **Queued next:** Phase-2 daemon bug, NATS client auth/port, MC production build, then
-the review's P2 batch (§5 of the audit: channel-4 privacy, cron double-fire, dry-run honesty,
-formatHtml, staleness banner, health-watch vs node-watch retirement decision).
+HyperAgent's mechanical substrate and read-only MC page are live, but the production store has
+1 telemetry row and no strategies, reflections, or proposals. The next step is operator-gated 2.1
+preregistration. Companion I1-I5 is design-only and not required to preregister the mesh-primary stratum.
 
-**Active scope:** `plans/protocol/SCOPE.md` (P0 remediation, expires 2026-07-10). The workplan-viewer
-(:7892) shows all silos.
+Fresh runtime probes: R=3 NATS quorum, memory daemon, Mission Control, mesh-task-daemon, mesh bridge,
+node-watch, and workplan viewer are live. `mesh-agent`, gateway, and companion bridge were down at the
+probe. Federation watch = 2 WORKING / 1 OFF / 1 UNKNOWN. This is substrate, not worker-cluster proof.
+
+Queued runtime repair is specific: consolidation has one hard-cap failure then 359 false-busy skips
+because `/api/ps` reports a loaded model, not active inference; NATS auth separately blocks event
+emission; scheduler heartbeat exits 22/HTTP 401; dotted hostnames break local stream names; the nested
+`lib/mcp-knowledge` tree loads Sharp 0.34.5 beside root Sharp 0.35.3 and has unresolved audit findings;
+watcher freshness/running-state gaps remain. Do not claim the August daily note proved consolidation.
+
+**Scope after v3.1:** no plan scope is active. The next operator-approved scope is the bounded
+runtime-repair batch described above; federation execution remains locked until that repair lands.
 
 ## The forcing function
 

@@ -1,50 +1,57 @@
 # COMPONENT_REGISTRY — hyperagent-evidence plan
 
-Current state of every component this plan touches. **Reality, not aspiration** — record only
-what a runtime probe verified, and date it. Claims older than 14 days decay (MASTER_PLAN §4.9).
+Current state of every component needed to start the first evidence cohort. Probed
+2026-08-02 EDT; no learning or improvement claim is permitted from these counts.
 
-## Family 1: HyperAgent substrate (post 07-20 remediation)
+## Family 1: HyperAgent substrate
 
 ### Store + CLI — lib/hyperagent-store.mjs · bin/hyperagent.mjs
 
 | | |
 |---|---|
-| **Status** | LIVE SUBSTRATE, EVIDENCE-EMPTY — mechanical mesh producer/consultation/attribution, identity-scoped reflection scheduling, transactional human-gated apply (strategy types only; inert types rejected at write). Full detail: federation `audits/hyperagent_deep_review/DEEP_REVIEW_2026-07-20.md` + D13. |
-| **Verified** | 2026-07-20 (this instantiation): ha_ tables 1/0/0/0 (telemetry/strategies/reflections/proposals); deployed CLI + daemon hashes matched at remediation close; `node-watch --axis ops` → `ops.hyperagent WORKING (scheduler 15min ago; telemetry=1 reflections=0 strategies=0)`; daemon PID 864. |
+| **Status** | LIVE SUBSTRATE, EVIDENCE-EMPTY — mechanical mesh telemetry, strategy consultation/attribution, reflection scheduling, notification outbox, cohort report, and CLI-only approval paths are built |
+| **Verified** | 2026-08-02 — deployed CLI reports telemetry=1, strategies=0, reflections=0, pending proposals=0, unreflected tasks=1; focused HyperAgent suites previously re-run 48/48 in this review window |
 
-### Harness rules (the 0.1 removal target) — config/harness-rules.json
-
-| | |
-|---|---|
-| **Status** | 3 hyperagent-* rules PRESENT in the global set (9 "hyperagent" mentions grep'd 2026-07-20) — injected into every mesh prompt; `activateOn` honored since the remediation. Step 0.1 removes them and replaces synthesis with the operator runbook. |
-| **Verified** | 2026-07-20 grep. |
-
-### Notifications — openclaw-notify + ledger
+### Harness rules — config/harness-rules.json + deployed ~/.openclaw/harness-rules.json
 
 | | |
 |---|---|
-| **Status** | Ledger + dedup live for other sources (node-watch transitions observed historically). NO hyperagent source yet; no reflection-pending or proposal-pending signal exists — step 1.1's work (amendment included). |
-| **Verified** | 2026-07-20 — deep review §"weak": "No proposal UI/notification". |
+| **Status** | RETIRED — repository tombstones prevent managed-rule resurrection; deployed set contains no HyperAgent prompt rules |
+| **Verified** | 2026-08-02 — repository entries carry `retired:true`; deployed-file grep has no `hyperagent` match |
 
-### Mission Control surface
+### Operator signals — ha_notify_outbox + notification ledger
 
 | | |
 |---|---|
-| **Status** | ABSENT — no route/page reads ha_*; a mismatched `hyperagentProposals` drizzle stub exists ("dashboard views deferred"). Step 1.2 builds read-only or drops the stub. MC itself is auth-gated (cookie+origin) since 07-18. |
-| **Verified** | 2026-07-20 deep-review inventory (route grep). |
+| **Status** | BUILT, IDLE — pending reflections/proposals have a durable idempotent signal path; there are currently no rows to signal |
+| **Verified** | 2026-08-02 — store schema includes `ha_notify_outbox`; CLI status has zero reflections/proposals |
+
+### Mission Control — /hyperagent
+
+| | |
+|---|---|
+| **Status** | LIVE READ-ONLY SURFACE — approval remains CLI-only |
+| **Verified** | 2026-08-02 — Mission Control live on :3000; `/hyperagent` returns HTTP 200 |
 
 ## Family 2: cohort execution dependencies
 
-### Mesh worker path (D11) — bin/mesh-agent.js · bin/mesh-task-daemon.js
+### Mesh-primary D11 worker path — mesh-agent + mesh-task-daemon
 
 | | |
 |---|---|
-| **Status** | Mechanical telemetry + strategy consultation live (remediation); D11 guard refuses local-model workers; collab modes hardened (federation collab-p1 batch). Cohort execution ALSO needs authenticated advanced-LLM workers + the federation 3.5 window for co-scheduling — operator-dependent. `ai.openclaw.mesh-agent` unit loaded, NO process running (2.2 prerequisite). |
-| **Verified** | 2026-07-20 — 169/169 focused suites at remediation close; daemon maintenance tick observed. 2026-07-22 — `launchctl list ai.openclaw.mesh-agent` exit 0, pid `-`. |
+| **Status** | BLOCKED — coordinator live, advanced-LLM mesh worker down; no current grappe registry or active session |
+| **Verified** | 2026-08-02 — task daemon PID 56662; mesh-agent DOWN; federation watcher grappe=UNKNOWN, session=OFF |
 
-### Companion lane (step 2.0 design) — LOCAL_LANE_DESIGN.md · companion-bridge (external repo)
+### Companion lane — LOCAL_LANE_DESIGN.md + external companion-bridge
 
 | | |
 |---|---|
-| **Status** | DESIGNED 2026-07-22, ZERO RUNTIME — no schema (`ha_lane_metrics`/`ha_observations`/lane columns do not exist), no daemon strategy GET, no bridge task boundary, no unit. Bridge DOWN (:8787 closed) and deliberately unit-less until I4; canonical repo `~/Documents/openclaw infrastructure/companion-bridge` (injectRules :2094 / injectMemory :2101 confirmed); commitless Downloads stray archived as `companion-bridge.stray-20260722`. Implementation queue I1–I5 recorded in the design, none opened. |
-| **Verified** | 2026-07-22 (2.0 batch): live probes — port closed, launchctl states, store counts 1/0/0/0, adapter greps, stray git state (zero commits). |
+| **Status** | DESIGN ONLY — I1-I5 unopened; no lane schema, daemon strategy GET, explicit task boundary, or managed bridge unit |
+| **Verified** | 2026-08-02 — companion bridge port 8787 closed; design remains the only implementation record |
+
+### Cohort manifest — step 2.1
+
+| | |
+|---|---|
+| **Status** | NOT SIGNED — next operator-gated step; no eligible run_id exists |
+| **Verified** | 2026-08-02 — inventory first open row is 2.1; scope idle; production telemetry remains one pre-cohort row |

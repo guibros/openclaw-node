@@ -105,3 +105,21 @@ it filters candidates, then the same tiering orders them. Unchanged-skip spares 
 and no-op graph-cache invalidations. The same batch quoted the decision/session frontmatter
 wikilink arrays (the concept writer's 2026-07-04 YAML fix, propagated) — Obsidian/Dataview can now
 read `related:`/`concepts:`, and `flattenRelated` in buildGraph is legacy-only from this date.
+
+## D8 — Governance recovery uses one protocol step and reopens unmet evidence contracts (2026-08-02)
+
+**Decision.** The expired protocol, federation, and HyperAgent scopes are retired and replaced by
+one narrow protocol step, 3.1. Scope transcripts are not permanent allow-lists: shipped history
+lives in git/audits, while unfinished work lives in INVENTORY. The live execution frontier is
+federation 2.6 at `v2.6-pre`, followed by 3.5; HyperAgent is idle at v2.0 pending operator-gated
+2.1. Federation 6.2 and 6.3 remain unfinished side gates.
+
+**Why.** Three files advertised `Status: active` after their expiries, federation exposed 85 stale
+allow-list entries, and VERSION `v6.3` could steer a cold pickup past the unmet 2.6 evidence contract.
+Public docs still described retired HyperAgent prompt rules and July runtime state. A control plane
+that cannot identify the next executable gate is not enforcing the system it describes.
+
+**Consequences.** Runtime repair is a separate future scope. This governance step records but does
+not fix consolidation liveness, NATS event-auth, the invalid local-event stream name, nested native
+dependencies, watcher honesty gaps, heartbeat auth, or worker startup. No management work starts
+before 2.6 and 3.5 close. Every future batch opens one fresh labeled scope block with a bounded expiry.

@@ -27,3 +27,15 @@ steps ran — this doc consolidates the block framing per PROTOCOL §1.2).
 - **Unblocks:** terminal for now. Future blocks (operator-scoped): retiring the historical
   per-plan tick scripts onto the generic engine; contract retrofit for repair's 29 open rows;
   cross-plan pipelines (COWORK_MODEL §5).
+
+## Block 3 — Governance recovery
+
+- **Intent:** restore the plan system as a trustworthy control surface after implementation work
+  flowed through expired scopes and past the VERSION carriers: exactly one active scope, current
+  runtime registries, coherent frontier statuses, and public documentation that distinguishes
+  shipped substrate from unproven behavior.
+- **Exit criterion:** the three current-frontier silos (protocol, federation, HyperAgent) lint with
+  zero FAILs; exactly one unexpired active scope exists during recovery and no stale scope remains
+  active at close; federation and HyperAgent preflights name their real next gates; README,
+  CLAUDE.md, and AGENTS.md agree with fresh 2026-08-02 probes; the recovery commit is pushed.
+- **Unblocks:** the runtime-repair batch, followed by federation 2.6 evidence and the 3.5 gate.

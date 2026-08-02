@@ -168,41 +168,53 @@ If not using Obsidian, the sync is disabled by default in `config/obsidian-sync.
 
 ## HyperAgent Protocol
 
-An evidence-driven loop for improving reusable agent strategies over time. It records task outcomes, groups evidence by node and soul, asks an agent to synthesize hypotheses, and requires human approval before a strategy changes. It does not modify code, harness rules, or its own learning mechanism.
+An evidence-driven loop for evaluating proposed changes to reusable agent strategies over time. It records task outcomes, groups evidence by node and soul, asks an agent to synthesize hypotheses, and requires human approval before a strategy changes. It does not modify code, harness rules, or its own learning mechanism.
+
+**Current evidence state (2026-08-02):** the substrate is live, but no learning result exists.
+The production store contains 1 telemetry row, 0 strategies, 0 reflections, and 0 proposals. The
+first real cohort is not preregistered. The companion lane is designed but not implemented.
 
 ### How It Works
 
 ```
-Mesh task completes → Executor logs telemetry (local tasks are prompt-assisted)
-                      ↓
-              5 tasks accumulate
-                      ↓
-        Daemon creates identity-scoped reflection (raw stats)
-                      ↓
-     Next task-start agent synthesizes hypotheses + proposals
-                      ↓
-          Human reviews proposals (safety gate)
-                      ↓
-     Approved proposals update strategy archive
-                      ↓
-        Next task consults strategies at start
+Real mesh task completes → Executor records attested telemetry + provenance
+                         ↓
+          5 eligible tasks accumulate for one identity
+                         ↓
+           Daemon creates an identity-scoped reflection
+                         ↓
+       Durable notification asks the operator for synthesis
+                         ↓
+ Advanced LLM synthesizes through the explicit CLI write path
+                         ↓
+      Proposal renders in read-only Mission Control evidence UI
+                         ↓
+             Human approves or rejects through the CLI
+                         ↓
+       Later mesh tasks consult the approved strategy archive
 ```
 
-Mesh telemetry and raw reflection creation are mechanical. Local companion telemetry, synthesis, and consultation are prompt-assisted and therefore best-effort. Proposal approval is always a CLI-operated human gate. Only `strategy_new` and `strategy_update` proposals are accepted because they have complete apply logic.
+Mesh telemetry, attribution, reflection scheduling, notification delivery, cohort reporting, and
+strategy consultation are mechanical. Synthesis is an explicit operator-triggered workflow, not a
+prompt rule. Proposal approval is always a CLI-operated human gate. Only `strategy_new` and
+`strategy_update` proposals are accepted because they have complete apply logic. Local companion
+telemetry is not currently produced: its lane/evidence-grade design exists in
+`memory-plan/plans/hyperagent-evidence/LOCAL_LANE_DESIGN.md`, while implementation I1-I5 remains unopened.
 
 ### Components
 
 | Component | Location | Purpose |
 |---|---|---|
-| `lib/hyperagent-store.mjs` | SQLite in `state.db` | 5 tables: telemetry, strategies, reflections, proposals, junction |
-| `bin/hyperagent.mjs` | CLI | Telemetry, consultation, reflection synthesis, proposals, and approval |
-| `bin/mesh-agent.js` | Producer | Mechanically records solo and collaborative mesh-task outcomes |
-| Harness rules (3) | `config/harness-rules.json` | Best-effort local telemetry plus task-start consultation and synthesis |
-| Daemon phase | `workspace-bin/memory-daemon.mjs` | Every 30 minutes creates per-node/per-soul reflections at 5+ tasks and closes maintenance windows |
+| `lib/hyperagent-store.mjs` | SQLite in `state.db` | 6 tables: telemetry, strategies, reflections, proposals, telemetry-proposal links, notification outbox |
+| `bin/hyperagent.mjs` | CLI | Telemetry, cohort report, consultation, explicit reflection synthesis, proposals, and approval |
+| `bin/mesh-agent.js` | Producer | Mechanically records real/mock/chaos/synthetic mesh-task provenance and outcomes |
+| Retired rule tombstones | `config/harness-rules.json` | Prevent the three removed HyperAgent prompt rules from being reintroduced during managed sync |
+| Daemon phase | `workspace-bin/memory-daemon.mjs` | Schedules identity-scoped reflections and drains durable operator notifications |
+| Mission Control | `/hyperagent` | Read-only evidence/proposal surface; no approval mutation route |
 
 ### Agent-Agnostic
 
-Telemetry and reflection watermarks are isolated by `node_id` and `soul_id`; one soul cannot consume another soul's evidence. Strategies are queryable by normalized domain and subdomain. Companion-bridge can inject the local rules when that separate adapter is installed and running.
+Telemetry and reflection watermarks are isolated by `node_id` and `soul_id`; one soul cannot consume another soul's evidence. Strategies are queryable by normalized domain and subdomain. The designed companion lane adds lane and evidence-grade isolation, but it contributes no production rows until its explicit task boundary and managed bridge lifecycle are implemented.
 
 ### Observation Windows
 
@@ -222,6 +234,7 @@ Pathology detection is automatic. The store detects these flags at telemetry wri
 ```bash
 hyperagent status                          # overview
 hyperagent log --stdin                     # log telemetry JSON safely via stdin
+hyperagent report --run <run_id> --json    # deterministic cohort accounting
 hyperagent strategies [--domain X]         # list strategies
 hyperagent consult --domain X [--subdomain Y]  # print best strategy + content as JSON
 hyperagent reflect [--force]               # trigger reflection

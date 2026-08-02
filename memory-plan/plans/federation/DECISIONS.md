@@ -464,3 +464,25 @@ attribution, scheduler, deployment probe, and watcher mechanical. Local companio
 synthesis remain prompt-assisted. At verification time the live database held one telemetry row and no
 strategies/reflections/proposals, so no learning or improvement claim is yet permitted. Full evidence:
 `audits/hyperagent_deep_review/DEEP_REVIEW_2026-07-20.md`.
+
+## D14 — Reopen the written premise contract; keep the qualified hand-run as history (2026-08-02)
+
+**Decision.** Step 2.6 is reopened from `[x]` to `[A]`, and `VERSION` becomes `v2.6-pre` so the
+next execution resumes from the already-written five-task design. The July 15 hand-run remains
+valid as a transparent, operator-approved **qualified result**: one blinded comparable pair was
+scored and the grappe won. It is not discarded or recast as misconduct. It is insufficient to
+satisfy the inventory's predeclared `>=5` task contract and therefore cannot carry the Phase-1
+premise gate by itself.
+
+**Why.** The automated run wedged, produced asymmetric artifacts, and was abandoned; the close
+then relied on one tool-free hand comparison after the operator reduced the immediate run. The
+audit disclosed all of that honestly, but the inventory contract was never amended before close.
+Governance cannot treat an acknowledged scope reduction as evidence that the original threshold
+was met. The plan now needs five comparable tasks using the same advanced LLM and equivalent tool
+access, blind scoring, and explicit token/wall-clock cost.
+
+**Consequences.** Step 3.5 remains `[A]` but is blocked on the reopened 2.6 result. Steps 6.2 and
+6.3 remain `[A]` for their own outstanding visual and literal-kill gates. Management step 4.1 is
+not the next action. After runtime repair restores real advanced-LLM workers, the order is 2.6
+evidence, then the 3.5 matrix/chaos/soak/T7 gate, then Block 4. No threshold tuning or retrospective
+task substitution is permitted during the rerun.

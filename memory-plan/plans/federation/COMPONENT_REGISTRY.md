@@ -1,107 +1,96 @@
 # COMPONENT_REGISTRY — federation plan
 
-Current state of every component this plan touches. **Reality, not aspiration** — probed
-2026-07-06. Claims older than 14 days decay (MASTER_PLAN §4.9): re-probe before acting.
+Current state of the components that determine whether federation can enter its Phase-1 evidence
+gate. Probed 2026-08-02 EDT; implementation history lives in audits and DECISIONS.
 
-## Family 0: specification artifacts
+## Family 1: transport substrate
 
-### Federation contract — docs/FEDERATION_SPEC.md
-
-| | |
-|---|---|
-| **Status** | LIVE (documentation only, no runtime component) |
-| **Verified** | 2026-07-10 — `ls docs/FEDERATION_SPEC.md` → present; grep confirms 3 mode flows, 3 envelope schemas, 23 file:line cross-refs. Produced by step 0.2. |
-
-## Family 1: substrate (NATS, nodes, identity)
-
-### NATS — :4222, ai.openclaw.nats-{1,2,3}
+### NATS R=3 cluster — :4222, ai.openclaw.nats-{1,2,3}
 
 | | |
 |---|---|
-| **Status** | LIVE as a real 3-node `openclaw-cluster` **on ONE machine** (nats-1/2/3, client 4222/4223/4224, monitor 8222/8224/8223) since **2026-07-14 19:41 EDT** — an undocumented manual cutover, retro-ledgered in **D12**. Mesh KV buckets migrated R=1→R=3 on 07-15 (also retro-ledgered). ⚠️ **This is NOT failsafe**: three procs on one box die together. Step **1.5 stays `[D]`** — machine-loss failover is unproven and needs real separate hardware. The old single-node unit `ai.openclaw.nats` is still loaded and **dead (exit 1)**. |
-| **Verified** | **2026-07-16 11:21–11:35Z** — `:8222/jsz` → `meta_cluster {cluster_size:3, leader:openclaw-nats-3}`; `varz` → `cluster.name=openclaw-cluster`, `cluster.urls=[127.0.0.1:6223, 127.0.0.1:6224]`, `connect_urls=[4222,4223,4224]` (**includes self** — the fact that broke the old quorum probe). 3 `nats-server` procs live. **Quorum-loss detection proven by induced outage**: unloaded nats-2+nats-3 → raft stepped down at ~24s → node-watch `BROKEN — quorum LOST — no raft leader elected`; `node-acceptance --axis federation` → `GATE: REJECTED`; both units reloaded → 3/3, `WORKING — raft leader openclaw-nats-3`. All 5 mesh KV buckets R=3, 2/2 healthy followers. Detection latency ~24s (raft election timeout) — honest characteristic. Hardened templates in services/nats/nats-{1,2,3}.conf (loopback dev sim); the multi-MACHINE template `nats-cluster-node.conf` exists but is **deployed nowhere** and regresses D2/D4 (binds 0.0.0.0, unauthenticated cluster port — see D12 §3, must be fixed before a second machine joins). |
+| **Status** | LIVE on one machine — transport quorum exists, machine-loss resilience remains unproven |
+| **Verified** | 2026-08-02 — nats-1/2/3 processes live; federation watcher reads `jsz.meta_cluster`, leader `openclaw-nats-3`, majority >=2/3 reachable |
 
-### NATS cluster configs — services/nats/nats-{1,2,3}.conf
-
-| | |
-|---|---|
-| **Status** | HARDENED (step 1.1) — loopback-bind + `authorization { token: "${OPENCLAW_NATS_TOKEN}" }` in all three; install.sh generates token if absent; templates rendered to `~/.openclaw/config/` at install time. Cutover to real ports is step 1.5 (operator-gated). |
-| **Verified** | 2026-07-10 — no 0.0.0.0 in any conf (grep clean); authorization block + token template in all three; 3 entries in service-manifest.json (role=both, autostart=false); 3 plist templates in services/launchd/ (correct ${HOME} path, rendered conf path). |
-
-### Logical node trees — bin/spawn-node.mjs
+### Per-node local event stream
 
 | | |
 |---|---|
-| **Status** | LIVE (3 trees: alpha/bravo/charlie; 3 health-publishers running) |
-| **Verified** | 2026-07-10 — `~/.openclaw-{alpha,bravo,charlie}/` present with config/node.json + state.db; PIDs 17515/17516/17517 (mesh-health-publisher.js per node); MESH_NODE_HEALTH KV revisions 312/311/310 at T+10min (2026-07-10 21:23:35 UTC). Publishers are manually-started background processes (not launchd); per-node launchd units are Block 6 (6.1) scope. |
+| **Status** | BROKEN NAME DERIVATION — hostname dots produce invalid NATS stream names |
+| **Verified** | 2026-08-02 — full watcher attempted `local-events-MoltyMacs-Virtual-Machine.local`; NATS stream names reject `.` |
 
-### Grappe registry + CLI — bin/openclaw-grappe.mjs, GRAPPE_REGISTRY KV bucket
+## Family 2: grappe runtime
 
-| | |
-|---|---|
-| **Status** | LIVE (steps 1.3 + 1.4) — form/status/dissolve/issue-token/join all working; join_token_hash non-null; valid join accepted; forged join rejected. |
-| **Verified** | 2026-07-11 (step 1.4) — `nats kv get GRAPPE_REGISTRY grappe.wg-alpha --raw` → `{"id":"wg-alpha","mode":"adversarial","members":["alpha","bravo","charlie","delta"],"formed_at":"2026-07-11T01:41:53.440Z","status":"live","join_token_hash":"7d562ce0de7e2472e22518dffc25ac57093d972ae775c48bd790ace82afd60ca"}`. Valid join (delta): accepted, in members. Forged join (epsilon): `[grappe-auth] join rejected: invalid-token`, exit 1, not in members. |
-
-### Membership & signing — bin/mesh-join-token.js, lib/deploy-trigger-auth.mjs, bin/openclaw-grappe.mjs (join/issue-token)
+### Coordinator — bin/mesh-task-daemon.js
 
 | | |
 |---|---|
-| **Status** | LIVE (step 1.4) — grappe join tokens operational: issue-token provisions SHA-256 hash in KV manifest; join verifies and accepts/rejects with logged reason. deploy-trigger-auth pattern (issue → hash → verify on presentation) adopted. |
-| **Verified** | 2026-07-11 — `openclaw-grappe issue-token --id wg-alpha` → token issued, join_token_hash written to GRAPPE_REGISTRY; `openclaw-grappe join ... --token <valid>` → join accepted; `... --token forged` → `[grappe-auth] join rejected: invalid-token` exit 1. OPENCLAW_REQUIRE_SIGNED_DEPLOY remains unset (deploy signing is a separate layer). |
+| **Status** | LIVE — coordinator process is running, but this alone is not a worker grappe |
+| **Verified** | 2026-08-02 — stack reports PID 56662; federation watcher `fed.coordinator=WORKING` |
 
-## Family 2: worker-grappe machinery (the paper's stack)
-
-### Circling implementation — lib/mesh-collab.js · lib/circling-parser.js · bin/mesh-task-daemon.js · bin/mesh-agent.js · bin/mesh-bridge.js
+### Advanced-LLM worker — bin/mesh-agent.js
 
 | | |
 |---|---|
-| **Status** | LIVE (steps 2.1 + 2.2 + 2.3; Block-3 modes 3.1–3.4). Paper gaps §14.1 + §14.2 closed; §14.3 [D]. ⚠️ 2026-07-16: deep-review P0-2 — the join-time recruiting close bypassed the whole 3.1 mode dispatch (cooperative closed via max_nodes started with an EMPTY integrator rotation and "completed" placeholder rounds; unbuilt modes silently ran legacy). **Fixed + verified live**: one `startRecruitedSession` shared by both close paths; daemon restarted onto the fix. Remaining known Block-3 defects from the review (decorative merge-review votes, no barrier timeout for new modes, frozen integrator rotation on death, evaluateRound reentrancy, D11 shell-provider gap) are OPEN — see the review + OUT_OF_SCOPE. |
-| **Verified** | 2026-07-16 (join-dispatch remediation) — live before/after on the running daemon, natural config min=max=3: BEFORE `integrator_order=[]`, integrations by null/undefined, "(integrator submitted no reflection)" ×2, status "completed"; AFTER `integrator_order=["alpha","charlie","bravo"]`, R1 integrated by alpha, R2 by charlie (rotation rotates), real artifacts; `management` mode via join-close → aborted loudly, 0 rounds, task released. Real-function daemon tests 5/5 (`__test` surface, no replication); adjacent collab suites 67/67. Evidence: audits/join_dispatch_remediation/repro-{before,after}.txt. Prior: 2026-07-11 step 2.3 (parse-retry session rt-001, 5/5). |
+| **Status** | DOWN — no authenticated advanced-LLM worker process; D11 therefore blocks real grappe evidence |
+| **Verified** | 2026-08-02 — stack reports mesh-agent DOWN; loaded unit has no process |
 
-### Task kanban + plans layer — mesh.tasks.* / mesh.plans.* subjects
-
-| | |
-|---|---|
-| **Status** | DORMANT (full lifecycle subjects implemented in mesh-task-daemon; daemon not running) |
-| **Verified** | 2026-07-06 — grep: mesh.tasks.{claim,complete,fail,heartbeat,attempt,approve,reject,cancel,get,list}, mesh.plans.{create,approve,abort,get,list,subtask.update}, mesh.collab.{create,join,leave,reflect,recruiting,gate.approve,gate.reject,find,status} all present in bin/mesh-task-daemon.js. |
-
-## Family 3: memory-federation heritage (deferred context)
-
-### Broadcast libs — lib/broadcast-{emitter,offerer,acceptor}.mjs, lib/node-identity.mjs
+### Grappe registry + member heartbeats — GRAPPE_REGISTRY / MESH_NODE_HEALTH
 
 | | |
 |---|---|
-| **Status** | DORMANT (unit-proven, wired nowhere at runtime; content scope stays deferred — this plan's 7.3 [D]) |
-| **Verified** | 2026-07-06 — `node --test test/federation-2node.test.mjs` → 11/11 pass, 0 skipped (nats-server binary present on this host; suites spin ephemeral servers). Redesign plan steps 7.1–7.4 are [D]; 7.1 (cluster) absorbed by this plan's 1.1 (D1). |
+| **Status** | EMPTY OR UNREADABLE — no live grappe can be observed; historical wg-alpha evidence does not describe the current bus |
+| **Verified** | 2026-08-02 — federation watcher `fed.grappe.members=UNKNOWN`; `fed.session.liveness=OFF` because no active session |
 
-## Family 4: surfaces this plan will extend
-
-### HyperAgent evidence loop — bin/hyperagent.mjs · lib/hyperagent-store.mjs · memory-daemon · mesh-agent
+### Grappe CLI + signing implementation
 
 | | |
 |---|---|
-| **Status** | **LIVE SUBSTRATE, NOT YET LEARNING-PROVEN.** Mesh telemetry, global-or-own strategy selection/injection, strategy attribution, identity-scoped reflection scheduling, transactional human-gated apply, deployment acceptance, and node-watch are mechanical. Local companion telemetry and synthesis remain prompt-assisted. Observation windows are descriptive, not A/B tests. |
-| **Verified** | **2026-07-20 00:48–00:49 EDT** — deployed daemon PID 29245; repository/deploy hashes match; daemon logged `HyperAgent store initialized` + `maintenance tick complete` while session state was ENDED; throttle age 8s; deployed CLI status: telemetry=1, strategies=0, reflections=0, proposals=0; SQLite integrity `ok`; node-watch `ops.hyperagent=WORKING`. Focused + installer suite 173/173. No synthetic production rows inserted. See `audits/hyperagent_deep_review/DEEP_REVIEW_2026-07-20.md`. |
+| **Status** | BUILT AND HISTORICALLY PROVEN, CURRENT RUNTIME EMPTY — form/status/dissolve/token/join code exists; no current registered grappe |
+| **Verified** | 2026-08-02 code inventory; last live valid/forged join evidence remains the 2026-07-11 step 1.4 audit and is not promoted to current runtime status |
 
-### Observability & control — node-watch, openclaw-notify, Mission Control, openclaw-stack
+## Family 3: Phase-1 evidence gates
 
-| | |
-|---|---|
-| **Status** | LIVE (single-node scope; no federation awareness yet — Block 6 extends) |
-| **Verified** | 2026-07-06 — prior-session evidence ≤48h old: node-watch continuous unit live w/ transition notifications observed; notification ledger + MC /notifications 200; openclaw-stack `up` observed 12/12; MC on 127.0.0.1:3000. No fed.* probes, no federation MC page, no grappe/management/savant notify sources yet. |
-
-## Family 5: install path (deployability — D9)
-
-### install.sh + service-manifest + unit templates + NODE_SPEC/INSTALL_TEST_PROTOCOL
+### Premise benchmark — step 2.6
 
 | | |
 |---|---|
-| **Status** | OVERHAULED + SANDBOX-VERIFIED (D9, 2026-07-11) — NOT fresh-machine-verified: the T7 clean-machine gate (6.1) is still open |
-| **Verified** | 2026-07-11 — full `install.sh --sandbox` run against a scratch root: 19 units rendered, 0 unrendered placeholders (new in-install render audit), all plists lint-valid; memory-daemon BOOTS on the deployed tree (5 import kills closed — mcp-knowledge, graph-cache, nats, zod, event-schemas; the last two caught only by the live boot test) with-bus and bus-down; single-node NATS from the rendered conf: JetStream on, token enforced both directions (`Authorization Violation` on wrong token); ed25519 identity provisioned; env carries the full §3 parameter set. Evidence: `audits/deployability_overhaul/AUDIT.md`. |
+| **Status** | REOPENED at `v2.6-pre` — one blinded hand-run is qualified evidence, not the contracted five-task result |
+| **Verified** | 2026-08-02 — AUDIT_POST records one comparable pair and abandonment of the automated run; inventory contract still requires >=5 tasks |
 
-### Single-node bus — services/nats/nats-single.conf + ai.openclaw.nats.{plist,service}
+### Worker-cluster operational gate — step 3.5
 
 | | |
 |---|---|
-| **Status** | TEMPLATE VERIFIED (scratch runtime proof); autostart:true in the manifest — the default bus a fresh node runs; live dev :4222 still the hand-built pre-existing unit (unchanged) |
-| **Verified** | 2026-07-11 — rendered conf started on scratch ports: nats-server v2.12.6, server_name carries the node id, jetstream=true, token accept/reject both observed. |
+| **Status** | IN-FLIGHT, BLOCKED ON 2.6 — matrix, chaos, soak, and T7 evidence do not yet exist |
+| **Verified** | 2026-08-02 — inventory contract and live substrate probe; no mesh agent, no registry, no active collab session |
+
+### Federation operator surface — step 6.2
+
+| | |
+|---|---|
+| **Status** | IN-FLIGHT — page/API implementation landed; operator visual close gate remains outstanding |
+| **Verified** | 2026-08-02 ledger reconciliation; no new visual acceptance claimed |
+
+### Federation watcher/notification gate — step 6.3
+
+| | |
+|---|---|
+| **Status** | IN-FLIGHT — quorum detection works; literal grappe-member kill and resulting ledgered notification remain unobserved |
+| **Verified** | 2026-08-02 watcher: 2 WORKING / 0 BROKEN / 1 OFF / 1 UNKNOWN, health 67%; no live grappe member exists to kill |
+
+## Family 4: downstream layers
+
+### Management grappe — Block 4
+
+| | |
+|---|---|
+| **Status** | NOT STARTED — 4.1 cannot open before 3.5 closes |
+| **Verified** | 2026-08-02 inventory Needs contract; no `mesh.mgmt.*` runtime evidence |
+
+### Savant grappe — Block 5
+
+| | |
+|---|---|
+| **Status** | NOT STARTED — HyperAgent is separate node-local substrate and does not close federation 5.1 |
+| **Verified** | 2026-08-02 inventory/ROADMAP separation; no federation-wide feed or savant session |

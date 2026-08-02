@@ -36,6 +36,17 @@ test). Steps below use the four-field contract they introduce.
 | 2 | 2.3 | v2.3 | [x] | Lint wired into new-plan.sh (scaffold report) and plan-tick.sh preflight (conformance line) — closed 2026-06-03, fresh scaffold = CONFORMANT/1 WARN by design |
 | 2 | 2.4 | v2.4 | [x] | Protocol silo itself fully conformant: ROADMAP, REGISTRY, TICK_PROMPT, automation, shim — lint rc 0 — closed 2026-06-03, 15P/1W/0F CONFORMANT; registry live-parses into 3 families. Closes Block 2 (macro re-orient in AUDIT_POST §7) |
 
+## Block 3 — Governance recovery
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 3 | 3.1 | v3.1 | [x] | Governance recovery closed 2026-08-02: expired scopes retired; federation reopened at its unmet 2.6 premise contract; HyperAgent next gate fixed at 2.1; runtime defects separated into a bounded follow-up; affected plan lints and live viewer evidence recorded in the step audit. |
+
+> **3.1 — Goal:** the workplan surfaces once again identify exactly one writable batch and describe the node's actual 2026-08-02 frontier without inferred completion or improvement claims.
+> **Needs:** operator approval (2026-08-02 "go"); fresh plan-lint, git, stack, federation-watch, HyperAgent, consolidation-log, heartbeat, and dependency-audit probes; canonical MASTER_PLAN/PROTOCOL reread.
+> **Feeds:** the next runtime-repair scope; federation 2.6/3.5 ordering; HyperAgent 2.1 preregistration; every agent bootstrap through CLAUDE.md/AGENTS.md.
+> **Verify:** `runtime:` exactly one unexpired active scope during execution and no stale active scope at close; protocol/federation/hyperagent-evidence lint with zero FAILs; federation and HyperAgent preflights name the intended frontier. `code:` README/CLAUDE/AGENTS and registries agree on the probed facts; staged diff is governance/docs only. `runtime:` commit pushed without force.
+
 > **2.1 — Goal:** the rules exist in one place: PROTOCOL.md gains §10 (six-surface conformance: what "functionally implements" each tab means) + §11 (the Goal/Needs/Feeds/Verify step contract); INVENTORY + TICK_PROMPT templates carry both.
 > **Needs:** PROTOCOL.md §1/§6 (present, v1.1) · the viewer tab↔file map (verified live in Block 1) · redesign's LOOPS.md flow framing as lineage (connects-with/produces-for/WIN-FAIL).
 > **Feeds:** 2.2 (the lint checks exactly these rules) · every future plan's INVENTORY/TICK_PROMPT via the templates.

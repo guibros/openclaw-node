@@ -1,68 +1,66 @@
 # COMPONENT_REGISTRY — protocol plan
 
-Current state of every component this plan touches. Reality, not aspiration — every status is a
-probe run on the stated date. Claims older than 14 days decay (MASTER_PLAN §4.9): re-probe
-before acting. Format note: the viewer's Master Plan tab parses `## Family N:` sections with
-`###` components and `| **Status** |` rows — keep this shape (PROTOCOL §10).
+Current control-plane state for this governance batch. Every claim below was probed on
+2026-08-02 EDT; older implementation history remains in git and audits.
 
-## Family 1: protocol base (docs + sync)
+## Family 1: plan control plane
 
-### Canonical doc sync — sync-canonical.sh
+### Scope enforcement — plans/*/SCOPE.md
+
+| | |
+|---|---|
+| **Status** | RECOVERED — no expired scope remains active; the sole recovery scope closes with v3.1, leaving every plan idle until the next operator-approved batch |
+| **Verified** | 2026-08-02 — during execution, the status/expiry scan found exactly one active scope (`protocol`); its only open allow-list block is closed in the v3.1 commit |
+
+### Plan lint — workspace-bin/plan-lint.sh
+
+| | |
+|---|---|
+| **Status** | LIVE — protocol and federation CONFORMANT; HyperAgent CONFORMANT with two non-blocking inherited WARNs |
+| **Verified** | 2026-08-02 — final lints: protocol 15P/1W/0F after scope close; federation 15P/1W/0F; HyperAgent 14P/2W/0F |
+
+### Workplan viewer — :7892
 
 | | |
 |---|---|
 | **Status** | LIVE |
-| **Verified** | 2026-06-03 — `--check` → "all plan copies up to date", rc 0 (5 docs × 4 silos) |
+| **Verified** | 2026-08-02 — `openclaw-stack status` reports workplan-viewer PID 56252, port 7892 open |
 
-### Operating base docs — PROTOCOL / FRAMEWORK_CANONICAL / BLOCK_TEMPLATE
+## Family 2: active plan frontiers
 
-| | |
-|---|---|
-| **Status** | LIVE |
-| **Verified** | 2026-06-03 — `grep -l '## 10. Surface conformance' plans/*/PROTOCOL.md` → 4 silos |
-
-### Templates — canonical/templates/ (8 files)
+### Federation
 
 | | |
 |---|---|
-| **Status** | LIVE |
-| **Verified** | 2026-06-03 — rendered demo carried the §11 contract; no unrendered `{{` placeholders |
+| **Status** | EVIDENCE FRONTIER — 2.6 reopened at `v2.6-pre`; 3.5, 6.2, and 6.3 remain unfinished; no management work has started |
+| **Verified** | 2026-08-02 — inventory/audit reconciliation plus live watcher: 2 WORKING, 1 OFF, 1 UNKNOWN; mesh-agent down; GRAPPE_REGISTRY unreadable/empty |
 
-## Family 2: execution machinery
-
-### Generic chain engine — plan-tick.sh
+### HyperAgent evidence
 
 | | |
 |---|---|
-| **Status** | LIVE |
-| **Verified** | 2026-06-03 — `--preflight` correct against all 4 silo states; logs the conformance line |
+| **Status** | LIVE SUBSTRATE, EVIDENCE-EMPTY — next step 2.1 operator-gated preregistration; companion I1-I5 design-only |
+| **Verified** | 2026-08-02 — deployed CLI reports telemetry=1, strategies=0, reflections=0, proposals=0; MC `/hyperagent` HTTP 200; companion bridge down |
 
-### Scaffolder — new-plan.sh
+## Family 3: runtime findings queued behind governance
 
-| | |
-|---|---|
-| **Status** | LIVE |
-| **Verified** | 2026-06-03 — demo silo viewer-listed; lint report printed; fresh scaffold = CONFORMANT / 1 WARN |
-
-### Conformance lint — plan-lint.sh
+### Consolidation scheduler
 
 | | |
 |---|---|
-| **Status** | LIVE |
-| **Verified** | 2026-06-03 — graded 4 silos truthfully (legacy CONFORMANT 13P/3W/0F; others' gaps named); rc matched verdicts |
+| **Status** | BROKEN LIVENESS GATE — no observed completion after the last logged success; one hard-cap failure then 359 `Ollama has active inference` skips |
+| **Verified** | 2026-08-02 — `/api/ps` showed a loaded qwen3:8b while the internal queue reported `current_job=null`, `queue_depth=0`; the scheduler mistakes loaded VRAM for active inference |
 
-### protocol tick chain — protocol-tick.sh + automation.json
-
-| | |
-|---|---|
-| **Status** | BUILT — plist not loaded |
-| **Verified** | 2026-06-03 — shim exec's `plan-tick.sh protocol`; enabling the chain is an explicit operator decision (PROTOCOL §7) |
-
-## Family 3: control surface
-
-### Workplan viewer — workplan-viewer.mjs :7892
+### Scheduler heartbeat
 
 | | |
 |---|---|
-| **Status** | LIVE |
-| **Verified** | 2026-06-03 — `curl /api/plans` → 200 listing exactly the 4 silos; per-plan surface endpoints `present:true` |
+| **Status** | BROKEN — launchd fires an unauthenticated POST against an auth-gated Mission Control route |
+| **Verified** | 2026-08-02 — launchd runs=87, last exit=22; unit argv has no credential, stderr reports HTTP 401 |
+
+### Nested mcp-knowledge dependency tree
+
+| | |
+|---|---|
+| **Status** | SECURITY + PROCESS-STABILITY DEBT — standalone nested install loads Sharp 0.34.5 beside root Sharp 0.35.3 |
+| **Verified** | 2026-08-02 — full watcher aborted in duplicate native Sharp/libvips state; nested `npm audit --package-lock-only` reports 13 findings (2 critical, 5 high), including GHSA-f88m-g3jw-g9cj; root audit has no Sharp finding |
