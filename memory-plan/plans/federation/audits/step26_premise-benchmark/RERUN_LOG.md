@@ -221,3 +221,34 @@ empty; 3 bench agents (MESH_NO_MERGE=1, repo workspace) + mesh-task-daemon live 
 code. The five locked tasks run sequentially from `slate/1..5-*.md`; every transition, forfeit,
 and collection is appended to `run.log` beside the pair dirs; pairs await operator blind
 scoring; `tally` renders the D3 verdict.
+
+## 2026-08-04 — RUN COMPLETE (frozen SHA 6bc11f3, 10:27Z→19:45Z). TALLY: grappe 0 · solo 4 · tie 1
+
+Zero delivered blind pairs — every pair resolved by the predeclared forfeit rules:
+
+| Pair | Outcome | Cause | Infra layer |
+|---|---|---|---|
+| 1 nodeid | solo (grappe gate-forfeit) | finalization not unanimous — clause 2 | none — clean |
+| 2 deploydoc | solo (grappe budget) | hollow session (0 artifacts at finalization, $1.21/3 calls) + host suspension 11:35→15:07Z | documented; protocol failure preceded freeze |
+| 3 natsresolve | tie, counts against grappe | post-wake zombie solo call (~2 h through the 60-min spawn timeout) starved recruiting; session swept | strong — all failures trace to suspension #1 |
+| 4 watcher | solo (grappe gate-forfeit) | finalization not unanimous — clause 2 | none — clean |
+| 5 killproto | solo (grappe budget) | session healthy mid-circling (arts=8) frozen by suspension #2 (18:06→19:45Z; caffeinate stops idle sleep, not lid-close) | strong — progressing when frozen |
+
+**Costs preserved (forfeit.json per pair; tally's meta.json summing shows $0 for forfeits —
+cosmetic, noted):** solo Σ 2,359,097 in / 979 out / **$1.59**; grappe Σ 8,266,894 in /
+36,553 out / **$11.22** across 39 calls. Cost ratio ≈ **7×** for zero completed deliverables.
+
+**The rerun question is MOOT for the verdict:** even granting clause-5 reruns of pairs 2, 3,
+and 5 AND the grappe winning all three, the best reachable score is grappe 3 · solo 2 —
+below the D3 bar (≥4 of 5, ties against). Pairs 1 and 4 are clean, suspension-free failures:
+the grappe's own reviewers refused to sign off (the same unresolved-finalization pattern as
+smokes #4/#5, twice on documented quality grounds). Across 5 pairs + 3 smokes, the circling
+grappe never once produced a unanimously-approved, on-scope artifact within budget.
+
+**Mechanical verdict (per the locked rules + D3): PREMISE NOT EVIDENCED — plan-BLOCK.**
+Disposition is the operator's (2.6 verdict + D3 block are plan-level): (a) accept the verdict
+— 2.6 closes FAILED, federation blocks before 3.5 per D3; (b) order clause-5 reruns of 2/3/5
+for understanding (cannot change the verdict); (c) treat the finalization-gate design (unanimity
++ scope discipline) as the falsified component and open a plan-level decision on whether a
+revised protocol warrants a new benchmark iteration — that is a new D-entry and a new run, not
+a patch to this one. Fleet stopped; nothing further runs pending the ruling.
