@@ -206,3 +206,18 @@ Decision put to the operator: lock-and-run with a pre-declared non-collectable-g
 rule, or one slate-representative smoke (#6, 500-700-word ask) first, or treat scope-overshoot
 as a substrate issue to address (recorded as measurement-affecting if tuned). Awaiting the
 operator's ruling; no further smoke or slate run started.
+
+## 2026-08-04 — OPERATOR RULING: LOCK AND RUN (option 1). THE SLATE IS LOCKED.
+
+Ruling verbatim intent: no smoke #6, no prompt tuning — "further sampling risks testing until
+it passes." The symmetric forfeit rule is predeclared in `RUN_RULES.md` (same commit as this
+entry): 60-min per-arm forfeit; unresolved gate = immediate forfeit, never approved mid-run;
+both-fail = tie counting against the grappe; costs preserved on forfeits; rerun only on
+demonstrated external infrastructure failure; **one frozen SHA for all ten executions — the
+commit carrying this entry** — with no task, prompt, or code change after pair 1 begins.
+
+Smoke #5's session aborted + archived with reason. Field verified at run start: `pairs-d14/`
+empty; 3 bench agents (MESH_NO_MERGE=1, repo workspace) + mesh-task-daemon live on the frozen
+code. The five locked tasks run sequentially from `slate/1..5-*.md`; every transition, forfeit,
+and collection is appended to `run.log` beside the pair dirs; pairs await operator blind
+scoring; `tally` renders the D3 verdict.
