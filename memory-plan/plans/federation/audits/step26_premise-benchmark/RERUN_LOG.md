@@ -132,3 +132,26 @@ session survival. Shared constraint on all five: read-only worktree-only analysi
 artifact, no execution commentary. July slate items collab-mode-gap / fed-probe-spec remain
 OBSOLETE. No slate pair runs before the operator locks the five files and smoke #4 shows
 end-to-end usage.
+
+## 2026-08-04 — Smoke #4: BOTH lock conditions proven; pre-screen COMPLETE
+
+Sequential full pair on fixed-extractor agents. The collected `meta.json` carries, for the
+first time, the complete cost record end-to-end:
+- **solo**: 63.8 s wall · 1 attempt · 2,318 chars · **463,492 in / 419 out / $0.257**
+  (result.cost through agent→KV→collect).
+- **grappe**: 13 artifacts · 12,678-char integrated final (`sr1_step2` — the worker complied
+  this run; 5.5× solo's length) · **4,117,341 in / 3,286 out / $3.19 across 12 calls**
+  (reflect→daemon accumulator→session KV→collect; observed accumulating live mid-session at
+  round 1: $0.585/3 calls). One residual collector nit: grappe_wall_ms read null at collect
+  time (session timestamp field timing) — wall-clock recoverable from the monitor timeline
+  (~25 min); non-blocking, noted.
+- **The D14 cost datum**: grappe = **12.4× solo cost** ($3.19 vs $0.257) on an identical
+  trivial task. This is the asymmetry the premise verdict must justify with quality.
+- Both smoke pairs quarantined to `benchmark/smoke-verified-20260803/`; `pairs-d14/` is EMPTY,
+  reserved for exactly the five slate pairs.
+
+**Pre-screen status: COMPLETE.** Worker readiness real (D11 claude workers, isolation
+fail-closed, no-merge, sequential 3-agent contract); harness integrity real (safe metric,
+finalization-aware fail-closed collector, write-once pairs, no July reuse); cost record real
+(both arms, mechanically captured). The ONLY remaining gate is the operator's LOCK of
+`slate/1..5-*.md` — then five sequential pairs run, blind-score, tally.
