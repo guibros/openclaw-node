@@ -100,3 +100,35 @@ Daemon restarted on the new code (kickstart); bench-w1/2/3 relaunched with new a
 MESH_NO_MERGE=1 + repo workspace. Smoke #2 remains recorded as a plumbing pass whose grappe
 artifact was an unintegrated first draft — a THIRD smoke (sequential, post-fix) must produce a
 non-degenerate final integrated artifact with real usage totals before any slate pair runs.
+
+## 2026-08-03/04 — Smoke #3: integrated final PROVEN; guard fired and degraded honestly
+
+Sequential run (solo → grappe, 3 agents). Results:
+- **Solo**: completed, 1 attempt, 82.8 s, 2,496-char on-topic artifact. `result.cost` still null
+  → root-caused DEEPER than the collector: `getSessionInfo` (lib/agent-activity.js) read legacy
+  flat JSONL shapes (`line.usage`/`line.costUSD`); real sessions nest under `message.usage` —
+  every task in the system's history reported cost:null. Fixed (nested reads + cache-aware
+  pricing: reads 0.1×, creation 1.25× — cache-dominated agentic sessions were ~10× overstated),
+  17/17 tests, and OBSERVED on the actual smoke3 solo session file: 347,910 in / 332 out /
+  $0.214 where the old code returned null. Commit 7670bc6.
+- **Grappe**: 18.6 min, 12 artifacts. **The degenerate guard fired 3× at SR1/S2** (worker kept
+  narrating instead of producing the revision) — the daemon's directed retry re-prompted 3×,
+  then degraded per protocol, storing NOTHING for that step (honest absence, not a stub).
+  The finalization round then produced the real deliverable: a **3,003-char integrated
+  workArtifact + 806-char completionDiff + both reviewer sign-offs**. Collect succeeded on
+  exactly that artifact. Selector precision fix landed: finalization keys at step0 of the last
+  sub-round with a completionDiff sibling — the selector now prefers that signature over a
+  revision-step artifact.
+- Both arms' usage null as expected (pre-extractor-fix agents); agents relaunched on the fixed
+  extractor; **smoke #4** (solo, then grappe if needed) proves end-to-end usage totals in KV.
+
+## Slate finalized (awaiting operator LOCK)
+
+Canonical submit-ready texts in `slate/1..5-*.md` (this dir). Tasks 4/5 replaced with the
+operator reviewer's corrected wording (2026-08-03): Task 4 audits node-watch against
+NODE_WATCH_SPEC (acceptance probes only where delegated; gaps not presupposed); Task 5 requires
+a registered, heartbeat-producing member kill with fed.* transition observation and NO assumed
+session survival. Shared constraint on all five: read-only worktree-only analysis, document-alone
+artifact, no execution commentary. July slate items collab-mode-gap / fed-probe-spec remain
+OBSOLETE. No slate pair runs before the operator locks the five files and smoke #4 shows
+end-to-end usage.

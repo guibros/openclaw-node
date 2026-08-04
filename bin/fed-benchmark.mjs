@@ -123,7 +123,11 @@ function grappeFinalArtifact(session) {
   const cand = Object.keys(arts)
     .map((k) => { const m = k.match(/^sr(\d+)_step(\d+)_worker_workArtifact$/); return m ? { key: k, sr: +m[1], step: +m[2] } : null; })
     .filter(Boolean)
-    .sort((a, b) => b.sr - a.sr || b.step - a.step);
+    // Finalization stores its workArtifact at step0 of the last sub-round,
+    // alongside a completionDiff sibling (smoke #3 observed). Prefer that
+    // signature; fall back to highest sr/step.
+    .map((c) => ({ ...c, isFinal: `sr${c.sr}_step${c.step}_worker_completionDiff` in arts }))
+    .sort((a, b) => b.sr - a.sr || (b.isFinal - a.isFinal) || b.step - a.step);
   if (!cand.length) return null;
   const top = cand[0];
   const raw = arts[top.key];
