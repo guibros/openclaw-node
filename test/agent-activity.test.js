@@ -164,6 +164,28 @@ describe('getSessionInfo', () => {
     assert.ok(info.cost.estimatedCostUsd > 0);
   });
 
+  it('extracts cost from the real nested shape — message.usage + message.model (D14 regression: flat-only reads summed to zero and every task reported cost:null)', async () => {
+    const origHome = process.env.HOME;
+    process.env.HOME = tmpDir;
+    const sessionFile = path.join(projectDir, 'nested-session.jsonl');
+    const lines = [
+      '{"type":"user","message":{"content":"test"}}',
+      '{"type":"assistant","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":10,"output_tokens":200,"cache_read_input_tokens":100000,"cache_creation_input_tokens":5000}}}',
+      '{"type":"assistant","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":5,"output_tokens":100,"cache_read_input_tokens":50000,"cache_creation_input_tokens":0}}}',
+    ];
+    fs.writeFileSync(sessionFile, lines.join('\n') + '\n');
+    const info = await getSessionInfo('/fake/workspace');
+    process.env.HOME = origHome;
+    assert.ok(info.cost, 'nested usage must produce a cost record');
+    assert.equal(info.cost.inputTokens, 10 + 5 + 100000 + 50000 + 5000);
+    assert.equal(info.cost.outputTokens, 300);
+    // Cache-aware estimate: fresh 15 @ $3/M + reads 150k @ $0.30/M + creation
+    // 5k @ $3.75/M + out 300 @ $15/M — cache reads must NOT bill at full rate.
+    const expected = (15 / 1e6) * 3.0 + (150000 / 1e6) * 0.30 + (5000 / 1e6) * 3.75 + (300 / 1e6) * 15.0;
+    assert.ok(Math.abs(info.cost.estimatedCostUsd - expected) < 1e-9,
+      `estimated ${info.cost.estimatedCostUsd} != expected ${expected}`);
+  });
+
   it('extracts cost from costUSD field', async () => {
     const origHome = process.env.HOME;
     process.env.HOME = tmpDir;

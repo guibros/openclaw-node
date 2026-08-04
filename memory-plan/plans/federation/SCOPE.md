@@ -24,6 +24,8 @@ bin/mesh-agent.js
 bin/mesh-task-daemon.js
 bin/mesh.js
 lib/mesh-collab.js
+lib/agent-activity.js
+test/agent-activity.test.js
 docs/PREMISE_BENCHMARK.md
 ```
 
