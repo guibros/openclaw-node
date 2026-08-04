@@ -182,3 +182,27 @@ Slate normalized per operator: uniform 500-700 words on all five; Task 2 restric
 8-12-command patch-ready quickstart with fresh-machine-success claims prohibited unless observed.
 Circling suites 88/88 post-guard-change. **Smoke #5 (sequential, post-fix agents) must produce a
 terminal completed session with a compliant finalization pair before the lock question reopens.**
+
+## 2026-08-04 — Smoke #5: every harness contract HELD; session honestly non-terminal on a 2-1 vote
+
+Sequential pair, post-fix agents. Solo: completed, 1 attempt. Grappe, in order of what it proved:
+- **The multi-artifact guard corrected the worker mid-run**: SR1/S2 submission failed validation
+  (parse_error → daemon directed retry) and the retried submission landed the complete
+  revision pair (arts 8→10).
+- **The finalization pair contract was MET**: sr1_step0 workArtifact 6,249 chars +
+  completionDiff 1,320 chars + both reviewer sign-offs (14 artifacts total).
+- **Usage accumulated end-to-end**: $3.63 / 13 calls in circling.usage_total.
+- **The session ended honestly NON-TERMINAL**: finalization vote 2 converged / 1 BLOCKED
+  (reviewerB). The blocked sign-off verified all 18 line citations then objected precisely:
+  (1) the artifact omits the heartbeat cadence VALUE (60s at :56) — a spec-required element;
+  (2) ~1,100 words against the ~250-word ask (4.5x) — scope violation. A legitimate,
+  high-quality block. The strict collector refuses the session by design (status active).
+
+**Pattern across smokes #2/#4/#5**: on tightly-scoped small tasks the grappe worker chronically
+overshoots scope (12.7KB → 6.2KB) and reviewers rightly block — while the solo arm delivers
+on-scope in one attempt at ~1/12 the cost. Smokes are throwaway and are NOT premise evidence;
+but the smoke's ~250-word ask is also unrepresentative of the normalized 500-700-word slate.
+Decision put to the operator: lock-and-run with a pre-declared non-collectable-grappe = pair-loss
+rule, or one slate-representative smoke (#6, 500-700-word ask) first, or treat scope-overshoot
+as a substrate issue to address (recorded as measurement-affecting if tuned). Awaiting the
+operator's ruling; no further smoke or slate run started.
