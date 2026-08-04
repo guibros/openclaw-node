@@ -12,9 +12,14 @@ Same task, same model (Claude/sonnet), same harness-loaded OpenClaw, same bus. T
 - **GRAPPE** — three OpenClaws circle it: 1 worker + 2 reviewers, one sub-round
   (`max_subrounds:1` so it closes cleanly — 2.4 finding 13), then finalize.
 
-The harness (`bin/grappe-benchmark.mjs run <task.json>`) submits both, waits, and writes an
-anonymized pair (`candidate-A.md`, `candidate-B.md`) with a sealed mapping. You read the task and
-both candidates **without knowing which is which**, pick the better one, then `reveal`.
+The harness is `bin/fed-benchmark.mjs` (the original `grappe-benchmark.mjs` is RETIRED — its
+prose-metric default trips the agent's metric security filter and its pair handling could reuse
+stale artifacts; both failed the 2026-08-03 smoke). `submit <task-id> <arm> <task-file.md>` sends
+each arm (safe trivially-passing metric `node --version`; blind scoring is the quality gate);
+`collect` writes an anonymized, de-identified pair under `benchmark/pairs-d14/<name>/` — write
+once, no overwrite, July's tracked `benchmark/pairs/` + `handrun/` are never read — with a sealed
+`key.json` and a `meta.json` cost record (per-arm wall-clock; tokens honestly null until the
+provider captures json-mode usage). You blind-score all pairs, then `tally`.
 
 ## Protocol
 

@@ -33,6 +33,11 @@ const { natsConnectOpts } = require('../lib/nats-resolve');
 
 const sc = StringCodec();
 const BENCH_DIR = path.join(process.cwd(), 'benchmark');
+// D14 rerun (2026-08-03): fresh pairs live under pairs-d14/, and July's
+// tracked benchmark/pairs/ + benchmark/handrun/ are history — collect never
+// writes there and tally never reads them, so old artifacts cannot be
+// silently substituted for fresh runs.
+const PAIRS_ROOT = path.join(BENCH_DIR, 'pairs-d14');
 const NATS_URL = process.env.OPENCLAW_NATS || 'nats://127.0.0.1:4222';
 
 const strip = (s) =>
@@ -109,13 +114,24 @@ async function findSession(nc, taskId) {
 
 function grappeFinalArtifact(session) {
   const arts = session?.circling?.artifacts || {};
-  // The deliverable is the LARGEST worker workArtifact — the "last" one is often
-  // a 50-char "now producing the artifacts" preamble (2.4 finding 6 / 2.6).
+  // D14: the deliverable is the FINAL integrated workArtifact — highest
+  // sub-round, then highest step. The old largest-artifact heuristic silently
+  // substituted an earlier draft whenever the final round emitted a preamble
+  // stub (observed: 89-char sr1_step2 final in smoke #2). A degenerate final
+  // is a substrate defect the benchmark must surface, not paper over — the
+  // agent-side guard (parse_error + directed retry) exists to prevent it.
   const cand = Object.keys(arts)
-    .filter((k) => k.includes('worker_workArtifact'))
-    .map((k) => { const a = arts[k]; return { key: k, content: String(typeof a === 'string' ? a : a.content ?? '') }; })
-    .sort((x, y) => y.content.length - x.content.length);
-  return cand[0]?.content.trim() ? cand[0] : null;
+    .map((k) => { const m = k.match(/^sr(\d+)_step(\d+)_worker_workArtifact$/); return m ? { key: k, sr: +m[1], step: +m[2] } : null; })
+    .filter(Boolean)
+    .sort((a, b) => b.sr - a.sr || b.step - a.step);
+  if (!cand.length) return null;
+  const top = cand[0];
+  const raw = arts[top.key];
+  const content = String(typeof raw === 'string' ? raw : raw?.content ?? '').trim();
+  if (content.length < 400) {
+    throw new Error(`grappe final artifact ${top.key} is degenerate (${content.length} chars, preamble-only). Substrate defect — the final integration round did not produce the artifact; pair NOT collectable.`);
+  }
+  return { key: top.key, content };
 }
 
 async function status(taskId) {
@@ -129,6 +145,11 @@ async function status(taskId) {
   await nc.close();
 }
 
+function wallMs(startIso, endIso) {
+  const s = Date.parse(startIso), e = Date.parse(endIso);
+  return Number.isFinite(s) && Number.isFinite(e) && e >= s ? e - s : null;
+}
+
 async function collect(name, soloId, grappeId) {
   const nc = await bus();
   const soloTask = await getTask(nc, soloId);
@@ -139,7 +160,9 @@ async function collect(name, soloId, grappeId) {
   const grappeArt = grappeFinalArtifact(session);
   if (!grappeArt) throw new Error(`grappe task ${grappeId}: no final workArtifact (phase ${session?.circling?.phase})`);
 
-  const dir = path.join(BENCH_DIR, 'pairs', name);
+  const dir = path.join(PAIRS_ROOT, name);
+  // No reuse, no overwrite (D14): a pair name is written exactly once.
+  if (fs.existsSync(dir)) throw new Error(`pair '${name}' already exists at ${dir} — D14 forbids overwrite/reuse; pick a new name`);
   fs.mkdirSync(dir, { recursive: true });
 
   const flip = crypto.randomInt(2) === 0;
@@ -154,6 +177,23 @@ async function collect(name, soloId, grappeId) {
     grappeArtifactKey: grappeArt.key,
     soloChars: A.arm === 'solo' ? A.text.length : B.text.length,
     grappeChars: A.arm === 'grappe' ? A.text.length : B.text.length,
+    // Cost record (D14: quality gain is weighed against cost). Wall-clock is
+    // mechanical from KV/session timestamps; tokens/cost come from the
+    // agents' own session-JSONL extraction — result.cost on the solo task,
+    // circling.usage_total accumulated per reflection on the grappe session.
+    // null = the producing run predates capture (never fabricated).
+    cost: {
+      solo_wall_ms: wallMs(soloTask?.started_at ?? soloTask?.created_at, soloTask?.completed_at),
+      grappe_wall_ms: wallMs(session?.created_at, session?.updated_at ?? session?.completed_at),
+      solo_attempts: Array.isArray(soloTask?.attempts) ? soloTask.attempts.length : null,
+      grappe_artifact_count: Object.keys(session?.circling?.artifacts || {}).length,
+      solo_usage: soloTask?.result?.cost ? {
+        input_tokens: soloTask.result.cost.inputTokens ?? null,
+        output_tokens: soloTask.result.cost.outputTokens ?? null,
+        cost_usd: soloTask.result.cost.estimatedCostUsd ?? null,
+      } : null,
+      grappe_usage: session?.circling?.usage_total ?? null,
+    },
     collectedAt: new Date().toISOString(),
   }, null, 2));
   console.log(`pair '${name}' written → ${dir}/{A.md,B.md}`);
@@ -163,11 +203,19 @@ async function collect(name, soloId, grappeId) {
 }
 
 function tally() {
-  const pairsDir = path.join(BENCH_DIR, 'pairs');
+  const pairsDir = PAIRS_ROOT;
   const names = fs.existsSync(pairsDir) ? fs.readdirSync(pairsDir) : [];
   let grappeWins = 0, soloWins = 0, ties = 0, scored = 0;
+  let soloMs = 0, grappeMs = 0, soloUsd = 0, grappeUsd = 0;
   for (const name of names) {
     const dir = path.join(pairsDir, name);
+    try {
+      const meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf8'));
+      soloMs += meta.cost?.solo_wall_ms || 0;
+      grappeMs += meta.cost?.grappe_wall_ms || 0;
+      soloUsd += meta.cost?.solo_usage?.cost_usd || 0;
+      grappeUsd += meta.cost?.grappe_usage?.cost_usd || 0;
+    } catch { /* unscored/partial pair */ }
     const scoreFile = path.join(dir, 'score.json');
     if (!fs.existsSync(scoreFile)) { console.log(`${name}: UNSCORED`); continue; }
     const score = JSON.parse(fs.readFileSync(scoreFile, 'utf8'));
@@ -180,6 +228,7 @@ function tally() {
     console.log(`${name}: ${score.winner} → ${winnerArm}${score.notes ? ' — ' + score.notes : ''}`);
   }
   console.log(`\nRESULT: grappe ${grappeWins} · solo ${soloWins} · tie ${ties} (${scored} scored)`);
+  console.log(`COST: solo Σ ${(soloMs / 60000).toFixed(1)}m wall / $${soloUsd.toFixed(2)} · grappe Σ ${(grappeMs / 60000).toFixed(1)}m wall / $${grappeUsd.toFixed(2)} (from agents' session-JSONL extraction; $0.00 = producer predates capture)`);
   const need = Math.max(4, Math.ceil((scored || 5) * 0.8));
   console.log(grappeWins >= need
     ? `VERDICT: PREMISE PASSES (grappe ≥ ${need})`

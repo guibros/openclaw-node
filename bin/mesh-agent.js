@@ -54,6 +54,9 @@ const NODE_ID = process.env.OPENCLAW_NODE_ID || process.env.MESH_NODE_ID || os.h
 const POLL_INTERVAL = parseInt(process.env.MESH_POLL_INTERVAL || '15000'); // 15s between polls
 const MAX_ATTEMPTS = parseInt(process.env.MESH_MAX_ATTEMPTS || '3');
 const HEARTBEAT_INTERVAL = parseInt(process.env.MESH_HEARTBEAT_INTERVAL || '60000'); // 60s heartbeat
+// Per-agent work dir (cwd for LLM CLIs + home of their session JSONLs) —
+// shared across agents it caused cross-attributed cost readings.
+const AGENT_WORK_DIR = path.join(os.tmpdir(), `mesh-agent-work-${NODE_ID}`);
 const WORKSPACE = process.env.MESH_WORKSPACE || path.join(process.env.HOME, '.openclaw', 'workspace');
 
 // ── Rule loading (cached at startup, framework-filtered) ─────────────────
@@ -522,7 +525,9 @@ function createWorktree(taskId) {
     log(`Worktree created: ${worktreePath} (branch: ${branch})`);
     return worktreePath;
   } catch (err) {
-    log(`WORKTREE FAILED: ${err.message} — falling back to shared workspace`);
+    // Callers are fail-closed (D14 rerun): null means the task/member must
+    // fail or withdraw, never run in the shared tree.
+    log(`WORKTREE FAILED: ${err.message} — isolation unavailable`);
     return null;
   }
 }
@@ -538,6 +543,13 @@ function createWorktree(taskId) {
  */
 function commitAndMergeWorktree(worktreePath, taskId, summary) {
   if (!worktreePath) return null;
+  // Benchmark isolation (D14): bench agents run with MESH_NO_MERGE=1 — the
+  // deliverable is the artifact text; incidental worktree writes must never
+  // land on main.
+  if (process.env.MESH_NO_MERGE === '1') {
+    log(`MESH_NO_MERGE: skipping commit/merge for ${taskId} (benchmark isolation)`);
+    return { committed: false, merged: false, skipped: 'MESH_NO_MERGE' };
+  }
   const branch = `mesh/${taskId}`;
 
   try {
@@ -650,12 +662,18 @@ function runLLM(prompt, task, worktreePath) {
     const model = resolveModel(task, CLI_MODEL, provider);
 
     const targetDir = worktreePath || WORKSPACE;
-    const llmArgs = provider.buildArgs(prompt, model, task, targetDir, WORKSPACE);
+    // D14: an isolated task sees ONLY its worktree — passing WORKSPACE too
+    // gave every worker read access to the dirty parent checkout (uncommitted
+    // edits leaked into artifacts, and reproducibility died with them).
+    const llmArgs = provider.buildArgs(prompt, model, task, targetDir, worktreePath ? null : WORKSPACE);
 
     log(`Spawning [${provider.name}]: ${provider.binary} ${llmArgs.slice(0, 6).join(' ')} ... (target: ${worktreePath ? 'worktree' : 'workspace'})`);
 
-    // Use a clean temp directory as cwd to avoid loading workspace config files
-    const cleanCwd = path.join(os.tmpdir(), 'mesh-agent-work');
+    // Clean per-agent temp cwd: avoids loading workspace config files AND
+    // keeps each agent's Claude session JSONLs private — with a shared dir,
+    // concurrent agents misattribute each other's cost (getSessionInfo reads
+    // the latest session file in this cwd's project dir).
+    const cleanCwd = AGENT_WORK_DIR;
     if (!fs.existsSync(cleanCwd)) fs.mkdirSync(cleanCwd, { recursive: true });
 
     const cleanEnv = provider.cleanEnv(process.env);
@@ -1278,12 +1296,22 @@ async function executeCollabTask(task) {
   writeAgentState('working', task.task_id);
   await prepareHyperagentStrategy(task);
 
-  // Create worktree for isolation
+  // Create worktree for isolation — FAIL-CLOSED (D14 rerun): a member that
+  // cannot get isolation withdraws before rounds start; the session's
+  // deadline sweep handles the missing member. Contaminated shared-tree
+  // contributions are worse than a member loss.
   const worktreePath = createWorktree(`${task.task_id}-${NODE_ID}`);
-  const taskDir = worktreePath || WORKSPACE;
   if (!worktreePath) {
-    log(`WARNING: Collab task ${task.task_id} running in shared workspace — isolation not achieved`);
+    log(`ISOLATION FAILED: withdrawing ${NODE_ID} from collab ${sessionId} (fail-closed, no shared-workspace fallback)`);
+    await natsRequest('mesh.tasks.fail', {
+      task_id: task.task_id,
+      node_id: NODE_ID,
+      reason: `Worktree isolation failed for collab member ${NODE_ID} (MESH_WORKSPACE=${WORKSPACE} — must be a git repository). Fail-closed: member withdrew before rounds.`,
+    }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
+    writeAgentState('idle', null);
+    return;
   }
+  const taskDir = worktreePath;
 
   // Periodic session heartbeat — detects abort/completion while waiting for rounds
   const sessionHeartbeat = setInterval(async () => {
@@ -1362,6 +1390,25 @@ async function executeCollabTask(task) {
           circResult.summary = 'empty artifact content after output sanitization';
           circResult.circling_artifacts = [];
         }
+        // Degenerate-final guard (D14 smoke #2): a workArtifact that is only
+        // a preamble — the model narrated ("Let me produce…") and did the
+        // work agentically instead of in-response — poisons the benchmark's
+        // final artifact (observed: 89-char sr1_step2 final). Below the floor
+        // it is a parse failure; the daemon's correction path re-prompts,
+        // exactly as for empty artifacts.
+        const MIN_WORK_ARTIFACT_CHARS = 400;
+        const degenerate = !circResult.parse_failed &&
+          (circResult.circling_artifacts || []).some((a) => {
+            if ((a?.type ?? '') !== 'workArtifact') return false;
+            const content = String((a && a.content) ?? '').trim();
+            return content.length > 0 && content.length < MIN_WORK_ARTIFACT_CHARS;
+          });
+        if (degenerate) {
+          circResult.parse_failed = true;
+          circResult.vote = 'parse_error';
+          circResult.summary = `degenerate workArtifact (< ${MIN_WORK_ARTIFACT_CHARS} chars, preamble-only)`;
+          circResult.circling_artifacts = [];
+        }
         reflection = {
           summary: circResult.summary,
           learnings: '',
@@ -1385,6 +1432,10 @@ async function executeCollabTask(task) {
         }
       } catch { /* best effort */ }
 
+      // Per-round cost from this agent's own session JSONL (same mechanism
+      // the solo path already uses; per-agent work dir keeps it attributable).
+      const roundSessionInfo = await getSessionInfo(AGENT_WORK_DIR).catch(() => null);
+
       // Submit reflection
       try {
         await natsRequest('mesh.collab.reflect', {
@@ -1400,6 +1451,13 @@ async function executeCollabTask(task) {
           // Circling extensions
           circling_step: isCircling ? circling_step : null,
           circling_artifacts: circlingArtifacts,
+          // D14 cost record: the daemon accumulates these into
+          // session.circling.usage_total.
+          usage: roundSessionInfo?.cost ? {
+            input_tokens: roundSessionInfo.cost.inputTokens ?? null,
+            output_tokens: roundSessionInfo.cost.outputTokens ?? null,
+            cost_usd: roundSessionInfo.cost.estimatedCostUsd ?? null,
+          } : null,
         });
         const parseTag = reflection.parse_failed ? ' [PARSE FAILED]' : '';
         const artCount = circlingArtifacts.length > 0 ? `, ${circlingArtifacts.length} artifact(s)` : '';
@@ -1462,13 +1520,23 @@ async function executeTask(task) {
   log(`EXECUTING: ${task.task_id} "${task.title}" (budget: ${task.budget_minutes}m, metric: ${task.metric || 'none'}, max attempts: ${MAX_ATTEMPTS})`);
   await prepareHyperagentStrategy(task);
 
-  // Create isolated worktree for this task (falls back to shared workspace on failure)
+  // Create isolated worktree for this task — FAIL-CLOSED (D14 rerun,
+  // 2026-08-03 smoke finding): a task that cannot get isolation must fail
+  // loudly, not run in the shared tree producing context-contaminated
+  // artifacts that reviewers then approve.
   const worktreePath = createWorktree(task.task_id);
-  const taskDir = worktreePath || WORKSPACE;
-  const workspaceIsolated = !!worktreePath;
-  if (!workspaceIsolated) {
-    log(`WARNING: Task ${task.task_id} running in shared workspace — isolation not achieved`);
+  if (!worktreePath) {
+    log(`ISOLATION FAILED: refusing to run ${task.task_id} in the shared workspace (fail-closed)`);
+    await natsRequest('mesh.tasks.fail', {
+      task_id: task.task_id,
+      node_id: NODE_ID,
+      reason: `Worktree isolation failed for ${task.task_id} (MESH_WORKSPACE=${WORKSPACE} — must be a git repository). Fail-closed: shared-workspace fallback refused.`,
+    }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
+    writeAgentState('idle', null);
+    return;
   }
+  const taskDir = worktreePath;
+  const workspaceIsolated = true;
 
   // Signal start (include isolation status so daemon knows)
   await natsRequest('mesh.tasks.start', { task_id: task.task_id, workspace_isolated: workspaceIsolated });
@@ -1504,8 +1572,7 @@ async function executeTask(task) {
     log(`${llmResult.provider} exited with code ${llmResult.exitCode}`);
 
     // Extract cost + summary from JSONL session file (zero-cost observability)
-    const cleanCwd = path.join(os.tmpdir(), 'mesh-agent-work');
-    const sessionInfo = await getSessionInfo(cleanCwd).catch(() => null);
+    const sessionInfo = await getSessionInfo(AGENT_WORK_DIR).catch(() => null);
     if (sessionInfo?.cost) {
       log(`Cost: $${sessionInfo.cost.estimatedCostUsd.toFixed(4)} (${sessionInfo.cost.inputTokens} in / ${sessionInfo.cost.outputTokens} out)`);
     }

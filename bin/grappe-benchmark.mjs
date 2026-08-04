@@ -22,6 +22,14 @@
  * A task.json: { "task_id_base": "...", "title": "...", "description": "...", "metric": "..." }
  * Outputs a pair dir with candidate-A.md, candidate-B.md, and a sealed .mapping.json.
  */
+// RETIRED (D14 rerun, 2026-08-03): this driver's prose-metric default trips
+// the agent's metric security filter (solo arm retries forever) and its
+// pair-dir behavior can reuse stale artifacts. The 2026-08-03 smoke failed on
+// both. Kept for history; every command now refuses to run.
+console.error('RETIRED: use bin/fed-benchmark.mjs (safe metric, D14 pairs-d14 isolation, cost record).');
+process.exit(2);
+
+// eslint-disable-next-line no-unreachable
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';

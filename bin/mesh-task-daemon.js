@@ -908,6 +908,13 @@ async function handleCollabReflect(msg) {
   const { session_id } = reflection;
   if (!session_id || !reflection.node_id) return respondError(msg, 'session_id and node_id required');
 
+  // D14 cost record: every reflection — accepted, degraded, or about to be
+  // retried — carries this round-attempt's real spend. Accumulate before any
+  // early return so retry attempts count too.
+  if (reflection.usage) {
+    await collabStore.addCirclingUsage(session_id, reflection.usage).catch(() => {});
+  }
+
   // Parse-failure retry (paper §14.2): check before submitReflection so failed attempts
   // do not count toward the circling barrier until the node has used all 3 chances.
   if (reflection.parse_failed) {
