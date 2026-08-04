@@ -155,3 +155,30 @@ fail-closed, no-merge, sequential 3-agent contract); harness integrity real (saf
 finalization-aware fail-closed collector, write-once pairs, no July reuse); cost record real
 (both arms, mechanically captured). The ONLY remaining gate is the operator's LOCK of
 `slate/1..5-*.md` — then five sequential pairs run, blind-score, tally.
+
+## 2026-08-04 — CORRECTION: smoke #4 NOT green; "pre-screen COMPLETE" above is RETRACTED
+
+Operator hold with three findings, all verified against the KV:
+1. **I collected a non-terminal session.** smoke4-grappe read `phase: complete` but
+   `status: active` with a blocked reviewer vote and unset timestamps (the null
+   grappe_wall_ms). Collect now REQUIRES `session.status ∈ {completed, converged}` — a phase
+   is not a status.
+2. **The selector fell back to a revision again.** The finalization worker emitted its
+   workArtifact WITHOUT the required completionDiff (sr1_step0 pair incomplete); my
+   completionDiff-preference sort then silently picked sr1_step2 (revision). Collector now
+   requires the full finalization pair at step0 of the highest sub-round — either member
+   absent/degenerate FAILS collection, no fallback ever. Agent-side, worker multi-artifact
+   rounds (step 2 + finalization) now require both artifact types or parse_error → directed
+   retry.
+3. **The blocked reviewer was right**: the selected candidate was ~1,792 words / 12.7 KB for a
+   ~250-word task — scope violation. The session is not force-finished: aborted with reason,
+   superseded by smoke #5.
+
+What SURVIVES from smoke #4: the usage evidence (operator-accepted) — solo $0.257 and grappe
+$3.193/12 calls end-to-end. What does NOT: the collected smoke4 pair (incorrect key, non-terminal
+session) — quarantined as failed history.
+
+Slate normalized per operator: uniform 500-700 words on all five; Task 2 restricted to an
+8-12-command patch-ready quickstart with fresh-machine-success claims prohibited unless observed.
+Circling suites 88/88 post-guard-change. **Smoke #5 (sequential, post-fix agents) must produce a
+terminal completed session with a compliant finalization pair before the lock question reopens.**

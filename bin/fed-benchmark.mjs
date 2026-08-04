@@ -112,30 +112,29 @@ async function findSession(nc, taskId) {
   try { return JSON.parse(new TextDecoder().decode(e.value)); } catch { return null; }
 }
 
+function artText(v) {
+  return String(typeof v === 'string' ? v : v?.content ?? '').trim();
+}
+
 function grappeFinalArtifact(session) {
   const arts = session?.circling?.artifacts || {};
-  // D14: the deliverable is the FINAL integrated workArtifact — highest
-  // sub-round, then highest step. The old largest-artifact heuristic silently
-  // substituted an earlier draft whenever the final round emitted a preamble
-  // stub (observed: 89-char sr1_step2 final in smoke #2). A degenerate final
-  // is a substrate defect the benchmark must surface, not paper over — the
-  // agent-side guard (parse_error + directed retry) exists to prevent it.
-  const cand = Object.keys(arts)
-    .map((k) => { const m = k.match(/^sr(\d+)_step(\d+)_worker_workArtifact$/); return m ? { key: k, sr: +m[1], step: +m[2] } : null; })
-    .filter(Boolean)
-    // Finalization stores its workArtifact at step0 of the last sub-round,
-    // alongside a completionDiff sibling (smoke #3 observed). Prefer that
-    // signature; fall back to highest sr/step.
-    .map((c) => ({ ...c, isFinal: `sr${c.sr}_step${c.step}_worker_completionDiff` in arts }))
-    .sort((a, b) => b.sr - a.sr || (b.isFinal - a.isFinal) || b.step - a.step);
-  if (!cand.length) return null;
-  const top = cand[0];
-  const raw = arts[top.key];
-  const content = String(typeof raw === 'string' ? raw : raw?.content ?? '').trim();
-  if (content.length < 400) {
-    throw new Error(`grappe final artifact ${top.key} is degenerate (${content.length} chars, preamble-only). Substrate defect — the final integration round did not produce the artifact; pair NOT collectable.`);
-  }
-  return { key: top.key, content };
+  // D14: the deliverable is the FINALIZATION PAIR — workArtifact +
+  // completionDiff at step0 of the highest sub-round. Either member absent
+  // or degenerate FAILS collection; a revision-step artifact is never a
+  // substitute (smoke #2: preamble stub; smoke #4: missing completionDiff
+  // silently shadowed by the sr1_step2 revision — both operator-caught).
+  const srs = Object.keys(arts)
+    .map((k) => k.match(/^sr(\d+)_/)).filter(Boolean).map((m) => +m[1]);
+  if (!srs.length) return null;
+  const sr = Math.max(...srs);
+  const key = `sr${sr}_step0_worker_workArtifact`;
+  const diffKey = `sr${sr}_step0_worker_completionDiff`;
+  const content = artText(arts[key]);
+  const diff = artText(arts[diffKey]);
+  if (!content) throw new Error(`finalization workArtifact ${key} missing/empty — session did not finalize; pair NOT collectable`);
+  if (content.length < 400) throw new Error(`finalization workArtifact ${key} degenerate (${content.length} chars, preamble-only); pair NOT collectable`);
+  if (!diff) throw new Error(`finalization completionDiff ${diffKey} missing — incomplete finalization pair; pair NOT collectable`);
+  return { key, content };
 }
 
 async function status(taskId) {
@@ -161,6 +160,13 @@ async function collect(name, soloId, grappeId) {
   if (!soloOut) throw new Error(`solo task ${soloId}: no result yet (status ${soloTask?.status})`);
 
   const session = await findSession(nc, grappeId);
+  // A phase can read "complete" while the session status is still active
+  // behind an unresolved vote/gate (smoke #4: blocked reviewer, and
+  // timestamps unset — the null grappe_wall_ms). Only a terminal session is
+  // collectable.
+  if (!session || !['completed', 'converged'].includes(session.status)) {
+    throw new Error(`grappe session ${grappeId}: status '${session?.status ?? 'missing'}' — not terminal (unresolved gate or incomplete run); pair NOT collectable`);
+  }
   const grappeArt = grappeFinalArtifact(session);
   if (!grappeArt) throw new Error(`grappe task ${grappeId}: no final workArtifact (phase ${session?.circling?.phase})`);
 

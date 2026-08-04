@@ -1390,24 +1390,37 @@ async function executeCollabTask(task) {
           circResult.summary = 'empty artifact content after output sanitization';
           circResult.circling_artifacts = [];
         }
-        // Degenerate-final guard (D14 smoke #2): a workArtifact that is only
-        // a preamble — the model narrated ("Let me produce…") and did the
-        // work agentically instead of in-response — poisons the benchmark's
-        // final artifact (observed: 89-char sr1_step2 final). Below the floor
-        // it is a parse failure; the daemon's correction path re-prompts,
-        // exactly as for empty artifacts.
+        // Degenerate/incomplete-submission guard (D14 smokes #2 + #4): a
+        // workArtifact that is only a preamble (model narrated and worked
+        // agentically instead of in-response — 89-char sr1_step2 final,
+        // smoke #2), or a worker multi-artifact round missing its second
+        // required artifact (finalization without completionDiff, smoke #4),
+        // poisons the benchmark final. Both are parse failures — the
+        // daemon's correction path re-prompts (3 attempts).
         const MIN_WORK_ARTIFACT_CHARS = 400;
-        const degenerate = !circResult.parse_failed &&
-          (circResult.circling_artifacts || []).some((a) => {
-            if ((a?.type ?? '') !== 'workArtifact') return false;
-            const content = String((a && a.content) ?? '').trim();
-            return content.length > 0 && content.length < MIN_WORK_ARTIFACT_CHARS;
-          });
-        if (degenerate) {
-          circResult.parse_failed = true;
-          circResult.vote = 'parse_error';
-          circResult.summary = `degenerate workArtifact (< ${MIN_WORK_ARTIFACT_CHARS} chars, preamble-only)`;
-          circResult.circling_artifacts = [];
+        if (!circResult.parse_failed) {
+          const byType = new Map((circResult.circling_artifacts || [])
+            .map((a) => [a?.type ?? '', String((a && a.content) ?? '').trim()]));
+          const wa = byType.get('workArtifact');
+          let failReason = null;
+          if (wa != null && wa.length > 0 && wa.length < MIN_WORK_ARTIFACT_CHARS) {
+            failReason = `degenerate workArtifact (< ${MIN_WORK_ARTIFACT_CHARS} chars, preamble-only)`;
+          }
+          const isWorkerMulti = round_role === 'worker' && (circling_step === 2 || circling_phase === 'finalization');
+          if (!failReason && isWorkerMulti) {
+            const secondType = circling_phase === 'finalization' ? 'completionDiff' : 'reconciliationDoc';
+            if (!wa || wa.length < MIN_WORK_ARTIFACT_CHARS) {
+              failReason = `multi-artifact round missing a usable workArtifact`;
+            } else if (!byType.get(secondType)) {
+              failReason = `multi-artifact round missing ${secondType}`;
+            }
+          }
+          if (failReason) {
+            circResult.parse_failed = true;
+            circResult.vote = 'parse_error';
+            circResult.summary = failReason;
+            circResult.circling_artifacts = [];
+          }
         }
         reflection = {
           summary: circResult.summary,
