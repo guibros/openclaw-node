@@ -1,0 +1,154 @@
+[2026-08-04T10:27:37.247Z] === D14 SLATE RUN START — frozen SHA 6bc11f34c6f71a3515b072ec31fadceededad041 — RUN_RULES.md governs ===
+[2026-08-04T10:27:37.249Z] === pair1-nodeid: START (task 1-verify-nodeid-gap.md) ===
+[2026-08-04T10:27:37.305Z] d14p1-nodeid-solo: submitted
+[2026-08-04T10:32:37.370Z] d14p1-nodeid-solo: completed (300s)
+[2026-08-04T10:32:37.505Z] d14p1-nodeid-grappe: submitted
+[2026-08-04T10:33:23.001Z] d14p1-nodeid-grappe: active/init arts=0
+[2026-08-04T10:34:08.032Z] d14p1-nodeid-grappe: active/init arts=0
+[2026-08-04T10:34:53.043Z] d14p1-nodeid-grappe: active/init arts=0
+[2026-08-04T10:35:38.051Z] d14p1-nodeid-grappe: active/init arts=0
+[2026-08-04T10:36:23.060Z] d14p1-nodeid-grappe: active/init arts=0
+[2026-08-04T10:37:08.067Z] d14p1-nodeid-grappe: active/init arts=0
+[2026-08-04T10:37:53.073Z] d14p1-nodeid-grappe: active/init arts=0
+[2026-08-04T10:38:38.079Z] d14p1-nodeid-grappe: active/init arts=1
+[2026-08-04T10:39:23.123Z] d14p1-nodeid-grappe: active/circling arts=3
+[2026-08-04T10:40:08.140Z] d14p1-nodeid-grappe: active/circling arts=3
+[2026-08-04T10:40:53.151Z] d14p1-nodeid-grappe: active/circling arts=4
+[2026-08-04T10:41:38.159Z] d14p1-nodeid-grappe: active/circling arts=4
+[2026-08-04T10:42:23.165Z] d14p1-nodeid-grappe: active/circling arts=4
+[2026-08-04T10:43:08.181Z] d14p1-nodeid-grappe: active/circling arts=5
+[2026-08-04T10:43:54.168Z] d14p1-nodeid-grappe: active/circling arts=5
+[2026-08-04T10:44:40.620Z] d14p1-nodeid-grappe: active/circling arts=6
+[2026-08-04T10:45:25.651Z] d14p1-nodeid-grappe: active/circling arts=7
+[2026-08-04T10:46:10.666Z] d14p1-nodeid-grappe: active/circling arts=8
+[2026-08-04T10:47:41.375Z] d14p1-nodeid-grappe: active/circling arts=8
+[2026-08-04T10:48:26.396Z] d14p1-nodeid-grappe: active/finalization arts=10
+[2026-08-04T10:51:04.285Z] d14p1-nodeid-grappe: active/finalization arts=10
+[2026-08-04T10:51:49.303Z] d14p1-nodeid-grappe: active/finalization arts=11
+[2026-08-04T10:52:34.312Z] d14p1-nodeid-grappe: active/finalization arts=12
+[2026-08-04T10:53:19.325Z] d14p1-nodeid-grappe: active/finalization arts=12
+[2026-08-04T10:54:04.331Z] d14p1-nodeid-grappe: gate-state observed 1/2 (phase complete, status active)
+[2026-08-04T10:55:45.165Z] d14p1-nodeid-grappe: gate-state observed 2/2 (phase complete, status active)
+[2026-08-04T10:55:45.181Z] pair1-nodeid: FORFEIT RECORDED (grappe_forfeit) — unresolved human gate (phase complete, status active x2) - immediate forfeit per RUN_RULES clause 2
+[2026-08-04T10:55:45.181Z] === pair1-nodeid: DONE ===
+[2026-08-04T10:55:45.181Z] === pair2-deploydoc: START (task 2-deploy-doc-drift.md) ===
+[2026-08-04T10:55:45.247Z] d14p2-deploydoc-solo: submitted
+[2026-08-04T10:59:26.165Z] d14p2-deploydoc-solo: completed (221s)
+[2026-08-04T10:59:26.228Z] d14p2-deploydoc-grappe: submitted
+[2026-08-04T11:00:11.247Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:00:56.257Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:02:49.188Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:03:34.201Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:04:19.210Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:05:04.217Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:05:49.222Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:06:34.229Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:07:19.235Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:08:04.242Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:08:49.617Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:09:34.631Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:10:19.644Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:11:04.655Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:11:49.672Z] d14p2-deploydoc-grappe: active/init arts=0
+[2026-08-04T11:12:34.875Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:13:19.895Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:14:04.926Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:14:49.933Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:15:35.162Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:16:20.275Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:17:05.356Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:17:50.378Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:18:35.386Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:19:20.426Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:20:05.470Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:20:50.480Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:21:35.494Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:22:26.930Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:23:11.944Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:23:56.954Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:24:41.980Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:25:27.083Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:26:12.138Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:26:57.184Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:27:42.220Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:28:27.246Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:29:13.133Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:29:58.154Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:30:43.163Z] d14p2-deploydoc-grappe: active/circling arts=0
+[2026-08-04T11:31:30.526Z] d14p2-deploydoc-grappe: active/finalization arts=0
+[2026-08-04T11:32:16.616Z] d14p2-deploydoc-grappe: active/finalization arts=0
+[2026-08-04T11:33:02.400Z] d14p2-deploydoc-grappe: active/finalization arts=0
+[2026-08-04T11:33:47.534Z] d14p2-deploydoc-grappe: active/finalization arts=0
+[2026-08-04T11:34:32.809Z] d14p2-deploydoc-grappe: active/finalization arts=0
+[2026-08-04T11:35:18.317Z] d14p2-deploydoc-grappe: active/finalization arts=0
+[2026-08-04T15:07:40.806Z] d14p2-deploydoc-grappe: active/finalization arts=0
+[2026-08-04T15:07:40.922Z] pair2-deploydoc: FORFEIT RECORDED (grappe_forfeit) — grappe 60-min budget exceeded
+[2026-08-04T15:07:40.923Z] === pair2-deploydoc: DONE ===
+[2026-08-04T15:07:40.929Z] === pair3-natsresolve: START (task 3-nats-resolve-audit.md) ===
+[2026-08-04T15:07:41.570Z] d14p3-natsresolve-solo: submitted
+[2026-08-04T17:17:26.882Z] d14p3-natsresolve-grappe: submitted
+[2026-08-04T17:18:11.890Z] d14p3-natsresolve-grappe: session aborted
+[2026-08-04T17:18:11.904Z] pair3-natsresolve: FORFEIT RECORDED (both_forfeit) — solo: solo 60-min budget exceeded; grappe: session aborted
+[2026-08-04T17:18:11.904Z] === pair3-natsresolve: DONE ===
+[2026-08-04T17:18:11.904Z] === pair4-watcher: START (task 4-watcher-contract-audit.md) ===
+[2026-08-04T17:18:11.981Z] d14p4-watcher-solo: submitted
+[2026-08-04T17:21:42.013Z] d14p4-watcher-solo: completed (210s)
+[2026-08-04T17:21:42.066Z] d14p4-watcher-grappe: submitted
+[2026-08-04T17:22:27.189Z] d14p4-watcher-grappe: active/init arts=0
+[2026-08-04T17:23:12.211Z] d14p4-watcher-grappe: active/init arts=0
+[2026-08-04T17:23:57.222Z] d14p4-watcher-grappe: active/init arts=0
+[2026-08-04T17:24:42.231Z] d14p4-watcher-grappe: active/init arts=0
+[2026-08-04T17:25:27.237Z] d14p4-watcher-grappe: active/init arts=0
+[2026-08-04T17:26:12.245Z] d14p4-watcher-grappe: active/init arts=2
+[2026-08-04T17:26:57.254Z] d14p4-watcher-grappe: active/init arts=2
+[2026-08-04T17:27:42.264Z] d14p4-watcher-grappe: active/init arts=2
+[2026-08-04T17:28:27.498Z] d14p4-watcher-grappe: active/circling arts=3
+[2026-08-04T17:29:12.504Z] d14p4-watcher-grappe: active/circling arts=5
+[2026-08-04T17:29:57.510Z] d14p4-watcher-grappe: active/circling arts=5
+[2026-08-04T17:30:42.516Z] d14p4-watcher-grappe: active/circling arts=5
+[2026-08-04T17:31:27.569Z] d14p4-watcher-grappe: active/circling arts=6
+[2026-08-04T17:32:12.590Z] d14p4-watcher-grappe: active/circling arts=7
+[2026-08-04T17:32:57.604Z] d14p4-watcher-grappe: active/circling arts=8
+[2026-08-04T17:33:42.611Z] d14p4-watcher-grappe: active/circling arts=8
+[2026-08-04T17:34:27.631Z] d14p4-watcher-grappe: active/finalization arts=10
+[2026-08-04T17:35:12.647Z] d14p4-watcher-grappe: active/finalization arts=10
+[2026-08-04T17:35:57.655Z] d14p4-watcher-grappe: active/finalization arts=11
+[2026-08-04T17:36:42.673Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:37:27.682Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:38:12.689Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:38:57.703Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:40:34.375Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:41:19.382Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:42:04.390Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:42:49.398Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:43:34.405Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:44:19.411Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:45:04.418Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:45:49.424Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:46:34.430Z] d14p4-watcher-grappe: active/finalization arts=12
+[2026-08-04T17:47:19.437Z] d14p4-watcher-grappe: gate-state observed 1/2 (phase complete, status active)
+[2026-08-04T17:48:04.549Z] d14p4-watcher-grappe: gate-state observed 2/2 (phase complete, status active)
+[2026-08-04T17:48:06.236Z] pair4-watcher: FORFEIT RECORDED (grappe_forfeit) — unresolved human gate (phase complete, status active x2) - immediate forfeit per RUN_RULES clause 2
+[2026-08-04T17:48:06.237Z] === pair4-watcher: DONE ===
+[2026-08-04T17:48:06.248Z] === pair5-killproto: START (task 5-grappe-kill-protocol.md) ===
+[2026-08-04T17:48:12.123Z] d14p5-killproto-solo: submitted
+[2026-08-04T17:55:26.298Z] d14p5-killproto-solo: completed (434s)
+[2026-08-04T17:55:26.403Z] d14p5-killproto-grappe: submitted
+[2026-08-04T17:56:11.482Z] d14p5-killproto-grappe: active/init arts=0
+[2026-08-04T17:56:56.502Z] d14p5-killproto-grappe: active/init arts=0
+[2026-08-04T17:57:41.512Z] d14p5-killproto-grappe: active/init arts=0
+[2026-08-04T17:58:26.523Z] d14p5-killproto-grappe: active/init arts=0
+[2026-08-04T17:59:11.535Z] d14p5-killproto-grappe: active/init arts=0
+[2026-08-04T17:59:56.546Z] d14p5-killproto-grappe: active/init arts=1
+[2026-08-04T18:00:41.556Z] d14p5-killproto-grappe: active/init arts=2
+[2026-08-04T18:01:26.669Z] d14p5-killproto-grappe: active/circling arts=3
+[2026-08-04T18:02:11.719Z] d14p5-killproto-grappe: active/circling arts=4
+[2026-08-04T18:02:56.880Z] d14p5-killproto-grappe: active/circling arts=6
+[2026-08-04T18:03:41.896Z] d14p5-killproto-grappe: active/circling arts=6
+[2026-08-04T18:04:26.917Z] d14p5-killproto-grappe: active/circling arts=8
+[2026-08-04T18:05:11.926Z] d14p5-killproto-grappe: active/circling arts=8
+[2026-08-04T18:05:56.962Z] d14p5-killproto-grappe: active/circling arts=8
+[2026-08-04T19:45:24.391Z] d14p5-killproto-grappe: active/circling arts=8
+[2026-08-04T19:45:24.417Z] pair5-killproto: FORFEIT RECORDED (grappe_forfeit) — grappe 60-min budget exceeded
+[2026-08-04T19:45:24.417Z] === pair5-killproto: DONE ===
+[2026-08-04T19:45:24.417Z] === D14 SLATE RUN COMPLETE — 5/5 pairs processed. Operator: blind-score delivered pairs, then tally. ===

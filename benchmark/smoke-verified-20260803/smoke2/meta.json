@@ -1,0 +1,17 @@
+{
+  "name": "smoke2",
+  "soloId": "smoke2-d14-solo",
+  "grappeId": "smoke2-d14-grappe",
+  "grappeArtifactKey": "sr0_step0_worker_workArtifact",
+  "soloChars": 881,
+  "grappeChars": 2249,
+  "cost": {
+    "solo_wall_ms": 65854,
+    "grappe_wall_ms": 2716437,
+    "solo_attempts": 1,
+    "grappe_artifact_count": 11,
+    "tokens": null,
+    "tokens_note": "claude CLI text-mode emits no usage; json-mode capture queued"
+  },
+  "collectedAt": "2026-08-03T21:12:43.320Z"
+}

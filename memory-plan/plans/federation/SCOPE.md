@@ -20,6 +20,8 @@ memory-plan/plans/federation/COMPONENT_REGISTRY.md
 memory-plan/plans/federation/audits/step26_premise-benchmark/*
 bin/grappe-benchmark.mjs
 bin/fed-benchmark.mjs
+bin/fed-run-driver.mjs
+test/fed-run-driver.test.mjs
 bin/mesh-agent.js
 bin/mesh-task-daemon.js
 bin/mesh.js

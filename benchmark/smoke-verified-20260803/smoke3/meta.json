@@ -1,0 +1,17 @@
+{
+  "name": "smoke3",
+  "soloId": "smoke3-d14-solo",
+  "grappeId": "smoke3-d14-grappe",
+  "grappeArtifactKey": "sr1_step0_worker_workArtifact",
+  "soloChars": 2496,
+  "grappeChars": 3003,
+  "cost": {
+    "solo_wall_ms": 82820,
+    "grappe_wall_ms": 1118876,
+    "solo_attempts": 1,
+    "grappe_artifact_count": 12,
+    "solo_usage": null,
+    "grappe_usage": null
+  },
+  "collectedAt": "2026-08-04T02:09:38.511Z"
+}

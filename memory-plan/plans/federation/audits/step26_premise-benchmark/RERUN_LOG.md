@@ -252,3 +252,39 @@ for understanding (cannot change the verdict); (c) treat the finalization-gate d
 + scope discipline) as the falsified component and open a plan-level decision on whether a
 revised protocol warrants a new benchmark iteration — that is a new D-entry and a new run, not
 a patch to this one. Fleet stopped; nothing further runs pending the ruling.
+
+## 2026-08-04 — OPERATOR REVIEW: RUN 1 IS **INCONCLUSIVE** (measurement failure). Verdict above RETRACTED.
+
+Operator-held with six findings, all verified at the source and accepted:
+1. **P0 — pair 4's forfeit violated the locked rule**: RUN_RULES requires two gate observations
+   ≥90 s apart; the driver incremented a counter on consecutive 45 s polls — pair 4's
+   observations sit 45.1 s apart (17:47:19.437 → 17:48:04.549). Pair 4 is INVALID. With pairs
+   2/3/5 suspension-contaminated, only pair 1 is an uncontested loss — the "reruns are moot"
+   arithmetic was FALSE and is retracted.
+2. **P0 — the execution apparatus was not frozen**: the driver lived untested in /private/tmp,
+   outside SHA 6bc11f3. Not reproducible.
+3. **P1 — evidence package incomplete on GitHub**: pairs-d14/ + smoke archive untracked,
+   run-d14.log git-ignored; the conclusion was pushed without its evidence.
+4. **P1 — suspension-affected pairs (2/3/5) cannot be scored as ordinary losses**; pair 2's
+   "already unrecoverable" was inference, not demonstration.
+5. **P1 — tally does not reproduce forfeit costs** (reads meta.json only → $0.00/$0.00);
+   pair 3's usages are honestly null (failed solo never wrote result.cost; aborted-at-init
+   session never accumulated).
+6. **P2 — status wording**: the plan carrier/step/BLOCKED.md were never changed (correct — the
+   verdict was pending disposition), and "nothing running" overstated: the production
+   mesh-task-daemon (launchd) was and is up; only the bench agents were stopped.
+
+**Run 1 stands preserved as evidence of a strongly negative signal (pair 1 clean loss; pair 4's
+reviewer objections were real even if its forfeit was invalid; 7× cost) — NOT as a verdict.**
+
+**Apparatus repair executed (operator: "that is apparatus repair, not tuning until it passes"):**
+committed driver `bin/fed-run-driver.mjs` with exported, unit-tested gate/gap logic
+(`test/fed-run-driver.test.mjs`): gate forfeit only on observations ≥90 s apart per the frozen
+rule; inter-poll gaps > 5 min are detected as HOST SUSPENSION and mark the pair INFRA_INVALID
+(rerun-eligible, never a forfeit, no score); tally reads forfeit.json costs and lists
+INFRA_INVALID pairs outside the scoring denominator. Run-1 artifacts archived under
+`benchmark/run1-inconclusive-20260804/` and committed with this entry; `pairs-d14/` reset empty.
+
+**RUN 2: the unchanged five-task slate reruns from the single frozen SHA = the commit carrying
+this entry.** Same RUN_RULES, same slate files, task ids prefixed d14r2. No task, prompt, or
+code change after pair 1 of run 2 begins.

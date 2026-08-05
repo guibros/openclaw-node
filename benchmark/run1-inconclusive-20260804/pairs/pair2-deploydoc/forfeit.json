@@ -1,0 +1,25 @@
+{
+  "name": "pair2-deploydoc",
+  "outcome": "grappe_forfeit",
+  "reason": "grappe 60-min budget exceeded",
+  "costs": {
+    "solo_usage": {
+      "inputTokens": 1240965,
+      "outputTokens": 639,
+      "estimatedCostUsd": 0.7993371
+    },
+    "solo_wall_ms": 182658,
+    "solo_status": "completed",
+    "grappe_usage": {
+      "input_tokens": 1206774,
+      "output_tokens": 402,
+      "cost_usd": 1.2060804,
+      "calls": 3
+    },
+    "grappe_wall_ms": 14894627,
+    "grappe_status": "active",
+    "grappe_phase": "finalization"
+  },
+  "frozen_sha": "6bc11f34c6f71a3515b072ec31fadceededad041",
+  "recordedAt": "2026-08-04T15:07:40.922Z"
+}

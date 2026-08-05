@@ -1,0 +1,16 @@
+{
+  "name": "pair3-natsresolve",
+  "outcome": "both_forfeit",
+  "reason": "solo: solo 60-min budget exceeded; grappe: session aborted",
+  "costs": {
+    "solo_usage": null,
+    "solo_wall_ms": 7228032,
+    "solo_status": "failed",
+    "grappe_usage": null,
+    "grappe_wall_ms": 32712,
+    "grappe_status": "aborted",
+    "grappe_phase": "init"
+  },
+  "frozen_sha": "6bc11f34c6f71a3515b072ec31fadceededad041",
+  "recordedAt": "2026-08-04T17:18:11.904Z"
+}

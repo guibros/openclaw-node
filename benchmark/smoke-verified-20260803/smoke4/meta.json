@@ -1,0 +1,26 @@
+{
+  "name": "smoke4",
+  "soloId": "smoke4-d14-solo",
+  "grappeId": "smoke4-d14-grappe",
+  "grappeArtifactKey": "sr1_step2_worker_workArtifact",
+  "soloChars": 2318,
+  "grappeChars": 12678,
+  "cost": {
+    "solo_wall_ms": 63845,
+    "grappe_wall_ms": null,
+    "solo_attempts": 1,
+    "grappe_artifact_count": 13,
+    "solo_usage": {
+      "input_tokens": 463492,
+      "output_tokens": 419,
+      "cost_usd": 0.25658264999999997
+    },
+    "grappe_usage": {
+      "input_tokens": 4117341,
+      "output_tokens": 3286,
+      "cost_usd": 3.1926244500000003,
+      "calls": 12
+    }
+  },
+  "collectedAt": "2026-08-04T02:30:59.817Z"
+}

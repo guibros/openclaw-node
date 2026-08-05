@@ -1,0 +1,25 @@
+{
+  "name": "pair4-watcher",
+  "outcome": "grappe_forfeit",
+  "reason": "unresolved human gate (phase complete, status active x2) - immediate forfeit per RUN_RULES clause 2",
+  "costs": {
+    "solo_usage": {
+      "inputTokens": 230987,
+      "outputTokens": 33,
+      "estimatedCostUsd": 0.26831760000000004
+    },
+    "solo_wall_ms": 192357,
+    "solo_status": "completed",
+    "grappe_usage": {
+      "input_tokens": 2112276,
+      "output_tokens": 20138,
+      "cost_usd": 3.7136164499999995,
+      "calls": 14
+    },
+    "grappe_wall_ms": 1583420,
+    "grappe_status": "active",
+    "grappe_phase": "complete"
+  },
+  "frozen_sha": "6bc11f34c6f71a3515b072ec31fadceededad041",
+  "recordedAt": "2026-08-04T17:48:06.234Z"
+}

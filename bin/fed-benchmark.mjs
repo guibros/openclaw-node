@@ -215,17 +215,31 @@ async function collect(name, soloId, grappeId) {
 function tally() {
   const pairsDir = PAIRS_ROOT;
   const names = fs.existsSync(pairsDir) ? fs.readdirSync(pairsDir) : [];
-  let grappeWins = 0, soloWins = 0, ties = 0, scored = 0;
+  let grappeWins = 0, soloWins = 0, ties = 0, scored = 0, invalid = 0;
   let soloMs = 0, grappeMs = 0, soloUsd = 0, grappeUsd = 0;
   for (const name of names) {
     const dir = path.join(pairsDir, name);
-    try {
-      const meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf8'));
-      soloMs += meta.cost?.solo_wall_ms || 0;
-      grappeMs += meta.cost?.grappe_wall_ms || 0;
-      soloUsd += meta.cost?.solo_usage?.cost_usd || 0;
-      grappeUsd += meta.cost?.grappe_usage?.cost_usd || 0;
-    } catch { /* unscored/partial pair */ }
+    // Costs come from whichever record the pair produced: delivered pairs
+    // carry meta.json; forfeits carry forfeit.json (run-1 finding: tally
+    // reported $0.00 because it read only meta.json); INFRA_INVALID pairs
+    // carry infra_invalid.json and are excluded from the scoring denominator.
+    for (const f of ['meta.json', 'forfeit.json', 'infra_invalid.json']) {
+      try {
+        const rec = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        const c = rec.cost ?? rec.costs ?? {};
+        soloMs += c.solo_wall_ms || 0;
+        grappeMs += c.grappe_wall_ms || 0;
+        soloUsd += (c.solo_usage?.cost_usd ?? c.solo_usage?.estimatedCostUsd) || 0;
+        grappeUsd += c.grappe_usage?.cost_usd || 0;
+        break;
+      } catch { /* try next record type */ }
+    }
+    if (fs.existsSync(path.join(dir, 'infra_invalid.json'))) {
+      invalid++;
+      const rec = JSON.parse(fs.readFileSync(path.join(dir, 'infra_invalid.json'), 'utf8'));
+      console.log(`${name}: INFRA_INVALID — ${rec.reason} (excluded from scoring)`);
+      continue;
+    }
     const scoreFile = path.join(dir, 'score.json');
     if (!fs.existsSync(scoreFile)) { console.log(`${name}: UNSCORED`); continue; }
     const score = JSON.parse(fs.readFileSync(scoreFile, 'utf8'));
@@ -237,7 +251,7 @@ function tally() {
     else ties++;
     console.log(`${name}: ${score.winner} → ${winnerArm}${score.notes ? ' — ' + score.notes : ''}`);
   }
-  console.log(`\nRESULT: grappe ${grappeWins} · solo ${soloWins} · tie ${ties} (${scored} scored)`);
+  console.log(`\nRESULT: grappe ${grappeWins} · solo ${soloWins} · tie ${ties} (${scored} scored${invalid ? ` · ${invalid} INFRA_INVALID excluded` : ''})`);
   console.log(`COST: solo Σ ${(soloMs / 60000).toFixed(1)}m wall / $${soloUsd.toFixed(2)} · grappe Σ ${(grappeMs / 60000).toFixed(1)}m wall / $${grappeUsd.toFixed(2)} (from agents' session-JSONL extraction; $0.00 = producer predates capture)`);
   const need = Math.max(4, Math.ceil((scored || 5) * 0.8));
   console.log(grappeWins >= need
