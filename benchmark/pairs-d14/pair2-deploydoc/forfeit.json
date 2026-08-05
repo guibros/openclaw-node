@@ -1,0 +1,25 @@
+{
+  "name": "pair2-deploydoc",
+  "outcome": "grappe_forfeit",
+  "reason": "unresolved human gate (gate observations >=90s apart) - immediate forfeit per RUN_RULES clause 2",
+  "costs": {
+    "solo_usage": {
+      "inputTokens": 973497,
+      "outputTokens": 446,
+      "estimatedCostUsd": 0.7007437500000001
+    },
+    "solo_wall_ms": 130197,
+    "solo_status": "completed",
+    "grappe_usage": {
+      "input_tokens": 6033708,
+      "output_tokens": 2808,
+      "cost_usd": 4.587538049999999,
+      "calls": 12
+    },
+    "grappe_wall_ms": 990618,
+    "grappe_status": "active",
+    "grappe_phase": "complete"
+  },
+  "run": "r2",
+  "recordedAt": "2026-08-05T04:15:50.588Z"
+}

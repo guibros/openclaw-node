@@ -1,0 +1,25 @@
+{
+  "name": "pair3-natsresolve",
+  "outcome": "grappe_forfeit",
+  "reason": "unresolved human gate (gate observations >=90s apart) - immediate forfeit per RUN_RULES clause 2",
+  "costs": {
+    "solo_usage": {
+      "inputTokens": 169025,
+      "outputTokens": 111,
+      "estimatedCostUsd": 0.13962090000000002
+    },
+    "solo_wall_ms": 104962,
+    "solo_status": "completed",
+    "grappe_usage": {
+      "input_tokens": 3960446,
+      "output_tokens": 2702,
+      "cost_usd": 4.203289649999999,
+      "calls": 14
+    },
+    "grappe_wall_ms": 1485598,
+    "grappe_status": "active",
+    "grappe_phase": "complete"
+  },
+  "run": "r2",
+  "recordedAt": "2026-08-05T04:42:36.316Z"
+}

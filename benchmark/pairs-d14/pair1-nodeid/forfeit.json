@@ -1,0 +1,25 @@
+{
+  "name": "pair1-nodeid",
+  "outcome": "grappe_forfeit",
+  "reason": "unresolved human gate (gate observations >=90s apart) - immediate forfeit per RUN_RULES clause 2",
+  "costs": {
+    "solo_usage": {
+      "inputTokens": 903760,
+      "outputTokens": 234,
+      "estimatedCostUsd": 0.5796676500000001
+    },
+    "solo_wall_ms": 554523,
+    "solo_status": "completed",
+    "grappe_usage": {
+      "input_tokens": 5541003,
+      "output_tokens": 2657,
+      "cost_usd": 4.981963050000001,
+      "calls": 14
+    },
+    "grappe_wall_ms": 1890794,
+    "grappe_status": "active",
+    "grappe_phase": "complete"
+  },
+  "run": "r2",
+  "recordedAt": "2026-08-05T03:56:49.822Z"
+}

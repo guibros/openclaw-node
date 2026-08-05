@@ -1,0 +1,26 @@
+{
+  "name": "pair4-watcher",
+  "soloId": "d14r2p4-watcher-solo",
+  "grappeId": "d14r2p4-watcher-grappe",
+  "grappeArtifactKey": "sr1_step0_worker_workArtifact",
+  "soloChars": 4865,
+  "grappeChars": 10135,
+  "cost": {
+    "solo_wall_ms": 187931,
+    "grappe_wall_ms": 694764,
+    "solo_attempts": 1,
+    "grappe_artifact_count": 14,
+    "solo_usage": {
+      "input_tokens": 208680,
+      "output_tokens": 62,
+      "cost_usd": 0.2556891
+    },
+    "grappe_usage": {
+      "input_tokens": 2676188,
+      "output_tokens": 1117,
+      "cost_usd": 2.9546510999999995,
+      "calls": 12
+    }
+  },
+  "collectedAt": "2026-08-05T04:58:06.886Z"
+}

@@ -1,0 +1,26 @@
+{
+  "name": "pair5-killproto",
+  "soloId": "d14r2p5-killproto-solo",
+  "grappeId": "d14r2p5-killproto-grappe",
+  "grappeArtifactKey": "sr1_step0_worker_workArtifact",
+  "soloChars": 5014,
+  "grappeChars": 5455,
+  "cost": {
+    "solo_wall_ms": 208421,
+    "grappe_wall_ms": 1446688,
+    "solo_attempts": 1,
+    "grappe_artifact_count": 12,
+    "solo_usage": {
+      "input_tokens": 154359,
+      "output_tokens": 75,
+      "cost_usd": 0.1377918
+    },
+    "grappe_usage": {
+      "input_tokens": 1858418,
+      "output_tokens": 569,
+      "cost_usd": 3.3472364999999997,
+      "calls": 17
+    }
+  },
+  "collectedAt": "2026-08-05T05:26:52.650Z"
+}

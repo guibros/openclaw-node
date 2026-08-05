@@ -288,3 +288,33 @@ INFRA_INVALID pairs outside the scoring denominator. Run-1 artifacts archived un
 **RUN 2: the unchanged five-task slate reruns from the single frozen SHA = the commit carrying
 this entry.** Same RUN_RULES, same slate files, task ids prefixed d14r2. No task, prompt, or
 code change after pair 1 of run 2 begins.
+
+## 2026-08-05 — RUN 2 COMPLETE (frozen SHA 2cc674f, 03:15Z→05:26Z): CLEAN RUN, VERDICT DETERMINED, 2 PAIRS AWAIT BLIND SCORING
+
+Zero suspensions, zero infra-invalids, zero apparatus anomalies. Every outcome measured under
+the repaired, tested driver:
+
+| Pair | Outcome | Detail |
+|---|---|---|
+| 1 nodeid | solo (grappe gate-forfeit, RULE-COMPLIANT: 90.0 s across 3 observations) | finalization never converged |
+| 2 deploydoc | solo (gate-forfeit, rule-compliant) | same |
+| 3 natsresolve | solo (gate-forfeit, rule-compliant) | same — and its solo completed in 120 s, exonerating run-1's zombie as pure infra |
+| 4 watcher | **DELIVERED** — session completed unanimously in 11.6 min; strict collect accepted | **first delivered blind pair of the whole benchmark** |
+| 5 killproto | **DELIVERED** — session completed in 24.1 min; collected | second |
+
+Costs (tally-reproduced): solo Σ 19.8 min / **$1.81** · grappe Σ 108.5 min / **$20.07** (~11×).
+Delivered pairs: pair4 solo $0.26 vs grappe $2.95; pair5 solo $0.14 vs grappe $3.35.
+
+**Verdict arithmetic (valid this time):** solo holds 3 rule-compliant wins; the grappe's maximum
+is 2 of 5 — below the D3 bar (≥4) regardless of scoring. **PREMISE NOT EVIDENCED** is the
+determined mechanical outcome. The blind scoring of pairs 4/5 remains REQUIRED by the
+preregistered protocol and materially informs disposition: whether the grappe's work is better
+*when it does deliver* decides if a protocol-redesign iteration (disposition c) has any case.
+(Cosmetic: with 2 pairs unscored the tally prints "needs ≥ 4 of 3" — the bar is over the 5-pair
+slate; the line normalizes once all pairs are scored. Left untouched pending scoring.)
+
+**Operator scoring procedure (blind discipline):** for each of `pairs-d14/pair4-watcher/` and
+`pairs-d14/pair5-killproto/`: read A.md and B.md ONLY, write `score.json`
+`{"winner":"A"|"B"|"tie","notes":"..."}` — do NOT open key.json until BOTH pairs are scored.
+Then `node bin/fed-benchmark.mjs tally` unblinds and renders the final record. Fleet stopped;
+run log + sealed pairs committed with this entry.
