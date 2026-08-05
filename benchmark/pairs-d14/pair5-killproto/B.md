@@ -1,89 +1,73 @@
----
+## Kill-Protocol Specification: Reviewer Kill During Circling Step 1
 
-## Kill Protocol — Federation 6.3: Live Grappe Member Termination During <phase>
-
-**Selected scenario:** kill `<role>` during <phase> phase, step 1 (Review Pass), <phase> 1.
+**Federation 6.3 — Grappe Member Kill Test Protocol**
+**Target role:** `reviewerB` · **Target phase:** `circling` / step 1 (review pass)
 
 ---
 
 ### Preconditions
 
-**Registry (GRAPPE_REGISTRY KV):**
-- Key `grappe.<id>` exists; `status: "live"`; `members: ["<role>", "<role>", "<role>"]`
-- Formed via `openclaw-grappe form --mode adversarial --members <role>,<role>,<role>`
+**Registry (`GRAPPE_REGISTRY` KV)**
+Key `grappe.wg-alpha` must exist with `status: "live"` and exactly three members: `node-worker`, `node-revA`, `node-revB`. Verify with `openclaw-grappe.mjs status wg-alpha`.
 
-**Member health (MESH_NODE_HEALTH KV):**
-- All three node entries present; each `reportedAt` within the last 90 s; `gradeGrappeMembers()` returns `WORKING`
+**Member health (`MESH_NODE_HEALTH` KV)**
+All three keys must be present with `reportedAt` within the last 30 s (well under the 90 s freshness threshold). Each entry's `services` array must include `mesh-agent` with a non-null integer `pid`. Record `node-revB`'s PID from this entry — this is the kill target.
 
-**Session (MESH_COLLAB KV):**
-- `status: "active"`, `mode: "circling_strategy"`
-- `<phase>.phase: "<phase>"`, `<phase>.current_subround: 1`, `<phase>.current_step: 1`
-- `<phase>.step_started_at` set to a timestamp ≤ 60 s ago (fresh <phase>)
-- `nodes[]` — all three entries carry `status: "active"`
-- `recruited_count: 3`, `min_nodes` derived from convergence config (≥ 2 for degraded continuation)
-
-**Roles:**
-- `<role>` — assigned `node_roles[0]`; `<role>` — `node_roles[1]`; `<role>` — `node_roles[2]`
-
-**PID:**
-- `mesh-task-daemon` running; PID confirmed via `launchctl print ai.openclaw.mesh-task-daemon | grep pid` (non-zero)
-- `<role>` agent process PID recorded; heartbeat loop running
+**Session (`MESH_COLLAB` KV)**
+A circling session must be `status: "active"` with `circling.phase === "circling"` and `circling.current_step === 1`. The `nodes` array must show all three members as `status: "active"`. Capture `circling.step_started_at`; the deadline sweep fires at `step_started_at + CIRCLING_STEP_TIMEOUT_MS` (10 min default). Confirm that `node-revB` has **not yet submitted** a step-1 reflection (no entry in `current_round.reflections` with `circling_step === 1` for that node). Confirm `node-worker` and `node-revA` have both submitted step-1 reflections — this places the barrier one submission short.
 
 ---
 
 ### Signal and Timing
 
-Send `SIGKILL` to `<role>`'s PID immediately after `step_started_at` is written but before `<role>` has published a reflection for step 1. Confirm process exit with `kill -0 <pid>` returning non-zero.
+Issue `kill -9 <pid>` (SIGKILL) to the `mesh-agent` process on `node-revB`. SIGKILL is chosen deliberately: it bypasses any graceful-shutdown handler, leaving no last-words message on any NATS subject and producing no voluntary KV update. Record wall-clock `T_kill`.
 
 ---
 
 ### Expected Heartbeat-Freshness Delay
 
-`<role>`'s MESH_NODE_HEALTH entry retains its last `reportedAt`. After 90 s without a new write, `gradeGrappeMembers()` classifies `<role>` as stale; the probe returns `BROKEN` or `WORKING` with `stale_members: ["<role>"]`. This lag is unavoidable; probes do not race the kill.
+The `MESH_NODE_HEALTH` TTL is 120 s. The probe's stale threshold is 90 s. The killed node's health entry will persist in KV for up to 120 s post-kill; `gradeGrappeMembers` will continue to report `WORKING` for up to 90 s (`T_kill + 90 s`), then flip to `BROKEN` ("1/3 member(s) heartbeat stale (>90s)"). The KV key auto-expires at `T_kill + 120 s` and disappears from the watcher entirely.
 
 ---
 
-### Watcher/KV/Session Evidence
+### Watcher / KV / Session Evidence
 
-| Observable | Expected value after kill |
-|---|---|
-| `MESH_NODE_HEALTH["<role>"].reportedAt` | Frozen at kill time; age grows past 90 s |
-| `gradeGrappeMembers()` | `stale_members: ["<role>"]`, overall status `BROKEN` |
-| Stall detection (≤ 5 min from last heartbeat) | `mesh.agent.<role>.alive` probe → no response → timeout |
-| `MESH_COLLAB[session].nodes[<role>].status` | Written to `"dead"` by daemon |
-| `CIRCLING_STEP_TIMEOUT_MS` timer (10 min from `step_started_at`) | Fires; handler marks any non-submitting node dead, re-evaluates <phase> |
-| Session `status` | Remains `"active"` if <phase> now satisfied; `"aborted"` if not |
+| Time | `MESH_NODE_HEALTH/node-revB` | `MESH_COLLAB/<sid>` node status | `gradeGrappeMembers` |
+|---|---|---|---|
+| `T_kill + 0–90 s` | present, `reportedAt` frozen | all three `active` | WORKING |
+| `T_kill + 90–120 s` | present, now stale | all three `active` | BROKEN |
+| `T_kill + 120 s+` | **deleted by JetStream TTL** | updated by sweep | BROKEN |
+| `T_kill + 600 s` (sweep) | absent | revB → `dead` | BROKEN |
 
 ---
 
 ### Deadline-Sweep Behavior
 
-The 60 s periodic sweep (`sweepCirclingStepTimeouts`) catches any session whose `step_started_at` age exceeds `CIRCLING_STEP_TIMEOUT_MS`. On fire it marks non-submitting nodes dead, then calls `advanceCirclingStep()` if active reflection count meets the (now-reduced) <phase>, or calls `markAborted()` if no active nodes remain.
+At `step_started_at + 600 000 ms`, `sweepCirclingStepTimeouts()` runs. It verifies phase/subround/step match the captured snapshot (guards against stale timers). It collects nodes that did not submit a step-1 reflection: only `node-revB`. It sets `node-revB.status = "dead"` and writes back via CAS. It then calls `isCirclingStepComplete()`: `activeNodes = [worker, revA]`; both have reflections; barrier is satisfied. **Action: ADVANCE** — the session moves to step 2 without aborting. The session is now operating in a degraded 2-of-3 configuration.
 
 ---
 
-### Expected Outcome: Degradation (Not Abort)
+### Outcome: Advance (Degraded)
 
-With `<role>` dead, two active nodes remain. If `<role>` and `<role>` have both submitted step-1 reflections before or by timeout, `isRoundComplete()` — which filters `status: "dead"` nodes — evaluates to true. The session advances to step 2 with `<role>` receiving only `<role>`'s review artifacts. The final artifact will carry degraded <role> coverage but the session reaches completion. The watcher transitions from `BROKEN` to `WORKING` if both surviving members remain fresh.
-
-**Abort is expected instead** if `min_nodes` was set to 3 at session creation (convergence config requiring all voices). In that case, `sweepCollabRoundTimeouts` reaches `alive < min_nodes`, writes `status: "aborted"` to MESH_COLLAB, marks the parent task `RELEASED`, and appends an `session_aborted` audit log entry.
+The implementation advances, not aborts. The missing reviewer does not break the minimum quorum because `isRoundComplete` counts only `status !== "dead"` nodes, and the remaining two have both reflected. The session continues through step 2 and finalization with `node-revB` permanently excluded. There is no explicit "degrade" status in the state machine; the session remains `status: "active"` with an internal dead-node marker.
 
 ---
 
-### Alternate Outcomes That Expose Defects
+### Abort Criteria
 
-1. **Session hangs indefinitely** — <phase> never re-evaluated after <role> death; `sweepCirclingStepTimeouts` did not fire or failed silently. Defect in the 60 s sweep.
-2. **Session marked `aborted` despite 2 active nodes and `min_nodes: 2`** — premature abort; <phase> check does not correctly filter dead nodes from quorum.
-3. **Session marked `completed` but `<role>` reflection counted** — stale data read; CAS race allowed a phantom reflection to persist.
-4. **`gradeGrappeMembers()` returns `WORKING` indefinitely** — probe reads cached KV without TTL enforcement; freshness threshold not applied.
-5. **Daemon crashes on `<role>` alive-probe timeout** — unhandled rejection in `detectStalls`; node is never marked dead and session stalls permanently.
+An abort would require the sweep to find that `activeNodes` after marking `node-revB` dead cannot satisfy the barrier — i.e., if `node-worker` or `node-revA` also failed to submit. If both survivors had not submitted by sweep time, all three would be marked dead, `activeNodes.length === 0`, `isRoundComplete` returns `false`, and the action flips to `abort`. A second abort trigger: if the overall session reaches `max_subrounds` with no convergence vote from surviving nodes.
+
+---
+
+### Alternate Outcomes That Expose a Defect
+
+1. **Action returns `abort` when only one reviewer is killed and the other two submitted** — indicates the sweep is not correctly excluding dead nodes from the active-node count, re-introducing the original regression fixed in the `isRoundComplete` guard.
+2. **`gradeGrappeMembers` never flips to BROKEN** — indicates `toMemberHealth` is misreading field names (`timestamp` instead of `reportedAt`), re-introducing the F-C3 regression; the 90 s window would never trigger.
+3. **Session `status` transitions to `aborted` immediately at node death** — indicates an out-of-band SIGKILL handler that was not expected to exist; verify no such handler is registered in `mesh-agent`.
+4. **`node-revB` KV entry persists beyond 130 s post-kill** — indicates the KV TTL is not set on the bucket, removing the automatic dead-peer detection mechanism.
 
 ---
 
 ### Cleanup
 
-1. `kill -9 <daemon-pid>` if daemon is in an inconsistent state.
-2. Delete MESH_COLLAB key for the session: `nats kv del MESH_COLLAB <session_id>`.
-3. Delete MESH_NODE_HEALTH entries for all three test nodes.
-4. Delete GRAPPE_REGISTRY key: `nats kv del GRAPPE_REGISTRY grappe.<id>`.
-5. Confirm `gradeGrappeMembers()` returns `OFF` (no members found) and `gradeSessionLiveness()` returns `OFF`.
+After protocol completion: (a) delete `GRAPPE_REGISTRY/grappe.wg-alpha` via `openclaw-grappe.mjs dissolve wg-alpha`; (b) manually delete `MESH_COLLAB/<sid>` if status is `aborted` and no downstream consumer needs it; (c) confirm `MESH_NODE_HEALTH/node-revB` has auto-expired (should be absent >120 s post-kill); (d) restart `mesh-agent` on `node-revB` to restore the node to full health before the next test run.

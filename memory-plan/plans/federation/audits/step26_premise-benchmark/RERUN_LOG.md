@@ -318,3 +318,38 @@ slate; the line normalizes once all pairs are scored. Left untouched pending sco
 `{"winner":"A"|"B"|"tie","notes":"..."}` — do NOT open key.json until BOTH pairs are scored.
 Then `node bin/fed-benchmark.mjs tally` unblinds and renders the final record. Fleet stopped;
 run log + sealed pairs committed with this entry.
+
+## 2026-08-05 — SCORING-PACKAGE HOLD (operator, 5 findings) → repackage → blind rubric scoring → UNSEAL. **FINAL RECORD.**
+
+The operator's audit found the scoring package unblind (in-dir meta leaked the arm mapping via
+char counts) and the old sanitizer semantically destructive (it redacted worker/reviewer/
+circling/finalization — the SUBJECT of Task 5); it also pre-identified a shared technical error
+in both Task-5 candidates, mandated the five-dimension rubric, and required a PENDING-aware
+tally. All executed without any model rerun:
+- content-preserving blinding (identity markers only; domain vocabulary intact) + regression
+  tests (7/7 with driver tests);
+- both pairs REPACKAGED from immutable raw KV artifacts, fresh coin flips, scorer dirs = A/B
+  only, key/meta/hashes sealed outside the scorer path, sha256 of raw + packaged;
+- tally: sealed-key lookup, rubric validation (rejects winner-only scores), PENDING status with
+  no verdict while delivered pairs are unscored;
+- scoring by TWO fresh independent subagents with zero benchmark context, citation-verification
+  mandated. The pair-5 scorer INDEPENDENTLY rediscovered the operator's finding #3 (both
+  candidates attribute the MESH_NODE_HEALTH heartbeat to the killed agent; it is written by
+  mesh-health-publisher — both proposed watcher-transition chains are false), unprimed:
+  convergent validation of both the finding and the scorer's independence.
+
+**Unsealed results:** pair4 A=grappe **wins 21-18** (flawless verified citations, paste-ready
+corrections; penalized for scope overrun + execution commentary). pair5 B=grappe **wins 20-15**
+(circling-side mechanics near line-for-line correct; both arms failed the health-heartbeat crux).
+
+**FINAL OFFICIAL TALLY: solo 3 (all by rule-compliant gate-forfeit) · grappe 2 (both on blind
+quality) · tie 0. VERDICT: below the ≥4-of-5 bar — PREMISE NOT EVIDENCED; D3 plan-BLOCK if the
+operator rules it final.**
+
+**The result's real shape:** the grappe failed RELIABILITY (3 of 5 pairs never delivered — its
+own finalization gate; the chronic pattern across 8 sessions) but won QUALITY both times it
+delivered, under blind five-dimension scoring, at ~11× cost ($20.07 vs $1.81). The premise as
+contracted (deliver better artifacts, reliably, within budget) is not evidenced; the narrower
+claim "circling produces higher-quality artifacts WHEN it converges" got its first two data
+points in favor. That is precisely the evidence disposition (c) — a redesigned-finalization
+iteration under a new preregistration — would build on. Disposition remains the operator's.

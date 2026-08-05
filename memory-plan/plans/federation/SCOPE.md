@@ -22,6 +22,7 @@ bin/grappe-benchmark.mjs
 bin/fed-benchmark.mjs
 bin/fed-run-driver.mjs
 test/fed-run-driver.test.mjs
+test/fed-benchmark-blind.test.mjs
 bin/mesh-agent.js
 bin/mesh-task-daemon.js
 bin/mesh.js

@@ -38,7 +38,13 @@ const BENCH_DIR = path.join(process.cwd(), 'benchmark');
 // writes there and tally never reads them, so old artifacts cannot be
 // silently substituted for fresh runs.
 const PAIRS_ROOT = path.join(BENCH_DIR, 'pairs-d14');
+// Sealed sidecar (operator hold 2026-08-05): the scorer directory holds ONLY
+// A.md/B.md (+ the scorer's own score.json). key.json and the arm-labeled
+// meta (ids, costs, char counts — the old meta leaked the mapping through
+// byte counts) live here, outside the scorer's path, until scoring locks.
+const SEALED_ROOT = path.join(BENCH_DIR, 'sealed-d14');
 const NATS_URL = process.env.OPENCLAW_NATS || 'nats://127.0.0.1:4222';
+const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 const strip = (s) =>
   String(s)
@@ -46,13 +52,17 @@ const strip = (s) =>
     .replace(/(^|\n)Thinking\.\.\.[\s\S]*?\.\.\.done thinking\.?/g, '$1')
     .trim();
 
-// Blind-safety: remove markers that reveal which arm produced the text.
-const deIdentify = (s) =>
+// Blind-safety (operator hold 2026-08-05): CONTENT-PRESERVING — strip only
+// literal identity markers, never domain vocabulary. The old sanitizer
+// replaced worker/reviewer/circling/finalization wholesale, destroying the
+// semantics of tasks whose SUBJECT is those roles and phases (Task 5).
+// Residual stylistic tells are accepted and judged through the rubric.
+export const deIdentify = (s) =>
   strip(s)
     .replace(/collab-[a-z0-9.-]+/gi, '<session>')
-    .replace(/\b(worker|reviewer[AB]?|integrator)\b/gi, '<role>')
-    .replace(/\b(sub-?round|circling|finalization|barrier)\b/gi, '<phase>')
-    .replace(/\bvote:\s*\S+/gi, '');
+    .replace(/\bbench-w\d+\b/gi, '<node>')
+    .replace(/\bd14[a-z0-9]*p\d+-[a-z-]+-(?:solo|grappe)\b/gi, '<task-id>')
+    .replace(/\/[^\s`'"]*worktrees[^\s`'"]*/g, '<workdir>');
 
 async function bus() {
   return connect({ ...natsConnectOpts(), servers: NATS_URL, timeout: 10000 });
@@ -153,7 +163,7 @@ function wallMs(startIso, endIso) {
   return Number.isFinite(s) && Number.isFinite(e) && e >= s ? e - s : null;
 }
 
-async function collect(name, soloId, grappeId) {
+async function collect(name, soloId, grappeId, { repackage = false } = {}) {
   const nc = await bus();
   const soloTask = await getTask(nc, soloId);
   const soloOut = soloOutput(soloTask);
@@ -171,18 +181,40 @@ async function collect(name, soloId, grappeId) {
   if (!grappeArt) throw new Error(`grappe task ${grappeId}: no final workArtifact (phase ${session?.circling?.phase})`);
 
   const dir = path.join(PAIRS_ROOT, name);
-  // No reuse, no overwrite (D14): a pair name is written exactly once.
-  if (fs.existsSync(dir)) throw new Error(`pair '${name}' already exists at ${dir} — D14 forbids overwrite/reuse; pick a new name`);
-  fs.mkdirSync(dir, { recursive: true });
+  const sealedDir = path.join(SEALED_ROOT, name);
+  if (repackage) {
+    // Operator hold 2026-08-05: rebuild the scorer package from the immutable
+    // raw KV artifacts — fresh coin flip, content-preserving blinding, leaky
+    // in-dir key/meta removed (they persist in git history; a FRESH scorer
+    // sees only the new package).
+    for (const f of ['A.md', 'B.md', 'key.json', 'meta.json', 'score.json']) {
+      try { fs.rmSync(path.join(dir, f)); } catch { /* absent */ }
+    }
+    fs.mkdirSync(dir, { recursive: true });
+  } else {
+    // No reuse, no overwrite (D14): a pair name is written exactly once.
+    if (fs.existsSync(dir)) throw new Error(`pair '${name}' already exists at ${dir} — D14 forbids overwrite/reuse; pick a new name (or use repackage)`);
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.mkdirSync(sealedDir, { recursive: true });
 
   const flip = crypto.randomInt(2) === 0;
   const A = flip ? { arm: 'solo', text: String(soloOut) } : { arm: 'grappe', text: String(grappeArt.content) };
   const B = flip ? { arm: 'grappe', text: String(grappeArt.content) } : { arm: 'solo', text: String(soloOut) };
 
-  fs.writeFileSync(path.join(dir, 'A.md'), deIdentify(A.text) + '\n');
-  fs.writeFileSync(path.join(dir, 'B.md'), deIdentify(B.text) + '\n');
-  fs.writeFileSync(path.join(dir, 'key.json'), JSON.stringify({ A: A.arm, B: B.arm }, null, 2));
-  fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify({
+  const Ablind = deIdentify(A.text) + '\n';
+  const Bblind = deIdentify(B.text) + '\n';
+  fs.writeFileSync(path.join(dir, 'A.md'), Ablind);
+  fs.writeFileSync(path.join(dir, 'B.md'), Bblind);
+  fs.writeFileSync(path.join(sealedDir, 'key.json'), JSON.stringify({ A: A.arm, B: B.arm }, null, 2));
+  fs.writeFileSync(path.join(sealedDir, 'hashes.json'), JSON.stringify({
+    raw_solo_sha256: sha256(String(soloOut)),
+    raw_grappe_sha256: sha256(String(grappeArt.content)),
+    A_sha256: sha256(Ablind),
+    B_sha256: sha256(Bblind),
+    repackaged: repackage,
+  }, null, 2));
+  fs.writeFileSync(path.join(sealedDir, 'meta.json'), JSON.stringify({
     name, soloId, grappeId,
     grappeArtifactKey: grappeArt.key,
     soloChars: A.arm === 'solo' ? A.text.length : B.text.length,
@@ -206,26 +238,29 @@ async function collect(name, soloId, grappeId) {
     },
     collectedAt: new Date().toISOString(),
   }, null, 2));
-  console.log(`pair '${name}' written → ${dir}/{A.md,B.md}`);
-  console.log(`score it: write ${dir}/score.json  {"winner":"A"|"B"|"tie","scores":{...},"notes":"..."}`);
-  console.log('do NOT open key.json until all pairs are scored.');
+  console.log(`pair '${name}' scorer package → ${dir}/{A.md,B.md}${repackage ? ' (REPACKAGED from raw KV, fresh flip)' : ''}`);
+  console.log(`sealed (key+meta+hashes, OUTSIDE scorer dir) → ${sealedDir}/`);
+  console.log(`score it: write ${dir}/score.json with the FULL rubric:`);
+  console.log('  {"winner":"A"|"B"|"tie","notes":"...","scores":{"A":{"correctness":1-5,"completeness":1-5,"evidence":1-5,"actionability":1-5,"defect_discovery":1-5},"B":{...}}}');
+  console.log('the scorer must never read the sealed dir; unseal only after every delivered pair is scored.');
   await nc.close();
 }
 
 function tally() {
   const pairsDir = PAIRS_ROOT;
   const names = fs.existsSync(pairsDir) ? fs.readdirSync(pairsDir) : [];
-  let grappeWins = 0, soloWins = 0, ties = 0, scored = 0, invalid = 0;
+  let grappeWins = 0, soloWins = 0, ties = 0, scored = 0, invalid = 0, pending = 0;
   let soloMs = 0, grappeMs = 0, soloUsd = 0, grappeUsd = 0;
   for (const name of names) {
     const dir = path.join(pairsDir, name);
     // Costs come from whichever record the pair produced: delivered pairs
-    // carry meta.json; forfeits carry forfeit.json (run-1 finding: tally
-    // reported $0.00 because it read only meta.json); INFRA_INVALID pairs
-    // carry infra_invalid.json and are excluded from the scoring denominator.
-    for (const f of ['meta.json', 'forfeit.json', 'infra_invalid.json']) {
+    // carry meta.json in the SEALED sidecar (in-dir meta leaked the arm
+    // mapping through char counts — operator hold 2026-08-05); forfeits
+    // carry forfeit.json in-dir; INFRA_INVALID pairs carry
+    // infra_invalid.json and are excluded from the scoring denominator.
+    for (const f of [path.join(SEALED_ROOT, name, 'meta.json'), path.join(dir, 'meta.json'), path.join(dir, 'forfeit.json'), path.join(dir, 'infra_invalid.json')]) {
       try {
-        const rec = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        const rec = JSON.parse(fs.readFileSync(f, 'utf8'));
         const c = rec.cost ?? rec.costs ?? {};
         soloMs += c.solo_wall_ms || 0;
         grappeMs += c.grappe_wall_ms || 0;
@@ -240,10 +275,25 @@ function tally() {
       console.log(`${name}: INFRA_INVALID — ${rec.reason} (excluded from scoring)`);
       continue;
     }
+    const delivered = fs.existsSync(path.join(dir, 'A.md'));
     const scoreFile = path.join(dir, 'score.json');
-    if (!fs.existsSync(scoreFile)) { console.log(`${name}: UNSCORED`); continue; }
+    if (!fs.existsSync(scoreFile)) {
+      if (delivered) { pending++; console.log(`${name}: PENDING — delivered pair awaiting blind rubric scoring`); }
+      else console.log(`${name}: UNSCORED`);
+      continue;
+    }
     const score = JSON.parse(fs.readFileSync(scoreFile, 'utf8'));
-    const key = JSON.parse(fs.readFileSync(path.join(dir, 'key.json'), 'utf8'));
+    // Preregistered rubric (operator hold 2026-08-05): a delivered pair's
+    // score must carry all five dimensions per arm — winner+notes alone
+    // repeats the July weakness. Forfeit pairs are mechanical and exempt.
+    if (delivered) {
+      const DIMS = ['correctness', 'completeness', 'evidence', 'actionability', 'defect_discovery'];
+      const okDims = ['A', 'B'].every((arm) => DIMS.every((d) => Number.isFinite(score?.scores?.[arm]?.[d])));
+      if (!okDims) { pending++; console.log(`${name}: SCORE REJECTED — missing rubric dimensions (${DIMS.join('/')} per arm); still PENDING`); continue; }
+    }
+    let key;
+    try { key = JSON.parse(fs.readFileSync(path.join(SEALED_ROOT, name, 'key.json'), 'utf8')); }
+    catch { key = JSON.parse(fs.readFileSync(path.join(dir, 'key.json'), 'utf8')); }
     scored++;
     const winnerArm = score.winner === 'tie' ? 'tie' : key[score.winner];
     if (winnerArm === 'grappe') grappeWins++;
@@ -251,15 +301,31 @@ function tally() {
     else ties++;
     console.log(`${name}: ${score.winner} → ${winnerArm}${score.notes ? ' — ' + score.notes : ''}`);
   }
-  console.log(`\nRESULT: grappe ${grappeWins} · solo ${soloWins} · tie ${ties} (${scored} scored${invalid ? ` · ${invalid} INFRA_INVALID excluded` : ''})`);
+  console.log(`\nRESULT: grappe ${grappeWins} · solo ${soloWins} · tie ${ties} (${scored} scored${pending ? ` · ${pending} PENDING` : ''}${invalid ? ` · ${invalid} INFRA_INVALID excluded` : ''})`);
   console.log(`COST: solo Σ ${(soloMs / 60000).toFixed(1)}m wall / $${soloUsd.toFixed(2)} · grappe Σ ${(grappeMs / 60000).toFixed(1)}m wall / $${grappeUsd.toFixed(2)} (from agents' session-JSONL extraction; $0.00 = producer predates capture)`);
-  const need = Math.max(4, Math.ceil((scored || 5) * 0.8));
-  console.log(grappeWins >= need
-    ? `VERDICT: PREMISE PASSES (grappe ≥ ${need})`
-    : `VERDICT: below the clear-majority bar (needs ≥ ${need} of ${scored || 5}; ties count against) — D3 plan-BLOCK if final`);
+  const totalValid = scored + pending;
+  const need = Math.max(4, Math.ceil((totalValid || 5) * 0.8));
+  if (pending > 0) {
+    // Operator hold 2026-08-05: no verdict while delivered pairs are unscored.
+    console.log(`STATUS: PENDING — ${pending} delivered pair(s) unscored; no verdict until every valid pair is scored.`);
+    if (grappeWins + pending < need) console.log(`NOTE: passing is already arithmetically impossible (grappe max ${grappeWins + pending} < ${need} needed of ${totalValid}).`);
+  } else {
+    console.log(grappeWins >= need
+      ? `VERDICT: PREMISE PASSES (grappe ≥ ${need})`
+      : `VERDICT: below the clear-majority bar (needs ≥ ${need} of ${totalValid || 5}; ties count against) — D3 plan-BLOCK if final`);
+  }
 }
 
-const [, , cmd, ...args] = process.argv;
-const run = { submit: () => submit(args[0], args[1], args[2]), status: () => status(args[0]), collect: () => collect(args[0], args[1], args[2]), tally: () => Promise.resolve(tally()) }[cmd];
-if (!run) { console.error('usage: fed-benchmark.mjs submit|status|collect|tally ...'); process.exit(2); }
-run().catch((e) => { console.error('FATAL:', e.message); process.exit(1); });
+const isMain = process.argv[1] && process.argv[1].endsWith('fed-benchmark.mjs');
+if (isMain) {
+  const [, , cmd, ...args] = process.argv;
+  const run = {
+    submit: () => submit(args[0], args[1], args[2]),
+    status: () => status(args[0]),
+    collect: () => collect(args[0], args[1], args[2]),
+    repackage: () => collect(args[0], args[1], args[2], { repackage: true }),
+    tally: () => Promise.resolve(tally()),
+  }[cmd];
+  if (!run) { console.error('usage: fed-benchmark.mjs submit|status|collect|repackage|tally ...'); process.exit(2); }
+  run().catch((e) => { console.error('FATAL:', e.message); process.exit(1); });
+}
