@@ -81,7 +81,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 2 | 2.3 | v2.3 | [x] | Paper gap 14.2 — parse-failure retry ×3 before degradation — closed 2026-07-11: 5 tests (4 unit + 1 NATS integration); runtime: session collab-task-retry-test-rt-001, double-failure then success, barrier_advanced=true, degraded=false |
 | 2 | 2.4 | v2.4 | [x] | Grappe worker = the node's full OpenClaw (advanced-LLM frontend + local harness), D11-guarded — closed 2026-07-15: runs 7+8, 3 harness-loaded Claude workers parallel; 14+8 non-trivial artifacts, real adversarial dissent (blocked votes 0.97/0.91), correct self-verifying F1/F2/F4 deliverable + bonus real bugs (COLLAB_MODE gap → Block 3); operator ACCEPTED premise. Finding 13: OpenClaw turns outrun fixed step budgets (config, not defect); daemon units now 30-min budget |
 | 2 | 2.5 | v2.5 | [D] | Paper gap 14.3 — reviewer Step-2 dual output (deferred: +20% token cost, v2 enhancement) |
-| 2 | 2.6 | v2.6 | [A] | **REOPENED 2026-08-02 (D14):** PREMISE BENCHMARK contract requires ≥5 comparable blind tasks. The 2026-07-15 one-task hand-run remains a transparent operator-approved qualified result, but it does not satisfy this gate. Resume from the existing `v2.6-pre` design: same advanced LLM/tools per arm, five real tasks, blind scoring, cost recorded. |
+| 2 | 2.6 | v2.6 | [x] | **CLOSED 2026-08-05 — VERDICT: PREMISE NOT EVIDENCED** (D15). Two-run D14 benchmark under predeclared RUN_RULES at frozen SHAs (run 1 INCONCLUSIVE — measurement failure, preserved; run 2 CLEAN): solo 3 (rule-compliant gate forfeits — the grappe's own finalization never converged) · grappe 2 (BOTH delivered pairs won blind five-dimension scoring by independent zero-context judges, 21-18 and 20-15) · below the D3 ≥4-of-5 bar. Cost $20.07 vs $1.81 (~11×). Reliability falsified; quality-when-delivered 2/2 positive. Full record: audits/step26_premise-benchmark/ + benchmark/. Plan BLOCKED per D3 (BLOCKED.md). |
 
 > **2.1 — Goal:** the paper's full session lifecycle is observed live (the 93 circling-family unit tests never ran one).
 > **Needs:** Block 1 substrate; lib/mesh-collab.js + bin/mesh-task-daemon.js + bin/mesh-agent.js + bin/mesh-bridge.js; a mock-LLM mode for mesh-agent (env or flag; check what tests use).
@@ -116,7 +116,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 | 3 | 3.2 | v3.2 | [x] | Cooperative protocol: propose-all / integrate-one / rotate-integrator rounds, live run |
 | 3 | 3.3 | v3.3 | [x] | Collaborative protocol: decompose → per-node subtasks → parallel work → merge + merge-review, live run |
 | 3 | 3.4 | v3.4 | [x] | Mode-selection guidance in FEDERATION_SPEC + task-envelope `preferred_mode` honored |
-| 3 | 3.5 | v3.5 | [A] | PHASE-1 GATE remains in-flight but **blocked on reopened 2.6**: no T3 matrix, 8-cell chaos program, ≥12h soak, or T7 acceptance may execute or close before the five-task premise contract passes. |
+| 3 | 3.5 | v3.5 | [A] | PHASE-1 GATE — **BLOCKED by the 2.6 verdict (D15, BLOCKED.md)**: the premise contract FAILED, so no T3 matrix, 8-cell chaos program, ≥12h soak, or T7 acceptance may execute. Unblocks only per BLOCKED.md (operator-approved redesigned-finalization iteration passing a new preregistered benchmark, or plan closure). |
 
 > **3.1 — Goal:** one session schema carries all three architectures without forking the stack (§4.6).
 > **Needs:** 2.1 proven baseline; lib/mesh-collab.js session schema (`circling` field precedent); FEDERATION_SPEC mode flows.

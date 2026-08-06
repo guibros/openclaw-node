@@ -36,10 +36,15 @@ Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 day
 
 ## Where we are / next action
 
-As of 2026-08-02, the protocol base is live; redesign is complete at v6.5 and repair at v7.8.
-Federation is **not** at management: step 2.6 is reopened at `v2.6-pre` because its five-task
-premise contract was not met. The July one-task blind win remains qualified evidence. Step 3.5
-is in-flight but blocked on 2.6; 6.2 and 6.3 retain their visual/runtime gates. Block 4 has not started.
+As of 2026-08-05, the protocol base is live; redesign is complete at v6.5 and repair at v7.8.
+**Federation is BLOCKED at v2.6** (`plans/federation/BLOCKED.md`, D15): the five-task premise
+benchmark closed FAILED — run 2 tally solo 3 · grappe 2 · tie 0, below D3's ≥4-of-5 bar. The
+grappe failed on RELIABILITY (3 of 5 pairs never delivered — its own finalization vote never
+converged) but won BOTH blind five-dimension comparisons it reached (21-18, 20-15) at ~11× cost
+($20.07 vs $1.81). Step 3.5, Block 4 (management) and Block 5 (savant) are blocked; 6.2/6.3
+remain independently in-flight. Unblocks only by operator plan-closure or a redesigned
+convergence protocol passing a NEW preregistered benchmark. Evidence:
+`plans/federation/audits/step26_premise-benchmark/` + `benchmark/`.
 
 HyperAgent's mechanical substrate and read-only MC page are live, but the production store has
 1 telemetry row and no strategies, reflections, or proposals. The next step is operator-gated 2.1

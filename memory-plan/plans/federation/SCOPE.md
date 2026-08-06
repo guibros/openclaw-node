@@ -8,8 +8,24 @@ claude-provider mesh-agents up and observable, wedge-risk smoked on a THROWAWAY 
 of the five — D14 forbids substitution during the rerun). Task slate confirmation and blind
 scoring remain operator gates. Harness/agent/CLI fixes allowed ONLY where the pre-screen proves
 them broken. Steps 6.2/6.3 gates unaffected.
-**Set at:** 2026-08-03 (operator "gogo"; prior idle header set 2026-08-02 during governance recovery)
-**Expires:** 2026-08-06T00:00:00Z
+**Addendum 2026-08-05 (operator "go" — 2.6 disposition):** close step 2.6 with the final
+two-run verdict (PREMISE NOT EVIDENCED), place the D3 block on the plan (BLOCKED.md), record
+the verdict + redesign-door decision (D15), and carry VERSION to v2.6. Governance/docs only —
+no code, no further executions. Files under "26-disposition".
+**Set at:** 2026-08-03 (operator "gogo"; prior idle header set 2026-08-02 during governance
+recovery; refreshed 2026-08-05 for the disposition batch — the run-scope expired at 00:00Z)
+**Expires:** 2026-08-07T00:00:00Z
+
+```files 26-disposition
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/BLOCKED.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/ROADMAP.md
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/audits/step26_premise-benchmark/*
+CLAUDE.md
+```
 
 ```files 26-rerun
 memory-plan/plans/federation/SCOPE.md

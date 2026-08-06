@@ -486,3 +486,43 @@ access, blind scoring, and explicit token/wall-clock cost.
 not the next action. After runtime repair restores real advanced-LLM workers, the order is 2.6
 evidence, then the 3.5 matrix/chaos/soak/T7 gate, then Block 4. No threshold tuning or retrospective
 task substitution is permitted during the rerun.
+
+## D15 — The premise benchmark FAILED on reliability and WON on quality-when-delivered; the plan is blocked and the redesign door is explicit (2026-08-05, operator "go")
+
+**Decision.** Step 2.6 closes with **PREMISE NOT EVIDENCED**. Per D3 this is a plan-level BLOCK
+(`BLOCKED.md`): step 3.5 and Blocks 4-5 may not proceed. The plan does not close and the worker
+grappe code is not deleted; it unblocks only by operator plan-closure or by a redesigned
+convergence protocol passing a NEW preregistered benchmark.
+
+**The evidence.** Two runs under operator-predeclared RUN_RULES, each from a frozen SHA:
+- **Run 1 (2026-08-04) — INCONCLUSIVE, preserved.** An operator audit found the temporary
+  orchestrator was neither committed nor tested and mis-implemented clause 2 (counting
+  consecutive 45 s polls instead of a ≥90 s window), invalidating one forfeit; two host
+  suspensions contaminated three more pairs. The verdict claimed from it was RETRACTED.
+- **Apparatus repair (not tuning).** The driver became `bin/fed-run-driver.mjs` with unit tests
+  encoding both defects as regressions (≥90 s gate window; >5 min inter-poll gap ⇒
+  INFRA_INVALID, rerun-eligible, never a forfeit). Treatment files were byte-identical
+  throughout — verified by the operator's audit.
+- **Run 2 (2026-08-05) — CLEAN.** Zero suspensions. Pairs 1-3: grappe gate-forfeits, each
+  measured across a full 90 s window. Pairs 4-5: delivered and collected.
+- **Scoring-package repair.** A further operator audit found the package leaked its own key
+  (in-dir meta exposed the arm mapping via char counts) and that the blinding redacted the very
+  domain vocabulary Task 5 is about. Both pairs were repackaged from the immutable raw KV
+  artifacts (fresh flips, sha256, key/meta sealed outside the scorer path) with
+  content-preserving blinding; scoring used the full five-dimension rubric by two fresh
+  zero-context judges. One of them independently rediscovered the operator's own finding — both
+  Task-5 candidates misattribute the `MESH_NODE_HEALTH` heartbeat to the killed agent
+  (`mesh-health-publisher` writes it) — confirming both the finding and the judges' independence.
+- **Final: solo 3 · grappe 2 · tie 0** (bar: ≥4). Cost **$20.07 vs $1.81 (~11×)**.
+
+**What was actually falsified.** Reliability: 3 of 5 pairs produced no grappe artifact at all,
+each time because its own finalization vote failed to converge — the chronic pattern across
+every smoke. What was NOT falsified: quality. The grappe won BOTH blind comparisons it reached
+(21-18, 20-15), with judges verifying citations against source. The broken component is the
+**unanimity-gated finalization protocol**, not the collaboration concept.
+
+**Consequences.** D14's rerun mandate is discharged. The July hand-run's "qualified pass" is
+superseded by a properly powered negative result. Any future iteration must preregister anew —
+no reuse of this run's artifacts as evidence for a redesigned protocol, and no retroactive
+loosening of D3's bar. The benchmark apparatus (fed-benchmark + fed-run-driver + rules + tests)
+is now reusable infrastructure and stays.
