@@ -28,7 +28,14 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 **Set at:** 2026-09-06T00:00:00Z
 **Expires:** 2026-09-10T00:00:00Z
 
-```files remediation-phase7-2026-09-07
+```files virgin-install-fixes-2026-09-07
+bootstrap.sh
+scripts/install/prereqs.sh
+test/install-modules.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files remediation-phase7-2026-09-07 closed
 scripts/install/config.sh
 scripts/install/components.sh
 scripts/install/services.sh

@@ -32,6 +32,15 @@
 # that shell. Every expansion below is guarded explicitly instead.
 set -o pipefail
 
+# The whole script lives in one function and is invoked on the LAST line. Under
+# `curl | bash` the shell reads its program from the pipe a chunk at a time, and
+# any child that reads stdin (the Homebrew installer, `installer`, a pager) eats
+# whatever bash has not read yet: the first virgin-Mac run printed its own
+# source mid-install and stopped dead after the Tailscale step. A function body
+# must be parsed in full before it can execute, so nothing downstream can
+# consume it. Children that want a human get /dev/tty explicitly.
+main() {
+
 REPO="${OPENCLAW_REPO:-moltyguibros-design/openclaw-node}"
 REF="${OPENCLAW_REF:-main}"
 
@@ -115,7 +124,7 @@ if [ "$OS" = macos ]; then
     # build-tools gap that breaks better-sqlite3 later.
     warn "installing Homebrew (this also installs the Xcode Command Line Tools)"
     NONINTERACTIVE=1 /bin/bash -c \
-      "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
+      "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/null \
       || die "Homebrew install failed."
     BREW=""
     for c in /opt/homebrew/bin/brew /usr/local/bin/brew; do
@@ -133,11 +142,22 @@ if [ "$OS" = macos ]; then
   xcode-select -p >/dev/null 2>&1 && ok "command line tools: $(xcode-select -p)" \
     || warn "CLT still absent; native modules may fail to build"
 
+  # The tailscale-app cask installs /Applications/Tailscale.app and nothing on
+  # PATH: the CLI is a binary inside the bundle. Link it where brew's bin
+  # already is, so `tailscale ip -4` works for install.sh and the gate below.
+  link_tailscale_cli() {
+    local cli="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+    [ -x "$cli" ] || return 0
+    local dest="$(brew --prefix 2>/dev/null || echo /opt/homebrew)/bin/tailscale"
+    ln -sf "$cli" "$dest" 2>/dev/null || $SUDO ln -sf "$cli" "$dest" || return 0
+    ok "tailscale CLI linked: $dest"
+  }
+
   step "Toolchain"
   if node_ok; then
     ok "node $(node -v)"
   else
-    brew install node@22 && brew link --overwrite --force node@22
+    brew install node@22 </dev/null && brew link --overwrite --force node@22
     node_ok && ok "node $(node -v)" || err "node 22+ install failed"
   fi
 
@@ -151,7 +171,7 @@ if [ "$OS" = macos ]; then
     if have "$bin"; then
       ok "$bin present"
     else
-      brew install "$f"
+      brew install "$f" </dev/null
       if have "$bin"; then ok "$f installed ($bin on PATH)"
       else err "$f: $bin still not on PATH after brew install"; fi
     fi
@@ -162,7 +182,8 @@ if [ "$OS" = macos ]; then
   if have tailscale; then
     ok "tailscale present"
   else
-    brew install --cask tailscale-app
+    brew install --cask tailscale-app </dev/null
+    link_tailscale_cli
     have tailscale && ok "tailscale installed" || err "tailscale: CLI still not on PATH"
   fi
 
@@ -342,3 +363,8 @@ ok "done. Next:"
 echo "    tailscale up                 # authenticate the mesh (opens a browser)"
 echo "    open http://localhost:3000   # Mission Control"
 exit 0
+
+}
+
+# Everything above is parsed before this line runs — see the note at main().
+main "$@"

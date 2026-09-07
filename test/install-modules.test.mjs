@@ -246,3 +246,30 @@ test('config.sh seeds trust allowlists with the raw base64 identity pubkey and m
   const pem = verifyDeployTrigger(signed, { requireSigned: true, trustedKeys: [readFileSync(join(root, 'identity.pub'), 'utf8').replace(/\n/g, '')], seenIds: null });
   assert.equal(pem.ok, false, 'the PEM text must NOT be accepted as a trusted key (the old bug)');
 });
+
+// Virgin-Mac run of 2026-09-07: under `curl | bash` a child (the Homebrew
+// installer) read the pipe bash was still reading its program from, the
+// script printed its own source mid-run and stopped after the Tailscale step;
+// install.sh never started. The fix is structural — the whole script is one
+// function invoked on the last line, so bash parses everything before any
+// child runs — and structure is what this locks. The Tailscale cask ships the
+// CLI inside the app bundle, so the bootstrap must link it onto PATH.
+test('bootstrap.sh is pipe-safe: one main() parsed in full before anything runs', () => {
+  const src = readFileSync(join(ROOT, 'bootstrap.sh'), 'utf8');
+  const lines = src.split('\n');
+  const code = lines.filter((l) => l.trim() && !l.trim().startsWith('#'));
+  assert.equal(code[code.length - 1].trim(), 'main "$@"', 'last statement must invoke main');
+  const mainAt = lines.findIndex((l) => l === 'main() {');
+  assert.ok(mainAt > 0, 'main() must be defined');
+  // Nothing but shebang, comments, blank lines and the pipefail/set line may precede main().
+  const before = lines.slice(0, mainAt).filter((l) => l.trim() && !l.trim().startsWith('#'));
+  assert.deepEqual(before, ['set -o pipefail'], `top-level code before main(): ${before.join(' | ')}`);
+  assert.equal(spawnSync('bash', ['-n', join(ROOT, 'bootstrap.sh')], { encoding: 'utf8' }).status, 0);
+  // Every brew install is cut off from the pipe, and the Tailscale CLI gets linked.
+  for (const m of src.matchAll(/^\s*brew install [^\n]*$/gm)) {
+    assert.match(m[0], /<\/dev\/null/, `brew install must not read stdin: ${m[0].trim()}`);
+  }
+  assert.match(src, /Tailscale\.app\/Contents\/MacOS\/Tailscale/);
+  assert.match(src, /link_tailscale_cli\n/);
+  assert.match(moduleSrc['prereqs.sh'] ?? readFileSync(join(ROOT, 'scripts/install/prereqs.sh'), 'utf8'), /Tailscale\.app\/Contents\/MacOS\/Tailscale/);
+});
