@@ -273,3 +273,16 @@ test('bootstrap.sh is pipe-safe: one main() parsed in full before anything runs'
   assert.match(src, /link_tailscale_cli\n/);
   assert.match(moduleSrc['prereqs.sh'] ?? readFileSync(join(ROOT, 'scripts/install/prereqs.sh'), 'utf8'), /Tailscale\.app\/Contents\/MacOS\/Tailscale/);
 });
+
+// The same virgin-Mac run: install.sh never compiled packages/event-schemas
+// (dist/ is gitignored, the tarball ships .ts only, --omit=dev brings no tsc),
+// so the memory daemon exited at startup. env.sh must build it and refuse to
+// hand over a tree without dist/index.js.
+test('env.sh builds the event-schemas dist the memory daemon needs at startup', () => {
+  const env = moduleSrc['env.sh'];
+  assert.match(env, /packages\/event-schemas\/dist\/index\.js/);
+  assert.match(env, /npx --yes --package typescript@5 tsc -p packages\/event-schemas\/tsconfig\.json/);
+  assert.match(env, /event-schemas build produced no dist\/index\.js[^\n]*\n\s*exit 1/);
+  // The daemon's loader is the reason this matters: it fails loud on a missing dist.
+  assert.match(readFileSync(join(ROOT, 'lib/event-schemas.mjs'), 'utf8'), /event-schemas dist missing/);
+});

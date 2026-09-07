@@ -31,6 +31,10 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 ```files virgin-install-fixes-2026-09-07
 bootstrap.sh
 scripts/install/prereqs.sh
+scripts/install/env.sh
+lib/node-acceptance-probes.mjs
+lib/node-acceptance.mjs
+test/node-acceptance-probes.test.mjs
 test/install-modules.test.mjs
 memory-plan/plans/protocol/SCOPE.md
 ```

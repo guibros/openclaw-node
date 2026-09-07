@@ -239,3 +239,20 @@ describe('P5-4: MEM-L2-INJECT fails on an empty answer instead of passing', () =
     assert.notEqual(r.status, VERDICT.PASS);
   });
 });
+
+// Virgin-Mac run of 2026-09-07: the daemon died at startup because the
+// event-schemas dist was never built, and the gate reported five downstream
+// symptoms (no DBs, no token, no stream) without naming the cause. L0-DEPLOY
+// now checks the dist itself so the first FAIL row says what to fix.
+describe('L0-DEPLOY event-schemas dist', () => {
+  it('passes with the dist present and names the dist when it is missing', async () => {
+    const ctx = baseCtx();
+    assert.match(ctx.config.eventSchemasDist, /packages\/event-schemas\/dist\/index\.js$/);
+    assert.equal((await probeById(ctx, 'L0-DEPLOY').run()).status, VERDICT.PASS);
+    const broken = baseCtx();
+    broken.fsp = { ...broken.fsp, access: async (p) => { if (p === ctx.config.eventSchemasDist) throw new Error('ENOENT'); } };
+    const r = await probeById(broken, 'L0-DEPLOY').run();
+    assert.equal(r.status, VERDICT.FAIL);
+    assert.match(r.detail, /event-schemas dist/);
+  });
+});
