@@ -34,7 +34,7 @@
 const { connect, StringCodec } = require('nats');
 const { createTracer, setNatsConnection } = require('../lib/tracer');
 const tracer = createTracer('mesh-task-daemon');
-const { createTask, TaskStore, TASK_STATUS, DEFAULT_MAX_REJECTIONS, KV_BUCKET } = require('../lib/mesh-tasks');
+const { createTask, TaskStore, TASK_STATUS, DEFAULT_MAX_REJECTIONS, DEFAULT_LEASE_MS, KV_BUCKET } = require('../lib/mesh-tasks');
 const { validateMetricCommand } = require('../lib/exec-safety');
 const { createSession, CollabStore, COLLAB_STATUS, COLLAB_KV_BUCKET, COLLAB_MODE, isModeImplemented } = require('../lib/mesh-collab');
 const { createPlan, autoRoutePlan, PlanStore, PLAN_STATUS, SUBTASK_STATUS, PLANS_KV_BUCKET } = require('../lib/mesh-plans');
@@ -54,6 +54,7 @@ const BUDGET_CHECK_INTERVAL = 30000; // 30s
 const STALL_MINUTES = parseInt(process.env.MESH_STALL_MINUTES || '5'); // no heartbeat for this long → stalled
 const MAX_REJECTIONS = parseInt(process.env.MESH_MAX_REJECTIONS || String(DEFAULT_MAX_REJECTIONS)); // reject→requeue cap (P4-5)
 const TASK_TTL_DAYS = parseInt(process.env.MESH_TASK_TTL_DAYS || '14'); // terminal tasks pruned after this; 0 disables
+const LEASE_MS = parseInt(process.env.MESH_LEASE_MS || String(DEFAULT_LEASE_MS)); // owner must renew within this (heartbeat is 60s) — P4-5
 const TASK_TTL_MS = TASK_TTL_DAYS > 0 ? TASK_TTL_DAYS * 86400000 : 0;
 const CIRCLING_STEP_TIMEOUT_MS = parseInt(process.env.MESH_CIRCLING_STEP_TIMEOUT_MS || String(10 * 60 * 1000)); // 10 min default
 const NODE_ID = require('../lib/node-id').resolveNodeId();
@@ -433,6 +434,10 @@ async function handleFail(msg) {
     log(`FAIL REJECTED ${task_id}: node "${node_id || '(none)'}" is not the owner ("${existing.owner || 'unclaimed'}") — external fail refused (reason was: ${String(reason || '').slice(0, 120)})`);
     return respondError(msg, `Fail refused: node ${node_id || '(none)'} does not own task ${task_id}`);
   }
+  if (!TaskStore.leaseMatches(existing, parseRequest(msg).lease_token)) {
+    log(`FAIL REJECTED ${task_id}: node "${node_id}" presented a stale lease token — the task was re-claimed since`);
+    return respondError(msg, `Fail refused: stale lease for task ${task_id}`);
+  }
 
   const task = await store.markFailed(task_id, reason || 'unknown', attempts || []);
   if (!task) return respondError(msg, `Task ${task_id} not found`);
@@ -497,8 +502,14 @@ async function handleFail(msg) {
  * keep or discard. The agent owns the iteration loop.
  */
 async function handleAttempt(msg) {
-  const { task_id, approach, result, keep } = parseRequest(msg);
+  const params = parseRequest(msg);
+  const { task_id, approach, result, keep } = params;
   if (!task_id) return respondError(msg, 'task_id is required');
+
+  // Attempt records renew the lease too — owner + current token (P4-5).
+  const existing = await store.get(task_id);
+  if (!existing) return respondError(msg, `Task ${task_id} not found`);
+  if (!(await authorize(msg, params, existing, { action: 'attempt', allowOwner: true, allowOperator: false }))) return;
 
   const task = await store.logAttempt(task_id, { approach, result, keep });
   if (!task) return respondError(msg, `Task ${task_id} not found`);
@@ -538,8 +549,16 @@ async function handleGet(msg) {
  * Updates last_activity for stall detection.
  */
 async function handleHeartbeat(msg) {
-  const { task_id } = parseRequest(msg);
+  const params = parseRequest(msg);
+  const { task_id } = params;
   if (!task_id) return respondError(msg, 'task_id is required');
+
+  // A heartbeat RENEWS the lease, so it is an owner action: anyone on the bus
+  // could previously keep a dead worker's task alive (or keep the stall
+  // detector quiet) with one unsigned message. Owner + current lease token.
+  const existing = await store.get(task_id);
+  if (!existing) return respondError(msg, `Task ${task_id} not found`);
+  if (!(await authorize(msg, params, existing, { action: 'heartbeat', allowOwner: true, allowOperator: false }))) return;
 
   const task = await store.touchActivity(task_id);
   if (!task) return respondError(msg, `Task ${task_id} not found`);
@@ -700,6 +719,26 @@ async function pruneTerminalTasks() {
 // ── Budget Enforcement + Stall Detection ────────────
 
 async function detectStalls() {
+  // P4-5: expired leases first — a dead worker's task re-queues within one
+  // lease window (3 min by default) instead of waiting for the 5-minute stall
+  // detector to release it for human triage. The stall detector below still
+  // covers a worker that renews but never finishes.
+  try {
+    const reaped = await store.reapExpiredLeases();
+    for (const id of reaped.requeued) {
+      log(`LEASE EXPIRED ${id}: holder stopped renewing — re-queued`);
+      const t = await store.get(id);
+      if (t) publishEvent('requeued', t);
+    }
+    for (const id of reaped.released) {
+      log(`LEASE EXPIRED ${id}: too many expiries — RELEASED for triage`);
+      const t = await store.get(id);
+      if (t) { publishEvent('released', t); await checkPlanProgress(id, 'failed'); }
+    }
+  } catch (err) {
+    warn(`reapExpiredLeases: ${err.message}`);
+  }
+
   const stalled = await store.findStalled(STALL_MINUTES);
 
   for (const task of stalled) {
@@ -2641,7 +2680,7 @@ async function main() {
   // Initialize task store
   const js = nc.jetstream();
   const kv = await js.views.kv(KV_BUCKET);
-  store = new TaskStore(kv);
+  store = new TaskStore(kv, { leaseMs: LEASE_MS });
   log(`Task store initialized (bucket: ${KV_BUCKET})`);
 
   // Initialize collab store

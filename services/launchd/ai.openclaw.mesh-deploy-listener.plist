@@ -8,7 +8,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>${NODE_BIN}</string>
-    <string>${HOME}/openclaw/bin/mesh-deploy-listener.js</string>
+    <string>${OPENCLAW_REPO_DIR}/bin/mesh-deploy-listener.js</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>

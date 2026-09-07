@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, mkdtempSync, mkdirSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -174,4 +175,23 @@ test('mesh-install.sh refuses a join token pointing at a repo outside the allowl
   assert.notEqual(r.status, 0);
   assert.match(r.stdout + r.stderr, /unrecognised repo/);
   assert.doesNotMatch(r.stdout + r.stderr, /Cloning/);
+});
+
+// P4-3: --dry-run must be dry. Run the whole installer against an empty HOME
+// in sandbox mode and assert nothing under it was created. The heredoc
+// writers (write_file), generate_config, service renders, sed -i edits,
+// chmods and launchctl/systemctl calls all used to bypass run().
+test('install.sh --dry-run writes nothing under $HOME', () => {
+  const home = mkdtempSync(join(tmpdir(), 'openclaw-dry-'));
+  mkdirSync(join(home, '.openclaw'), { recursive: true });
+  const r = spawnSync('bash', [INSTALL_SH, '--dry-run', '--sandbox'], {
+    encoding: 'utf8', timeout: 300_000,
+    env: { ...process.env, HOME: home, OPENCLAW_HOME: join(home, '.openclaw') },
+  });
+  const files = [];
+  const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else files.push(p); } };
+  walk(home);
+  assert.deepEqual(files, [], `dry-run created files: ${files.join(', ')}\n--- tail ---\n${r.stdout.slice(-1500)}`);
+  assert.equal(r.status, 0, `dry-run must complete: exit ${r.status}\n${r.stdout.slice(-2000)}\n${r.stderr.slice(-500)}`);
+  assert.doesNotMatch(r.stdout, /SOURCE MISSING/);
 });

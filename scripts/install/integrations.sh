@@ -60,7 +60,7 @@ fi  # end SKIP_MESH else block
 step "Step 18: Path-Scoped Rules"
 
 RULES_DIR="${OPENCLAW_ROOT}/rules"
-mkdir -p "$RULES_DIR"
+run mkdir -p "$RULES_DIR"
 
 # install_rule — version-aware rule deployment.
 # Fresh install: copy. Update: compare versions. If source is newer and local
@@ -70,7 +70,7 @@ install_rule() {
   if [ ! -f "$src" ]; then return; fi
 
   if [ ! -f "$dst" ]; then
-    cp "$src" "$dst"
+    run cp "$src" "$dst"
     info "Installed rule: ${name}"
     return
   fi
@@ -94,18 +94,18 @@ install_rule() {
     dst_hash=$(md5 -q "$dst")
   else
     # Can't compare hashes — save as .new to be safe
-    cp "$src" "${dst}.new"
+    run cp "$src" "${dst}.new"
     warn "Rule ${name}: new version ${src_ver} available (saved as ${name}.new)"
     return
   fi
 
   if [ "$src_hash" = "$dst_hash" ]; then
     # Same content despite different version — just update
-    cp "$src" "$dst"
+    run cp "$src" "$dst"
     info "Updated rule: ${name} (${dst_ver} → ${src_ver})"
   else
     # User-modified — don't overwrite, save as .new
-    cp "$src" "${dst}.new"
+    run cp "$src" "${dst}.new"
     warn "Rule ${name}: new version ${src_ver} available but local copy modified. Saved as ${name}.new for manual merge."
   fi
 }
@@ -148,13 +148,13 @@ info "Rules directory: ${RULES_DIR} ($(ls -1 "$RULES_DIR" 2>/dev/null | wc -l | 
 step "Step 19: Plan Templates"
 
 TEMPLATES_DIR="${OPENCLAW_ROOT}/plan-templates"
-mkdir -p "$TEMPLATES_DIR"
+run mkdir -p "$TEMPLATES_DIR"
 
 for tmpl in team-feature team-bugfix team-deploy; do
   TMPL_SRC="${REPO_DIR}/config/plan-templates/${tmpl}.yaml"
   TMPL_DST="${TEMPLATES_DIR}/${tmpl}.yaml"
   if [ -f "$TMPL_SRC" ] && [ ! -f "$TMPL_DST" ]; then
-    cp "$TMPL_SRC" "$TMPL_DST"
+    run cp "$TMPL_SRC" "$TMPL_DST"
     info "Installed plan template: ${tmpl}.yaml"
   fi
 done
@@ -246,8 +246,8 @@ if [ -d ".git/hooks" ] || [ -d "${WORKSPACE}/../../.git/hooks" ]; then
     GHOOK_SRC="${REPO_DIR}/config/git-hooks/${ghook}"
     GHOOK_DST="${GIT_HOOKS_DIR}/${ghook}"
     if [ -f "$GHOOK_SRC" ] && [ ! -f "$GHOOK_DST" ]; then
-      cp "$GHOOK_SRC" "$GHOOK_DST"
-      chmod +x "$GHOOK_DST"
+      run cp "$GHOOK_SRC" "$GHOOK_DST"
+      run chmod +x "$GHOOK_DST"
       info "Installed git hook: ${ghook}"
     fi
   done

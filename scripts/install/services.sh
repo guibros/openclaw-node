@@ -90,8 +90,8 @@ else
       # Refresh only when this run manages the lifecycle — a bare unload
       # without a reload silently downs a running node (2026-07-11 audit).
       if [ "$SVC_AUTO" = "true" ] && $ENABLE_SERVICES; then
-        launchctl unload "$DEST" 2>/dev/null || true
-        launchctl load "$DEST"
+        run launchctl unload "$DEST" 2>/dev/null || true
+        run launchctl load "$DEST"
         info "  Installed + loaded: $SVC_NAME"
       else
         info "  Installed: $SVC_NAME (load manually: launchctl load $DEST)"
@@ -137,8 +137,8 @@ else
           check_rendered "$DEST"
         done
         if $ENABLE_SERVICES; then
-          systemctl --user enable "${SVC_NAME}.timer"
-          systemctl --user start "${SVC_NAME}.timer"
+          run systemctl --user enable "${SVC_NAME}.timer"
+          run systemctl --user start "${SVC_NAME}.timer"
           info "  Installed + enabled: $SVC_NAME (timer)"
         else
           info "  Installed: $SVC_NAME (timer — enable with: systemctl --user enable --now ${SVC_NAME}.timer)"
@@ -176,8 +176,8 @@ else
         fi
         check_rendered "$DEST"
         if [ "$SVC_AUTO" = "true" ] && $ENABLE_SERVICES; then
-          systemctl --user enable "${SVC_NAME}.service"
-          systemctl --user start "${SVC_NAME}.service"
+          run systemctl --user enable "${SVC_NAME}.service"
+          run systemctl --user start "${SVC_NAME}.service"
           info "  Installed + started: $SVC_NAME"
         else
           info "  Installed: $SVC_NAME"
@@ -189,7 +189,7 @@ else
 
   # Reload systemd if any units were installed
   if [ "$OS" = "linux" ] && [ "$INSTALLED_COUNT" -gt 0 ]; then
-    systemctl --user daemon-reload
+    run systemctl --user daemon-reload
     # Enable linger so user services survive logout
     loginctl enable-linger "$(whoami)" 2>/dev/null || warn "loginctl enable-linger failed — services may stop on logout"
   fi
@@ -230,7 +230,7 @@ NOTIFY_CONFIG="$OPENCLAW_ROOT/config/notify.json"
 if [ -f "$NOTIFY_CONFIG" ] && ! $UPDATE_ONLY; then
   info "Notification config already exists, keeping it"
 else
-  cat > "$NOTIFY_CONFIG" <<'EOF'
+  write_file "$NOTIFY_CONFIG" <<'EOF'
 {
   "enabled": true,
   "sources": {},
@@ -307,6 +307,6 @@ elif [ "$OS" = "linux" ]; then
     sed -e "s|\${NODE_BIN}|$NODE_BIN|g" -e "s|\${OPENCLAW_REPO_DIR}|$REPO_DIR|g" -e "s|\${HOME}|$HOME|g" \
       "$REPO_DIR/services/launcher/openclaw-stack.desktop" > "$DESKTOP_DIR/openclaw-stack.desktop"
   fi
-  chmod +x "$DESKTOP_DIR/openclaw-stack.desktop"
+  run chmod +x "$DESKTOP_DIR/openclaw-stack.desktop"
   info "Stack launcher installed → $DESKTOP_DIR/openclaw-stack.desktop (app menu: OpenClaw Stack)"
 fi

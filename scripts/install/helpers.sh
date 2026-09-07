@@ -38,6 +38,20 @@ run() {
 }
 DRY_RUN_ERRORS=0
 
+# Heredoc-safe writer (review P4-3): `write_file "$dest" <<EOF … EOF`. The
+# raw `cat > "$dest" <<EOF` form bypassed run()'s dry-run guard, so
+# --dry-run was rewriting MEMORY.md, active-tasks.md, .env.local and the
+# notification config on real installs. Dry-run prints and discards.
+write_file() {
+  local dest="$1"
+  if $DRY_RUN; then
+    echo "  [dry-run] would write $dest"
+    cat >/dev/null
+  else
+    cat > "$dest"
+  fi
+}
+
 detect_os() {
   case "$(uname -s)" in
     Darwin)  echo "macos" ;;

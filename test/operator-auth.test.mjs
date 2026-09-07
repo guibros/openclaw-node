@@ -164,3 +164,26 @@ describe('stripOperatorEnvelope — the plan-subtask mass-assignment sink', () =
     assert.deepEqual(body, { plan_id: 'P', subtask_id: 'S', status: 'completed', result: { x: 1 } });
   });
 });
+
+describe('P4-5: lease fencing in the owner path', () => {
+  const verify = () => ({ ok: false, reason: 'unsigned' });
+  const task = { task_id: 'T-9', owner: 'worker-a', lease_token: 'tok-current' };
+
+  it('owner with the current lease token is allowed', () => {
+    const d = authorizeTaskMutation({ action: 'complete', params: { task_id: 'T-9', node_id: 'worker-a', lease_token: 'tok-current' }, task, allowOwner: true, allowOperator: true, verify });
+    assert.deepEqual(d, { ok: true, via: 'owner' });
+  });
+
+  it('owner with a stale or missing token is refused (task was re-claimed since)', () => {
+    for (const lease_token of ['tok-old', undefined]) {
+      const d = authorizeTaskMutation({ action: 'complete', params: { task_id: 'T-9', node_id: 'worker-a', lease_token }, task, allowOwner: true, allowOperator: false, verify });
+      assert.equal(d.ok, false);
+      assert.match(d.reason, /stale lease/);
+    }
+  });
+
+  it('a task claimed before leases existed is not fenced', () => {
+    const d = authorizeTaskMutation({ action: 'complete', params: { task_id: 'T-9', node_id: 'worker-a' }, task: { task_id: 'T-9', owner: 'worker-a' }, allowOwner: true, allowOperator: false, verify });
+    assert.equal(d.ok, true);
+  });
+});

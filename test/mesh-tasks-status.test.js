@@ -9,7 +9,7 @@
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { createTask, TaskStore, TASK_STATUS, DEFAULT_MAX_REJECTIONS } = require("../lib/mesh-tasks");
+const { createTask, TaskStore, TASK_STATUS, DEFAULT_MAX_REJECTIONS, DEFAULT_MAX_LEASE_REQUEUES } = require("../lib/mesh-tasks");
 const { StringCodec } = require("nats");
 const sc = StringCodec();
 
@@ -196,5 +196,70 @@ describe("pruneTerminal() KV hygiene (P4-5)", () => {
     const store = new TaskStore(mockKv());
     await seed(store, { ...createTask({ task_id: "x", title: "t" }), status: TASK_STATUS.COMPLETED, completed_at: old });
     assert.deepEqual(await store.pruneTerminal({ maxAgeMs: 0, now }), []);
+  });
+});
+
+describe("lease + fencing token (P4-5)", () => {
+  const queued = (id) => ({ ...createTask({ task_id: id, title: id }), status: TASK_STATUS.QUEUED });
+
+  it("claim issues a lease token and expiry; heartbeat renews the expiry", async () => {
+    const store = new TaskStore(mockKv(), { leaseMs: 1000 });
+    await seed(store, queued("L-1"));
+    const t = await store.claim("w1");
+    assert.equal(t.status, TASK_STATUS.CLAIMED);
+    assert.match(t.lease_token, /^[0-9a-f]{32}$/);
+    const firstExpiry = Date.parse(t.lease_expires_at);
+    assert.ok(firstExpiry > Date.now() && firstExpiry <= Date.now() + 1100);
+    await new Promise(r => setTimeout(r, 20));
+    const renewed = await store.touchActivity("L-1");
+    assert.ok(Date.parse(renewed.lease_expires_at) > firstExpiry, "renewed lease moves the expiry forward");
+    assert.equal(renewed.lease_token, t.lease_token, "renewal keeps the token");
+  });
+
+  it("leaseMatches: current token passes, stale/missing token fails, pre-lease task passes", () => {
+    const withLease = { lease_token: "abc" };
+    assert.equal(TaskStore.leaseMatches(withLease, "abc"), true);
+    assert.equal(TaskStore.leaseMatches(withLease, "old"), false);
+    assert.equal(TaskStore.leaseMatches(withLease, undefined), false);
+    assert.equal(TaskStore.leaseMatches({ lease_token: null }, undefined), true);
+  });
+
+  it("an expired lease re-queues the task with a fresh token on the next claim (old token fenced out)", async () => {
+    const store = new TaskStore(mockKv(), { leaseMs: 50 });
+    await seed(store, queued("L-2"));
+    const first = await store.claim("w1");
+    const reaped = await store.reapExpiredLeases({ now: Date.now() + 1000 });
+    assert.deepEqual(reaped, { requeued: ["L-2"], released: [] });
+    const back = await store.get("L-2");
+    assert.equal(back.status, TASK_STATUS.QUEUED);
+    assert.equal(back.owner, null);
+    assert.equal(back.lease_token, null);
+    assert.equal(back.lease_requeues, 1);
+    assert.match(back.attempts.at(-1).approach, /lease expired while held by w1/);
+    const second = await store.claim("w2");
+    assert.notEqual(second.lease_token, first.lease_token);
+    assert.equal(TaskStore.leaseMatches(second, first.lease_token), false, "the dead worker's token no longer fences");
+  });
+
+  it("a live lease is left alone", async () => {
+    const store = new TaskStore(mockKv(), { leaseMs: 60_000 });
+    await seed(store, queued("L-3"));
+    await store.claim("w1");
+    assert.deepEqual(await store.reapExpiredLeases(), { requeued: [], released: [] });
+    assert.equal((await store.get("L-3")).status, TASK_STATUS.CLAIMED);
+  });
+
+  it("after DEFAULT_MAX_LEASE_REQUEUES expiries the task is RELEASED for triage, not re-queued again", async () => {
+    const store = new TaskStore(mockKv(), { leaseMs: 10 });
+    await seed(store, queued("L-4"));
+    for (let i = 1; i <= DEFAULT_MAX_LEASE_REQUEUES; i++) {
+      await store.claim(`w${i}`);
+      const r = await store.reapExpiredLeases({ now: Date.now() + 1000 });
+      if (i < DEFAULT_MAX_LEASE_REQUEUES) assert.deepEqual(r.requeued, ["L-4"]);
+      else assert.deepEqual(r.released, ["L-4"]);
+    }
+    const t = await store.get("L-4");
+    assert.equal(t.status, TASK_STATUS.RELEASED);
+    assert.match(t.result.summary, /Lease expired 3×/);
   });
 });

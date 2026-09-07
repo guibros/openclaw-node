@@ -99,6 +99,12 @@ generate_config() {
     return
   fi
 
+  # P4-3: the redirect below bypassed run(); --dry-run rendered real configs.
+  if $DRY_RUN; then
+    info "  [dry-run] would render $template -> $output"
+    return
+  fi
+
   if command -v envsubst >/dev/null 2>&1; then
     envsubst < "$template" > "$output"
   else
@@ -123,7 +129,7 @@ generate_config() {
       -e "s|\${CLAUDE_PROJECT_REPO}|${CLAUDE_PROJECT_REPO}|g" \
       "$template" > "$output"
   fi
-  chmod 600 "$output"
+  run chmod 600 "$output"
   info "Generated $basename (mode 600)"
 }
 
@@ -197,7 +203,7 @@ if [ -n "$CLUSTER_PEERS" ]; then
     for kv in "OPENCLAW_KV_REPLICAS=$KV_REPLICAS" "OPENCLAW_NATS_CLUSTER_PASS=$OPENCLAW_NATS_CLUSTER_PASS" "OPENCLAW_NATS=nats://$CLUSTER_BIND:4222"; do
       key="${kv%%=*}"
       if grep -q "^$key=" "$ENV_FILE" 2>/dev/null; then
-        sed -i.bak "s|^$key=.*|$kv|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+        run sed -i.bak "s|^$key=.*|$kv|" "$ENV_FILE" && run rm -f "$ENV_FILE.bak"
       else
         echo "$kv" >> "$ENV_FILE"
       fi
@@ -236,7 +242,7 @@ if ! $DRY_RUN && [ -f "$OPENCLAW_ROOT/identity.pub" ]; then
   OPENCLAW_DEPLOY_TRUSTED_KEYS="$(tr -d '\n' < "$OPENCLAW_ROOT/identity.pub")"
   export OPENCLAW_DEPLOY_TRUSTED_KEYS
   if grep -q '^OPENCLAW_DEPLOY_TRUSTED_KEYS=' "$ENV_FILE" 2>/dev/null; then
-    sed -i.bak "s|^OPENCLAW_DEPLOY_TRUSTED_KEYS=.*|OPENCLAW_DEPLOY_TRUSTED_KEYS=$OPENCLAW_DEPLOY_TRUSTED_KEYS|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+    run sed -i.bak "s|^OPENCLAW_DEPLOY_TRUSTED_KEYS=.*|OPENCLAW_DEPLOY_TRUSTED_KEYS=$OPENCLAW_DEPLOY_TRUSTED_KEYS|" "$ENV_FILE" && run rm -f "$ENV_FILE.bak"
   else
     echo "OPENCLAW_DEPLOY_TRUSTED_KEYS=$OPENCLAW_DEPLOY_TRUSTED_KEYS" >> "$ENV_FILE"
   fi

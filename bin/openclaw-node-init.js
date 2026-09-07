@@ -404,192 +404,141 @@ function installMeshCode(repoUrl) {
 
 function installService(osInfo, meshDir, config) {
   const nodeId = require('../lib/node-id').resolveNodeId();
-  const nodeBin = process.execPath;
-  const provider = config.provider;
-
+  const vars = serviceTemplateVars({ meshDir, nodeId, config });
   if (osInfo.serviceType === 'launchd') {
-    return installLaunchdService(meshDir, nodeBin, nodeId, provider, config.nats);
-  } else {
-    return installSystemdService(meshDir, nodeBin, nodeId, provider, config.nats);
+    return installLaunchdService(meshDir, vars);
   }
+  return installSystemdService(meshDir, vars);
 }
 
-function installLaunchdService(meshDir, nodeBin, nodeId, provider, natsUrl) {
-  const plistDir = path.join(os.homedir(), 'Library', 'LaunchAgents');
-  const plistPath = path.join(plistDir, 'ai.openclaw.mesh-agent.plist');
+// Review P4-8: node-init used to carry its OWN inline plist/unit text for the
+// agent and a second deploy listener (`ai.openclaw.deploy-listener`), so a
+// worker provisioned this way ran a different service definition from every
+// other node — without the env-file NATS URL, the node id, the trusted-key
+// list, or the strict signed-deploy default. It now renders the same
+// services/{launchd,systemd} templates install.sh renders, with the same
+// ${VAR} substitution, and retires the legacy second listener.
+const SERVICE_TEMPLATE_VARS = [
+  'HOME', 'NODE_BIN', 'NPM_BIN', 'NATS_SERVER_BIN', 'OPENCLAW_WORKSPACE', 'OPENCLAW_REPO_DIR',
+  'OPENCLAW_NATS', 'OPENCLAW_NATS_TOKEN', 'OPENCLAW_NODE_ID', 'OPENCLAW_NODE_ROLE',
+  'OPENCLAW_DEPLOY_TRUSTED_KEYS', 'MESH_LLM_PROVIDER', 'LLM_MODEL', 'LLM_BASE_URL',
+];
 
-  const plist = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>ai.openclaw.mesh-agent</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>${nodeBin}</string>
-    <string>${meshDir}/bin/mesh-agent.js</string>
-  </array>
-  <key>KeepAlive</key>
-  <true/>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>${os.homedir()}/.openclaw/workspace/.tmp/mesh-agent.log</string>
-  <key>StandardErrorPath</key>
-  <string>${os.homedir()}/.openclaw/workspace/.tmp/mesh-agent.err</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>OPENCLAW_NATS</key>
-    <string>${natsUrl}</string>
-    <key>MESH_NODE_ID</key>
-    <string>${nodeId}</string>
-    <key>MESH_LLM_PROVIDER</key>
-    <string>${provider}</string>
-    <key>MESH_WORKSPACE</key>
-    <string>${os.homedir()}/.openclaw/workspace</string>
-    <key>PATH</key>
-    <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:${os.homedir()}/.npm-global/bin</string>
-    <key>NODE_PATH</key>
-    <string>${meshDir}/node_modules:${meshDir}/lib</string>
-  </dict>
-  <key>ThrottleInterval</key>
-  <integer>30</integer>
-</dict>
-</plist>`;
+function serviceTemplateVars({ meshDir, nodeId, config }) {
+  const home = os.homedir();
+  const env = process.env;
+  return {
+    HOME: home,
+    NODE_BIN: process.execPath,
+    NPM_BIN: env.NPM_BIN || path.join(path.dirname(process.execPath), 'npm'),
+    NATS_SERVER_BIN: env.NATS_SERVER_BIN || '/usr/local/bin/nats-server',
+    OPENCLAW_WORKSPACE: env.OPENCLAW_WORKSPACE || path.join(home, '.openclaw', 'workspace'),
+    OPENCLAW_REPO_DIR: meshDir,
+    OPENCLAW_NATS: config.nats,
+    OPENCLAW_NATS_TOKEN: env.OPENCLAW_NATS_TOKEN || '',
+    OPENCLAW_NODE_ID: nodeId,
+    OPENCLAW_NODE_ROLE: env.OPENCLAW_NODE_ROLE || 'worker',
+    OPENCLAW_DEPLOY_TRUSTED_KEYS: env.OPENCLAW_DEPLOY_TRUSTED_KEYS || '',
+    MESH_LLM_PROVIDER: config.provider || env.MESH_LLM_PROVIDER || 'claude',
+    LLM_MODEL: env.LLM_MODEL || '',
+    LLM_BASE_URL: env.LLM_BASE_URL || '',
+  };
+}
+
+/**
+ * Substitute ${VAR} placeholders. Every known variable is replaced (an
+ * empty value is a legitimate render); any OTHER placeholder left in the
+ * output is a template/renderer drift and fails loudly — the install.sh
+ * path has the same check_rendered guard.
+ */
+function renderServiceTemplate(templateText, vars) {
+  let out = templateText;
+  for (const name of SERVICE_TEMPLATE_VARS) {
+    out = out.split('${' + name + '}').join(vars[name] ?? '');
+  }
+  const leftover = out.match(/\$\{[A-Z_][A-Z0-9_]*\}/g);
+  if (leftover) throw new Error(`unrendered template variable(s): ${[...new Set(leftover)].join(', ')}`);
+  return out;
+}
+
+function renderServiceFile(meshDir, relTemplate, vars) {
+  const templatePath = path.join(meshDir, 'services', relTemplate);
+  const text = fs.readFileSync(templatePath, 'utf8');
+  return renderServiceTemplate(text, vars);
+}
+
+const LAUNCHD_SERVICES = ['ai.openclaw.mesh-agent.plist', 'ai.openclaw.mesh-deploy-listener.plist'];
+const SYSTEMD_SERVICES = ['openclaw-mesh-agent.service', 'openclaw-mesh-deploy-listener.service'];
+
+function installLaunchdService(meshDir, vars) {
+  const plistDir = path.join(os.homedir(), 'Library', 'LaunchAgents');
+  const rendered = LAUNCHD_SERVICES.map((name) => ({
+    dest: path.join(plistDir, name),
+    text: renderServiceFile(meshDir, path.join('launchd', name), vars),
+  }));
+  // Legacy second listener written by older node-init runs.
+  const legacy = path.join(plistDir, 'ai.openclaw.deploy-listener.plist');
 
   if (DRY_RUN) {
-    warn(`[DRY RUN] Would write launchd plist to ${plistPath}`);
+    for (const r of rendered) warn(`[DRY RUN] Would render ${path.basename(r.dest)} -> ${r.dest}`);
+    if (fs.existsSync(legacy)) warn(`[DRY RUN] Would retire legacy ${legacy}`);
     return;
   }
 
-  // Deploy listener plist
-  const deployPlistPath = path.join(plistDir, 'ai.openclaw.deploy-listener.plist');
-  const deployPlist = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>ai.openclaw.deploy-listener</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>${nodeBin}</string>
-    <string>${meshDir}/bin/mesh-deploy-listener.js</string>
-  </array>
-  <key>KeepAlive</key>
-  <true/>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>${os.homedir()}/.openclaw/workspace/.tmp/mesh-deploy-listener.log</string>
-  <key>StandardErrorPath</key>
-  <string>${os.homedir()}/.openclaw/workspace/.tmp/mesh-deploy-listener.err</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>OPENCLAW_NATS</key>
-    <string>${natsUrl}</string>
-    <key>OPENCLAW_NODE_ID</key>
-    <string>${nodeId}</string>
-    <key>OPENCLAW_NODE_ROLE</key>
-    <string>worker</string>
-    <key>OPENCLAW_REPO_DIR</key>
-    <string>${meshDir}</string>
-    <key>PATH</key>
-    <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:${os.homedir()}/.npm-global/bin</string>
-    <key>NODE_PATH</key>
-    <string>${meshDir}/node_modules:${meshDir}/lib</string>
-  </dict>
-  <key>ThrottleInterval</key>
-  <integer>30</integer>
-</dict>
-</plist>`;
-
   fs.mkdirSync(plistDir, { recursive: true });
-  fs.writeFileSync(plistPath, plist);
-  ok(`Mesh agent service written: ${plistPath}`);
-  fs.writeFileSync(deployPlistPath, deployPlist);
-  ok(`Deploy listener service written: ${deployPlistPath}`);
-
+  if (fs.existsSync(legacy)) {
+    try { execSync(`launchctl unload "${legacy}" 2>/dev/null || true`, { stdio: 'pipe' }); } catch { /* not loaded */ }
+    fs.unlinkSync(legacy);
+    ok(`Retired legacy deploy listener: ${legacy}`);
+  }
+  for (const r of rendered) {
+    fs.writeFileSync(r.dest, r.text);
+    ok(`Service rendered: ${r.dest}`);
+  }
   try {
-    execSync(`launchctl unload "${plistPath}" 2>/dev/null || true`, { stdio: 'pipe' });
-    execSync(`launchctl load "${plistPath}"`, { stdio: 'pipe' });
-    ok('Mesh agent loaded and started');
-    execSync(`launchctl unload "${deployPlistPath}" 2>/dev/null || true`, { stdio: 'pipe' });
-    execSync(`launchctl load "${deployPlistPath}"`, { stdio: 'pipe' });
-    ok('Deploy listener loaded and started');
+    for (const r of rendered) {
+      execSync(`launchctl unload "${r.dest}" 2>/dev/null || true`, { stdio: 'pipe' });
+      execSync(`launchctl load "${r.dest}"`, { stdio: 'pipe' });
+      ok(`Loaded ${path.basename(r.dest)}`);
+    }
   } catch (e) {
     warn(`Service load warning: ${e.message}`);
   }
 }
 
-function installSystemdService(meshDir, nodeBin, nodeId, provider, natsUrl) {
+function installSystemdService(meshDir, vars) {
   const serviceDir = path.join(os.homedir(), '.config', 'systemd', 'user');
-  const servicePath = path.join(serviceDir, 'openclaw-mesh-agent.service');
-
-  const service = `[Unit]
-Description=OpenClaw Mesh Agent
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=${nodeBin} ${meshDir}/bin/mesh-agent.js
-Restart=always
-RestartSec=30
-Environment=OPENCLAW_NATS=${natsUrl}
-Environment=MESH_NODE_ID=${nodeId}
-Environment=MESH_LLM_PROVIDER=${provider}
-Environment=MESH_WORKSPACE=${os.homedir()}/.openclaw/workspace
-Environment=NODE_PATH=${meshDir}/node_modules:${meshDir}/lib
-Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:${os.homedir()}/.local/bin:${os.homedir()}/.npm-global/bin
-WorkingDirectory=${meshDir}
-
-[Install]
-WantedBy=default.target
-`;
+  const rendered = SYSTEMD_SERVICES.map((name) => ({
+    dest: path.join(serviceDir, name),
+    unit: name.replace(/\.service$/, ''),
+    text: renderServiceFile(meshDir, path.join('systemd', name), vars),
+  }));
+  const legacy = path.join(serviceDir, 'openclaw-deploy-listener.service');
 
   if (DRY_RUN) {
-    warn(`[DRY RUN] Would write systemd service to ${servicePath}`);
+    for (const r of rendered) warn(`[DRY RUN] Would render ${path.basename(r.dest)} -> ${r.dest}`);
+    if (fs.existsSync(legacy)) warn(`[DRY RUN] Would retire legacy ${legacy}`);
     return;
   }
 
   fs.mkdirSync(serviceDir, { recursive: true });
-  fs.writeFileSync(servicePath, service);
-  ok(`Systemd service written: ${servicePath}`);
-
-  // Deploy listener service
-  const deployServicePath = path.join(serviceDir, 'openclaw-deploy-listener.service');
-  const deployService = `[Unit]
-Description=OpenClaw Deploy Listener
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=${nodeBin} ${meshDir}/bin/mesh-deploy-listener.js
-Restart=always
-RestartSec=30
-Environment=OPENCLAW_NATS=${natsUrl}
-Environment=OPENCLAW_NODE_ID=${nodeId}
-Environment=OPENCLAW_NODE_ROLE=worker
-Environment=OPENCLAW_REPO_DIR=${meshDir}
-Environment=NODE_PATH=${meshDir}/node_modules:${meshDir}/lib
-Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:${os.homedir()}/.local/bin:${os.homedir()}/.npm-global/bin
-WorkingDirectory=${meshDir}
-
-[Install]
-WantedBy=default.target
-`;
-  fs.writeFileSync(deployServicePath, deployService);
-  ok(`Deploy listener service written: ${deployServicePath}`);
+  if (fs.existsSync(legacy)) {
+    try { execSync('systemctl --user disable --now openclaw-deploy-listener', { stdio: 'pipe' }); } catch { /* not enabled */ }
+    fs.unlinkSync(legacy);
+    ok(`Retired legacy deploy listener: ${legacy}`);
+  }
+  for (const r of rendered) {
+    fs.writeFileSync(r.dest, r.text);
+    ok(`Service rendered: ${r.dest}`);
+  }
 
   try {
     execSync('systemctl --user daemon-reload', { stdio: 'pipe' });
-    execSync('systemctl --user enable openclaw-mesh-agent', { stdio: 'pipe' });
-    execSync('systemctl --user start openclaw-mesh-agent', { stdio: 'pipe' });
-    ok('Mesh agent enabled and started');
-    execSync('systemctl --user enable openclaw-deploy-listener', { stdio: 'pipe' });
-    execSync('systemctl --user start openclaw-deploy-listener', { stdio: 'pipe' });
-    ok('Deploy listener enabled and started');
+    for (const r of rendered) {
+      execSync(`systemctl --user enable ${r.unit}`, { stdio: 'pipe' });
+      execSync(`systemctl --user restart ${r.unit}`, { stdio: 'pipe' });
+      ok(`${r.unit} enabled and started`);
+    }
   } catch (e) {
     warn(`Service start warning: ${e.message}`);
     warn('Try manually: systemctl --user start openclaw-mesh-agent');
@@ -884,7 +833,9 @@ async function main() {
   console.log('');
 }
 
-main().catch(err => {
+if (require.main === module) main().catch(err => {
   fail(`Fatal: ${err.message}`);
   process.exit(1);
 });
+
+module.exports = { renderServiceTemplate, serviceTemplateVars, SERVICE_TEMPLATE_VARS };

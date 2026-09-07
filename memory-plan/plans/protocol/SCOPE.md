@@ -22,7 +22,29 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 **Set at:** 2026-09-06T00:00:00Z
 **Expires:** 2026-09-10T00:00:00Z
 
-```files remediation-phase5b-2026-09-06
+```files remediation-phase6-2026-09-07
+lib/mesh-tasks.js
+lib/operator-auth.mjs
+bin/mesh-task-daemon.js
+bin/mesh-agent.js
+bin/openclaw-node-init.js
+services/launchd/ai.openclaw.mesh-deploy-listener.plist
+scripts/install/helpers.sh
+scripts/install/config.sh
+scripts/install/components.sh
+scripts/install/services.sh
+scripts/install/integrations.sh
+scripts/install/workspace.sh
+.github/workflows/test.yml
+test/mesh-tasks-status.test.js
+test/operator-auth.test.mjs
+test/install-modules.test.mjs
+test/node-init-render.test.mjs
+test/wiring-manifest.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files remediation-phase5b-2026-09-06 closed
 lib/ollama-queue.mjs
 workspace-bin/memory-daemon.mjs
 bin/consolidation-scheduler.mjs

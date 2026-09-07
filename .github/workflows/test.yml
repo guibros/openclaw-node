@@ -21,6 +21,32 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
+      # Mesh stack for the integration suites (~148 tests used to skip
+      # VISIBLY as "mesh stack unavailable"). Same pinned nats-server and
+      # SHA256 as bootstrap.sh; the task daemon runs against it with an
+      # isolated OPENCLAW_HOME so nothing touches the runner's real home.
+      - name: Start NATS (JetStream) + mesh-task-daemon
+        env:
+          NATS_VERSION: "2.12.6"
+          NATS_SHA256: "77fe7dd69ff5144126026b78355900be0ab0bb4339dc61a7621dcc9b9e9d07a6"
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/nats.tgz "https://github.com/nats-io/nats-server/releases/download/v${NATS_VERSION}/nats-server-v${NATS_VERSION}-linux-amd64.tar.gz"
+          echo "${NATS_SHA256}  /tmp/nats.tgz" | sha256sum -c -
+          tar -xzf /tmp/nats.tgz -C /tmp
+          sudo install -m 0755 "/tmp/nats-server-v${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/nats-server
+          mkdir -p /tmp/ci-openclaw-home /tmp/ci-jetstream
+          nohup nats-server -js -sd /tmp/ci-jetstream -p 4222 -m 8222 > /tmp/nats.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8222/healthz >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8222/healthz
+          OPENCLAW_NATS=nats://127.0.0.1:4222 OPENCLAW_HOME=/tmp/ci-openclaw-home HOME=/tmp/ci-openclaw-home \
+            OPENCLAW_NODE_ID=ci-lead nohup node bin/mesh-task-daemon.js > /tmp/mesh-task-daemon.log 2>&1 &
+          echo "OPENCLAW_NATS=nats://127.0.0.1:4222" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            node -e "const {connect}=require('nats');connect({servers:'nats://127.0.0.1:4222',timeout:2000}).then(nc=>nc.request('mesh.tasks.list',Buffer.from('{\"status\":\"queued\"}'),{timeout:3000}).finally(()=>nc.close())).then(()=>process.exit(0),()=>process.exit(1))" && break
+            sleep 1
+          done
+          tail -20 /tmp/mesh-task-daemon.log
       - name: Root unit tests
         # npm test (not bare node --test): the pretest hook builds the
         # event-schemas workspace dist that the broadcast libs fail loud on.
@@ -44,6 +70,11 @@ jobs:
             echo "::endgroup::"
           fi
           exit "${rc:-0}"
+      - name: Mesh stack logs (on failure)
+        if: failure()
+        run: |
+          echo "::group::nats-server"; tail -50 /tmp/nats.log || true; echo "::endgroup::"
+          echo "::group::mesh-task-daemon"; tail -100 /tmp/mesh-task-daemon.log || true; echo "::endgroup::"
       - name: Root dependency audit — high severity gate
         run: npm audit --audit-level=high
       - name: Packed-tarball smoke — the two past packaging escapes stay caught

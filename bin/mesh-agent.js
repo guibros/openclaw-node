@@ -655,14 +655,14 @@ async function mergeIfApproved(task, commit, completedTask) {
     return true;
   }
   const merge = mergeTaskBranch(task.task_id);
-  await reportMerge(task.task_id, { ...merge, branch: commit.branch });
+  await reportMerge(task.task_id, { ...merge, branch: commit.branch, lease_token: task.lease_token });
   return !merge.merged;
 }
 
 async function reportMerge(taskId, merge) {
   try {
     await natsRequest('mesh.tasks.merged', {
-      task_id: taskId, node_id: NODE_ID,
+      task_id: taskId, node_id: NODE_ID, lease_token: merge.lease_token || null,
       sha: merge.sha || null, merged: !!merge.merged, conflict: !!merge.conflict, branch: merge.branch || `mesh/${taskId}`,
     });
   } catch (err) {
@@ -701,7 +701,7 @@ async function reconcileKeptBranches() {
     if (task.status === 'completed' && task.result?.merged !== true) {
       log(`RECONCILE: ${branch} approved while offline — merging`);
       const merge = mergeTaskBranch(taskId);
-      await reportMerge(taskId, { ...merge, branch });
+      await reportMerge(taskId, { ...merge, branch, lease_token: task.lease_token });
       if (merge.merged) deleteTaskBranch(taskId);
     } else if (['failed', 'released', 'cancelled', 'rejected'].includes(task.status)) {
       deleteTaskBranch(taskId);
@@ -786,7 +786,7 @@ function runLLM(prompt, task, worktreePath) {
     const isClaude = provider.name === 'claude';
     const heartbeatTimer = setInterval(async () => {
       try {
-        const payload = { task_id: task.task_id };
+        const payload = { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token };
         if (isClaude) {
           const activity = await getActivityState(cleanCwd);
           if (activity) {
@@ -1334,6 +1334,7 @@ async function executeCollabTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       node_id: NODE_ID,
+      lease_token: task.lease_token,
       reason: `Collab session not found for task ${task.task_id}. Task requires collaborative execution (mode: ${collabSpec.mode}) but no session could be discovered. Solo fallback refused — collab tasks must run collaboratively.`,
     }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
     debug('state → idle');
@@ -1362,6 +1363,7 @@ async function executeCollabTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       node_id: NODE_ID,
+      lease_token: task.lease_token,
       reason: `Failed to join collab session ${sessionId}: ${err.message}`,
     }).catch(err2 => warn(`mesh.tasks.fail: ${err2.message}`));
     debug('state → idle');
@@ -1396,6 +1398,7 @@ async function executeCollabTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       node_id: NODE_ID,
+      lease_token: task.lease_token,
       reason: `Worktree isolation failed for collab member ${NODE_ID} (MESH_WORKSPACE=${WORKSPACE} — must be a git repository). Fail-closed: member withdrew before rounds.`,
     }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
     writeAgentState('idle', null);
@@ -1417,7 +1420,7 @@ async function executeCollabTask(task) {
   }, 10000);
 
   // Signal start
-  await natsRequest('mesh.tasks.start', { task_id: task.task_id, node_id: NODE_ID }).catch(err => warn(`mesh.tasks.start: ${err.message}`));
+  await natsRequest('mesh.tasks.start', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token }).catch(err => warn(`mesh.tasks.start: ${err.message}`));
 
   try {
     for await (const roundMsg of roundSub) {
@@ -1637,6 +1640,7 @@ async function executeTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       node_id: NODE_ID,
+      lease_token: task.lease_token,
       reason: `Worktree isolation failed for ${task.task_id} (MESH_WORKSPACE=${WORKSPACE} — must be a git repository). Fail-closed: shared-workspace fallback refused.`,
     }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
     writeAgentState('idle', null);
@@ -1648,7 +1652,7 @@ async function executeTask(task) {
   // Signal start (include isolation status so daemon knows)
   // node_id: the daemon now enforces ownership on start/complete/release
   // (only the claiming node may drive its task) — the same check fail had.
-  await natsRequest('mesh.tasks.start', { task_id: task.task_id, node_id: NODE_ID, workspace_isolated: workspaceIsolated });
+  await natsRequest('mesh.tasks.start', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, workspace_isolated: workspaceIsolated });
   writeAgentState('working', task.task_id);
   log(`Started: ${task.task_id} (dir: ${worktreePath ? 'worktree' : 'workspace'})`);
 
@@ -1693,7 +1697,7 @@ async function executeTask(task) {
         keep: false,
       };
       attempts.push(attemptRecord);
-      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
 
       // Two-tier retry: abnormal exit → exponential backoff (agent crash, OOM, etc.)
       const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 30000); // 1s, 2s, 4s... max 30s
@@ -1730,7 +1734,7 @@ async function executeTask(task) {
           keep: false,
         };
         attempts.push(attemptRecord);
-        await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+        await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
         log(`Attempt ${attempt}: harness blocked commit (secrets). Retrying.`);
         continue;
       }
@@ -1752,7 +1756,7 @@ async function executeTask(task) {
         keep: true,
       };
       attempts.push(attemptRecord);
-      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
 
       // Commit on the task branch; merge only after the daemon's review decision
       const commit = commitWorktree(worktreePath, task.task_id, summary);
@@ -1765,6 +1769,7 @@ async function executeTask(task) {
       const completedTask = await natsRequest('mesh.tasks.complete', {
         task_id: task.task_id,
         node_id: NODE_ID,
+        lease_token: task.lease_token,
         result: {
           success: true, summary, artifacts: [],
           cost: sessionInfo?.cost || null,
@@ -1799,7 +1804,7 @@ async function executeTask(task) {
         keep: true,
       };
       attempts.push(attemptRecord);
-      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
 
       // Commit on the task branch; merge only after the daemon's review decision
       const commit = commitWorktree(worktreePath, task.task_id, summary);
@@ -1812,6 +1817,7 @@ async function executeTask(task) {
       const completedTask = await natsRequest('mesh.tasks.complete', {
         task_id: task.task_id,
         node_id: NODE_ID,
+        lease_token: task.lease_token,
         result: {
           success: true,
           summary: `Metric passed on attempt ${attempt}. ${summary.slice(0, 200)}`,
@@ -1847,7 +1853,7 @@ async function executeTask(task) {
       keep: false,
     };
     attempts.push(attemptRecord);
-    await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+    await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
     log(`Attempt ${attempt}: metric failed. Quick retry (1s). Output: ${metricResult.output.slice(0, 200)}`);
     await new Promise(r => setTimeout(r, 1000)); // two-tier: normal exit → 1s continuation
   }
@@ -1863,6 +1869,7 @@ async function executeTask(task) {
   await natsRequest('mesh.tasks.release', {
     task_id: task.task_id,
     node_id: NODE_ID,
+    lease_token: task.lease_token,
     reason,
     attempts,
   });
@@ -1965,7 +1972,8 @@ async function main() {
         if (!task_id) continue;
         log(`APPROVED ${task_id} — merging kept branch`);
         const merge = mergeTaskBranch(task_id);
-        await reportMerge(task_id, merge);
+        const approved = await natsRequest('mesh.tasks.get', { task_id }, 5000).catch(() => null);
+        await reportMerge(task_id, { ...merge, lease_token: approved?.lease_token });
         if (merge.merged) deleteTaskBranch(task_id);
       } catch (err) {
         warn(`approved handler: ${err.message}`);

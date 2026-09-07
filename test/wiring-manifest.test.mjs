@@ -83,6 +83,9 @@ const REQUIRED_PRODUCTION_WIRES = [
   { factory: 'assertPublicUrl',          calledIn: 'workspace-bin/web-fetch.mjs' },     // SSRF guard (P5-7)
   { factory: 'checkHttpOrigin',          calledIn: 'lib/mcp-knowledge/server.mjs' },   // Host/Origin gate (P5-7)
   { factory: 'withKanbanLockSync',       calledIn: 'mission-control/src/lib/sync/tasks.ts' }, // MC takes the kanban lock (P5-5)
+  // Phase 6 — remaining plan items.
+  { factory: 'reapExpiredLeases',        calledIn: 'bin/mesh-task-daemon.js' },       // dead-worker requeue (P4-5)
+  { factory: 'renderServiceTemplate',    calledIn: 'bin/openclaw-node-init.js' },     // one service definition (P4-8)
   // The flush runs OFF the daemon's main thread since the flush-worker change
   // (audits/flush_worker): the daemon invokes runFlushInWorker at every flush
   // site, and the worker is the one that calls the real runFlush. Both wires
