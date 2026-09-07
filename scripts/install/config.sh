@@ -227,24 +227,59 @@ if $DRY_RUN; then
 elif OPENCLAW_IDENTITY_DIR="$OPENCLAW_ROOT" OPENCLAW_REPO_LIB="$REPO_DIR/lib" "$NODE_BIN" --input-type=module -e '
     const { getOrCreateIdentity } = await import(process.env.OPENCLAW_REPO_LIB + "/node-identity.mjs");
     const id = getOrCreateIdentity(process.env.OPENCLAW_IDENTITY_DIR);
-    const pub = String(id.publicKey || id.public_key || "");
-    console.log("  identity:", pub ? pub.slice(0, 24) + "…" : "(created)");
+    console.log("  identity:", id.publicKeyBase64.slice(0, 16) + "…");
   '; then
   info "Node identity provisioned"
 else
   warn "Identity provisioning failed — signed grappe membership unavailable until fixed"
 fi
 
-# Deploy-trigger trust (security review 2, F2): the deploy listener now REQUIRES
-# signed triggers. Provision the trust allowlist from the node's own pubkey (the
-# operator appends other machines' identity.pub values for fleet deploys).
-if ! $DRY_RUN && [ -f "$OPENCLAW_ROOT/identity.pub" ]; then
-  OPENCLAW_DEPLOY_TRUSTED_KEYS="$(tr -d '\n' < "$OPENCLAW_ROOT/identity.pub")"
-  export OPENCLAW_DEPLOY_TRUSTED_KEYS
-  if grep -q '^OPENCLAW_DEPLOY_TRUSTED_KEYS=' "$ENV_FILE" 2>/dev/null; then
-    run sed -i.bak "s|^OPENCLAW_DEPLOY_TRUSTED_KEYS=.*|OPENCLAW_DEPLOY_TRUSTED_KEYS=$OPENCLAW_DEPLOY_TRUSTED_KEYS|" "$ENV_FILE" && run rm -f "$ENV_FILE.bak"
+# Print this node's identity pubkey in the RAW base64 form the verifiers compare
+# against (lib/deploy-trigger-auth.mjs trustedDeployKeys, lib/operator-auth.mjs).
+# identity.pub on disk is SPKI PEM — seeding the allowlist with the PEM text
+# (the pre-Phase-7 bug) made strict signed deploy refuse every trigger.
+identity_pubkey_base64() {
+  OPENCLAW_IDENTITY_DIR="$OPENCLAW_ROOT" OPENCLAW_REPO_LIB="$REPO_DIR/lib" "$NODE_BIN" --input-type=module -e '
+    const { getOrCreateIdentity } = await import(process.env.OPENCLAW_REPO_LIB + "/node-identity.mjs");
+    process.stdout.write(getOrCreateIdentity(process.env.OPENCLAW_IDENTITY_DIR).publicKeyBase64);
+  '
+}
+
+# Merge one key into a comma-separated allowlist variable in $ENV_FILE: keeps the
+# keys the operator added for other machines (a plain overwrite dropped them on
+# --update) and appends ours only when absent.
+merge_trusted_key() {
+  local var="$1" key="$2" current merged
+  # grep exits 1 when the variable is absent; under set -e/pipefail that must
+  # read as "empty", not abort the installer.
+  current="$( { grep "^${var}=" "$ENV_FILE" 2>/dev/null || true; } | head -1 | cut -d= -f2- | tr -d "\"'")"
+  case ",${current}," in
+    *",${key},"*) merged="$current" ;;
+    *) merged="${current:+${current},}${key}" ;;
+  esac
+  if grep -q "^${var}=" "$ENV_FILE" 2>/dev/null; then
+    run sed -i.bak "s|^${var}=.*|${var}=${merged}|" "$ENV_FILE" && run rm -f "$ENV_FILE.bak"
   else
-    echo "OPENCLAW_DEPLOY_TRUSTED_KEYS=$OPENCLAW_DEPLOY_TRUSTED_KEYS" >> "$ENV_FILE"
+    echo "${var}=${merged}" >> "$ENV_FILE"
   fi
-  info "Deploy-trigger trust provisioned (this node's identity.pub; signing REQUIRED by the listener unit)"
+  export "${var}=${merged}"
+}
+
+# Deploy-trigger trust (security review 2, F2): the deploy listener REQUIRES
+# signed triggers. Seed the allowlist with this node's own raw pubkey; a worker
+# joining with a lead pubkey (install.sh --lead-pubkey / join token, Phase 7)
+# gets the lead's key merged in as well so lead-signed deploys are accepted.
+if ! $DRY_RUN && [ -f "$OPENCLAW_ROOT/identity.key" ]; then
+  if SELF_PUBKEY="$(identity_pubkey_base64)" && [ -n "$SELF_PUBKEY" ]; then
+    merge_trusted_key OPENCLAW_DEPLOY_TRUSTED_KEYS "$SELF_PUBKEY"
+    merge_trusted_key OPENCLAW_OPERATOR_TRUSTED_KEYS "$SELF_PUBKEY"
+    if [ -n "${OPENCLAW_LEAD_PUBKEY:-}" ]; then
+      merge_trusted_key OPENCLAW_DEPLOY_TRUSTED_KEYS "$OPENCLAW_LEAD_PUBKEY"
+      merge_trusted_key OPENCLAW_OPERATOR_TRUSTED_KEYS "$OPENCLAW_LEAD_PUBKEY"
+      info "Lead pubkey merged into the deploy/operator trust allowlists"
+    fi
+    info "Deploy-trigger trust provisioned (raw base64 identity pubkey; signing REQUIRED by the listener unit)"
+  else
+    warn "Could not derive the identity pubkey — OPENCLAW_DEPLOY_TRUSTED_KEYS left unchanged"
+  fi
 fi

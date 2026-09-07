@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, mkdtempSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdtempSync, mkdirSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -194,4 +194,55 @@ test('install.sh --dry-run writes nothing under $HOME', () => {
   assert.deepEqual(files, [], `dry-run created files: ${files.join(', ')}\n--- tail ---\n${r.stdout.slice(-1500)}`);
   assert.equal(r.status, 0, `dry-run must complete: exit ${r.status}\n${r.stdout.slice(-2000)}\n${r.stderr.slice(-500)}`);
   assert.doesNotMatch(r.stdout, /SOURCE MISSING/);
+});
+
+// P7-0: the deploy/operator trust allowlists must be seeded with the RAW base64
+// identity pubkey (what trustedDeployKeys() compares), not the SPKI PEM text of
+// identity.pub — that mismatch made strict signed deploy refuse every trigger on
+// installed nodes. Run the exact shell functions config.sh uses, against a temp
+// identity, then prove a trigger signed by that identity verifies under the
+// seeded allowlist. Merge semantics: operator-added keys survive, no duplicates.
+test('config.sh seeds trust allowlists with the raw base64 identity pubkey and merges', async () => {
+  const { getOrCreateIdentity } = await import('../lib/node-identity.mjs');
+  const { signDeployTrigger, verifyDeployTrigger } = await import('../lib/deploy-trigger-auth.mjs');
+  const cfg = moduleSrc['config.sh'];
+  const start = cfg.indexOf('identity_pubkey_base64() {');
+  const end = cfg.indexOf('# Deploy-trigger trust');
+  assert.ok(start > 0 && end > start, 'seeding helpers must exist in config.sh');
+  const helpers = cfg.slice(start, end);
+
+  const root = mkdtempSync(join(tmpdir(), 'openclaw-trust-'));
+  const identity = getOrCreateIdentity(root);
+  const envFile = join(root, 'openclaw.env');
+  writeFileSync(envFile, 'OPENCLAW_DEPLOY_TRUSTED_KEYS=operatorKeyAAA\n');
+
+  const script = `
+    set -euo pipefail
+    run() { "$@"; }
+    ${helpers}
+    SELF="$(identity_pubkey_base64)"
+    merge_trusted_key OPENCLAW_DEPLOY_TRUSTED_KEYS "$SELF"
+    merge_trusted_key OPENCLAW_DEPLOY_TRUSTED_KEYS "$SELF"
+    merge_trusted_key OPENCLAW_OPERATOR_TRUSTED_KEYS "$SELF"
+    printf '%s' "$SELF"
+  `;
+  const r = spawnSync('bash', ['-c', script], {
+    encoding: 'utf8',
+    env: { ...process.env, OPENCLAW_ROOT: root, REPO_DIR: ROOT, NODE_BIN: process.execPath, ENV_FILE: envFile },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, identity.publicKeyBase64);
+  assert.equal(r.stdout.length, 44);
+  assert.doesNotMatch(r.stdout, /BEGIN PUBLIC KEY/);
+
+  const env = readFileSync(envFile, 'utf8');
+  const deploy = env.match(/^OPENCLAW_DEPLOY_TRUSTED_KEYS=(.*)$/m)[1];
+  assert.equal(deploy, `operatorKeyAAA,${identity.publicKeyBase64}`, 'merge keeps operator keys, adds ours once');
+  assert.equal(env.match(/^OPENCLAW_OPERATOR_TRUSTED_KEYS=(.*)$/m)[1], identity.publicKeyBase64);
+
+  const signed = signDeployTrigger({ sha: 'abc123', node_id: 'ci' }, { identityDir: root });
+  const ok = verifyDeployTrigger(signed, { requireSigned: true, trustedKeys: deploy.split(','), seenIds: null });
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  const pem = verifyDeployTrigger(signed, { requireSigned: true, trustedKeys: [readFileSync(join(root, 'identity.pub'), 'utf8').replace(/\n/g, '')], seenIds: null });
+  assert.equal(pem.ok, false, 'the PEM text must NOT be accepted as a trusted key (the old bug)');
 });

@@ -1,7 +1,13 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** Execute Phase 3 of REMEDIATION_PLAN_2026-09-06.md — make the gates mechanical: git hooks
+**Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
+NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
+operator flips), server users block rendered from the identity registry into an included
+`nats-auth.conf`, worker deny on `mesh.deploy.trigger`, every credential-less connect routed through
+the resolver, CI on an authenticated bus. Plus the two install bugs found on the way: deploy-trust
+seeded with PEM instead of raw base64, and the lead pubkey never reaching workers (join token v4).
+Earlier goal — execute Phase 3 of REMEDIATION_PLAN_2026-09-06.md — make the gates mechanical: git hooks
 installed on every clone via npm prepare, a real force-push deny in settings, the tick refuses to
 close a step on a red suite or a missing Runtime-Evidence trailer, plan-lint FAILs (not WARNs) a
 trailer-less close, scope-check hardened (no ../symlink escape, `*` never crosses `/`, fail-closed
@@ -22,7 +28,65 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 **Set at:** 2026-09-06T00:00:00Z
 **Expires:** 2026-09-10T00:00:00Z
 
-```files remediation-phase6-2026-09-07
+```files remediation-phase7-2026-09-07
+scripts/install/config.sh
+scripts/install/components.sh
+scripts/install/services.sh
+scripts/install/env.sh
+install.sh
+mesh-install.sh
+lib/join-token.js
+lib/nats-nkey.js
+lib/nats-resolve.js
+lib/fed-probes.mjs
+lib/publishers/publish-helper.mjs
+lib/node-identity.mjs
+bin/mesh-join-token.js
+bin/openclaw-node-init.js
+bin/openclaw-trust-peer.mjs
+bin/nats-auth-render.mjs
+bin/mesh-node-remove.js
+bin/health-watch.mjs
+bin/memory-promoter.mjs
+bin/memory-subscriber.mjs
+bin/openclaw-extract-now.mjs
+bin/dogfood-council.mjs
+bin/consolidate.mjs
+bin/consolidation-scheduler.mjs
+bin/openclaw-grappe.mjs
+services/nats/nats-single.conf
+services/nats/nats-1.conf
+services/nats/nats-2.conf
+services/nats/nats-3.conf
+services/nats/nats-cluster-node.conf
+services/systemd/openclaw-nats.service
+services/systemd/openclaw-nats-1.service
+services/systemd/openclaw-nats-2.service
+services/systemd/openclaw-nats-3.service
+mission-control/src/lib/nats.ts
+mission-control/src/lib/__tests__/nats-auth.test.ts
+.github/workflows/test.yml
+test/helpers/mesh-available.cjs
+test/helpers/nats-server.mjs
+test/install-modules.test.mjs
+test/join-token.test.js
+test/node-init-render.test.mjs
+test/nats-nkey.test.js
+test/nats-auth-render.test.mjs
+test/nats-resolve.test.js
+test/nats-connect-census.test.mjs
+test/nats-nkey-server.test.mjs
+test/wiring-manifest.test.mjs
+test/*.test.js
+test/*.test.mjs
+docs/NODE_SPEC.md
+README.md
+REMEDIATION_PLAN_2026-09-06.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files remediation-phase6-2026-09-07 closed
 lib/mesh-tasks.js
 lib/operator-auth.mjs
 bin/mesh-task-daemon.js
