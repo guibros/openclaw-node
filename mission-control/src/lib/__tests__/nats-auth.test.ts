@@ -17,7 +17,9 @@ const VECTOR_PEM = createPrivateKey({
   key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), SEED32]),
   format: "der", type: "pkcs8",
 }).export({ type: "pkcs8", format: "pem" }) as string;
-const VECTOR_SEED = Buffer.from(require("nkeys.js/lib/codec.js").Codec.encodeSeed(nkeys.Prefix.User, SEED32)).toString();
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { Codec } = require("nkeys.js/lib/codec.js");
+const VECTOR_SEED = Buffer.from(Codec.encodeSeed(nkeys.Prefix.User, SEED32)).toString();
 
 describe("nats-auth nkey derivation", () => {
   it("matches the shared fixed vector and cross-verifies with node:crypto", () => {
