@@ -136,9 +136,11 @@ generate_config() {
 generate_config "$REPO_DIR/config/daemon.json.template" "$OPENCLAW_ROOT/config/daemon.json"
 generate_config "$REPO_DIR/config/transcript-sources.json.template" "$OPENCLAW_ROOT/config/transcript-sources.json"
 
-# NATS config rendering — templates → ~/.openclaw/config/ (token embedded).
-# nats.conf is the DEFAULT single-node bus every fresh node runs; nats-{1,2,3}
-# are the R=3 cluster (operator-gated upgrade, federation step 1.5).
+# NATS config rendering — templates → ~/.openclaw/config/. Every template
+# `include`s nats-auth.conf, rendered further down (after the identity exists)
+# by bin/nats-auth-render.mjs: token mode by default, per-node nkeys when
+# OPENCLAW_NATS_AUTH=nkey. nats.conf is the DEFAULT single-node bus every fresh
+# node runs; nats-{1,2,3} are the R=3 cluster (operator-gated, federation 1.5).
 run mkdir -p "$OPENCLAW_ROOT/nats"
 generate_config "$REPO_DIR/services/nats/nats-single.conf" "$OPENCLAW_ROOT/config/nats.conf"
 generate_config "$REPO_DIR/services/nats/nats-1.conf" "$OPENCLAW_ROOT/config/nats-1.conf"
@@ -188,7 +190,6 @@ if [ -n "$CLUSTER_PEERS" ]; then
         const { renderClusterRoutes, replicasForPeers, parsePeers } = require(process.argv[1]);
         let t = fs.readFileSync(process.argv[2], "utf8");
         t = t.replaceAll("${OPENCLAW_NATS_SERVER_NAME}", process.env.OPENCLAW_NATS_SERVER_NAME)
-             .replaceAll("${OPENCLAW_NATS_TOKEN}", process.env.OPENCLAW_NATS_TOKEN)
              .replaceAll("${OPENCLAW_NATS_CLUSTER_PASS}", process.env.OPENCLAW_NATS_CLUSTER_PASS)
              .replaceAll("${OPENCLAW_NATS_BIND_ADDR}", process.env.OPENCLAW_NATS_BIND_ADDR)
              .replaceAll("${HOME}", os.homedir())
@@ -282,4 +283,24 @@ if ! $DRY_RUN && [ -f "$OPENCLAW_ROOT/identity.key" ]; then
   else
     warn "Could not derive the identity pubkey — OPENCLAW_DEPLOY_TRUSTED_KEYS left unchanged"
   fi
+fi
+
+# NATS auth policy (Phase 7). Default `token` reproduces the pre-Phase-7 block
+# byte for byte; `nkey` renders a users list from this identity + the registry.
+# Persist the mode so daemons (lib/nats-resolve.js) and the renderer agree.
+if [ -z "${OPENCLAW_NATS_AUTH:-}" ]; then
+  OPENCLAW_NATS_AUTH="$( { grep '^OPENCLAW_NATS_AUTH=' "$ENV_FILE" 2>/dev/null || true; } | head -1 | cut -d= -f2- | tr -d "\"'")"
+fi
+OPENCLAW_NATS_AUTH="${OPENCLAW_NATS_AUTH:-token}"
+export OPENCLAW_NATS_AUTH
+if [ -f "$ENV_FILE" ] && [ "$DRY_RUN" != true ] && ! grep -q '^OPENCLAW_NATS_AUTH=' "$ENV_FILE"; then
+  echo "OPENCLAW_NATS_AUTH=$OPENCLAW_NATS_AUTH" >> "$ENV_FILE"
+fi
+if $DRY_RUN; then
+  info "[dry-run] would render nats-auth.conf ($OPENCLAW_NATS_AUTH mode)"
+elif OPENCLAW_IDENTITY_DIR="$OPENCLAW_ROOT" "$NODE_BIN" "$REPO_DIR/bin/nats-auth-render.mjs" \
+       --out "$OPENCLAW_ROOT/config/nats-auth.conf" --mode "$OPENCLAW_NATS_AUTH"; then
+  info "Rendered nats-auth.conf ($OPENCLAW_NATS_AUTH mode, mode 600)"
+else
+  warn "nats-auth.conf render failed — nats-server will refuse to start until it exists"
 fi

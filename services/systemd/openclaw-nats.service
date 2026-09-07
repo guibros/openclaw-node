@@ -1,10 +1,12 @@
 [Unit]
-Description=OpenClaw NATS — single-node bus (client 4222, monitor 8222, JetStream, token auth)
+Description=OpenClaw NATS — single-node bus (client 4222, monitor 8222, JetStream, auth via nats-auth.conf)
 After=network.target
 
 [Service]
 Type=simple
 ExecStart=${NATS_SERVER_BIN} --config ${HOME}/.openclaw/config/nats.conf
+# SIGHUP re-reads authorization (nats-auth.conf) without dropping healthy clients.
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
 Environment=HOME=${HOME}

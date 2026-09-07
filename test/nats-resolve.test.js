@@ -133,3 +133,81 @@ describe('nats-resolve', () => {
     assert.equal(mod.NATS_URL, 'nats://unquoted:4222');
   });
 });
+
+// Phase 7: OPENCLAW_NATS_AUTH selects how natsConnectOpts authenticates.
+describe('nats-resolve auth modes', () => {
+  const KEYS = ['OPENCLAW_NATS', 'OPENCLAW_NATS_TOKEN', 'OPENCLAW_NATS_AUTH', 'OPENCLAW_NATS_LEGACY_USER', 'OPENCLAW_IDENTITY_DIR', 'HOME'];
+  const saved = {};
+  let home;
+
+  function writeEnv(lines) {
+    fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true });
+    fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.env'), lines.join('\n') + '\n');
+  }
+  function createIdentity() {
+    // Same on-disk format node-identity.mjs writes (PKCS8 PEM, 0600).
+    const crypto = require('crypto');
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519');
+    fs.writeFileSync(path.join(home, '.openclaw', 'identity.key'), privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
+    return publicKey;
+  }
+
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'nats-auth-test-'));
+    for (const k of KEYS) { saved[k] = process.env[k]; delete process.env[k]; }
+    process.env.HOME = home;
+  });
+  afterEach(() => {
+    for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  it('defaults to token mode and treats an unknown value as token', () => {
+    writeEnv(['OPENCLAW_NATS_TOKEN=abc']);
+    let mod = freshRequire();
+    assert.equal(mod.NATS_AUTH_MODE, 'token');
+    assert.deepEqual(mod.natsConnectOpts(), { servers: 'nats://127.0.0.1:4222', token: 'abc' });
+    writeEnv(['OPENCLAW_NATS_TOKEN=abc', 'OPENCLAW_NATS_AUTH=banana']);
+    mod = freshRequire();
+    assert.equal(mod.NATS_AUTH_MODE, 'token');
+  });
+
+  it('nkey mode with an identity sends an nkey authenticator and no token', () => {
+    writeEnv(['OPENCLAW_NATS_TOKEN=abc', 'OPENCLAW_NATS_AUTH=nkey']);
+    createIdentity();
+    const opts = freshRequire().natsConnectOpts({ timeout: 7 });
+    assert.equal(typeof opts.authenticator, 'function');
+    assert.equal(opts.token, undefined);
+    assert.equal(opts.user, undefined);
+    assert.equal(opts.timeout, 7);
+  });
+
+  it('nkey mode without an identity falls back to the legacy user/password entry', () => {
+    writeEnv(['OPENCLAW_NATS_TOKEN=abc', 'OPENCLAW_NATS_AUTH=nkey', 'OPENCLAW_NATS_LEGACY_USER=bridge']);
+    const opts = freshRequire().natsConnectOpts();
+    assert.deepEqual(opts, { servers: 'nats://127.0.0.1:4222', user: 'bridge', pass: 'abc' });
+  });
+
+  it('nkey-strict without an identity refuses to build connect options', () => {
+    writeEnv(['OPENCLAW_NATS_TOKEN=abc', 'OPENCLAW_NATS_AUTH=nkey-strict']);
+    assert.throws(() => freshRequire().natsConnectOpts(), /nkey-strict/);
+  });
+
+  it('an explicit authenticator or token in extra wins over the resolved mode', () => {
+    writeEnv(['OPENCLAW_NATS_TOKEN=abc', 'OPENCLAW_NATS_AUTH=nkey-strict']);
+    const mod = freshRequire();
+    const auth = () => {};
+    assert.equal(mod.natsConnectOpts({ authenticator: auth }).authenticator, auth);
+    assert.equal(mod.natsConnectOpts({ token: 'x' }).token, 'x');
+  });
+
+  it('OPENCLAW_IDENTITY_DIR points nkey mode at another identity', () => {
+    writeEnv(['OPENCLAW_NATS_AUTH=nkey']);
+    const other = path.join(home, 'elsewhere');
+    fs.mkdirSync(other);
+    const crypto = require('crypto');
+    fs.writeFileSync(path.join(other, 'identity.key'), crypto.generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' }));
+    process.env.OPENCLAW_IDENTITY_DIR = other;
+    assert.equal(typeof freshRequire().natsConnectOpts().authenticator, 'function');
+  });
+});

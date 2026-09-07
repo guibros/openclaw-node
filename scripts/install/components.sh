@@ -159,6 +159,7 @@ DB_PATH=$MC_DIR/data/mission-control.db
 # NATS (mesh connectivity — resolved from openclaw.env if not set here)
 OPENCLAW_NATS=${OPENCLAW_NATS:-}
 OPENCLAW_NATS_TOKEN=${OPENCLAW_NATS_TOKEN:-}
+OPENCLAW_NATS_AUTH=${OPENCLAW_NATS_AUTH:-token}
 
 # TTS (optional — falls back to Edge TTS if missing)
 GEMINI_API_KEY=${GOOGLE_API_KEY:-}
