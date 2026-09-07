@@ -64,7 +64,12 @@ Written to `~/.openclaw/openclaw.env` by install (generated where marked ⚙; RA
 | Key | Default | ⚙ | Consumer | Meaning |
 |---|---|---|---|---|
 | `OPENCLAW_NATS` | `nats://127.0.0.1:4222` | | `lib/nats-resolve.js` → every bus client | bus address (loopback by design) |
-| `OPENCLAW_NATS_TOKEN` | ⚙ `openssl rand -hex 32` | ⚙ | nats-resolve + rendered NATS confs | server-side auth (D2 trust floor) |
+| `OPENCLAW_NATS_TOKEN` | ⚙ `openssl rand -hex 32` | ⚙ | nats-resolve + `bin/nats-auth-render.mjs` | shared bus token in `token` mode; the legacy user's password once `OPENCLAW_NATS_AUTH=nkey` |
+| `OPENCLAW_NATS_AUTH` | `token` | ⚙ | nats-resolve, MC `nats-auth.ts`, `bin/nats-auth-render.mjs` | `token` (shared secret) · `nkey` (this node's identity key is its credential; legacy user fallback) · `nkey-strict` (nkey or refuse). Phase 7 / federation D17 |
+| `OPENCLAW_NATS_LEGACY_USER` | `openclaw` | | nats-resolve, auth renderer | name of the password user kept for un-migrated clients in nkey mode; `0` drops it from the server render |
+| `OPENCLAW_IDENTITY_DIR` | `~/.openclaw` | | node-identity, nats-nkey, trust-peer, auth renderer | where `identity.key` / `identity.pub` / `identity-registry.json` live |
+| `OPENCLAW_DEPLOY_TRUSTED_KEYS` | ⚙ own identity pubkey | ⚙ | `lib/deploy-trigger-auth.mjs` (deploy listener) | comma-separated RAW base64 ed25519 pubkeys allowed to sign deploy triggers; the lead seeds its own, a worker gets the lead's from the join token / `--lead-pubkey` (merged, never overwritten) |
+| `OPENCLAW_OPERATOR_TRUSTED_KEYS` | ⚙ own identity pubkey | ⚙ | `lib/operator-auth.mjs` (task daemon, MC) | same shape; keys allowed to sign operator actions |
 | `OPENCLAW_NODE_ID` | hostname (sanitized) | | heartbeats, KV keys, identity, grappe membership | stable node identity string |
 | `OPENCLAW_NODE_ROLE` | macOS `lead` / Linux `worker` | | service-manifest role filter | which units install |
 | `MESH_LLM_PROVIDER` | `ollama` ⚠ | ⚙ | `lib/llm-providers.js` → mesh-agent | **DEFECT (D11): defaulting the grappe worker to a local model is wrong — a grappe worker MUST be the node's OpenClaw agent on an advanced LLM. Fix queued for the next code pass.** |

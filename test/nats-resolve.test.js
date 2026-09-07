@@ -33,8 +33,12 @@ describe('nats-resolve', () => {
     origEnv.OPENCLAW_NATS = process.env.OPENCLAW_NATS;
     origEnv.OPENCLAW_NATS_TOKEN = process.env.OPENCLAW_NATS_TOKEN;
     origEnv.HOME = process.env.HOME;
+    origEnv.OPENCLAW_NATS_AUTH = process.env.OPENCLAW_NATS_AUTH;
     delete process.env.OPENCLAW_NATS;
     delete process.env.OPENCLAW_NATS_TOKEN;
+    // CI exports OPENCLAW_NATS_AUTH=nkey (and a HOME whose openclaw.env says so)
+    // for the live bus; these tests pin token-mode behaviour explicitly.
+    process.env.OPENCLAW_NATS_AUTH = 'token';
   });
 
   afterEach(() => {
@@ -44,6 +48,8 @@ describe('nats-resolve', () => {
     if (origEnv.OPENCLAW_NATS_TOKEN !== undefined) process.env.OPENCLAW_NATS_TOKEN = origEnv.OPENCLAW_NATS_TOKEN;
     else delete process.env.OPENCLAW_NATS_TOKEN;
     if (origEnv.HOME !== undefined) process.env.HOME = origEnv.HOME;
+    if (origEnv.OPENCLAW_NATS_AUTH !== undefined) process.env.OPENCLAW_NATS_AUTH = origEnv.OPENCLAW_NATS_AUTH;
+    else delete process.env.OPENCLAW_NATS_AUTH;
     // Clean tmp
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

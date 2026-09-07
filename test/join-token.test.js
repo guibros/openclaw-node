@@ -50,7 +50,8 @@ test('bin/mesh-join-token.js emits a v4 payload carrying the lead pubkey and aut
   fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true });
   fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.env'), 'OPENCLAW_NATS=nats://10.9.9.9:4222\nOPENCLAW_NATS_TOKEN=shared-secret-token\nOPENCLAW_NATS_AUTH=nkey\nOPENCLAW_NODE_ID=lead-x\n');
   const r = spawnSync(process.execPath, [path.join(ROOT, 'bin/mesh-join-token.js'), '--no-ssh'], {
-    encoding: 'utf8', env: { ...process.env, HOME: home, OPENCLAW_IDENTITY_DIR: path.join(home, '.openclaw'), OPENCLAW_NODE_ID: 'lead-x' },
+    // Scrub the caller's OPENCLAW_* (CI exports a live bus) so the token reflects the temp env file.
+    encoding: 'utf8', env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('OPENCLAW_'))), HOME: home, OPENCLAW_IDENTITY_DIR: path.join(home, '.openclaw'), OPENCLAW_NODE_ID: 'lead-x' },
   });
   assert.equal(r.status, 0, r.stderr);
   const token = r.stdout.split('\n').find((l) => /^[A-Za-z0-9_-]{40,}$/.test(l.trim()));

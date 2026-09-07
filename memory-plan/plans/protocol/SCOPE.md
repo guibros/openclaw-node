@@ -64,6 +64,7 @@ services/systemd/openclaw-nats-1.service
 services/systemd/openclaw-nats-2.service
 services/systemd/openclaw-nats-3.service
 mission-control/src/lib/nats.ts
+mission-control/src/lib/nats-auth.ts
 mission-control/src/lib/__tests__/nats-auth.test.ts
 .github/workflows/test.yml
 test/helpers/mesh-available.cjs

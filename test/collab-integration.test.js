@@ -16,12 +16,23 @@
 const { describe, it, before, after } = require('node:test');
 // R32 (repair 7.4): availability is a VISIBLE skip, not a silent exit(0).
 const { meshSkipReason } = require('./helpers/mesh-available.cjs');
+const { acquireMeshLock, releaseMeshLock } = require('./helpers/mesh-lock.cjs');
 const skipReason = meshSkipReason();
 const assert = require('node:assert/strict');
 const { connect, StringCodec } = require('nats');
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
+// require(esm): the operator signer is an ES module.
+const { signOperatorRequest } = require('../lib/operator-auth.mjs');
 
 const sc = StringCodec();
+
+// Authorization protocol (Phase 2a + Phase 6): owner actions (start, heartbeat,
+// attempt, complete, fail, release) carry the owner's node_id AND the lease
+// token issued by claim; cancel/approve/reject are signed operator requests.
+// The daemon trusts this process's identity because the test HOME is the
+// daemon's HOME (CI exports it) — the same "local key" an operator at the CLI has.
+const signed = (payload) => signOperatorRequest(payload);
+const owned = (claim, payload) => ({ ...payload, node_id: claim.owner, lease_token: claim.lease_token });
 
 // Test-unique prefix to avoid polluting real data
 const TEST_PREFIX = `test-${Date.now()}`;
@@ -62,8 +73,9 @@ const createdSessionIds = [];
 
 before(async () => {
   if (skipReason) return; // R32: root hooks run even when every suite is skipped
+  await acquireMeshLock('collab-integration.test.js'); // one live-bus suite file at a time
   try {
-    nc = await connect({ servers: NATS_URL, timeout: 2000 });
+    nc = await connect(natsConnectOpts({ timeout: 2000 }));
     console.log(`Connected to NATS at ${NATS_URL}`);
   } catch {
     throw new Error('mesh stack vanished between availability probe and setup');
@@ -88,7 +100,7 @@ after(async () => {
   // Cleanup: cancel all test tasks and delete collab sessions
   for (const tid of createdTaskIds) {
     try {
-      await rpc('mesh.tasks.cancel', { task_id: tid });
+      await rpc('mesh.tasks.cancel', signed({ task_id: tid }));
     } catch { /* best-effort */ }
   }
   // Abort any lingering collab sessions (best-effort — no delete RPC exists,
@@ -106,6 +118,7 @@ after(async () => {
   }
   if (nc) await nc.close();
   console.log(`Cleaned up ${createdTaskIds.length} test tasks, ${createdSessionIds.length} collab sessions.`);
+  releaseMeshLock();
 });
 
 // ════════════════════════════════════════════════════
@@ -115,6 +128,7 @@ after(async () => {
 describe('Solo task lifecycle (live NATS)', { skip: skipReason }, () => {
   const taskId = `${TEST_PREFIX}-solo-1`;
   const nodeId = `${TEST_PREFIX}-node-A`;
+  let claim; // { owner, lease_token } from mesh.tasks.claim — every owner call carries it
 
   it('submits a task', async () => {
     const res = await rpc('mesh.tasks.submit', {
@@ -122,7 +136,10 @@ describe('Solo task lifecycle (live NATS)', { skip: skipReason }, () => {
       title: 'Integration test: solo task',
       description: 'Verify full lifecycle over live NATS',
       budget_minutes: 5,
-      metric: 'echo "ok"',
+      metric: 'npm test', // server-side metric allowlist (Phase 1) — `echo` is refused
+      // claim() hands out the highest-priority queued task: top priority makes
+      // it THIS one whatever else sits in the shared queue.
+      priority: 100000,
     });
     createdTaskIds.push(taskId);
 
@@ -146,6 +163,8 @@ describe('Solo task lifecycle (live NATS)', { skip: skipReason }, () => {
     assert.equal(res.data.task_id, taskId);
     assert.equal(res.data.status, 'claimed');
     assert.equal(res.data.owner, nodeId);
+    assert.ok(res.data.lease_token, 'claim issues a lease token (Phase 6)');
+    claim = res.data;
   });
 
   it('rejects double-claim from same node', async () => {
@@ -155,41 +174,41 @@ describe('Solo task lifecycle (live NATS)', { skip: skipReason }, () => {
   });
 
   it('starts the task', async () => {
-    const res = await rpc('mesh.tasks.start', { task_id: taskId });
-    assert.equal(res.ok, true);
+    const res = await rpc('mesh.tasks.start', owned(claim, { task_id: taskId }));
+    assert.equal(res.ok, true, res.error);
     assert.equal(res.data.status, 'running');
     assert.ok(res.data.started_at);
   });
 
   it('sends heartbeat', async () => {
-    const res = await rpc('mesh.tasks.heartbeat', { task_id: taskId });
-    assert.equal(res.ok, true);
+    const res = await rpc('mesh.tasks.heartbeat', owned(claim, { task_id: taskId }));
+    assert.equal(res.ok, true, res.error);
     assert.ok(res.data.last_activity);
   });
 
   it('logs an attempt', async () => {
-    const res = await rpc('mesh.tasks.attempt', {
+    const res = await rpc('mesh.tasks.attempt', owned(claim, {
       task_id: taskId,
       approach: 'tried approach A',
       result: 'partial success',
       keep: true,
-    });
-    assert.equal(res.ok, true);
+    }));
+    assert.equal(res.ok, true, res.error);
     assert.equal(res.data.attempts.length, 1);
     assert.equal(res.data.attempts[0].approach, 'tried approach A');
     assert.equal(res.data.attempts[0].keep, true);
   });
 
   it('completes the task', async () => {
-    const res = await rpc('mesh.tasks.complete', {
+    const res = await rpc('mesh.tasks.complete', owned(claim, {
       task_id: taskId,
       result: {
         success: true,
         summary: 'Integration test passed',
         artifacts: ['test-output.txt'],
       },
-    });
-    assert.equal(res.ok, true);
+    }));
+    assert.equal(res.ok, true, res.error);
     assert.equal(res.data.status, 'completed');
     assert.ok(res.data.completed_at);
     assert.equal(res.data.result.success, true);
@@ -224,17 +243,19 @@ describe('Task failure and release (live NATS)', { skip: skipReason }, () => {
       task_id: taskId,
       title: 'Integration test: fail path',
       budget_minutes: 5,
+      priority: 100000,
     });
     createdTaskIds.push(taskId);
 
-    await rpc('mesh.tasks.claim', { node_id: nodeId });
-    await rpc('mesh.tasks.start', { task_id: taskId });
+    const claim = (await rpc('mesh.tasks.claim', { node_id: nodeId })).data;
+    assert.equal(claim.task_id, taskId);
+    await rpc('mesh.tasks.start', owned(claim, { task_id: taskId }));
 
-    const res = await rpc('mesh.tasks.fail', {
+    const res = await rpc('mesh.tasks.fail', owned(claim, {
       task_id: taskId,
       reason: 'intentional test failure',
-    });
-    assert.equal(res.ok, true);
+    }));
+    assert.equal(res.ok, true, res.error);
     assert.equal(res.data.status, 'failed');
     assert.equal(res.data.result.success, false);
   });
@@ -245,17 +266,19 @@ describe('Task failure and release (live NATS)', { skip: skipReason }, () => {
       task_id: releaseId,
       title: 'Integration test: release path',
       budget_minutes: 5,
+      priority: 100000,
     });
     createdTaskIds.push(releaseId);
 
-    await rpc('mesh.tasks.claim', { node_id: `${TEST_PREFIX}-node-C` });
-    await rpc('mesh.tasks.start', { task_id: releaseId });
+    const claim = (await rpc('mesh.tasks.claim', { node_id: `${TEST_PREFIX}-node-C` })).data;
+    assert.equal(claim.task_id, releaseId);
+    await rpc('mesh.tasks.start', owned(claim, { task_id: releaseId }));
 
-    const res = await rpc('mesh.tasks.release', {
+    const res = await rpc('mesh.tasks.release', owned(claim, {
       task_id: releaseId,
       reason: 'all retries exhausted (test)',
-    });
-    assert.equal(res.ok, true);
+    }));
+    assert.equal(res.ok, true, res.error);
     assert.equal(res.data.status, 'released');
     assert.equal(res.data.result.released, true);
   });
@@ -275,11 +298,11 @@ describe('Task cancellation (live NATS)', { skip: skipReason }, () => {
     });
     createdTaskIds.push(cancelId);
 
-    const res = await rpc('mesh.tasks.cancel', {
+    const res = await rpc('mesh.tasks.cancel', signed({
       task_id: cancelId,
       reason: 'test cancellation',
-    });
-    assert.equal(res.ok, true);
+    }));
+    assert.equal(res.ok, true, res.error);
     assert.equal(res.data.status, 'cancelled');
   });
 });
@@ -1029,7 +1052,7 @@ describe('Node routing: exclude and preferred (live NATS)', { skip: skipReason }
     if (res.ok && res.data) {
       // Might claim a different queued task — that's fine, just not this one
       assert.notEqual(res.data.task_id, taskId, 'excluded node should not claim the excluded task');
-      await rpc('mesh.tasks.cancel', { task_id: res.data.task_id });
+      await rpc('mesh.tasks.cancel', signed({ task_id: res.data.task_id }));
     }
     // Either null or a different task — both are correct
 
@@ -1040,7 +1063,7 @@ describe('Node routing: exclude and preferred (live NATS)', { skip: skipReason }
     assert.equal(res2.data.owner, otherNode);
 
     // Cleanup
-    await rpc('mesh.tasks.cancel', { task_id: taskId });
+    await rpc('mesh.tasks.cancel', signed({ task_id: taskId }));
   });
 
   it('preferred node gets task before non-preferred node', async () => {
@@ -1069,8 +1092,8 @@ describe('Node routing: exclude and preferred (live NATS)', { skip: skipReason }
     assert.equal(res.data.task_id, taskId2);
 
     // Cleanup
-    await rpc('mesh.tasks.cancel', { task_id: taskId1 });
-    await rpc('mesh.tasks.cancel', { task_id: taskId2 });
+    await rpc('mesh.tasks.cancel', signed({ task_id: taskId1 }));
+    await rpc('mesh.tasks.cancel', signed({ task_id: taskId2 }));
   });
 
   it('non-preferred node CAN still claim a preferred task (soft preference)', async () => {
@@ -1092,7 +1115,7 @@ describe('Node routing: exclude and preferred (live NATS)', { skip: skipReason }
     assert.equal(res.data.owner, nonPrefNode);
 
     // Cleanup
-    await rpc('mesh.tasks.cancel', { task_id: taskId });
+    await rpc('mesh.tasks.cancel', signed({ task_id: taskId }));
   });
 });
 
@@ -1151,20 +1174,24 @@ describe('Event stream (live NATS)', { skip: skipReason }, () => {
     await nc.flush();
     await new Promise(r => setTimeout(r, 200));
 
-    // Run lifecycle (skip claim — store.claim grabs any queued task, not necessarily ours.
-    // Claim events are already verified in solo lifecycle tests.)
+    // start/complete are owner actions, so claim first: the highest priority
+    // makes store.claim hand THIS task to our node rather than another queued one.
     await rpc('mesh.tasks.submit', {
       task_id: eventTaskId,
       title: 'Event test',
       budget_minutes: 5,
+      priority: 100000,
+      metric: 'npm test', // no metric → review gate → pending_review, not completed
     });
     createdTaskIds.push(eventTaskId);
 
-    await rpc('mesh.tasks.start', { task_id: eventTaskId });
-    await rpc('mesh.tasks.complete', {
+    const claim = (await rpc('mesh.tasks.claim', { node_id: `${TEST_PREFIX}-events-node` })).data;
+    assert.equal(claim.task_id, eventTaskId);
+    await rpc('mesh.tasks.start', owned(claim, { task_id: eventTaskId }));
+    await rpc('mesh.tasks.complete', owned(claim, {
       task_id: eventTaskId,
       result: { success: true, summary: 'done' },
-    });
+    }));
 
     // Give events time to propagate
     await nc.flush();

@@ -15,6 +15,7 @@
 const { describe, it, before, after } = require("node:test");
 // R32 (repair 7.4): availability is a VISIBLE skip, not a silent exit(0).
 const { meshSkipReason } = require('./helpers/mesh-available.cjs');
+const { acquireMeshLock, releaseMeshLock } = require('./helpers/mesh-lock.cjs');
 const skipReason = meshSkipReason();
 const assert = require("node:assert/strict");
 const crypto = require("crypto");
@@ -22,10 +23,13 @@ const crypto = require("crypto");
 let connect, StringCodec, sc, nc;
 
 // Resolve NATS URL same way as mesh.js
-const NATS_URL = process.env.OPENCLAW_NATS || "nats://127.0.0.1:4222";
+const { NATS_URL, natsConnectOpts } = require("../lib/nats-resolve");
+// Owner actions carry node_id + lease_token (Phase 2a/6); cancel is a signed operator request.
+const { signOperatorRequest } = require("../lib/operator-auth.mjs");
 
 before(async () => {
   if (skipReason) return; // R32: root hooks run even when every suite is skipped
+  await acquireMeshLock('distributed-mc.test.js'); // one live-bus suite file at a time
   try {
     ({ connect, StringCodec } = require("nats"));
     sc = StringCodec();
@@ -34,7 +38,7 @@ before(async () => {
   }
 
   try {
-    nc = await connect({ servers: NATS_URL, timeout: 5000 });
+    nc = await connect(natsConnectOpts({ timeout: 5000 }));
     console.log(`Connected to NATS at ${NATS_URL}`);
   } catch {
     throw new Error('mesh stack vanished between availability probe and setup');
@@ -60,14 +64,23 @@ before(async () => {
 after(async () => {
   if (skipReason) return; // R32: root hooks run even when every suite is skipped
   if (nc && !nc.isClosed()) {
+    for (const tid of createdTaskIds) {
+      try { await rpc("mesh.tasks.cancel", signOperatorRequest({ task_id: tid })); } catch { /* best-effort */ }
+    }
     await nc.close();
   }
+  releaseMeshLock();
 });
 
 // ── Helper ──
 
+// Every task this file submits — cancelled in `after` so the shared queue
+// never carries this file's leftovers into the next claim (or the next run).
+const createdTaskIds = [];
 function uniqueTaskId() {
-  return `T-TEST-${crypto.randomBytes(4).toString("hex")}`;
+  const id = `T-TEST-${crypto.randomBytes(4).toString("hex")}`;
+  createdTaskIds.push(id);
+  return id;
 }
 
 async function rpc(subject, payload) {
@@ -132,11 +145,14 @@ describe("Task state transitions", { skip: skipReason }, () => {
     const taskId = uniqueTaskId();
     const nodeId = "test-node-" + crypto.randomBytes(2).toString("hex");
 
-    // Submit
+    // Submit — top priority so claim() (highest priority, then oldest) returns
+    // THIS task even when earlier suites in this file left queued ones behind.
     await rpc("mesh.tasks.submit", {
       task_id: taskId,
       title: "Lifecycle test",
       budget_minutes: 60,
+      priority: 100000,
+      metric: "npm test",
     });
 
     // Claim
@@ -146,17 +162,21 @@ describe("Task state transitions", { skip: skipReason }, () => {
     assert.equal(claimRes.data.status, "claimed");
     assert.equal(claimRes.data.owner, nodeId);
 
+    const owner = { node_id: nodeId, lease_token: claimRes.data.lease_token };
+    assert.ok(owner.lease_token, "claim issues a lease token");
+
     // Start
-    const startRes = await rpc("mesh.tasks.start", { task_id: taskId });
-    assert.ok(startRes.ok);
+    const startRes = await rpc("mesh.tasks.start", { task_id: taskId, ...owner });
+    assert.ok(startRes.ok, startRes.error);
     assert.equal(startRes.data.status, "running");
 
     // Complete
     const completeRes = await rpc("mesh.tasks.complete", {
       task_id: taskId,
       result: { success: true, summary: "All tests passed" },
+      ...owner,
     });
-    assert.ok(completeRes.ok);
+    assert.ok(completeRes.ok, completeRes.error);
     assert.equal(completeRes.data.status, "completed");
   });
 
@@ -167,8 +187,8 @@ describe("Task state transitions", { skip: skipReason }, () => {
       title: "Cancel test",
     });
 
-    const res = await rpc("mesh.tasks.cancel", { task_id: taskId });
-    assert.ok(res.ok);
+    const res = await rpc("mesh.tasks.cancel", signOperatorRequest({ task_id: taskId }));
+    assert.ok(res.ok, res.error);
     assert.equal(res.data.status, "cancelled");
   });
 });
