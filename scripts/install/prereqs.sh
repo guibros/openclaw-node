@@ -93,7 +93,10 @@ if [ "$PREREQ_OS" = macos ]; then
   elif $CHECK_ONLY; then
     error "tailscale MISSING (mesh clustering will not work)"
   else
-    brew install --cask tailscale-app
+    brew install --cask tailscale-app </dev/null
+    # The cask puts the CLI inside the app bundle, not on PATH.
+    TS_CLI="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+    [ -x "$TS_CLI" ] && ln -sf "$TS_CLI" "$(brew --prefix)/bin/tailscale" 2>/dev/null
     have tailscale && ok "tailscale installed" || error "tailscale CLI still not on PATH"
   fi
 
