@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity";
 import { gatewayNotify } from "@/lib/gateway-notify";
 import { AGENT_NAME, HUMAN_NAME } from "@/lib/config";
 import { getNats, sc } from "@/lib/nats";
+import { signOperatorRequest } from "@/lib/mesh-sign";
 
 /**
  * Push a notification message to the OpenClaw TUI via gateway chat.send + abort.
@@ -26,11 +27,13 @@ async function cancelMeshTask(taskId: string, execution: string | null, status: 
   if (execution === "mesh" && status !== "done" && status !== "cancelled") {
     const nc = await getNats();
     if (nc) {
-      nc.request(
-        "mesh.tasks.cancel",
-        sc.encode(JSON.stringify({ task_id: taskId })),
-        { timeout: 5000 }
-      ).catch(() => {});
+      try {
+        // Signed operator action — the daemon refuses unsigned cancel.
+        const signed = await signOperatorRequest({ task_id: taskId });
+        await nc.request("mesh.tasks.cancel", sc.encode(JSON.stringify(signed)), { timeout: 5000 });
+      } catch (err) {
+        console.warn(`[tasks] mesh.tasks.cancel for ${taskId} not delivered: ${(err as Error).message}`);
+      }
     }
   }
 }

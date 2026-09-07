@@ -108,6 +108,16 @@ async function natsConnect() {
 /**
  * Send a NATS request and wait for a response (with timeout).
  */
+/**
+ * Sign an operator action with this node's identity (lib/operator-auth). The
+ * daemon refuses unsigned approve/reject/cancel/plan/gate requests, so the CLI
+ * — which runs on the lead beside ~/.openclaw/identity.key — signs them.
+ */
+async function signOperatorRequest(payload) {
+  const { signOperatorRequest: sign } = await import('../lib/operator-auth.mjs');
+  return sign(payload);
+}
+
 async function natsRequest(nc, subject, payload, timeoutMs = 35000) {
   try {
     const data = typeof payload === 'string' ? payload : JSON.stringify(payload);
@@ -460,7 +470,7 @@ async function cmdTasks(args) {
     if (!taskId) { console.error('Usage: mesh tasks approve <task-id>'); process.exit(1); }
     const nc = await natsConnect();
     try {
-      const result = await natsRequest(nc, 'mesh.tasks.approve', { task_id: taskId });
+      const result = await natsRequest(nc, 'mesh.tasks.approve', await signOperatorRequest({ task_id: taskId }));
       console.log(`Task approved: ${result.task_id} → ${result.status}`);
     } finally { await nc.close(); }
     return;
@@ -475,7 +485,7 @@ async function cmdTasks(args) {
     }
     const nc = await natsConnect();
     try {
-      const result = await natsRequest(nc, 'mesh.tasks.reject', { task_id: taskId, reason });
+      const result = await natsRequest(nc, 'mesh.tasks.reject', await signOperatorRequest({ task_id: taskId, reason }));
       console.log(`Task rejected: ${result.task_id} → re-queued`);
       console.log(`  Reason: ${reason}`);
     } finally { await nc.close(); }
@@ -1038,7 +1048,7 @@ async function cmdPlan(args) {
       try {
         const reply = await nc.request(
           'mesh.plans.approve',
-          sc.encode(JSON.stringify({ plan_id: planId })),
+          sc.encode(JSON.stringify(await signOperatorRequest({ plan_id: planId }))),
           { timeout: 10000 }
         );
         const result = JSON.parse(sc.decode(reply.data));
@@ -1067,7 +1077,7 @@ async function cmdPlan(args) {
       try {
         const reply = await nc.request(
           'mesh.plans.abort',
-          sc.encode(JSON.stringify({ plan_id: planId, reason })),
+          sc.encode(JSON.stringify(await signOperatorRequest({ plan_id: planId, reason }))),
           { timeout: 10000 }
         );
         const result = JSON.parse(sc.decode(reply.data));

@@ -230,8 +230,7 @@ package manager's exit code.
 ### Skills with their own dependencies
 
 The installer auto-detects and installs these:
-- **memorylayer** — npm: `axios`
-- **moltbook-registry** — npm: `ethers`, `dotenv`
+- ~~memorylayer~~ / ~~moltbook-registry~~ — **quarantined** (`skills/_quarantine/README.md`): external memory exfil and mainnet wallet actions by design; not installed.
 - **prompt-guard** — pip: `pyyaml`
 - **crypto-price** — pip: `matplotlib`
 - **fast-browser-use** — Rust (requires manual `cargo build` if needed)
@@ -459,10 +458,35 @@ bash install.sh --cluster-peers=100.64.0.2,100.64.0.3 --cluster-bind=100.64.0.1
 
 This renders a hardened `nats.conf` (binds the machine's own tailnet address only, loopback-only
 monitor, authenticated cluster routes), generates the shared route password, and sets the KV
-replica target from the council size so mesh data replicates across machines. **Copy both shared
-secrets** (`OPENCLAW_NATS_TOKEN`, `OPENCLAW_NATS_CLUSTER_PASS`) to every machine's
-`~/.openclaw/openclaw.env` before starting; a machine with the wrong route password is rejected
-with an authentication failure (verified). Start nats-server on ALL machines before the daemons.
+replica target from the council size so mesh data replicates across machines. Copy
+`OPENCLAW_NATS_CLUSTER_PASS` to every machine's `~/.openclaw/openclaw.env` before starting; a
+machine with the wrong route password is rejected with an authentication failure (verified).
+Start nats-server on ALL machines before the daemons.
+
+**Per-node bus credentials (Phase 7).** Out of the box the bus is in `token` mode: one shared
+`OPENCLAW_NATS_TOKEN`. Each node also has an ed25519 identity (`~/.openclaw/identity.key`) that
+doubles as its NATS nkey, and the lead can switch the bus to per-node credentials so a leaked
+worker env file is no longer every node, and a node can be revoked without rotating a secret on
+every machine:
+
+1. **Lead:** trust every worker's identity pubkey (each worker prints it at the end of
+   `openclaw-node-init`; the join token carries the lead's key the other way):
+   `node bin/openclaw-trust-peer.mjs <worker-id> <pubkey> --role worker --sync-nats`
+   Set `OPENCLAW_NATS_AUTH=nkey` in `openclaw.env`, run `node bin/openclaw-trust-peer.mjs
+   --sync-nats` (renders `~/.openclaw/config/nats-auth.conf` with a users list plus a legacy
+   password user, and reloads nats-server), then restart the daemons.
+2. **Workers:** set `OPENCLAW_NATS_AUTH=nkey` in `openclaw.env`, restart the daemons. Workers
+   authenticate with their own key and can no longer publish `mesh.deploy.trigger`.
+3. **Mission Control:** set `OPENCLAW_NATS_AUTH=nkey` in `mission-control/.env.local`, restart.
+4. **Lead:** set `OPENCLAW_NATS_LEGACY_USER=0`, run `--sync-nats` again (drops the password
+   user), and set `OPENCLAW_NATS_AUTH=nkey-strict` everywhere. Anything still sending the old
+   token now fails with `Authorization Violation` in `~/.openclaw/logs/nats.err`.
+
+Revoke a node: `node bin/openclaw-trust-peer.mjs --remove <id> --sync-nats`. Roll back:
+`OPENCLAW_NATS_AUTH=token` + `--sync-nats`. Daemons read the mode at start, so a flip needs a
+restart. Limit (federation D17): the server authenticates each connection, but NATS does not
+tell subscribers who published a message, so the `node_id` inside a message body stays
+self-asserted until subjects embed node ids.
 Full walkthrough: [docs/MULTI_NODE_DEPLOY.md](docs/MULTI_NODE_DEPLOY.md). *Honest status: the
 config/auth mechanism is built and drill-verified; real machine-loss failover awaits a
 multi-machine T7 run.*
@@ -1072,7 +1096,9 @@ See `openclaw.env.example` for all available configuration. Key variables:
 | `WEB_SEARCH_API_KEY` | Optional | For web search capability |
 | `OBSIDIAN_API_KEY` | Optional | For Obsidian vault sync |
 | `OPENCLAW_NATS` | Optional | NATS bus URL. Defaults to single-node loopback `nats://127.0.0.1:4222`; `install.sh --cluster-peers` rewrites it to the machine's bound cluster address |
-| `OPENCLAW_NATS_TOKEN` | Auto | NATS client auth token. `install.sh` generates one via `openssl rand -hex 32` and persists it; do not leave empty on a running node |
+| `OPENCLAW_NATS_TOKEN` | Auto | NATS client auth token (`token` mode) or the legacy user's password (`nkey` mode). `install.sh` generates one via `openssl rand -hex 32` and persists it; do not leave empty on a running node |
+| `OPENCLAW_NATS_AUTH` | Auto (`token`) | Bus auth mode: `token` (shared secret), `nkey` (each node's identity key is its credential, legacy user fallback), `nkey-strict` (nkey or refuse). See "Per-node bus credentials" above |
+| `OPENCLAW_DEPLOY_TRUSTED_KEYS` / `OPENCLAW_OPERATOR_TRUSTED_KEYS` | Auto | Comma-separated raw base64 identity pubkeys allowed to sign deploy triggers / operator actions. The lead seeds its own; a worker gets the lead's from the join token or `install.sh --lead-pubkey=` (merged, never overwritten) |
 | `OPENCLAW_NATS_CLUSTER_PASS` | Auto (councils) | Cluster-route password (user `openclaw-route`) shared by every machine in a multi-machine council; generated by `install.sh --cluster-peers`. A wrong password is rejected at the route |
 | `OPENCLAW_KV_REPLICAS` | Auto (councils) | How many machines keep a copy of the mesh KV data (1 solo, 3 for a council); set by `install.sh --cluster-peers` from the council size |
 | `OPENCLAW_NODE_ROLE` | Optional | Node role: `lead` or `worker` (default: macOS→lead, Linux→worker) |

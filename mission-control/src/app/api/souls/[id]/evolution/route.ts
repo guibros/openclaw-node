@@ -7,6 +7,7 @@ import path from "path";
 import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { isSafeId } from "@/lib/safe-path";
 
 const execFileAsync = promisify(execFile);
 const SOULS_DIR = path.join(os.homedir(), ".openclaw/souls");
@@ -32,6 +33,9 @@ export async function GET(
 ) {
   try {
     const { id: soulId } = await params;
+    if (!isSafeId(soulId)) {
+      return NextResponse.json({ error: "invalid soul id" }, { status: 400 });
+    }
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") || "pending";
 
@@ -94,6 +98,9 @@ export async function POST(
 ) {
   try {
     const { id: soulId } = await params;
+    if (!isSafeId(soulId)) {
+      return NextResponse.json({ error: "invalid soul id" }, { status: 400 });
+    }
     const event: EvolutionEvent = await request.json();
 
     const db = getDb();
@@ -134,10 +141,13 @@ export async function PATCH(
 ) {
   try {
     const { id: soulId } = await params;
+    if (!isSafeId(soulId)) {
+      return NextResponse.json({ error: "invalid soul id" }, { status: 400 });
+    }
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
 
-    if (!eventId) {
+    if (!eventId || !isSafeId(eventId)) {
       return NextResponse.json(
         { error: "Event ID required" },
         { status: 400 }
@@ -169,13 +179,18 @@ export async function PATCH(
         return NextResponse.json({ error: "Event not found" }, { status: 404 });
       }
 
-      // Apply change (e.g., update genes.json)
-      const targetPath = path.join(
-        SOULS_DIR,
-        soulId,
-        "evolution",
-        event.proposedChange.target
-      );
+      // The event's proposedChange.target came from events.jsonl, which any
+      // unauthenticated POST above could append to; joined raw it was an
+      // arbitrary-JSON-rewrite primitive (review C-8). genes.json is the only
+      // target this code knows how to apply, so it is the only one allowed.
+      if (event.proposedChange?.target !== "genes.json") {
+        return NextResponse.json(
+          { error: "unsupported proposedChange.target (only genes.json can be applied)" },
+          { status: 400 }
+        );
+      }
+      // Apply change (update genes.json)
+      const targetPath = path.join(SOULS_DIR, soulId, "evolution", "genes.json");
 
       if (event.proposedChange.action === "add") {
         const existing = JSON.parse(await fs.readFile(targetPath, "utf-8"));

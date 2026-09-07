@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { WORKSPACE_ROOT } from "@/lib/config";
 import { withTrace } from "@/lib/tracer";
+import { isSensitiveRelPath, resolveWithinRoot } from "@/lib/safe-path";
 import fs from "fs";
 import path from "path";
 
@@ -16,28 +17,19 @@ export const GET = withTrace("workspace", "GET /api/workspace/read", async (requ
       return NextResponse.json({ error: "Missing path" }, { status: 400 });
     }
 
-    const absPath = path.resolve(WORKSPACE_ROOT, relPath);
-    // Security: ensure path is within workspace
-    if (!absPath.startsWith(WORKSPACE_ROOT + path.sep) && absPath !== WORKSPACE_ROOT) {
-      console.warn(`[SECURITY] workspace/read: path traversal blocked: ${relPath}`);
+    // Jail + symlink resolution + secret-shape refusal live in one helper (lib/safe-path).
+    // A workspace read must never return .env.local, an Obsidian API key, a DB,
+    // or anything under node_modules — regardless of how the path was spelled.
+    const hit = resolveWithinRoot(WORKSPACE_ROOT, relPath);
+    if (!hit) {
+      console.warn(`[SECURITY] workspace/read: path refused: ${relPath}`);
       return NextResponse.json({ error: "Path traversal denied" }, { status: 403 });
     }
-
-    if (!fs.existsSync(absPath)) {
-      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    if (isSensitiveRelPath(hit.rel)) {
+      console.warn(`[SECURITY] workspace/read: secret path refused: ${relPath}`);
+      return NextResponse.json({ error: "Secret path denied" }, { status: 403 });
     }
-
-    // Defeat symlink traversal: resolve the real path and re-check prefix
-    const realPath = fs.realpathSync(absPath);
-    const realRoot = fs.realpathSync(WORKSPACE_ROOT);
-    if (!realPath.startsWith(realRoot + path.sep) && realPath !== realRoot) {
-      console.warn(`[SECURITY] workspace/read: path traversal blocked: ${relPath}`);
-      return NextResponse.json({ error: "Path traversal denied" }, { status: 403 });
-    }
-
-    if (!fs.existsSync(realPath)) {
-      return NextResponse.json({ error: "File not found" }, { status: 404 });
-    }
+    const absPath = hit.real;
 
     const stat = fs.statSync(absPath);
     if (stat.isDirectory()) {

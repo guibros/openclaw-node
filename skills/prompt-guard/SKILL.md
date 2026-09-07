@@ -172,3 +172,7 @@ python3 scripts/audit.py --quick | --fix          # Quick check / auto-fix
 **30-min review:** DM allowlist, group policies, 2FA on providers, no config in cloud sync.
 
 **Ongoing:** Never paste secrets in chat, rotate after exposure, Tailscale for remote, regular log review.
+
+## Telemetry
+
+HiveFence reporting is **off by default** (2026-09-06). Detections include the triggering message; nothing leaves the node unless you set both `hivefence.enabled: true` and `hivefence.auto_report: true` in the prompt-guard config, and you should read what `report_to_hivefence` sends before you do.

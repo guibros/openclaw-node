@@ -125,39 +125,72 @@ ensure_git() {
   ok "Git installed"
 }
 
-# ── Repo URL Extraction ────────────────────────────────
-# Extract repo URL from token payload. Token is base64url-encoded JSON.
-# Falls back to default if token is v1 (no repo field) or parsing fails.
+# ── Token payload ─────────────────────────────────────
+# The token is base64url JSON {p: payload, s: hmac}. A fresh machine has no
+# mesh secret, so the HMAC cannot be checked here — the installer therefore
+# treats the payload as UNTRUSTED input and only lets it steer two things,
+# each bounded: the expiry (refused when past) and the repo to clone (refused
+# unless it matches the allowlist below or the operator opts in explicitly).
+# Without that bound, anyone who can hand a victim a token can make this
+# script `git clone` and `npm install` arbitrary code as the victim.
 
 DEFAULT_REPO="https://github.com/moltyguibros-design/openclaw-node.git"
+ALLOWED_REPO_PATTERN='^https://github\.com/moltyguibros-design/openclaw-node(\.git)?$'
 
-extract_repo_url() {
-  # base64url decode (handle both GNU and BSD base64)
-  local decoded
-  # Convert base64url to base64 standard
+decode_token_payload() {
+  # base64url -> base64 standard (handle both GNU and BSD base64)
   local b64std
-  b64std=$(echo "$TOKEN" | tr '_-' '/+')
-  # Add padding if needed
+  b64std=$(printf '%s' "$TOKEN" | tr '_-' '/+')
   local pad=$(( 4 - ${#b64std} % 4 ))
   [ "$pad" -lt 4 ] && b64std="${b64std}$(printf '=%.0s' $(seq 1 "$pad"))"
+  printf '%s' "$b64std" | base64 -d 2>/dev/null || true
+}
 
-  decoded=$(echo "$b64std" | base64 -d 2>/dev/null || echo "")
-  if [ -z "$decoded" ]; then
-    echo "$DEFAULT_REPO"
-    return
-  fi
+# Minimal field extraction — no jq dependency. Only simple string/number
+# values are read, and each is validated against a strict shape before use.
+json_field() { printf '%s' "$1" | grep -o "\"$2\":\"[^\"]*\"" | head -1 | cut -d'"' -f4; }
+json_number() { printf '%s' "$1" | grep -o "\"$2\":[0-9]*" | head -1 | cut -d':' -f2; }
 
-  # Extract repo field from JSON (minimal parsing — no jq dependency)
-  local repo
-  repo=$(echo "$decoded" | grep -o '"repo":"[^"]*"' | head -1 | cut -d'"' -f4)
-  if [ -n "$repo" ]; then
-    echo "$repo"
-  else
-    echo "$DEFAULT_REPO"
+check_token_expiry() {
+  local payload="$1" expires now
+  expires=$(json_number "$payload" expires)
+  [ -z "$expires" ] && return 0            # v1 tokens carry no expiry
+  now=$(( $(date +%s) * 1000 ))
+  if [ "$expires" -lt "$now" ]; then
+    die "Join token expired at $(date -u -d "@$(( expires / 1000 ))" 2>/dev/null || date -u -r "$(( expires / 1000 ))" 2>/dev/null || echo "$expires"). Ask the lead for a fresh one: node bin/mesh-join-token.js"
   fi
 }
 
-REPO_URL=$(extract_repo_url)
+# Sets REPO_URL in the calling shell. Deliberately NOT `$(...)`-style: a `die`
+# inside a command substitution only exits the subshell, and the install would
+# carry on with an empty URL instead of stopping.
+resolve_repo_url() {
+  local payload="$1" repo
+  repo=$(json_field "$payload" repo)
+  if [ -z "$repo" ]; then
+    REPO_URL="$DEFAULT_REPO"
+    return
+  fi
+  if printf '%s' "$repo" | grep -Eq "$ALLOWED_REPO_PATTERN"; then
+    REPO_URL="$repo"
+    return
+  fi
+  # A fork or mirror is a legitimate operator choice, but never a token's
+  # choice: it must be confirmed out-of-band with MESH_ALLOW_REPO=1.
+  if [ "${MESH_ALLOW_REPO:-0}" = "1" ]; then
+    warn "Cloning NON-DEFAULT repo from token (MESH_ALLOW_REPO=1): $repo"
+    REPO_URL="$repo"
+    return
+  fi
+  die "Join token points at an unrecognised repo: $repo — refusing to clone it. Re-run with MESH_ALLOW_REPO=1 only if you verified this URL with the lead operator."
+}
+
+REPO_URL="$DEFAULT_REPO"
+if [ -n "$TOKEN" ]; then
+  TOKEN_PAYLOAD=$(decode_token_payload)
+  check_token_expiry "$TOKEN_PAYLOAD"
+  resolve_repo_url "$TOKEN_PAYLOAD"
+fi
 
 # ── Mesh Code ─────────────────────────────────────────
 

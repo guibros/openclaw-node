@@ -2,16 +2,28 @@
 # scope-check.sh — Enforce per-plan SCOPE.md on Edit/Write/MultiEdit/NotebookEdit.
 # Hook: PreToolUse (matcher: Edit|Write|MultiEdit|NotebookEdit)
 #
-# Model (post-restructure): each plan is siloed under memory-plan/plans/<id>/ and
-# owns its own SCOPE.md. This hook scans every memory-plan/plans/*/SCOPE.md, keeps
-# those whose Status is "active" AND not past Expires, and unions their ```files
-# blocks into the allow-list. An edit is permitted if it matches any active plan's
-# files block (exact or shell-glob). A block whose fence ends with the word
-# `closed` (```files <label> closed) is a shipped batch — excluded from the
-# union, so finished work re-locks without deleting its record.
+# Model: each plan is siloed under memory-plan/plans/<id>/ and owns its own
+# SCOPE.md. This hook scans every memory-plan/plans/*/SCOPE.md, keeps those whose
+# Status is "active" AND not past Expires, and unions their ```files blocks into
+# the allow-list. An edit is permitted if it matches any active plan's files block
+# (exact, or a glob where `*`/`?` never cross a `/` and `**` may). A block whose
+# fence ends with the word `closed` (```files <label> closed) is a shipped batch —
+# excluded from the union, so finished work re-locks without deleting its record.
 #
-# Backward-compat: if no per-plan scopes exist yet (pre-restructure), it falls back
-# to the legacy single gate at memory-plan/SCOPE.md with identical semantics.
+# Posture (2026-09-06 review, finding I4 — the hook was the only mechanically
+# enforced gate in the repo and it was bypassable):
+#   - FAIL CLOSED on empty or pathless input. The old "can't decide → allow" was
+#     the wrong default for a write gate.
+#   - REFUSE `..` segments outright, and resolve symlinks: a path that is lexically
+#     inside the repo but physically outside (symlink escape) is blocked even when
+#     the lexical path is listed.
+#   - Glob `*` no longer matches `/` (a `test/*` line unlocked `test/../CLAUDE.md`
+#     and, via case-pattern semantics, everything under test/ recursively).
+#   - Paths outside the repo (a scratchpad in /tmp) are NOT this hook's business:
+#     allowed. The scope contract governs repo files.
+#
+# Backward-compat: if no per-plan scopes exist yet, falls back to the legacy
+# single gate at memory-plan/SCOPE.md with identical semantics.
 #
 # Always permits writes to (escape valves):
 #   - memory-plan/plans/*/SCOPE.md, memory-plan/plans/*/OUT_OF_SCOPE.md
@@ -26,15 +38,18 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# Physical path (symlinks resolved) so it compares consistently with canonicalized targets.
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 PLANS_DIR="$REPO_ROOT/memory-plan/plans"
 LEGACY_SCOPE="$REPO_ROOT/memory-plan/SCOPE.md"
 
-# --- Parse tool input ---------------------------------------------------------
+block() { printf '%s\n' "$1" >&2; exit 2; }
+
+# --- Parse tool input (fail closed) ------------------------------------------
 
 INPUT=$(cat 2>/dev/null || true)
 if [ -z "$INPUT" ]; then
-  exit 0  # no input, can't decide — fail-open
+  block "BLOCKED by scope-check.sh: empty hook input — the target path cannot be determined, so the write is refused (fail closed)."
 fi
 
 if command -v jq &>/dev/null; then
@@ -47,18 +62,63 @@ else
 fi
 
 if [ -z "$FILE_PATH" ]; then
-  exit 0  # tool call with no path
+  block "BLOCKED by scope-check.sh: tool input carries no file_path/notebook_path — refused (fail closed)."
 fi
 
-# --- Compute repo-relative path (portable; macOS realpath lacks --relative-to) ---
+# --- Canonicalize the target -------------------------------------------------
 
 if [[ "$FILE_PATH" != /* ]]; then
   FILE_PATH="$REPO_ROOT/$FILE_PATH"
 fi
-case "$FILE_PATH" in
-  "$REPO_ROOT"/*) RELATIVE_PATH="${FILE_PATH#$REPO_ROOT/}" ;;
-  *)              RELATIVE_PATH="$FILE_PATH" ;;
-esac
+
+# `..` segments are refused outright: the only reason to spell a repo path with
+# `..` is to leave the directory a scope line named.
+if [[ "/$FILE_PATH/" == *"/../"* ]]; then
+  block "BLOCKED by scope-check.sh: path traversal ('..' segment) refused: $FILE_PATH"
+fi
+
+# Follow a symlinked FINAL component (bounded chain), then resolve the deepest
+# existing ancestor physically (cd + pwd -P follows directory symlinks) and
+# re-attach the not-yet-existing tail. Portable: no readlink -f / realpath needed.
+resolve_link_chain() {
+  local p="$1" i=0 t
+  while [ -L "$p" ] && [ "$i" -lt 8 ]; do
+    t="$(readlink "$p")"
+    case "$t" in /*) p="$t" ;; *) p="$(dirname "$p")/$t" ;; esac
+    i=$((i + 1))
+  done
+  printf '%s' "$p"
+}
+canon() {
+  local p="$1" rest=""
+  while [ ! -d "$p" ]; do
+    rest="/$(basename "$p")$rest"
+    p="$(dirname "$p")"
+    [ "$p" = "/" ] && break
+  done
+  local dir
+  dir="$(cd "$p" 2>/dev/null && pwd -P || printf '%s' "$p")"
+  [ "$dir" = "/" ] && dir=""
+  printf '%s%s' "$dir" "$rest"
+}
+
+TARGET="$(resolve_link_chain "$FILE_PATH")"
+if [[ "/$TARGET/" == *"/../"* ]]; then
+  block "BLOCKED by scope-check.sh: symlink target uses '..' — refused: $FILE_PATH -> $TARGET"
+fi
+CANON="$(canon "$TARGET")"
+
+LEXICAL_INSIDE=0; [[ "$FILE_PATH" == "$REPO_ROOT"/* ]] && LEXICAL_INSIDE=1
+CANON_INSIDE=0;   [[ "$CANON" == "$REPO_ROOT"/* ]] && CANON_INSIDE=1
+
+if [ "$LEXICAL_INSIDE" -eq 0 ] && [ "$CANON_INSIDE" -eq 0 ]; then
+  exit 0   # not a repo file (scratchpad, /tmp, $HOME): the scope contract does not govern it
+fi
+if [ "$LEXICAL_INSIDE" -eq 1 ] && [ "$CANON_INSIDE" -eq 0 ]; then
+  block "BLOCKED by scope-check.sh: symlink escape — $FILE_PATH resolves outside the repo ($CANON)."
+fi
+
+RELATIVE_PATH="${CANON#$REPO_ROOT/}"
 
 # --- Always-allowed paths (escape valves) -------------------------------------
 
@@ -66,6 +126,7 @@ case "$RELATIVE_PATH" in
   memory-plan/SCOPE.md|memory-plan/OUT_OF_SCOPE.md)
     exit 0 ;;
   memory-plan/plans/*/SCOPE.md|memory-plan/plans/*/OUT_OF_SCOPE.md)
+    # (a shell `case` here is fine: the two literal segments pin the shape)
     exit 0 ;;
 esac
 
@@ -93,6 +154,8 @@ scope_files() {
 }
 
 # Is this scope file active and unexpired? echo "active" / "override" / "" .
+# Expires must be `no-expiry` or an ISO-8601 UTC instant; anything else is
+# treated as expired (fail closed) rather than as "never".
 scope_active_state() {
   local file="$1"
   [ -f "$file" ] || { echo ""; return; }
@@ -101,12 +164,29 @@ scope_active_state() {
   [ "$status" = "active" ] || { echo ""; return; }
   expires=$(scope_field "$file" "Expires")
   if [ -n "$expires" ] && [ "$expires" != "no-expiry" ]; then
+    if ! [[ "$expires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}t[0-9]{2}:[0-9]{2}(:[0-9]{2})?z$ ]]; then echo ""; return; fi
     now=$(date -u +%Y-%m-%dt%H:%M:%Sz)   # lowercased to match scope_field output
     if [[ "$now" > "$expires" ]]; then echo ""; return; fi
   fi
   override=$(scope_field "$file" "Override")
   if [ "$override" = "true" ]; then echo "override"; return; fi
   echo "active"
+}
+
+# Glob → ERE: `*` and `?` stay within one path segment; `**` spans segments.
+glob_to_regex() {
+  local g="$1" out="" i c
+  for ((i = 0; i < ${#g}; i++)); do
+    c="${g:i:1}"
+    case "$c" in
+      '*')
+        if [ "${g:i+1:1}" = '*' ]; then out+='.*'; i=$((i + 1)); else out+='[^/]*'; fi ;;
+      '?') out+='[^/]' ;;
+      '.'|'+'|'('|')'|'['|']'|'{'|'}'|'^'|'$'|'|'|'\') out+="\\$c" ;;
+      *) out+="$c" ;;
+    esac
+  done
+  printf '%s' "$out"
 }
 
 # --- Collect active scopes ----------------------------------------------------
@@ -177,7 +257,7 @@ EOF
   exit 2
 fi
 
-# --- Membership check (exact or shell-glob) -----------------------------------
+# --- Membership check (exact, or segment-aware glob) -------------------------
 
 IS_IN_SCOPE=0
 while IFS= read -r line; do
@@ -187,8 +267,10 @@ while IFS= read -r line; do
     \#*) continue ;;
   esac
   if [ "$RELATIVE_PATH" = "$trimmed" ]; then IS_IN_SCOPE=1; break; fi
-  case "$RELATIVE_PATH" in
-    $trimmed) IS_IN_SCOPE=1; break ;;
+  case "$trimmed" in
+    *'*'*|*'?'*)
+      re="^$(glob_to_regex "$trimmed")\$"
+      if [[ "$RELATIVE_PATH" =~ $re ]]; then IS_IN_SCOPE=1; break; fi ;;
   esac
 done <<< "$ALLOWED"
 

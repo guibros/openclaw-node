@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { syncTasksToMarkdown } from "@/lib/sync/tasks";
 import type { CollabSession } from "@/lib/hooks";
+import { signOperatorRequest } from "@/lib/mesh-sign";
 
 export const dynamic = "force-dynamic";
 
@@ -70,15 +71,17 @@ export async function POST(request: NextRequest) {
 
         await kv.put(sessionId, sc.encode(JSON.stringify(session)));
 
-        // Cancel parent task via daemon RPC
+        // Cancel parent task via daemon RPC — a signed operator action; the
+        // daemon refuses unsigned cancel (review H-1).
         try {
           await nc.request(
             "mesh.tasks.cancel",
-            sc.encode(JSON.stringify({ task_id: session.task_id })),
+            sc.encode(JSON.stringify(await signOperatorRequest({ task_id: session.task_id }))),
             { timeout: 5000 }
           );
-        } catch {
-          // Daemon may be down — KV is already updated
+        } catch (err) {
+          // Daemon may be down (KV is already updated) or signing unavailable — say which.
+          console.warn(`[intervene] mesh.tasks.cancel not delivered: ${(err as Error).message}`);
         }
 
         // Notify subscribers
@@ -160,14 +163,18 @@ export async function POST(request: NextRequest) {
           await nc.request(
             "mesh.tasks.complete",
             sc.encode(
-              JSON.stringify({
-                task_id: session.task_id,
-                result: {
-                  success: true,
-                  summary: "Force-converged by operator via Mission Control",
-                  forced: true,
-                },
-              })
+              JSON.stringify(
+                // Force-complete is an OPERATOR action (MC is not the task's
+                // owner); the daemon accepts it only with a valid signature.
+                await signOperatorRequest({
+                  task_id: session.task_id,
+                  result: {
+                    success: true,
+                    summary: "Force-converged by operator via Mission Control",
+                    forced: true,
+                  },
+                })
+              )
             ),
             { timeout: 5000 }
           );

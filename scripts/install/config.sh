@@ -12,6 +12,13 @@ else
   info "Environment file already exists at $ENV_FILE"
 fi
 
+# The env file carries the NATS bus token and every cloud API key. The example
+# it is copied from is 0644, and nothing below re-hardens it, so without this a
+# fresh install leaves the whole credential set world-readable.
+if [ -f "$ENV_FILE" ]; then
+  run chmod 600 "$ENV_FILE"
+fi
+
 # Source env file for config generation (safe key=value parsing — no shell execution)
 if [ -f "$ENV_FILE" ]; then
   while IFS= read -r line; do
@@ -26,6 +33,16 @@ if [ -f "$ENV_FILE" ]; then
     # Only export valid variable names
     [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && export "$key=$value"
   done < "$ENV_FILE"
+fi
+
+# Persist the node id so it is STABLE across re-runs and hostname changes.
+# env.sh derives it from the hostname on every run; without this line a rename
+# (or a later derivation change) re-labels the node on --update while its KV
+# entries, JetStream durables and daemon-state files keep the old id (review
+# I13/L11). A value already in the file wins (it was exported by the loop above).
+if [ -f "$ENV_FILE" ] && [ "$DRY_RUN" != true ] && ! grep -q '^OPENCLAW_NODE_ID=' "$ENV_FILE"; then
+  echo "OPENCLAW_NODE_ID=$OPENCLAW_NODE_ID" >> "$ENV_FILE"
+  info "Persisted OPENCLAW_NODE_ID=$OPENCLAW_NODE_ID to $ENV_FILE (stable node identity)"
 fi
 
 # Generate OPENCLAW_NATS_TOKEN if not set — server-side auth token (D2, federation step 1.1).
@@ -82,6 +99,12 @@ generate_config() {
     return
   fi
 
+  # P4-3: the redirect below bypassed run(); --dry-run rendered real configs.
+  if $DRY_RUN; then
+    info "  [dry-run] would render $template -> $output"
+    return
+  fi
+
   if command -v envsubst >/dev/null 2>&1; then
     envsubst < "$template" > "$output"
   else
@@ -106,16 +129,18 @@ generate_config() {
       -e "s|\${CLAUDE_PROJECT_REPO}|${CLAUDE_PROJECT_REPO}|g" \
       "$template" > "$output"
   fi
-  chmod 600 "$output"
+  run chmod 600 "$output"
   info "Generated $basename (mode 600)"
 }
 
 generate_config "$REPO_DIR/config/daemon.json.template" "$OPENCLAW_ROOT/config/daemon.json"
 generate_config "$REPO_DIR/config/transcript-sources.json.template" "$OPENCLAW_ROOT/config/transcript-sources.json"
 
-# NATS config rendering — templates → ~/.openclaw/config/ (token embedded).
-# nats.conf is the DEFAULT single-node bus every fresh node runs; nats-{1,2,3}
-# are the R=3 cluster (operator-gated upgrade, federation step 1.5).
+# NATS config rendering — templates → ~/.openclaw/config/. Every template
+# `include`s nats-auth.conf, rendered further down (after the identity exists)
+# by bin/nats-auth-render.mjs: token mode by default, per-node nkeys when
+# OPENCLAW_NATS_AUTH=nkey. nats.conf is the DEFAULT single-node bus every fresh
+# node runs; nats-{1,2,3} are the R=3 cluster (operator-gated, federation 1.5).
 run mkdir -p "$OPENCLAW_ROOT/nats"
 generate_config "$REPO_DIR/services/nats/nats-single.conf" "$OPENCLAW_ROOT/config/nats.conf"
 generate_config "$REPO_DIR/services/nats/nats-1.conf" "$OPENCLAW_ROOT/config/nats-1.conf"
@@ -165,7 +190,6 @@ if [ -n "$CLUSTER_PEERS" ]; then
         const { renderClusterRoutes, replicasForPeers, parsePeers } = require(process.argv[1]);
         let t = fs.readFileSync(process.argv[2], "utf8");
         t = t.replaceAll("${OPENCLAW_NATS_SERVER_NAME}", process.env.OPENCLAW_NATS_SERVER_NAME)
-             .replaceAll("${OPENCLAW_NATS_TOKEN}", process.env.OPENCLAW_NATS_TOKEN)
              .replaceAll("${OPENCLAW_NATS_CLUSTER_PASS}", process.env.OPENCLAW_NATS_CLUSTER_PASS)
              .replaceAll("${OPENCLAW_NATS_BIND_ADDR}", process.env.OPENCLAW_NATS_BIND_ADDR)
              .replaceAll("${HOME}", os.homedir())
@@ -180,7 +204,7 @@ if [ -n "$CLUSTER_PEERS" ]; then
     for kv in "OPENCLAW_KV_REPLICAS=$KV_REPLICAS" "OPENCLAW_NATS_CLUSTER_PASS=$OPENCLAW_NATS_CLUSTER_PASS" "OPENCLAW_NATS=nats://$CLUSTER_BIND:4222"; do
       key="${kv%%=*}"
       if grep -q "^$key=" "$ENV_FILE" 2>/dev/null; then
-        sed -i.bak "s|^$key=.*|$kv|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+        run sed -i.bak "s|^$key=.*|$kv|" "$ENV_FILE" && run rm -f "$ENV_FILE.bak"
       else
         echo "$kv" >> "$ENV_FILE"
       fi
@@ -204,24 +228,79 @@ if $DRY_RUN; then
 elif OPENCLAW_IDENTITY_DIR="$OPENCLAW_ROOT" OPENCLAW_REPO_LIB="$REPO_DIR/lib" "$NODE_BIN" --input-type=module -e '
     const { getOrCreateIdentity } = await import(process.env.OPENCLAW_REPO_LIB + "/node-identity.mjs");
     const id = getOrCreateIdentity(process.env.OPENCLAW_IDENTITY_DIR);
-    const pub = String(id.publicKey || id.public_key || "");
-    console.log("  identity:", pub ? pub.slice(0, 24) + "…" : "(created)");
+    console.log("  identity:", id.publicKeyBase64.slice(0, 16) + "…");
   '; then
   info "Node identity provisioned"
 else
   warn "Identity provisioning failed — signed grappe membership unavailable until fixed"
 fi
 
-# Deploy-trigger trust (security review 2, F2): the deploy listener now REQUIRES
-# signed triggers. Provision the trust allowlist from the node's own pubkey (the
-# operator appends other machines' identity.pub values for fleet deploys).
-if ! $DRY_RUN && [ -f "$OPENCLAW_ROOT/identity.pub" ]; then
-  OPENCLAW_DEPLOY_TRUSTED_KEYS="$(tr -d '\n' < "$OPENCLAW_ROOT/identity.pub")"
-  export OPENCLAW_DEPLOY_TRUSTED_KEYS
-  if grep -q '^OPENCLAW_DEPLOY_TRUSTED_KEYS=' "$ENV_FILE" 2>/dev/null; then
-    sed -i.bak "s|^OPENCLAW_DEPLOY_TRUSTED_KEYS=.*|OPENCLAW_DEPLOY_TRUSTED_KEYS=$OPENCLAW_DEPLOY_TRUSTED_KEYS|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+# Print this node's identity pubkey in the RAW base64 form the verifiers compare
+# against (lib/deploy-trigger-auth.mjs trustedDeployKeys, lib/operator-auth.mjs).
+# identity.pub on disk is SPKI PEM — seeding the allowlist with the PEM text
+# (the pre-Phase-7 bug) made strict signed deploy refuse every trigger.
+identity_pubkey_base64() {
+  OPENCLAW_IDENTITY_DIR="$OPENCLAW_ROOT" OPENCLAW_REPO_LIB="$REPO_DIR/lib" "$NODE_BIN" --input-type=module -e '
+    const { getOrCreateIdentity } = await import(process.env.OPENCLAW_REPO_LIB + "/node-identity.mjs");
+    process.stdout.write(getOrCreateIdentity(process.env.OPENCLAW_IDENTITY_DIR).publicKeyBase64);
+  '
+}
+
+# Merge one key into a comma-separated allowlist variable in $ENV_FILE: keeps the
+# keys the operator added for other machines (a plain overwrite dropped them on
+# --update) and appends ours only when absent.
+merge_trusted_key() {
+  local var="$1" key="$2" current merged
+  # grep exits 1 when the variable is absent; under set -e/pipefail that must
+  # read as "empty", not abort the installer.
+  current="$( { grep "^${var}=" "$ENV_FILE" 2>/dev/null || true; } | head -1 | cut -d= -f2- | tr -d "\"'")"
+  case ",${current}," in
+    *",${key},"*) merged="$current" ;;
+    *) merged="${current:+${current},}${key}" ;;
+  esac
+  if grep -q "^${var}=" "$ENV_FILE" 2>/dev/null; then
+    run sed -i.bak "s|^${var}=.*|${var}=${merged}|" "$ENV_FILE" && run rm -f "$ENV_FILE.bak"
   else
-    echo "OPENCLAW_DEPLOY_TRUSTED_KEYS=$OPENCLAW_DEPLOY_TRUSTED_KEYS" >> "$ENV_FILE"
+    echo "${var}=${merged}" >> "$ENV_FILE"
   fi
-  info "Deploy-trigger trust provisioned (this node's identity.pub; signing REQUIRED by the listener unit)"
+  export "${var}=${merged}"
+}
+
+# Deploy-trigger trust (security review 2, F2): the deploy listener REQUIRES
+# signed triggers. Seed the allowlist with this node's own raw pubkey; a worker
+# joining with a lead pubkey (install.sh --lead-pubkey / join token, Phase 7)
+# gets the lead's key merged in as well so lead-signed deploys are accepted.
+if ! $DRY_RUN && [ -f "$OPENCLAW_ROOT/identity.key" ]; then
+  if SELF_PUBKEY="$(identity_pubkey_base64)" && [ -n "$SELF_PUBKEY" ]; then
+    merge_trusted_key OPENCLAW_DEPLOY_TRUSTED_KEYS "$SELF_PUBKEY"
+    merge_trusted_key OPENCLAW_OPERATOR_TRUSTED_KEYS "$SELF_PUBKEY"
+    if [ -n "${OPENCLAW_LEAD_PUBKEY:-}" ]; then
+      merge_trusted_key OPENCLAW_DEPLOY_TRUSTED_KEYS "$OPENCLAW_LEAD_PUBKEY"
+      merge_trusted_key OPENCLAW_OPERATOR_TRUSTED_KEYS "$OPENCLAW_LEAD_PUBKEY"
+      info "Lead pubkey merged into the deploy/operator trust allowlists"
+    fi
+    info "Deploy-trigger trust provisioned (raw base64 identity pubkey; signing REQUIRED by the listener unit)"
+  else
+    warn "Could not derive the identity pubkey — OPENCLAW_DEPLOY_TRUSTED_KEYS left unchanged"
+  fi
+fi
+
+# NATS auth policy (Phase 7). Default `token` reproduces the pre-Phase-7 block
+# byte for byte; `nkey` renders a users list from this identity + the registry.
+# Persist the mode so daemons (lib/nats-resolve.js) and the renderer agree.
+if [ -z "${OPENCLAW_NATS_AUTH:-}" ]; then
+  OPENCLAW_NATS_AUTH="$( { grep '^OPENCLAW_NATS_AUTH=' "$ENV_FILE" 2>/dev/null || true; } | head -1 | cut -d= -f2- | tr -d "\"'")"
+fi
+OPENCLAW_NATS_AUTH="${OPENCLAW_NATS_AUTH:-token}"
+export OPENCLAW_NATS_AUTH
+if [ -f "$ENV_FILE" ] && [ "$DRY_RUN" != true ] && ! grep -q '^OPENCLAW_NATS_AUTH=' "$ENV_FILE"; then
+  echo "OPENCLAW_NATS_AUTH=$OPENCLAW_NATS_AUTH" >> "$ENV_FILE"
+fi
+if $DRY_RUN; then
+  info "[dry-run] would render nats-auth.conf ($OPENCLAW_NATS_AUTH mode)"
+elif OPENCLAW_IDENTITY_DIR="$OPENCLAW_ROOT" "$NODE_BIN" "$REPO_DIR/bin/nats-auth-render.mjs" \
+       --out "$OPENCLAW_ROOT/config/nats-auth.conf" --mode "$OPENCLAW_NATS_AUTH"; then
+  info "Rendered nats-auth.conf ($OPENCLAW_NATS_AUTH mode, mode 600)"
+else
+  warn "nats-auth.conf render failed — nats-server will refuse to start until it exists"
 fi

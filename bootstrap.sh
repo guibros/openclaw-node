@@ -201,10 +201,28 @@ else
   else
     V="${OPENCLAW_NATS_SERVER_VERSION:-2.12.6}"
     case "$(uname -m)" in aarch64|arm64) A=arm64 ;; *) A=amd64 ;; esac
+    # Pinned checksums (upstream SHA256SUMS for v2.12.6). A binary that will run
+    # the mesh bus as a service is verified before it is installed; an override
+    # version must bring its own OPENCLAW_NATS_SERVER_SHA256 or it is refused.
+    case "${V}-${A}" in
+      2.12.6-amd64) EXPECT_SHA="77fe7dd69ff5144126026b78355900be0ab0bb4339dc61a7621dcc9b9e9d07a6" ;;
+      2.12.6-arm64) EXPECT_SHA="fddaf3f223c7af3f4d0a0d2c2fc084406e6b3ec7adfd1b9e6a37fbd03bfe222f" ;;
+      *) EXPECT_SHA="${OPENCLAW_NATS_SERVER_SHA256:-}" ;;
+    esac
     T=$(mktemp -d)
-    if curl -fsSL "https://github.com/nats-io/nats-server/releases/download/v${V}/nats-server-v${V}-linux-${A}.tar.gz" | tar xz -C "$T"; then
-      $SUDO install "$T/nats-server-v${V}-linux-${A}/nats-server" /usr/local/bin/nats-server
-      have nats-server && ok "nats-server v$V installed" || err "nats-server not on PATH after install"
+    TGZ="$T/nats-server-v${V}-linux-${A}.tar.gz"
+    if [ -z "$EXPECT_SHA" ]; then
+      err "no pinned checksum for nats-server v${V} (${A}); set OPENCLAW_NATS_SERVER_SHA256 to install it"
+    elif curl -fsSL -o "$TGZ" "https://github.com/nats-io/nats-server/releases/download/v${V}/nats-server-v${V}-linux-${A}.tar.gz"; then
+      ACTUAL_SHA=$(sha256sum "$TGZ" | awk '{print $1}')
+      if [ "$ACTUAL_SHA" != "$EXPECT_SHA" ]; then
+        err "nats-server checksum MISMATCH (got $ACTUAL_SHA, expected $EXPECT_SHA) — not installing"
+      elif tar xzf "$TGZ" -C "$T"; then
+        $SUDO install "$T/nats-server-v${V}-linux-${A}/nats-server" /usr/local/bin/nats-server
+        have nats-server && ok "nats-server v$V installed (sha256 verified)" || err "nats-server not on PATH after install"
+      else
+        err "nats-server archive could not be extracted"
+      fi
     else
       err "nats-server download failed"
     fi

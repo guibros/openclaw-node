@@ -56,6 +56,7 @@
     "lib/mcp-knowledge"
   ],
   "scripts": {
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath config/git-hooks || true",
     "pretest": "npm run --workspaces --if-present build",
     "test": "node --test test/*.test.js test/*.test.mjs",
     "test:unit": "node --test test/*.test.js test/*.test.mjs",

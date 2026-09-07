@@ -23,6 +23,7 @@ import http from 'http';
 import { execSync, spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { mcAuthHeaders } from '../lib/mc-session-token.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,7 +45,8 @@ function getMCPort() {
 
 function httpGet(url, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
-    const req = http.get(url, { timeout: timeoutMs }, (res) => {
+    // MC requires its session token on every /api method now; read the 0600 file.
+    const req = http.get(url, { timeout: timeoutMs, headers: mcAuthHeaders() }, (res) => {
       let data = '';
       res.on('data', (chunk) => (data += chunk));
       res.on('end', () => {

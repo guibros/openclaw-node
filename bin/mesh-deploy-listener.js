@@ -16,7 +16,7 @@
  */
 
 const { connect, StringCodec } = require('nats');
-const { execSync, execFile } = require('child_process');
+const { execSync, execFile, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -25,8 +25,7 @@ const tracer = createTracer('mesh-deploy-listener');
 
 // ── Config ───────────────────────────────────────────────────────────────
 
-const NODE_ID = process.env.OPENCLAW_NODE_ID ||
-  os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+const NODE_ID = require('../lib/node-id').resolveNodeId();
 // NOTE: REPO_DIR defaults to ~/openclaw (runtime). The git repo lives at
 // ~/openclaw-node. See mesh-deploy.js "Two-directory problem" comment.
 const REPO_DIR = process.env.OPENCLAW_REPO_DIR ||
@@ -61,6 +60,48 @@ const { ROLE_COMPONENTS } = require('../lib/mesh-roles');
 const NODE_COMPONENTS = new Set(ROLE_COMPONENTS[NODE_ROLE] || ROLE_COMPONENTS.worker);
 
 let deploying = false; // prevent concurrent deploys
+
+// Local deploy marker (P4-9): the last outcome on THIS node, per sha. The KV
+// result can be lost with the bucket; this file survives restarts and is what
+// the catch-up check consults before re-running a deploy that already failed.
+const DEPLOY_MARKER = process.env.OPENCLAW_DEPLOY_MARKER ||
+  path.join(os.homedir(), '.openclaw', '.last-deploy.json');
+// A failed deploy self-reverts and is re-attempted at most this many times
+// per sha (a broken commit must not be retried on every restart forever).
+const MAX_DEPLOY_ATTEMPTS = parseInt(process.env.OPENCLAW_MAX_DEPLOY_ATTEMPTS || '2', 10);
+
+function readDeployMarker() {
+  try { return JSON.parse(fs.readFileSync(DEPLOY_MARKER, 'utf8')); } catch { return null; }
+}
+function writeDeployMarker(marker) {
+  try {
+    fs.mkdirSync(path.dirname(DEPLOY_MARKER), { recursive: true });
+    fs.writeFileSync(DEPLOY_MARKER, JSON.stringify(marker, null, 2) + '\n');
+  } catch (err) { console.warn(`[deploy-listener] write deploy marker: ${err.message}`); }
+}
+
+/**
+ * Decide whether the catch-up check should (re)deploy `latest`.
+ * Pure so it is unit-testable. `lastDeploy` is this node's local marker.
+ *   - HEAD already at latest AND the last attempt for it succeeded → no.
+ *   - HEAD at latest but that deploy FAILED (rollback impossible or
+ *     incomplete) → yes, it is not done just because the tree moved.
+ *   - latest already failed `maxAttempts` times here → no (operator's turn).
+ */
+function shouldCatchUp({ currentSha, latestSha, lastDeploy, maxAttempts = MAX_DEPLOY_ATTEMPTS }) {
+  const same = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
+  const lastForLatest = lastDeploy && same(lastDeploy.sha, latestSha) ? lastDeploy : null;
+  if (lastForLatest && lastForLatest.status === 'failed' && (lastForLatest.attempts || 0) >= maxAttempts) {
+    return { deploy: false, reason: `sha ${latestSha} failed ${lastForLatest.attempts}× here — not retrying automatically` };
+  }
+  if (same(currentSha, latestSha)) {
+    if (lastForLatest && lastForLatest.status === 'failed') {
+      return { deploy: true, reason: `tree is at ${latestSha} but its deploy failed — re-attempting` };
+    }
+    return { deploy: false, reason: `up to date at ${currentSha}` };
+  }
+  return { deploy: true, reason: `behind: local=${currentSha} latest=${latestSha}` };
+}
 
 // A deploy rewrites this node (`git reset --hard`) — every outcome is worth a
 // ledgered desktop popup, not just a console line nobody watches.
@@ -111,6 +152,17 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
       errors: [],
       log: '',
     };
+
+    // Pre-deploy SHA (P4-9): the point to roll back to if anything after the
+    // fetch fails. Null when there is no git tree yet (bootstrap path) — then
+    // there is nothing to revert to and the failure is reported as-is.
+    let preSha = null;
+    try {
+      preSha = execSync('git rev-parse HEAD', { cwd: REPO_DIR, encoding: 'utf8', timeout: 5000 }).trim();
+    } catch { /* no repo yet */ }
+    const prior = readDeployMarker();
+    const sameSha = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
+    const attempts = (prior && sameSha(prior.sha, trigger.sha) ? (prior.attempts || 0) : 0) + 1;
 
     try {
       // Validate branch name to prevent command injection (trigger.branch comes from NATS)
@@ -188,9 +240,41 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
       result.errors.push(err.message);
       result.log = (err.stdout || err.stderr || err.message).slice(-5000);
       console.error(`[deploy-listener] Deploy FAILED: ${err.message}`);
+
+      // Rollback (P4-9): a failed deploy used to leave the tree at the new
+      // commit with services half-restarted, and the catch-up check then saw
+      // HEAD == latest and called it done. Revert the tree and re-run the
+      // deploy script on the known-good commit so services match the tree.
+      if (preSha) {
+        try {
+          const nowSha = execSync('git rev-parse HEAD', { cwd: REPO_DIR, encoding: 'utf8', timeout: 5000 }).trim();
+          if (nowSha !== preSha) {
+            console.log(`[deploy-listener] Rolling back ${nowSha.slice(0, 7)} → ${preSha.slice(0, 7)}`);
+            execFileSync('git', ['reset', '--hard', preSha], { cwd: REPO_DIR, encoding: 'utf8', timeout: 30000 });
+            execSync(`"${process.execPath}" "${DEPLOY_SCRIPT}" --local`, {
+              cwd: REPO_DIR, encoding: 'utf8', timeout: 300000,
+              env: { ...process.env, OPENCLAW_REPO_DIR: REPO_DIR },
+            });
+            result.rolledBack = true;
+            result.rollbackSha = preSha.slice(0, 7);
+            console.log(`[deploy-listener] Rolled back to ${preSha.slice(0, 7)} and redeployed`);
+          }
+        } catch (rbErr) {
+          result.rolledBack = false;
+          result.errors.push(`rollback failed: ${rbErr.message}`);
+          console.error(`[deploy-listener] ROLLBACK FAILED: ${rbErr.message} — node is at an unverified tree`);
+        }
+      }
     }
 
     result.completedAt = new Date().toISOString();
+    result.attempts = attempts;
+    // Local marker: what this node last tried, and how it ended.
+    writeDeployMarker({
+      sha: trigger.sha, status: result.status, attempts,
+      completedAt: result.completedAt, preSha: preSha ? preSha.slice(0, 7) : null,
+      rolledBack: result.rolledBack ?? null, initiator: trigger.initiator || null,
+    });
     result.durationSeconds = Math.round(
       (new Date(result.completedAt) - new Date(result.startedAt)) / 1000
     );
@@ -205,7 +289,8 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
     if (result.status === 'success') {
       notifyDesktop('success', 'Mesh deploy applied', `${NODE_ID} now at ${result.sha} (${result.durationSeconds}s)`);
     } else if (result.status === 'failed') {
-      notifyDesktop('error', 'Mesh deploy FAILED', `${NODE_ID}: ${result.errors.join('; ').slice(0, 180)}`);
+      const where = result.rolledBack ? `rolled back to ${result.rollbackSha}` : (result.rolledBack === false ? 'ROLLBACK FAILED' : 'no rollback point');
+      notifyDesktop('error', 'Mesh deploy FAILED', `${NODE_ID} (${where}, attempt ${attempts}/${MAX_DEPLOY_ATTEMPTS}): ${result.errors[0]?.slice(0, 160) || 'unknown'}`);
     }
 
     // Update our deployVersion in the nodes registry
@@ -257,14 +342,16 @@ async function checkAndCatchUp(resultsKv, nodesKv) {
       cwd: REPO_DIR, encoding: 'utf8',
     }).trim();
 
-    if (currentSha !== sha) {
-      console.log(`[deploy-listener] Behind: local=${currentSha} latest=${sha} — catching up`);
+    // P4-9: "HEAD == latest" is not "deployed" — a merged-but-failed deploy
+    // leaves the tree there too. The local marker breaks the tie, and caps
+    // automatic retries of a sha that keeps failing on this node.
+    const verdict = shouldCatchUp({ currentSha, latestSha: sha, lastDeploy: readDeployMarker() });
+    console.log(`[deploy-listener] Catch-up: ${verdict.reason}`);
+    if (verdict.deploy) {
       await executeDeploy(
         { sha, branch: branch || 'main', components: ['all'], initiator: 'auto-catchup' },
         resultsKv, nodesKv
       );
-    } else {
-      console.log(`[deploy-listener] Up to date at ${currentSha}`);
     }
   } catch (err) {
     console.log(`[deploy-listener] Catch-up check skipped: ${err.message}`);
@@ -396,7 +483,11 @@ async function main() {
   console.log(`[deploy-listener] ═══ Ready ═══`);
 }
 
-main().catch(err => {
-  console.error(`[deploy-listener] Fatal: ${err.message}`);
-  process.exit(1);
-});
+module.exports = { shouldCatchUp };
+
+if (require.main === module) {
+  main().catch(err => {
+    console.error(`[deploy-listener] Fatal: ${err.message}`);
+    process.exit(1);
+  });
+}

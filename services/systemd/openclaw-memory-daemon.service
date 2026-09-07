@@ -11,6 +11,7 @@ Environment=HOME=${HOME}
 Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
 Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
+Environment=OPENCLAW_NODE_ID=${OPENCLAW_NODE_ID}
 Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
 Environment=TZ=America/Montreal
 WorkingDirectory=${OPENCLAW_WORKSPACE}

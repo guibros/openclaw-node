@@ -90,7 +90,11 @@ fi
 if [ ! -d "$MESH_NM/better-sqlite3" ]; then
   info "Installing native dependencies at $OPENCLAW_MESH_HOME/..."
   run mkdir -p "$OPENCLAW_MESH_HOME"
-  (cd "$OPENCLAW_MESH_HOME" && [ ! -f package.json ] && npm init -y >/dev/null 2>&1; npm install --no-save better-sqlite3 bindings 2>/dev/null) || warn "Native dep install failed — SQLite features may not work"
+  if $DRY_RUN; then
+    info "  [dry-run] would npm init + install better-sqlite3 bindings in $OPENCLAW_MESH_HOME"
+  else
+    (cd "$OPENCLAW_MESH_HOME" && [ ! -f package.json ] && npm init -y >/dev/null 2>&1; npm install --no-save better-sqlite3 bindings 2>/dev/null) || warn "Native dep install failed — SQLite features may not work"
+  fi
   MESH_NM="$OPENCLAW_MESH_HOME/node_modules"
 fi
 

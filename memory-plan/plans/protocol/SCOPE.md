@@ -1,13 +1,275 @@
 # SCOPE — protocol plan
 
-**Status:** done
-**Goal:** Runtime repair 4.4, under the operator-approved 2026-08-02 four-step runtime block:
-replace the unauthenticated scheduler-heartbeat curl with one installer-owned, loopback-only helper
-that reads Mission Control's existing session token internally, preserves the POST auth gate, and
-proves recurring launchd ticks return HTTP 200 with exit 0. Consolidation hard-cap performance and
-the runtime failures exposed by 4.3 remain separate findings.
-**Set at:** 2026-08-02T18:04:00-04:00
-**Expires:** 2026-08-04T00:00:00Z
+**Status:** active
+**Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
+NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
+operator flips), server users block rendered from the identity registry into an included
+`nats-auth.conf`, worker deny on `mesh.deploy.trigger`, every credential-less connect routed through
+the resolver, CI on an authenticated bus. Plus the two install bugs found on the way: deploy-trust
+seeded with PEM instead of raw base64, and the lead pubkey never reaching workers (join token v4).
+Earlier goal — execute Phase 3 of REMEDIATION_PLAN_2026-09-06.md — make the gates mechanical: git hooks
+installed on every clone via npm prepare, a real force-push deny in settings, the tick refuses to
+close a step on a red suite or a missing Runtime-Evidence trailer, plan-lint FAILs (not WARNs) a
+trailer-less close, scope-check hardened (no ../symlink escape, `*` never crosses `/`, fail-closed
+on empty input, out-of-repo paths not the hook's business), and the stale governance state
+reconciled (repair scope idle, CLAUDE/AGENTS truthful about CI, the suite, D16 and Codex). Branch
+protection is a GitHub setting the operator must flip; a NATS service in CI to un-skip the mesh
+suites is noted, not done. Phase 2 (below) is closed.
+(Phase 2 goal, retained for the record:) authorization != reachability.
+2a mesh-side: ownership checks on task start/complete (mirroring handleFail), signed operator-action
+gating for approve/reject/cancel/plan/gate mutations (one shared verify core, no third copy),
+strict signed-deploy default, verifyEvent/registry comments made truthful and strict-by-default.
+2b Mission Control: session token on every /api method, no cookie hand-out to unauthenticated GET
+(query-token bootstrap), file routes hardened (realpath + size cap + secret deny), id sanitization.
+Local consumers that GET :3000 read the 0600 session token like scheduler-heartbeat already does.
+Code + focused tests + MC build only; runtime evidence on the live host is the operator's step.
+Per-node NATS nkeys is deferred (needs install-time credential provisioning).
+Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved as closed blocks.
+**Set at:** 2026-09-06T00:00:00Z
+**Expires:** 2026-09-10T00:00:00Z
+
+```files remediation-phase7-2026-09-07
+scripts/install/config.sh
+scripts/install/components.sh
+scripts/install/services.sh
+scripts/install/env.sh
+install.sh
+mesh-install.sh
+lib/join-token.js
+lib/nats-nkey.js
+lib/nats-resolve.js
+lib/fed-probes.mjs
+lib/publishers/publish-helper.mjs
+lib/node-identity.mjs
+bin/mesh-join-token.js
+bin/openclaw-node-init.js
+bin/openclaw-trust-peer.mjs
+bin/nats-auth-render.mjs
+bin/mesh-node-remove.js
+bin/health-watch.mjs
+bin/memory-promoter.mjs
+bin/memory-subscriber.mjs
+bin/openclaw-extract-now.mjs
+bin/dogfood-council.mjs
+bin/consolidate.mjs
+bin/consolidation-scheduler.mjs
+bin/openclaw-grappe.mjs
+services/nats/nats-single.conf
+services/nats/nats-1.conf
+services/nats/nats-2.conf
+services/nats/nats-3.conf
+services/nats/nats-cluster-node.conf
+services/systemd/openclaw-nats.service
+services/systemd/openclaw-nats-1.service
+services/systemd/openclaw-nats-2.service
+services/systemd/openclaw-nats-3.service
+mission-control/src/lib/nats.ts
+mission-control/src/lib/nats-auth.ts
+mission-control/src/lib/__tests__/nats-auth.test.ts
+.github/workflows/test.yml
+test/helpers/mesh-available.cjs
+test/helpers/nats-server.mjs
+test/install-modules.test.mjs
+test/join-token.test.js
+test/node-init-render.test.mjs
+test/nats-nkey.test.js
+test/nats-auth-render.test.mjs
+test/nats-resolve.test.js
+test/nats-connect-census.test.mjs
+test/nats-nkey-server.test.mjs
+test/wiring-manifest.test.mjs
+test/*.test.js
+test/*.test.mjs
+docs/NODE_SPEC.md
+README.md
+REMEDIATION_PLAN_2026-09-06.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files remediation-phase6-2026-09-07 closed
+lib/mesh-tasks.js
+lib/operator-auth.mjs
+bin/mesh-task-daemon.js
+bin/mesh-agent.js
+bin/openclaw-node-init.js
+services/launchd/ai.openclaw.mesh-deploy-listener.plist
+scripts/install/helpers.sh
+scripts/install/config.sh
+scripts/install/components.sh
+scripts/install/services.sh
+scripts/install/integrations.sh
+scripts/install/workspace.sh
+.github/workflows/test.yml
+test/mesh-tasks-status.test.js
+test/operator-auth.test.mjs
+test/install-modules.test.mjs
+test/node-init-render.test.mjs
+test/wiring-manifest.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files remediation-phase5b-2026-09-06 closed
+lib/ollama-queue.mjs
+workspace-bin/memory-daemon.mjs
+bin/consolidation-scheduler.mjs
+workspace-bin/web-fetch.mjs
+lib/mcp-knowledge/server.mjs
+lib/event-schemas.mjs
+mission-control/src/lib/parsers/task-markdown.ts
+mission-control/src/lib/sync/tasks.ts
+mission-control/src/lib/db/schema.ts
+mission-control/src/lib/db/index.ts
+mission-control/src/lib/__tests__/task-markdown.test.ts
+skills/openclaw-skill-scanner/install-hook.sh
+skills/openclaw-skill-scanner/scanner.py
+skills/openclaw-skill-scanner/SKILL.md
+skills/prompt-guard/scripts/detect.py
+skills/prompt-guard/SKILL.md
+skills/_quarantine/**
+skills/memorylayer/**
+skills/moltbook-registry/**
+identity/AGENTS.md
+README.md
+test/consolidation-scheduler.test.mjs
+test/web-fetch-guard.test.mjs
+test/skill-scanner.test.mjs
+test/wiring-manifest.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files remediation-phase5a-2026-09-06 closed
+lib/extraction-store.mjs
+lib/consolidation.mjs
+lib/pre-compression-flush.mjs
+lib/memory-formatter.mjs
+lib/extraction-prompt.mjs
+lib/extraction-schema.mjs
+lib/obsidian-summarizer.mjs
+lib/memory-watcher.mjs
+lib/node-acceptance-probes.mjs
+bin/consolidate.mjs
+test/extraction-store.test.mjs
+test/consolidation.test.mjs
+test/pre-compression-flush.test.mjs
+test/memory-formatter.test.mjs
+test/extraction-prompt.test.mjs
+test/extraction-schema.test.mjs
+test/obsidian-summarizer.test.mjs
+test/memory-watcher.test.mjs
+test/node-acceptance.test.mjs
+test/node-acceptance-probes.test.mjs
+test/install-modules.test.mjs
+scripts/install/verify.sh
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files remediation-phase4-2026-09-06 closed
+bootstrap.sh
+mesh-install.sh
+scripts/install/verify.sh
+scripts/install/components.sh
+scripts/install/config.sh
+scripts/install/env.sh
+services/launchd/*.plist
+services/systemd/openclaw-memory-daemon.service
+bin/node-acceptance.mjs
+lib/node-acceptance.mjs
+lib/node-acceptance-probes.mjs
+lib/node-id.js
+test/node-id.test.mjs
+bin/mesh-task-daemon.js
+bin/mesh-agent.js
+bin/mesh-health-publisher.js
+bin/mesh-deploy-listener.js
+bin/openclaw-node-init.js
+workspace-bin/memory-daemon.mjs
+lib/operator-auth.mjs
+lib/mesh-tasks.js
+test/install-modules.test.mjs
+test/node-acceptance.test.mjs
+test/mesh-tasks-status.test.js
+test/wiring-manifest.test.mjs
+test/deploy-rollback.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files remediation-phase3-2026-09-06 closed
+package.json
+.claude/settings.json
+.claude/hooks/scope-check.sh
+.claude/hooks/validate-push.sh
+config/git-hooks/pre-commit
+config/git-hooks/pre-push
+workspace-bin/plan-tick.sh
+workspace-bin/plan-lint.sh
+test/gate-mutation.test.mjs
+test/plan-protocol.test.mjs
+CLAUDE.md
+AGENTS.md
+memory-plan/plans/protocol/SCOPE.md
+memory-plan/plans/repair/SCOPE.md
+```
+
+```files remediation-phase2-2026-09-06 closed
+bin/mesh-task-daemon.js
+bin/mesh-agent.js
+bin/mesh.js
+lib/node-identity.mjs
+lib/deploy-trigger-auth.mjs
+lib/operator-auth.mjs
+lib/mc-session-token.mjs
+lib/node-watch.mjs
+workspace-bin/mc-health.mjs
+workspace-bin/memory-maintenance.mjs
+test/node-identity.test.mjs
+test/deploy-trigger-auth.test.mjs
+test/operator-auth.test.mjs
+test/wiring-manifest.test.mjs
+mission-control/src/lib/server-auth.ts
+mission-control/src/middleware.ts
+mission-control/src/lib/mesh-sign.ts
+mission-control/src/lib/safe-path.ts
+mission-control/src/lib/__tests__/server-auth.test.ts
+mission-control/src/lib/__tests__/safe-path.test.ts
+mission-control/src/app/api/memory-file/route.ts
+mission-control/src/app/api/workspace/read/route.ts
+mission-control/src/app/api/memory/doc/route.ts
+mission-control/src/app/api/tasks/[id]/route.ts
+mission-control/src/app/api/tasks/[id]/handoff/route.ts
+mission-control/src/app/api/souls/[id]/propagate/route.ts
+mission-control/src/app/api/souls/[id]/prompt/route.ts
+mission-control/src/app/api/souls/[id]/evolution/route.ts
+mission-control/src/app/api/cowork/intervene/route.ts
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files remediation-phase0-1-2026-09-06 closed
+lib/exec-safety.js
+bin/mesh-agent.js
+bin/mesh-task-daemon.js
+lib/llm-providers.js
+lib/mesh-harness.js
+test/exec-safety.test.js
+scripts/install/config.sh
+scripts/install/components.sh
+scripts/install/integrations.sh
+test/install-modules.test.mjs
+.github/workflows/test.yml
+.github/workflows/mirror.yml
+package.json
+package-lock.json
+mission-control/package.json
+mission-control/package-lock.json
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files adversarial-review-2026-09-06 closed
+ADVERSARIAL_REVIEW_2026-09-06.md
+REMEDIATION_PLAN_2026-09-06.md
+memory-plan/plans/protocol/SCOPE.md
+memory-plan/plans/protocol/OUT_OF_SCOPE.md
+```
 
 ```files governance-recovery-2026-08-02 closed
 memory-plan/plans/protocol/SCOPE.md

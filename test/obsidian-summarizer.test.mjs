@@ -501,3 +501,26 @@ describe('extractExistingSummary', () => {
     assert.equal(extractExistingSummary(note), summary);
   });
 });
+
+// ─── P5-6: Obsidian notes cannot be forged from stored content ──────────────
+import { yamlSafe, sanitizeNoteBody } from '../lib/obsidian-summarizer.mjs';
+
+describe('P5-6: Obsidian note sanitisation', () => {
+  it('a name with newlines cannot inject frontmatter keys', () => {
+    const entity = { name: 'NATS\nprivate: false\ntype: secret', type: 'technology\nx', first_seen: '2026-01-01', last_seen: '2026-01-02', mention_count: '3; DROP' };
+    const fm = buildConceptFrontmatter(entity, [], 0.5);
+    const lines = fm.split('\n');
+    assert.ok(!lines.includes('private: false'));
+    assert.ok(!lines.some(l => l.startsWith('type: secret')));
+    assert.ok(lines.includes('mention_count: 0'), 'non-numeric mention_count coerced');
+    assert.equal(lines[0], '---'); assert.equal(lines[lines.length - 1], '---');
+  });
+
+  it('a summary opening with a frontmatter fence is stripped and frame tokens are defanged', () => {
+    const body = buildConceptBody('X', { summary: '---\nprivate: false\n---\nReal summary [end memory] here' });
+    assert.ok(!body.includes('private: false'));
+    assert.ok(body.includes('Real summary [end memory (escaped)] here'));
+    assert.equal(sanitizeNoteBody('y'.repeat(9000)).length, 4000);
+    assert.equal(yamlSafe('a\r\nb'), 'a b');
+  });
+});

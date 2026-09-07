@@ -186,3 +186,60 @@ Updated: 2026-03-21
     expect(reparsed[0].artifacts).toEqual(["/path/to/output.json"]);
   });
 });
+
+// P5-5 (review H-14): fields MC does not model must survive a
+// markdown → parse → serialize round-trip instead of being silently dropped.
+describe("P5-5: unmodelled fields round-trip through `extra`", () => {
+  const md = `# Active Tasks
+
+Updated: 2026-09-06
+
+## Live Tasks
+
+- task_id: T-EXTRA-1
+  title: Mesh task
+  status: running
+  owner: main
+  success_criteria:
+  artifacts:
+  next_action: n/a
+  execution: mesh
+  mesh_task_id: MESH-1
+  llm_provider: deepseek
+  llm_model: deepseek-chat
+  collab_result: {"votes":2,"merged":true}
+  circling_tier: 2
+  updated_at: 2026-09-06T12:00:00Z
+`;
+
+  it("parses unknown scalars into extra without touching modelled fields", () => {
+    const [t] = parseTasksMarkdown(md);
+    expect(t.execution).toBe("mesh");
+    expect(t.meshTaskId).toBe("MESH-1");
+    expect(t.extra).toEqual({
+      llm_provider: "deepseek",
+      llm_model: "deepseek-chat",
+      collab_result: '{"votes":2,"merged":true}',
+      circling_tier: "2",
+    });
+  });
+
+  it("re-emits them verbatim on serialize", () => {
+    const out = serializeTasksMarkdown(parseTasksMarkdown(md));
+    expect(out).toContain("  llm_provider: deepseek");
+    expect(out).toContain("  llm_model: deepseek-chat");
+    expect(out).toContain('  collab_result: {"votes":2,"merged":true}');
+    expect(out).toContain("  circling_tier: 2");
+    // and the round-trip is stable
+    expect(parseTasksMarkdown(out)[0].extra).toEqual(parseTasksMarkdown(md)[0].extra);
+  });
+
+  it("never lets extra shadow a modelled key", () => {
+    const [t] = parseTasksMarkdown(md);
+    t.extra = { ...t.extra, status: "done", title: "hijack" };
+    const out = serializeTasksMarkdown([t]);
+    expect(out.match(/^  status: /gm)).toHaveLength(1);
+    expect(out).toContain("  status: running");
+    expect(out).not.toContain("hijack");
+  });
+});

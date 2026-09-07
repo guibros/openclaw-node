@@ -166,6 +166,10 @@ function runMigrations(sqlite: Database.Database) {
   if (!colNames.includes("description")) {
     sqlite.exec("ALTER TABLE tasks ADD COLUMN description TEXT");
   }
+  // P5-5: opaque carry-through of unmodelled markdown fields
+  if (!colNames.includes("extra")) {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN extra TEXT");
+  }
 
   // Scheduling columns (replaces auto_start*)
   if (!colNames.includes("needs_approval")) {

@@ -21,6 +21,51 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
+      # Mesh stack for the integration suites (~148 tests used to skip
+      # VISIBLY as "mesh stack unavailable"). Same pinned nats-server and
+      # SHA256 as bootstrap.sh; the task daemon runs against it with an
+      # isolated OPENCLAW_HOME so nothing touches the runner's real home.
+      - name: Start NATS (JetStream) + mesh-task-daemon
+        env:
+          NATS_VERSION: "2.12.6"
+          NATS_SHA256: "77fe7dd69ff5144126026b78355900be0ab0bb4339dc61a7621dcc9b9e9d07a6"
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/nats.tgz "https://github.com/nats-io/nats-server/releases/download/v${NATS_VERSION}/nats-server-v${NATS_VERSION}-linux-amd64.tar.gz"
+          echo "${NATS_SHA256}  /tmp/nats.tgz" | sha256sum -c -
+          tar -xzf /tmp/nats.tgz -C /tmp
+          sudo install -m 0755 "/tmp/nats-server-v${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/nats-server
+          # Phase 7: the CI bus is AUTHENTICATED in nkey mode — the runner is a
+          # lead whose identity key is its NATS credential, the users block is
+          # rendered by the same script install.sh runs, and a legacy password
+          # user stands in for not-yet-migrated clients. Every suite therefore
+          # proves it goes through lib/nats-resolve (a bare connect is refused).
+          export HOME=/tmp/ci-openclaw-home OPENCLAW_HOME=/tmp/ci-openclaw-home OPENCLAW_IDENTITY_DIR=/tmp/ci-openclaw-home/.openclaw
+          mkdir -p "$OPENCLAW_IDENTITY_DIR/config" /tmp/ci-jetstream
+          printf '%s\n' "OPENCLAW_NATS=nats://127.0.0.1:4222" "OPENCLAW_NATS_TOKEN=ci-legacy-token" \
+            "OPENCLAW_NATS_AUTH=nkey" "OPENCLAW_NODE_ID=ci-lead" "OPENCLAW_NODE_ROLE=lead" > "$OPENCLAW_IDENTITY_DIR/openclaw.env"
+          node --input-type=module -e 'const m = await import("./lib/node-identity.mjs"); m.getOrCreateIdentity(process.env.OPENCLAW_IDENTITY_DIR);'
+          node bin/nats-auth-render.mjs --out "$OPENCLAW_IDENTITY_DIR/config/nats-auth.conf" --mode nkey
+          printf '%s\n' "listen: 127.0.0.1:4222" "http: 127.0.0.1:8222" "jetstream { store_dir: /tmp/ci-jetstream }" 'include "nats-auth.conf"' > "$OPENCLAW_IDENTITY_DIR/config/nats.conf"
+          nohup nats-server -c "$OPENCLAW_IDENTITY_DIR/config/nats.conf" > /tmp/nats.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8222/healthz >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8222/healthz
+          OPENCLAW_NODE_ID=ci-lead OPENCLAW_NODE_ROLE=lead nohup node bin/mesh-task-daemon.js > /tmp/mesh-task-daemon.log 2>&1 &
+          {
+            echo "HOME=/tmp/ci-openclaw-home"
+            echo "OPENCLAW_HOME=/tmp/ci-openclaw-home"
+            echo "OPENCLAW_IDENTITY_DIR=$OPENCLAW_IDENTITY_DIR"
+            echo "OPENCLAW_NATS=nats://127.0.0.1:4222"
+            echo "OPENCLAW_NATS_TOKEN=ci-legacy-token"
+            echo "OPENCLAW_NATS_AUTH=nkey"
+          } >> "$GITHUB_ENV"
+          # Readiness through the resolver (nkey), and prove a bare connect is refused.
+          for i in $(seq 1 30); do
+            node -e "const {connect}=require('nats');const {natsConnectOpts}=require('./lib/nats-resolve');connect(natsConnectOpts({timeout:2000})).then(nc=>nc.request('mesh.tasks.list',Buffer.from('{\"status\":\"queued\"}'),{timeout:3000}).finally(()=>nc.close())).then(()=>process.exit(0),()=>process.exit(1))" && break
+            sleep 1
+          done
+          node -e "const {connect}=require('nats');connect({servers:'nats://127.0.0.1:4222',timeout:2000,maxReconnectAttempts:0}).then(()=>{console.error('bare connect ACCEPTED — bus is not authenticated');process.exit(1)},e=>{console.log('bare connect refused as expected:',e.message);process.exit(0)})"
+          tail -20 /tmp/mesh-task-daemon.log
       - name: Root unit tests
         # npm test (not bare node --test): the pretest hook builds the
         # event-schemas workspace dist that the broadcast libs fail loud on.
@@ -28,7 +73,27 @@ jobs:
         # VISIBLY via the per-file census (see test/helpers/embedder-available.mjs).
         env:
           OPENCLAW_NO_EMBED_MODEL: "1"
-        run: npm test
+        # On failure, surface the failing `not ok` blocks into the tail of the
+        # step log. node:test's TAP reporter prints failures inline (thousands
+        # of lines up) and never recaps at the end, so a red run otherwise shows
+        # only the summary counts — the failing test name is unreadable without
+        # downloading the raw log. This makes a red suite self-describing.
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/root-test.log || rc=$?
+          if [ "${rc:-0}" -ne 0 ]; then
+            echo "::group::Failing tests (not ok blocks)"
+            grep -nE "^[[:space:]]*not ok" /tmp/root-test.log | head -50 || true
+            echo "---"
+            grep -nE "not ok" -A 30 /tmp/root-test.log | head -600 || true
+            echo "::endgroup::"
+          fi
+          exit "${rc:-0}"
+      - name: Mesh stack logs (on failure)
+        if: failure()
+        run: |
+          echo "::group::nats-server"; tail -50 /tmp/nats.log || true; echo "::endgroup::"
+          echo "::group::mesh-task-daemon"; tail -100 /tmp/mesh-task-daemon.log || true; echo "::endgroup::"
       - name: Root dependency audit — high severity gate
         run: npm audit --audit-level=high
       - name: Packed-tarball smoke — the two past packaging escapes stay caught
@@ -36,7 +101,10 @@ jobs:
         run: |
           npm pack --dry-run 2>&1 | tee /tmp/pack.txt
           grep -q " install.sh" /tmp/pack.txt
-          test "$(grep -c " scripts/install/.*\.sh" /tmp/pack.txt)" = "9"
+          # Drift-lock: every install module in the tree must ship in the tarball.
+          # Compared against the tree, not a hard-coded count, so adding a module
+          # cannot silently break the gate (it did at 9 -> 11).
+          test "$(grep -c " scripts/install/.*\.sh" /tmp/pack.txt)" = "$(ls scripts/install/*.sh | wc -l | tr -d ' ')"
           grep -q " packages/event-schemas/dist/" /tmp/pack.txt
 
   mission-control-tests:

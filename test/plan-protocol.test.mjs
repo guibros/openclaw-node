@@ -36,6 +36,8 @@ describe('scope-check hook — per-batch closable files blocks', () => {
 \`\`\`files open-batch
 lib/open-file.mjs
 docs/open-*.md
+docs/deep/**/nested-*.md
+lib/link-out.mjs
 \`\`\`
 
 \`\`\`files shipped-batch closed
@@ -46,10 +48,19 @@ lib/shipped-file.mjs
 lib/bare-block-file.mjs
 \`\`\`
 `);
+    // A listed repo path that is a symlink to a file OUTSIDE the repo (review I4).
+    fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
+    fs.mkdirSync(path.join(tmp, 'outside'), { recursive: true });
+    fs.writeFileSync(path.join(tmp, 'outside', 'target.mjs'), '');
+    fs.symlinkSync(path.join(tmp, 'outside', 'target.mjs'), path.join(root, 'lib', 'link-out.mjs'));
   });
 
   const probe = (file) =>
     bash(hook, { input: JSON.stringify({ tool_input: { file_path: path.join(root, file) } }) }).status;
+  // path.join normalizes `..` away before the hook sees it; traversal cases must
+  // hand the hook the raw string, exactly as a tool call would.
+  const probeRaw = (file) =>
+    bash(hook, { input: JSON.stringify({ tool_input: { file_path: `${root}/${file}` } }) }).status;
 
   it('allows files in an open labeled block', () => {
     assert.equal(probe('lib/open-file.mjs'), 0);
@@ -68,6 +79,48 @@ lib/bare-block-file.mjs
   });
   it('always allows the plan SCOPE.md itself', () => {
     assert.equal(probe('memory-plan/plans/t1/SCOPE.md'), 0);
+  });
+
+  // ── hardening (review I4: the only enforced gate in the repo was bypassable) ──
+  it("refuses a '..' segment even when it would resolve to a listed file", () => {
+    assert.equal(probeRaw('lib/../lib/open-file.mjs'), 2);
+    assert.equal(probeRaw('docs/../CLAUDE.md'), 2);
+  });
+  it("a single '*' never crosses a '/' (docs/open-*.md does not unlock docs/sub/…)", () => {
+    assert.equal(probe('docs/sub/open-anything.md'), 2);
+  });
+  it("'**' spans segments", () => {
+    assert.equal(probe('docs/deep/a/b/nested-x.md'), 0);
+    assert.equal(probe('docs/deep/other-x.md'), 2);
+  });
+  it('blocks a listed path that is a symlink escaping the repo', () => {
+    assert.equal(probe('lib/link-out.mjs'), 2);
+  });
+  it('fails CLOSED on empty stdin and on pathless input', () => {
+    assert.equal(bash(hook, { input: '' }).status, 2);
+    assert.equal(bash(hook, { input: JSON.stringify({ tool_input: {} }) }).status, 2);
+  });
+  it('does not govern paths outside the repo (a scratchpad is not scope drift)', () => {
+    const outside = path.join(tmp, 'outside', 'scratch.md');
+    assert.equal(bash(hook, { input: JSON.stringify({ tool_input: { file_path: outside } }) }).status, 0);
+  });
+});
+
+describe('validate-push hook — force push is refused, not warned (review Phase 3)', () => {
+  const hook = path.join(REPO, '.claude', 'hooks', 'validate-push.sh');
+  const run = (command) => bash(hook, { input: JSON.stringify({ tool_input: { command } }) }).status;
+  it('refuses --force wherever it sits in the command', () => {
+    assert.equal(run('git push --force origin feature'), 2);
+    assert.equal(run('git push origin main --force'), 2);
+    assert.equal(run('git push origin feature --force-with-lease'), 2);
+  });
+  it('refuses the short flag and a + refspec', () => {
+    assert.equal(run('git push -f origin feature'), 2);
+    assert.equal(run('git push origin +main'), 2);
+  });
+  it('allows an ordinary push and ignores non-push commands', () => {
+    assert.equal(run('git push -u origin feature'), 0);
+    assert.equal(run('npm test'), 0);
   });
 });
 

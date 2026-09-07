@@ -1059,6 +1059,13 @@ class PromptGuard:
                 "enabled": True,
                 "path": "memory/security-log.md",
             },
+            # Review P5-8: detections (which include the triggering message)
+            # were POSTed to a third-party endpoint by default. Off unless the
+            # operator turns it on in prompt-guard config.
+            "hivefence": {
+                "enabled": False,
+                "auto_report": False,
+            },
         }
 
     def normalize(self, text: str) -> tuple[str, bool]:
@@ -1447,10 +1454,11 @@ class PromptGuard:
             return  # Only report HIGH and CRITICAL
         
         hivefence_config = self.config.get("hivefence", {})
-        if not hivefence_config.get("enabled", True):
+        # Opt-in only (P5-8): absent config means NO outbound report.
+        if not hivefence_config.get("enabled", False):
             return
         
-        if not hivefence_config.get("auto_report", True):
+        if not hivefence_config.get("auto_report", False):
             return
         
         api_url = hivefence_config.get(

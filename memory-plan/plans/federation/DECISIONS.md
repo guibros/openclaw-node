@@ -556,3 +556,36 @@ superseded by a properly powered negative result. Any future iteration must prer
 no reuse of this run's artifacts as evidence for a redesigned protocol, and no retroactive
 loosening of D3's bar. The benchmark apparatus (fed-benchmark + fed-run-driver + rules + tests)
 is now reusable infrastructure and stays.
+
+## D17 — Per-node NATS authentication via identity nkeys; subject-bound authorization deferred (2026-09-07)
+
+**Decision.** The mesh bus authenticates each node with its OWN credential: the node's ed25519
+identity key (`~/.openclaw/identity.key`, the key that already signs deploy triggers, operator
+actions and federation events) doubles as its NATS nkey (`lib/nats-nkey.js`; raw seed = PKCS8
+DER tail, public = SPKI DER tail = `publicKeyBase64`). The lead renders the server users list
+from its identity registry (`bin/nats-auth-render.mjs` → `~/.openclaw/config/nats-auth.conf`,
+`include`d by every NATS template) and reloads the server; `openclaw-trust-peer … --sync-nats`
+is both enrolment and revocation. v1 permissions are the operator's minimal safe set: a lead
+allows all; a worker denies publish on `mesh.deploy.trigger` and `$JS.API.STREAM.DELETE.>` and
+keeps everything else (JetStream/KV API, inboxes, `mesh.*`, `memory.*`, `fed.*`). The mode is
+`OPENCLAW_NATS_AUTH`: `token` (default — no behaviour change until the operator flips), `nkey`
+(identity or the legacy password user), `nkey-strict`. Workers learn the lead's pubkey and the
+bus mode from the v4 join token; the lead learns each worker's pubkey from the enrolment command
+node-init prints. Verified on nats-server 2.12.6 (test/nats-nkey-server.test.mjs) and CI now
+runs the whole mesh tier on an nkey-authenticated bus.
+
+**Why.** Remediation review root cause 1 ("authorization = reachability"): with one shared
+token, any leaked env file was every node and revocation meant rotating every machine at once.
+Phases 2a/4b/6 authorize at the application layer by identity; this closes the transport.
+Reusing the identity key keeps one enrolment step and one keypair per node; the cost is one
+secret per node (identity leak = bus leak) — the dir-based API makes a separate seed a local
+change if key separation is ever wanted.
+
+**Honest limit.** This is server-attested *authentication* with coarse *authorization*, not
+sender-bound authorization: NATS does not surface the publishing user to subscribers, so the
+`node_id` carried in message bodies is still self-asserted (the signed-event and lease/owner
+checks remain what bind an action to a node). Binding at the bus needs subjects that embed the
+node id (`mesh.health.<node_id>`, `mesh.agent.<node_id>.>` with per-user publish allow-lists);
+that subject refactor is the follow-up, not this phase. Runtime evidence of the flip on the live
+fleet is the operator's step (MASTER_PLAN §5).
+

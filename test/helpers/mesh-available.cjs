@@ -11,7 +11,7 @@
  * The probe result is cached in tmp for 60s — one ~2.5s probe per suite
  * run, not one per file.
  */
-const { execSync } = require('node:child_process');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -28,15 +28,19 @@ function meshSkipReason() {
 
   const probe = `
     const { connect } = require('nats');
-    const { NATS_URL } = require('./lib/nats-resolve');
-    connect({ servers: NATS_URL, timeout: 2000 })
+    const { natsConnectOpts } = require('./lib/nats-resolve');
+    connect(natsConnectOpts({ timeout: 2000 }))
       .then((nc) => nc.request('mesh.tasks.list', Buffer.from(JSON.stringify({ status: 'queued', limit: 1 })), { timeout: 3000 })
         .finally(() => nc.close()))
       .then(() => process.exit(0), () => process.exit(1));
   `;
   let reason = false;
   try {
-    execSync(`node -e ${JSON.stringify(probe)}`, { cwd: REPO_ROOT, stdio: 'ignore', timeout: 10_000 });
+    // No shell: `node -e ${JSON.stringify(probe)}` handed sh a double-quoted
+    // string whose \n stayed two literal characters, node rejected the source
+    // ("Expected unicode escape"), and EVERY mesh suite skipped as "mesh stack
+    // unavailable" even with the bus up — CI never ran the tier. (Phase 7 find.)
+    execFileSync(process.execPath, ['-e', probe], { cwd: REPO_ROOT, stdio: 'ignore', timeout: 10_000 });
   } catch {
     reason = 'mesh stack unavailable (NATS or mesh-task-daemon not responding)';
   }

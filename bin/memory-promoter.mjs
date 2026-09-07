@@ -27,6 +27,7 @@ import { ensureSharedStream, SHARED_STREAM_NAME } from '../lib/shared-event-stre
 import { canonicalNodeId, localEventStreamName } from '../lib/local-event-log.mjs';
 
 const _require = createRequire(import.meta.url);
+const { natsConnectOpts } = _require('../lib/nats-resolve.js');
 
 // ── Policy evaluation ────────────────────────────────────
 
@@ -346,9 +347,8 @@ async function main() {
   const { connect } = _require('nats');
 
   const nodeId = process.env.OPENCLAW_NODE_ID || os.hostname();
-  const natsUrl = process.env.NATS_URL || 'nats://localhost:4222';
 
-  const nc = await connect({ servers: natsUrl });
+  const nc = await connect(natsConnectOpts({ servers: process.env.NATS_URL }));
   console.log(`[promoter] connected to ${natsUrl} as node ${nodeId}`);
 
   const promoter = await createPromoter(nc, nodeId, {

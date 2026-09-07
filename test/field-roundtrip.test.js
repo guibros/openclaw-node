@@ -11,10 +11,11 @@
 const { describe, it, before, after } = require('node:test');
 // R32 (repair 7.4): availability is a VISIBLE skip, not a silent exit(0).
 const { meshSkipReason } = require('./helpers/mesh-available.cjs');
+const { acquireMeshLock, releaseMeshLock } = require('./helpers/mesh-lock.cjs');
 const skipReason = meshSkipReason();
 const assert = require('node:assert/strict');
 const { connect, StringCodec } = require('nats');
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 
 const sc = StringCodec();
 const TEST_PREFIX = `frt-${Date.now()}`;
@@ -28,8 +29,9 @@ async function rpc(subject, payload, timeout = 10000) {
 
 before(async () => {
   if (skipReason) return; // R32: root hooks run even when every suite is skipped
+  await acquireMeshLock('field-roundtrip.test.js'); // one live-bus suite file at a time
   try {
-    nc = await connect({ servers: NATS_URL, timeout: 2000 });
+    nc = await connect(natsConnectOpts({ timeout: 2000 }));
   } catch {
     throw new Error('mesh stack vanished between availability probe and setup');
   }
@@ -51,9 +53,10 @@ before(async () => {
 after(async () => {
   if (skipReason) return; // R32: root hooks run even when every suite is skipped
   for (const tid of createdTaskIds) {
-    try { await rpc('mesh.tasks.cancel', { task_id: tid }); } catch {}
+    try { await rpc('mesh.tasks.cancel', require('../lib/operator-auth.mjs').signOperatorRequest({ task_id: tid })); } catch {}
   }
   if (nc) await nc.close();
+  releaseMeshLock();
 });
 
 describe('Routing field round-trip: submit → KV → get', { skip: skipReason }, () => {

@@ -24,6 +24,7 @@ import { createRequire } from 'node:module';
 import {
   initConsolidationTables,
   decayWeights,
+  pruneStale,
   reinforceCoOccurrence,
   detectClusters,
   regenerateSummaries,
@@ -88,7 +89,7 @@ export async function runConsolidationCycle(opts = {}) {
   };
 
   let abortInfo = null;
-  let decayResult, reinforceResult, clusterResult;
+  let decayResult, pruneResult, reinforceResult, clusterResult;
   let summaryResult = { regenerated: 0 };
   let contradictionResult, promotionResult, vaultSurfaceResult;
 
@@ -114,6 +115,12 @@ export async function runConsolidationCycle(opts = {}) {
         eventLog.publishLocal(evt).catch(() => {});
       }
     }
+
+    // 2b. Prune what decay made irrelevant (P5-2): archived entities past
+    // retention, decayed-out decisions, idle themes. Decay is not terminal
+    // without this step.
+    if (!abortInfo) abortInfo = checkpoint('prune');
+    if (!abortInfo) pruneResult = pruneStale(db);
 
     // 3. Reinforce co-occurrence
     if (!abortInfo) abortInfo = checkpoint('reinforce');
@@ -218,6 +225,7 @@ export async function runConsolidationCycle(opts = {}) {
 
     return {
       decayed: decayResult,
+      pruned: pruneResult,
       reinforced: reinforceResult,
       clusters: clusterResult,
       summariesRegenerated: summaryResult,
@@ -240,7 +248,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   const dryRun = args.includes('--dry-run');
   const noEvents = args.includes('--no-events');
 
-  const natsUrl = process.env.OPENCLAW_NATS || process.env.NATS_URL || 'nats://127.0.0.1:4222';
+  const natsUrl = process.env.NATS_URL || undefined; // URL override only; resolver supplies URL + credentials
   const nodeId = process.env.OPENCLAW_NODE_ID || os.hostname();
 
   const opts = { nodeId };
@@ -269,6 +277,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
       console.log('Consolidation cycle complete.');
       console.log(`  Duration: ${result.durationMs}ms`);
       console.log(`  Decayed: ${result.decayed.decayedEntities} entities, ${result.decayed.decayedDecisions} decisions, ${result.decayed.archivedEntities} archived`);
+      if (result.pruned) console.log(`  Pruned: ${result.pruned.prunedArchived} archived entities, ${result.pruned.prunedDecisions} decayed decisions, ${result.pruned.prunedThemes} idle themes`);
       console.log(`  Reinforced: ${result.reinforced.reinforcedEntities} entities across ${result.reinforced.pairs.length} pairs`);
       console.log(`  Clusters: ${result.clusters.clusters.length} detected`);
       console.log(`  Summaries: ${result.summariesRegenerated.regenerated} regenerated`);

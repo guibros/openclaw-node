@@ -9,6 +9,7 @@ import {
   CLUSTER_COOCCURRENCE_MIN,
   initConsolidationTables,
   decayWeights,
+  pruneStale,
   reinforceCoOccurrence,
   detectClusters,
   detectContradictions,
@@ -283,9 +284,12 @@ describe('reinforceCoOccurrence', () => {
     assert.equal(result.pairs[0].sessions, 3);
 
     // Check salience was bumped
-    const entityA = db.prepare('SELECT salience, mention_count FROM entities WHERE name = ?').get('entity-a');
+    const entityA = db.prepare('SELECT salience, mention_count, reinforcement_count FROM entities WHERE name = ?').get('entity-a');
     assert.ok(entityA.salience > 0.4, `expected salience > 0.4, got ${entityA.salience}`);
-    assert.equal(entityA.mention_count, 2); // was 1, bumped to 2
+    // P5-1: reinforcement credit is its own column; mention_count stays
+    // derived from mentions (one writer, one meaning).
+    assert.equal(entityA.mention_count, 1);
+    assert.equal(entityA.reinforcement_count, 1);
 
     db.close();
   });
@@ -336,7 +340,7 @@ describe('reinforceCoOccurrence', () => {
     const idB = insertEntity(db, 'grow-b', 'concept', { sessions, salience: 0.4 });
 
     reinforceCoOccurrence(db);
-    const before = db.prepare(`SELECT mention_count FROM entities WHERE name = 'grow-a'`).get().mention_count;
+    const before = db.prepare(`SELECT reinforcement_count FROM entities WHERE name = 'grow-a'`).get().reinforcement_count;
 
     const now = new Date().toISOString();
     for (const id of [idA, idB]) {
@@ -348,8 +352,10 @@ describe('reinforceCoOccurrence', () => {
     assert.equal(result.reinforcedEntities, 2);
     assert.equal(result.pairs[0].sessions, 4);
 
-    const after = db.prepare(`SELECT mention_count FROM entities WHERE name = 'grow-a'`).get().mention_count;
+    const after = db.prepare(`SELECT reinforcement_count FROM entities WHERE name = 'grow-a'`).get().reinforcement_count;
     assert.equal(after, before + 1);
+    assert.equal(db.prepare(`SELECT mention_count FROM entities WHERE name = 'grow-a'`).get().mention_count, 1,
+      'mention_count is untouched by reinforcement');
 
     db.close();
   });
@@ -420,6 +426,36 @@ describe('detectContradictions', () => {
 
     assert.equal(result.entityConflicts, 1);
 
+    db.close();
+  });
+});
+
+describe('P5-2: pruneStale — decay is terminal', () => {
+  const DAY = 86_400_000;
+  it('deletes archived entities past retention, decayed-out decisions and idle themes; keeps the rest', () => {
+    const db = createTestDb();
+    initConsolidationTables(db);
+    const now = new Date('2026-09-06T00:00:00Z');
+    const iso = (d) => new Date(now - d * DAY).toISOString();
+    db.prepare(`INSERT INTO entities_archived (name, type, first_seen, last_seen, mention_count, salience, archived_at)
+                VALUES ('old', 'concept', 't', 't', 1, 0.01, ?), ('recent', 'concept', 't', 't', 1, 0.01, ?)`).run(iso(120), iso(10));
+    db.prepare(`INSERT INTO decisions (session_id, decision, rationale, confidence, created_at, salience, source_type)
+                VALUES ('s', 'dead', 'r', 0.99, ?, 0.01, 'local'), ('s', 'alive', 'r', 0.99, ?, 0.4, 'local')`).run(iso(1), iso(1));
+    db.prepare(`INSERT INTO themes (label, first_seen, last_seen, mention_count) VALUES ('stale', ?, ?, 1), ('fresh', ?, ?, 1)`).run(iso(400), iso(300), iso(5), iso(5));
+
+    const r = pruneStale(db, { now });
+    assert.deepEqual(r, { prunedArchived: 1, prunedDecisions: 1, prunedThemes: 1 });
+    assert.deepEqual(db.prepare(`SELECT name FROM entities_archived`).all().map(x => x.name), ['recent']);
+    assert.deepEqual(db.prepare(`SELECT decision FROM decisions`).all().map(x => x.decision), ['alive']);
+    assert.deepEqual(db.prepare(`SELECT label FROM themes`).all().map(x => x.label), ['fresh']);
+    db.close();
+  });
+
+  it('a decayed-out decision is no longer a promotion candidate, however confident', () => {
+    const db = createTestDb();
+    db.prepare(`INSERT INTO decisions (session_id, decision, rationale, confidence, created_at, salience, source_type)
+                VALUES ('s', 'planted', 'r', 0.99, ?, 0.0, 'local')`).run(new Date().toISOString());
+    assert.equal(evaluatePromotionCandidates(db).decisionCandidates.length, 0);
     db.close();
   });
 });

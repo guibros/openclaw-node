@@ -32,6 +32,7 @@ import path from 'path';
 import os from 'os';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
+import { resolveNodeId } from '../lib/node-id.js';
 
 // --- Tracer ---
 const require = createRequire(import.meta.url);
@@ -49,7 +50,8 @@ import { createExtractionTrigger } from '../lib/extraction-trigger.mjs';
 import { ensureSharedStream, inspectSharedStream, verifySharedStreamConfig } from '../lib/shared-event-stream.mjs';
 import { NATS_RECONNECT_OPTS } from '../lib/federation-resilience.mjs';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
-import { exportStateSnapshot, getState as getOllamaQueueState, setStateObserver } from '../lib/ollama-queue.mjs';
+import { exportStateSnapshot, getState as getOllamaQueueState, setStateObserver, markExternalJob, clearExternalJob } from '../lib/ollama-queue.mjs';
+import { loadEventSchemas } from '../lib/event-schemas.mjs';
 import { createMemoryWatcher, runStoreHealthProbes, appendWatcherRecord } from '../lib/memory-watcher.mjs';
 import { initDatabase as initKnowledgeDb } from '../lib/mcp-knowledge/core.mjs';
 import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
@@ -148,7 +150,10 @@ const __dirname = path.dirname(__filename);
 // CONFIGURATION
 // ============================================================
 
-const NODE_ID = process.env.OPENCLAW_NODE_ID || os.hostname();
+// One derivation for every daemon (lib/node-id). The raw-hostname fallback
+// produced ids that failed the event envelope regex and split the node's
+// identity across processes (review I13/P10).
+const NODE_ID = resolveNodeId();
 const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.dirname(__dirname);
 const HOME = os.homedir();
 const CONFIG_PATH = path.join(HOME, '.openclaw/config/daemon.json');
@@ -449,15 +454,21 @@ const FLUSH_WORKER = path.join(__dirname, 'flush-worker.mjs');
 const FLUSH_WORKER_TIMEOUT_MS = 30 * 60_000;
 function runMemoryWorker(data, timeoutMs = FLUSH_WORKER_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
+    // P5-3: the worker has its own ollama-queue singleton, invisible to this
+    // process's idle gate. Register the job here for the lifetime of the
+    // worker so consolidation cannot start beside a running extraction.
+    const jobId = `${data.kind || 'flush'}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    markExternalJob(jobId, { type: data.kind || 'flush', detail: data.jsonlPath ? path.basename(data.jsonlPath) : null });
     const w = new Worker(FLUSH_WORKER, { workerData: data });
     let settled = false;
     const timer = setTimeout(() => {
       settled = true;
+      clearExternalJob(jobId);
       w.terminate();
       reject(new Error(`memory worker (${data.kind || 'flush'}) timed out after ${timeoutMs / 60_000}min`));
     }, timeoutMs);
     timer.unref();
-    const settle = (fn, v) => { if (!settled) { settled = true; clearTimeout(timer); fn(v); } };
+    const settle = (fn, v) => { if (!settled) { settled = true; clearTimeout(timer); clearExternalJob(jobId); fn(v); } };
     w.once('message', (m) => settle(m.ok ? resolve : reject, m.ok ? m.result : new Error(m.error)));
     w.once('error', (e) => settle(reject, e));
     w.once('exit', (code) => { if (code !== 0) settle(reject, new Error(`memory worker (${data.kind || 'flush'}) exited with code ${code}`)); });
@@ -1577,6 +1588,14 @@ async function initFederationSubsystems(nc) {
 
 async function main() {
   ensureDirs();
+  // P5-7: a missing/unbuilt event-schemas package used to surface as a
+  // per-message NAK loop hours later. It is a deployment error — fail here.
+  try {
+    await loadEventSchemas();
+  } catch (err) {
+    log(`FATAL: ${err.message}`);
+    process.exit(1);
+  }
   const config = loadConfig();
   const sources = loadTranscriptSources();
 
@@ -1587,6 +1606,13 @@ async function main() {
   const stopQueueStateObserver = setStateObserver(() => {
     try { exportStateSnapshot(); } catch (snapErr) { log(`queue snapshot export failed: ${snapErr.message}`); }
   });
+  // P5-3: export on a timer as well. The observer fires on state CHANGES, so a
+  // quiet daemon's snapshot aged past readStateSnapshot's 120s window and the
+  // out-of-process scheduler read "stale" → never idle → never consolidated.
+  const snapshotTimer = setInterval(() => {
+    try { exportStateSnapshot(); } catch (snapErr) { log(`queue snapshot export failed: ${snapErr.message}`); }
+  }, 30_000);
+  snapshotTimer.unref();
 
   // Restore state from previous run (crash recovery)
   const savedState = loadDaemonState();

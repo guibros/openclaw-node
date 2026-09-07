@@ -39,7 +39,52 @@ export interface ParsedTask {
   preferredNodes: string[];
   excludeNodes: string[];
   clusterId: string | null;
+  // P5-5: scalar fields this parser does not model (llm_provider, llm_model,
+  // collab_result, circling_*…). Kept verbatim and re-emitted on serialize so
+  // a DB→markdown rewrite cannot strip what another writer (the mesh bridge)
+  // put there. Never interpreted here.
+  extra: Record<string, string>;
 }
+
+/** Field keys the parser models explicitly — everything else lands in `extra`. */
+export const KNOWN_MARKDOWN_KEYS: ReadonlySet<string> = new Set([
+  "artifacts",
+  "auto_priority",
+  "auto_start",
+  "auto_start_after",
+  "auto_start_before",
+  "budget_minutes",
+  "capacity_class",
+  "cluster_id",
+  "collaboration",
+  "color",
+  "description",
+  "end_date",
+  "exclude_nodes",
+  "execution",
+  "is_recurring",
+  "mesh_node",
+  "mesh_task_id",
+  "metric",
+  "needs_approval",
+  "next_action",
+  "owner",
+  "parent_id",
+  "preferred_nodes",
+  "project",
+  "scheduled_date",
+  "scope",
+  "start_date",
+  "status",
+  "success_criteria",
+  "title",
+  "trigger_at",
+  "trigger_cron",
+  "trigger_kind",
+  "trigger_tz",
+  "type",
+  "updated_at",
+]);
 
 /* ------------------------------------------------------------------ */
 /*  Status <-> Kanban mapping                                          */
@@ -133,6 +178,7 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
         preferredNodes: current.preferredNodes ?? [],
         excludeNodes: current.excludeNodes ?? [],
         clusterId: current.clusterId ?? null,
+        extra: current.extra ?? {},
       });
     }
   }
@@ -142,7 +188,7 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
     const taskIdMatch = line.match(/^- task_id:\s*(.+)$/);
     if (taskIdMatch) {
       flush();
-      current = { id: taskIdMatch[1].trim(), successCriteria: [], artifacts: [], scope: [], preferredNodes: [], excludeNodes: [] };
+      current = { id: taskIdMatch[1].trim(), successCriteria: [], artifacts: [], scope: [], preferredNodes: [], excludeNodes: [], extra: {} };
       currentArrayKey = null;
       continue;
     }
@@ -319,6 +365,9 @@ export function parseTasksMarkdown(content: string): ParsedTask[] {
           currentArrayKey = null;
           break;
         default:
+          // P5-5: unknown scalar → carried through opaquely (see ParsedTask.extra)
+          if (!current.extra) current.extra = {};
+          current.extra[rawKey] = value;
           currentArrayKey = null;
           break;
       }
@@ -497,6 +546,11 @@ export function serializeTasksMarkdown(tasks: ParsedTask[]): string {
     }
     if (t.clusterId) {
       lines.push(`  cluster_id: ${t.clusterId}`);
+    }
+    // P5-5: re-emit fields we do not model, exactly as parsed
+    for (const [k, v] of Object.entries(t.extra ?? {})) {
+      if (KNOWN_MARKDOWN_KEYS.has(k) || !/^\w[\w_]*$/.test(k)) continue;
+      lines.push(`  ${k}: ${String(v).replace(/\n/g, "\\n")}`);
     }
     lines.push(`  updated_at: ${t.updatedAt}`);
 

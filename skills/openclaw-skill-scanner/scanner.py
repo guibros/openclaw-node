@@ -107,6 +107,51 @@ PATTERNS = [
         "HTTP connection to raw IP address (no domain)",
     ),
 
+    # Obfuscation (review P5-8): rot13 / chr() / hex / split-string payloads
+    # scored clean because every pattern above looks for the literal call.
+    (
+        "rot13_decode",
+        "critical",
+        re.compile(
+            r"""(?:codecs\.(?:decode|encode)\s*\([^\n]*?rot[_-]?13|\.encode\s*\(\s*['"]rot[_-]?13['"]|str\.maketrans\s*\([^)]*[a-z]{26})""",
+            re.IGNORECASE,
+        ),
+        "ROT13 / translate-table decoding of a hidden payload",
+    ),
+    (
+        "hex_decode_payload",
+        "critical",
+        re.compile(
+            r"""(?:bytes\.fromhex\s*\(|(?:\\x[0-9a-f]{2}){8,}|unhexlify\s*\()""",
+            re.IGNORECASE,
+        ),
+        "Hex-encoded payload (bytes.fromhex / \\x escapes / unhexlify)",
+    ),
+    (
+        "chr_concat_payload",
+        "critical",
+        re.compile(
+            r"""(?:chr\s*\(\s*\d+\s*\)\s*\+\s*){3,}|String\.fromCharCode\s*\(\s*\d+\s*,\s*\d+""",
+        ),
+        "Character-code assembled string (chr()+chr()… / String.fromCharCode)",
+    ),
+    (
+        "split_keyword_concat",
+        "critical",
+        re.compile(
+            r"""['"](?:ev|ex|sys|sub|__imp)['"]\s*\+\s*['"](?:al|ec|tem|process|ort__)['"]""",
+        ),
+        "Dangerous keyword assembled by string concatenation (\'ev\'+\'al\')",
+    ),
+    (
+        "dynamic_import",
+        "high",
+        re.compile(
+            r"""(?:__import__\s*\(|importlib\.import_module\s*\(|getattr\s*\(\s*(?:__builtins__|builtins)|globals\s*\(\s*\)\s*\[)""",
+        ),
+        "Dynamic import / builtins lookup (hides what is being called)",
+    ),
+
     # === HIGH (15 points each) ===
     (
         "eval_exec_dynamic",
@@ -374,6 +419,14 @@ class SkillReport:
         if self.is_blacklisted:
             return 100
         raw = sum(f.score for f in self.findings)
+        # Review P5-8: one critical finding (25) scored "clean" (<30) and was
+        # auto-installed; two highs (30) were merely "suspicious". A critical
+        # pattern is dangerous on its own; a high is at least suspicious.
+        severities = {f.severity for f in self.findings}
+        if "critical" in severities:
+            raw = max(raw, 70)
+        elif "high" in severities:
+            raw = max(raw, 30)
         return min(100, raw)
 
     @property
@@ -863,13 +916,18 @@ def main():
             print(f"{C.GREEN}Report saved to {args.report}{C.RESET}")
         sys.exit(0 if (report and report.risk_score < 70) else 1)
 
-    # Single file scan mode
+    # Single file (or one skill directory) scan mode. install-hook.sh passes
+    # the downloaded skill DIRECTORY here; it used to scan 0 files → score 0.
     if args.file:
         file_path = Path(args.file).resolve()
         if not file_path.exists():
             print(f"{C.RED}✗ File not found: {args.file}{C.RESET}")
             sys.exit(1)
-        report = scan_single_file(file_path)
+        if file_path.is_dir():
+            whitelist, blacklist = load_lists()
+            report = scan_skill(file_path, whitelist, blacklist)
+        else:
+            report = scan_single_file(file_path)
         if args.json:
             output_json([report])
         else:

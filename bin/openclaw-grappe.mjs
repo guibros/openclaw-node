@@ -17,15 +17,12 @@ const HEALTH_BUCKET = 'MESH_NODE_HEALTH';
 const KEY_PREFIX    = 'grappe.';
 const VALID_MODES   = ['adversarial', 'cooperative', 'collaborative'];
 
-// ── NATS URL + optional token ──────────────────────────────────────────────
-// Env var only — the openclaw.env file may carry a remote Tailscale URL from
-// the fleet-prototype era (D4/retired).  CLI defaults to loopback.
-
-function resolveNats() {
-  const url   = process.env.OPENCLAW_NATS        || 'nats://127.0.0.1:4222';
-  const token = process.env.OPENCLAW_NATS_TOKEN  || undefined;
-  return { url, token };
-}
+// ── NATS URL + credentials ─────────────────────────────────────────────────
+// lib/nats-resolve is the one resolver (env → openclaw.env → .mesh-config →
+// loopback) and the one place that knows whether to send the shared token or
+// this node's nkey (Phase 7).
+import { createRequire } from 'node:module';
+const { natsConnectOpts } = createRequire(import.meta.url)('../lib/nats-resolve.js');
 
 // ── Argument parsing ───────────────────────────────────────────────────────
 
@@ -278,9 +275,8 @@ async function main() {
     process.exit(0);
   }
 
-  const { url, token } = resolveNats();
   const { connect, StringCodec } = await import('nats');
-  const nc = await connect({ servers: url, timeout: 5000, ...(token ? { token } : {}) });
+  const nc = await connect(natsConnectOpts({ timeout: 5000 }));
   const sc = StringCodec();
 
   try {

@@ -496,6 +496,26 @@ describe('R20 (repair 5.4): stall detection ignores scheduler heartbeats', () =>
   });
 });
 
+describe('P5-4: liveness measures the pipeline, not the shape of the window', () => {
+  it('fires even when non-pipeline traffic has rolled the last pipeline event out of the window', () => {
+    const det = createAnomalyDetector({ staleThresholdMs: 60_000, cooldownMs: 0, windowSize: 20 });
+    det.evaluate({ ts: new Date(Date.now() - 10 * 60_000).toISOString(), op: 'memory.ingested', status: 'ok' });
+    // 25 scheduler/retrieval events push the ingest out of the 20-slot window.
+    for (let i = 0; i < 25; i++) det.evaluate({ ts: new Date().toISOString(), op: i % 2 ? 'memory.decayed' : 'memory.retrieved', status: 'ok' });
+    assert.ok(!det._recentEvents.some(e => e.op === 'memory.ingested'), 'precondition: window no longer holds the pipeline event');
+    const alerts = det.evaluateStale();
+    assert.equal(alerts.length, 1, 'stall must still fire from the dedicated liveness signal');
+    assert.equal(alerts[0].alert_type, 'stalled');
+  });
+
+  it('a later pipeline event resets the liveness clock; an older one does not roll it back', () => {
+    const det = createAnomalyDetector({ staleThresholdMs: 60_000, cooldownMs: 0 });
+    det.evaluate({ ts: new Date().toISOString(), op: 'memory.extracted', status: 'ok' });
+    det.evaluate({ ts: new Date(Date.now() - 10 * 60_000).toISOString(), op: 'memory.ingested', status: 'ok' });
+    assert.deepEqual(det.evaluateStale(), []);
+  });
+});
+
 describe('repair 6.1 + 6.5: record identity and rotation', () => {
   it('toWatcherRecord carries event_id for stable UI row identity', () => {
     const event = buildFixtureEvent('memory.ingested', 'sess-61', 'memory', {

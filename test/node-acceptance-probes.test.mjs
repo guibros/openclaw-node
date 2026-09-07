@@ -214,3 +214,28 @@ describe('node-acceptance orchestration', () => {
     assert.equal(m.status, VERDICT.SKIP);
   });
 });
+
+// ─── P5-4: the inject probe is not green on empty ────────────────────────────
+describe('P5-4: MEM-L2-INJECT fails on an empty answer instead of passing', () => {
+  const answer = (items) => async () => ({ status: 200, json: { block: '', items, tokens: 0, elapsed_ms: 1 } });
+
+  it('PASSes when retrieval returns items', async () => {
+    const ctx = baseCtx({ httpPost: answer({ concepts: 2, decisions: 0, snippets: 1 }) });
+    const r = await probeById(ctx, 'MEM-L2-INJECT').run();
+    assert.equal(r.status, VERDICT.PASS);
+  });
+
+  it('FAILs when the store holds entities but retrieval returns nothing (retrieval dead)', async () => {
+    const ctx = baseCtx({ httpPost: answer({ concepts: 0, decisions: 0, snippets: 0 }), queryDb: () => 42 });
+    const r = await probeById(ctx, 'MEM-L2-INJECT').run();
+    assert.equal(r.status, VERDICT.FAIL);
+    assert.match(r.detail, /42 entities/);
+  });
+
+  it('SKIPs (never PASSes) when the store is genuinely empty', async () => {
+    const ctx = baseCtx({ httpPost: answer({ concepts: 0, decisions: 0, snippets: 0 }), queryDb: () => 0 });
+    const r = await probeById(ctx, 'MEM-L2-INJECT').run();
+    assert.equal(r.status, VERDICT.SKIP);
+    assert.notEqual(r.status, VERDICT.PASS);
+  });
+});

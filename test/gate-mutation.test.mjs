@@ -83,11 +83,20 @@ describe('scope hook blocks out-of-scope writes', () => {
   it('always allows plan SCOPE.md (operator scope-refresh escape valve)', () => {
     assert.equal(runHook(forPath('memory-plan/plans/federation/SCOPE.md')), 0);
   });
-  it('fail-open on pathless tool input (documented)', () => {
-    assert.equal(runHook(JSON.stringify({ tool_name: 'Write', tool_input: {} })), 0);
+  // Review I4 (2026-09-06): these two were documented fail-OPENS — "can't
+  // decide → allow" — on the only mechanically enforced write gate in the repo.
+  // A write gate that cannot determine its target must refuse.
+  it('fails CLOSED on pathless tool input', () => {
+    assert.equal(runHook(JSON.stringify({ tool_name: 'Write', tool_input: {} })), 2);
   });
-  it('fail-open on empty stdin (documented)', () => {
-    assert.equal(runHook(''), 0);
+  it('fails CLOSED on empty stdin', () => {
+    assert.equal(runHook(''), 2);
+  });
+  it("refuses a '..' traversal that would land on an escape valve", () => {
+    assert.equal(runHook(forPath('lib/../memory-plan/plans/federation/OUT_OF_SCOPE.md')), 2);
+  });
+  it('does not govern a path outside the repo', () => {
+    assert.equal(runHook(forPath('/tmp/scope-check-outside-probe.md')), 0);
   });
 });
 

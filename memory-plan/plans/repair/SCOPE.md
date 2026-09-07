@@ -1,6 +1,9 @@
 # SCOPE — repair plan
 
-**Status:** active
+**Status:** idle
+(Set to idle 2026-09-06: this scope was left `active` after its 2026-08-24 batch shipped and
+then expired on 2026-08-26, at which point the hook read it as "no active scope" and blocked
+every edit repo-wide — while CLAUDE.md said no scope was active. The record below is preserved.)
 **Set at:** 2026-08-24 (operator selection, "Full fix — 4 files", after a fresh-machine install
 of `openclaw-node` failed to install ollama, Homebrew, Tailscale, Node, and Python)
 **Expires:** 2026-08-26T00:00:00Z

@@ -5,6 +5,8 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=${NATS_SERVER_BIN} --config ${HOME}/.openclaw/config/nats-2.conf
+# SIGHUP re-reads authorization (nats-auth.conf) without dropping healthy clients.
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
 Environment=HOME=${HOME}

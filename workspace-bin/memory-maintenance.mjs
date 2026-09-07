@@ -17,6 +17,7 @@ import path from 'path';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import http from 'http';
+import { mcAuthHeaders } from '../lib/mc-session-token.mjs';
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -208,7 +209,7 @@ async function checkMissionControl() {
 
   // Use health endpoint for real diagnostics
   const healthResult = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/system/health', { timeout: 5000 }, res => {
+    const req = http.get('http://localhost:3000/api/system/health', { timeout: 5000, headers: mcAuthHeaders() }, res => {
       let data = '';
       res.on('data', d => { data += d; });
       res.on('end', () => {
@@ -274,7 +275,7 @@ async function checkMissionControl() {
 
   try {
     await new Promise((resolve, reject) => {
-      const req = http.request('http://localhost:3000/api/memory/sync', { method: 'POST', timeout: 5000 }, res => {
+      const req = http.request('http://localhost:3000/api/memory/sync', { method: 'POST', timeout: 5000, headers: mcAuthHeaders() }, res => {
         let data = '';
         res.on('data', d => { data += d; });
         res.on('end', () => { log(`MC memory sync: ${data.slice(0, 200)}`); resolve(); });
@@ -328,7 +329,7 @@ async function checkConsolidation() {
 
   // Call MC API for consolidation — the logic lives in the TS codebase
   const isUp = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/tasks', { timeout: 3000 }, res => {
+    const req = http.get('http://localhost:3000/api/tasks', { timeout: 3000, headers: mcAuthHeaders() }, res => {
       resolve(res.statusCode === 200);
       res.resume();
     });
@@ -365,7 +366,7 @@ async function checkGraphHealth() {
   log('Checking knowledge graph health...');
 
   const isUp = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/tasks', { timeout: 3000 }, res => {
+    const req = http.get('http://localhost:3000/api/tasks', { timeout: 3000, headers: mcAuthHeaders() }, res => {
       resolve(res.statusCode === 200);
       res.resume();
     });

@@ -49,6 +49,10 @@ fi
 export OPENCLAW_NODE_ROLE="$NODE_ROLE"
 info "Node role: $NODE_ROLE"
 
+# Lead pubkey handed to a joining worker (install.sh --lead-pubkey / env). config.sh
+# merges it into the trust allowlists; a lead install leaves it empty.
+export OPENCLAW_LEAD_PUBKEY="${LEAD_PUBKEY:-${OPENCLAW_LEAD_PUBKEY:-}}"
+
 # ── Resolve node ID ──
 export OPENCLAW_NODE_ID="${OPENCLAW_NODE_ID:-$(hostname -s | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-')}"
 info "Node ID: $OPENCLAW_NODE_ID"

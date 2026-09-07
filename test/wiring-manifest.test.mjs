@@ -69,6 +69,23 @@ const REQUIRED_PRODUCTION_WIRES = [
   { factory: 'createHyperAgentStore',   calledIn: 'workspace-bin/memory-daemon.mjs' },
   { factory: 'createPendingReflections', calledIn: 'workspace-bin/memory-daemon.mjs' },
   { factory: 'recordHyperagentTask',     calledIn: 'bin/mesh-agent.js' },
+  // Phase 4b lifecycle handoffs (REMEDIATION_PLAN P4-4/P4-5/P4-9): each of
+  // these is a behaviour that only exists if its entrypoint actually calls it.
+  { factory: 'reconcileKeptBranches',    calledIn: 'bin/mesh-agent.js' },      // merge-after-review catch-up
+  { factory: 'mergeIfApproved',          calledIn: 'bin/mesh-agent.js' },      // merge gated on the daemon's verdict
+  { factory: 'pruneTerminalTasks',       calledIn: 'bin/mesh-task-daemon.js' }, // MESH_TASKS hygiene
+  { factory: 'shouldCatchUp',            calledIn: 'bin/mesh-deploy-listener.js' }, // merged-but-failed ≠ deployed
+  { factory: 'writeDeployMarker',        calledIn: 'bin/mesh-deploy-listener.js' },
+  // Phase 5 data-integrity / silent-failure fixes.
+  { factory: 'pruneStale',               calledIn: 'bin/consolidate.mjs' },            // decay is terminal (P5-2)
+  { factory: 'markExternalJob',          calledIn: 'workspace-bin/memory-daemon.mjs' }, // worker-aware idle gate (P5-3)
+  { factory: 'loadEventSchemas',         calledIn: 'workspace-bin/memory-daemon.mjs' }, // fail fast on missing dist (P5-7)
+  { factory: 'assertPublicUrl',          calledIn: 'workspace-bin/web-fetch.mjs' },     // SSRF guard (P5-7)
+  { factory: 'checkHttpOrigin',          calledIn: 'lib/mcp-knowledge/server.mjs' },   // Host/Origin gate (P5-7)
+  { factory: 'withKanbanLockSync',       calledIn: 'mission-control/src/lib/sync/tasks.ts' }, // MC takes the kanban lock (P5-5)
+  // Phase 6 — remaining plan items.
+  { factory: 'reapExpiredLeases',        calledIn: 'bin/mesh-task-daemon.js' },       // dead-worker requeue (P4-5)
+  { factory: 'renderServiceTemplate',    calledIn: 'bin/openclaw-node-init.js' },     // one service definition (P4-8)
   // The flush runs OFF the daemon's main thread since the flush-worker change
   // (audits/flush_worker): the daemon invokes runFlushInWorker at every flush
   // site, and the worker is the one that calls the real runFlush. Both wires

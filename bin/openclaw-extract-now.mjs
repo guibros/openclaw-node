@@ -15,8 +15,11 @@
 
 import os from 'node:os';
 import { parseArgs } from 'node:util';
+import { createRequire } from 'node:module';
 import { connect } from 'nats';
-import { EXTRACT_SUBJECT, DEFAULT_NATS_URL, publishExtractDirect } from '../lib/publishers/publish-helper.mjs';
+import { EXTRACT_SUBJECT, publishExtractDirect } from '../lib/publishers/publish-helper.mjs';
+
+const { natsConnectOpts } = createRequire(import.meta.url)('../lib/nats-resolve.js');
 
 /**
  * Run the extraction trigger: connect to NATS, publish, disconnect.
@@ -28,12 +31,12 @@ import { EXTRACT_SUBJECT, DEFAULT_NATS_URL, publishExtractDirect } from '../lib/
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
 export async function runExtractNow(opts = {}) {
-  const natsUrl = opts.natsUrl || process.env.NATS_URL || DEFAULT_NATS_URL;
+  const natsUrl = opts.natsUrl || process.env.NATS_URL || undefined;
   const nodeId = opts.nodeId || process.env.OPENCLAW_NODE_ID || os.hostname();
   const triggeredBy = opts.triggeredBy || 'manual';
 
   try {
-    const nc = await connect({ servers: natsUrl });
+    const nc = await connect(natsConnectOpts({ servers: natsUrl }));
     publishExtractDirect(nc, nodeId, triggeredBy);
     await nc.flush();
     await nc.close();

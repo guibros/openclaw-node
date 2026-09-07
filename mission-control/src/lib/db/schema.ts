@@ -42,6 +42,10 @@ export const tasks = sqliteTable("tasks", {
   clusterId: text("cluster_id"), // FK to clusters.id for collab dispatch
   showInCalendar: integer("show_in_calendar").default(0), // 1=show meta-task in calendar view
   acknowledgedAt: text("acknowledged_at"), // ISO datetime — when the agent acknowledged auto-dispatch
+  // P5-5: JSON map of active-tasks.md fields MC does not model (llm_provider,
+  // collab_result, circling_*…). Carried opaquely so a DB→markdown rewrite
+  // no longer strips what the mesh bridge wrote.
+  extra: text("extra"),
   updatedAt: text("updated_at").notNull(),
   createdAt: text("created_at")
     .notNull()

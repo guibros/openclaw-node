@@ -57,6 +57,36 @@ describe('node-acceptance gate', () => {
     );
   });
 
+  // --skip-axis (install --skip-llm): the LLM axis is deliberately absent, so
+  // its rows must be N/A-but-covered, its dependants skipped, and the gate
+  // must still be able to ACCEPT the layers that ARE provisioned.
+  const noLlm = { ...allHealthy, ollama: { ok: false, detail: 'no model', latency_ms: 1 }, embedder: { ok: false, detail: 'absent', latency_ms: 1 } };
+  const pass = (id, layer, axis, extra = {}) => ({ id, layer, axis, required: true, ...extra, run: async () => ({ status: VERDICT.PASS, detail: 'ok' }) });
+  const skipProbes = () => [
+    pass('P-L0', 'L0', 'storage'),
+    pass('P-L2', 'L2', 'memory'),
+    pass('P-L4', 'L4', 'memory'),
+    pass('P-L4-NEEDS-LLM', 'L4', 'memory', { needs: ['llm'] }),
+    { id: 'LLM-L4', layer: 'L4', axis: 'llm', required: true, run: async () => { throw new Error('must not run'); } },
+  ];
+
+  it('--skip-axis turns a not-provisioned axis into covered N/A rows instead of FAIL', async () => {
+    const r = await runAcceptance({ profile: 'single-node', probes: skipProbes(), skipAxes: ['llm'], healthCheckFn: async () => noLlm });
+    assert.equal(r.gate.state, 'ACCEPTED');
+    assert.deepEqual(r.gate.missingLayers, []);
+    const skipped = r.results.filter(x => x.skipped);
+    assert.deepEqual(skipped.map(x => x.id).sort(), ['LLM-L1-1', 'LLM-L1-3', 'LLM-L4', 'P-L4-NEEDS-LLM']);
+    assert.ok(skipped.every(x => x.status === VERDICT.NA));
+    assert.deepEqual(r.meta.skipAxes, ['llm']);
+  });
+
+  it('without --skip-axis the same node is REJECTED (skipping is explicit, never implied)', async () => {
+    const probes = skipProbes().filter(p => p.id !== 'LLM-L4');
+    const r = await runAcceptance({ profile: 'single-node', probes, healthCheckFn: async () => noLlm });
+    assert.equal(r.gate.state, 'REJECTED');
+    assert.equal(r.results.filter(x => x.skipped).length, 0);
+  });
+
   it('an axis whose only rows are N/A is INCOMPLETE, never ACCEPTED', async () => {
     const r = await runAcceptance({ profile: 'single-node', axis: 'internode', probes: [], healthCheckFn: async () => allHealthy });
     assert.equal(r.gate.state, 'INCOMPLETE');

@@ -31,6 +31,10 @@ const { values } = parseArgs({
     quiet: { type: 'boolean', default: false },
     'no-mutate': { type: 'boolean', default: false },
     deep: { type: 'boolean', default: false },
+    // --skip-axis llm: the installer's --skip-llm wave — models are deliberately
+    // not provisioned yet, so LLM checks are N/A (still counted as covered), not
+    // FAIL. Without this the documented one-command install could never accept.
+    'skip-axis': { type: 'string', multiple: true, default: [] },
   },
 });
 
@@ -42,6 +46,7 @@ async function main() {
     axis: values.axis,
     mutate: !values['no-mutate'],
     deep: values.deep,
+    skipAxes: values['skip-axis'],
   });
 
   if (values.json) {

@@ -145,9 +145,13 @@ describe('deploy-trigger-auth', () => {
   });
 
   it('env toggles: requireSignedDeploy() + trustedDeployKeys()', () => {
-    assert.equal(requireSignedDeploy(), false);
+    // Strict is the DEFAULT (env unset). Only an explicit '0' opens it.
+    assert.equal(requireSignedDeploy(), true, 'unset env must mean strict');
     process.env.OPENCLAW_REQUIRE_SIGNED_DEPLOY = '1';
     assert.equal(requireSignedDeploy(), true);
+    process.env.OPENCLAW_REQUIRE_SIGNED_DEPLOY = '0';
+    assert.equal(requireSignedDeploy(), false, 'explicit 0 opts out');
+    delete process.env.OPENCLAW_REQUIRE_SIGNED_DEPLOY;
     process.env.OPENCLAW_DEPLOY_TRUSTED_KEYS = 'keyA==, keyB==';
     assert.deepEqual(trustedDeployKeys(), ['keyA==', 'keyB==']);
   });

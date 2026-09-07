@@ -9,9 +9,9 @@ which `workspace-bin/new-plan.sh <id> ["goal"]` instantiates into a new viewer-v
 front it (the viewer/launchd invoke tick commands argv-less). Every plan doc lives inside a
 self-contained plan dir under `memory-plan/plans/<id>/`:
 - [`memory-plan/plans/redesign/`](memory-plan/plans/redesign/) — local-first memory redesign. **COMPLETE at v6.5** (Blocks 0–6 delivered; Block 7 federation DEFERRED per its DECISIONS D4).
-- [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **COMPLETE at v7.8** (49/49 steps, all active blocks closed, suite 1550/0; scope idle).
+- [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **COMPLETE at v7.8** (49/49 steps, all active blocks closed; scope idle). Suite as of 2026-09-06: 1920 root / 118 Mission Control, green in CI.
 - [`memory-plan/plans/protocol/`](memory-plan/plans/protocol/) — the meta-plan: the workplan operating base itself (canonical docs, generic engine, scaffolder).
-- [`memory-plan/plans/federation/`](memory-plan/plans/federation/) — worker/management/savant grappes. **EVIDENCE FRONTIER at v2.6-pre**; management has not started.
+- [`memory-plan/plans/federation/`](memory-plan/plans/federation/) — worker/management/savant grappes. **BLOCKED at v2.6** (D15: premise benchmark failed) and, per **D16** (2026-08-05), consensus gating is dead — federation is a deterministic pipeline. Management has not started.
 - [`memory-plan/plans/hyperagent-evidence/`](memory-plan/plans/hyperagent-evidence/) — human-gated strategy evidence loop. **SUBSTRATE LIVE, COHORT NOT STARTED at v2.0**.
 - [`memory-plan/plans/legacy/`](memory-plan/plans/legacy/) — the **completed** 58-step framework plan (archive / reference).
 
@@ -35,6 +35,16 @@ Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 day
 `git log --oneline -20` shows the recent committed work.
 
 ## Where we are / next action
+
+**As of 2026-09-06 (remediation, PR #6):** a repo-wide adversarial + lifecycle review
+(`ADVERSARIAL_REVIEW_2026-09-06.md`) and its plan (`REMEDIATION_PLAN_2026-09-06.md`) landed with
+Phases 0–3 implemented: secrets file perms, the foreign `npx openclaw-mesh` step removed, the three
+RCE sinks closed, signed operator actions + ownership checks on the mesh bus, Mission Control
+requiring its session token on every `/api` method, and the governance gates made mechanical (git
+hooks via `npm prepare`, force-push refused, the tick refuses a close without a Runtime-Evidence
+trailer or with a red suite, scope-check hardened). CI has been green since that PR; before it,
+Tests had failed on `main` on every run from #158 (2026-08-02) to #165. Runtime evidence for the
+remediation (deploy to `~/.openclaw`, restart, observe) is still the operator's step.
 
 As of 2026-08-02, the protocol base is live; redesign is complete at v6.5 and repair at v7.8.
 Federation is **not** at management: step 2.6 is reopened at `v2.6-pre` because its five-task
@@ -60,7 +70,7 @@ runtime-repair batch described above; federation execution remains locked until 
 
 ## The forcing function
 
-`.codex/hooks.json` registers a PreToolUse hook (`.codex/hooks/scope-check.sh` — a synced copy of `.claude/hooks/scope-check.sh`; if they ever diverge, the `.claude` one is canonical) on `Edit | Write | MultiEdit | NotebookEdit`. The hook is **per-plan**: it scans every `memory-plan/plans/*/SCOPE.md`, keeps those whose `Status` is `active` and not past `Expires`, and unions their ` ```files ` blocks into the allow-list. It will **block you** if:
+**Only Claude Code enforces the write gate.** `.claude/settings.json` registers `.claude/hooks/scope-check.sh` as a PreToolUse hook on `Edit | Write | MultiEdit | NotebookEdit`. There is **no** `.codex/` hook shipped — `.codex/` is gitignored and does not exist in the tree (an earlier version of this file claimed otherwise). A Codex or other non-Claude session has no mechanical write gate: treat the scope contract as binding by convention, and know that `git commit` / `git push` are still validated for every tool through the git hooks (`config/git-hooks`, installed by `npm prepare` via `core.hooksPath`). The hook is **per-plan**: it scans every `memory-plan/plans/*/SCOPE.md`, keeps those whose `Status` is `active` and not past `Expires`, and unions their ` ```files ` blocks into the allow-list. It will **block you** if:
 
 - no active scope exists (no `plans/*/SCOPE.md` with `Status: active`)
 - the active scope's `Expires` timestamp has passed

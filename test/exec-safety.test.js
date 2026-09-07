@@ -360,3 +360,61 @@ describe('validateExecCommand', () => {
     assert.ok(typeof r.allowed === 'boolean');
   });
 });
+
+// Regression cases for the review-confirmed bypasses: the original chain regex
+// caught `&&` and `> ` but not a bare `&` or a space-less redirect, both of
+// which reached a `bash -c` sink. Bound to a second require so the names do
+// not collide with the destructured imports above.
+const es = require('../lib/exec-safety');
+
+describe('shell-chain bypasses (bare & and space-less redirect)', () => {
+  it('rejects a bare & background operator', () => {
+    assert.equal(es.containsShellChaining('npm test & rm -rf ~'), true);
+    assert.equal(es.containsShellChaining('echo ok & bash /tmp/evil.sh'), true);
+  });
+
+  it('rejects a redirect with no following space', () => {
+    assert.equal(es.containsShellChaining('echo pwned>/tmp/x'), true);
+    assert.equal(es.containsShellChaining('echo x>~/.ssh/authorized_keys'), true);
+    assert.equal(es.containsShellChaining('cat <file'), true);
+  });
+
+  it('validateExecCommand refuses them end to end', () => {
+    assert.equal(es.validateExecCommand('echo ok & bash /tmp/evil.sh').allowed, false);
+    assert.equal(es.validateExecCommand('echo pwned>/tmp/x').allowed, false);
+  });
+
+  it('still allows the safe read-only pipes', () => {
+    assert.equal(es.containsShellChaining('git log | head -5'), false);
+    assert.equal(es.containsShellChaining('ls | grep foo'), false);
+  });
+});
+
+describe('validateMetricCommand (shared worker + daemon gate)', () => {
+  it('allows ordinary test runners', () => {
+    for (const m of ['npm test', 'npm run test:unit', 'pytest tests/', 'cargo test', 'go test ./...', 'make test', 'vitest run']) {
+      assert.equal(es.validateMetricCommand(m).allowed, true, m);
+    }
+  });
+
+  it('refuses the bare & bypass that used to pass the worker filter', () => {
+    const r = es.validateMetricCommand('npm test & rm -rf ~');
+    assert.equal(r.allowed, false);
+    assert.match(r.reason, /chaining/);
+  });
+
+  it('refuses destructive patterns even behind an allowed prefix', () => {
+    assert.equal(es.validateMetricCommand('npm run x && rm -rf /').allowed, false);
+    assert.equal(es.validateMetricCommand('npm test; sudo reboot').allowed, false);
+  });
+
+  it('refuses dangerous flags the old inline copy did not check', () => {
+    assert.equal(es.validateMetricCommand('make test SHELL=/tmp/evil').allowed, false);
+    assert.equal(es.validateMetricCommand('node -e "process.exit()"').allowed, false);
+  });
+
+  it('refuses commands outside the metric allowlist', () => {
+    assert.equal(es.validateMetricCommand('curl http://evil').allowed, false);
+    assert.equal(es.validateMetricCommand('').allowed, false);
+  });
+});

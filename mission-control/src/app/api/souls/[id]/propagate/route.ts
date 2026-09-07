@@ -4,6 +4,7 @@ import { soulEvolutionLog } from "@/lib/db/schema";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { isSafeId } from "@/lib/safe-path";
 
 const SOULS_DIR = path.join(os.homedir(), ".openclaw/souls");
 
@@ -21,6 +22,12 @@ export async function POST(
     const { id: sourceSoulId } = await params;
     const body: PropagateRequest = await request.json();
     const { sourceEventId, targetSoulId } = body;
+
+    // Both ids become path segments (review C-3: a targetSoulId of "../../x"
+    // created directories and appended events anywhere writable).
+    if (!isSafeId(sourceSoulId) || !isSafeId(targetSoulId)) {
+      return NextResponse.json({ error: "invalid soul id" }, { status: 400 });
+    }
 
     // Validate target soul exists
     const targetSoulDir = path.join(SOULS_DIR, targetSoulId);

@@ -124,6 +124,7 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
         preferredNodes: task.preferredNodes?.length ? JSON.stringify(task.preferredNodes) : null,
         excludeNodes: task.excludeNodes?.length ? JSON.stringify(task.excludeNodes) : null,
         clusterId: task.clusterId || null,
+        extra: Object.keys(task.extra || {}).length ? JSON.stringify(task.extra) : null,
         updatedAt: task.updatedAt || now,
       };
 
@@ -178,6 +179,7 @@ export function syncTasksFromMarkdown(db: DrizzleDb): void {
           preferredNodes: task.preferredNodes?.length ? JSON.stringify(task.preferredNodes) : null,
           excludeNodes: task.excludeNodes?.length ? JSON.stringify(task.excludeNodes) : null,
           clusterId: task.clusterId || null,
+          extra: Object.keys(task.extra || {}).length ? JSON.stringify(task.extra) : null,
           updatedAt: task.updatedAt || now,
           createdAt: now,
         })
@@ -272,22 +274,66 @@ export function syncTasksToMarkdown(db: DrizzleDb): void {
       preferredNodes: t.preferredNodes ? JSON.parse(t.preferredNodes) : [],
       excludeNodes: t.excludeNodes ? JSON.parse(t.excludeNodes) : [],
       clusterId: t.clusterId || null,
+      extra: parseExtra(t.extra),
       updatedAt: t.updatedAt,
     }));
 
   const markdown = serializeTasksMarkdown(parsed);
 
-  // Atomic write: write to .tmp, then rename over original
-  const tmpPath = ACTIVE_TASKS_MD + ".tmp";
-  const dir = path.dirname(ACTIVE_TASKS_MD);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(tmpPath, markdown, "utf-8");
-  fs.renameSync(tmpPath, ACTIVE_TASKS_MD);
+  // P5-5: the mesh bridge and memory daemon write this file under the
+  // kanban-io mkdir lock; MC used to write beside them unlocked (lost-update
+  // race). Same lock dir, same protocol — refuse to write without it.
+  withKanbanLockSync(ACTIVE_TASKS_MD, () => {
+    // Atomic write: write to .tmp, then rename over original
+    const tmpPath = ACTIVE_TASKS_MD + ".tmp";
+    const dir = path.dirname(ACTIVE_TASKS_MD);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(tmpPath, markdown, "utf-8");
+    fs.renameSync(tmpPath, ACTIVE_TASKS_MD);
 
-  // Record mtime of our own write so we don't re-import it
-  const stat = fs.statSync(ACTIVE_TASKS_MD);
-  lastWriteMtime = stat.mtimeMs;
-  lastKnownMtime = stat.mtimeMs;
+    // Record mtime of our own write so we don't re-import it
+    const stat = fs.statSync(ACTIVE_TASKS_MD);
+    lastWriteMtime = stat.mtimeMs;
+    lastKnownMtime = stat.mtimeMs;
+  });
+}
+
+function parseExtra(raw: string | null): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Mirror of lib/kanban-io.js withMkdirLock (mkdir(<file>.lk) is atomic on
+ * every local filesystem). Synchronous because the sync layer is; the wait
+ * is a bounded spin with a real sleep, never a busy loop.
+ */
+export function withKanbanLockSync<T>(filePath: string, fn: () => T, maxWaitMs = 5000): T {
+  const lockDir = filePath + ".lk";
+  const start = Date.now();
+  const sleep = new Int32Array(new SharedArrayBuffer(4));
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      fs.mkdirSync(lockDir);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+        Atomics.wait(sleep, 0, 0, 50);
+        continue;
+      }
+      throw err;
+    }
+    try {
+      return fn();
+    } finally {
+      try { fs.rmdirSync(lockDir); } catch { /* already released */ }
+    }
+  }
+  throw new Error(`active-tasks.md lock acquisition timeout after ${maxWaitMs}ms — another writer holds ${lockDir}`);
 }

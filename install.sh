@@ -38,6 +38,7 @@ SANDBOX=false
 NODE_ROLE=""
 CLUSTER_PEERS=""
 CLUSTER_BIND=""
+LEAD_PUBKEY=""
 
 for arg in "$@"; do
   case "$arg" in
@@ -53,6 +54,7 @@ for arg in "$@"; do
     --role=*)            NODE_ROLE="${arg#--role=}" ;;
     --cluster-peers=*)   CLUSTER_PEERS="${arg#--cluster-peers=}" ;;
     --cluster-bind=*)    CLUSTER_BIND="${arg#--cluster-bind=}" ;;
+    --lead-pubkey=*)     LEAD_PUBKEY="${arg#--lead-pubkey=}" ;;
     --help|-h)
       echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--skip-llm] [--skip-verify] [--role=lead|worker] [--enable-services]"
       echo "  --dry-run           Show what would happen without making changes"
@@ -69,6 +71,9 @@ for arg in "$@"; do
       echo "                      machine's nats.conf to cluster with them (R=3 failsafe)."
       echo "  --cluster-bind=IP   THIS machine's own tailnet/LAN address to bind (never"
       echo "                      0.0.0.0). Auto-detected from 'tailscale ip -4' if omitted."
+      echo "  --lead-pubkey=B64   Worker joins: the lead's raw base64 identity pubkey"
+      echo "                      (openclaw-trust-peer --my-pubkey on the lead). Merged into"
+      echo "                      the deploy/operator trust allowlists so lead-signed actions verify."
       echo "  --enable-services   Also enable and start services after installing"
       exit 0
       ;;

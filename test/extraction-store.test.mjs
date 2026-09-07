@@ -317,10 +317,45 @@ describe('runFlush with LLM extraction', () => {
     ));
     const third = await runFlush(jsonlPath, memoryMdPath, opts);
     assert.equal(third.mode, 'llm');
-    assert.ok(
-      store.db.prepare(`SELECT COUNT(*) c FROM mentions WHERE session_id = 'dedup-session'`).get().c > mentionsAfterFirst,
-      'a grown tail must extract again'
+    assert.ok(llmCalls > callsAfterFirst, 'a grown tail must extract again');
+    // P5-1: re-extracting the same entities from a grown tail is the SAME
+    // mention (one row per session+entity), not a new one per flush.
+    assert.equal(
+      store.db.prepare(`SELECT COUNT(*) c FROM mentions WHERE session_id = 'dedup-session'`).get().c,
+      mentionsAfterFirst,
+      'a grown tail advances the existing mention, it does not mint another'
     );
+  });
+
+  it('P5-2: a re-mentioned archived entity comes back at low salience, not as a fresh 0.5 row', async () => {
+    store.db.prepare(`INSERT INTO entities_archived (name, type, canonical_name, first_seen, last_seen, mention_count, salience, archived_at, source_type)
+                      VALUES ('NATS JetStream', 'technology', 'nats jetstream', '2025-01-01T00:00:00Z', '2025-06-01T00:00:00Z', 9, 0.01, '2026-08-01T00:00:00Z', 'local')`).run();
+    store.storeExtractionResult('session-res', mockExtractionResult);
+    const row = store.db.prepare(`SELECT first_seen, salience FROM entities WHERE canonical_name = 'nats jetstream'`).get();
+    assert.ok(row, 'entity re-created');
+    assert.equal(row.first_seen, '2025-01-01T00:00:00Z', 'history preserved');
+    assert.ok(row.salience < 0.5 && row.salience > 0.05, `resurrected salience ${row.salience} must be low but above the drop threshold`);
+    assert.equal(store.db.prepare(`SELECT COUNT(*) c FROM entities_archived WHERE canonical_name = 'nats jetstream'`).get().c, 0, 'archive row consumed');
+  });
+
+  it('P5-1: mention_count stays flat across successive flushes of a growing session', async () => {
+    const jsonlPath = path.join(tmpDir, 'growing-session.jsonl');
+    const memoryMdPath = path.join(tmpDir, 'MEMORY-growing.md');
+    const line = (i) => JSON.stringify({ type: 'user', message: { role: 'user', content: `Turn ${i} about NATS JetStream` }, timestamp: `2026-06-02T10:0${i}:00Z` });
+    fs.writeFileSync(jsonlPath, [0, 1].map(line).join('\n'));
+    const mockClient = { async generate() { return { content: JSON.stringify(mockExtractionResult), usage: null, finishReason: 'stop' }; } };
+    const opts = { vaultPath: path.join(tmpDir, 'vault-growing'), charBudget: 2200, llmClient: mockClient, extractionStore: store };
+
+    const counts = [];
+    const turns = [];
+    for (let i = 2; i < 6; i++) {
+      await runFlush(jsonlPath, memoryMdPath, opts);
+      counts.push(store.db.prepare(`SELECT MAX(mention_count) m FROM entities`).get().m);
+      turns.push(store.db.prepare(`SELECT MAX(turn_index) t FROM mentions WHERE session_id = 'growing-session'`).get().t);
+      fs.appendFileSync(jsonlPath, '\n' + line(i));
+    }
+    assert.deepEqual(counts, [1, 1, 1, 1], 'one session → mention_count 1, however many flushes');
+    assert.deepEqual(turns, [1, 2, 3, 4], 'turn_index advances to the latest sighting');
   });
 
   it('falls back to regex when LLM extraction fails', async () => {

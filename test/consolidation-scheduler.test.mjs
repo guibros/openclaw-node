@@ -50,6 +50,18 @@ describe('isQueueIdle', () => {
     assert.ok(result.reason.includes('active extraction'));
   });
 
+  it('P5-3: returns not idle while a worker-thread extraction job is registered', () => {
+    const state = {
+      current_job: null, queue_depth: 0,
+      external_jobs: [{ id: 'flush-1', type: 'flush', started_at: Date.now() - 5000, elapsed_ms: 5000 }],
+      history: { extraction: { count: 0, avg_ms: 0 }, analysis: { count: 0, avg_ms: 0 } },
+      recent_fallbacks: [],
+    };
+    const result = isQueueIdle(() => state);
+    assert.equal(result.idle, false);
+    assert.match(result.reason, /worker flush job/);
+  });
+
   it('returns not idle when pending jobs exist', () => {
     const state = {
       current_job: null,

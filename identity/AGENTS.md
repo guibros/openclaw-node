@@ -196,16 +196,21 @@ If two instructions feel in tension, resolve with `PRINCIPLES.md` priority order
 
 ## Skill Enforcement — Core Disciplines
 
-These skills are **mandatory** when their triggers apply. Not suggestions — reference material to follow.
+These disciplines are **mandatory** when their triggers apply. Not suggestions.
 
-| Skill | Trigger | Hard Gate |
-|-------|---------|-----------|
-| `skills/tdd/SKILL.md` | Any feature, bugfix, or behavior change involving code | No production code without failing test first |
-| `skills/systematic-debugging/SKILL.md` | Any bug, test failure, or unexpected behavior | No fixes without root cause investigation first |
-| `skills/code-review/SKILL.md` | After completing tasks, before merging | Two-stage: spec compliance → code quality |
-| `skills/writing-plans/SKILL.md` | Multi-step implementation before coding | Plan written, reviewed, approved before code |
+> Verified 2026-09-06 (adversarial review P5-8): the `skills/tdd`, `skills/systematic-debugging`,
+> `skills/code-review` and `skills/writing-plans` playbooks this table used to point at are **not
+> shipped in this repository**. The disciplines apply as written here; do not go looking for a
+> SKILL.md that does not exist, and do not install a same-named skill from ClawHub to "fix" it.
 
-**Red Flag Protocol:** Each skill documents thoughts/behaviors that signal violation. If you catch yourself rationalizing ("too simple to test," "quick fix for now," "one more attempt"), STOP and follow the skill's process.
+| Discipline | Trigger | Hard Gate |
+|------------|---------|-----------|
+| TDD | Any feature, bugfix, or behavior change involving code | No production code without a failing test first |
+| Systematic debugging | Any bug, test failure, or unexpected behavior | No fix without root-cause investigation first |
+| Code review | After completing tasks, before merging | Two-stage: spec compliance → code quality |
+| Writing plans | Multi-step implementation before coding | Plan written, reviewed, approved before code |
+
+**Red Flag Protocol:** If you catch yourself rationalizing ("too simple to test," "quick fix for now," "one more attempt"), STOP and follow the discipline's process.
 
 **3-Strike Rule:** If 3+ fix attempts fail on the same issue, stop treating it as a bug — it's an architectural problem. Discuss with Gui before more attempts.
 

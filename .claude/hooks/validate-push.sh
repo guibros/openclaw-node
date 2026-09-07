@@ -17,10 +17,15 @@ case "$COMMAND" in
   *) exit 0 ;;
 esac
 
-# Check for force push (blocked by settings.json deny, but belt-and-suspenders)
+# Force push is REFUSED here (exit 2), whatever position the flag sits in.
+# settings.json carries a matching deny list, but permission rules are prefix
+# matches and cannot see `git push origin main --force`; this hook can. The
+# same script runs as the git pre-push hook, so it holds outside Claude Code too.
 case "$COMMAND" in
-  *"--force"*|*"-f "*|*" -f"*)
-    echo "WARNING: Force push detected. This can destroy remote history."
+  *"--force"*|*"-f "*|*" -f"*|*" +"*)
+    echo "BLOCKED by validate-push.sh: force push refused ($COMMAND)." >&2
+    echo "History rewrites on a shared branch are not allowed here; push a new commit instead." >&2
+    exit 2
     ;;
 esac
 

@@ -30,6 +30,9 @@ import { createWriteStream, readFileSync, existsSync } from 'node:fs';
 import { appendFile, readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { spawnNode, readNodeConfig } from './spawn-node.mjs';
+import { createRequire } from 'node:module';
+
+const { natsConnectOpts } = createRequire(import.meta.url)('../lib/nats-resolve.js');
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -421,7 +424,7 @@ export function createMetricCollector(nc, opts = {}) {
  */
 export async function createDogfoodHarness(opts = {}) {
   const nodeIds = opts.nodeIds || ['alpha', 'bravo', 'charlie'];
-  const natsUrl = opts.natsUrl || process.env.DOGFOOD_NATS_URL || DEFAULT_NATS_URL;
+  const natsUrl = opts.natsUrl || process.env.DOGFOOD_NATS_URL || undefined;
   const metricsPath = opts.metricsPath || process.env.DOGFOOD_METRICS_PATH || DEFAULT_METRICS_PATH;
   const baseDir = opts.baseDir;
   const durationSec = opts.durationSec || 0;
@@ -451,7 +454,7 @@ export async function createDogfoodHarness(opts = {}) {
     // Connect to NATS
     try {
       const { connect } = await import('nats');
-      nc = await connect({ servers: natsUrl });
+      nc = await connect(natsConnectOpts({ servers: natsUrl }));
       log(`[dogfood] connected to NATS at ${natsUrl}`);
     } catch (err) {
       log(`[dogfood] NATS connection failed: ${err.message} — running in offline mode`);

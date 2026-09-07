@@ -2,7 +2,15 @@ name: Mirror to guibros
 
 on:
   push:
-    branches: ['**']   # '**' = all branches, including nested like feature/foo
+    # main only. With '**' every branch push (agent-created and experimental
+    # branches included) ran a job holding GUIBROS_PAT, and `--mirror` below
+    # replicates deletions and history rewrites destructively to the target.
+    branches: [main]
+
+# The bare clone needs read only; the default write-scoped GITHUB_TOKEN was
+# a needless second credential in this job.
+permissions:
+  contents: read
 
 jobs:
   mirror:

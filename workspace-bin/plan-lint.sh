@@ -215,6 +215,16 @@ if [ "$STATUS_LC" = "active" ] && git -C "$REPO" rev-parse --git-dir >/dev/null 
     report PASS history "Runtime-Evidence: trailer present in $evid of the last 15 commits"
   fi
   vh=$(git -C "$REPO" log -1 --format='%H' -- "$PLAN/VERSION" 2>/dev/null || true)
+  # A CLOSED version (no -pre/-mid) whose closing commit carries no Runtime-Evidence:
+  # trailer is a done-contract violation, not a hygiene warning: the step was
+  # declared done with nothing observable behind it (MASTER_PLAN §5, review L4).
+  if [ -n "$vh" ] && printf '%s' "$ver" | grep -qvE -- '-pre$|-mid$'; then
+    if git -C "$REPO" log -1 --format='%B' "$vh" 2>/dev/null | grep -qE '^Runtime-Evidence:'; then
+      report PASS history "closing commit ${vh:0:7} carries a Runtime-Evidence: trailer"
+    else
+      report FAIL history "VERSION ($ver) was closed by ${vh:0:7} with no Runtime-Evidence: trailer (§5 done-contract)"
+    fi
+  fi
   if [ -n "$vh" ]; then
     since=$(git -C "$REPO" rev-list --count "$vh"..HEAD 2>/dev/null || echo 0)
     if [ "${since:-0}" -gt 20 ]; then

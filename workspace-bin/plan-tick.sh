@@ -151,6 +151,33 @@ if [ -n "${DIRTY}" ]; then
   esac
 fi
 
+# ── Conformance gate (plan-lint) ─────────────────────────────────────────────
+# A nonconformant silo is never driven headless. Before, plan-lint ran only in
+# --preflight; the real tick trusted the silo blindly (review: honor-system gate).
+write_lint_block() {
+  local lint_out="$1"
+  [ -f "${BLOCK_FILE}" ] && return 0
+  {
+    printf '# CONTINUATION_BLOCKED — %s\n\n' "$(ts)"
+    printf '**Step**: %s\n' "$(printf '%s' "${NEXT}" | awk -F'|' '{print $2": "$3}')"
+    printf '**Phase you were in**: pre-tick (wrapper gate)\n'
+    printf '**Trigger**: plan-lint NONCONFORMANT — the tick refused to drive a silo with FAILs\n\n'
+    printf '## What failed\n\n```\n%s\n```\n\n' "${lint_out}"
+    printf '**External action:** fix every FAIL above (run `workspace-bin/plan-lint.sh %s`), then delete this file to resume.\n' "${PLAN_ID}"
+  } > "${BLOCK_FILE}"
+  log "wrote ${BLOCK_FILE} — plan-lint gate (operator action required)"
+}
+LINT="${REPO}/workspace-bin/plan-lint.sh"
+if [ -x "${LINT}" ] && [ "${WORKPLAN_LINT_GATE:-1}" != "0" ]; then
+  LINT_OUT="$("${LINT}" "${PLAN_ID}" 2>&1 || true)"
+  if printf '%s' "${LINT_OUT}" | grep -q 'NONCONFORMANT'; then
+    log "skip: plan-lint NONCONFORMANT — not invoking claude"
+    printf '%s\n' "${LINT_OUT}" | grep -E 'FAIL' | sed 's/^/        /' || true
+    write_lint_block "${LINT_OUT}"
+    maybe_autopause "plan-lint NONCONFORMANT"; exit 0
+  fi
+fi
+
 if [ -z "${NEXT}" ]; then
   log "skip: no [A]/[ ] rows in inventory — plan fully closed"
   maybe_autopause "plan complete"; exit 0
@@ -205,8 +232,50 @@ if [ -f "${BLOCK_FILE}" ]; then
   log "tick blocked — see ${BLOCK_FILE}"; exit 2
 fi
 
+# ── Close gate (mechanical done-contract, MASTER_PLAN §5) ────────────────────
+# Before: the wrapper declared a step "closed" because the VERSION string changed
+# to something without -pre/-mid — a self-written string, no tests, no evidence
+# (review: the tick was judge of its own done-ness). Now a close is accepted only
+# if the closing commit carries a Runtime-Evidence: trailer AND the close check
+# (default `npm test`; WORKPLAN_CLOSE_CHECK overrides, `none` disables loudly)
+# is green. A refused close writes BLOCKED.md so the chain stops and the operator
+# decides; nothing is auto-reverted.
+close_gate() {
+  local reasons=() cmd
+  if ! git -C "${REPO}" log -1 --format='%B' 2>/dev/null | grep -qE '^Runtime-Evidence:'; then
+    reasons+=("closing commit (${LATEST_COMMIT}) carries no Runtime-Evidence: trailer")
+  fi
+  cmd="${WORKPLAN_CLOSE_CHECK:-npm test}"
+  if [ "${cmd}" = "none" ]; then
+    log "close gate: WORKPLAN_CLOSE_CHECK=none — test check DISABLED by operator"
+  else
+    log "close gate: running '${cmd}'"
+    if ! (cd "${REPO}" && OPENCLAW_NO_EMBED_MODEL="${OPENCLAW_NO_EMBED_MODEL:-1}" bash -c "${cmd}") >>"${TICK_LOG}" 2>&1; then
+      reasons+=("close check '${cmd}' failed — see ${TICK_LOG}")
+    fi
+  fi
+  [ "${#reasons[@]}" -eq 0 ] && return 0
+  if [ ! -f "${BLOCK_FILE}" ]; then
+    {
+      printf '# CONTINUATION_BLOCKED — %s\n\n' "$(ts)"
+      printf '**Step**: %s\n' "$(printf '%s' "${NEXT}" | awk -F'|' '{print $2": "$3}')"
+      printf '**Phase you were in**: close (post-tick wrapper gate)\n'
+      printf '**Trigger**: close gate refused VERSION %s → %s\n\n' "${VERSION:-?}" "${POST_VERSION}"
+      printf '## What failed\n\n'
+      printf -- '- %s\n' "${reasons[@]}"
+      printf '\n**External action:** the tick advanced VERSION but the done-contract does not hold. Either supply the evidence (amend the trailer / fix the suite) or revert the close, then delete this file to resume.\n'
+    } > "${BLOCK_FILE}"
+  fi
+  return 1
+}
+
 if [ "${POST_VERSION}" != "${VERSION:-}" ] && printf '%s' "${POST_VERSION}" | grep -qvE -- '-pre$|-mid$'; then
-  printf -- '- `%s` closed `%s` — %s\n' "$(ts)" "${POST_VERSION}" "${LATEST_COMMIT}" >> "${DIGEST_FILE}"
+  if close_gate; then
+    printf -- '- `%s` closed `%s` — %s\n' "$(ts)" "${POST_VERSION}" "${LATEST_COMMIT}" >> "${DIGEST_FILE}"
+  else
+    printf -- '- `%s` CLOSE REFUSED at `%s` — see BLOCKED.md\n' "$(ts)" "${POST_VERSION}" >> "${DIGEST_FILE}"
+    log "close gate refused — see ${BLOCK_FILE}"; exit 2
+  fi
 elif [ "${POST_VERSION}" != "${VERSION:-}" ]; then
   printf -- '- `%s` progress: `%s` → `%s`\n' "$(ts)" "${VERSION:-?}" "${POST_VERSION}" >> "${DIGEST_FILE}"
 fi

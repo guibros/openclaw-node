@@ -22,7 +22,7 @@
          may point to a Tailscale remote (legacy prototype setting). Override here
          so all logical nodes connect to the local JetStream bus. -->
     <key>OPENCLAW_NATS</key>
-    <string>nats://127.0.0.1:4222</string>
+    <string>${OPENCLAW_NATS}</string>
     <key>OPENCLAW_REPO_DIR</key>
     <string>${OPENCLAW_REPO_DIR}</string>
   </dict>

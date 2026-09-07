@@ -4,55 +4,52 @@
  * GET /api/memory-file?path=<abs-or-rel>   — file content (jailed to ~/.openclaw)
  * GET /api/memory-file?path=<...>&tail=N    — last N lines (for the big injections log)
  *
- * Read-only, path-traversal + symlink guarded to OPENCLAW_ROOT.
+ * Read-only. The jail (~/.openclaw) CONTAINS the node's secrets — openclaw.env,
+ * openclaw.json (gateway token), auth-profiles.json, identity keys, rendered
+ * NATS confs, session transcripts, the MC token itself. A read-anything-in-the-
+ * jail API was a secret-disclosure API (review C-4) because the old basename
+ * denylist missed most of those. Now: realpath must stay inside the root, and
+ * anything secret-shaped (dotfile segment, credential dir/name/extension) is
+ * refused structurally via lib/safe-path.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
-import path from "path";
 import { OPENCLAW_ROOT } from "@/lib/config";
+import { isSensitiveRelPath, resolveWithinRoot } from "@/lib/safe-path";
 
 export const dynamic = "force-dynamic";
+
+/** Directories under ~/.openclaw that hold credentials or raw transcripts, never documents. */
+const BLOCKED_DIRS = ["agents", "config", "nats", "identity", "node_modules"] as const;
+const MAX_BYTES = 2_000_000;
 
 export async function GET(request: NextRequest) {
   const raw = request.nextUrl.searchParams.get("path");
   const tail = parseInt(request.nextUrl.searchParams.get("tail") || "0", 10);
   if (!raw) return NextResponse.json({ error: "missing path" }, { status: 400 });
 
-  // Accept absolute paths under OPENCLAW_ROOT or paths relative to it.
-  const abs = path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(OPENCLAW_ROOT, raw);
-  if (abs !== OPENCLAW_ROOT && !abs.startsWith(OPENCLAW_ROOT + path.sep)) {
+  const hit = resolveWithinRoot(OPENCLAW_ROOT, raw);
+  if (!hit) {
     return NextResponse.json({ error: "path outside ~/.openclaw denied" }, { status: 403 });
+  }
+  if (isSensitiveRelPath(hit.rel, { blockedDirs: BLOCKED_DIRS, nameHeuristics: true })) {
+    return NextResponse.json({ error: "secret path denied" }, { status: 403 });
   }
 
   try {
-    const real = fs.realpathSync(abs); // defeat symlink escapes
-    if (real !== OPENCLAW_ROOT && !real.startsWith(OPENCLAW_ROOT + path.sep)) {
-      return NextResponse.json({ error: "symlink escape denied" }, { status: 403 });
+    const stat = fs.statSync(hit.real);
+    if (!stat.isFile()) return NextResponse.json({ error: "not a file" }, { status: 400 });
+    if (stat.size > MAX_BYTES) {
+      return NextResponse.json({ error: `file too large (>${MAX_BYTES} bytes)`, size: stat.size }, { status: 413 });
     }
-    // The jail (~/.openclaw) CONTAINS the node's secrets — env file, identity
-    // signing key, auth tokens, rendered NATS confs with embedded credentials.
-    // A read-anything-in-the-jail API is a secret-disclosure API without this.
-    const rel = real === OPENCLAW_ROOT ? "" : real.slice(OPENCLAW_ROOT.length + 1);
-    const base = path.basename(real).toLowerCase();
-    const DENIED =
-      base.startsWith("openclaw.env") ||
-      base === "identity.key" ||
-      base.includes("token") ||
-      base.includes("secret") ||
-      base.endsWith(".pem") ||
-      rel.startsWith("config/nats") ||          // rendered confs embed auth credentials
-      rel.startsWith("identity/");
-    if (DENIED) {
-      return NextResponse.json({ error: "secret path denied" }, { status: 403 });
-    }
-    let content = fs.readFileSync(real, "utf-8");
+    let content = fs.readFileSync(hit.real, "utf-8");
     if (tail > 0) {
       const lines = content.trim().split("\n");
       content = lines.slice(-tail).join("\n");
     }
-    return NextResponse.json({ path: abs, content, bytes: content.length });
+    return NextResponse.json({ path: hit.real, content, bytes: content.length });
   } catch (err) {
-    return NextResponse.json({ error: String(err), path: abs }, { status: 404 });
+    return NextResponse.json({ error: String(err), path: hit.real }, { status: 404 });
   }
 }

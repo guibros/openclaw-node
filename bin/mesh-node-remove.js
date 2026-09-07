@@ -78,14 +78,15 @@ async function confirm(msg) {
 // ── NATS Operations ──────────────────────────────────
 
 const cleanNatsState = tracer.wrapAsync('cleanNatsState', async function cleanNatsState(nodeId) {
-  let natsUrl;
+  // Credentials come from the resolver (token or this node's nkey). If we run
+  // after the code was deleted, fall back to the env URL and no auth — the
+  // cleanup then degrades to the manual steps printed below.
+  let connectOpts;
   try {
-    const { NATS_URL } = require('../lib/nats-resolve');
-    natsUrl = NATS_URL;
+    connectOpts = require('../lib/nats-resolve').natsConnectOpts({ timeout: 10000 });
   } catch (err) {
-    console.warn(`[mesh-node-remove] resolve NATS URL: ${err.message}`);
-    // If we're running after code deletion, try env
-    natsUrl = process.env.OPENCLAW_NATS || 'nats://100.91.131.61:4222';
+    console.warn(`[mesh-node-remove] resolve NATS: ${err.message}`);
+    connectOpts = { servers: process.env.OPENCLAW_NATS || 'nats://127.0.0.1:4222', timeout: 10000 };
   }
 
   let nats;
@@ -100,7 +101,7 @@ const cleanNatsState = tracer.wrapAsync('cleanNatsState', async function cleanNa
   const sc = nats.StringCodec();
 
   try {
-    const nc = await nats.connect({ servers: natsUrl, timeout: 10000 });
+    const nc = await nats.connect(connectOpts);
     ok(`NATS connected: ${nc.getServer()}`);
 
     const js = nc.jetstream();

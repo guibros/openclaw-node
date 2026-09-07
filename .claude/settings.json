@@ -1,5 +1,12 @@
 {
-  "$comment": "Team-shared Claude Code settings for openclaw-nodedev. Personal overrides go in settings.local.json. The scope-check hook enforces MASTER_PLAN §6.2 — every Edit/Write/MultiEdit/NotebookEdit is gated by the active plan scopes (memory-plan/plans/*/SCOPE.md, open ```files blocks only). See memory-plan/canonical/MASTER_PLAN.md for the discipline; .claude/hooks/scope-check.sh for the implementation.",
+  "$comment": "Team-shared Claude Code settings for openclaw-nodedev. Personal overrides go in settings.local.json. Gates (MASTER_PLAN §6.2, remediation Phase 3): scope-check.sh gates every Edit/Write/MultiEdit/NotebookEdit against the active plan scopes (memory-plan/plans/*/SCOPE.md, open ```files blocks only); validate-commit.sh scans staged files for secrets/JSON validity before `git commit`; validate-push.sh refuses force pushes. The same two validators also run as git hooks (config/git-hooks via core.hooksPath, installed by `npm prepare`), so they hold for any tool, not only Claude Code. The deny list below makes validate-push.sh's refusal true at the permission layer too (prefix rules only: a force flag placed later in the command is caught by the hook).",
+  "permissions": {
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force-with-lease:*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -8,6 +15,19 @@
           {
             "type": "command",
             "command": ".claude/hooks/scope-check.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/validate-commit.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/validate-push.sh"
           }
         ]
       }

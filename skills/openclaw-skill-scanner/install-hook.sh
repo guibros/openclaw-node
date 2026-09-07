@@ -68,6 +68,15 @@ if [ -z "$SLUG" ]; then
     exit 1
 fi
 
+# The slug is interpolated into a python snippet, a temp path and the
+# install destination (which is rm -rf'd on replace). A slug like
+# "../../.ssh" or "x'; import os; os.system(...)" used to reach all three.
+# One shape, checked once, before anything else touches it.
+if ! [[ "$SLUG" =~ ^[a-z0-9][a-z0-9._-]{0,63}$ ]] || [[ "$SLUG" == *..* ]]; then
+    echo -e "${RED}Error: invalid slug '${SLUG}' (allowed: [a-z0-9][a-z0-9._-]{0,63}, no '..')${RESET}"
+    exit 1
+fi
+
 # ─── Check Prerequisites ────────────────────────────────────────────────────
 
 if [ ! -f "$SCANNER" ]; then
@@ -210,7 +219,22 @@ echo "$SCAN_OUTPUT"
 
 # ─── Decision Logic ─────────────────────────────────────────────────────────
 
-RISK_SCORE=${RISK_SCORE:-0}
+# Fail CLOSED: a scanner that produced no JSON (crash, missing module, bad
+# path) used to fall through as score 0 = "clean" and auto-install. No
+# verdict means no install.
+if [ -z "$JSON_RESULT" ] || ! [[ "$RISK_SCORE" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}${BOLD}✗ Scanner produced no verdict — refusing to install '${SLUG}' (fail-closed).${RESET}"
+    echo -e "${DIM}  Run it by hand: python3 ${SCANNER} --dir ${TMPDIR} --json${RESET}"
+    exit 1
+fi
+
+# Destination is derived from the validated slug and must stay inside the
+# skills dir — the only place this script may rm -rf.
+DEST="${SKILLS_DIR}/${SLUG}"
+case "$DEST" in
+    "${SKILLS_DIR}"/*) ;;
+    *) echo -e "${RED}Error: refusing destination outside ${SKILLS_DIR}: ${DEST}${RESET}"; exit 1 ;;
+esac
 
 echo -e "${DIM}────────────────────────────────────────${RESET}"
 echo -e "  Risk Score: ${BOLD}${RISK_SCORE}/100${RESET}"
@@ -220,7 +244,6 @@ if [ "$RISK_SCORE" -lt 30 ]; then
     # Clean — auto install
     echo -e "${GREEN}${BOLD}✓ CLEAN — Installing skill...${RESET}"
 
-    DEST="${SKILLS_DIR}/${SLUG}"
     if [ -d "$DEST" ]; then
         echo -e "${YELLOW}  Skill already exists at ${DEST}. Replacing...${RESET}"
         rm -rf "$DEST"
@@ -249,7 +272,6 @@ elif [ "$RISK_SCORE" -lt 70 ]; then
         fi
     fi
 
-    DEST="${SKILLS_DIR}/${SLUG}"
     if [ -d "$DEST" ]; then
         echo -e "${YELLOW}  Skill already exists at ${DEST}. Replacing...${RESET}"
         rm -rf "$DEST"
@@ -276,7 +298,6 @@ else
         echo -e "${RED}  YOU HAVE BEEN WARNED.${RESET}"
         echo ""
 
-        DEST="${SKILLS_DIR}/${SLUG}"
         if [ -d "$DEST" ]; then
             rm -rf "$DEST"
         fi

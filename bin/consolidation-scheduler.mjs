@@ -75,6 +75,15 @@ export function isQueueIdle(getStateFn) {
     return { idle: false, reason: `${state.queue_depth} pending jobs` };
   }
 
+  // Worker-thread jobs (P5-3): extraction runs off the main thread with its
+  // own queue; the parent registers them as external jobs. Consolidating
+  // while one is open means two writers on the same DB.
+  const external = Array.isArray(state.external_jobs) ? state.external_jobs : [];
+  if (external.length > 0) {
+    const j = external[0];
+    return { idle: false, reason: `${external.length} worker ${j.type} job(s) running (elapsed ${j.elapsed_ms}ms)` };
+  }
+
   // Recent extraction activity — check if last extraction was within IDLE_THRESHOLD
   if (state.history.extraction.count > 0 && state.history.extraction.avg_ms > 0) {
     // We can't know exact last-completion time from getState(), but if the queue
@@ -281,7 +290,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   const daemon = args.includes('--daemon');
   const noEvents = args.includes('--no-events');
 
-  const natsUrl = process.env.OPENCLAW_NATS || process.env.NATS_URL || 'nats://127.0.0.1:4222';
+  const natsUrl = process.env.NATS_URL || undefined; // URL override only; resolver supplies URL + credentials
   const nodeId = process.env.OPENCLAW_NODE_ID || os.hostname();
 
   const cliOpts = { nodeId };

@@ -9,7 +9,7 @@ which `workspace-bin/new-plan.sh <id> ["goal"]` instantiates into a new viewer-v
 front it (the viewer/launchd invoke tick commands argv-less). Every plan doc lives inside a
 self-contained plan dir under `memory-plan/plans/<id>/`:
 - [`memory-plan/plans/redesign/`](memory-plan/plans/redesign/) — local-first memory redesign. **COMPLETE at v6.5** (Blocks 0–6 delivered; Block 7 federation DEFERRED per its DECISIONS D4).
-- [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **COMPLETE at v7.8** (49/49 steps, all active blocks closed, suite 1550/0; scope idle).
+- [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **COMPLETE at v7.8** (49/49 steps, all active blocks closed; scope idle). Suite as of 2026-09-06: 1920 root / 118 Mission Control, green in CI.
 - [`memory-plan/plans/protocol/`](memory-plan/plans/protocol/) — the meta-plan: the workplan operating base itself (canonical docs, generic engine, scaffolder).
 - [`memory-plan/plans/federation/`](memory-plan/plans/federation/) — worker/management/savant grappes. **EVIDENCE FRONTIER at v2.6-pre**; management has not started.
 - [`memory-plan/plans/hyperagent-evidence/`](memory-plan/plans/hyperagent-evidence/) — human-gated strategy evidence loop. **SUBSTRATE LIVE, COHORT NOT STARTED at v2.0**.
@@ -35,6 +35,18 @@ Audits decay (MASTER_PLAN §4.9) — re-verify specific claims older than 14 day
 `git log --oneline -20` shows the recent committed work.
 
 ## Where we are / next action
+
+**As of 2026-09-06 (remediation, PR #6):** a repo-wide adversarial + lifecycle review
+(`ADVERSARIAL_REVIEW_2026-09-06.md`) and its plan (`REMEDIATION_PLAN_2026-09-06.md`) landed with
+Phases 0–3 implemented: secrets file perms, the foreign `npx openclaw-mesh` step removed, the three
+RCE sinks closed, signed operator actions + ownership checks on the mesh bus, Mission Control
+requiring its session token on every `/api` method, and the governance gates made mechanical (git
+hooks via `npm prepare`, force-push refused, the tick refuses a close without a Runtime-Evidence
+trailer or with a red suite, scope-check hardened). CI has been green since that PR; before it,
+Tests had failed on `main` on every run from #158 (2026-08-02) to #165. Federation: DECISIONS D16
+(2026-08-05) ruled consensus gating dead — federation is a deterministic pipeline; the D15 "unblocks
+only by …" sentence below is superseded by D16. Runtime evidence for the remediation (deploy to
+`~/.openclaw`, restart, observe) is still the operator's step.
 
 As of 2026-08-05, the protocol base is live; redesign is complete at v6.5 and repair at v7.8.
 **Federation is BLOCKED at v2.6** (`plans/federation/BLOCKED.md`, D15): the five-task premise

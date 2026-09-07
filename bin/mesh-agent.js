@@ -45,12 +45,15 @@ const fs = require('fs');
 const { getActivityState, getSessionInfo } = require('../lib/agent-activity');
 const { loadAllRules, matchRules, formatRulesForPrompt, detectFrameworks, activateFrameworkRules } = require('../lib/rule-loader');
 const { loadHarnessRules, runMeshHarness, runPostCommitValidation, formatHarnessForPrompt } = require('../lib/mesh-harness');
+const { validateMetricCommand } = require('../lib/exec-safety');
 const { findRole, formatRoleForPrompt } = require('../lib/role-loader');
 
 const sc = StringCodec();
 const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const { resolveProvider, resolveModel, stripLlmOutput, isOpenClawWorkerProvider } = require('../lib/llm-providers');
-const NODE_ID = process.env.OPENCLAW_NODE_ID || process.env.MESH_NODE_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+// One derivation for every daemon (lib/node-id) — the agent must claim tasks
+// under the same node_id the task daemon authorizes, or ownership checks fail.
+const NODE_ID = require('../lib/node-id').resolveNodeId();
 const POLL_INTERVAL = parseInt(process.env.MESH_POLL_INTERVAL || '15000'); // 15s between polls
 const MAX_ATTEMPTS = parseInt(process.env.MESH_MAX_ATTEMPTS || '3');
 const HEARTBEAT_INTERVAL = parseInt(process.env.MESH_HEARTBEAT_INTERVAL || '60000'); // 60s heartbeat
@@ -538,10 +541,16 @@ function createWorktree(taskId) {
  * @param {boolean} keep - If true, leave the branch for manual review
  */
 /**
- * Commit any changes in the worktree and merge to main.
- * Returns { committed, merged, sha } or null if nothing to commit.
+ * Commit any changes in the worktree onto its `mesh/<taskId>` branch.
+ * Returns { committed, sha, branch } or null if nothing to commit.
+ *
+ * Merge-after-review (P4-4): this used to commit AND merge into main before
+ * the daemon had decided whether the task needs human review — a rejected
+ * task had already landed on main. Now the commit stays on its branch; the
+ * merge is a separate step (mergeTaskBranch) that runs only once the daemon
+ * reports the task `completed` (auto-approved or human-approved).
  */
-function commitAndMergeWorktree(worktreePath, taskId, summary) {
+function commitWorktree(worktreePath, taskId, summary) {
   if (!worktreePath) return null;
   // Benchmark isolation (D14): bench agents run with MESH_NO_MERGE=1 — the
   // deliverable is the artifact text; incidental worktree writes must never
@@ -582,36 +591,121 @@ function commitAndMergeWorktree(worktreePath, taskId, summary) {
     }).trim();
 
     log(`Committed ${sha} on ${branch}: ${commitMsg}`);
+    return { committed: true, merged: false, sha, branch };
+  } catch (err) {
+    log(`Commit warning: ${err.message}`);
+    return null;
+  }
+}
 
-    // Merge into main (from workspace).
-    // Parallel collab: multiple nodes may merge concurrently. If the first attempt
-    // fails (e.g., another node merged first), retry once after pulling.
-    const mergeMsg = `Merge ${branch}: ${taskId}`;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        execFileSync('git', ['merge', '--no-ff', branch, '-m', mergeMsg], {
-          cwd: WORKSPACE, timeout: 30000, stdio: 'pipe',
-        });
-        log(`Merged ${branch} into main${attempt > 0 ? ' (retry succeeded)' : ''}`);
-        return { committed: true, merged: true, sha };
-      } catch (mergeErr) {
-        execSync('git merge --abort', { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' });
-        if (attempt === 0) {
-          // First failure: pull and retry (handles race with parallel merge)
-          try {
-            log(`Merge attempt 1 failed for ${branch} — fast-forward pulling and retrying`);
-            execSync('git pull --ff-only', { cwd: WORKSPACE, timeout: 15000, stdio: 'pipe' });
-          } catch { /* best effort pull */ }
-        } else {
-          // Second failure: real conflict — keep branch for human resolution
-          log(`MERGE CONFLICT on ${branch} — branch kept for manual resolution`);
-          return { committed: true, merged: false, sha, conflict: true };
-        }
+/**
+ * Merge `mesh/<taskId>` into main (from the workspace). Called only after the
+ * daemon reports the task completed. Returns { merged, sha, conflict }.
+ * Parallel collab: multiple nodes may merge concurrently. If the first attempt
+ * fails (e.g., another node merged first), retry once after pulling.
+ */
+function mergeTaskBranch(taskId) {
+  const branch = `mesh/${taskId}`;
+  let sha = null;
+  try {
+    sha = execFileSync('git', ['rev-parse', '--short', branch], {
+      cwd: WORKSPACE, timeout: 5000, encoding: 'utf-8', stdio: 'pipe',
+    }).trim();
+  } catch {
+    log(`mergeTaskBranch: branch ${branch} does not exist — nothing to merge`);
+    return { merged: false, sha: null, missing: true };
+  }
+  const mergeMsg = `Merge ${branch}: ${taskId}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      execFileSync('git', ['merge', '--no-ff', branch, '-m', mergeMsg], {
+        cwd: WORKSPACE, timeout: 30000, stdio: 'pipe',
+      });
+      log(`Merged ${branch} into main${attempt > 0 ? ' (retry succeeded)' : ''}`);
+      return { merged: true, sha };
+    } catch (mergeErr) {
+      try { execSync('git merge --abort', { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' }); } catch { /* no merge in progress */ }
+      if (attempt === 0) {
+        // First failure: pull and retry (handles race with parallel merge)
+        try {
+          log(`Merge attempt 1 failed for ${branch} — fast-forward pulling and retrying`);
+          execSync('git pull --ff-only', { cwd: WORKSPACE, timeout: 15000, stdio: 'pipe' });
+        } catch { /* best effort pull */ }
+      } else {
+        // Second failure: real conflict — keep branch for human resolution
+        log(`MERGE CONFLICT on ${branch} — branch kept for manual resolution`);
+        return { merged: false, sha, conflict: true };
       }
     }
+  }
+  return { merged: false, sha };
+}
+
+/**
+ * Post-completion merge step shared by the completion paths. `completedTask`
+ * is the daemon's reply to mesh.tasks.complete: `completed` means the task
+ * was auto-approved (metric passed, no review) and may merge now;
+ * `pending_review` means the branch stays put until approve/reject arrives.
+ * Returns true when the branch must be KEPT (unmerged) after cleanup.
+ */
+async function mergeIfApproved(task, commit, completedTask) {
+  if (!commit?.committed) return false;
+  if (completedTask?.status !== 'completed') {
+    log(`Branch ${commit.branch} kept unmerged — task ${task.task_id} is ${completedTask?.status || 'unknown'} (merge after review)`);
+    return true;
+  }
+  const merge = mergeTaskBranch(task.task_id);
+  await reportMerge(task.task_id, { ...merge, branch: commit.branch, lease_token: task.lease_token });
+  return !merge.merged;
+}
+
+async function reportMerge(taskId, merge) {
+  try {
+    await natsRequest('mesh.tasks.merged', {
+      task_id: taskId, node_id: NODE_ID, lease_token: merge.lease_token || null,
+      sha: merge.sha || null, merged: !!merge.merged, conflict: !!merge.conflict, branch: merge.branch || `mesh/${taskId}`,
+    });
   } catch (err) {
-    log(`Commit/merge warning: ${err.message}`);
-    return null;
+    warn(`reportMerge ${taskId}: ${err.message}`);
+  }
+}
+
+function deleteTaskBranch(taskId) {
+  try {
+    execFileSync('git', ['branch', '-D', `mesh/${taskId}`], { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' });
+    log(`Deleted branch mesh/${taskId}`);
+  } catch { /* already gone */ }
+}
+
+/**
+ * Startup reconciliation: an approval published while this agent was offline
+ * is lost (core NATS publish), so every kept `mesh/<taskId>` branch is checked
+ * against the daemon — completed → merge now, terminal-and-not-completed →
+ * drop, pending_review → leave for the reviewer.
+ */
+async function reconcileKeptBranches() {
+  let branches = [];
+  try {
+    branches = execSync("git branch --list 'mesh/*' --format=%(refname:short)", {
+      cwd: WORKSPACE, timeout: 5000, encoding: 'utf-8', stdio: 'pipe',
+    }).split('\n').map(b => b.trim()).filter(Boolean);
+  } catch (err) {
+    debug(`reconcileKeptBranches: ${err.message}`);
+    return;
+  }
+  for (const branch of branches) {
+    const taskId = branch.slice('mesh/'.length);
+    let task;
+    try { task = await natsRequest('mesh.tasks.get', { task_id: taskId }, 5000); } catch { continue; }
+    if (!task || task.owner !== NODE_ID) continue;
+    if (task.status === 'completed' && task.result?.merged !== true) {
+      log(`RECONCILE: ${branch} approved while offline — merging`);
+      const merge = mergeTaskBranch(taskId);
+      await reportMerge(taskId, { ...merge, branch, lease_token: task.lease_token });
+      if (merge.merged) deleteTaskBranch(taskId);
+    } else if (['failed', 'released', 'cancelled', 'rejected'].includes(task.status)) {
+      deleteTaskBranch(taskId);
+    }
   }
 }
 
@@ -692,7 +786,7 @@ function runLLM(prompt, task, worktreePath) {
     const isClaude = provider.name === 'claude';
     const heartbeatTimer = setInterval(async () => {
       try {
-        const payload = { task_id: task.task_id };
+        const payload = { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token };
         if (isClaude) {
           const activity = await getActivityState(cleanCwd);
           if (activity) {
@@ -736,15 +830,11 @@ function runLLM(prompt, task, worktreePath) {
 
 // ── Metric Evaluation ─────────────────────────────────
 
-const ALLOWED_METRIC_PREFIXES = [
-  'npm test', 'npm run', 'node ', 'pytest', 'cargo test',
-  'go test', 'make test', 'jest', 'vitest', 'mocha',
-];
-
+// The metric filter lives in lib/exec-safety.js (validateMetricCommand) so the
+// worker and the task daemon's submit gate share one hardened definition. The
+// previous inline copy did not block a bare `&` or a space-less `>file`.
 function isAllowedMetric(cmd) {
-  if (/[\n\r\0;`]|\$\(|\|\||&&|<\(|>\(|<<|>>|>\s|\|/.test(cmd)) return false;
-  if (/\bnode\s+(-e\b|--eval\b|-p\b|--print\b|-r\b|--require\b|--import\b)/.test(cmd)) return false;
-  return ALLOWED_METRIC_PREFIXES.some(prefix => cmd.startsWith(prefix));
+  return validateMetricCommand(cmd).allowed;
 }
 
 /**
@@ -1244,6 +1334,7 @@ async function executeCollabTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       node_id: NODE_ID,
+      lease_token: task.lease_token,
       reason: `Collab session not found for task ${task.task_id}. Task requires collaborative execution (mode: ${collabSpec.mode}) but no session could be discovered. Solo fallback refused — collab tasks must run collaboratively.`,
     }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
     debug('state → idle');
@@ -1272,6 +1363,7 @@ async function executeCollabTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       node_id: NODE_ID,
+      lease_token: task.lease_token,
       reason: `Failed to join collab session ${sessionId}: ${err.message}`,
     }).catch(err2 => warn(`mesh.tasks.fail: ${err2.message}`));
     debug('state → idle');
@@ -1306,6 +1398,7 @@ async function executeCollabTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       node_id: NODE_ID,
+      lease_token: task.lease_token,
       reason: `Worktree isolation failed for collab member ${NODE_ID} (MESH_WORKSPACE=${WORKSPACE} — must be a git repository). Fail-closed: member withdrew before rounds.`,
     }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
     writeAgentState('idle', null);
@@ -1327,7 +1420,7 @@ async function executeCollabTask(task) {
   }, 10000);
 
   // Signal start
-  await natsRequest('mesh.tasks.start', { task_id: task.task_id }).catch(err => warn(`mesh.tasks.start: ${err.message}`));
+  await natsRequest('mesh.tasks.start', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token }).catch(err => warn(`mesh.tasks.start: ${err.message}`));
 
   try {
     for await (const roundMsg of roundSub) {
@@ -1500,8 +1593,12 @@ async function executeCollabTask(task) {
   // a fresh network read, which could see stale state due to NATS latency.
   try {
     if (['completed', 'converged'].includes(lastKnownSessionStatus)) {
-      const mergeResult = commitAndMergeWorktree(worktreePath, `${task.task_id}-${NODE_ID}`, `collab contribution from ${NODE_ID}`);
-      cleanupWorktree(worktreePath, mergeResult && !mergeResult?.merged);
+      // The session's merge-review vote gate (daemon evaluateRound) is the
+      // review for collab work, so merging here is already post-review.
+      const collabId = `${task.task_id}-${NODE_ID}`;
+      const commit = commitWorktree(worktreePath, collabId, `collab contribution from ${NODE_ID}`);
+      const merge = commit?.committed ? mergeTaskBranch(collabId) : null;
+      cleanupWorktree(worktreePath, !!commit?.committed && !merge?.merged);
     } else {
       log(`COLLAB: Session ${sessionId} ended as ${lastKnownSessionStatus || 'unknown'} — discarding worktree`);
       cleanupWorktree(worktreePath, false);
@@ -1543,6 +1640,7 @@ async function executeTask(task) {
     await natsRequest('mesh.tasks.fail', {
       task_id: task.task_id,
       node_id: NODE_ID,
+      lease_token: task.lease_token,
       reason: `Worktree isolation failed for ${task.task_id} (MESH_WORKSPACE=${WORKSPACE} — must be a git repository). Fail-closed: shared-workspace fallback refused.`,
     }).catch(err => warn(`mesh.tasks.fail: ${err.message}`));
     writeAgentState('idle', null);
@@ -1552,7 +1650,9 @@ async function executeTask(task) {
   const workspaceIsolated = true;
 
   // Signal start (include isolation status so daemon knows)
-  await natsRequest('mesh.tasks.start', { task_id: task.task_id, workspace_isolated: workspaceIsolated });
+  // node_id: the daemon now enforces ownership on start/complete/release
+  // (only the claiming node may drive its task) — the same check fail had.
+  await natsRequest('mesh.tasks.start', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, workspace_isolated: workspaceIsolated });
   writeAgentState('working', task.task_id);
   log(`Started: ${task.task_id} (dir: ${worktreePath ? 'worktree' : 'workspace'})`);
 
@@ -1597,7 +1697,7 @@ async function executeTask(task) {
         keep: false,
       };
       attempts.push(attemptRecord);
-      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
 
       // Two-tier retry: abnormal exit → exponential backoff (agent crash, OOM, etc.)
       const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 30000); // 1s, 2s, 4s... max 30s
@@ -1634,7 +1734,7 @@ async function executeTask(task) {
           keep: false,
         };
         attempts.push(attemptRecord);
-        await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+        await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
         log(`Attempt ${attempt}: harness blocked commit (secrets). Retrying.`);
         continue;
       }
@@ -1656,19 +1756,20 @@ async function executeTask(task) {
         keep: true,
       };
       attempts.push(attemptRecord);
-      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
 
-      // Commit changes and merge to main before cleanup
-      const mergeResult = commitAndMergeWorktree(worktreePath, task.task_id, summary);
-      const keepBranch = mergeResult && !mergeResult.merged; // keep on merge conflict
+      // Commit on the task branch; merge only after the daemon's review decision
+      const commit = commitWorktree(worktreePath, task.task_id, summary);
 
       // Post-commit validation (conventional commits, etc.)
-      if (mergeResult?.committed) {
+      if (commit?.committed) {
         runPostCommitValidation(getHarnessRules(), worktreePath, log);
       }
 
-      await natsRequest('mesh.tasks.complete', {
+      const completedTask = await natsRequest('mesh.tasks.complete', {
         task_id: task.task_id,
+        node_id: NODE_ID,
+        lease_token: task.lease_token,
         result: {
           success: true, summary, artifacts: [],
           cost: sessionInfo?.cost || null,
@@ -1676,10 +1777,12 @@ async function executeTask(task) {
             violations: harnessResult.violations,
             warnings: harnessResult.warnings,
           },
-          sha: mergeResult?.sha || null,
-          merged: mergeResult?.merged ?? null,
+          sha: commit?.sha || null,
+          branch: commit?.branch || null,
+          merged: commit?.committed ? false : null,
         },
       });
+      const keepBranch = await mergeIfApproved(task, commit, completedTask);
       cleanupWorktree(worktreePath, keepBranch);
       writeAgentState('idle', null);
       await recordHyperagentTask(task, {
@@ -1701,19 +1804,20 @@ async function executeTask(task) {
         keep: true,
       };
       attempts.push(attemptRecord);
-      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
 
-      // Commit changes and merge to main before cleanup
-      const mergeResult = commitAndMergeWorktree(worktreePath, task.task_id, summary);
-      const keepBranch = mergeResult && !mergeResult.merged;
+      // Commit on the task branch; merge only after the daemon's review decision
+      const commit = commitWorktree(worktreePath, task.task_id, summary);
 
       // Post-commit validation (conventional commits, etc.)
-      if (mergeResult?.committed) {
+      if (commit?.committed) {
         runPostCommitValidation(getHarnessRules(), worktreePath, log);
       }
 
-      await natsRequest('mesh.tasks.complete', {
+      const completedTask = await natsRequest('mesh.tasks.complete', {
         task_id: task.task_id,
+        node_id: NODE_ID,
+        lease_token: task.lease_token,
         result: {
           success: true,
           summary: `Metric passed on attempt ${attempt}. ${summary.slice(0, 200)}`,
@@ -1722,14 +1826,16 @@ async function executeTask(task) {
           output: llmResult.stdout,
           artifacts: [],
           cost: sessionInfo?.cost || null,
-          sha: mergeResult?.sha || null,
-          merged: mergeResult?.merged ?? null,
+          sha: commit?.sha || null,
+          branch: commit?.branch || null,
+          merged: commit?.committed ? false : null,
           harness: {
             violations: harnessResult.violations,
             warnings: harnessResult.warnings,
           },
         },
       });
+      const keepBranch = await mergeIfApproved(task, commit, completedTask);
       cleanupWorktree(worktreePath, keepBranch);
       writeAgentState('idle', null);
       await recordHyperagentTask(task, {
@@ -1747,7 +1853,7 @@ async function executeTask(task) {
       keep: false,
     };
     attempts.push(attemptRecord);
-    await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, ...attemptRecord });
+    await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
     log(`Attempt ${attempt}: metric failed. Quick retry (1s). Output: ${metricResult.output.slice(0, 200)}`);
     await new Promise(r => setTimeout(r, 1000)); // two-tier: normal exit → 1s continuation
   }
@@ -1755,12 +1861,15 @@ async function executeTask(task) {
   // All attempts exhausted or budget exceeded → RELEASE (not fail)
   // "Released" = automation tried everything, human must triage.
   // "Failed" = a single attempt failed (used by daemon for budget/stall).
-  // Commit whatever partial work exists — preserve for post-mortem
-  const partialResult = commitAndMergeWorktree(worktreePath, task.task_id, 'partial: released after exhausting attempts');
+  // Commit whatever partial work exists on the task branch — preserved for
+  // post-mortem, never merged (a released task failed its own verification).
+  commitWorktree(worktreePath, task.task_id, 'partial: released after exhausting attempts');
 
   const reason = `Exhausted ${attempts.length}/${MAX_ATTEMPTS} attempts. Last: ${attempts[attempts.length - 1]?.result?.slice(0, 200) || 'unknown'}`;
   await natsRequest('mesh.tasks.release', {
     task_id: task.task_id,
+    node_id: NODE_ID,
+    lease_token: task.lease_token,
     reason,
     attempts,
   });
@@ -1780,7 +1889,8 @@ executeCollabTask = tracer.wrapAsync('executeCollabTask', executeCollabTask, { t
 evaluateMetric = tracer.wrap('evaluateMetric', evaluateMetric, { tier: 2, category: 'compute' });
 runLLM = tracer.wrap('runLLM', runLLM, { tier: 2, category: 'compute' });
 createWorktree = tracer.wrap('createWorktree', createWorktree, { tier: 2, category: 'compute' });
-commitAndMergeWorktree = tracer.wrap('commitAndMergeWorktree', commitAndMergeWorktree, { tier: 2, category: 'compute' });
+commitWorktree = tracer.wrap('commitWorktree', commitWorktree, { tier: 2, category: 'compute' });
+mergeTaskBranch = tracer.wrap('mergeTaskBranch', mergeTaskBranch, { tier: 2, category: 'compute' });
 cleanupWorktree = tracer.wrap('cleanupWorktree', cleanupWorktree, { tier: 2, category: 'compute' });
 buildInitialPrompt = tracer.wrap('buildInitialPrompt', buildInitialPrompt, { tier: 2, category: 'compute' });
 buildRetryPrompt = tracer.wrap('buildRetryPrompt', buildRetryPrompt, { tier: 2, category: 'compute' });
@@ -1851,6 +1961,38 @@ async function main() {
     }
   })();
   log(`  Listening: mesh.agent.${NODE_ID}.alive`);
+
+  // Merge-after-review (P4-4): the daemon tells the owning agent how review
+  // ended. approved → merge the kept branch now; rejected → drop it.
+  const approvedSub = nc.subscribe(`mesh.agent.${NODE_ID}.approved`);
+  (async () => {
+    for await (const msg of approvedSub) {
+      try {
+        const { task_id } = JSON.parse(sc.decode(msg.data));
+        if (!task_id) continue;
+        log(`APPROVED ${task_id} — merging kept branch`);
+        const merge = mergeTaskBranch(task_id);
+        const approved = await natsRequest('mesh.tasks.get', { task_id }, 5000).catch(() => null);
+        await reportMerge(task_id, { ...merge, lease_token: approved?.lease_token });
+        if (merge.merged) deleteTaskBranch(task_id);
+      } catch (err) {
+        warn(`approved handler: ${err.message}`);
+      }
+    }
+  })();
+  const rejectedSub = nc.subscribe(`mesh.agent.${NODE_ID}.rejected`);
+  (async () => {
+    for await (const msg of rejectedSub) {
+      try {
+        const { task_id } = JSON.parse(sc.decode(msg.data));
+        if (task_id) { log(`REJECTED ${task_id} — dropping kept branch`); deleteTaskBranch(task_id); }
+      } catch (err) {
+        warn(`rejected handler: ${err.message}`);
+      }
+    }
+  })();
+  log(`  Listening: mesh.agent.${NODE_ID}.approved / .rejected`);
+  await reconcileKeptBranches();
 
   // Subscribe to collab recruit broadcasts — allows this node to join
   // collab sessions without being the claiming node
@@ -1975,6 +2117,8 @@ async function main() {
   }
 
   aliveSub.unsubscribe();
+  approvedSub.unsubscribe();
+  rejectedSub.unsubscribe();
   await nc.drain();
   log('Agent worker stopped.');
 }

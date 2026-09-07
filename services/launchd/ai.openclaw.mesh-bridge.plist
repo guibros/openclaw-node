@@ -29,7 +29,7 @@
       <string>${OPENCLAW_REPO_DIR}/node_modules:${OPENCLAW_REPO_DIR}/lib</string>
       <!-- Local-first: the mesh bus is loopback-only. -->
       <key>OPENCLAW_NATS</key>
-      <string>nats://127.0.0.1:4222</string>
+      <string>${OPENCLAW_NATS}</string>
       <key>OPENCLAW_REPO_DIR</key>
       <string>${OPENCLAW_REPO_DIR}</string>
     </dict>

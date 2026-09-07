@@ -4,6 +4,7 @@ import { soulSpawns } from "@/lib/db/schema";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { isSafeId } from "@/lib/safe-path";
 
 const SOULS_DIR = path.join(os.homedir(), ".openclaw/souls");
 const HANDOFFS_DIR = path.join(
@@ -40,6 +41,14 @@ export async function POST(
   try {
     const { id: soulId } = await params;
     const body: PromptRequest = await request.json();
+
+    // soulId and body.taskId are joined into paths below (review C-3).
+    if (!isSafeId(soulId)) {
+      return NextResponse.json({ error: "invalid soul id" }, { status: 400 });
+    }
+    if (body.taskId !== undefined && body.taskId !== null && !isSafeId(body.taskId)) {
+      return NextResponse.json({ error: "invalid task id" }, { status: 400 });
+    }
 
     const soulDir = path.join(SOULS_DIR, soulId);
 

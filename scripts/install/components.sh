@@ -15,7 +15,7 @@ else
       if [ "$OS" = "macos" ]; then
         brew services start ollama >/dev/null 2>&1 || { nohup ollama serve >"$OPENCLAW_ROOT/logs/ollama.log" 2>&1 & }
       else
-        sudo systemctl start ollama 2>/dev/null || { nohup ollama serve >"$OPENCLAW_ROOT/logs/ollama.log" 2>&1 & }
+        if $DRY_RUN; then info "  [dry-run] would start ollama"; else sudo systemctl start ollama 2>/dev/null || { nohup ollama serve >"$OPENCLAW_ROOT/logs/ollama.log" 2>&1 & }; fi
       fi
       for _ in $(seq 1 15); do
         curl -fsS --max-time 2 "$LLM_BASE_URL/api/tags" >/dev/null 2>&1 && break
@@ -34,7 +34,7 @@ else
       });
     ' 2>/dev/null || echo "")
     if [ -n "$TIER_MODEL" ] && [ "$LLM_MODEL" = "qwen3:8b" ] && [ "$TIER_MODEL" != "qwen3:8b" ]; then
-      sed -i.bak "s|^LLM_MODEL=qwen3:8b$|LLM_MODEL=$TIER_MODEL|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+      run sed -i.bak "s|^LLM_MODEL=qwen3:8b$|LLM_MODEL=$TIER_MODEL|" "$ENV_FILE" && run rm -f "$ENV_FILE.bak"
       export LLM_MODEL="$TIER_MODEL"
       info "RAM-tier upgrade: LLM_MODEL=$TIER_MODEL"
     fi
@@ -150,7 +150,7 @@ fi
 
 # Create .env.local for MC if not exists
 if [ ! -f "$MC_DIR/.env.local" ]; then
-  cat > "$MC_DIR/.env.local" << MCENV
+  write_file "$MC_DIR/.env.local" << MCENV
 # Mission Control Environment
 WORKSPACE_ROOT=$WORKSPACE
 OPENCLAW_HOME=$OPENCLAW_ROOT
@@ -159,11 +159,14 @@ DB_PATH=$MC_DIR/data/mission-control.db
 # NATS (mesh connectivity — resolved from openclaw.env if not set here)
 OPENCLAW_NATS=${OPENCLAW_NATS:-}
 OPENCLAW_NATS_TOKEN=${OPENCLAW_NATS_TOKEN:-}
+OPENCLAW_NATS_AUTH=${OPENCLAW_NATS_AUTH:-token}
 
 # TTS (optional — falls back to Edge TTS if missing)
 GEMINI_API_KEY=${GOOGLE_API_KEY:-}
 MCENV
-  info "Created Mission Control .env.local"
+  # Holds the NATS token and an API key — never leave it at the default umask.
+  run chmod 600 "$MC_DIR/.env.local"
+  info "Created Mission Control .env.local (mode 600)"
 fi
 
 # Ensure data directory exists for SQLite
@@ -177,12 +180,17 @@ step "Step 12: Playwright Browser"
 
 if $SANDBOX; then
   info "Sandbox: skipping Playwright"
-elif [ -f "$WORKSPACE/node_modules/.package-lock.json" ] && grep -q '"playwright"' "$WORKSPACE/node_modules/.package-lock.json" 2>/dev/null; then
-  info "Playwright already installed in workspace"
+elif [ -e "$WORKSPACE/node_modules/playwright" ]; then
+  # playwright is a ROOT dependency; the workspace node_modules tree is a set
+  # of symlinks into the root install (workspace.sh link_dependency_tree).
+  # Running `npm install --save playwright` INSIDE the workspace was the root
+  # cause of the "vanished node_modules links" bug: npm reconciled the
+  # workspace against its own (near-empty) package.json and pruned every
+  # symlinked mesh dependency as extraneous. Never npm-install in the workspace.
+  info "Playwright available via the shared dependency tree"
+  (cd "$REPO_DIR" && run npx playwright install chromium 2>/dev/null) || warn "Chromium browser install failed"
 else
-  info "Installing Playwright + Chromium (web-fetch fallback for anti-bot sites)..."
-  (cd "$WORKSPACE" && run npm install --save playwright 2>/dev/null) || warn "Playwright npm install failed"
-  (cd "$WORKSPACE" && run npx playwright install chromium 2>/dev/null) || warn "Chromium browser install failed"
+  warn "playwright missing from the shared dependency tree — the root 'npm install' did not complete; re-run install.sh"
 fi
 
 # ============================================================
@@ -299,7 +307,7 @@ TODAY=$(date +%Y-%m-%d)
 DAILY_FILE="$WORKSPACE/memory/$TODAY.md"
 
 if [ ! -f "$DAILY_FILE" ]; then
-  cat > "$DAILY_FILE" << DAILY
+  write_file "$DAILY_FILE" << DAILY
 # $TODAY
 
 Node initialized on $(hostname) at $(date '+%H:%M %Z').
@@ -308,7 +316,7 @@ DAILY
 fi
 
 if [ ! -f "$WORKSPACE/memory/active-tasks.md" ]; then
-  cat > "$WORKSPACE/memory/active-tasks.md" << TASKS
+  write_file "$WORKSPACE/memory/active-tasks.md" << TASKS
 # Active Tasks
 
 Updated: $TODAY $(date '+%H:%M') $OPENCLAW_TIMEZONE
@@ -338,7 +346,7 @@ TASKS
 fi
 
 if [ ! -f "$WORKSPACE/.companion-state.md" ]; then
-  cat > "$WORKSPACE/.companion-state.md" << STATE
+  write_file "$WORKSPACE/.companion-state.md" << STATE
 ## Session Status
 status: inactive
 started_at:
@@ -354,7 +362,7 @@ STATE
 fi
 
 if [ ! -f "$WORKSPACE/.learnings/lessons.md" ]; then
-  cat > "$WORKSPACE/.learnings/lessons.md" << LESSONS
+  write_file "$WORKSPACE/.learnings/lessons.md" << LESSONS
 # Lessons Learned
 
 Accumulated corrections and preferences.
@@ -366,7 +374,7 @@ LESSONS
 fi
 
 if [ ! -f "$WORKSPACE/MEMORY.md" ]; then
-  cat > "$WORKSPACE/MEMORY.md" << MEM
+  write_file "$WORKSPACE/MEMORY.md" << MEM
 # MEMORY.md — Long-Term Memory
 
 ## Active Context (this week)
@@ -390,7 +398,10 @@ fi
 step "Step 15.5: HyperAgent Protocol"
 
 HYPERAGENT_BIN="$WORKSPACE/bin/hyperagent.mjs"
-if [ -f "$HYPERAGENT_BIN" ]; then
+if $DRY_RUN && [ ! -f "$HYPERAGENT_BIN" ]; then
+  # Nothing was copied in a dry run; the presence check would be a false alarm.
+  echo "  [dry-run] node $HYPERAGENT_BIN status (initializes the store)"
+elif [ -f "$HYPERAGENT_BIN" ]; then
   if $DRY_RUN; then
     echo "  [dry-run] node $HYPERAGENT_BIN status (initializes the store)"
   elif node "$HYPERAGENT_BIN" status; then

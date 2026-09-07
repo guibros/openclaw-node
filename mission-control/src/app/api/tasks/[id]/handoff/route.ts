@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { isSafeId } from "@/lib/safe-path";
 
 const HANDOFFS_DIR = path.join(
   os.homedir(),
@@ -28,6 +29,11 @@ export async function POST(
 ) {
   try {
     const { id: taskId } = await params;
+    // The id becomes a filename below; an id like "../../x" wrote a handoff doc
+    // anywhere writable (review C-3). Ids are a fixed safe alphabet, no exceptions.
+    if (!isSafeId(taskId)) {
+      return NextResponse.json({ error: "invalid task id" }, { status: 400 });
+    }
     const body: HandoffRequest = await request.json();
 
     const db = getDb();
