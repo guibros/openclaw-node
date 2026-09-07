@@ -202,10 +202,40 @@ async function startNatsCluster(opts) {
     procs.push(server.proc);
   }
 
-  // Wait briefly for cluster convergence
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  // Wait for the cluster to actually converge: every server must report the
+  // full set of routed peers, and the JetStream meta-group must have a leader
+  // on each. A fixed 2s sleep here left the R=3 stream creation racing the
+  // meta-leader election on a loaded CI runner (Node 20 job, 2026-09-07): the
+  // hook threw and every subtest was cancelled.
+  await waitForClusterReady(monitorPorts);
 
   return { procs, ports: clientPorts, clusterPorts };
+}
+
+/**
+ * Poll each server's monitoring endpoint until /routez shows the two peers and
+ * /jsz reports a meta leader. Throws with the last observed state on timeout.
+ */
+async function waitForClusterReady(monitorPorts, { timeoutMs = 30_000, intervalMs = 250 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let last = '';
+  while (Date.now() < deadline) {
+    const states = await Promise.all(monitorPorts.map(async (port) => {
+      try {
+        const [routez, jsz] = await Promise.all([
+          fetch(`http://127.0.0.1:${port}/routez`).then((r) => r.json()),
+          fetch(`http://127.0.0.1:${port}/jsz`).then((r) => r.json()),
+        ]);
+        return { routes: routez.num_routes ?? (routez.routes || []).length, leader: jsz.meta_cluster?.leader || '' };
+      } catch (err) {
+        return { routes: -1, leader: '', err: err.message };
+      }
+    }));
+    last = JSON.stringify(states);
+    if (states.every((st) => st.routes >= 2 && st.leader)) return;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error(`NATS cluster did not converge within ${timeoutMs}ms: ${last}`);
 }
 
 /**
@@ -222,15 +252,28 @@ async function stopNatsCluster(procs) {
  *
  * @param {object} nc — NATS connection (to any cluster node)
  */
-async function createClusterSharedStream(nc) {
+async function createClusterSharedStream(nc, { attempts = 20, intervalMs = 500 } = {}) {
   const { StorageType } = _require('nats');
   const jsm = await nc.jetstreamManager();
-  await jsm.streams.add({
-    name: SHARED_STREAM_NAME,
-    subjects: SHARED_SUBJECTS,
-    storage: StorageType.File,
-    num_replicas: 3,
-  });
+  // An R=3 stream needs three JetStream peers in the meta-group. Right after
+  // election the server can still answer "insufficient resources" / "no
+  // suitable peers" for a few hundred ms; retry rather than fail the suite.
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await jsm.streams.add({
+        name: SHARED_STREAM_NAME,
+        subjects: SHARED_SUBJECTS,
+        storage: StorageType.File,
+        num_replicas: 3,
+      });
+      return;
+    } catch (err) {
+      lastErr = err;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  throw new Error(`could not create R=3 ${SHARED_STREAM_NAME} after ${attempts} attempts: ${lastErr?.message}`);
 }
 
 /**

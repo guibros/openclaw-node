@@ -31,6 +31,25 @@ else
   info "Repo node_modules present"
 fi
 
+# The memory daemon imports packages/event-schemas/dist and exits at startup
+# without it. dist/ is gitignored, the release tarball ships only the .ts
+# sources, and --omit=dev leaves no compiler behind — so on the first virgin-Mac
+# run the daemon died silently and the acceptance gate failed five rows
+# downstream (no DBs, no inject token, no event stream). Build it here.
+SCHEMAS_DIST="$REPO_DIR/packages/event-schemas/dist/index.js"
+if [ ! -f "$SCHEMAS_DIST" ]; then
+  info "Building event-schemas (memory daemon refuses to start without its dist)..."
+  (cd "$REPO_DIR" && run npx --yes --package typescript@5 tsc -p packages/event-schemas/tsconfig.json) \
+    || { error "event-schemas build failed — the memory daemon cannot start"; exit 1; }
+  if ! $DRY_RUN && [ ! -f "$SCHEMAS_DIST" ]; then
+    error "event-schemas build produced no dist/index.js — the memory daemon cannot start"
+    exit 1
+  fi
+  info "event-schemas built"
+else
+  info "event-schemas dist present"
+fi
+
 # ── Resolve node role ──
 if [ -z "$NODE_ROLE" ]; then
   NODE_ROLE="${OPENCLAW_NODE_ROLE:-}"
