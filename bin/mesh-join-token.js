@@ -9,6 +9,9 @@
  *   - Mesh node role (worker by default)
  *   - Default LLM provider
  *   - Token expiry
+ *   - The lead's node id + identity pubkey (raw base64 ed25519) and the NATS
+ *     auth mode of the lead's bus (v4, Phase 7) — the worker seeds its trust
+ *     allowlists and identity registry from them
  *   - HMAC signature (shared-secret integrity check)
  *
  * Usage:
@@ -29,7 +32,9 @@ const path = require('path');
 const { createTracer } = require('../lib/tracer');
 const tracer = createTracer('mesh-join-token');
 
-const { NATS_URL } = require('../lib/nats-resolve');
+const { NATS_URL, resolveNatsAuthMode } = require('../lib/nats-resolve');
+const { encodeJoinToken, CURRENT_VERSION } = require('../lib/join-token');
+const { resolveNodeId } = require('../lib/node-id');
 
 // ── CLI args ──────────────────────────────────────────
 
@@ -79,6 +84,13 @@ const getOrCreateSecret = tracer.wrap('getOrCreateSecret', function getOrCreateS
   return secret;
 }, { tier: 2, category: 'lifecycle' });
 
+// Lead identity (Phase 7): the raw base64 pubkey workers must trust for signed
+// deploys and operator actions. require(esm) — node-identity is an ES module.
+function getLeadIdentityPubkey() {
+  const { getOrCreateIdentity } = require('../lib/node-identity.mjs');
+  return getOrCreateIdentity(process.env.OPENCLAW_IDENTITY_DIR).publicKeyBase64;
+}
+
 // ── Expiry parsing ────────────────────────────────────
 
 function parseExpiry(str) {
@@ -101,26 +113,22 @@ const generateToken = tracer.wrap('generateToken', function generateToken() {
   const sshPubkey = getLeadSSHPubkey();
 
   const payload = {
-    v: 3,                           // token version (v3: added ssh_pubkey)
+    v: CURRENT_VERSION,             // token version (v4: lead identity + nats_auth)
     nats: NATS_URL,                 // NATS server URL
     role: ROLE,                     // node role
     provider: PROVIDER,             // default LLM provider
     repo: REPO,                     // mesh code repo URL
     lead: os.hostname(),            // lead node hostname (for reference)
+    lead_node_id: resolveNodeId(),  // lead's mesh node id (registry key on the worker)
+    lead_identity_pubkey: getLeadIdentityPubkey(), // raw base64 ed25519 — PUBLIC
+    nats_auth: resolveNatsAuthMode(), // token | nkey | nkey-strict (what the bus expects)
     issued: Date.now(),             // issued timestamp
     expires: expiresAt,             // expiry timestamp
     ...(sshPubkey && { ssh_pubkey: sshPubkey }), // lead node's SSH public key
   };
 
-  // HMAC-SHA256 signature for integrity
-  const payloadStr = JSON.stringify(payload);
-  const hmac = crypto.createHmac('sha256', secret).update(payloadStr).digest('hex');
-
-  // Encode as base64url (no padding, url-safe)
-  const token = Buffer.from(JSON.stringify({ p: payload, s: hmac }))
-    .toString('base64url');
-
-  return { token, payload, hmac };
+  // HMAC-SHA256 signature for integrity, base64url encoding — lib/join-token.js
+  return encodeJoinToken(payload, secret);
 }, { tier: 2, category: 'lifecycle' });
 
 // ── Main ──────────────────────────────────────────────
@@ -136,7 +144,9 @@ if (ONE_LINER) {
   console.log(`Provider: ${payload.provider}`);
   console.log(`Repo:     ${payload.repo}`);
   console.log(`Expires:  ${new Date(payload.expires).toISOString()}`);
-  console.log(`Lead:     ${payload.lead}`);
+  console.log(`Lead:     ${payload.lead} (${payload.lead_node_id})`);
+  console.log(`Lead key: ${payload.lead_identity_pubkey}`);
+  console.log(`NATS auth: ${payload.nats_auth}`);
   console.log('');
   console.log('Token:');
   console.log(token);

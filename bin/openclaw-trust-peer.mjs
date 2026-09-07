@@ -35,20 +35,36 @@
  *      newly-seeded registry is loaded.
  */
 
-import os from 'node:os';
-import { getOrCreateIdentity, createIdentityRegistry } from '../lib/node-identity.mjs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import {
+  getOrCreateIdentity, createIdentityRegistry, DEFAULT_IDENTITY_DIR, IDENTITY_REGISTRY_FILE,
+} from '../lib/node-identity.mjs';
 
-/** Resolve this node's identifier (matches the convention in memory-subscriber.mjs). */
+const require = createRequire(import.meta.url);
+const { resolveNodeId } = require('../lib/node-id.js');
+
+// The help text always promised $OPENCLAW_IDENTITY_DIR; the code ignored it
+// until Phase 7 (tests and multi-identity hosts need it).
+const IDENTITY_DIR = process.env.OPENCLAW_IDENTITY_DIR || DEFAULT_IDENTITY_DIR;
+const REGISTRY_PATH = path.join(IDENTITY_DIR, IDENTITY_REGISTRY_FILE);
+
+/** Resolve this node's identifier — the same derivation every daemon uses. */
 function getNodeId() {
-  return process.env.OPENCLAW_NODE_ID || os.hostname();
+  return resolveNodeId();
 }
 
 function usage(code = 0) {
   process.stderr.write([
     'Usage:',
-    '  openclaw-trust-peer <nodeId> <pubkeyBase64>',
+    '  openclaw-trust-peer <nodeId> <pubkeyBase64> [--role lead|worker] [--sync-nats]',
     '  openclaw-trust-peer --list',
-    '  openclaw-trust-peer --remove <nodeId>',
+    '  openclaw-trust-peer --remove <nodeId> [--sync-nats]',
+    '  openclaw-trust-peer --sync-nats',
+    '',
+    '  --role        bus permission tier stored on the entry (default worker)',
+    '  --sync-nats   re-render ~/.openclaw/config/nats-auth.conf from the registry',
+    '                and reload nats-server (nkey mode; the revocation path)',
     '  openclaw-trust-peer --my-pubkey',
     '  openclaw-trust-peer --whoami',
     '',
@@ -58,27 +74,43 @@ function usage(code = 0) {
   process.exit(code);
 }
 
+/** Re-render the server users block from the registry and reload the bus. */
+async function syncNats() {
+  const { syncNatsAuth } = await import('./nats-auth-render.mjs');
+  const result = await syncNatsAuth({ identityDir: IDENTITY_DIR, reload: true });
+  process.stdout.write(`nats-auth: ${result.summary}\n`);
+}
+
 async function main() {
-  const args = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  if (argv.length === 0) usage(1);
+  const SYNC = argv.includes('--sync-nats');
+  const roleIdx = argv.indexOf('--role');
+  const role = roleIdx >= 0 ? argv[roleIdx + 1] : 'worker';
+  if (!['lead', 'worker'].includes(role)) usage(1);
+  // Positional args = everything that is not a flag or a flag value.
+  const args = argv.filter((a, i) => a !== '--sync-nats' && a !== '--role' && !(roleIdx >= 0 && i === roleIdx + 1));
+
+  if (args.length === 0 && SYNC) return syncNats();
   if (args.length === 0) usage(1);
 
   // --my-pubkey: print our own pubkey so peers can trust us.
   if (args[0] === '--my-pubkey') {
-    const identity = getOrCreateIdentity();
+    const identity = getOrCreateIdentity(IDENTITY_DIR);
     process.stdout.write(`${identity.publicKeyBase64}\n`);
     return;
   }
 
   // --whoami: nodeId + pubkey
   if (args[0] === '--whoami') {
-    const identity = getOrCreateIdentity();
+    const identity = getOrCreateIdentity(IDENTITY_DIR);
     process.stdout.write(`nodeId: ${getNodeId()}\npubkey: ${identity.publicKeyBase64}\n`);
     return;
   }
 
   // Build the registry. We always use strict mode here; this CLI is the
   // *seeding* path that makes strict-mode deployments work.
-  const registry = createIdentityRegistry({ mode: 'strict' });
+  const registry = createIdentityRegistry({ path: REGISTRY_PATH, mode: 'strict' });
 
   // --list: dump current registry
   if (args[0] === '--list') {
@@ -100,6 +132,7 @@ async function main() {
     const removed = registry.remove(nodeId);
     if (removed) process.stdout.write(`removed ${nodeId}\n`);
     else process.stdout.write(`${nodeId} not in registry\n`);
+    if (SYNC) await syncNats();
     return;
   }
 
@@ -110,9 +143,10 @@ async function main() {
     process.stderr.write(`error: pubkey looks too short (got ${pubkey?.length || 0} chars; expected base64 ed25519 pubkey ~44)\n`);
     process.exit(2);
   }
-  const added = registry.trust(nodeId, pubkey, 'operator');
+  const added = registry.trust(nodeId, pubkey, 'operator', { role });
   if (added) {
-    process.stdout.write(`trusted: ${nodeId}\n`);
+    process.stdout.write(`trusted: ${nodeId} (${role})\n`);
+    if (SYNC) await syncNats();
   } else {
     const existing = registry.get(nodeId);
     if (existing.pubkey === pubkey) {
