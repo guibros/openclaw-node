@@ -248,7 +248,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   const dryRun = args.includes('--dry-run');
   const noEvents = args.includes('--no-events');
 
-  const natsUrl = process.env.OPENCLAW_NATS || process.env.NATS_URL || 'nats://127.0.0.1:4222';
+  const natsUrl = process.env.NATS_URL || undefined; // URL override only; resolver supplies URL + credentials
   const nodeId = process.env.OPENCLAW_NODE_ID || os.hostname();
 
   const opts = { nodeId };

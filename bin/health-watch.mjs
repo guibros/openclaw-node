@@ -26,6 +26,10 @@ import { writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
+import { createRequire } from 'node:module';
+
+// URL + credentials (token or nkey) from the one resolver; NATS_URL is a URL override only.
+const { natsConnectOpts } = createRequire(import.meta.url)('../lib/nats-resolve.js');
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -55,9 +59,8 @@ async function alertFile(report) {
 
 async function alertNats(status, result) {
   try {
-    const natsUrl = process.env.NATS_URL || 'nats://localhost:4222';
     const { connect, StringCodec } = await import('nats');
-    const nc = await connect({ servers: natsUrl, timeout: 5000, name: 'health-watch' });
+    const nc = await connect(natsConnectOpts({ servers: process.env.NATS_URL, timeout: 5000, name: 'health-watch' }));
     const sc = StringCodec();
     const payload = JSON.stringify({
       status,

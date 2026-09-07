@@ -28,8 +28,8 @@ function meshSkipReason() {
 
   const probe = `
     const { connect } = require('nats');
-    const { NATS_URL } = require('./lib/nats-resolve');
-    connect({ servers: NATS_URL, timeout: 2000 })
+    const { natsConnectOpts } = require('./lib/nats-resolve');
+    connect(natsConnectOpts({ timeout: 2000 }))
       .then((nc) => nc.request('mesh.tasks.list', Buffer.from(JSON.stringify({ status: 'queued', limit: 1 })), { timeout: 3000 })
         .finally(() => nc.close()))
       .then(() => process.exit(0), () => process.exit(1));

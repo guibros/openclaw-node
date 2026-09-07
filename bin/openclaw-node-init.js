@@ -768,7 +768,7 @@ async function verifyNatsHealth(natsUrl, nodeId) {
 
   try {
     const nats = require('nats');
-    const nc = await nats.connect({ servers: natsUrl, timeout: 10000 });
+    const nc = await nats.connect(require('../lib/nats-resolve').natsConnectOpts({ servers: natsUrl, timeout: 10000 }));
 
     ok(`NATS connected: ${nc.getServer()}`);
 
@@ -815,7 +815,7 @@ async function discoverTopology(natsUrl, localNodeId) {
 
   try {
     const nats = require('nats');
-    const nc = await nats.connect({ servers: natsUrl, timeout: 10000 });
+    const nc = await nats.connect(require('../lib/nats-resolve').natsConnectOpts({ servers: natsUrl, timeout: 10000 }));
     const sc = nats.StringCodec();
     const js = nc.jetstream();
 

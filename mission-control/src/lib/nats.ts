@@ -2,6 +2,7 @@ import { connect, NatsConnection, StringCodec, type KV } from "nats";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { natsAuthOptions, resolveNatsAuthMode } from "./nats-auth";
 
 // ── Singleton state (globalThis survives Next.js hot-reload) ─────────────
 // In dev mode, Turbopack re-evaluates modules on change, wiping module-level
@@ -87,9 +88,10 @@ export async function getNats(): Promise<NatsConnection | null> {
 
   g.__nats_connectingSince = Date.now();
   try {
+    // Phase 7: token, this host's identity nkey, or the legacy user — nats-auth.ts.
     g.__nats_nc = await connect({
+      ...natsAuthOptions(NATS_TOKEN),
       servers: NATS_URL,
-      ...(NATS_TOKEN ? { token: NATS_TOKEN } : {}),
       name: "mission-control",
       reconnect: true,
       maxReconnectAttempts: -1,
@@ -97,7 +99,7 @@ export async function getNats(): Promise<NatsConnection | null> {
       reconnectJitter: 1000,
       timeout: 5000,
     });
-    console.log("[nats] connected to", NATS_URL);
+    console.log("[nats] connected to", NATS_URL, `(auth: ${resolveNatsAuthMode()})`);
 
     // Reset KV handles on reconnect so they're re-fetched fresh
     g.__nats_healthKv = null;
