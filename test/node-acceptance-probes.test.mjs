@@ -256,3 +256,17 @@ describe('L0-DEPLOY event-schemas dist', () => {
     assert.match(r.detail, /event-schemas dist/);
   });
 });
+
+// Virgin-Mac run 2: every daemon row PASSed and the gate still REJECTED on
+// MEM-L2-INJECT — the inject path embeds the prompt with the 2 GB model that
+// --skip-llm deliberately does not download. The probe must declare the LLM
+// need so a model-less install is INCOMPLETE (unproven), not REJECTED.
+describe('MEM-L2-INJECT axis', () => {
+  it('declares needs llm, like MEM-L4-ROUNDTRIP', () => {
+    const inject = probeById(baseCtx(), 'MEM-L2-INJECT');
+    const roundtrip = probeById(baseCtx(), 'MEM-L4-ROUNDTRIP');
+    assert.deepEqual(inject.needs, ['llm']);
+    assert.deepEqual(roundtrip.needs, ['llm']);
+    assert.equal(inject.axis, 'memory', 'still a memory-axis probe when the model is present');
+  });
+});

@@ -36,6 +36,7 @@ lib/node-acceptance-probes.mjs
 lib/node-acceptance.mjs
 test/node-acceptance-probes.test.mjs
 test/federation-3node.test.mjs
+test/consolidation-scheduler.test.mjs
 test/install-modules.test.mjs
 memory-plan/plans/protocol/SCOPE.md
 ```
@@ -172,6 +173,7 @@ test/memory-watcher.test.mjs
 test/node-acceptance.test.mjs
 test/node-acceptance-probes.test.mjs
 test/federation-3node.test.mjs
+test/consolidation-scheduler.test.mjs
 test/install-modules.test.mjs
 scripts/install/verify.sh
 memory-plan/plans/protocol/SCOPE.md
@@ -326,6 +328,7 @@ test/memory-watcher.test.mjs
 test/ollama-queue.test.mjs
 test/node-acceptance-probes.test.mjs
 test/federation-3node.test.mjs
+test/consolidation-scheduler.test.mjs
 test/daemon-tick-guard.test.mjs
 test/wiring-manifest.test.mjs
 ```
@@ -347,6 +350,7 @@ lib/node-acceptance-probes.mjs
 test/install-modules.test.mjs
 test/node-acceptance-probes.test.mjs
 test/federation-3node.test.mjs
+test/consolidation-scheduler.test.mjs
 ```
 
 ```files runtime-repair-4.3-watcher-process-truth closed
