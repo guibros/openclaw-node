@@ -26,6 +26,7 @@
 #   OPENCLAW_NO_INSTALL=1   install deps only, do not run install.sh
 #   plus any install.sh flag passed straight through:
 #   curl ... | bash -s -- --skip-llm --role=worker
+#   curl ... | bash -s -- --provider=kimi       # seat a specific mind (see install.sh --help)
 
 # NOT `set -u`: stock macOS /bin/bash is 3.2, where an empty "$@" or ${#arr[@]}
 # raises "unbound variable" under nounset -- and `curl | bash` lands on exactly

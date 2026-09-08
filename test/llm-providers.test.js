@@ -30,14 +30,9 @@ describe('resolveProvider', () => {
     assert.equal(provider.name, 'openai');
   });
 
-  it('defaults to claude when everything is null', () => {
-    const provider = resolveProvider(null, null, null);
-    assert.equal(provider.name, 'claude');
-  });
-
-  it('defaults to claude with empty task object', () => {
-    const provider = resolveProvider({}, null, null);
-    assert.equal(provider.name, 'claude');
+  it('refuses to pick a vendor when nothing is chosen (provider-agnostic: no silent default)', () => {
+    assert.throws(() => resolveProvider(null, null, null), /No LLM provider chosen/);
+    assert.throws(() => resolveProvider({}, null, null), /MESH_LLM_PROVIDER/);
   });
 
   it('throws on unknown provider', () => {

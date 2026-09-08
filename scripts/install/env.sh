@@ -50,6 +50,46 @@ else
   info "event-schemas dist present"
 fi
 
+# ── Resolve the agent provider (the node's mind) ──
+# The runtime is provider-agnostic (lib/llm-providers.js): the mind is whatever
+# CLI MESH_LLM_PROVIDER names. The installer must be too: --provider= wins, then
+# the env file, then whatever known CLI is already on PATH. Nothing is ever
+# installed silently; Step 13.5 asks when no choice can be made here.
+KNOWN_PROVIDERS="claude openai gemini deepseek kimi minimax aider ollama shell"
+provider_binary() {
+  case "$1" in
+    openai) echo codex ;;
+    shell)  echo sh ;;
+    *)      echo "$1" ;;
+  esac
+}
+PROVIDER="${PROVIDER:-${OPENCLAW_PROVIDER:-}}"
+PROVIDER_SOURCE="--provider"
+if [ -z "$PROVIDER" ] && [ -f "$ENV_FILE" ]; then
+  PROVIDER="$(grep -m1 '^MESH_LLM_PROVIDER=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d "\"'" | xargs || true)"
+  PROVIDER_SOURCE="$ENV_FILE"
+fi
+if [ -n "$PROVIDER" ]; then
+  case " $KNOWN_PROVIDERS " in
+    *" $PROVIDER "*) info "Agent provider: $PROVIDER (from $PROVIDER_SOURCE)" ;;
+    *) error "Unknown provider '$PROVIDER'. Known: $KNOWN_PROVIDERS"; exit 1 ;;
+  esac
+else
+  PROVIDERS_FOUND=""
+  for p in claude openai gemini deepseek kimi minimax aider; do
+    command -v "$(provider_binary "$p")" >/dev/null 2>&1 && PROVIDERS_FOUND="$PROVIDERS_FOUND $p"
+  done
+  PROVIDERS_FOUND="${PROVIDERS_FOUND# }"
+  case "$(echo "$PROVIDERS_FOUND" | wc -w | tr -d ' ')" in
+    0) info "Agent provider: none chosen yet (no known CLI on PATH) — Step 13.5 will ask" ;;
+    1) PROVIDER="$PROVIDERS_FOUND"; info "Agent provider: $PROVIDER (detected on PATH)" ;;
+    *) PROVIDER="${PROVIDERS_FOUND%% *}"
+       warn "Several agent CLIs on PATH ($PROVIDERS_FOUND) — taking $PROVIDER; pass --provider= to choose" ;;
+  esac
+fi
+export OPENCLAW_PROVIDER="$PROVIDER"
+export KNOWN_PROVIDERS
+
 # ── Resolve node role ──
 if [ -z "$NODE_ROLE" ]; then
   NODE_ROLE="${OPENCLAW_NODE_ROLE:-}"

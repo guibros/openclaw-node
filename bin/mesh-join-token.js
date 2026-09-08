@@ -32,7 +32,7 @@ const path = require('path');
 const { createTracer } = require('../lib/tracer');
 const tracer = createTracer('mesh-join-token');
 
-const { NATS_URL, resolveNatsAuthMode } = require('../lib/nats-resolve');
+const { NATS_URL, resolveNatsAuthMode, resolveEnvKey } = require('../lib/nats-resolve');
 const { encodeJoinToken, CURRENT_VERSION } = require('../lib/join-token');
 const { resolveNodeId } = require('../lib/node-id');
 
@@ -46,7 +46,8 @@ function getArg(flag, defaultVal) {
 }
 
 const ROLE = getArg('--role', 'worker');
-const PROVIDER = getArg('--provider', 'claude');
+// Default = the lead's own provider (env chain), not a hardcoded vendor.
+const PROVIDER = getArg('--provider', resolveEnvKey('MESH_LLM_PROVIDER') || 'claude');
 const EXPIRES = getArg('--expires', '48h');
 const REPO = getArg('--repo', 'https://github.com/moltyguibros-design/openclaw-node.git');
 const ONE_LINER = args.includes('--one-liner');

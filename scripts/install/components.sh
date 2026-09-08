@@ -232,35 +232,78 @@ fi
 
 step "Step 13.5: Agent Frontend"
 
-# The node's agent frontend is agnostic (claude / codex / gemini — whatever
-# drives this OpenClaw). The harness runs headless without one, but a node
-# with no mind seated is just a body: detect, install the default, guide auth.
+# The node's mind is provider-agnostic (lib/llm-providers.js): claude, openai
+# (codex), gemini, deepseek, kimi, minimax, aider, ollama, shell. The installer
+# seats whatever env.sh resolved; when nothing was chosen it ASKS on the
+# terminal and, unattended, seats nothing. It never installs a vendor's CLI
+# silently — the first virgin-Mac runs installed Claude Code by default, which
+# contradicted the whole design.
 if $SKIP_FRONTEND; then
   info "Skipped (--skip-frontend)"
 else
-  FRONTENDS_FOUND=""
-  for fe in claude codex gemini; do
-    command -v "$fe" >/dev/null 2>&1 && FRONTENDS_FOUND="$FRONTENDS_FOUND $fe"
-  done
+  PROVIDER="${OPENCLAW_PROVIDER:-}"
 
-  if [ -n "$FRONTENDS_FOUND" ]; then
-    info "Agent frontend(s) present:$FRONTENDS_FOUND"
-  else
-    warn "No agent frontend found (claude/codex/gemini) — the node has no mind seated"
-    info "Installing the default frontend: Claude Code (@anthropic-ai/claude-code)..."
-    if [ "$OS" = "linux" ]; then
-      run sudo npm install -g @anthropic-ai/claude-code || warn "Claude Code install failed — install a frontend manually"
+  if [ -z "$PROVIDER" ]; then
+    # Ask through /dev/tty: under `curl | bash` stdin is the script itself.
+    if ! $DRY_RUN && { exec 3</dev/tty; } 2>/dev/null; then
+      echo ""
+      echo "  Which LLM drives this node's agent? (the mind; the memory organ is separate)"
+      echo "    1) claude    (Claude Code CLI)"
+      echo "    2) openai    (Codex CLI)"
+      echo "    3) gemini    (Gemini CLI)"
+      echo "    4) deepseek"
+      echo "    5) kimi"
+      echo "    6) minimax"
+      echo "    7) aider"
+      echo "    8) ollama    (local model — solo tasks only; grappe workers refuse it, D11)"
+      echo "    9) none for now (seat it later with: bash install.sh --update --provider=NAME)"
+      printf "  Provider? [1-9] "
+      read -r PICK <&3 || PICK=9
+      exec 3<&- 2>/dev/null || true
+      case "${PICK:-9}" in
+        1) PROVIDER=claude ;; 2) PROVIDER=openai ;; 3) PROVIDER=gemini ;; 4) PROVIDER=deepseek ;;
+        5) PROVIDER=kimi ;;   6) PROVIDER=minimax ;; 7) PROVIDER=aider ;; 8) PROVIDER=ollama ;;
+        *) PROVIDER="" ;;
+      esac
     else
-      run npm install -g @anthropic-ai/claude-code || warn "Claude Code install failed — install a frontend manually"
+      warn "No agent provider chosen and no terminal to ask — the node has no mind seated."
+      warn "Seat one later: bash $0 --update --provider=NAME  (claude|openai|gemini|deepseek|kimi|minimax|aider|ollama)"
     fi
-    command -v claude >/dev/null 2>&1 && FRONTENDS_FOUND=" claude"
   fi
 
-  if echo "$FRONTENDS_FOUND" | grep -q claude; then
-    # Auth is human-in-the-loop (OAuth) — install can only detect and guide.
+  if [ -n "$PROVIDER" ]; then
+    BIN="$(provider_binary "$PROVIDER")"
+    if command -v "$BIN" >/dev/null 2>&1; then
+      info "Mind seated: $PROVIDER ($BIN on PATH)"
+    else
+      # Install only the CLI the operator chose, only where the package is known.
+      case "$PROVIDER" in
+        claude) PKG="@anthropic-ai/claude-code" ;;
+        openai) PKG="@openai/codex" ;;
+        gemini) PKG="@google/gemini-cli" ;;
+        *)      PKG="" ;;
+      esac
+      if [ -n "$PKG" ]; then
+        info "Installing the $PROVIDER CLI ($PKG)..."
+        if [ "$OS" = "linux" ]; then
+          run sudo npm install -g "$PKG" || warn "$PKG install failed — install the '$BIN' CLI manually"
+        else
+          run npm install -g "$PKG" || warn "$PKG install failed — install the '$BIN' CLI manually"
+        fi
+        command -v "$BIN" >/dev/null 2>&1 && info "Mind seated: $PROVIDER ($BIN)" || warn "'$BIN' still not on PATH"
+      else
+        warn "$PROVIDER chosen but the '$BIN' CLI is not on PATH — install it (or set $(echo "$PROVIDER" | tr '[:lower:]' '[:upper:]')_PATH) and re-run: bash $0 --update"
+      fi
+    fi
+    export OPENCLAW_PROVIDER="$PROVIDER"
+    export MESH_LLM_PROVIDER="$PROVIDER"
+    [ -f "$ENV_FILE" ] && set_env_key MESH_LLM_PROVIDER "$PROVIDER"
+
+    # Auth is provider-specific and human-in-the-loop; only Claude Code has a
+    # non-interactive probe wired here.
     if $DRY_RUN; then
-      info "[dry-run] would check Claude Code auth"
-    elif $VERIFY_FRONTEND; then
+      info "[dry-run] would check $PROVIDER auth"
+    elif [ "$PROVIDER" = claude ] && $VERIFY_FRONTEND; then
       info "Verifying Claude Code auth with one small live call..."
       # env -u CLAUDECODE: allow the probe even when install.sh itself runs
       # inside a Claude Code session (the CLI refuses nested sessions otherwise)
@@ -271,8 +314,7 @@ else
         warn "Seat the mind: run 'claude' once interactively to sign in, then: bash $0 --update --verify-frontend"
       fi
     else
-      info "Claude Code present. Auth is interactive — on a fresh device, run 'claude' once to sign in."
-      info "(Optional live auth check: bash $0 --update --verify-frontend)"
+      info "$PROVIDER auth is interactive — on a fresh device, run '$BIN' once to sign in."
     fi
   fi
 fi

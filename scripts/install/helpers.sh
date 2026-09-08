@@ -42,6 +42,19 @@ DRY_RUN_ERRORS=0
 # raw `cat > "$dest" <<EOF` form bypassed run()'s dry-run guard, so
 # --dry-run was rewriting MEMORY.md, active-tasks.md, .env.local and the
 # notification config on real installs. Dry-run prints and discards.
+# set_env_key VAR VALUE [FILE] — set or replace one KEY=value line in an env
+# file (default $ENV_FILE). Idempotent; honours --dry-run through run().
+set_env_key() {
+  local var="$1" value="$2" file="${3:-$ENV_FILE}"
+  if grep -q "^${var}=" "$file" 2>/dev/null; then
+    run sed -i.bak "s|^${var}=.*|${var}=${value}|" "$file" && run rm -f "$file.bak"
+  elif [ "${DRY_RUN:-false}" = true ]; then
+    echo "  [dry-run] would set ${var}=${value} in ${file}"
+  else
+    echo "${var}=${value}" >> "$file"
+  fi
+}
+
 write_file() {
   local dest="$1"
   if $DRY_RUN; then

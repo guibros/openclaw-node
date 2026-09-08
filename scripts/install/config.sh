@@ -56,16 +56,13 @@ if [ -z "${OPENCLAW_NATS_TOKEN:-}" ]; then
   fi
 fi
 
-# LLM backend defaults (docs/NODE_SPEC.md §3) — local-first. Pre-existing env
-# files may predate these keys; append them so units render with a real brain.
-if [ -f "$ENV_FILE" ] && ! grep -q '^MESH_LLM_PROVIDER=' "$ENV_FILE"; then
-  {
-    echo ""
-    echo "# Grappe-worker LLM = the node's OpenClaw frontend (advanced LLM), never a"
-    echo "# local model (D11). mesh-agent refuses ollama for grappe workers."
-    echo "MESH_LLM_PROVIDER=claude"
-  } >> "$ENV_FILE"
-  info "Appended MESH_LLM_PROVIDER=claude (OpenClaw frontend; D11) to $ENV_FILE"
+# LLM backend defaults (docs/NODE_SPEC.md §3) — local-first for the memory
+# organ; the agent provider is whatever env.sh resolved (--provider=, the env
+# file, or a CLI on PATH). No provider is ever written by default: a node with
+# no mind chosen says so and Step 13.5 asks.
+if [ -f "$ENV_FILE" ] && [ -n "${OPENCLAW_PROVIDER:-}" ]; then
+  set_env_key MESH_LLM_PROVIDER "$OPENCLAW_PROVIDER"
+  info "MESH_LLM_PROVIDER=$OPENCLAW_PROVIDER recorded in $ENV_FILE"
 fi
 if [ -f "$ENV_FILE" ] && ! grep -q '^LLM_MODEL=' "$ENV_FILE"; then
   echo "LLM_MODEL=qwen3:8b" >> "$ENV_FILE"
@@ -73,7 +70,7 @@ fi
 if [ -f "$ENV_FILE" ] && ! grep -q '^LLM_BASE_URL=' "$ENV_FILE"; then
   echo "LLM_BASE_URL=http://localhost:11434" >> "$ENV_FILE"
 fi
-export MESH_LLM_PROVIDER="${MESH_LLM_PROVIDER:-claude}"
+export MESH_LLM_PROVIDER="${OPENCLAW_PROVIDER:-${MESH_LLM_PROVIDER:-}}"
 export LLM_MODEL="${LLM_MODEL:-qwen3:8b}"
 export LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:11434}"
 
