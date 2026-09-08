@@ -124,3 +124,56 @@ describe('startRecruitedSession — the ONE dispatch both close paths share', ()
     assert.deepEqual(twice.cooperative.integrator_order, once.cooperative.integrator_order);
   });
 });
+
+// The join-close and the 5s recruiting sweep can call startRecruitedSession
+// for the same session at the same time. With the old read-then-proceed guard
+// both passed and round 1 started twice — the second start went out as round 2
+// with no prior intelligence (CI, 2026-09-08). The claim must be a real CAS, so
+// this KV enforces revisions the way JetStream does (error code 10071).
+class CasKV {
+  constructor() { this.store = new Map(); this.rev = new Map(); }
+  async put(key, value) { this.store.set(key, { value }); this.rev.set(key, (this.rev.get(key) || 0) + 1); }
+  async update(key, value, revision) {
+    if (revision !== undefined && revision !== this.rev.get(key)) { const e = new Error('wrong last sequence'); e.code = '10071'; throw e; }
+    return this.put(key, value);
+  }
+  async get(key) { const e = this.store.get(key); return e ? { value: e.value, revision: this.rev.get(key) } : null; }
+  async delete(key) { this.store.delete(key); }
+  async keys() { return this.store.keys(); }
+}
+
+describe('startRecruitedSession — concurrent join-close and sweep start ONE round', () => {
+  it('two simultaneous dispatches: one wins, one round, no round 2', async () => {
+    const collabStore = new CollabStore(new CasKV());
+    const published = [];
+    daemon.__test.setContext({
+      collabStore,
+      store: { async get() { return { title: 't', description: 'd', scope: [] }; }, async markReleased() {}, async markFailed() {} },
+      nc: { publish(subject) { published.push(subject); }, request: async () => ({}) },
+    });
+    const session = createSession('task-parallel-race', { mode: 'parallel', min_nodes: 2, max_nodes: 2, automation_tier: 1 });
+    await collabStore.put(session);
+    for (const id of ['a', 'b']) await collabStore.addNode(session.session_id, id, 'worker');
+
+    const results = await Promise.all([
+      daemon.__test.startRecruitedSession(session.session_id),
+      daemon.__test.startRecruitedSession(session.session_id),
+    ]);
+    assert.deepEqual(results.filter(Boolean).length, 1, 'exactly one dispatch wins');
+    const after = await collabStore.get(session.session_id);
+    assert.equal(after.current_round, 1);
+    assert.equal(after.rounds.length, 1, 'round 1 started once');
+    assert.equal(published.filter((s) => s.endsWith('.round')).length, 2, 'one round notification per node');
+  });
+
+  it('claimRecruitClose: one winner, losers get null; not claimable before recruiting is done', async () => {
+    const collabStore = new CollabStore(new CasKV());
+    const session = createSession('task-claim', { mode: 'parallel', min_nodes: 2, max_nodes: 2, automation_tier: 1 });
+    await collabStore.put(session);
+    await collabStore.addNode(session.session_id, 'a', 'worker');
+    assert.equal(await collabStore.claimRecruitClose(session.session_id), null, 'only one of two nodes joined');
+    await collabStore.addNode(session.session_id, 'b', 'worker');
+    assert.ok(await collabStore.claimRecruitClose(session.session_id));
+    assert.equal(await collabStore.claimRecruitClose(session.session_id), null);
+  });
+});

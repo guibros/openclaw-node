@@ -30,6 +30,10 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 
 ```files provider-agnostic-install-2026-09-08
 install.sh
+lib/mesh-collab.js
+bin/mesh-task-daemon.js
+test/daemon-recruit-dispatch.test.js
+test/collab-p1-hardening.test.js
 lib/llm-providers.js
 bin/mesh-agent.js
 test/llm-providers.test.js
