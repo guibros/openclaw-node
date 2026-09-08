@@ -28,7 +28,13 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 **Set at:** 2026-09-06T00:00:00Z
 **Expires:** 2026-09-10T00:00:00Z
 
-```files provider-agnostic-install-2026-09-08
+```files embedder-prefetch-honesty-2026-09-08
+scripts/install/llm-setup.sh
+test/install-modules.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files provider-agnostic-install-2026-09-08 closed
 install.sh
 lib/mesh-collab.js
 bin/mesh-task-daemon.js
