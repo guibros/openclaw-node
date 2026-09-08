@@ -1904,7 +1904,15 @@ parseCirclingReflection = tracer.wrap('parseCirclingReflection', parseCirclingRe
 // ── Main Loop ─────────────────────────────────────────
 
 async function main() {
-  const defaultProvider = resolveProvider(null, CLI_PROVIDER, ENV_PROVIDER);
+  let defaultProvider;
+  try {
+    defaultProvider = resolveProvider(null, CLI_PROVIDER, ENV_PROVIDER);
+  } catch (err) {
+    // No mind seated: say exactly what to do and stop, instead of running a
+    // worker that can only fail every task it claims.
+    log(`FATAL: ${err.message}`);
+    process.exit(1);
+  }
   const defaultModel = resolveModel(null, CLI_MODEL, defaultProvider);
   log(`Starting mesh agent worker`);
   log(`  Node ID:     ${NODE_ID}`);

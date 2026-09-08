@@ -72,7 +72,7 @@ Written to `~/.openclaw/openclaw.env` by install (generated where marked ⚙; RA
 | `OPENCLAW_OPERATOR_TRUSTED_KEYS` | ⚙ own identity pubkey | ⚙ | `lib/operator-auth.mjs` (task daemon, MC) | same shape; keys allowed to sign operator actions |
 | `OPENCLAW_NODE_ID` | hostname (sanitized) | | heartbeats, KV keys, identity, grappe membership | stable node identity string |
 | `OPENCLAW_NODE_ROLE` | macOS `lead` / Linux `worker` | | service-manifest role filter | which units install |
-| `MESH_LLM_PROVIDER` | `ollama` ⚠ | ⚙ | `lib/llm-providers.js` → mesh-agent | **DEFECT (D11): defaulting the grappe worker to a local model is wrong — a grappe worker MUST be the node's OpenClaw agent on an advanced LLM. Fix queued for the next code pass.** |
+| `MESH_LLM_PROVIDER` | none (chosen at install) | ⚙ | `lib/llm-providers.js` → mesh-agent | the node's mind: claude · openai (codex) · gemini · deepseek · kimi · minimax · aider · ollama · shell. `install.sh --provider=NAME`, the install prompt, or a CLI on PATH; D11 still refuses local models for grappe workers |
 | `LLM_MODEL` | `qwen3:8b` ⚖ | ⚙ | llm-client (extraction) + probes | the local model tag — extraction/probe organ ONLY, never a grappe worker's mind (D11) |
 | `LLM_BASE_URL` | `http://localhost:11434` | ⚙ | llm-client, probes | ollama endpoint |
 | `USE_LLM_EXTRACTION` | `true` | | pre-compression-flush | extraction mode (falls back to regex, loudly watched) |
@@ -136,7 +136,7 @@ Written to `~/.openclaw/openclaw.env` by install (generated where marked ⚙; RA
 5. Read the acceptance gate output at the end. **Green (`ACCEPTED`) = the node is running.** Anything else prints exactly what is broken and why.
 
 **Optional human steps (feature unlocks, not core):**
-- Cloud agent brain: `claude` CLI login, set `MESH_LLM_PROVIDER=claude`.
+- Agent brain: `install.sh --provider=NAME` (claude · openai · gemini · deepseek · kimi · minimax · aider · ollama), then sign in to that CLI once. The installer asks when no provider is chosen and never installs a vendor CLI unasked.
 - Gateway surface: `npm i -g openclaw`, add auth profile to `~/.openclaw/openclaw.json`, flip `openclaw-gateway` autostart.
 - Discord tool: put `DISCORD_BOT_TOKEN` in the env, flip `openclaw-mesh-tool-discord`.
 - MC voice (TTS): `GOOGLE_API_KEY` in env.
@@ -150,7 +150,7 @@ done
 node bin/openclaw-grappe.mjs form --id wg-alpha --mode adversarial --members alpha,bravo,charlie
 node bin/mesh.js submit <task.yaml>     # collaboration.mode: circling_strategy
 ```
-(Agents inherit `MESH_LLM_PROVIDER=ollama` from the env — no cloud auth needed. Per-node agent
+(Agents inherit `MESH_LLM_PROVIDER` from the env — whichever provider the operator seated. Per-node agent
 *units* are federation Block 6 work; today agents are on-demand processes by design.)
 
 ## §7 What "functionally running" means (the gate)

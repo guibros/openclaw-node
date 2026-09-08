@@ -1977,13 +1977,14 @@ async function handleCirclingGateReject(msg) {
  * silently ran the legacy parallel protocol — the exact silent-wrong-protocol
  * failure the 3.1 fail-loud seam exists to prevent. One dispatch, two callers.
  *
- * Fresh-reads the session and only proceeds from RECRUITING, so a join-close
- * and a concurrent sweep tick can't both dispatch (the loser no-ops).
+ * Claims the close ATOMICALLY (collabStore.claimRecruitClose, a CAS flag), so
+ * a join-close and a concurrent sweep tick can't both dispatch: the loser gets
+ * null and no-ops. A plain "fresh read, proceed if RECRUITING" guard let both
+ * through on a loaded runner and started round 1 twice.
  */
 async function startRecruitedSession(session_id) {
-  const session = await collabStore.get(session_id);
-  if (!session || session.status !== COLLAB_STATUS.RECRUITING) return false;
-  if (!collabStore.isRecruitingDone(session)) return false;
+  const session = await collabStore.claimRecruitClose(session_id);
+  if (!session) return false;
 
   if (session.nodes.length < session.min_nodes) {
     log(`COLLAB RECRUIT FAILED ${session.session_id}: only ${session.nodes.length}/${session.min_nodes} nodes. Aborting.`);

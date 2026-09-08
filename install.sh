@@ -39,6 +39,7 @@ NODE_ROLE=""
 CLUSTER_PEERS=""
 CLUSTER_BIND=""
 LEAD_PUBKEY=""
+PROVIDER=""
 
 for arg in "$@"; do
   case "$arg" in
@@ -55,8 +56,9 @@ for arg in "$@"; do
     --cluster-peers=*)   CLUSTER_PEERS="${arg#--cluster-peers=}" ;;
     --cluster-bind=*)    CLUSTER_BIND="${arg#--cluster-bind=}" ;;
     --lead-pubkey=*)     LEAD_PUBKEY="${arg#--lead-pubkey=}" ;;
+    --provider=*)        PROVIDER="${arg#--provider=}" ;;
     --help|-h)
-      echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--skip-llm] [--skip-verify] [--role=lead|worker] [--enable-services]"
+      echo "Usage: bash install.sh [--dry-run] [--update] [--skip-mesh] [--skip-llm] [--skip-verify] [--role=lead|worker] [--provider=NAME] [--enable-services]"
       echo "  --dry-run           Show what would happen without making changes"
       echo "  --update            Re-copy scripts/configs only (skip system deps)"
       echo "  --skip-mesh         Skip mesh network setup (used by meta-installer)"
@@ -71,6 +73,9 @@ for arg in "$@"; do
       echo "                      machine's nats.conf to cluster with them (R=3 failsafe)."
       echo "  --cluster-bind=IP   THIS machine's own tailnet/LAN address to bind (never"
       echo "                      0.0.0.0). Auto-detected from 'tailscale ip -4' if omitted."
+      echo "  --provider=NAME     The node's mind: claude | openai | gemini | deepseek | kimi |"
+      echo "                      minimax | aider | ollama | shell. Detected from PATH or asked"
+      echo "                      interactively when omitted; never installed silently."
       echo "  --lead-pubkey=B64   Worker joins: the lead's raw base64 identity pubkey"
       echo "                      (openclaw-trust-peer --my-pubkey on the lead). Merged into"
       echo "                      the deploy/operator trust allowlists so lead-signed actions verify."

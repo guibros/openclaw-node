@@ -30,8 +30,6 @@ test('D11: MESH_LLM_PROVIDER=ollama resolves to ollama and is caught by the guar
   assert.equal(isOpenClawWorkerProvider(provider.name), false, 'the ollama silent-fallback case must be refused');
 });
 
-test('D11: default resolution (nothing set) is the claude OpenClaw frontend', () => {
-  const provider = resolveProvider(null, null, null);
-  assert.equal(provider.name, 'claude');
-  assert.equal(isOpenClawWorkerProvider(provider.name), true);
+test('no provider chosen is an error, never a silent vendor (provider-agnostic)', () => {
+  assert.throws(() => resolveProvider(null, null, null), /No LLM provider chosen/);
 });

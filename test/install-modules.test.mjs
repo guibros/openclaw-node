@@ -35,6 +35,8 @@ const FLAGS = [
   '--role=',
   '--cluster-peers=',
   '--cluster-bind=',
+  '--lead-pubkey=',
+  '--provider=',
 ];
 
 const installSrc = readFileSync(INSTALL_SH, 'utf8');
@@ -285,4 +287,32 @@ test('env.sh builds the event-schemas dist the memory daemon needs at startup', 
   assert.match(env, /event-schemas build produced no dist\/index\.js[^\n]*\n\s*exit 1/);
   // The daemon's loader is the reason this matters: it fails loud on a missing dist.
   assert.match(readFileSync(join(ROOT, 'lib/event-schemas.mjs'), 'utf8'), /event-schemas dist missing/);
+});
+
+// Provider-agnostic install (2026-09-08). The runtime drives nine providers
+// (lib/llm-providers.js); the installer used to detect three and silently
+// `npm install -g` one vendor's CLI when none was found, and the env example
+// shipped that vendor as the default. Lock the agnostic behaviour.
+test('installer seats the operator\'s provider and never installs a vendor CLI unasked', () => {
+  assert.ok(FLAGS.includes('--provider='));
+  const env = moduleSrc['env.sh'];
+  assert.match(env, /KNOWN_PROVIDERS="claude openai gemini deepseek kimi minimax aider ollama shell"/);
+  assert.match(env, /for p in claude openai gemini deepseek kimi minimax aider; do/, 'detection covers every CLI-backed provider');
+  const comp = moduleSrc['components.sh'];
+  assert.doesNotMatch(comp, /Installing the default frontend/);
+  assert.doesNotMatch(comp, /for fe in claude codex gemini; do/, 'the three-vendor detection loop is gone');
+  // Every npm install of a vendor CLI sits inside the operator-chosen case arm.
+  assert.match(comp, /claude\) PKG="@anthropic-ai\/claude-code" ;;/);
+  assert.match(comp, /openai\) PKG="@openai\/codex" ;;/);
+  assert.match(comp, /gemini\) PKG="@google\/gemini-cli" ;;/);
+  assert.equal((comp.match(/npm install -g "\$PKG"/g) || []).length, 2, 'the only vendor installs are PKG-driven');
+  assert.doesNotMatch(comp, /npm install -g @anthropic-ai\/claude-code/);
+  assert.match(comp, /9\) none for now/);
+  assert.match(comp, /exec 3<\/dev\/tty/, 'the prompt reads the terminal, not the piped script');
+  assert.doesNotMatch(moduleSrc['config.sh'], /MESH_LLM_PROVIDER=claude/);
+  const example = readFileSync(join(ROOT, 'openclaw.env.example'), 'utf8');
+  assert.doesNotMatch(example, /^MESH_LLM_PROVIDER=\w+/m, 'no vendor default in the env example');
+  const llm = readFileSync(join(ROOT, 'scripts/install/llm-setup.sh'), 'utf8');
+  assert.match(llm, /--endpoint\) ENDPOINT="\$2"/);
+  assert.match(llm, /\[e\] use an OpenAI-compatible endpoint/);
 });

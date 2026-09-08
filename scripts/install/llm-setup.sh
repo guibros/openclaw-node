@@ -19,11 +19,20 @@
 set -o pipefail
 
 MODE=ask
-case "${1:-}" in
-  --check) MODE=check ;;
-  --yes|-y) MODE=yes ;;
-esac
-[ "${OPENCLAW_LLM_AUTO:-0}" = "1" ] && MODE=yes
+ENDPOINT=""; ENDPOINT_MODEL=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check) MODE=check ;;
+    --yes|-y) MODE=yes ;;
+    # Unattended: point the memory organ at any OpenAI-compatible server
+    # (vLLM, LM Studio, llama.cpp, a hosted endpoint) instead of pulling
+    # through ollama. The runtime only ever speaks that API (lib/llm-client.mjs).
+    --endpoint) ENDPOINT="$2"; shift ;;
+    --model) ENDPOINT_MODEL="$2"; shift ;;
+  esac
+  shift
+done
+[ "${OPENCLAW_LLM_AUTO:-0}" = "1" ] && [ "$MODE" = ask ] && MODE=yes
 
 if ! declare -f ok >/dev/null 2>&1; then
   _G='\033[0;32m'; _Y='\033[1;33m'; _R='\033[0;31m'; _B='\033[1m'; _N='\033[0m'
@@ -90,11 +99,53 @@ if [ "$MODE" = check ]; then
   exit 0
 fi
 
-if [ -z "$REC" ]; then
-  warn "This machine is below the local-LLM floor (16 GB)."
-  warn "Extraction will use regex, and local mesh agents have no provider."
-  warn "Point MESH_LLM_PROVIDER at a cloud provider in $ENV_FILE instead."
-  exit 0
+# ---------- OpenAI-compatible endpoint (any server, any model) ----------
+record_endpoint() {
+  # $1 = base URL, $2 = model tag. No download: the model lives on the server.
+  if [ -f "$ENV_FILE" ]; then
+    if grep -q '^LLM_BASE_URL=' "$ENV_FILE"; then sed -i.bak "s|^LLM_BASE_URL=.*|LLM_BASE_URL=$1|" "$ENV_FILE"; else echo "LLM_BASE_URL=$1" >> "$ENV_FILE"; fi
+    if grep -q '^LLM_MODEL=' "$ENV_FILE"; then sed -i.bak "s|^LLM_MODEL=.*|LLM_MODEL=$2|" "$ENV_FILE"; else echo "LLM_MODEL=$2" >> "$ENV_FILE"; fi
+    rm -f "$ENV_FILE.bak"
+    ok "LLM_BASE_URL=$1 LLM_MODEL=$2 recorded in $ENV_FILE"
+  else
+    warn "$ENV_FILE not found — endpoint not recorded"
+  fi
+  if curl -fsS --max-time 5 "$1/v1/models" >/dev/null 2>&1 || curl -fsS --max-time 5 "$1/api/tags" >/dev/null 2>&1; then
+    ok "endpoint reachable: $1"
+  else
+    warn "endpoint not reachable right now: $1 (extraction falls back to regex until it is)"
+  fi
+}
+if [ -n "$ENDPOINT" ]; then
+  [ -n "$ENDPOINT_MODEL" ] || { error "--endpoint needs --model <tag>"; exit 1; }
+  record_endpoint "$ENDPOINT" "$ENDPOINT_MODEL"
+  CHOICE=""
+  SKIP_PULL=true
+else
+  SKIP_PULL=false
+fi
+
+if ! $SKIP_PULL && [ -z "$REC" ]; then
+  warn "This machine is below the local-LLM floor (16 GB) — no local model recommended."
+  if { exec 3</dev/tty; } 2>/dev/null; then
+    printf "  Use an OpenAI-compatible endpoint instead? (vLLM / LM Studio / hosted) [y/N] "
+    read -r ANS <&3 || ANS=n
+    exec 3<&- 2>/dev/null || true
+    case "$(echo "${ANS:-n}" | tr '[:upper:]' '[:lower:]')" in
+      y|yes)
+        exec 3</dev/tty
+        printf "  Base URL (e.g. http://host:8000): "; read -r ENDPOINT <&3
+        printf "  Model tag: "; read -r ENDPOINT_MODEL <&3
+        exec 3<&- 2>/dev/null || true
+        record_endpoint "$ENDPOINT" "$ENDPOINT_MODEL"
+        SKIP_PULL=true ;;
+    esac
+  fi
+  if ! $SKIP_PULL; then
+    warn "Extraction will use regex until a model or endpoint is configured."
+    warn "Later: bash $REPO_DIR/scripts/install/llm-setup.sh --endpoint URL --model TAG"
+    exit 0
+  fi
 fi
 
 # ---------- confirmation ----------
@@ -108,18 +159,26 @@ fi
 if { exec 3</dev/tty; } 2>/dev/null; then TTY_OK=true; else TTY_OK=false; fi
 
 CHOICE=""
-if [ "$MODE" = yes ]; then
+if $SKIP_PULL; then
+  CHOICE=""
+elif [ "$MODE" = yes ]; then
   CHOICE="$REC"
   info "unattended (--yes): taking the recommendation, $REC"
 elif $TTY_OK; then
   echo "  [y] download ${REC} + embedder   (~${TOTAL_GB} GB)"
+  echo "  [e] use an OpenAI-compatible endpoint instead (vLLM / LM Studio / hosted — any model)"
   echo "  [s] skip — set it up later"
   echo "  [c] choose a different model"
   echo ""
-  printf "  Download now? [y/s/c] "
+  printf "  Download now? [y/e/s/c] "
   read -r ANS <&3 || ANS=s
   case "$(echo "${ANS:-s}" | tr '[:upper:]' '[:lower:]')" in
     y|yes) CHOICE="$REC" ;;
+    e|endpoint)
+      printf "  Base URL (e.g. http://host:8000): "; read -r ENDPOINT <&3
+      printf "  Model tag: "; read -r ENDPOINT_MODEL <&3
+      record_endpoint "$ENDPOINT" "$ENDPOINT_MODEL"
+      SKIP_PULL=true; CHOICE="" ;;
     c|choose)
       echo ""
       echo "    1) qwen3:32b   ~18 GB   best quality, ~5-15 tok/s      (wants 48 GB RAM)"
@@ -151,7 +210,9 @@ else
 fi
 exec 3<&- 2>/dev/null || true
 
-if [ -z "$CHOICE" ]; then
+if [ -z "$CHOICE" ] && $SKIP_PULL; then
+  info "No local pull: the memory organ uses the configured endpoint."
+elif [ -z "$CHOICE" ]; then
   echo ""
   info "Skipped. Nothing was downloaded. Run wave 2 whenever you want:"
   echo ""
@@ -162,6 +223,8 @@ if [ -z "$CHOICE" ]; then
 fi
 
 # ---------- ollama has to be up to pull ----------
+# The endpoint path never pulls: the model lives on the server the operator named.
+if $SKIP_PULL; then :; else
 if ! curl -fsS --max-time 3 "$LLM_BASE_URL/api/tags" >/dev/null 2>&1; then
   info "starting ollama..."
   mkdir -p "$OPENCLAW_ROOT/logs"
@@ -202,6 +265,7 @@ if [ -f "$ENV_FILE" ]; then
 else
   warn "$ENV_FILE not found — LLM_MODEL not recorded"
 fi
+fi  # SKIP_PULL
 
 # ---------- embedder ----------
 if $EMBEDDER_NEEDED && [ -d "$WORKSPACE/node_modules/@huggingface/transformers" ]; then
@@ -221,7 +285,7 @@ elif $EMBEDDER_NEEDED; then
 fi
 
 echo ""
-ok "Wave 2 complete — model: $CHOICE"
+ok "Wave 2 complete — model: ${CHOICE:-endpoint $ENDPOINT ($ENDPOINT_MODEL)}"
 info "Restart the services so they pick it up:"
 echo "    bash $REPO_DIR/install.sh --update --enable-services"
 echo ""

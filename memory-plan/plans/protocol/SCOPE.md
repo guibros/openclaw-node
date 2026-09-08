@@ -28,7 +28,32 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 **Set at:** 2026-09-06T00:00:00Z
 **Expires:** 2026-09-10T00:00:00Z
 
-```files virgin-install-fixes-2026-09-07
+```files provider-agnostic-install-2026-09-08
+install.sh
+lib/mesh-collab.js
+bin/mesh-task-daemon.js
+test/daemon-recruit-dispatch.test.js
+test/collab-p1-hardening.test.js
+lib/llm-providers.js
+bin/mesh-agent.js
+test/llm-providers.test.js
+test/grappe-worker-provider.test.mjs
+bootstrap.sh
+scripts/install/env.sh
+scripts/install/config.sh
+scripts/install/components.sh
+scripts/install/helpers.sh
+scripts/install/llm-setup.sh
+openclaw.env.example
+bin/mesh-join-token.js
+bin/openclaw-node-init.js
+README.md
+docs/NODE_SPEC.md
+test/install-modules.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files virgin-install-fixes-2026-09-07 closed
 bootstrap.sh
 scripts/install/prereqs.sh
 scripts/install/env.sh

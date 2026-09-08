@@ -46,7 +46,7 @@ function getArg(flag, defaultVal) {
 }
 
 const NATS_OVERRIDE = getArg('--nats', null);
-const PROVIDER_OVERRIDE = getArg('--provider', 'claude');
+const PROVIDER_OVERRIDE = getArg('--provider', process.env.MESH_LLM_PROVIDER || 'claude');
 const REPO = getArg('--repo', 'https://github.com/moltyguibros-design/openclaw-node.git');
 const SSH_PUBKEY = getArg('--ssh-key', null);
 // Lead identity pubkey when there is no join token (raw base64 ed25519).
