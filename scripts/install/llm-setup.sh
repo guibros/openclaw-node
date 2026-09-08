@@ -2,7 +2,8 @@
 # llm-setup.sh — WAVE 2: download the node's local LLM brain, after confirming.
 #
 #   bash scripts/install/llm-setup.sh            # ask, then pull
-#   bash scripts/install/llm-setup.sh --check    # report only, download nothing
+#   bash scripts/install/llm-setup.sh --check           # report only, download nothing
+#   bash scripts/install/llm-setup.sh --embedder-only   # retry the embedder warm-up
 #   bash scripts/install/llm-setup.sh --yes      # unattended: accept the recommendation
 #
 # Wave 1 (bootstrap.sh / install.sh) installs binaries and gets the node running.
@@ -29,6 +30,9 @@ while [ $# -gt 0 ]; do
     # through ollama. The runtime only ever speaks that API (lib/llm-client.mjs).
     --endpoint) ENDPOINT="$2"; shift ;;
     --model) ENDPOINT_MODEL="$2"; shift ;;
+    # Retry just the embedder warm-up after a failed prefetch: no RAM tiering,
+    # no prompt, no model pull.
+    --embedder-only) MODE=embedder ;;
   esac
   shift
 done
@@ -54,7 +58,11 @@ LLM_BASE_URL="${LLM_BASE_URL:-http://127.0.0.1:11434}"
 
 step "Wave 2: local LLM model"
 
-have ollama || { error "ollama is not installed — run wave 1 first (bootstrap.sh)"; exit 1; }
+# ollama is only needed to PULL a local model: --embedder-only and --endpoint
+# both skip it (the model lives in the HF cache or on a remote server).
+if [ "$MODE" != embedder ] && [ -z "$ENDPOINT" ]; then
+  have ollama || { error "ollama is not installed — run wave 1 first (bootstrap.sh)"; exit 1; }
+fi
 
 # ---------- what does this machine warrant? ----------
 # Tiers mirror bin/check-llm-baseline.mjs: >=48GB qwen3:32b, >=32GB qwen3:14b,
@@ -121,6 +129,11 @@ if [ -n "$ENDPOINT" ]; then
   record_endpoint "$ENDPOINT" "$ENDPOINT_MODEL"
   CHOICE=""
   SKIP_PULL=true
+elif [ "$MODE" = embedder ]; then
+  # --embedder-only: retry the warm-up alone; the model choice stays as it is.
+  CHOICE=""
+  SKIP_PULL=true
+  EMBEDDER_NEEDED=true
 else
   SKIP_PULL=false
 fi
@@ -211,7 +224,9 @@ fi
 exec 3<&- 2>/dev/null || true
 
 if [ -z "$CHOICE" ] && $SKIP_PULL; then
-  info "No local pull: the memory organ uses the configured endpoint."
+  [ "$MODE" = embedder ] \
+    && info "--embedder-only: retrying the embedder warm-up, model untouched." \
+    || info "No local pull: the memory organ uses the configured endpoint."
 elif [ -z "$CHOICE" ]; then
   echo ""
   info "Skipped. Nothing was downloaded. Run wave 2 whenever you want:"
@@ -270,22 +285,31 @@ fi  # SKIP_PULL
 # ---------- embedder ----------
 if $EMBEDDER_NEEDED && [ -d "$WORKSPACE/node_modules/@huggingface/transformers" ]; then
   step "Prefetching embedder Xenova/bge-m3 (~2 GB, one-time)"
+  # Keep the reason. core.mjs raises a precise error (403, offline, no disk,
+  # missing dep) and the old `else warn ...` threw it away, so a failed prefetch
+  # read as bad luck instead of a named cause — and the next acceptance run then
+  # failed MEM-L2-INJECT on a 2 GB cold download with no explanation.
+  EMBED_LOG="$OPENCLAW_ROOT/logs/embedder-prefetch.log"
+  mkdir -p "$(dirname "$EMBED_LOG")"
   if OPENCLAW_WS_LIB="$WORKSPACE/lib" "$NODE_BIN" --input-type=module -e '
       const core = await import(process.env.OPENCLAW_WS_LIB + "/mcp-knowledge/core.mjs");
       const embed = core.embed || core.getEmbedder;
       if (!embed) throw new Error("no embed/getEmbedder export");
       await embed("installation warmup");
-    '; then
+    ' >"$EMBED_LOG" 2>&1; then
     ok "embedder ready"
   else
-    warn "embedder prefetch failed — first semantic search will download it (needs internet)"
+    warn "embedder prefetch FAILED — semantic search and the memory-inject acceptance probe stay unproven."
+    grep -E 'Error|error:|ENOSPC|EACCES|ENOTFOUND|Forbidden|denied|timed out' "$EMBED_LOG" | tail -4 | sed 's/^/    /'
+    warn "full log: $EMBED_LOG"
+    warn "retry alone (no model re-pull): bash $REPO_DIR/scripts/install/llm-setup.sh --embedder-only"
   fi
 elif $EMBEDDER_NEEDED; then
   warn "workspace deps missing — embedder not prefetched"
 fi
 
 echo ""
-ok "Wave 2 complete — model: ${CHOICE:-endpoint $ENDPOINT ($ENDPOINT_MODEL)}"
+ok "Wave 2 complete — model: ${CHOICE:-${ENDPOINT:+endpoint $ENDPOINT ($ENDPOINT_MODEL)}}${CHOICE:-${ENDPOINT:-unchanged}}"
 info "Restart the services so they pick it up:"
 echo "    bash $REPO_DIR/install.sh --update --enable-services"
 echo ""

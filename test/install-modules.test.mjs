@@ -316,3 +316,18 @@ test('installer seats the operator\'s provider and never installs a vendor CLI u
   assert.match(llm, /--endpoint\) ENDPOINT="\$2"/);
   assert.match(llm, /\[e\] use an OpenAI-compatible endpoint/);
 });
+
+// Virgin-Mac wave 2 (2026-09-08): the embedder prefetch failed and printed only
+// "prefetch failed", discarding core.mjs's precise cause (403 / offline / disk).
+// A cold embedder then fails MEM-L2-INJECT on the next gate run with no
+// explanation, so the reason must survive and the retry must not re-pull a model.
+test('llm-setup keeps the embedder failure reason and offers a model-free retry', () => {
+  const llm = readFileSync(join(ROOT, 'scripts/install/llm-setup.sh'), 'utf8');
+  assert.match(llm, /EMBED_LOG="\$OPENCLAW_ROOT\/logs\/embedder-prefetch\.log"/);
+  assert.match(llm, />"\$EMBED_LOG" 2>&1; then/, 'prefetch output is captured, not discarded');
+  assert.match(llm, /grep -E 'Error\|error:\|ENOSPC\|EACCES\|ENOTFOUND\|Forbidden\|denied\|timed out' "\$EMBED_LOG"/);
+  assert.match(llm, /--embedder-only\) MODE=embedder ;;/);
+  // The retry needs neither ollama nor a model pull.
+  assert.match(llm, /if \[ "\$MODE" != embedder \] && \[ -z "\$ENDPOINT" \]; then\n\s+have ollama \|\|/);
+  assert.match(llm, /elif \[ "\$MODE" = embedder \]; then\n\s+# --embedder-only/);
+});
