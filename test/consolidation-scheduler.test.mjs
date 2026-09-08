@@ -180,7 +180,10 @@ describe('runScheduledCycle', () => {
     });
     assert.equal(result.ok, false);
     assert.ok(result.error.includes('hard cap'));
-    assert.ok(result.durationMs >= 50);
+    // The cap timer and Date.now() are different clocks: the abort can land
+    // at 49ms (Node 22 CI, 2026-09-08). What matters is that the cycle was
+    // cut at the cap, not allowed to run its 200ms.
+    assert.ok(result.durationMs >= 40 && result.durationMs < 200, `durationMs=${result.durationMs}`);
   });
 
   it('returns error when cycle throws', async () => {
