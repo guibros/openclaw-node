@@ -1,7 +1,7 @@
 # SCOPE — integrations plan
 
 **Status:** active
-**Goal:** None open — the plan is at its operator frontier at `v6.3`. Every remaining `[ ]` row (2.1, 2.2, 4.1–4.5, 5.1) needs the operator's macOS box or an operator decision. No `files` block is open, so writes are locked until the operator scopes the next step.
+**Goal:** CI green on PR #12. The plan's steps are at their operator frontier at `v6.3` (every remaining `[ ]` row needs the operator's macOS box or a decision); this block covers only the dependency-audit gate that went red on the branch head, which the PR's drive-to-green obligation requires.
 **Set at:** 2026-09-14
 **Expires:** 2026-09-21T23:59:00Z
 
@@ -181,6 +181,14 @@ memory-plan/plans/integrations/COMPONENT_REGISTRY.md
 memory-plan/plans/integrations/DECISIONS.md
 memory-plan/plans/integrations/VERSION
 memory-plan/plans/integrations/audits/step63_agent_ask_route/*
+```
+
+```files ci-audit-gate closed
+package.json
+package-lock.json
+mission-control/package.json
+mission-control/package-lock.json
+memory-plan/plans/integrations/audits/step_ci_audit_gate/*
 ```
 
 ## How this file works
