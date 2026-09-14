@@ -100,8 +100,8 @@ recorded as UNKNOWN until the operator probes the design box; repo-tree rows are
 
 | | |
 |---|---|
-| **Status** | UNBUILT |
-| **Verified** | 2026-09-08 — `ls docs/runbooks` → no such directory |
+| **Status** | LIVE — three operator runbooks, none of them performed yet |
+| **Verified** | 2026-09-14 — `codebase-memory-mcp.md`, `gods-eye-view.md`, `orca-cockpit.md`, each ending with the probes that close its step (2.1/2.2, 4.1/4.3/4.4, 5.1). Every factual claim checked against its source line, listed in `audits/step_operator_runbooks/AUDIT_POST.md`. Documentation only: no INVENTORY row flipped and the steps remain blocked on the design box |
 
 ### docs/diagrams/
 

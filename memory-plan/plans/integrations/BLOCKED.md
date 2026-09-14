@@ -43,6 +43,16 @@ Two closed rows also left a probe with the operator rather than closing on a moc
 - **`install.sh --update` and a restart** (MASTER_PLAN §4.1): everything in this plan is verified on
   the repo tree, and the runtime at `~/.openclaw/workspace/` has not seen any of it.
 
+## The reading is already done
+
+`docs/runbooks/codebase-memory-mcp.md`, `docs/runbooks/gods-eye-view.md` and
+`docs/runbooks/orca-cockpit.md` carry the exact commands, the settings that are wrong by default, and
+the probes that close each step. They are documentation only — no row flipped — but the remaining
+work is running commands rather than re-deriving them from three upstream sources. Three traps are
+called out at the point of use: `watcher_enabled` needs a `daemon stop` to take effect, God's Eye
+View binding `localhost` reads as CLOSED against a `127.0.0.1` probe, and Orca hides external
+worktrees by default, which is the mesh daemon's worktrees.
+
 ## How to resume
 
 1. Do any part of the checklist above. Each item unblocks its own row independently — 5.1 (Orca) and

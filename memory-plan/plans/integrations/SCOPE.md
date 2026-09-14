@@ -1,7 +1,7 @@
 # SCOPE — integrations plan
 
 **Status:** active
-**Goal:** None open — the plan is at its operator frontier at `v4.2`. `BLOCKED.md` names what each remaining row needs and from whom. No `files` block is open, so the hook locks writes until the operator scopes the next row.
+**Goal:** None open — the plan is at its operator frontier at `v4.2`. `BLOCKED.md` names what each remaining row needs and from whom, and the three runbooks under `docs/runbooks/` carry the commands. No `files` block is open, so the hook locks writes until the operator scopes the next row.
 **Set at:** 2026-09-14
 **Expires:** 2026-09-21T23:59:00Z
 
@@ -204,6 +204,13 @@ memory-plan/plans/integrations/INVENTORY.md
 memory-plan/plans/integrations/COMPONENT_REGISTRY.md
 memory-plan/plans/integrations/VERSION
 memory-plan/plans/integrations/audits/step42_gev_stack_row/*
+```
+
+```files runbooks closed
+docs/runbooks/*
+memory-plan/plans/integrations/BLOCKED.md
+memory-plan/plans/integrations/COMPONENT_REGISTRY.md
+memory-plan/plans/integrations/audits/step_operator_runbooks/*
 ```
 
 ## How this file works
