@@ -1,7 +1,8 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
+**Goal:** flowsint-service landing (2026-09-14): instantiate the operator-authored `flowsint-service` plan silo (PROTOCOL §9) under `memory-plan/plans/flowsint-service/`, plus the argv-less `workspace-bin/flowsint-service-tick.sh` shim the viewer/launchd need. Documents and shim only — no Flowsint deployment, hardening, adapter, or runtime work: that plan lands with its own scope `idle` and its step 1.1 stays operator-gated.
+Earlier goal — Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
 NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
 operator flips), server users block rendered from the identity registry into an included
 `nats-auth.conf`, worker deny on `mesh.deploy.trigger`, every credential-less connect routed through
@@ -25,8 +26,14 @@ Local consumers that GET :3000 read the 0600 session token like scheduler-heartb
 Code + focused tests + MC build only; runtime evidence on the live host is the operator's step.
 Per-node NATS nkeys is deferred (needs install-time credential provisioning).
 Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved as closed blocks.
-**Set at:** 2026-09-06T00:00:00Z
-**Expires:** 2026-09-10T00:00:00Z
+**Set at:** 2026-09-14T21:55:00Z
+**Expires:** 2026-09-15T04:00:00Z
+
+```files flowsint-service-landing-2026-09-14
+memory-plan/plans/flowsint-service/**
+workspace-bin/flowsint-service-tick.sh
+memory-plan/plans/protocol/SCOPE.md
+```
 
 ```files embedder-prefetch-honesty-2026-09-08
 scripts/install/llm-setup.sh
