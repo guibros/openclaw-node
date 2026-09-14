@@ -9,6 +9,7 @@ import {
   isQueueIdle,
   isSystemIdle,
   runScheduledCycle,
+  formatPhaseBreakdown,
   createConsolidationScheduler,
 } from '../bin/consolidation-scheduler.mjs';
 
@@ -241,5 +242,67 @@ describe('createConsolidationScheduler', () => {
     assert.equal(result.skipped, true);
     assert.ok(result.reason.includes('extraction'));
     assert.ok(logs.some(l => l.includes('skipping')));
+  });
+});
+
+describe('step 4.5: the phase breakdown survives the cap', () => {
+  it('formatPhaseBreakdown ranks phases by cost, descending', () => {
+    assert.equal(
+      formatPhaseBreakdown({ decay: 5, summaries: 900, clusters: 40 }),
+      'summaries 900ms · clusters 40ms · decay 5ms',
+    );
+  });
+
+  it('formatPhaseBreakdown honours the limit and has nothing to say about nothing', () => {
+    assert.equal(formatPhaseBreakdown(null), '');
+    assert.equal(formatPhaseBreakdown({}), '');
+    assert.equal(formatPhaseBreakdown({ a: 3, b: 2, c: 1 }, 2), 'a 3ms · b 2ms');
+  });
+
+  it('a capped cycle reports which phase held the cap', async () => {
+    // Mirrors the real cycle, which unwinds at its next checkpoint once the
+    // signal fires and returns its breakdown. Before step 4.5 the rejection
+    // discarded this result — the one case worth diagnosing lost its evidence.
+    const result = await runScheduledCycle({
+      hardCapMs: 50,
+      runCycle: async ({ signal }) => {
+        await new Promise((resolve) => signal.addEventListener('abort', resolve));
+        return { phaseMs: { init: 1, summaries: 48 }, abortedAt: 'summaries', aborted: true };
+      },
+    });
+
+    assert.equal(result.ok, false);
+    assert.ok(result.error.includes('hard cap'));
+    assert.deepStrictEqual(result.phaseMs, { init: 1, summaries: 48 });
+    assert.equal(result.abortedAt, 'summaries');
+    assert.ok(formatPhaseBreakdown(result.phaseMs).startsWith('summaries'));
+  });
+
+  it('a cycle that ignores its signal cannot inflate durationMs past the cut', async () => {
+    const result = await runScheduledCycle({
+      hardCapMs: 50,
+      abortDrainMs: 400,
+      runCycle: async () => {
+        await new Promise((r) => setTimeout(r, 300)); // never checks the signal
+        return { phaseMs: { summaries: 300 } };
+      },
+    });
+
+    assert.equal(result.ok, false);
+    // durationMs means "how long the cycle ran before being cut" — the
+    // diagnostic drain must not be billed to the cycle.
+    assert.ok(result.durationMs >= 40 && result.durationMs < 300, `durationMs=${result.durationMs}`);
+  });
+
+  it('a cycle that never yields its breakdown still returns a clean failure', async () => {
+    const result = await runScheduledCycle({
+      hardCapMs: 50,
+      abortDrainMs: 60,
+      runCycle: async () => new Promise(() => {}), // never settles
+    });
+
+    assert.equal(result.ok, false);
+    assert.ok(result.error.includes('hard cap'));
+    assert.equal(result.phaseMs, undefined, 'no breakdown is better than a fabricated one');
   });
 });

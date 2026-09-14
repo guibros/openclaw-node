@@ -46,6 +46,10 @@ export const IDLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
 /** Maximum wall time for a single consolidation cycle. */
 export const HARD_CAP_MS = 5 * 60 * 1000; // 5 minutes
+// How long to wait for an aborted cycle to unwind and hand back its phase
+// timings. The abort propagates through checkpoints between phases, so the
+// longest unwind is one in-flight unit of work (a single concept's LLM call).
+export const ABORT_DRAIN_MS = 10 * 1000;
 
 /** No analysis activity within this window to qualify as idle. */
 export const ANALYSIS_QUIET_MS = 60 * 1000; // 60 seconds
@@ -127,6 +131,21 @@ export async function isSystemIdle(opts = {}) {
 // ─── Run With Timeout ───────────────────────────────────────────────────────
 
 /**
+ * Render a phase-timing map as a descending, human-readable breakdown.
+ *
+ * The scheduler log is where an overrun is actually noticed, so the breakdown
+ * has to reach the log line and not only the returned object.
+ */
+export function formatPhaseBreakdown(phaseMs, limit = 3) {
+  if (!phaseMs) return '';
+  const ranked = Object.entries(phaseMs)
+    .filter(([, ms]) => Number.isFinite(ms))
+    .sort((a, b) => b[1] - a[1]);
+  if (!ranked.length) return '';
+  return ranked.slice(0, limit).map(([name, ms]) => `${name} ${ms}ms`).join(' · ');
+}
+
+/**
  * Run a consolidation cycle with a hard time cap.
  *
  * @param {object} [opts]
@@ -135,7 +154,11 @@ export async function isSystemIdle(opts = {}) {
  * @param {number} [opts.hardCapMs] — timeout in ms (default HARD_CAP_MS)
  * @param {object} [opts.db] — pre-opened database (for testing)
  * @param {(opts: object) => Promise<object>} [opts.runCycle] — injectable cycle function (for testing)
- * @returns {Promise<{ ok: boolean, result?: object, error?: string, durationMs: number }>}
+ * @param {number} [opts.abortDrainMs] — bounded wait for an aborted cycle to yield its phase timings
+ * @returns {Promise<{ ok: boolean, result?: object, error?: string, durationMs: number,
+ *                     phaseMs?: Record<string, number>, abortedAt?: string }>}
+ *   `durationMs` is how long the cycle ran before completing or being cut. On a
+ *   cap abort, `phaseMs`/`abortedAt` are present only if the cycle unwound in time.
  */
 export async function runScheduledCycle(opts = {}) {
   const hardCap = opts.hardCapMs ?? HARD_CAP_MS;
@@ -156,13 +179,15 @@ export async function runScheduledCycle(opts = {}) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(new Error('hard cap')), hardCap);
 
+  let cyclePromise = null;
+
   try {
     // F-H19 fix: pass ac.signal into runCycle so the work can actually be
     // cancelled when the hard cap fires. Previously the timeout fired,
     // Promise.race rejected, the function returned — but runCycle kept
     // running in the background. Repeated 30-min ticks then stacked
     // overlapping cycles racing on the same DB.
-    const cyclePromise = runCycle({
+    cyclePromise = runCycle({
       dbPath: opts.dbPath,
       vaultPath: opts.vaultPath,
       db: opts.db,
@@ -185,9 +210,28 @@ export async function runScheduledCycle(opts = {}) {
     return { ...result, durationMs: Date.now() - startMs };
   } catch (err) {
     clearTimeout(timer);
+    // Stamped before the drain below: durationMs means how long the cycle ran
+    // before it was cut, and a cycle that ignores its signal must not be able
+    // to inflate that number by stalling the diagnostic wait.
+    const cutAtMs = Date.now() - startMs;
     // F-H19: ensure abort fires so the runCycle promise sees cancellation
     if (!ac.signal.aborted) ac.abort(err);
-    return { ok: false, error: err.message, durationMs: Date.now() - startMs };
+    // Step 4.5: the capped cycle is the one worth diagnosing, and only its own
+    // result knows where the time went. Wait a bounded moment for it to unwind
+    // rather than discarding the breakdown with the rejection.
+    const drainMs = opts.abortDrainMs ?? ABORT_DRAIN_MS;
+    let drainTimer = null;
+    const partial = await Promise.race([
+      cyclePromise ? cyclePromise.catch(() => null) : Promise.resolve(null),
+      new Promise((resolve) => { drainTimer = setTimeout(resolve, drainMs, null); }),
+    ]);
+    clearTimeout(drainTimer);
+    return {
+      ok: false,
+      error: err.message,
+      durationMs: cutAtMs,
+      ...(partial?.phaseMs ? { phaseMs: partial.phaseMs, abortedAt: partial.abortedAt } : {}),
+    };
   }
 }
 
@@ -250,10 +294,13 @@ export function createConsolidationScheduler(opts = {}) {
     }
 
     if (result.ok) {
-      log(`[consolidation-scheduler] cycle complete (${result.durationMs}ms)`);
+      const phases = formatPhaseBreakdown(result.result?.phaseMs);
+      log(`[consolidation-scheduler] cycle complete (${result.durationMs}ms)${phases ? ` — ${phases}` : ''}`);
     } else {
-      log(`[consolidation-scheduler] cycle failed: ${result.error} (${result.durationMs}ms)`);
-      notifyCycleFailure(`${result.error} (${result.durationMs}ms)`);
+      const phases = formatPhaseBreakdown(result.phaseMs);
+      const detail = `${result.error} (${result.durationMs}ms)${phases ? ` — held by ${phases}` : ''}`;
+      log(`[consolidation-scheduler] cycle failed: ${detail}`);
+      notifyCycleFailure(detail);
     }
 
     return result;

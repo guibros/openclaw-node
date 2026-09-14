@@ -78,10 +78,29 @@ export async function runConsolidationCycle(opts = {}) {
   const eventLog = opts.eventLog || null;
   const nodeId = opts.nodeId || process.env.OPENCLAW_NODE_ID || os.hostname();
 
+  // Per-phase timing. The cycle used to report only the aggregate durationMs,
+  // so a hard-cap abort could never name the phase that consumed the cap
+  // (step 4.1 carry-forward #4). A phase is closed by the next checkpoint, and
+  // the phase an abort lands in is closed by endPhases() — the abort path skips
+  // every later checkpoint, so without that call the guilty phase goes untimed.
+  const phaseMs = {};
+  let openPhase = null;
+  let openPhaseStart = 0;
+  const enterPhase = (name) => {
+    if (openPhase) phaseMs[openPhase] = Date.now() - openPhaseStart;
+    openPhase = name;
+    openPhaseStart = Date.now();
+  };
+  const endPhases = () => {
+    if (openPhase) phaseMs[openPhase] = Date.now() - openPhaseStart;
+    openPhase = null;
+  };
+
   // Helper: returns true if the cycle should stop. We check this between
   // every step so a hard-cap fires deterministically rather than racing
   // against whichever step happens to finish next.
   const checkpoint = (stepName) => {
+    enterPhase(stepName);
     if (signal?.aborted) {
       return { aborted: true, abortedAt: stepName };
     }
@@ -95,6 +114,7 @@ export async function runConsolidationCycle(opts = {}) {
 
   try {
     // 1. Init tables
+    enterPhase('init');
     initConsolidationTables(db);
 
     // 2. Decay weights
@@ -142,24 +162,38 @@ export async function runConsolidationCycle(opts = {}) {
     if (!abortInfo && !opts.dryRun) {
       const vp = opts.vaultPath ? { vaultPath: opts.vaultPath } : {};
       vaultSurfaceResult = {};
-      try {
-        const r = await backfillSessionNotes({ db, ...vp, limit: opts.sessionNoteLimit ?? 20 });
-        vaultSurfaceResult.sessionNotes = r.generated;
-        vaultSurfaceResult.sessionNotesRemaining = r.remaining;
-      } catch (e) { vaultSurfaceResult.sessionNotesError = e.message; }
-      try {
-        const r = await generateDecisionNotes({ db, ...vp });
-        vaultSurfaceResult.decisionNotes = r.notes.length;
-      } catch (e) { vaultSurfaceResult.decisionNotesError = e.message; }
-      try {
-        const r = await generateThemeNotes({ db, ...vp });
-        vaultSurfaceResult.themeNotes = r.notes.length;
-      } catch (e) { vaultSurfaceResult.themeNotesError = e.message; }
+      // Sub-timed per writer: this phase is one of the two suspected of holding
+      // the cap, and "which writer" is the actionable half of that answer. The
+      // finally clause times a writer that throws too — a failing writer can be
+      // the slow one, and that is exactly the case worth seeing.
+      const runWriter = async (key, fn) => {
+        const startedAt = Date.now();
+        try {
+          return await fn();
+        } catch (e) {
+          vaultSurfaceResult[`${key}Error`] = e.message;
+          return null;
+        } finally {
+          vaultSurfaceResult[`${key}Ms`] = Date.now() - startedAt;
+        }
+      };
+
+      const sessionNotes = await runWriter('sessionNotes', () =>
+        backfillSessionNotes({ db, ...vp, limit: opts.sessionNoteLimit ?? 20 }));
+      if (sessionNotes) {
+        vaultSurfaceResult.sessionNotes = sessionNotes.generated;
+        vaultSurfaceResult.sessionNotesRemaining = sessionNotes.remaining;
+      }
+      const decisionNotes = await runWriter('decisionNotes', () =>
+        generateDecisionNotes({ db, ...vp }));
+      if (decisionNotes) vaultSurfaceResult.decisionNotes = decisionNotes.notes.length;
+      const themeNotes = await runWriter('themeNotes', () =>
+        generateThemeNotes({ db, ...vp }));
+      if (themeNotes) vaultSurfaceResult.themeNotes = themeNotes.notes.length;
       // Daily digest reads vault state — must run after the writers above.
-      try {
-        const r = await generateDailyDigest({ ...vp });
-        vaultSurfaceResult.dailyDigest = r.generated ? 1 : 0;
-      } catch (e) { vaultSurfaceResult.dailyDigestError = e.message; }
+      const dailyDigest = await runWriter('dailyDigest', () =>
+        generateDailyDigest({ ...vp }));
+      if (dailyDigest) vaultSurfaceResult.dailyDigest = dailyDigest.generated ? 1 : 0;
     }
 
     // 5. Regenerate summaries (async — uses LLM). Signal flows in so the
@@ -221,6 +255,7 @@ export async function runConsolidationCycle(opts = {}) {
       }
     }
 
+    endPhases();
     const durationMs = Date.now() - startMs;
 
     return {
@@ -233,6 +268,7 @@ export async function runConsolidationCycle(opts = {}) {
       contradictions: contradictionResult,
       promotionCandidates: promotionResult,
       durationMs,
+      phaseMs,
       ...(abortInfo || { aborted: false }),
     };
   } finally {
@@ -276,6 +312,10 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     .then(async result => {
       console.log('Consolidation cycle complete.');
       console.log(`  Duration: ${result.durationMs}ms`);
+      const phases = Object.entries(result.phaseMs || {}).sort((a, b) => b[1] - a[1]);
+      if (phases.length) {
+        console.log(`  Phases:   ${phases.map(([n, ms]) => `${n} ${ms}ms`).join(' · ')}`);
+      }
       console.log(`  Decayed: ${result.decayed.decayedEntities} entities, ${result.decayed.decayedDecisions} decisions, ${result.decayed.archivedEntities} archived`);
       if (result.pruned) console.log(`  Pruned: ${result.pruned.prunedArchived} archived entities, ${result.pruned.prunedDecisions} decayed decisions, ${result.pruned.prunedThemes} idle themes`);
       console.log(`  Reinforced: ${result.reinforced.reinforcedEntities} entities across ${result.reinforced.pairs.length} pairs`);

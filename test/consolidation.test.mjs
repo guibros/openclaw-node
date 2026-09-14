@@ -714,3 +714,63 @@ describe('R20 (repair 5.3): promotion emits on change only', () => {
     db.close();
   });
 });
+
+describe('step 4.5: per-phase timing', () => {
+  it('a completed cycle times every phase that ran', async () => {
+    const db = createTestDb();
+    insertEntity(db, 'timed-entity', 'concept', { mentionCount: 4, sourceType: 'local' });
+
+    const result = await runConsolidationCycle({ vaultPath: TEST_VAULT, db });
+
+    assert.ok(result.phaseMs, 'cycle reports a phase breakdown');
+    // The nine checkpointed phases. If a phase is added to the cycle without
+    // being added here, that phase is silently unattributable in an overrun.
+    for (const phase of ['init', 'decay', 'prune', 'reinforce', 'clusters',
+                         'vault-surfaces', 'summaries', 'contradictions', 'promotion']) {
+      assert.equal(typeof result.phaseMs[phase], 'number', `${phase} is timed`);
+      assert.ok(result.phaseMs[phase] >= 0, `${phase} timing is not negative`);
+    }
+    // The phases are measured inside the cycle, so they cannot outrun it.
+    const summed = Object.values(result.phaseMs).reduce((a, b) => a + b, 0);
+    assert.ok(summed <= result.durationMs + 50, `phase sum ${summed} vs durationMs ${result.durationMs}`);
+
+    db.close();
+  });
+
+  it('an aborted cycle times the phase the abort landed in, and claims no others', async () => {
+    const db = createTestDb();
+    insertEntity(db, 'e1', 'concept', { mentionCount: 1 });
+
+    const ac = new AbortController();
+    ac.abort(new Error('hard cap'));
+
+    const result = await runConsolidationCycle({ vaultPath: TEST_VAULT, db, signal: ac.signal });
+
+    assert.equal(result.abortedAt, 'decay');
+    // This is the whole point of the step: the phase holding the cap is named
+    // and timed even though the abort skips every later checkpoint.
+    assert.equal(typeof result.phaseMs.init, 'number', 'the completed phase is timed');
+    assert.equal(typeof result.phaseMs.decay, 'number', 'the aborted phase is timed');
+    for (const never of ['prune', 'reinforce', 'clusters', 'summaries', 'contradictions', 'promotion']) {
+      assert.equal(result.phaseMs[never], undefined, `${never} never ran, so it is not timed`);
+    }
+
+    db.close();
+  });
+
+  it('vault-surfaces is timed per writer, so a slow writer is identifiable', async () => {
+    const db = createTestDb();
+    insertEntity(db, 'sub-timed', 'concept', {
+      mentionCount: 6, sourceType: 'local',
+      sessions: ['beef0001-1111-2222-3333-444455556666'],
+    });
+
+    const vault = mkdtempSync(join(tmpdir(), 'phase-vault-'));
+    const result = await runConsolidationCycle({ vaultPath: vault, db });
+
+    for (const writer of ['sessionNotes', 'decisionNotes', 'themeNotes', 'dailyDigest']) {
+      assert.equal(typeof result.vaultSurfaces[`${writer}Ms`], 'number', `${writer} is timed`);
+    }
+    db.close();
+  });
+});
