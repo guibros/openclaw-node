@@ -121,6 +121,13 @@ recorded as UNKNOWN until the operator probes the design box; repo-tree rows are
 
 ## Family 8: Local LLM client
 
+### mission-control /api/agent/ask
+
+| | |
+|---|---|
+| **Status** | LIVE — answer plus tool trace, token-gated |
+| **Verified** | 2026-09-14 (step 6.3) — `POST {q}` → `{answer, trace, rounds, usage}`. Probed on a live `next dev`: no token → **401** from the middleware; `{"q":"  "}` → 400, non-JSON → 400; no ollama → **503** `local model unreachable at http://localhost:11434 (ECONNREFUSED)`; with the model endpoint stubbed → **200** `{"answer":"All 1 node(s) online: vm (lead, disk 32%).","trace":[{"tool":"get_fleet_state","ms":54,"error":null}],"rounds":2}` — real middleware, real runtime load of `lib/node-agent.mjs`, real ollama queue (no bypass), real `/api/mesh/nodes`. Wait bounded by `AGENT_ASK_TIMEOUT_MS` (120 s) returning 504 naming the queue rather than hanging; bypassing the queue was rejected (a second inference beside extraction is what it exists to prevent). `src/lib/openclaw-lib.ts` now holds the root-module resolution rule and `mesh-sign.ts` was rewritten onto it — one candidate list, not two. MC suite 149/149, `tsc --noEmit` clean |
+
 ### lib/node-agent.mjs
 
 | | |

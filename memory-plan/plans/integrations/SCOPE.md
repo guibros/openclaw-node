@@ -1,7 +1,7 @@
 # SCOPE — integrations plan
 
 **Status:** active
-**Goal:** Step 6.2 — `lib/node-agent.mjs`: four grounding tools over the node's own state and a pure record filter, so a question about the fleet is answered from a tool call rather than from the model's memory.
+**Goal:** Step 6.3 — `POST /api/agent/ask`: Mission Control asks the node agent a question and returns the answer with the tool trace, loading the root module the way mesh-sign already does rather than a second copy of it.
 **Set at:** 2026-09-14
 **Expires:** 2026-09-21T23:59:00Z
 
@@ -166,6 +166,21 @@ memory-plan/plans/integrations/COMPONENT_REGISTRY.md
 memory-plan/plans/integrations/DECISIONS.md
 memory-plan/plans/integrations/VERSION
 memory-plan/plans/integrations/audits/step62_node_agent_tools/*
+```
+
+```files step63 closed
+mission-control/src/lib/openclaw-lib.ts
+mission-control/src/lib/mesh-sign.ts
+mission-control/src/lib/agent-ask.ts
+mission-control/src/app/api/agent/ask/route.ts
+mission-control/src/lib/__tests__/openclaw-lib.test.ts
+mission-control/src/lib/__tests__/agent-ask.test.ts
+openclaw.env.example
+memory-plan/plans/integrations/INVENTORY.md
+memory-plan/plans/integrations/COMPONENT_REGISTRY.md
+memory-plan/plans/integrations/DECISIONS.md
+memory-plan/plans/integrations/VERSION
+memory-plan/plans/integrations/audits/step63_agent_ask_route/*
 ```
 
 ## How this file works
