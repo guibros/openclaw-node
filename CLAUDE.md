@@ -66,14 +66,33 @@ Fresh runtime probes: R=3 NATS quorum, memory daemon, Mission Control, mesh-task
 node-watch, and workplan viewer are live. `mesh-agent`, gateway, and companion bridge were down at the
 probe. Federation watch = 2 WORKING / 1 OFF / 1 UNKNOWN. This is substrate, not worker-cluster proof.
 
-Queued runtime repair is specific: consolidation has one hard-cap failure then 359 false-busy skips
-because `/api/ps` reports a loaded model, not active inference; NATS auth separately blocks event
-emission; scheduler heartbeat exits 22/HTTP 401; dotted hostnames break local stream names; the nested
-`lib/mcp-knowledge` tree loads Sharp 0.34.5 beside root Sharp 0.35.3 and has unresolved audit findings;
-watcher freshness/running-state gaps remain. Do not claim the August daily note proved consolidation.
+That runtime-repair batch is **delivered**, not queued: protocol Block 4 closed 4.1-4.4 on
+2026-08-02. The false-busy gate is gone (`/api/ps` no longer appears in the scheduler; admission
+reads the daemon queue snapshot and fails closed when it is missing or stale), standalone NATS
+clients carry the configured token, the dotted-hostname stream name is fixed by one canonical
+node-id helper, the scheduler heartbeat authenticates through a loopback one-shot (was exit
+22/HTTP 401), the nested `lib/mcp-knowledge` Sharp tree is gone (root owns it as a private
+workspace at 0.35.x), and watcher gateway/PID state is load-bearing. Do not re-file any of these
+as open work; re-read `plans/protocol/audits/step41_memory_cadence/AUDIT_POST.md` first.
 
-**Scope after v3.1:** no plan scope is active. The next operator-approved scope is the bounded
-runtime-repair batch described above; federation execution remains locked until that repair lands.
+**One item from that batch is genuinely open** and is now step 4.5: a real consolidation cycle
+still exceeds the 300000ms hard cap (`AUDIT_POST` §4 `[NEGATIVE->open]`). Step 4.1 carry-forward #4
+governs the fix — profile the real phases and prove a complete cycle; **raising the cap is not
+evidence of optimization**. The cycle now reports per-phase timings for all nine checkpoints
+(`phaseMs` on the cycle result, surfaced in the scheduler log and the CLI summary) and a capped
+cycle names the phase that held the cap, so the overrun is attributable for the first time.
+
+Also live since the 2026-09-06 remediation: PRs #7-#11 landed pipe-safe bootstrap under
+`curl | bash`, the event-schemas dist built at install, MEM-L2-INJECT gaining the LLM axis,
+provider-agnostic install (the operator chooses the node's mind; no vendor defaulted silently),
+an atomically claimed recruit-close dispatch, and embedder-prefetch failure reasons with an
+`--embedder-only` retry. D17 (2026-09-07) added per-node NATS authentication via identity nkeys,
+subject-bound authorization deferred.
+
+**Scope after v3.1:** protocol scope is **active** for step 4.5 (consolidation performance),
+set 2026-09-14, expiring 2026-09-21. Federation execution remains locked behind its own
+BLOCKED.md, which D16 redefined as a deterministic fixed-pass pipeline needing a NEW
+preregistered benchmark.
 
 ## The forcing function
 

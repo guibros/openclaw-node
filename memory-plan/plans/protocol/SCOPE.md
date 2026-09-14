@@ -1,7 +1,43 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
+**Goal:** Step 4.5 — consolidation performance. Attribute the hard-cap overrun before touching it:
+add per-phase timing to all nine checkpoints in `runConsolidationCycle` (only `decay` is timed
+today, which is why the 300000ms overrun has never been attributed to a phase), run a real cycle
+on live data, and publish the phase breakdown. Then optimize whichever phase actually dominates —
+prime suspects are `summaries` (a per-entity LLM loop in obsidian-summarizer) and `vault-surfaces`
+(four sequential vault-I/O awaits), neither confirmed yet. Per step 4.1 carry-forward #4, raising
+HARD_CAP_MS is NOT the deliverable and is not evidence of optimization: the close gate is a real
+complete cycle inside the existing cap, with the phase breakdown as its proof. Folded in: correct
+the governance docs to match the repo — CLAUDE.md still advertises the closed 4.1-4.4 runtime
+repair as "queued" six weeks on, and neither CLAUDE.md nor AGENTS.md reflects PRs #7-#11 or D17.
+**Set at:** 2026-09-14T00:00:00Z
+**Expires:** 2026-09-21T00:00:00Z
+
+```files consolidation-performance-4.5-2026-09-14
+bin/consolidate.mjs
+bin/consolidation-scheduler.mjs
+lib/consolidation.mjs
+lib/obsidian-summarizer.mjs
+lib/obsidian-session-notes.mjs
+lib/obsidian-decision-notes.mjs
+lib/obsidian-theme-notes.mjs
+lib/obsidian-digest.mjs
+lib/local-event-log.mjs
+test/consolidation.test.mjs
+test/consolidation-scheduler.test.mjs
+test/obsidian-summarizer.test.mjs
+CLAUDE.md
+AGENTS.md
+memory-plan/plans/protocol/SCOPE.md
+memory-plan/plans/protocol/INVENTORY.md
+memory-plan/plans/protocol/VERSION
+memory-plan/plans/protocol/COMPONENT_REGISTRY.md
+memory-plan/plans/protocol/DECISIONS.md
+memory-plan/plans/protocol/audits/step45_consolidation_performance/*
+```
+
+(Earlier goal — Phase 7 / embedder prefetch, retained for the record:) Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
 NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
 operator flips), server users block rendered from the identity registry into an included
 `nats-auth.conf`, worker deny on `mesh.deploy.trigger`, every credential-less connect routed through
@@ -25,10 +61,8 @@ Local consumers that GET :3000 read the 0600 session token like scheduler-heartb
 Code + focused tests + MC build only; runtime evidence on the live host is the operator's step.
 Per-node NATS nkeys is deferred (needs install-time credential provisioning).
 Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved as closed blocks.
-**Set at:** 2026-09-06T00:00:00Z
-**Expires:** 2026-09-10T00:00:00Z
 
-```files embedder-prefetch-honesty-2026-09-08
+```files embedder-prefetch-honesty-2026-09-08 closed
 scripts/install/llm-setup.sh
 test/install-modules.test.mjs
 memory-plan/plans/protocol/SCOPE.md

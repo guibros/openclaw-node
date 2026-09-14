@@ -55,6 +55,7 @@ test). Steps below use the four-field contract they introduce.
 | 4 | 4.2 | v4.2 | [x] | Remove nested Sharp/libvips dependency trees from source and deployment paths — closed 2026-08-02; all mcp-knowledge imports resolve root Sharp 0.35.3 and the full watcher exits normally through isolated native probing |
 | 4 | 4.3 | v4.3 | [x] | Make gateway freshness and launchd PID state load-bearing watcher evidence — closed 2026-08-02; stale gateway activity and PID-less loaded services now grade non-green, while running coordinator/core services carry explicit PID evidence |
 | 4 | 4.4 | v4.4 | [x] | Authenticate the scheduler-heartbeat one-shot against Mission Control — closed 2026-08-02; loopback helper preserves the POST auth gate and launchd recurs with HTTP 200 / exit 0 |
+| 4 | 4.5 | v4.5 | [A] | Prove a complete consolidation cycle inside the existing 300000ms hard cap — per-phase timing across all nine checkpoints attributes the overrun, then the dominant phase is optimized; raising the cap is explicitly not the deliverable (4.1 carry-forward #4) |
 
 > **4.1 — Goal:** the standalone consolidation scheduler starts a real cycle when the daemon queue is freshly idle and can emit through the authenticated, validly named local event stream.
 > **Needs:** v3.1 governance recovery closed; live memory daemon exports `.tmp/ollama-queue-state.json`; R=3 NATS cluster and token resolver live; consolidation scheduler launchd unit loaded; operator approval 2026-08-02.
@@ -75,6 +76,11 @@ test). Steps below use the four-field contract they introduce.
 > **Needs:** Mission Control auth token file and POST gate live; heartbeat unit currently reproduces exit 22/HTTP 401; workspace installer owns one-shot scripts and service templates.
 > **Feeds:** at/cron task dispatch; `ops.calendar` watcher; Mission Control scheduler status.
 > **Verify:** `code:` helper/unit/install tests pass and the mutation route remains auth-gated. `runtime:` deployed launchd unit uses the helper, records HTTP 200/tick output, increments its run count with last exit 0, and Mission Control remains reachable.
+
+> **4.5 — Goal:** a real consolidation cycle completes inside the existing `HARD_CAP_MS` (300000ms), and the cycle reports where its time actually goes.
+> **Needs:** 4.1 closed (scheduler live and honest at the gate); a populated extraction store on the host; the cap overrun reproducible on a real cycle.
+> **Feeds:** daily digest/vault cadence actually completing; promotion-candidate freshness; any future claim that consolidation is healthy.
+> **Verify:** `code:` per-phase timings returned for all nine checkpoints and asserted in unit tests; an aborted cycle names the phase holding the cap. `runtime:` a deployed real cycle completes under 300000ms with its phase breakdown recorded, and the phase that previously dominated is shown reduced — a raised cap is not acceptable evidence.
 
 > **2.1 — Goal:** the rules exist in one place: PROTOCOL.md gains §10 (six-surface conformance: what "functionally implements" each tab means) + §11 (the Goal/Needs/Feeds/Verify step contract); INVENTORY + TICK_PROMPT templates carry both.
 > **Needs:** PROTOCOL.md §1/§6 (present, v1.1) · the viewer tab↔file map (verified live in Block 1) · redesign's LOOPS.md flow framing as lineage (connects-with/produces-for/WIN-FAIL).
