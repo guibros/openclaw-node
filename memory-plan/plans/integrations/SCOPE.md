@@ -1,7 +1,7 @@
 # SCOPE — integrations plan
 
 **Status:** active
-**Goal:** Step 4.2 — `openclaw-stack status` reports God's Eye View on port 4173 as a report-only external app, reusing 3.2's row rather than copying it a second time.
+**Goal:** None open — the plan is at its operator frontier at `v4.2`. `BLOCKED.md` names what each remaining row needs and from whom. No `files` block is open, so the hook locks writes until the operator scopes the next row.
 **Set at:** 2026-09-14
 **Expires:** 2026-09-21T23:59:00Z
 
