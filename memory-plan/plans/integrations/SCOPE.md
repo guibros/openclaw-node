@@ -191,6 +191,11 @@ mission-control/package-lock.json
 memory-plan/plans/integrations/audits/step_ci_audit_gate/*
 ```
 
+```files ci-test-fix closed
+mission-control/src/lib/__tests__/tts-local.test.ts
+memory-plan/plans/integrations/audits/step31_local_tts_provider/*
+```
+
 ## How this file works
 
 - **Status:** must be `active` for the hook to allow edits to listed files.

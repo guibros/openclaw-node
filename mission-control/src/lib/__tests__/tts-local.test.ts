@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import http from "http";
 import type { AddressInfo } from "net";
 
@@ -165,12 +165,26 @@ describe("synthesizeWithFallback", () => {
     expect(result.fallbackReason).toBeUndefined();
   });
 
-  it("moves to a cloud provider when local cannot answer, recording why", async () => {
+  it("moves to another provider when local cannot answer, carrying local's reason", async () => {
+    // A registered stand-in rather than a real cloud voice: whether google or
+    // edge can answer depends on credentials and egress, and a test that asserts
+    // "everything fails" passes for the wrong reason on a machine with neither.
+    // The claim under test is that local's failure REASON survives onto whichever
+    // provider does answer — true on a networked runner (edge answers) and on an
+    // isolated one (the stand-in answers).
+    vi.resetModules();
+    const { synthesizeWithFallback, registerTtsProvider } = await import("../tts");
+    registerTtsProvider("test-stand-in", () => ({
+      name: "test-stand-in",
+      synthesize: async () => ({ audio: Buffer.from("stand-in audio"), contentType: "audio/mpeg" }),
+    }));
+
     process.env.VOICESTUDIO_URL = "http://127.0.0.1:1";
-    const { synthesizeWithFallback } = await import("../tts");
-    // google and edge both need network/credentials this test has neither of,
-    // so the call fails — but it must fail AFTER trying them, naming local's reason.
-    await expect(synthesizeWithFallback({ text: "hello" })).rejects.toThrow(/All TTS providers failed/);
+    const result = await synthesizeWithFallback({ text: "hello" });
     process.env.VOICESTUDIO_URL = base;
+
+    expect(result.actualProvider).not.toBe("local");
+    expect(result.fallbackReason).toMatch(/VoiceStudio unreachable at http:\/\/127\.0\.0\.1:1/);
+    expect(result.audio.length).toBeGreaterThan(0);
   });
 });

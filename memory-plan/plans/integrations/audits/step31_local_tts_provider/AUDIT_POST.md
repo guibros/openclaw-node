@@ -107,3 +107,25 @@ quietly compete with the repo's own bootstrap file.
   `GOOGLE_API_KEY` or Edge egress.
 - 3.2 gives VoiceStudio a report-only row in `openclaw-stack status`, which is what makes "is it
   open?" answerable without a curl.
+
+
+## Correction — 2026-09-14, after CI
+
+One of the 13 tests above was wrong, and CI caught what this container could not.
+
+`"moves to a cloud provider when local cannot answer, recording why"` asserted that
+`synthesizeWithFallback` **rejects** with `All TTS providers failed` once local is pointed at a dead
+port. That passed here only because this container has no `GOOGLE_API_KEY` and no egress to Edge's
+endpoint. On GitHub's runner edge-tts reaches Microsoft and returns real audio — the CI log is a
+dump of MP3 frame-sync bytes and a `LAME` header — so the call resolved and the test failed.
+
+The assertion had encoded this environment's lack of network as the expected behaviour, which is the
+same mistake as closing a step on a mock. The test now registers a stand-in provider through the
+existing `registerTtsProvider` seam and asserts the claim that is actually true in both
+environments: **local's failure reason survives onto whichever provider answers** —
+`actualProvider !== "local"`, `fallbackReason` matching `VoiceStudio unreachable at
+http://127.0.0.1:1`, and non-empty audio. On a networked runner edge answers first; on an isolated
+one the stand-in does; the assertion holds either way and no longer depends on who has credentials.
+
+Still 13 tests, and the probe evidence above is unaffected — every probe there ran against real
+sockets, not against this assumption.
