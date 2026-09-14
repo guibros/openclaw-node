@@ -121,6 +121,14 @@ recorded as UNKNOWN until the operator probes the design box; repo-tree rows are
 
 ## Family 8: Local LLM client
 
+### lib/node-agent.mjs
+
+| | |
+|---|---|
+| **Status** | LIVE — four grounding tools, loop proven against the real Mission Control API |
+| **Verified** | 2026-09-14 (step 6.2) — `createNodeAgent({client, providers})` with `applyFilter`/`projectFleet`/`projectNodeHealth`/`projectTasks` as pure functions (ported from GEV `analystEngine.js`, D11) and `createDefaultProviders()` reaching `/api/mesh/nodes` and `/api/mesh/tasks` with `mcAuthHeaders`. Probed against a live `next dev` with only the model stubbed: `ask("which nodes are down")` advertised all four tools, called `get_fleet_state` (28 ms), and the real API's row (`vm`, online, lead, linux, disk 32%, cpu 8%) reached the model as a `role: tool` message **before** the answer; `query_tasks{status=queued}` → `{count: 0}` against real NATS KV; `get_node_health{nodeId: laptop}` → `no node "laptop" in the mesh — known nodes: vm`, returned as a correctable tool result rather than a throw. 21/21 tests. The fleet projection is asserted under 1200 bytes with the tailscale peer dump and service list excluded. Model-side tool selection (does qwen3 pick the right tool unprompted) remains the operator probe 6.1 recorded |
+
+
 ### lib/llm-client.mjs
 
 | | |

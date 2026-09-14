@@ -1,7 +1,7 @@
 # SCOPE — integrations plan
 
 **Status:** active
-**Goal:** Step 3.2 — `openclaw-stack status` reports VoiceStudio on port 3900 as an external desktop app: LIVE when open, and a status that never flips the exit code or the notification when it is simply closed.
+**Goal:** Step 6.2 — `lib/node-agent.mjs`: four grounding tools over the node's own state and a pure record filter, so a question about the fleet is answered from a tool call rather than from the model's memory.
 **Set at:** 2026-09-14
 **Expires:** 2026-09-21T23:59:00Z
 
@@ -156,6 +156,16 @@ memory-plan/plans/integrations/INVENTORY.md
 memory-plan/plans/integrations/COMPONENT_REGISTRY.md
 memory-plan/plans/integrations/VERSION
 memory-plan/plans/integrations/audits/step32_voicestudio_stack_row/*
+```
+
+```files step62 closed
+lib/node-agent.mjs
+test/node-agent.test.mjs
+memory-plan/plans/integrations/INVENTORY.md
+memory-plan/plans/integrations/COMPONENT_REGISTRY.md
+memory-plan/plans/integrations/DECISIONS.md
+memory-plan/plans/integrations/VERSION
+memory-plan/plans/integrations/audits/step62_node_agent_tools/*
 ```
 
 ## How this file works

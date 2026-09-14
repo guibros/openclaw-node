@@ -200,3 +200,31 @@ triage instead of being kept alive. Orca's hook-based approach stays unported �
 reader covers the same states for the provider that matters, and a hook listener would need a
 loopback server and per-provider settings injection for no additional signal. The Orca cockpit
 setup (5.1) is unaffected.
+
+## D11 — The node agent declares its filterable fields; GEV's filter does not (2026-09-14)
+
+**Context.** Step 6.2 ports God's Eye View's `analystEngine.js` shape: pure query functions over
+plain record arrays, live data injected through a `providers` object. `applyFilter` came across
+almost verbatim — the same seven operators, the same case-insensitive text comparison, the same
+boolean handling.
+
+**What changed in the port.** GEV's filter returns `false` for a record whose field is missing, and
+that is right there: five upstream feeds (ADS-B, AIS, FIRMS, USGS) publish ragged records, and a
+flight with no `operator` genuinely does not match `operator contains "delta"`.
+
+Here the records are projections we build ourselves, so a filter naming a field we do not have is
+not sparse data — it is the model getting the schema wrong. `{field: 'state', op: 'eq', value:
+'down'}` against a record keyed `status` would match nothing, and the model would then report an
+empty fleet with no way to tell that from a healthy one. `FILTERABLE` declares the fields per record
+kind and the filter refuses an undeclared one **by name**, listing what does exist. The refusal goes
+back to the model as a tool result, which is a thing it can correct from on the next round.
+
+**Consequence.** The two failure modes stay distinguishable: "no nodes match" and "you filtered on a
+field that does not exist" are different sentences. Adding a field to a projection means adding it
+to `FILTERABLE`, which is the intended friction — the whitelist is the contract the tool
+descriptions quote to the model.
+
+**Also settled here:** a tool that throws is caught and returned to the model as
+`{error: "..."}` rather than propagating. A crashed request tells the operator nothing; a named
+error is something both the model and the operator can act on. The trace records the error either
+way, so the failure is never invisible.

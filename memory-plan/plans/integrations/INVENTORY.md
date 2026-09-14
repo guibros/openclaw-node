@@ -239,7 +239,7 @@ from it is re-derivable from the artifact text.
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 6 | 6.1 | v6.1 | [x] | `lib/llm-client.mjs` gains `tools` in and `toolCalls` out on the OpenAI-compatible branch, with qwen3 reliability evidence |
-| 6 | 6.2 | v6.2 | [ ] | `lib/node-agent.mjs`: four grounding tools over Mission Control data and a pure record filter |
+| 6 | 6.2 | v6.2 | [x] | `lib/node-agent.mjs`: four grounding tools over Mission Control data and a pure record filter |
 | 6 | 6.3 | v6.3 | [ ] | Mission Control `POST /api/agent/ask` text route with the tool trace |
 | 6 | 6.4 | v6.4 | [D] | the God's Eye View design-tool loop (4.9) on top of 6.1 |
 
