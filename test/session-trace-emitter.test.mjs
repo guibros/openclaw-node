@@ -161,6 +161,29 @@ describe('session trace emitter — message envelopes still work', () => {
     assert.equal(tracer.of('tool.call').length, 1);
   });
 
+  it('regression_F-TRACE6: every event carries the session it came from', () => {
+    const { tracer } = run([
+      { type: 'user', message: { role: 'user', content: 'hello' } },
+      assistantToolCall('toolu_G', 'Bash', { command: 'ls' }),
+      toolResult('toolu_G', 'ok', false),
+    ], { name: 'abc-123-def.jsonl' });
+
+    assert.ok(tracer.events.length >= 4);
+    for (const e of tracer.events) {
+      assert.equal(e.session_id, 'abc-123-def', `${e.fn} must be attributable to its run`);
+    }
+  });
+
+  it('distinguishes two sessions processed by the same emitter', () => {
+    const tracer = stubTracer();
+    const emitter = createSessionTraceEmitter(tracer);
+
+    run([{ type: 'user', message: { role: 'user', content: 'one' } }], { tracer, emitter, name: 'run-A.jsonl' });
+    run([{ type: 'user', message: { role: 'user', content: 'two' } }], { tracer, emitter, name: 'run-B.jsonl' });
+
+    assert.deepEqual(tracer.events.map((e) => e.session_id), ['run-A', 'run-B']);
+  });
+
   it('reset clears pending tool pairings', () => {
     const tracer = stubTracer();
     const emitter = createSessionTraceEmitter(tracer);

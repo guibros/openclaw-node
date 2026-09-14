@@ -16,6 +16,7 @@
  */
 
 import fs from 'fs';
+import path from 'path';
 
 /**
  * Map JSONL entry types to trace categories and tiers.
@@ -92,6 +93,18 @@ function extractCost(entry) {
 }
 
 /**
+ * The session a transcript belongs to, taken from its filename.
+ *
+ * The emitter is the only component in the pipeline that knows which run an
+ * event came from — the daemon hands it the path, and every writer of these
+ * files names them for the session. Without this, rows from every session land
+ * in one flat table with nothing to group them by.
+ */
+function sessionIdOf(jsonlPath) {
+  return path.basename(jsonlPath).replace(/\.jsonl$/i, '') || null;
+}
+
+/**
  * Pull the salient identifier out of a tool's input.
  *
  * Which operation ran is the diagnostic signal; a whole prompt or file body
@@ -134,7 +147,7 @@ const MAX_PENDING_TOOLS = 500;
  * @param {Map<string,string>} pending — tool_use id → tool name, spans ticks
  * @returns {number} events emitted
  */
-function emitToolActivity(entry, tracer, pending) {
+function emitToolActivity(entry, tracer, pending, sessionId) {
   let emitted = 0;
 
   const emitResult = (id, isError, text) => {
@@ -150,6 +163,7 @@ function emitToolActivity(entry, tracer, pending) {
       args_summary: `tool=${tool}`,
       result_summary: detail,
       error: isError ? (detail || 'tool_error') : null,
+      session_id: sessionId,
     });
     emitted++;
   };
@@ -168,6 +182,7 @@ function emitToolActivity(entry, tracer, pending) {
           category: 'state_transition',
           args_summary: `tool=${tool}`,
           result_summary: summarizeToolInput(block.input),
+          session_id: sessionId,
         });
         emitted++;
       } else if (block?.type === 'tool_result') {
@@ -235,6 +250,7 @@ export function createSessionTraceEmitter(tracer) {
 
         const chunk = buffer.toString('utf8');
         const lines = chunk.split('\n').filter(Boolean);
+        const sessionId = sessionIdOf(jsonlPath);
 
         let emitted = 0;
         for (const line of lines) {
@@ -245,7 +261,7 @@ export function createSessionTraceEmitter(tracer) {
             continue; // Skip malformed lines (including partial first line)
           }
 
-          emitted += emitToolActivity(entry, tracer, _pendingTools);
+          emitted += emitToolActivity(entry, tracer, _pendingTools, sessionId);
 
           const mapping = ENTRY_MAP[entry.type];
           if (!mapping) continue; // Unknown type — skip
@@ -262,6 +278,7 @@ export function createSessionTraceEmitter(tracer) {
             args_summary: summary,
             result_summary: entry.model || '',
             meta: cost ? JSON.stringify(cost) : null,
+            session_id: sessionId,
           });
           emitted++;
         }

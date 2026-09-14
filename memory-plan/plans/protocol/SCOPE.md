@@ -1,7 +1,18 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** 2026-09-14 — session trace emitter records tool activity. The emitter classifies transcript
+**Goal:** 2026-09-14 — observability events carry the session they came from. `observability_events`
+has thirteen columns and none of them correlate: no session, trace, span or parent id. Every event
+from every session lands in one flat table keyed only by (timestamp, node_id, module, function), so
+even now that tool activity is recorded (prior batch, PR #16) the rows cannot be grouped back into
+the run that produced them — which is what a diagnosis would have to read first. Fix: a `session_id`
+column, migrated onto already-deployed tables rather than only new ones, threaded through
+`tracer.emit()`, and populated by the one component that actually knows the answer — the session
+trace emitter, which is handed the transcript path. ONE outcome: rows can be grouped by session.
+Pairing a `tool.result` back to its `tool.call` by `tool_use_id` is a second correlation outcome and
+is NOT in this batch (PROTOCOL §11). Stacks on the emitter branch, so it carries PR #16's commit and
+PR #14's sharp gate fix; both no-op once main takes them.
+**Prior goal (trace emitter tool activity, shipped as PR #16):** session trace emitter records tool activity. The emitter classifies transcript
 entries by top-level `entry.type` and carries `ENTRY_MAP` keys for `tool_use`/`tool_result`, but in
 the Claude Code transcript format that `lib/transcript-parser.mjs` documents and
 `workspace-bin/subagent-audit.mjs` parses, tool activity arrives as content blocks inside
@@ -14,10 +25,23 @@ currently exercises it. ONE outcome: tool activity reaches the trace. The missin
 correlation column on `observability_events` is a separate storage-schema step (PROTOCOL §11
 atomicity) and is NOT in this batch. Carries the sharp gate fix (PR #14) as a ported commit so CI is
 green; it no-ops once main takes #14.
-**Set at:** 2026-09-14T17:00:00Z
+**Set at:** 2026-09-14T17:05:00Z
 **Expires:** 2026-09-16T00:00:00Z
 
-```files trace-emitter-tool-spans-2026-09-14
+```files obs-events-session-correlation-2026-09-14
+lib/obs-db.js
+lib/tracer.js
+workspace-bin/session-trace-emitter.mjs
+test/session-trace-emitter.test.mjs
+test/obs-db-session-correlation.test.mjs
+# Second, divergent copy of this schema (MASTER_PLAN 4.6): Mission Control
+# also CREATEs observability_events. obs-db's migration repairs a table MC
+# made, but leaving the twin definitions disagreeing is half-done work.
+mission-control/src/lib/db/index.ts
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files trace-emitter-tool-spans-2026-09-14 closed
 workspace-bin/session-trace-emitter.mjs
 test/session-trace-emitter.test.mjs
 memory-plan/plans/protocol/SCOPE.md

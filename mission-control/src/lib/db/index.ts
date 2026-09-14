@@ -501,6 +501,7 @@ function runMigrations(sqlite: Database.Database) {
         duration_ms INTEGER,
         error TEXT,
         meta TEXT,
+        session_id TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       );
       CREATE INDEX IF NOT EXISTS idx_obs_timestamp ON observability_events(timestamp DESC);
