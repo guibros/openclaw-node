@@ -1,7 +1,7 @@
 # SCOPE — integrations plan
 
 **Status:** active
-**Goal:** Step 6.3 — `POST /api/agent/ask`: Mission Control asks the node agent a question and returns the answer with the tool trace, loading the root module the way mesh-sign already does rather than a second copy of it.
+**Goal:** None open — the plan is at its operator frontier at `v6.3`. Every remaining `[ ]` row (2.1, 2.2, 4.1–4.5, 5.1) needs the operator's macOS box or an operator decision. No `files` block is open, so writes are locked until the operator scopes the next step.
 **Set at:** 2026-09-14
 **Expires:** 2026-09-21T23:59:00Z
 
