@@ -144,3 +144,36 @@ ownership defects, not threshold-tuning problems.
 **Consequences.** Each step must deploy and observe its corrected signal before closing. No auth
 exemption, watcher downgrade, dependency duplication, or retrospective health claim is accepted.
 Federation 2.6 remains blocked until Block 4 closes.
+
+## D10 — An expired scope is a named state, not a silent absence (2026-09-14)
+
+**Decision.** `scope-check.sh` classifies each `SCOPE.md` into five states — `override`, `active`,
+`expired`, `malformed`, `inactive` — instead of the previous binary "usable / empty". The three
+denying states stay denying: an expired scope still exits 2 and the allow-list is unchanged. What
+changes is the verdict the operator reads. When every scope is denied but at least one carries
+`**Status:** active`, the hook reports `scope EXPIRED`, names the lapsed plan file, echoes its
+`Expires` verbatim with an elapsed clause, and lists the three real remedies — including the fact
+that `**Override:** true` is evaluated only inside a live window and so will not lift the block.
+A `**Expires:**` that is neither `no-expiry` nor ISO-8601 UTC is reported as unparseable rather
+than being silently read as expired.
+
+**Why.** The two conditions "no plan is active" and "a plan is active but its window closed" had
+the same representation (an empty return from `scope_active_state`) and therefore the same message:
+`no active scope`. That message is false in the second case, and false in the precise way that costs
+the most time — it tells an operator to go set a `Status` they can see is already set, so they look
+for a parser bug, a path bug, or a broken hook instead of a date. It has now cost three incidents:
+federation (2026-08-24, window closed 2026-08-09, the header left reading `active`), repair
+(2026-08-26, caught two weeks later with CLAUDE.md still claiming no scope was active), and protocol
+(`Expires: 2026-09-10`, found 2026-09-14 — four days in which every `Edit`/`Write` in the repo was
+refused). Three occurrences of one diagnostic defect is the defect, not the bookkeeping around it.
+
+**Consequences.** The fix is diagnostic only; no write that was refused before is permitted now, and
+`test/gate-mutation.test.mjs` pins both halves — that an expired scope still exits 2, and that its
+headline is not the old misdiagnosis. Those tests run the hook out of a throwaway repo tree (a copy
+of the script under `<tmp>/.claude/hooks/` roots `REPO_ROOT` at `<tmp>` via `$0/../..`) rather than
+introducing an environment variable to redirect the scope directory: a settable scope path would be
+a fail-open on the repo's only mechanically enforced write gate. The deeper exposure this incident
+names is not fixed here — nothing *notices* an expiry until a write is attempted, and CLAUDE.md's
+prose about which scope is active is maintained by hand and was wrong in all three cases. A
+scheduled or tick-time freshness check, and a CLAUDE.md governance line generated rather than
+written, are captured as open items, not done.

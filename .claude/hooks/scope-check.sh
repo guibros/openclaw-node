@@ -22,6 +22,15 @@
 #   - Paths outside the repo (a scratchpad in /tmp) are NOT this hook's business:
 #     allowed. The scope contract governs repo files.
 #
+# Expiry latch (2026-09-14, D10 — third recurrence): "no scope is Status: active"
+# and "a scope IS active but its Expires has passed" used to collapse into the
+# same empty state, so both reported "no active scope". That reading is false
+# whenever a SCOPE header says `active`, which is exactly when an operator is
+# least likely to suspect the expiry — federation lost 2026-08-24, repair
+# 2026-08-26, protocol four silent days from 2026-09-10. The states are now
+# distinct (expired / malformed / inactive) and the block NAMES the lapsed plan,
+# its Expires and the remedy. Enforcement is unchanged: expired still exits 2.
+#
 # Backward-compat: if no per-plan scopes exist yet, falls back to the legacy
 # single gate at memory-plan/SCOPE.md with identical semantics.
 #
@@ -153,20 +162,58 @@ scope_files() {
   ' "$1"
 }
 
-# Is this scope file active and unexpired? echo "active" / "override" / "" .
-# Expires must be `no-expiry` or an ISO-8601 UTC instant; anything else is
-# treated as expired (fail closed) rather than as "never".
+# Read a **Field:** value verbatim (case and spacing preserved) — for messages,
+# where echoing the operator's own timestamp back is the point.
+scope_field_raw() {
+  local file="$1" field="$2"
+  grep -iE "^\*\*${field}:\*\*" "$file" 2>/dev/null | head -1 \
+    | sed -E "s/^\*\*${field}:\*\*[[:space:]]*//;s/[[:space:]]+$//" || true
+}
+
+# Seconds since an ISO-8601 UTC instant; empty when neither date(1) dialect
+# parses it. GNU (-d) and BSD (-j -f) disagree on flags and this repo runs on
+# both (macOS dev, Linux CI), so the elapsed clause degrades to silence rather
+# than to a wrong number.
+epoch_of() {
+  date -u -d "$1" +%s 2>/dev/null \
+    || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$1" +%s 2>/dev/null \
+    || true
+}
+
+# " (lapsed 4d ago)" — omitted entirely when the instant could not be parsed.
+# Only ever called on a scope already judged expired, so the elapsed time is
+# positive by construction.
+lapsed_clause() {
+  local at diff
+  at=$(epoch_of "$1")
+  if [ -n "$at" ]; then
+    diff=$(( $(date -u +%s) - at ))
+    if   [ "$diff" -lt 3600 ];  then printf ' (lapsed %dm ago)' "$(( diff / 60 ))"
+    elif [ "$diff" -lt 86400 ]; then printf ' (lapsed %dh ago)' "$(( diff / 3600 ))"
+    else                             printf ' (lapsed %dd ago)' "$(( diff / 86400 ))"
+    fi
+  fi
+}
+
+# Classify a scope file. echo one of:
+#   override  — **Override:** true on a live scope (operator escape)
+#   active    — Status active, Expires in the future or `no-expiry`
+#   expired   — Status active, Expires has passed
+#   malformed — Status active, Expires is neither `no-expiry` nor ISO-8601 UTC
+#   inactive  — Status is not active (idle/dormant/done), or the file is absent
+# The last three all deny the write; they are kept apart so the block message
+# can say which one happened.
 scope_active_state() {
   local file="$1"
-  [ -f "$file" ] || { echo ""; return; }
+  [ -f "$file" ] || { echo "inactive"; return; }
   local status expires override now
   status=$(scope_field "$file" "Status")
-  [ "$status" = "active" ] || { echo ""; return; }
+  [ "$status" = "active" ] || { echo "inactive"; return; }
   expires=$(scope_field "$file" "Expires")
   if [ -n "$expires" ] && [ "$expires" != "no-expiry" ]; then
-    if ! [[ "$expires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}t[0-9]{2}:[0-9]{2}(:[0-9]{2})?z$ ]]; then echo ""; return; fi
+    if ! [[ "$expires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}t[0-9]{2}:[0-9]{2}(:[0-9]{2})?z$ ]]; then echo "malformed"; return; fi
     now=$(date -u +%Y-%m-%dt%H:%M:%Sz)   # lowercased to match scope_field output
-    if [[ "$now" > "$expires" ]]; then echo ""; return; fi
+    if [[ "$now" > "$expires" ]]; then echo "expired"; return; fi
   fi
   override=$(scope_field "$file" "Override")
   if [ "$override" = "true" ]; then echo "override"; return; fi
@@ -217,6 +264,7 @@ fi
 
 ALLOWED=""
 ACTIVE_COUNT=0
+LAPSED=""          # scopes that SAY active but cannot act — the latch, named
 for s in "${SCOPE_FILES[@]}"; do
   st=$(scope_active_state "$s")
   case "$st" in
@@ -226,8 +274,43 @@ for s in "${SCOPE_FILES[@]}"; do
       blk=$(scope_files "$s")
       [ -n "$blk" ] && ALLOWED+="$blk"$'\n'
       ;;
+    expired)
+      LAPSED+="  ${s#$REPO_ROOT/}
+      **Status:** active, but **Expires:** $(scope_field_raw "$s" "Expires")$(lapsed_clause "$(scope_field_raw "$s" "Expires")")
+"
+      ;;
+    malformed)
+      LAPSED+="  ${s#$REPO_ROOT/}
+      **Status:** active, but **Expires:** $(scope_field_raw "$s" "Expires") is not ISO-8601 UTC (e.g. 2026-09-17T00:00:00Z) — read as expired
+"
+      ;;
   esac
 done
+
+# The latch: every scope is denied, but at least one SAYS it is active. Reporting
+# "no active scope" here sends the operator to look for a Status they already set.
+if [ "$ACTIVE_COUNT" -eq 0 ] && [ -n "$LAPSED" ]; then
+  cat >&2 <<EOF
+BLOCKED by scope-check.sh: scope EXPIRED — '$RELATIVE_PATH' refused.
+
+This is not "no scope". A scope is marked **Status:** active; its window has closed:
+
+$LAPSED
+Every write in the repo is blocked until that window is reopened, so a stale
+Expires reads exactly like a missing scope. It is not — the contract lapsed.
+
+To proceed, pick one:
+  (a) with operator approval, set a future **Expires:** on that SCOPE.md and open a
+      labeled \`\`\`files block for the current batch (SCOPE.md is always writeable);
+  (b) if the batch is finished, set **Status:** idle with a close note — then the
+      block above correctly becomes "no active scope";
+  (c) write the observation to that plan's OUT_OF_SCOPE.md and stop.
+
+Note: **Override:** true is checked only on a scope that is still within its
+window, so adding it to an expired scope will not unblock this write.
+EOF
+  exit 2
+fi
 
 if [ "$ACTIVE_COUNT" -eq 0 ]; then
   cat >&2 <<EOF

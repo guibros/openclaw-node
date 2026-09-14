@@ -1,7 +1,17 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
+**Goal:** Scope-expiry latch + spec-kit gap analysis (2026-09-14). Two deliverables.
+(a) The expiry latch, third recurrence: `scope_active_state()` collapses "no Status: active scope"
+and "active scope whose Expires has passed" into the same empty return, so the hook reports
+"no active scope" while CLAUDE.md and the SCOPE header both read `active`. Operators then debug the
+wrong thing. It bit federation 2026-08-24, repair 2026-08-26, and protocol 2026-09-10 (four days
+silent). Fix: expired and malformed-Expires become distinguishable states, and the block message
+names the plan, its Expires, and the remedy. The gate does not loosen — an expired scope still
+exits 2. (b) `SPEC_KIT_GAP_ANALYSIS_2026-09-14.md`: a read-only comparison of github/spec-kit
+(@fd490fa) against PROTOCOL.md — what to steal, what to reject, why not to run `specify init` here.
+Reference material; it changes no protocol doc and opens no adoption work.
+(Phase 7 goal, retained for the record:) Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
 NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
 operator flips), server users block rendered from the identity registry into an included
 `nats-auth.conf`, worker deny on `mesh.deploy.trigger`, every credential-less connect routed through
@@ -25,10 +35,18 @@ Local consumers that GET :3000 read the 0600 session token like scheduler-heartb
 Code + focused tests + MC build only; runtime evidence on the live host is the operator's step.
 Per-node NATS nkeys is deferred (needs install-time credential provisioning).
 Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved as closed blocks.
-**Set at:** 2026-09-06T00:00:00Z
-**Expires:** 2026-09-10T00:00:00Z
+**Set at:** 2026-09-14T12:45:00-04:00
+**Expires:** 2026-09-17T00:00:00Z
 
-```files embedder-prefetch-honesty-2026-09-08
+```files scope-expiry-latch-2026-09-14
+.claude/hooks/scope-check.sh
+test/gate-mutation.test.mjs
+SPEC_KIT_GAP_ANALYSIS_2026-09-14.md
+memory-plan/plans/protocol/DECISIONS.md
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files embedder-prefetch-honesty-2026-09-08 closed
 scripts/install/llm-setup.sh
 test/install-modules.test.mjs
 memory-plan/plans/protocol/SCOPE.md

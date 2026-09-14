@@ -1,7 +1,8 @@
 import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync, mkdtempSync, mkdirSync, copyFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_ANALYSIS_TIMEOUT } from '../lib/llm-client.mjs';
@@ -97,6 +98,95 @@ describe('scope hook blocks out-of-scope writes', () => {
   });
   it('does not govern a path outside the repo', () => {
     assert.equal(runHook(forPath('/tmp/scope-check-outside-probe.md')), 0);
+  });
+});
+
+// ── 2b. The expiry latch (D10) ──────────────────────────────────────────────
+// An `active` scope whose Expires has passed denies every write, exactly like
+// having no scope at all — and for three incidents it REPORTED the same thing
+// ("no active scope"), sending operators to look for a Status they had already
+// set. federation lost 2026-08-24, repair 2026-08-26, protocol four silent days
+// from 2026-09-10.
+//
+// These run the hook out of a throwaway repo tree rather than the real one:
+// REPO_ROOT is derived from the script's own location ($0/../..), so a copy of
+// the hook under <tmp>/.claude/hooks/ roots itself at <tmp> and reads only the
+// fixture SCOPE.md. No env seam is introduced — an env var that redirected the
+// scope directory would be a fail-open on the repo's only write gate.
+
+function fixtureRepo({ status, expires }) {
+  const root = mkdtempSync(join(tmpdir(), 'scope-expiry-'));
+  mkdirSync(join(root, '.claude/hooks'), { recursive: true });
+  mkdirSync(join(root, 'memory-plan/plans/demo'), { recursive: true });
+  mkdirSync(join(root, 'lib'), { recursive: true });
+  copyFileSync(join(REPO, '.claude/hooks/scope-check.sh'), join(root, '.claude/hooks/scope-check.sh'));
+  writeFileSync(join(root, 'memory-plan/plans/demo/SCOPE.md'),
+    `# SCOPE — demo plan\n\n**Status:** ${status}\n**Goal:** fixture\n` +
+    `**Expires:** ${expires}\n\n\`\`\`files demo-batch\nlib/target.mjs\n\`\`\`\n`);
+  return root;
+}
+
+// Run the fixture's own copy of the hook; return both halves of the verdict.
+function runFixture(root, relPath = 'lib/target.mjs') {
+  const payload = JSON.stringify({ tool_name: 'Write', tool_input: { file_path: join(root, relPath) } });
+  try {
+    execFileSync('bash', [join(root, '.claude/hooks/scope-check.sh')], {
+      input: payload, stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return { status: 0, stderr: '' };
+  } catch (e) {
+    return { status: e.status, stderr: String(e.stderr ?? '') };
+  }
+}
+
+describe('scope hook names an expired scope instead of calling it absent', () => {
+  it('still BLOCKS on an expired scope (the gate does not loosen)', () => {
+    const root = fixtureRepo({ status: 'active', expires: '2026-09-10T00:00:00Z' });
+    try {
+      assert.equal(runFixture(root).status, 2);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('reports EXPIRED — not "no active scope" — and names the lapsed plan', () => {
+    const root = fixtureRepo({ status: 'active', expires: '2026-09-10T00:00:00Z' });
+    try {
+      const { stderr } = runFixture(root);
+      assert.match(stderr, /scope EXPIRED/);
+      assert.match(stderr, /memory-plan\/plans\/demo\/SCOPE\.md/);
+      assert.match(stderr, /2026-09-10T00:00:00Z/);       // the operator's own timestamp, verbatim
+      // The latch itself: the headline must not repeat the old misdiagnosis.
+      assert.doesNotMatch(stderr.split('\n')[0], /no active scope/);
+      assert.doesNotMatch(stderr, /BLOCKED by scope-check\.sh: no active scope/);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('an unparseable Expires is reported as such, not silently swallowed', () => {
+    const root = fixtureRepo({ status: 'active', expires: 'next tuesday' });
+    try {
+      const { status, stderr } = runFixture(root);
+      assert.equal(status, 2);
+      assert.match(stderr, /not ISO-8601 UTC/);
+      assert.doesNotMatch(stderr.split('\n')[0], /no active scope/);
+      assert.doesNotMatch(stderr, /BLOCKED by scope-check\.sh: no active scope/);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('a genuinely idle scope still reports "no active scope"', () => {
+    const root = fixtureRepo({ status: 'idle', expires: '2099-01-01T00:00:00Z' });
+    try {
+      const { status, stderr } = runFixture(root);
+      assert.equal(status, 2);
+      assert.match(stderr, /no active scope/);
+      assert.doesNotMatch(stderr, /scope EXPIRED/);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('an unexpired active scope allows its listed file (positive control)', () => {
+    const root = fixtureRepo({ status: 'active', expires: '2099-01-01T00:00:00Z' });
+    try {
+      assert.equal(runFixture(root).status, 0);
+      assert.equal(runFixture(root, 'lib/unlisted.mjs').status, 2);
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });
 
