@@ -84,8 +84,8 @@ recorded as UNKNOWN until the operator probes the design box; repo-tree rows are
 
 | | |
 |---|---|
-| **Status** | LIVE — six ports, one report-only |
-| **Verified** | 2026-09-14 (step 3.2) — PORTS gains `voicestudio: 3900`; `externalAppRow(id, port, dir)` pushes a `reportOnly` row whose closed state is **`CLOSED`**, not `DOWN`, so the exit predicate (`rows.some(status === 'DOWN')`) and `notifyCounts`'s `bad` set skip it without a special case; `notifyCounts` (extracted from `notifyResult`) also excludes report-only rows from `live`/`total`. Real-CLI probes with a stand-in `systemctl`: dir present + port shut → `CLOSED`, exit **0**; listener on 3900 → `LIVE`, exit 0; no dir → `ABSENT`, exit 0; the same run with `OPENCLAW_BRIDGE_DIR` set so companion-bridge reads `DOWN` → exit **1** beside a `CLOSED` voicestudio, proving the predicate is live and the exemption real. 14/14 in `test/openclaw-stack.test.mjs` (was 8). companion-bridge deliberately keeps its DOWN semantics. No gods-eye-view row yet (4.2 reuses `externalAppRow`) |
+| **Status** | LIVE — seven ports, two report-only |
+| **Verified** | 2026-09-14 (step 3.2) — PORTS gains `voicestudio: 3900`; `externalAppRow(id, port, dir)` pushes a `reportOnly` row whose closed state is **`CLOSED`**, not `DOWN`, so the exit predicate (`rows.some(status === 'DOWN')`) and `notifyCounts`'s `bad` set skip it without a special case; `notifyCounts` (extracted from `notifyResult`) also excludes report-only rows from `live`/`total`. Real-CLI probes with a stand-in `systemctl`: dir present + port shut → `CLOSED`, exit **0**; listener on 3900 → `LIVE`, exit 0; no dir → `ABSENT`, exit 0; the same run with `OPENCLAW_BRIDGE_DIR` set so companion-bridge reads `DOWN` → exit **1** beside a `CLOSED` voicestudio, proving the predicate is live and the exemption real. 14/14 in `test/openclaw-stack.test.mjs` (was 8). companion-bridge deliberately keeps its DOWN semantics. 2026-09-14 (step 4.2): the two hand-pushed call sites became an `EXTERNAL_APPS` table (id, port, dir) and `gods-eye-view` joined it on 4173, dir from `OPENCLAW_GEV_DIR` (default `~/Documents/openclaw infrastructure/gods-eye-view`). Probed: clone present + port shut → `CLOSED`, exit 0; listener on 4173 → `LIVE`, exit 0; no clone → `ABSENT`, exit 0; and with companion-bridge forced `DOWN` in the same table → exit **1** beside a `CLOSED` GEV and an `ABSENT` voicestudio. 17/17 tests. The listener was a two-line server, not the globe — the real LIVE is 4.1's on the design box |
 
 ## Family 6: God's Eye View (external, :4173)
 
@@ -93,8 +93,8 @@ recorded as UNKNOWN until the operator probes the design box; repo-tree rows are
 
 | | |
 |---|---|
-| **Status** | UNBUILT |
-| **Verified** | 2026-09-08 — no clone under `~/Documents/openclaw infrastructure/` is known; upstream `package.json` engines `>=24.14.0 <25 \|\| >=26 <27`; session Node is v22.22.2 (node baseline); default server `localhost:4173`; keyless Esri/OSM fallback confirmed in `src/mapStackController.js` |
+| **Status** | UNBUILT — but the stack now has a row waiting for it |
+| **Verified** | 2026-09-14 — still no clone; upstream `package.json` engines `>=24.14.0 <25 \|\| >=26 <27`, session Node is v22.22.2 (node baseline, unchanged); default server `localhost:4173`; keyless Esri/OSM fallback confirmed in `src/mapStackController.js`. Step 4.2 added its `openclaw-stack` row, so once the operator clones and starts it the status table reports LIVE with no further change |
 
 ### docs/runbooks/
 

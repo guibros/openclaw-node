@@ -145,7 +145,7 @@ from it is re-derivable from the artifact text.
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 4 | 4.1 | v4.1 | [ ] | God's Eye View runs keyless from `~/Documents/openclaw infrastructure/gods-eye-view` under its own Node 24 with a runbook |
-| 4 | 4.2 | v4.2 | [ ] | `openclaw-stack status` reports God's Eye View on port 4173 as a report-only external app |
+| 4 | 4.2 | v4.2 | [x] | `openclaw-stack status` reports God's Eye View on port 4173 as a report-only external app |
 | 4 | 4.3 | v4.3 | [ ] | `arcane` overlay branch adds the `arcane-manawells` seed layer with two upstream lines touched |
 | 4 | 4.4 | v4.4 | [ ] | node skill `gods-eye-view` with a snapshot wrapper: reach, toggle layers, screenshot, forbidden routes |
 | 4 | 4.5 | v4.5 | [ ] | operator names the Arcane world data source and the primary job; recorded as D8 |

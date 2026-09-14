@@ -6,7 +6,7 @@ import os from 'node:os';
 import net from 'node:net';
 import {
   scanLaunchdUnits, scanSystemdUnits, probePort, classify, shortId, PORTS, PERIODIC,
-  externalAppRow, notifyCounts,
+  externalAppRow, notifyCounts, EXTERNAL_APPS,
 } from '../bin/openclaw-stack.mjs';
 
 let tmp;
@@ -118,5 +118,32 @@ describe('external apps — a closed GUI app is not a fault', () => {
       { id: 'mesh-agent', status: 'DISABLED' },
     ]);
     assert.deepEqual(counts, { live: 1, total: 2, bad: ['gateway'] });
+  });
+});
+
+describe('the external-app table', () => {
+  const closed = async () => false;
+
+  it('every app in the table has a port, and every port id is canonical', () => {
+    for (const app of EXTERNAL_APPS) {
+      assert.ok(PORTS[app.id], `${app.id} has no port`);
+      assert.equal(app.id, shortId(`ai.openclaw.${app.id}.plist`));
+      assert.ok(app.dir, `${app.id} has no install dir`);
+    }
+  });
+
+  it('covers both apps the node knows, so neither can lose its row unnoticed', () => {
+    assert.deepEqual(EXTERNAL_APPS.map(a => a.id), ['voicestudio', 'gods-eye-view']);
+    assert.equal(PORTS['gods-eye-view'], 4173);
+  });
+
+  it("God's Eye View gets the same never-a-verdict treatment", async () => {
+    const row = await externalAppRow('gods-eye-view', PORTS['gods-eye-view'], '/clone', () => true, closed);
+    assert.equal(row.status, 'CLOSED');
+    assert.equal(row.reportOnly, true);
+    const rows = [{ id: 'nats', status: 'LIVE' }, row];
+    assert.deepEqual(notifyCounts(rows).bad, []);
+    assert.deepEqual([notifyCounts(rows).live, notifyCounts(rows).total], [1, 1]);
+    assert.equal(rows.some(r => r.status === 'DOWN'), false);
   });
 });

@@ -1,7 +1,7 @@
 # SCOPE — integrations plan
 
 **Status:** active
-**Goal:** CI green on PR #12. The plan's steps are at their operator frontier at `v6.3` (every remaining `[ ]` row needs the operator's macOS box or a decision); this block covers only the dependency-audit gate that went red on the branch head, which the PR's drive-to-green obligation requires.
+**Goal:** Step 4.2 — `openclaw-stack status` reports God's Eye View on port 4173 as a report-only external app, reusing 3.2's row rather than copying it a second time.
 **Set at:** 2026-09-14
 **Expires:** 2026-09-21T23:59:00Z
 
@@ -194,6 +194,16 @@ memory-plan/plans/integrations/audits/step_ci_audit_gate/*
 ```files ci-test-fix closed
 mission-control/src/lib/__tests__/tts-local.test.ts
 memory-plan/plans/integrations/audits/step31_local_tts_provider/*
+```
+
+```files step42 closed
+bin/openclaw-stack.mjs
+test/openclaw-stack.test.mjs
+openclaw.env.example
+memory-plan/plans/integrations/INVENTORY.md
+memory-plan/plans/integrations/COMPONENT_REGISTRY.md
+memory-plan/plans/integrations/VERSION
+memory-plan/plans/integrations/audits/step42_gev_stack_row/*
 ```
 
 ## How this file works

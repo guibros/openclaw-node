@@ -25,10 +25,20 @@ const BRIDGE_DIR = process.env.OPENCLAW_BRIDGE_DIR
   || path.join(HOME, 'Documents', 'openclaw infrastructure', 'companion-bridge');
 const BRIDGE_LOG = path.join(HOME, '.openclaw', 'logs', 'companion-bridge.log');
 const MC_URL = process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000';
-// VoiceStudio is a desktop app the operator opens when they want a voice, not a
-// daemon — so it gets a row but never a verdict. See externalAppRow.
-const VOICESTUDIO_DIR = process.env.OPENCLAW_VOICESTUDIO_DIR
-  || '/Applications/VoiceStudio.app';
+// Desktop apps the operator opens on demand — not daemons, so they get a row but
+// never a verdict (see externalAppRow). A table rather than a call site each: the
+// id/port/dir mapping reads in one place and the next app is a row, not a change.
+export const EXTERNAL_APPS = [
+  {
+    id: 'voicestudio',
+    dir: process.env.OPENCLAW_VOICESTUDIO_DIR || '/Applications/VoiceStudio.app',
+  },
+  {
+    id: 'gods-eye-view',
+    dir: process.env.OPENCLAW_GEV_DIR
+      || path.join(HOME, 'Documents', 'openclaw infrastructure', 'gods-eye-view'),
+  },
+];
 
 // Port probes for the units that expose one; everything else is judged by
 // launchd/systemd process state. Periodic (timer-style) units are healthy
@@ -40,6 +50,7 @@ export const PORTS = {
   'memory-daemon': 7893,
   'companion-bridge': 8787,
   'voicestudio': 3900,
+  'gods-eye-view': 4173,
 };
 export const PERIODIC = new Set([
   'observer', 'consolidation-scheduler', 'scheduler-heartbeat',
@@ -122,7 +133,9 @@ async function statusTable(units) {
     id: 'companion-bridge', label: '(external repo)', port: 8787, portOk: bridgeOk,
     status: bridgeOk ? 'LIVE' : (fs.existsSync(BRIDGE_DIR) ? 'DOWN' : 'ABSENT'),
   });
-  rows.push(await externalAppRow('voicestudio', PORTS['voicestudio'], VOICESTUDIO_DIR));
+  for (const app of EXTERNAL_APPS) {
+    rows.push(await externalAppRow(app.id, PORTS[app.id], app.dir));
+  }
   return rows;
 }
 
