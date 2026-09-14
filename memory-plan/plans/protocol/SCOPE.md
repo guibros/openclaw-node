@@ -1,7 +1,29 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** 2026-09-14 — sharp advisory audit gate. CI's `npm audit --audit-level=high` step fails on
+**Goal:** 2026-09-14 — session trace emitter records tool activity. The emitter classifies transcript
+entries by top-level `entry.type` and carries `ENTRY_MAP` keys for `tool_use`/`tool_result`, but in
+the Claude Code transcript format that `lib/transcript-parser.mjs` documents and
+`workspace-bin/subagent-audit.mjs` parses, tool activity arrives as content blocks inside
+`message.content` — so those two keys never match and every tool call, tool result and tool error is
+absent from `observability_events`. Reproduced: a four-entry transcript whose tool result carries
+`is_error` emits four `lifecycle` events, zero `tool.call`, zero `tool.result`, zero `error`. Fix:
+walk `message.content` blocks and pair `tool_use`/`tool_result` by `tool_use_id`, the logic the
+subagent auditor already implements, and give the emitter its first test — no test in the suite
+currently exercises it. ONE outcome: tool activity reaches the trace. The missing session/trace
+correlation column on `observability_events` is a separate storage-schema step (PROTOCOL §11
+atomicity) and is NOT in this batch. Carries the sharp gate fix (PR #14) as a ported commit so CI is
+green; it no-ops once main takes #14.
+**Set at:** 2026-09-14T17:00:00Z
+**Expires:** 2026-09-16T00:00:00Z
+
+```files trace-emitter-tool-spans-2026-09-14
+workspace-bin/session-trace-emitter.mjs
+test/session-trace-emitter.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+**Prior goal (sharp advisory audit gate, shipped as PR #14):** CI's `npm audit --audit-level=high` step fails on
 both `unit-tests` and `mission-control-tests` for advisory GHSA-rgj7-g3m4-5g8c (`sharp <0.35.4`,
 libheif, high). The tests themselves are green (2209 tests, 0 fail) — this is a dependency gate, and
 it fails repo-wide, on `main` and every open PR, because the advisory was published after `main` last
@@ -15,7 +37,7 @@ they are not in scope. Operator-approved 2026-09-14 ("Scope it on a new branch")
 **Set at:** 2026-09-14T16:40:00Z
 **Expires:** 2026-09-16T00:00:00Z
 
-```files sharp-advisory-audit-gate-2026-09-14
+```files sharp-advisory-audit-gate-2026-09-14 closed
 package.json
 package-lock.json
 mission-control/package.json
