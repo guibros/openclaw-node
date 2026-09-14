@@ -25,10 +25,28 @@ Local consumers that GET :3000 read the 0600 session token like scheduler-heartb
 Code + focused tests + MC build only; runtime evidence on the live host is the operator's step.
 Per-node NATS nkeys is deferred (needs install-time credential provisioning).
 Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved as closed blocks.
-**Set at:** 2026-09-06T00:00:00Z
-**Expires:** 2026-09-10T00:00:00Z
+**Addendum 2026-09-14 (operator "go" — LibreChat publisher-doc honesty):** a read-only
+architectural comparison against LibreChat v0.8.8-rc3 (`7fe9a45`) found that the Tier 1 LibreChat
+integration documents an extension point that does not exist. LibreChat's `custom` endpoints are
+YAML-declared HTTP provider configs, not JavaScript modules, so the documented "import the module
+and call `onResponse()` in your post-response handler" setup is not performable as written.
+Correct the publisher docs to the truth, reclassify the standalone CLI (which does work) to the
+tier it actually occupies, document the MCP pull path LibreChat genuinely supports, and capture
+the duplicated `estimateTokens` definition as drift. Docs plus one file-header comment only — no
+runtime behaviour change and no new code path. Files under "librechat-publisher-honesty".
+**Set at:** 2026-09-06T00:00:00Z (refreshed 2026-09-14 for the addendum above — the 2026-09-10
+window had expired, which left the hook reading "no active scope" and blocking every write
+repo-wide rather than allowing any)
+**Expires:** 2026-09-16T00:00:00Z
 
-```files embedder-prefetch-honesty-2026-09-08
+```files librechat-publisher-honesty
+docs/PUBLISHERS.md
+hooks/librechat/openclaw-trigger.js
+memory-plan/plans/protocol/SCOPE.md
+memory-plan/plans/protocol/OUT_OF_SCOPE.md
+```
+
+```files embedder-prefetch-honesty-2026-09-08 closed
 scripts/install/llm-setup.sh
 test/install-modules.test.mjs
 memory-plan/plans/protocol/SCOPE.md

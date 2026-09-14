@@ -1,15 +1,16 @@
 /**
- * openclaw-trigger.js — LibreChat trigger for OpenClaw extraction.
+ * openclaw-trigger.js — LibreChat-tagged trigger for OpenClaw extraction.
  *
- * Import this module in your LibreChat custom endpoint configuration
- * to fire extraction events after each conversation turn.
+ * This is NOT loadable by LibreChat. LibreChat's `custom` endpoints are
+ * YAML-declared HTTP provider configs and the server never loads user-supplied
+ * JS, so it has no post-response hook to call into. Verified against LibreChat
+ * v0.8.8-rc3 (2026-09-14). See docs/PUBLISHERS.md for the supported paths.
  *
- * Usage in LibreChat config:
- *   const { onResponse } = require('./openclaw-trigger.js');
- *   // Call onResponse() in your endpoint's post-response hook
- *
- * Or as a standalone trigger:
+ * Standalone trigger (Tier 3 — cron, keybinding, wrapper script):
  *   node hooks/librechat/openclaw-trigger.js
+ *
+ * onResponse() remains exported for a proxy or wrapper you control that sits in
+ * front of LibreChat — not for LibreChat itself.
  *
  * Env: NATS_URL, OPENCLAW_NODE_ID (same as all OpenClaw publishers)
  */

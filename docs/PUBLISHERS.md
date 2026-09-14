@@ -14,7 +14,7 @@ Three tiers of integration, from tightest to loosest:
 
 | Tier | Type | Examples | Setup effort |
 |------|------|----------|-------------|
-| 1 | Direct hooks | Claude Code, OpenWebUI, LibreChat, Continue | Drop-in config/script |
+| 1 | Direct hooks | Claude Code, OpenWebUI | Drop-in config/script |
 | 2 | SDK wrappers | OpenAI, Anthropic, Gemini, MiniMax (+ OpenAI-compatible: Kimi, DeepSeek, OpenRouter) | 3 lines of code |
 | 3 | Universal fallback | Manual CLI, idle timer | Zero (auto-enabled) |
 
@@ -66,21 +66,41 @@ network-mounted volume.
 
 ### LibreChat
 
-**Setup:**
-1. Import `hooks/librechat/openclaw-trigger.js` in your LibreChat custom endpoint config.
-2. Call `onResponse()` in your post-response handler.
+**LibreChat has no Tier 1 push integration.** It exposes no post-response JavaScript hook.
+Its `custom` endpoints are YAML-declared HTTP provider configs (`name`, `provider`, `apiKey`,
+`baseURL`, `headers`, `models`) — the server never loads user-supplied JS, so there is no
+in-process point at which an extraction event can be fired. Verified against LibreChat
+v0.8.8-rc3 (`7fe9a45`, 2026-09-14); re-verify before relying on it.
 
-```javascript
-import { onResponse, shutdown } from './hooks/librechat/openclaw-trigger.js';
+Use Tier 3 instead, in either of two forms:
 
-// In your endpoint handler:
-const response = await model.generate(messages);
-await onResponse();  // fire-and-forget extraction event
-return response;
+- The idle timer, which needs no LibreChat-side setup at all.
+- `node hooks/librechat/openclaw-trigger.js`, a standalone CLI that publishes one extraction
+  request (`triggered_by=librechat-trigger-cli`). Drive it from cron, a keyboard shortcut, or a
+  wrapper script. It publishes the same `mesh.memory.extract_request` subject through the same
+  `lib/publishers/publish-helper.mjs` as `bin/openclaw-extract-now.mjs`, differing only in the
+  `triggered_by` tag it carries for provenance.
+
+**Reading OpenClaw memory from LibreChat is a separate, supported path.** LibreChat has
+first-class MCP support, and OpenClaw ships an MCP server at `lib/mcp-knowledge/server.mjs`
+(stdio when `KNOWLEDGE_PORT` is unset, HTTP when set). Point LibreChat's `mcpServers` config at it:
+
+```yaml
+mcpServers:
+  openclaw-knowledge:
+    type: stdio
+    command: node
+    args: ["/path/to/openclaw-node/lib/mcp-knowledge/server.mjs"]
 ```
 
-**How it works:** Uses the shared `publish-helper.mjs` for a lazy NATS connection.
-The connection persists across requests for efficiency.
+This is a *pull* path and does not substitute for extraction. It lets LibreChat's model query
+OpenClaw's knowledge base; it sends OpenClaw nothing about LibreChat's conversations. The two
+directions are independent — wiring MCP does not populate memory.
+
+Note that the server exposes `sql_query` and `sql_schema` (read-only SQL over the knowledge DB).
+Exposing those to a chat frontend's model is a wider blast radius than exposing them to a local
+editor, and unlike `reindex` — which is gated behind `KNOWLEDGE_ALLOW_REINDEX` for HTTP callers —
+they carry no caller-tier restriction. Review that before enabling this outside a trusted host.
 
 ### Continue IDE
 
@@ -209,7 +229,7 @@ Some LLM frontends don't expose lifecycle hooks:
 |----------|-------------|-----------------|
 | Claude Code | PreCompact hook | Tier 1 (direct) |
 | OpenWebUI | Plugin API | Tier 1 (plugin) |
-| LibreChat | Custom endpoints | Tier 1 (JS import) |
+| LibreChat | None (YAML-config endpoints only) | Tier 3 (idle timer or CLI) |
 | Continue | Plugin API | Tier 1 (config) |
 | ChatGPT (web) | None | Tier 3 (idle timer) |
 | Claude.ai (web) | None | Tier 3 (idle timer) |
