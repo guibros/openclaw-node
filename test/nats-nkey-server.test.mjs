@@ -26,6 +26,14 @@ const { identityToNkey, nkeyAuthenticatorFor } = require('../lib/nats-nkey.js');
 
 const SKIP = natsServerBin() ? false : 'nats-server not found on PATH';
 
+// These cases assert AUTHORIZATION, not latency. A 3s connect budget made the
+// file's first connect flake on a CI runner that was also hosting a second
+// matrix job, a mesh-task-daemon and CI's own nats-server: the server had
+// logged "Listening for client connections", but the client handshake did not
+// finish inside 3s — the first test timed out while the rest of the file
+// passed. Widened so a slow runner reads as slow, not as an auth failure.
+const CONNECT_TIMEOUT_MS = 15_000;
+
 describe('nkey auth on a real nats-server', { skip: SKIP }, () => {
   let dir, port, server, authPath, lead, worker;
   const TOKEN = 'legacy-shared-token';
@@ -57,7 +65,7 @@ describe('nkey auth on a real nats-server', { skip: SKIP }, () => {
   });
 
   it('lead connects with its identity nkey on an auth-required bus and may publish deploy triggers', async () => {
-    const nc = await connect({ servers: url(), authenticator: nkeyAuthenticatorFor(path.join(dir, 'lead')), timeout: 3000 });
+    const nc = await connect({ servers: url(), authenticator: nkeyAuthenticatorFor(path.join(dir, 'lead')), timeout: CONNECT_TIMEOUT_MS });
     assert.equal(nc.info.auth_required, true);
     const errors = [];
     (async () => { for await (const s of nc.status()) if (s.type === 'error') errors.push(String(s.data)); })();
@@ -71,13 +79,13 @@ describe('nkey auth on a real nats-server', { skip: SKIP }, () => {
   it('an nkey that is not in the users list is refused', async () => {
     const stranger = nkeys.createUser();
     await assert.rejects(
-      connect({ servers: url(), authenticator: nkeyAuthenticator(stranger.getSeed()), timeout: 3000, maxReconnectAttempts: 0 }),
+      connect({ servers: url(), authenticator: nkeyAuthenticator(stranger.getSeed()), timeout: CONNECT_TIMEOUT_MS, maxReconnectAttempts: 0 }),
       /Authorization Violation/i,
     );
   });
 
   it('the worker cannot publish mesh.deploy.trigger but KV put/get/purge and mesh.tasks.* work', async () => {
-    const nc = await connect({ servers: url(), authenticator: nkeyAuthenticatorFor(path.join(dir, 'worker')), timeout: 3000 });
+    const nc = await connect({ servers: url(), authenticator: nkeyAuthenticatorFor(path.join(dir, 'worker')), timeout: CONNECT_TIMEOUT_MS });
     const errors = [];
     (async () => { for await (const s of nc.status()) if (s.type === 'error') errors.push(String(s.data)); })();
     nc.publish('mesh.deploy.trigger', Buffer.from('{}'));
@@ -99,18 +107,18 @@ describe('nkey auth on a real nats-server', { skip: SKIP }, () => {
   });
 
   it('the legacy user works until the render drops it and the server reloads', async () => {
-    const legacy = await connect({ servers: url(), user: 'openclaw', pass: TOKEN, timeout: 3000 });
+    const legacy = await connect({ servers: url(), user: 'openclaw', pass: TOKEN, timeout: CONNECT_TIMEOUT_MS });
     assert.equal(legacy.info.auth_required, true);
     await legacy.close();
     render({ legacyUser: false });
     server.reload();
     await new Promise((r) => setTimeout(r, 500));
     await assert.rejects(
-      connect({ servers: url(), user: 'openclaw', pass: TOKEN, timeout: 3000, maxReconnectAttempts: 0 }),
+      connect({ servers: url(), user: 'openclaw', pass: TOKEN, timeout: CONNECT_TIMEOUT_MS, maxReconnectAttempts: 0 }),
       /Authorization Violation/i,
     );
     // The nkey users survived the reload.
-    const nc = await connect({ servers: url(), authenticator: nkeyAuthenticatorFor(path.join(dir, 'lead')), timeout: 3000 });
+    const nc = await connect({ servers: url(), authenticator: nkeyAuthenticatorFor(path.join(dir, 'lead')), timeout: CONNECT_TIMEOUT_MS });
     await nc.close();
   });
 
@@ -127,7 +135,7 @@ describe('nkey auth on a real nats-server', { skip: SKIP }, () => {
       delete require.cache[modPath];
       const { natsConnectOpts, NATS_AUTH_MODE } = require('../lib/nats-resolve.js');
       assert.equal(NATS_AUTH_MODE, 'nkey');
-      const opts = natsConnectOpts({ timeout: 3000 });
+      const opts = natsConnectOpts({ timeout: CONNECT_TIMEOUT_MS });
       assert.equal(opts.token, undefined);
       const nc = await connect(opts);
       assert.equal(nc.info.auth_required, true);

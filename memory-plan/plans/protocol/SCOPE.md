@@ -38,6 +38,11 @@ test/obs-db-session-correlation.test.mjs
 # also CREATEs observability_events. obs-db's migration repairs a table MC
 # made, but leaving the twin definitions disagreeing is half-done work.
 mission-control/src/lib/db/index.ts
+# Flaky test that failed THIS batch's CI run and is unrelated to it:
+# nats-nkey-server's first connect timed out at 3s on a loaded runner
+# while the rest of the file passed. No re-run permission (403), so the
+# drive-to-green path is to make the test robust rather than leave it.
+test/nats-nkey-server.test.mjs
 memory-plan/plans/protocol/SCOPE.md
 ```
 
