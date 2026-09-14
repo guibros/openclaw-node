@@ -1,6 +1,7 @@
 import type { TtsProvider, TtsRequest, TtsResponse } from "./types";
 import { createGoogleTtsProvider } from "./google";
 import { createEdgeTtsProvider } from "./edge";
+import { createLocalTtsProvider } from "./local";
 
 export type { TtsRequest, TtsResponse, TtsProvider } from "./types";
 
@@ -9,9 +10,13 @@ export type { TtsRequest, TtsResponse, TtsProvider } from "./types";
 // additional providers via registerTtsProvider() without modifying this file.
 
 const providers: Record<string, () => TtsProvider> = {
+  local: createLocalTtsProvider,
   google: createGoogleTtsProvider,
   edge: createEdgeTtsProvider,
 };
+
+/** Preferred when the caller names nothing: speech stays on the machine. */
+export const DEFAULT_TTS_PROVIDER = "local";
 
 /** Register a custom TTS provider factory (e.g. "elevenlabs", "openai-tts"). */
 export function registerTtsProvider(name: string, factory: () => TtsProvider): void {
@@ -36,7 +41,7 @@ export interface SynthesisResult extends TtsResponse {
 
 export async function synthesizeWithFallback(
   req: TtsRequest,
-  preferred: string = "google"
+  preferred: string = DEFAULT_TTS_PROVIDER
 ): Promise<SynthesisResult> {
   try {
     const result = await getProvider(preferred).synthesize(req);

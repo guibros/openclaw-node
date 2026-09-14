@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { synthesizeWithFallback } from "@/lib/tts";
+import { synthesizeWithFallback, DEFAULT_TTS_PROVIDER, listTtsProviders } from "@/lib/tts";
 
 export const runtime = "nodejs";
 
@@ -12,7 +12,9 @@ export async function POST(request: NextRequest) {
     }
 
     const text = body.text.slice(0, 4000);
-    const provider = body.provider === "edge" ? "edge" : "google";
+    // Unknown names fall to the default rather than erroring: the fallback
+    // loop behind this already covers a provider that cannot answer.
+    const provider = listTtsProviders().includes(body.provider) ? body.provider : DEFAULT_TTS_PROVIDER;
 
     const result = await synthesizeWithFallback(
       {
@@ -22,7 +24,7 @@ export async function POST(request: NextRequest) {
         pitch: body.pitch,
         tone: body.tone,
       },
-      provider as "google" | "edge"
+      provider
     );
 
     // Convert Buffer to Uint8Array for NextResponse compatibility

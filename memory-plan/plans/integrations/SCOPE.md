@@ -1,7 +1,7 @@
 # SCOPE — integrations plan
 
-**Status:** idle
-**Status note:** no step in flight. Block 5 is closed except 5.1 (Orca runbook, needs the desktop app). Remaining work all needs the operator: 2.1–2.2 (macOS binary), 3.x (VoiceStudio), 4.x (Node 24 + clone + data-source decision), 6.2–6.3 (gated on the qwen3 tool-selection probe from 6.1). Set the next goal with the operator before editing.
+**Status:** active
+**Goal:** Step 3.1 — a `local` TTS provider for Mission Control that calls VoiceStudio's OpenAI-compatible speech endpoint on loopback, preferred over the two cloud providers, with a fast fail when the app is closed.
 **Set at:** 2026-09-08
 **Expires:** 2026-09-15T23:59:00Z
 
@@ -133,6 +133,19 @@ memory-plan/plans/integrations/INVENTORY.md
 memory-plan/plans/integrations/COMPONENT_REGISTRY.md
 memory-plan/plans/integrations/VERSION
 memory-plan/plans/integrations/audits/step54_worktree_hygiene/*
+```
+
+```files step31 closed
+mission-control/src/lib/tts/local.ts
+mission-control/src/lib/tts/index.ts
+mission-control/src/lib/tts/types.ts
+mission-control/src/app/api/tts/route.ts
+mission-control/src/lib/__tests__/tts-local.test.ts
+openclaw.env.example
+memory-plan/plans/integrations/INVENTORY.md
+memory-plan/plans/integrations/COMPONENT_REGISTRY.md
+memory-plan/plans/integrations/VERSION
+memory-plan/plans/integrations/audits/step31_local_tts_provider/*
 ```
 
 ## How this file works

@@ -68,15 +68,15 @@ recorded as UNKNOWN until the operator probes the design box; repo-tree rows are
 
 | | |
 |---|---|
-| **Status** | LIVE — cloud only |
-| **Verified** | 2026-09-08 — `ls mission-control/src/lib/tts/` → edge.ts google.ts index.ts types.ts; `synthesizeWithFallback` default preferred `"google"`; route whitelists `edge` and `google` only |
+| **Status** | LIVE — local preferred, cloud behind it |
+| **Verified** | 2026-09-14 (step 3.1) — `local.ts` added; registry order `["local","google","edge"]` and `DEFAULT_TTS_PROVIDER = "local"`; the route now admits any registered provider (`listTtsProviders().includes`) and falls unknown names to the default. Probed against a live `next dev`: sidecar up → `x-tts-provider: local`, `audio/mpeg`, 522 B, body `{"model":"omnivoice","input":…,"speed":1.1,"instruct":"calm"}` seen on the wire; sidecar down → all three providers exhausted in 252 ms (no cloud creds here), well inside the 2 s budget; `{"provider":"google"}` with the sidecar up → 200 with `x-tts-fallback-reason: GEMINI_API_KEY not configured`, proving the reason header. Config read per call, not at module load, so `VOICESTUDIO_URL` can change without a rebuild. 13/13 provider tests, MC suite 138/138, `tsc --noEmit` clean. The sidecar was a stand-in http.Server speaking VoiceStudio's two endpoints — the real app's audio is still an operator probe |
 
 ### VoiceStudio (external, :3900)
 
 | | |
 |---|---|
 | **Status** | UNKNOWN |
-| **Verified** | 2026-09-08 — not probeable from the cloud session; operator to run `curl -s 127.0.0.1:3900/health` on the design box before step 3.1 |
+| **Verified** | 2026-09-14 — still not probeable from the cloud session; step 3.1 shipped its client against a stand-in server, so the app itself remains unverified. Operator: install it, then `curl -s 127.0.0.1:3900/health` and repeat step 3.1's probes A and B on the design box. Env keys documented in `openclaw.env.example` |
 
 ## Family 5: Stack launcher
 
