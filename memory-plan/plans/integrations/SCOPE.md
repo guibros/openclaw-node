@@ -213,6 +213,11 @@ memory-plan/plans/integrations/COMPONENT_REGISTRY.md
 memory-plan/plans/integrations/audits/step_operator_runbooks/*
 ```
 
+```files correction closed
+memory-plan/plans/integrations/audits/step_suite_failure_correction/*
+memory-plan/plans/integrations/BLOCKED.md
+```
+
 ## How this file works
 
 - **Status:** must be `active` for the hook to allow edits to listed files.

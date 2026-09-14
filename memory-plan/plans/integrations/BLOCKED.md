@@ -68,3 +68,8 @@ worktrees by default, which is the mesh daemon's worktrees.
 - Closed: 1.1–1.5, 2.3, 2.4, 3.1, 3.2, 4.2, 5.2–5.4, 6.1–6.3 (twelve steps this session's lineage).
 - Deferred `[D]` by decision, never blocking completion: 1.6, 3.3, 4.6–4.9, 6.4.
 - Branch `claude/hermes-essential-skills-ch3s0o`, PR #12 green and mergeable, working tree clean.
+- Root suite **2191/2198, 0 failures**. The "211 environmental failures" quoted in this branch's
+  step audits and commit messages were a missing `better-sqlite3` native binding from an
+  `npm ci --ignore-scripts`, not the environment — see
+  `audits/step_suite_failure_correction/AUDIT_POST.md`. Regression conclusions are unaffected
+  (every comparison was like-for-like); the description of the branch's health was not.
