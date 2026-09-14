@@ -309,7 +309,7 @@ function latestLog(plan) {
   return logs.length ? path.join(dir, logs[0].name) : null;
 }
 
-// Plans are FULLY SILOED. Every doc the viewer renders — MASTER_PLAN, SCOPE,
+// Plans are FULLY SILOED. Every doc the viewer renders — MASTER_PLAN,
 // DECISIONS, COMPONENT_REGISTRY, OUT_OF_SCOPE, MEMORY_REDESIGN, INVENTORY, VERSION,
 // WORKFLOW, audits, tick-logs, automation, and the Live/Progress/History streams —
 // resolves ONLY from the plan's own dir. The viewer never reaches outside <root>/<id>/.
@@ -327,7 +327,7 @@ function planDocuments(plan) {
 }
 
 // ── Master-plan structured parsers (post-2026-05-27 docs) ──────────────────────
-// Read SCOPE.md / COMPONENT_REGISTRY.md / DECISIONS.md / OUT_OF_SCOPE.md. Each
+// Read COMPONENT_REGISTRY.md / DECISIONS.md / OUT_OF_SCOPE.md. Each
 // returns {present:false} when its doc is absent, so legacy plans (INVENTORY.md +
 // VERSION only) don't break.
 
@@ -336,49 +336,6 @@ function planDocuments(plan) {
 function readPlanFile(plan, name) {
   try { return fs.readFileSync(path.join(plan.dir, name), 'utf8'); }
   catch { return null; }
-}
-
-function parseScope(plan) {
-  const raw = readPlanFile(plan, 'SCOPE.md');
-  if (raw == null) return { present: false };
-  const field = (label) => {
-    const m = raw.match(new RegExp('^\\*\\*' + label + ':\\*\\*\\s*(.+)$', 'mi'));
-    return m ? m[1].trim() : null;
-  };
-  const status = (field('Status') || '').toLowerCase();
-  const expires = field('Expires');
-  let expired = false;
-  if (expires && expires.toLowerCase() !== 'no-expiry') {
-    const t = Date.parse(expires);
-    if (!Number.isNaN(t)) expired = Date.now() > t;
-  }
-  const files = [];
-  const fm = raw.match(/```files\s*\n([\s\S]*?)\n```/);
-  if (fm) {
-    for (const line of fm[1].split('\n')) {
-      const t = line.trim();
-      if (t && !t.startsWith('#')) files.push(t);
-    }
-  }
-  const evidence = [];
-  const em = raw.match(/##+\s*Runtime evidence required[^\n]*\n([\s\S]*?)(?:\n## |\n---|$)/);
-  if (em) {
-    for (const line of em[1].split('\n')) {
-      const m = line.match(/^\s*(?:\d+\.|[-*])\s+(.*\S)/);
-      if (m) evidence.push(m[1].trim());
-    }
-  }
-  return {
-    present: true,
-    status,
-    goal: field('Goal'),
-    set_at: field('Set at'),
-    expires,
-    expired,
-    override: (field('Override') || '').toLowerCase() === 'true',
-    files,
-    evidence,
-  };
 }
 
 function parseRegistry(plan) {
@@ -1282,33 +1239,10 @@ async function renderPlan() {
   const view = $('plan-view');
   const base = '/api/plans/' + state.planId;
   const safe = (p) => fetch(base + p).then(r => r.json()).catch(() => ({ present: false }));
-  const [scope, registry, decisions, oos] = await Promise.all([
-    safe('/scope'), safe('/registry'), safe('/decisions'), safe('/out-of-scope'),
+  const [registry, decisions, oos] = await Promise.all([
+    safe('/registry'), safe('/decisions'), safe('/out-of-scope'),
   ]);
   let html = '';
-
-  if (scope.present) {
-    const cls = scope.expired ? 'bad' : (scope.status === 'active' ? 'ok' : 'warn');
-    const txt = scope.expired ? 'EXPIRED' : (scope.status || '—').toUpperCase();
-    html += '<section class="plan-card"><h2>Current Scope <span class="badge ' + cls + '">' + esc(txt) + '</span>' +
-      (scope.override ? ' <span class="badge warn">OVERRIDE</span>' : '') + '</h2>';
-    html += '<div class="plan-goal">' + esc(scope.goal || '(no goal set)') + '</div>';
-    html += '<div class="plan-metaline">set: ' + esc(scope.set_at || '—') + '  ·  expires: ' + esc(scope.expires || '—') + '</div>';
-    if (scope.files && scope.files.length) {
-      html += '<div class="plan-sub">Files allowed (' + scope.files.length + ')</div><ul class="plan-files">';
-      for (const f of scope.files) html += '<li>' + esc(f) + '</li>';
-      html += '</ul>';
-    }
-    if (scope.evidence && scope.evidence.length) {
-      html += '<div class="plan-sub">Runtime evidence required</div><ul class="plan-evidence">';
-      for (const e of scope.evidence) html += '<li>' + esc(e) + '</li>';
-      html += '</ul>';
-    }
-    html += '</section>';
-  } else {
-    html += '<section class="plan-card"><h2>Current Scope <span class="badge warn">NONE</span></h2>' +
-      '<div class="empty">No SCOPE.md found in this plan.</div></section>';
-  }
 
   if (registry.present && registry.families) {
     html += '<section class="plan-card"><h2>Component Registry</h2>';
@@ -2816,7 +2750,6 @@ const server = http.createServer(async (req, res) => {
     ].sort((a, b) => b.mtime - a.mtime).slice(0, 100));
     if (sub === '/inventory') return json(res, inventoryRows(plan));
     if (sub === '/docs')  return json(res, planDocuments(plan));
-    if (sub === '/scope')        return json(res, parseScope(plan));
     if (sub === '/registry')     return json(res, parseRegistry(plan));
     if (sub === '/decisions')    return json(res, parseDecisions(plan));
     if (sub === '/out-of-scope') return json(res, parseOutOfScope(plan));

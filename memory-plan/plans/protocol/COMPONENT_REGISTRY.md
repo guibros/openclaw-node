@@ -5,12 +5,12 @@ older implementation history remains in git and audits.
 
 ## Family 1: plan control plane
 
-### Scope enforcement — plans/*/SCOPE.md
+### Scope enforcement — REMOVED 2026-09-14 (D11)
 
 | | |
 |---|---|
-| **Status** | RECOVERED — expired scope history is retired; runtime repair now advances through one bounded protocol step at a time |
-| **Verified** | 2026-08-02 — step 4.1 used the only active scope and closes its only open allow-list block at v4.1; step 4.2 is the next contract |
+| **Status** | REMOVED — `scope-check.sh`, all six `SCOPE.md` files, the template, the lint grades and the viewer card are gone. Nothing gates writes; the 9-phase discipline is convention |
+| **Verified** | 2026-09-14 — hook script absent, 0 SCOPE.md remain, `.claude/settings.json` carries no Edit/Write PreToolUse entry, and a write to `lib/` (previously refused) succeeds |
 
 ### Plan lint — workspace-bin/plan-lint.sh
 

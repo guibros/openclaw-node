@@ -2,7 +2,7 @@
 
 **Status:** v0 (draft, 2026-05-27). Authored after the May audit revealed that 5 review rounds + 22 commits in 24h produced ~0 production change due to absent work discipline + an undeployed runtime tree.
 
-**Read this first, every session, before any tool use.** If you are about to Edit/Write/MultiEdit a file, the PreToolUse hook will block you unless an active plan scope (`memory-plan/plans/<id>/SCOPE.md`) lists it in an open ```files block. Don't fight the hook. Update the plan's SCOPE.md (with the operator) or stop.
+**Read this first, every session, before any tool use.**
 
 ---
 
@@ -17,7 +17,7 @@ It is NOT the implementation plan. That's `INVENTORY.md` (the backlog, repurpose
 
 It is NOT the current-state snapshot. That's `COMPONENT_REGISTRY.md`. This doc says where we're going; the registry says where we are.
 
-It is NOT the per-session work order. That's `SCOPE.md`. This doc says what the system should be; SCOPE.md says what you can touch *today*.
+It is NOT the per-step work order. That's the plan's `INVENTORY.md` row and its `AUDIT_PRE.md`. This doc says what the system should be; those say what is being built right now.
 
 ---
 
@@ -111,19 +111,19 @@ A commit is not a delivery. Delivery requires:
 
 The deploy-gap is the single biggest failure mode of the previous round. *Closing it is non-negotiable.*
 
-### 4.2 One scope per session
+### 4.2 One step at a time
 
-Before any Edit/Write tool call, `SCOPE.md` must declare today's scope: goal, files allowed, runtime evidence required, optional deadline. The PreToolUse hook enforces this. If you discover that today's scope was wrong, **stop**, update SCOPE.md with the operator, then continue. No silent expansion.
+Work one `INVENTORY.md` step per work unit: state the goal and the file deltas in `AUDIT_PRE.md` §6 before touching production code, then implement those deltas and nothing else. If the step turns out to be wrong or to contain two steps, **stop** and re-plan with the operator rather than widening it in place.
 
 ### 4.3 Drift back into the plan before drift kicks in
 
-Every Edit/Write tool result: ask "is this still on-scope?" If you started doing something the scope doesn't list (refactoring "while you're here", fixing an unrelated bug, adding a helper "because it was bothering me"): stop. Either update SCOPE.md or revert.
+After every edit, ask "is this still the step I opened?" If you started doing something the step's §6 deltas don't list (refactoring "while you're here", fixing an unrelated bug, adding a helper "because it was bothering me"): stop. Either re-plan the step with the operator, or revert.
 
-**Addendum — capture without acting.** When you observe something out of scope that legitimately deserves attention (a bug, a security issue, a stale doc, a missing test, a dead code path you noticed while looking at something adjacent), do not act on it and do not silently drop it. Write it into `OUT_OF_SCOPE.md` as an **agnostic specification**: describe WHAT was observed and WHY it matters, not HOW to fix it. No prescribed solution, no code excerpts, no implementation prescription — those decisions belong to whoever scopes it later. The entry includes: date observed, file or area, one-line problem statement, severity guess, whoever-touches-it-next pointer if known. `OUT_OF_SCOPE.md` is reviewed at scope-closing checkpoints (end of session, end of feature, plan closure) and items get either promoted into SCOPE.md, escalated into INVENTORY.md, archived as won't-fix, or deferred forward. The doc is **always-writeable** — the PreToolUse hook permits Edit/Write to `OUT_OF_SCOPE.md` regardless of the active scope contract, because capturing drift IS the discipline, not a violation of it.
+**Addendum — capture without acting.** When you observe something out of scope that legitimately deserves attention (a bug, a security issue, a stale doc, a missing test, a dead code path you noticed while looking at something adjacent), do not act on it and do not silently drop it. Write it into `OUT_OF_SCOPE.md` as an **agnostic specification**: describe WHAT was observed and WHY it matters, not HOW to fix it. No prescribed solution, no code excerpts, no implementation prescription — those decisions belong to whoever scopes it later. The entry includes: date observed, file or area, one-line problem statement, severity guess, whoever-touches-it-next pointer if known. `OUT_OF_SCOPE.md` is reviewed at closing checkpoints (end of session, end of block, plan closure) and items get either escalated into INVENTORY.md, archived as won't-fix, or deferred forward. Capturing drift instead of acting on it IS the discipline.
 
 ### 4.4 Finish-before-moving
 
-A change is not finished until the done-contract is met for that change. "I'll come back to it" is a lie that costs the next reviewer hours. If you can't finish today, the unfinished work goes into INVENTORY.md as a tracked item and SCOPE.md gets updated to reflect the partial-finish state.
+A change is not finished until the done-contract is met for that change. "I'll come back to it" is a lie that costs the next reviewer hours. If you can't finish today, the unfinished work goes into INVENTORY.md as a tracked item and `VERSION` keeps its `-pre`/`-mid` suffix so the next session resumes at the right phase.
 
 ### 4.5 Reality before aspiration
 
@@ -153,7 +153,7 @@ The previous round saw work happen OUTSIDE the framework's step boundaries (code
 
 ## 5. The done-contract
 
-For every SCOPE.md entry, "done" means **all four** of:
+For every INVENTORY step, "done" means **all four** of:
 
 1. **Code change committed** to this repo (signed-off; no force-push to main).
 2. **Runtime deployed** — change present in the runtime tree (`~/.openclaw/workspace/` for memory-daemon code, equivalent for other services).
@@ -176,25 +176,19 @@ This is how this doc gets enforced. None of it is voluntary.
 
 ### 6.1 Session bootstrap (read-time enforcement)
 
-The repo's `CLAUDE.md` instructs every session to read this doc + `SCOPE.md` before any tool use. The global `~/.claude/CLAUDE.md` is daedalus' default bootstrap and points at the workspace; this doc lives in the repo and supplements that.
+The repo's `CLAUDE.md` instructs every session to read this doc before any tool use. The global `~/.claude/CLAUDE.md` is daedalus' default bootstrap and points at the workspace; this doc lives in the repo and supplements that.
 
-### 6.2 PreToolUse hook (write-time enforcement)
+### 6.2 Write-time enforcement (removed 2026-09-14)
 
-`.claude/settings.json` configures a hook (`.claude/hooks/scope-check.sh`) that fires before every `Edit`, `Write`, `MultiEdit`, `NotebookEdit`. The hook scans every `memory-plan/plans/*/SCOPE.md`, keeps those with `Status: active` and unexpired `Expires`, unions their **open** ```files blocks into the allow-list, and decides:
+There was a PreToolUse hook (`.claude/hooks/scope-check.sh`) that refused any `Edit`/`Write`/
+`MultiEdit`/`NotebookEdit` whose target was not listed in an active, unexpired
+`memory-plan/plans/<id>/SCOPE.md`. It was removed at the operator's instruction. In practice its
+`Expires` field latched the whole repo shut three times (federation 2026-08-24, repair 2026-08-26,
+protocol 2026-09-10) and it never caught a real mistake; the cost landed entirely on sessions
+trying to work. The `SCOPE.md` files went with it.
 
-- **No active scope anywhere** → block: set a scope with the operator before editing.
-- **Expired** → an expired scope contributes nothing; if none remain, block.
-- **File not in any open block** → block: update the relevant plan's SCOPE.md or stop.
-- **All clear** → allow.
-
-**Batch lifecycle:** a ```files block may carry a label and the word `closed`
-(` ```files <label> closed `) — a shipped batch. Closed blocks are pruned from the allow-list,
-so finished work re-locks while its record stays in the file. One open block per in-flight
-batch is the discipline.
-
-**Exception:** every plan's own `SCOPE.md` and `OUT_OF_SCOPE.md` are always writeable. This protects the §4.3 capture mechanism (and scope refresh itself) from being blocked by the very enforcement that triggers the need to capture.
-
-The hook is the only mechanism that physically prevents silent drift — and it gates only the edit tools; Bash file writes are a known hole, covered by convention, not enforcement. Bypassing it requires the operator's explicit override (`**Override:** true` on a scope).
+Nothing gates writes now. The discipline in §4 is convention, held by whoever is working — which is
+what it was for Bash writes all along.
 
 ### 6.3 Done-contract gate (commit-time enforcement)
 
@@ -286,11 +280,11 @@ SCOPE.md stays. Next session reads it, sees yesterday's state.
 ## 10. Pointers (where to find things)
 
 - Current state of every service: the active plan's `COMPONENT_REGISTRY.md`
-- Today's scope: the active plan's `SCOPE.md` (`plans/*/SCOPE.md` with `Status: active`)
+- What is being built right now: the plan's first `[ ]`/`[A]` `INVENTORY.md` row + its `audits/` entry
 - Things observed but not acted on: the plan's `OUT_OF_SCOPE.md`
 - Backlog of work: the plan's `INVENTORY.md`
 - Architectural decisions: the plan's `DECISIONS.md`
-- The forcing function: `.claude/settings.json` (hook config), `.claude/hooks/scope-check.sh` (hook implementation)
+- Commit/push validation: `.claude/settings.json` + `.claude/hooks/validate-{commit,push}.sh` (also wired as git hooks via `config/git-hooks`)
 - Ground-truth audits live under `plans/<id>/audits/` — audits decay (§4.9): re-verify claims older than 14 days before acting.
 
 ---

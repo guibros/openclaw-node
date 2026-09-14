@@ -177,3 +177,32 @@ names is not fixed here — nothing *notices* an expiry until a write is attempt
 prose about which scope is active is maintained by hand and was wrong in all three cases. A
 scheduled or tick-time freshness check, and a CLAUDE.md governance line generated rather than
 written, are captured as open items, not done.
+
+## D11 — The scope contract is removed; D10 is moot (2026-09-14)
+
+**Decision.** The per-file write gate is gone: `.claude/hooks/scope-check.sh`, its `PreToolUse`
+registration in `.claude/settings.json`, all six `memory-plan/plans/*/SCOPE.md` files, the
+`SCOPE.template.md` scaffold, the `plan-lint.sh` master-plan SCOPE checks and scope-hygiene grades,
+the viewer's `parseScope`/`/scope` route and "Current Scope" card, the "set scope before editing"
+section in every `TICK_PROMPT.md`, and the governing prose in `MASTER_PLAN.md` §4.2/§6.2,
+`PROTOCOL.md` §8, `COWORK_MODEL.md` and both bootstrap docs. D10 — shipped three hours earlier,
+making an expired scope report itself as expired rather than as absent — is superseded: the thing
+it improved no longer exists.
+
+**Why.** Operator instruction, 2026-09-14, unambiguous and repeated. The mechanism's record
+supports it: in roughly two months it latched the entire repo shut three times (federation
+2026-08-24, repair 2026-08-26, protocol 2026-09-10, the last for four days), each time because a
+date passed rather than because anyone did anything wrong, and there is no recorded instance of it
+stopping a bad write. It also could not see Bash writes at all — `sed -i`, `tee`, redirects — which
+`CLAUDE.md` acknowledged as "a known hole, not permission", so the discipline was already carried by
+convention for a large share of edits while the cost fell entirely on the tools that played by the
+rules.
+
+**Consequences.** Nothing gates writes now. The `OUT_OF_SCOPE.md` files stay — they hold real
+captured drift and remain the place to record something noticed but not acted on. The 9-phase
+lifecycle, the `Runtime-Evidence:` commit trailer, `plan-lint.sh`'s remaining surfaces, and the
+commit/push validators are untouched: the parts of the discipline that never depended on a
+permission slip. What is genuinely lost is the one mechanical check on step boundaries; §4.2 of
+MASTER_PLAN now asks for that as convention. If it needs to come back, it should come back as
+something that cannot latch — advisory, or keyed to the step actually in flight rather than to a
+wall-clock deadline.

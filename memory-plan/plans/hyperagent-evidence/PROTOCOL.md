@@ -40,8 +40,7 @@ drift — the next sync erases it. Change the canonical source instead.
 |---|---|---|
 | `INVENTORY.md` | The step list: blocks × atomic steps, status `[ ]` open · `[A]` in-flight · `[x]` closed · `[D]` deferred (deliberate; never a next step, never blocks completion, no §11 contract required), per-step done-evidence | **yes** (discovery) |
 | `VERSION` | Single-line carrier `vX.Y[-pre|-mid]` | **yes** (discovery) |
-| `SCOPE.md` | The per-step work contract the scope hook enforces | yes |
-| `OUT_OF_SCOPE.md` | Drift capture, always-writeable | yes |
+| `OUT_OF_SCOPE.md` | Drift capture | yes |
 | `DECISIONS.md` | Append-only architectural ledger | yes |
 | `ROADMAP.md` | The plan's phases/blocks and why — what INVENTORY decomposes | yes |
 | `COMPONENT_REGISTRY.md` | Current runtime state of what the plan touches | recommended |
@@ -63,14 +62,14 @@ There is **no `VERSION_LOG.md`** in the standard silo: one commit per step on `m
 GOVERNANCE   MASTER_PLAN + PROTOCOL (+ plan-local taste docs, e.g. DESIGN_INPUTS)
   ROADMAP      <plan>/ROADMAP.md — the blocks and why
     STEP LIST    <plan>/INVENTORY.md — atomic steps; one step = one 9-phase = one commit
-      EXECUTION    the 9 phases + SCOPE.md + .claude/hooks/scope-check.sh
+      EXECUTION    the 9 phases
         TRUTH        COMPONENT_REGISTRY + DECISIONS + audits/ + the viewer (:7892)
 ```
 
 The chain from intent to shipped, every arrow auditable:
 
 ```
-ROADMAP block → INVENTORY step → SCOPE.md contract (hook gates) → 9-phase execution
+ROADMAP block → INVENTORY step → 9-phase execution
   → VERIFY incl. runtime evidence → REGISTRY/DECISIONS updated → one commit → viewer shows it
 ```
 
@@ -82,7 +81,6 @@ was bypassed.
 | Phase | Action |
 |---|---|
 | Pre-flight | Pick the first `[ ]`/`[A]` row. Tree clean (or dirty matching an in-flight `-pre`/`-mid`). `BLOCKED.md` present → stop. Read MASTER_PLAN + the step's ROADMAP block + prior step's AUDIT_POST §6. |
-| Scope | Open/refresh `<plan>/SCOPE.md`: Status active, goal = this step, ` ```files ` = this step's deltas, future Expires. The hook now physically gates edits. |
 | 1 · §0 | **Micro Re-Orient** — ≤6 lines, first thing in AUDIT_PRE (§5.1 below). |
 | 1 | `AUDIT_PRE.md` in `audits/stepNN_<slug>/`: intent, design (consume prior carry-forwards), risk register, §6 file-delta outline. **Pre-screen: verify every Need in the step's §11 contract exists; missing → BLOCK.** Write `vX.Y-pre` to `VERSION`. Flip the row `[ ]`→`[A]`. No production work yet. |
 | 4 | Implement every §6 delta — nothing else. Surprises append to AUDIT_PRE `## Mid-Implementation Findings` and/or `OUT_OF_SCOPE.md`, never silent expansion. Then write `vX.Y-mid` to `VERSION`. |
@@ -90,7 +88,7 @@ was bypassed.
 | 7 | `AUDIT_POST.md`: §1 promised-vs-landed ledger (every row `yes` or the step isn't done), §2 greppable deltas (command + first hit), §3 cross-refs still valid, §4 findings `[POSITIVE]/[NEGATIVE]`, §5 Phase-8 patches (almost always none), §6 carry-forwards to the next step. |
 | 8 | Apply §5 patches. An architectural choice not pre-decided in DECISIONS/carry-forwards → BLOCK + propose a DECISIONS entry. |
 | 8.5 | **Deep Review Gate** — all six or BLOCK: ① VERSION is exactly `vX.Y-mid` ② every §6 delta greppable ③ staged diff = §6 deltas + ledger files, nothing more ④ tests green ⑤ INVENTORY/audit docs consistent ⑥ **runtime evidence captured and real**. |
-| 9 | One commit (format §3.1). Flip the row `[A]`→`[x]` with a one-line close note. `VERSION` → clean `vX.Y`. Update COMPONENT_REGISTRY. **Record the Feeds landing (§11): where the output lives, which consumer reaches it.** SCOPE Status → done. Log any DECISIONS. **STOP — one step per work unit.** |
+| 9 | One commit (format §3.1). Flip the row `[A]`→`[x]` with a one-line close note. `VERSION` → clean `vX.Y`. Update COMPONENT_REGISTRY. **Record the Feeds landing (§11): where the output lives, which consumer reaches it.** Log any DECISIONS. **STOP — one step per work unit.** |
 | Block close | If this step closed a block: **Macro Re-Orient** (§5.2) before the next block's first step. |
 
 ### 3.1 Commit format
@@ -146,7 +144,7 @@ from the plan's own dir; the viewer never reaches outside `<root>/<id>/`.
 
 | Tab | Reads | Shows |
 |---|---|---|
-| Master Plan | `SCOPE.md` · `COMPONENT_REGISTRY.md` · `DECISIONS.md` · `OUT_OF_SCOPE.md` | The governance dashboard: current contract, runtime truth, choices, deferred drift |
+| Master Plan | `COMPONENT_REGISTRY.md` · `DECISIONS.md` · `OUT_OF_SCOPE.md` | The governance dashboard: runtime truth, choices, deferred drift |
 | Steps | `INVENTORY.md` · `audits/*/AUDIT_{PRE,POST}.md` | The checklist: per-step status + audit links |
 | Live | SSE tail of `tick-logs/current.log` | The current tick's pretty output, live |
 | Progress | SSE of `tick-logs/<ts>.jsonl` | The current tick's structured activity (tool calls, messages) |
@@ -184,18 +182,12 @@ makes autonomous ticks safe to leave running. A new plan's tick plist starts **u
 enabling the chain is an explicit operator decision per plan (viewer Automation tab or
 `launchctl`).
 
-## 8. The scope hook (write-time enforcement)
+## 8. Write-time enforcement (removed 2026-09-14)
 
-`.claude/hooks/scope-check.sh` (PreToolUse on Edit/Write/MultiEdit/NotebookEdit) scans every
-`memory-plan/plans/*/SCOPE.md`, keeps those with `Status: active` and unexpired `Expires`, and
-unions their **open** ` ```files ` blocks into the allow-list. A fence may carry a label and a
-lifecycle word — ` ```files <label> closed ` — and closed blocks are pruned: a shipped batch
-re-locks its files while the record stays. One open block per in-flight batch. Blocked when:
-no active scope · expired · file not in any open block. Always-writeable: every plan's own
-`SCOPE.md` + `OUT_OF_SCOPE.md`.
-`**Override:** true` on a scope disables enforcement (operator escape). Keep **one** scope active
-at a time. If blocked: update SCOPE.md with the operator, or capture to OUT_OF_SCOPE.md and stay
-on the original scope, or stop. Never work around it.
+A PreToolUse hook (`.claude/hooks/scope-check.sh`) used to refuse any edit whose target was not
+listed in an active, unexpired `<plan>/SCOPE.md`. It and the `SCOPE.md` files were removed at the
+operator's instruction — the `Expires` field latched the repo shut three times and the mechanism
+never caught a real mistake. Nothing gates writes now; §3's phase discipline is convention.
 
 ## 9. Starting a new plan iteration
 
@@ -219,10 +211,10 @@ Then, before the first step runs (the part no scaffolder can do):
 4. **COMPONENT_REGISTRY.md** — record the verified current state of what the plan will touch
    (reality first: probe, don't assume).
 5. **DECISIONS.md** — log D1: why this plan exists and the approach chosen.
-6. Set the first step's scope in `SCOPE.md` with the operator, and either work it interactively
-   or load the tick plist (Automation tab) to hand it to the chain.
+6. Agree the first step with the operator, then either work it interactively or load the tick
+   plist (Automation tab) to hand it to the chain.
 
-Retiring a plan: set SCOPE Status idle with a close note, leave the silo in place — it is the
+Retiring a plan: note the closure in DECISIONS, leave the silo in place — it is the
 complete, portable record of the run (the cowork-bundle property, COWORK_MODEL §2).
 
 ## 10. Surface conformance — what "functionally implements" means
@@ -232,7 +224,7 @@ not merely "missing docs degrade gracefully". The functional bar per surface:
 
 | Surface (tab) | Files | Functional bar |
 |---|---|---|
-| **master-plan** | `SCOPE.md` · `COMPONENT_REGISTRY.md` · `DECISIONS.md` · `OUT_OF_SCOPE.md` | SCOPE parses (Status/Goal/Expires + ` ```files `); REGISTRY has ≥1 probed, dated row; DECISIONS has ≥ D1; the tab alone answers: what's the contract, what runs, what was chosen, what's deferred. |
+| **master-plan** | `COMPONENT_REGISTRY.md` · `DECISIONS.md` · `OUT_OF_SCOPE.md` | REGISTRY has ≥1 probed, dated row; DECISIONS has ≥ D1; the tab alone answers: what runs, what was chosen, what's deferred. |
 | **steps** | `INVENTORY.md` · `audits/stepNN_<slug>/` | Rows in the load-bearing 5-column format; every **open** row carries the §11 contract; every `[A]` step has `AUDIT_PRE.md`, every `[x]` step has `AUDIT_PRE.md`+`AUDIT_POST.md`. |
 | **automation** | `automation.json` · `TICK_PROMPT.md` · the `<id>-tick.sh` shim | Valid JSON with the standard keys; `tick_command` exists and is executable; TICK_PROMPT present — and `<FILL` bindings resolved before the chain is enabled. |
 | **block** | `BLOCKED.md` (conditional) | Absent (chain runnable), or matching the BLOCK_TEMPLATE shape with **External action:** naming the operator's single concrete move. |

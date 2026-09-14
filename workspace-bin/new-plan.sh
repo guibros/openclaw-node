@@ -64,7 +64,6 @@ Before its first step runs (PROTOCOL.md §9):
   3. TICK_PROMPT.md         fill the bindings (search for '<FILL')
   4. COMPONENT_REGISTRY.md  probe current reality and record it
   5. DECISIONS.md           log D1: why this plan exists + the approach
-  6. SCOPE.md               set the first step's contract with the operator
 The tick plist is NOT loaded — enable the chain per-plan via the viewer's Automation tab
 (or launchctl) once the plan is filled in. Interactive work needs no plist.
 EOF

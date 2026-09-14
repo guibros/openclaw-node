@@ -10,6 +10,16 @@ the README.
 **Audit decay (MASTER_PLAN §4.9):** claims about spec-kit are pinned to commit `fd490fa`. Claims
 about this repo were verified on 2026-09-14 against the working tree. Re-verify after 14 days.
 
+
+> **Note added 2026-09-14, later the same day.** After this was written, the operator removed the
+> scope contract entirely — `scope-check.sh`, every `SCOPE.md`, and the governing prose (protocol
+> DECISIONS D11). Several arguments below lean on that gate existing, chiefly §2's "our enforcement
+> lives outside the model's control" and §6's reason not to run `specify init`. Those now overstate
+> the enforcement this repo has: what survives is the `Runtime-Evidence:` commit trailer, the
+> commit/push validators, and `plan-lint.sh`. The comparison of *methods* — the clarification
+> taxonomy, Success Criteria, the coverage matrix, the `converge` gap types — is unaffected, and
+> §4.2's point that a marker could be enforced by `grep` is now a claim about `plan-lint.sh` alone.
+
 ---
 
 ## 1. What spec-kit is

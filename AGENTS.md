@@ -26,8 +26,7 @@ Then the per-plan documents of the silo you are working in — every silo carrie
 4. [`plans/<id>/COMPONENT_REGISTRY.md`](memory-plan/plans/redesign/COMPONENT_REGISTRY.md) — current runtime state of what the plan touches. Reality, not aspiration.
 5. [`plans/<id>/DECISIONS.md`](memory-plan/plans/redesign/DECISIONS.md) — append-only ledger of every architectural decision. The fastest way to absorb what was decided and why.
 6. [`plans/<id>/INVENTORY.md`](memory-plan/plans/redesign/INVENTORY.md) — the atomic step list. The first `[ ]` row is the plan's next action. (Pre-protocol plans also carry their historical `WORKFLOW.md`/`FRAMEWORK.md` — for them, those govern; PROTOCOL.md governs plans created after 2026-06-03.)
-7. [`plans/<id>/SCOPE.md`](memory-plan/plans/redesign/SCOPE.md) — the plan's work contract. If no plan's `SCOPE.md` has `Status: active`, you MUST set scope with the operator before editing anything.
-8. [`plans/<id>/OUT_OF_SCOPE.md`](memory-plan/plans/redesign/OUT_OF_SCOPE.md) — captured drift awaiting triage.
+7. [`plans/<id>/OUT_OF_SCOPE.md`](memory-plan/plans/redesign/OUT_OF_SCOPE.md) — captured drift awaiting triage.
 
 The current ground-truth reconciliation is protocol step 3.1 under
 [`memory-plan/plans/protocol/audits/step31_governance_recovery/`](memory-plan/plans/protocol/audits/step31_governance_recovery/).
@@ -65,23 +64,10 @@ emission; scheduler heartbeat exits 22/HTTP 401; dotted hostnames break local st
 `lib/mcp-knowledge` tree loads Sharp 0.34.5 beside root Sharp 0.35.3 and has unresolved audit findings;
 watcher freshness/running-state gaps remain. Do not claim the August daily note proved consolidation.
 
-**Scope after v3.1:** no plan scope is active. The next operator-approved scope is the bounded
-runtime-repair batch described above; federation execution remains locked until that repair lands.
+**Next work after v3.1:** the bounded runtime-repair batch described above. Federation execution
+stays locked until that repair lands.
 
 ## The forcing function
-
-**Only Claude Code enforces the write gate.** `.claude/settings.json` registers `.claude/hooks/scope-check.sh` as a PreToolUse hook on `Edit | Write | MultiEdit | NotebookEdit`. There is **no** `.codex/` hook shipped — `.codex/` is gitignored and does not exist in the tree (an earlier version of this file claimed otherwise). A Codex or other non-Claude session has no mechanical write gate: treat the scope contract as binding by convention, and know that `git commit` / `git push` are still validated for every tool through the git hooks (`config/git-hooks`, installed by `npm prepare` via `core.hooksPath`). The hook is **per-plan**: it scans every `memory-plan/plans/*/SCOPE.md`, keeps those whose `Status` is `active` and not past `Expires`, and unions their ` ```files ` blocks into the allow-list. It will **block you** if:
-
-- no active scope exists (no `plans/*/SCOPE.md` with `Status: active`)
-- the active scope's `Expires` timestamp has passed
-- the file you're trying to edit is not in any active scope's ` ```files ` block
-
-Keep exactly **one** scope active at a time (one-scope-per-session discipline). Always-writeable exceptions: every plan's own `SCOPE.md` and `OUT_OF_SCOPE.md` (so the operator can refresh scope, and so drift capture is never blocked). A scope carrying `**Override:** true` disables enforcement for that scope.
-
-If the hook blocks you, **do not work around it**. Either:
-- Update the relevant plan's `SCOPE.md` with the operator's approval, or
-- Write your observation to that plan's `OUT_OF_SCOPE.md` and proceed with the original scope, or
-- Stop.
 
 ## Why this exists
 
@@ -91,10 +77,11 @@ In May 2026, 5 review rounds + 22 commits in 24h produced ~0 production change b
 - Two parallel daemons got built next to each other
 - Code-on-disk and runtime drifted 4+ days apart
 
-This plan + hook + scope contract is the structural fix. Don't bypass it. It is enforced at the tool
-layer for `Edit | Write | MultiEdit | NotebookEdit`; Bash file writes (`sed -i`, `tee`, redirects) are
-NOT gated — that is a known hole, not permission. Treat the scope contract as binding for every write,
-whatever tool performs it.
+The plan structure — blocks, atomic steps, runtime evidence on every close — is the response.
+The per-file write gate that used to sit alongside it (`scope-check.sh` plus a `SCOPE.md` permission
+slip per plan) was removed on 2026-09-14 at the operator's instruction: it blocked every write in the
+repo whenever a slip's `Expires` lapsed, which happened three times, and it never caught a real
+mistake. Keep the discipline because it is worth keeping, not because a hook refuses you.
 
 ## Pointers
 

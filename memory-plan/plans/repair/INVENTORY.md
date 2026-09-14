@@ -259,7 +259,7 @@ Deliberately deferred until a working prototype. Remarks live in FINDINGS Cluste
 | P | P.1 | — | [ ] | operator | (PARKED) Narrow memory-file API jail to vault/MEMORY.md/logs (R34 — ~1-line; recommended early) |
 | P | P.2 | — | [ ] | operator | (PARKED) Revisit prompt-plaintext + vault-sync exposure before federation (R35, R36) |
 | P | P.3 | — | [ ] | operator | (PARKED) Federation daemon merge-or-delete per §4.6 + extraction-store db-option contract (R37) |
-| P | P.4 | — | [ ] | operator | (PARKED) scope-check.sh tightening: glob depth, non-UTC expiry, heredoc note (R38) |
+| P | P.4 | — | [D] | operator | (MOOT 2026-09-14, D11) scope-check.sh tightening (R38) — the script was removed |
 
 ---
 
