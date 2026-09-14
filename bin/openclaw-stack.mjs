@@ -25,6 +25,10 @@ const BRIDGE_DIR = process.env.OPENCLAW_BRIDGE_DIR
   || path.join(HOME, 'Documents', 'openclaw infrastructure', 'companion-bridge');
 const BRIDGE_LOG = path.join(HOME, '.openclaw', 'logs', 'companion-bridge.log');
 const MC_URL = process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000';
+// VoiceStudio is a desktop app the operator opens when they want a voice, not a
+// daemon — so it gets a row but never a verdict. See externalAppRow.
+const VOICESTUDIO_DIR = process.env.OPENCLAW_VOICESTUDIO_DIR
+  || '/Applications/VoiceStudio.app';
 
 // Port probes for the units that expose one; everything else is judged by
 // launchd/systemd process state. Periodic (timer-style) units are healthy
@@ -35,6 +39,7 @@ export const PORTS = {
   'workplan-viewer': 7892,
   'memory-daemon': 7893,
   'companion-bridge': 8787,
+  'voicestudio': 3900,
 };
 export const PERIODIC = new Set([
   'observer', 'consolidation-scheduler', 'scheduler-heartbeat',
@@ -117,7 +122,19 @@ async function statusTable(units) {
     id: 'companion-bridge', label: '(external repo)', port: 8787, portOk: bridgeOk,
     status: bridgeOk ? 'LIVE' : (fs.existsSync(BRIDGE_DIR) ? 'DOWN' : 'ABSENT'),
   });
+  rows.push(await externalAppRow('voicestudio', PORTS['voicestudio'], VOICESTUDIO_DIR));
   return rows;
+}
+
+// A GUI app that is not open is not a fault, so its closed state is CLOSED and
+// never DOWN: the exit code and the notification's `bad` set both key on DOWN,
+// so this row stays out of them without either needing to know about it.
+export async function externalAppRow(id, port, dir, exists = fs.existsSync, probe = probePort) {
+  const portOk = await probe(port);
+  return {
+    id, label: '(external app)', port, portOk, reportOnly: true,
+    status: portOk ? 'LIVE' : (exists(dir) ? 'CLOSED' : 'ABSENT'),
+  };
 }
 
 function systemdActive(unit) {
@@ -203,10 +220,19 @@ function down(units) {
   } catch { /* bridge not running */ }
 }
 
+export function notifyCounts(rows) {
+  // Report-only rows are excluded from the tally, not just from `bad`: counting a
+  // closed desktop app would make the popup read "6/7 up" about a healthy node.
+  const judged = rows.filter(r => !r.reportOnly);
+  return {
+    live: judged.filter(r => r.status === 'LIVE' || r.status === 'LOADED').length,
+    total: judged.filter(r => r.status !== 'DISABLED' && r.status !== 'ABSENT').length,
+    bad: judged.filter(r => r.status === 'DOWN' || r.status === 'OFF').map(r => r.id),
+  };
+}
+
 function notifyResult(rows) {
-  const live = rows.filter(r => r.status === 'LIVE' || r.status === 'LOADED').length;
-  const total = rows.filter(r => r.status !== 'DISABLED' && r.status !== 'ABSENT').length;
-  const bad = rows.filter(r => r.status === 'DOWN' || r.status === 'OFF').map(r => r.id);
+  const { live, total, bad } = notifyCounts(rows);
   const kind = bad.length === 0 ? 'success' : 'warn';
   try {
     execFileSync(process.execPath, [

@@ -120,7 +120,7 @@ from it is re-derivable from the artifact text.
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 3 | 3.1 | v3.1 | [x] | Mission Control TTS provider `local` against VoiceStudio on 127.0.0.1:3900, preferred first with cloud fallback |
-| 3 | 3.2 | v3.2 | [ ] | `openclaw-stack status` reports VoiceStudio on port 3900 as a report-only external app that never affects the exit code |
+| 3 | 3.2 | v3.2 | [x] | `openclaw-stack status` reports VoiceStudio on port 3900 as a report-only external app that never affects the exit code |
 | 3 | 3.3 | v3.3 | [D] | gateway voice notes transcribed through `/v1/audio/transcriptions` before memory ingest |
 
 > **3.1 — Goal:** `POST /api/tts` answers with `X-TTS-Provider: local` while VoiceStudio is open and with a fallback provider plus `X-TTS-Fallback-Reason` within 2 s when it is closed.

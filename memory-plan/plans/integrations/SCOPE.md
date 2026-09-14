@@ -1,9 +1,9 @@
 # SCOPE — integrations plan
 
 **Status:** active
-**Goal:** Step 3.1 — a `local` TTS provider for Mission Control that calls VoiceStudio's OpenAI-compatible speech endpoint on loopback, preferred over the two cloud providers, with a fast fail when the app is closed.
-**Set at:** 2026-09-08
-**Expires:** 2026-09-15T23:59:00Z
+**Goal:** Step 3.2 — `openclaw-stack status` reports VoiceStudio on port 3900 as an external desktop app: LIVE when open, and a status that never flips the exit code or the notification when it is simply closed.
+**Set at:** 2026-09-14
+**Expires:** 2026-09-21T23:59:00Z
 
 ```files block0 closed
 memory-plan/plans/integrations/ROADMAP.md
@@ -146,6 +146,16 @@ memory-plan/plans/integrations/INVENTORY.md
 memory-plan/plans/integrations/COMPONENT_REGISTRY.md
 memory-plan/plans/integrations/VERSION
 memory-plan/plans/integrations/audits/step31_local_tts_provider/*
+```
+
+```files step32 closed
+bin/openclaw-stack.mjs
+test/openclaw-stack.test.mjs
+openclaw.env.example
+memory-plan/plans/integrations/INVENTORY.md
+memory-plan/plans/integrations/COMPONENT_REGISTRY.md
+memory-plan/plans/integrations/VERSION
+memory-plan/plans/integrations/audits/step32_voicestudio_stack_row/*
 ```
 
 ## How this file works

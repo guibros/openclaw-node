@@ -84,8 +84,8 @@ recorded as UNKNOWN until the operator probes the design box; repo-tree rows are
 
 | | |
 |---|---|
-| **Status** | LIVE — five ports |
-| **Verified** | 2026-09-08 — PORTS map lines 33–37: nats 4222, mission-control 3000, workplan-viewer 7892, memory-daemon 7893, companion-bridge 8787; only companion-bridge has an external-app row; no voicestudio or gods-eye-view rows |
+| **Status** | LIVE — six ports, one report-only |
+| **Verified** | 2026-09-14 (step 3.2) — PORTS gains `voicestudio: 3900`; `externalAppRow(id, port, dir)` pushes a `reportOnly` row whose closed state is **`CLOSED`**, not `DOWN`, so the exit predicate (`rows.some(status === 'DOWN')`) and `notifyCounts`'s `bad` set skip it without a special case; `notifyCounts` (extracted from `notifyResult`) also excludes report-only rows from `live`/`total`. Real-CLI probes with a stand-in `systemctl`: dir present + port shut → `CLOSED`, exit **0**; listener on 3900 → `LIVE`, exit 0; no dir → `ABSENT`, exit 0; the same run with `OPENCLAW_BRIDGE_DIR` set so companion-bridge reads `DOWN` → exit **1** beside a `CLOSED` voicestudio, proving the predicate is live and the exemption real. 14/14 in `test/openclaw-stack.test.mjs` (was 8). companion-bridge deliberately keeps its DOWN semantics. No gods-eye-view row yet (4.2 reuses `externalAppRow`) |
 
 ## Family 6: God's Eye View (external, :4173)
 

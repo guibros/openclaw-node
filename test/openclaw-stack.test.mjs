@@ -6,6 +6,7 @@ import os from 'node:os';
 import net from 'node:net';
 import {
   scanLaunchdUnits, scanSystemdUnits, probePort, classify, shortId, PORTS, PERIODIC,
+  externalAppRow, notifyCounts,
 } from '../bin/openclaw-stack.mjs';
 
 let tmp;
@@ -69,5 +70,53 @@ describe('classify — the honesty rules', () => {
     for (const id of [...Object.keys(PORTS), ...PERIODIC]) {
       assert.equal(id, shortId(`ai.openclaw.${id}.plist`));
     }
+  });
+});
+
+describe('external apps — a closed GUI app is not a fault', () => {
+  const live = async () => true;
+  const closed = async () => false;
+
+  it('LIVE on an open port, whatever the install dir says', async () => {
+    const row = await externalAppRow('voicestudio', 3900, '/nope', () => false, live);
+    assert.equal(row.status, 'LIVE');
+    assert.equal(row.port, 3900);
+  });
+
+  it('CLOSED — not DOWN — when it is installed but not open', async () => {
+    const row = await externalAppRow('voicestudio', 3900, '/Applications/VoiceStudio.app', () => true, closed);
+    assert.equal(row.status, 'CLOSED');
+    assert.equal(row.reportOnly, true);
+  });
+
+  it('ABSENT when it was never installed', async () => {
+    const row = await externalAppRow('voicestudio', 3900, '/Applications/VoiceStudio.app', () => false, closed);
+    assert.equal(row.status, 'ABSENT');
+  });
+
+  it('a closed app never reaches the bad set, so the exit code stays 0', async () => {
+    const row = await externalAppRow('voicestudio', 3900, '/app', () => true, closed);
+    const rows = [{ id: 'nats', status: 'LIVE' }, row];
+    // The two places a verdict is drawn: notifyResult's bad set, and the exit
+    // predicate in the CLI, which keys on DOWN.
+    assert.deepEqual(notifyCounts(rows).bad, []);
+    assert.equal(rows.some(r => r.status === 'DOWN'), false);
+  });
+
+  it('a report-only row moves neither live nor total', async () => {
+    const base = [{ id: 'nats', status: 'LIVE' }, { id: 'observer', status: 'LOADED' }];
+    const before = notifyCounts(base);
+    const after = notifyCounts([...base, await externalAppRow('voicestudio', 3900, '/app', () => true, closed)]);
+    assert.deepEqual([after.live, after.total], [before.live, before.total]);
+    assert.deepEqual([after.live, after.total], [2, 2]);
+  });
+
+  it('real units still count and still fail', () => {
+    const counts = notifyCounts([
+      { id: 'nats', status: 'LIVE' },
+      { id: 'gateway', status: 'DOWN' },
+      { id: 'mesh-agent', status: 'DISABLED' },
+    ]);
+    assert.deepEqual(counts, { live: 1, total: 2, bad: ['gateway'] });
   });
 });
