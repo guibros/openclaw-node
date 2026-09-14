@@ -34,6 +34,14 @@ Correct the publisher docs to the truth, reclassify the standalone CLI (which do
 tier it actually occupies, document the MCP pull path LibreChat genuinely supports, and capture
 the duplicated `estimateTokens` definition as drift. Docs plus one file-header comment only — no
 runtime behaviour change and no new code path. Files under "librechat-publisher-honesty".
+**Addendum 2026-09-14b (operator "go" — ported CI gate fix):** CI's `npm audit --audit-level=high`
+step fails on both `unit-tests` and `mission-control-tests` for GHSA-rgj7-g3m4-5g8c (`sharp
+<0.35.4`, libheif, high). It is not this batch's defect — the advisory was published after `main`
+last ran green, this branch's diff touches no dependency file, and the failure reproduces on a tree
+whose manifests are byte-identical to `main`. PR #14 carries the fix on its own branch; per the
+drive-to-green rule a fix that exists is ported rather than waited on, so the same two override
+floors are raised here and both lockfiles re-resolved. This no-ops once `main` carries #14. Files
+under "ported-sharp-audit-gate".
 **Set at:** 2026-09-06T00:00:00Z (refreshed 2026-09-14 for the addendum above — the 2026-09-10
 window had expired, which left the hook reading "no active scope" and blocking every write
 repo-wide rather than allowing any)
@@ -44,6 +52,14 @@ docs/PUBLISHERS.md
 hooks/librechat/openclaw-trigger.js
 memory-plan/plans/protocol/SCOPE.md
 memory-plan/plans/protocol/OUT_OF_SCOPE.md
+```
+
+```files ported-sharp-audit-gate
+package.json
+package-lock.json
+mission-control/package.json
+mission-control/package-lock.json
+memory-plan/plans/protocol/SCOPE.md
 ```
 
 ```files embedder-prefetch-honesty-2026-09-08 closed

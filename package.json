@@ -81,7 +81,7 @@
     "sqlite-vec": "^0.1.0"
   },
   "overrides": {
-    "sharp": "^0.35.0",
+    "sharp": "^0.35.4",
     "fast-uri": "^3.1.4"
   }
 }
