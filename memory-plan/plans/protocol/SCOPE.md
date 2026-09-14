@@ -1,7 +1,10 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
+**Goal:** (2026-09-14) unblock the repo-wide `npm audit --audit-level=high` CI gate: GHSA-rgj7-g3m4-5g8c
+(sharp <0.35.4, libheif) fails on `main` and every open PR, so raise the `overrides.sharp` floor to
+^0.35.4 in both trees and re-resolve the lockfiles. Plus the live launcher/PATH work below.
+Earlier goal — Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
 NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
 operator flips), server users block rendered from the identity registry into an included
 `nats-auth.conf`, worker deny on `mesh.deploy.trigger`, every credential-less connect routed through
@@ -25,8 +28,16 @@ Local consumers that GET :3000 read the 0600 session token like scheduler-heartb
 Code + focused tests + MC build only; runtime evidence on the live host is the operator's step.
 Per-node NATS nkeys is deferred (needs install-time credential provisioning).
 Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved as closed blocks.
-**Set at:** 2026-09-06T00:00:00Z
-**Expires:** 2026-09-10T00:00:00Z
+**Set at:** 2026-09-14T00:00:00Z
+**Expires:** 2026-09-18T00:00:00Z
+
+```files sharp-advisory-audit-gate-2026-09-14
+package.json
+package-lock.json
+mission-control/package.json
+mission-control/package-lock.json
+memory-plan/plans/protocol/SCOPE.md
+```
 
 ```files launcher-and-path-2026-09-08
 install.sh
