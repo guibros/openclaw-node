@@ -45,7 +45,7 @@ describe('deploy-trigger-auth', () => {
       requireSigned: true,
       trustedKeys: [id.publicKeyBase64],
     });
-    assert.deepEqual(res, { ok: true, reason: 'verified' });
+    assert.deepEqual(res, { ok: true, reason: 'verified', signer_pubkey: id.publicKeyBase64 });
   });
 
   it('strict mode REJECTS an unsigned trigger', () => {
@@ -119,7 +119,7 @@ describe('deploy-trigger-auth', () => {
     const old = { ...trigger(), timestamp: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString() };
     const signed = signDeployTrigger(old, { identityDir: dir });
     const res = verifyDeployMarker(signed, { requireSigned: true, trustedKeys: [id.publicKeyBase64] });
-    assert.deepEqual(res, { ok: true, reason: 'verified' });
+    assert.deepEqual(res, { ok: true, reason: 'verified', signer_pubkey: id.publicKeyBase64 });
     // and again — markers are re-read on every startup, no replay cache
     assert.equal(verifyDeployMarker(signed, { requireSigned: true, trustedKeys: [id.publicKeyBase64] }).ok, true);
   });

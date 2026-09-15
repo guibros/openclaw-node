@@ -29,6 +29,9 @@ test/approval-attribution.test.mjs
 # Its deepEqual assertions pin the exact return shape of verifySignedRequest
 # and authorizeTaskMutation, which this batch deliberately widens.
 test/operator-auth.test.mjs
+# Second consumer of verifySignedRequest; its deepEqual assertions pin the
+# same shape. Found by the full suite, not by reading.
+test/deploy-trigger-auth.test.mjs
 memory-plan/plans/protocol/SCOPE.md
 ```
 
