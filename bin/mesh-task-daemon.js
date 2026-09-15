@@ -122,7 +122,10 @@ async function authorize(msg, params, task, { action, allowOwner = false, allowO
     return false;
   }
   if (decision.via === 'operator') log(`AUTHZ ${action}: signed operator request accepted`);
-  return true;
+  // The decision carries the established actor; handlers that record WHO acted
+  // need it. Returning the object keeps every `if (!(await authorize(...)))`
+  // call site working — it is truthy on success, null on refusal.
+  return decision;
 }
 
 // ── Event Publishing ───────────────────────────────
@@ -627,9 +630,10 @@ async function handleTaskApprove(msg) {
 
   // The human-review gate. Previously one unsigned message approved any task
   // (review H-1/H-10); now only a signed operator request does.
-  if (!(await authorize(msg, params, null, { action: 'approve' }))) return;
+  const decision = await authorize(msg, params, null, { action: 'approve' });
+  if (!decision) return;
 
-  const task = await store.markApproved(task_id);
+  const task = await store.markApproved(task_id, decision.actor);
   if (!task) return respondError(msg, `Task ${task_id} not found or not in pending_review status`);
 
   log(`APPROVED ${task_id}: human review passed`);
@@ -2217,16 +2221,22 @@ async function handlePlanList(msg) {
 
 /**
  * mesh.plans.approve — Approve a plan and materialize subtasks.
- * Expects: { plan_id, approved_by? }
+ * Expects: { plan_id }
  * Triggers: subtask materialization → dispatch wave 0
+ *
+ * `approved_by` is deliberately NOT read from the request. It used to be, and
+ * fell back to the literal 'gui' — so an unsigned automated approval recorded
+ * the operator's own handle, and a caller could name anyone it liked. The
+ * approver is now whoever the authorization step actually established.
  */
 async function handlePlanApprove(msg) {
   const params = parseRequest(msg);
-  const { plan_id, approved_by } = params;
+  const { plan_id } = params;
   if (!plan_id) return respondError(msg, 'plan_id is required');
-  if (!(await authorize(msg, params, null, { action: 'plan.approve' }))) return;
+  const decision = await authorize(msg, params, null, { action: 'plan.approve' });
+  if (!decision) return;
 
-  const plan = await planStore.approve(plan_id, approved_by || 'gui');
+  const plan = await planStore.approve(plan_id, decision.actor);
   if (!plan) return respondError(msg, `Plan ${plan_id} not found`);
 
   log(`PLAN APPROVED ${plan_id} by ${plan.approved_by}`);

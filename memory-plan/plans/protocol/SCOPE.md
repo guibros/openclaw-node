@@ -1,7 +1,38 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** 2026-09-14 — sharp advisory audit gate. CI's `npm audit --audit-level=high` step fails on
+**Goal:** 2026-09-15 — approval attribution records the VERIFIED signer. Three places stamp who
+approved something with a value that was never verified: `lib/mesh-tasks.js` markApproved sets
+`reviewed_by = 'human'`, `bin/hyperagent.mjs` calls approve/rejectProposal with the literal
+`'human'`, and `bin/mesh-task-daemon.js` handlePlanApprove records `approved_by || 'gui'` where
+`approved_by` is CALLER-SUPPLIED and unverified — so an automated approval lands in the ledger
+wearing the operator's own handle. Authorization is already correct on the mesh paths
+(authorizeTaskMutation gates them); it is attribution that is fabricated. `verifySignedRequest`
+verifies `event.signer_pubkey` against the trusted operator keys and then discards it, so the one
+verified identity in the system never reaches the record.
+ONE outcome: an approval records who actually authorized it. Surface the verified signer_pubkey,
+thread it through authorizeTaskMutation and the daemon's authorize(), and record it. This changes
+what is RECORDED, never what is ALLOWED — no authorization verdict moves.
+NOT in this batch: the hyperagent CLI half of H-10. That path has no identity source at all (it
+never imports operator-auth), so fixing it means DECIDING whether hyperagent approvals must be
+signed — an operator ruling with a workflow cost, not a bug fix. Left for that decision.
+Carries the sharp gate fix (PR #14) as a ported commit so CI is green; no-ops once main takes it.
+**Set at:** 2026-09-15T12:05:00Z
+**Expires:** 2026-09-17T00:00:00Z
+
+```files approval-attribution-verified-signer-2026-09-15
+lib/node-identity.mjs
+lib/operator-auth.mjs
+lib/mesh-tasks.js
+bin/mesh-task-daemon.js
+test/approval-attribution.test.mjs
+# Its deepEqual assertions pin the exact return shape of verifySignedRequest
+# and authorizeTaskMutation, which this batch deliberately widens.
+test/operator-auth.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+**Prior goal (sharp advisory audit gate, shipped as PR #14):** CI's `npm audit --audit-level=high` step fails on CI's `npm audit --audit-level=high` step fails on
 both `unit-tests` and `mission-control-tests` for advisory GHSA-rgj7-g3m4-5g8c (`sharp <0.35.4`,
 libheif, high). The tests themselves are green (2209 tests, 0 fail) — this is a dependency gate, and
 it fails repo-wide, on `main` and every open PR, because the advisory was published after `main` last
@@ -15,7 +46,7 @@ they are not in scope. Operator-approved 2026-09-14 ("Scope it on a new branch")
 **Set at:** 2026-09-14T16:40:00Z
 **Expires:** 2026-09-16T00:00:00Z
 
-```files sharp-advisory-audit-gate-2026-09-14
+```files sharp-advisory-audit-gate-2026-09-14 closed
 package.json
 package-lock.json
 mission-control/package.json

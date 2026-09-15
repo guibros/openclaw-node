@@ -44,7 +44,7 @@ describe('signOperatorRequest / verifyOperatorRequest', () => {
     assert.equal(req.operator_action, true);
     assert.ok(req.event_id && req.timestamp && req.signature && req.signer_pubkey);
     const r = verifyOperatorRequest(req, { trustedKeys: leadKeys(), seenIds: null });
-    assert.deepEqual(r, { ok: true, reason: 'verified' });
+    assert.deepEqual(r, { ok: true, reason: 'verified', signer_pubkey: lead.publicKeyBase64 });
   });
 
   it('refuses an UNSIGNED request (the old one-message approve)', () => {
@@ -118,7 +118,7 @@ describe('authorizeTaskMutation — the matrix', () => {
 
   it('owner may perform owner-allowed actions without a signature (start/complete/release)', () => {
     const d = authorizeTaskMutation({ action: 'complete', params: { task_id: 'T-1', node_id: 'worker-a' }, task, allowOwner: true, allowOperator: true, verify });
-    assert.deepEqual(d, { ok: true, via: 'owner' });
+    assert.deepEqual(d, { ok: true, via: 'owner', actor: 'node:worker-a' });
   });
 
   it('a NON-owner with the bus token cannot complete another node\'s task (R5 forgery)', () => {
@@ -131,7 +131,7 @@ describe('authorizeTaskMutation — the matrix', () => {
   it('a signed operator request may force-complete (Mission Control intervene)', () => {
     const params = signOperatorRequest({ task_id: 'T-1', result: { success: true, forced: true } }, { identity: lead, nodeId: 'lead' });
     const d = authorizeTaskMutation({ action: 'complete', params, task, allowOwner: true, allowOperator: true, verify });
-    assert.deepEqual(d, { ok: true, via: 'operator' });
+    assert.deepEqual(d, { ok: true, via: 'operator', actor: `operator:${lead.publicKeyBase64}` });
   });
 
   it('operator-only actions refuse the owner without a signature (no self-approval by ownership)', () => {
@@ -171,7 +171,7 @@ describe('P4-5: lease fencing in the owner path', () => {
 
   it('owner with the current lease token is allowed', () => {
     const d = authorizeTaskMutation({ action: 'complete', params: { task_id: 'T-9', node_id: 'worker-a', lease_token: 'tok-current' }, task, allowOwner: true, allowOperator: true, verify });
-    assert.deepEqual(d, { ok: true, via: 'owner' });
+    assert.deepEqual(d, { ok: true, via: 'owner', actor: 'node:worker-a' });
   });
 
   it('owner with a stale or missing token is refused (task was re-claimed since)', () => {
