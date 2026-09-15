@@ -218,6 +218,10 @@ memory-plan/plans/integrations/audits/step_suite_failure_correction/*
 memory-plan/plans/integrations/BLOCKED.md
 ```
 
+```files ci-test-gap closed
+memory-plan/plans/integrations/audits/step_suite_failure_correction/*
+```
+
 ## How this file works
 
 - **Status:** must be `active` for the hook to allow edits to listed files.

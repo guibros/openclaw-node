@@ -73,6 +73,36 @@ there is no deployment in this container to accept. It is the same `install.sh -
 One genuine signal did come out of it: `MEM-L2-INGEST` went from FAIL to **PASS** on the rebuild,
 which is what started this correction.
 
-Note for anyone comparing: CI counts 2293 tests where this container counts 2198. Not investigated —
-CI's `pretest` builds the workspaces, which likely enables suites that cannot run here. Recorded as
-an open discrepancy rather than explained away.
+## The 2293-vs-2198 gap, closed
+
+CI counts 2293 tests where this container counts 2198. The first guess in this file was that CI's
+`pretest` workspace build enables extra suites — **wrong**: npm runs `pretest` automatically, so the
+local runs built the workspaces too.
+
+The real answer was already printed in my own run log, in a test written for exactly this purpose.
+`test/mesh-skip-census.test.mjs` exists because "node:test's summary counts skipped *tests*, and a
+skipped `describe` registers zero child tests — so a run with the entire mesh/collab tier skipped
+still prints `skipped 0`. A green check then says nothing about whether any of that tier actually
+ran." It reports:
+
+```
+mesh-skip census (7 mesh-dependent suite file(s)) # SKIP … mesh stack unavailable
+  (NATS or mesh-task-daemon not responding):
+  agent-recruit · collab-agent-lifecycle · collab-integration · distributed-mc
+  e2e-collab · field-roundtrip · regression-bugs
+```
+
+CI provisions a real `nats-server` **and** a mesh stack (`.github/workflows/test.yml` installs
+nats-server v2.10.22, writes an identity env and starts it). Those seven files' suites therefore run
+there and register their children; here they register none. 2293 − 2198 = **95 tests across those
+seven files**, ~14 each — the right order of magnitude.
+
+Not part of the gap: the six federation files gated on the nats-server *binary*. The binary **is** on
+PATH in this container (`/usr/local/bin/nats-server`, v2.10.22) so that census passed unskipped; what
+is missing is a *running* stack, which is a different gate.
+
+**Same lesson as the 211, twice in one session.** The information was in output I had already
+generated and had not read closely — there, CI's `# fail 0` next to my 211; here, a census line
+whose whole reason for existing is to stop a skipped tier from hiding behind a green summary. It
+prints as `# SKIP`, and I skimmed past it. The remedy is not a new tool; this repo already built the
+tool. It is reading the skip lines, not just the fail count.
