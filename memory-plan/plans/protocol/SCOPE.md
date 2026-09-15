@@ -1,7 +1,8 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
+**Goal:** sharp audit gate (2026-09-14): refresh both committed lockfiles so `npm audit --audit-level=high` passes again. GHSA-rgj7-g3m4-5g8c (`sharp < 0.35.4`, libheif) published after main's last run and now fails the root and Mission Control audit gates on every PR regardless of its diff; the suites themselves are green. Lockfiles only — the bump stays inside the `overrides.sharp: ^0.35.0` already declared in each package.json, so no dependency policy changes.
+Earlier goal — Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
 NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
 operator flips), server users block rendered from the identity registry into an included
 `nats-auth.conf`, worker deny on `mesh.deploy.trigger`, every credential-less connect routed through
@@ -25,8 +26,14 @@ Local consumers that GET :3000 read the 0600 session token like scheduler-heartb
 Code + focused tests + MC build only; runtime evidence on the live host is the operator's step.
 Per-node NATS nkeys is deferred (needs install-time credential provisioning).
 Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved as closed blocks.
-**Set at:** 2026-09-06T00:00:00Z
-**Expires:** 2026-09-10T00:00:00Z
+**Set at:** 2026-09-15T14:35:00Z
+**Expires:** 2026-09-15T20:00:00Z
+
+```files sharp-audit-gate-2026-09-14
+package-lock.json
+mission-control/package-lock.json
+memory-plan/plans/protocol/SCOPE.md
+```
 
 ```files embedder-prefetch-honesty-2026-09-08
 scripts/install/llm-setup.sh
