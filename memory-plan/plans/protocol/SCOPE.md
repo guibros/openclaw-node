@@ -36,6 +36,7 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 
 ```files remediation-plan-2026-09-15
 REMEDIATION_PLAN_2026-09-15.md
+REVIEW_FINDINGS_2026-09-15.md
 memory-plan/plans/protocol/SCOPE.md
 memory-plan/plans/protocol/OUT_OF_SCOPE.md
 ```
