@@ -26,16 +26,18 @@ try {
     const result = await store.importSession(jsonlPath, { source, format });
     parentPort.postMessage({ ok: true, result });
   } else {
-    const { jsonlPath, memoryMdPath, charBudget, checkShouldFlush, contextWindowTokens } = workerData;
+    const { jsonlPath, memoryMdPath, charBudget, checkShouldFlush, contextWindowTokens, deferrable } = workerData;
     const { runFlush, shouldFlush, USE_LLM_EXTRACTION } = await import('../lib/pre-compression-flush.mjs');
-    let check = null;
-    if (checkShouldFlush) {
-      check = await shouldFlush(jsonlPath, { contextWindowTokens: contextWindowTokens || 200000 });
-      if (!check.shouldFlush) {
-        parentPort.postMessage({ ok: true, result: { flushed: false, skippedByCheck: true, check } });
-      }
-    }
-    if (!check || check.shouldFlush) {
+    const windowTokens = contextWindowTokens || 200000;
+    // shouldFlush is a statSync plus arithmetic — it does NOT parse the
+    // transcript — so a deferrable flush can afford it purely to give the
+    // marginal gate the headroom figure its window-protection override needs.
+    const check = (checkShouldFlush || deferrable)
+      ? await shouldFlush(jsonlPath, { contextWindowTokens: windowTokens })
+      : null;
+    if (checkShouldFlush && !check.shouldFlush) {
+      parentPort.postMessage({ ok: true, result: { flushed: false, skippedByCheck: true, check } });
+    } else {
       let llmClient = null;
       let extractionStore = null;
       if (USE_LLM_EXTRACTION) {
@@ -49,7 +51,14 @@ try {
           // the daemon's own getExtractionStore() failure produces.
         }
       }
-      const result = await runFlush(jsonlPath, memoryMdPath, { charBudget, llmClient, extractionStore });
+      const result = await runFlush(jsonlPath, memoryMdPath, {
+        charBudget,
+        llmClient,
+        extractionStore,
+        deferrable: Boolean(deferrable),
+        sessionTokens: check?.estimatedTokens ?? null,
+        contextWindowTokens: windowTokens,
+      });
       if (check) result.check = check;
       parentPort.postMessage({ ok: true, result });
     }

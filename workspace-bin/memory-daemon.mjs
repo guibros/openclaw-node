@@ -1112,6 +1112,10 @@ async function runPhase2ThrottledWork(config, sessionState) {
           const budget = initMemoryBudget(config);
           const result = await serializeFlush(() => runFlushInWorker(currentJsonl, memoryMd, {
             charBudget: budget.charBudget,
+            // Deferrable: the unconditional end-of-session flush still runs after
+            // this one, so low-yield material is delayed, never dropped.
+            deferrable: true,
+            contextWindowTokens: config.contextWindowTokens || 200000,
           }));
           log(`  Phase 2: interval synthesis [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added`);
           if (result.degraded) {
@@ -1236,6 +1240,9 @@ async function handleTransitions(transitions, config) {
             charBudget: budget.charBudget,
             checkShouldFlush: true,
             contextWindowTokens: config.contextWindowTokens || 200000,
+            // Deferrable: the unconditional end-of-session flush still runs after
+            // this one, so low-yield material is delayed, never dropped.
+            deferrable: true,
           }));
           if (!result.skippedByCheck) {
             log(`  pre-compression flush triggered (${result.check?.pctUsed}% of ${result.check?.threshold} token threshold)`);
@@ -1736,6 +1743,9 @@ async function main() {
               charBudget: budget.charBudget,
               checkShouldFlush: true,
               contextWindowTokens: config.contextWindowTokens || 200000,
+              // Deferrable: the unconditional end-of-session flush still runs after
+              // this one, so low-yield material is delayed, never dropped.
+              deferrable: true,
             }));
             if (!result.skippedByCheck) {
               log(`  nats-triggered flush [${result.mode || 'regex'}]: ${result.facts} facts, ${result.added} added, ${result.merged} merged`);
