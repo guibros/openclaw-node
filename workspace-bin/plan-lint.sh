@@ -11,6 +11,11 @@
 #   - open INVENTORY rows without the §11 contract → FAIL; closed rows without it → WARN
 #   - audit-dir coverage is count-based WARN (dir-naming varies across plan eras)
 #   - ROADMAP.md missing → WARN (historical silos carry their roadmap under another name)
+#   - audit shape (typed §4 findings, Principle Deviations) → WARN only: every audit on disk
+#     predates the sections, so a FAIL would grade closed history, not today's work (5.1)
+#   - canonical sync-impact header (§1.1.1) → absent is WARN (grandfathered, binds the next
+#     edit); present-but-malformed or older than the doc's last commit is FAIL, because a stale
+#     header claims a dependent re-check that demonstrably never happened
 
 set -euo pipefail
 
@@ -141,6 +146,19 @@ if [ -f "$INV" ] && grep -qE "$ROW_RE" "$INV"; then
   else
     report PASS steps "audit coverage: $pres PRE / $posts POST for $closed closed step(s)"
   fi
+
+  # Audit shape, not just audit presence. PROTOCOL Phase 7 requires §4 findings to be typed
+  # (missing/partial/contradicts/unrequested) and severity-graded; Phase 1 requires the
+  # Principle Deviations table. Matched on the distinctive table header and section heading
+  # rather than the type words themselves — "missing" and "partial" are ordinary English and
+  # would false-positive on any audit prose that happens to use them.
+  shaped_post=$(grep -rl '| Type | Severity |' "$PLAN/audits" --include='AUDIT_POST.md' 2>/dev/null | wc -l | tr -d ' ' || true)
+  shaped_pre=$(grep -rl '^## Principle Deviations' "$PLAN/audits" --include='AUDIT_PRE.md' 2>/dev/null | wc -l | tr -d ' ' || true)
+  if [ "${posts:-0}" -gt 0 ] && [ "${shaped_post:-0}" -eq 0 ]; then
+    report WARN steps "audit shape: 0/$posts AUDIT_POST carry the typed §4 findings table (pre-taxonomy; new audits instantiate canonical/templates/AUDIT_POST.template.md)"
+  elif [ "${posts:-0}" -gt 0 ]; then
+    report PASS steps "audit shape: $shaped_post/$posts POST typed · $shaped_pre/$pres PRE carry Principle Deviations"
+  fi
 else
   report FAIL steps "INVENTORY.md missing or no rows in the load-bearing 5-column format"
 fi
@@ -186,6 +204,56 @@ for doc in MASTER_PLAN.md PROTOCOL.md FRAMEWORK_CANONICAL.md COWORK_MODEL.md BLO
   fi
 done
 [ "$docs_ok" -eq 1 ] && report PASS documents "5 canonical docs present + in sync"
+
+# Sync-impact header (PROTOCOL §1.1.1). A canonical edit turns one file into six and governs
+# every plan at once, so it must record what it invalidated. Graded on the canonical SOURCE
+# (repo-level, so every silo reports the same verdict — same as the staleness check above).
+#
+# The tiers are chosen so the check has teeth without grading history: a doc that has never
+# been edited under the rule carries no header and is grandfathered (WARN — the rule binds its
+# next edit). But a header that is missing its required fields, or whose date is older than the
+# doc's last commit, is an ACTIVE violation (FAIL): it asserts a dependent re-check that the
+# commit history shows never happened for the current content. That stale-header case is the
+# whole point — an unenforced header would decay into exactly the prompt-level etiquette this
+# borrowed idea was supposed to improve on.
+hdr_ok=0; hdr_bad=0; hdr_missing=0
+today=$(date -u +%Y-%m-%d)
+for doc in MASTER_PLAN.md PROTOCOL.md FRAMEWORK_CANONICAL.md COWORK_MODEL.md BLOCK_TEMPLATE.md; do
+  src="$CANON/$doc"
+  [ -f "$src" ] || continue
+  # §1.1.1 puts the header at the TOP of the file, so the header block is line 1 through the
+  # first `-->`. Field checks are scoped to that block: grepping the whole file would accept a
+  # doc whose body merely happens to contain the word "Change:".
+  hdr=$(awk 'NR==1,/^-->/' "$src" 2>/dev/null || true)
+  hdate=$(printf '%s\n' "$hdr" | grep -m1 -oE 'SYNC IMPACT — [0-9]{4}-[0-9]{2}-[0-9]{2}' | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' || true)
+  if [ -z "$hdate" ]; then hdr_missing=$((hdr_missing+1)); continue; fi
+  ok=1; why=""
+  for field in 'Change:' 'Rationale:' 'Dependents re-checked:'; do
+    printf '%s\n' "$hdr" | grep -q "$field" || { ok=0; why="${why:+$why, }missing '$field'"; }
+  done
+  # Two staleness tiers, because the commit date alone only catches a stale header one commit
+  # LATE: an edit made today against a header already dated the last commit's day would pass,
+  # and only fail once that edit lands. So an uncommitted edit must carry a header dated today.
+  cdate=$(git -C "$REPO" log -1 --format=%ad --date=short -- "$src" 2>/dev/null || true)
+  dirty=0; git -C "$REPO" diff HEAD --quiet -- "$src" 2>/dev/null || dirty=1
+  # ISO-8601 dates compare correctly as strings, so no date parsing is needed.
+  if [ "$ok" -eq 1 ] && [ -n "$cdate" ] && [[ "$hdate" < "$cdate" ]]; then
+    ok=0; why="header dated $hdate but doc last committed $cdate"
+  elif [ "$ok" -eq 1 ] && [ "$dirty" -eq 1 ] && [[ "$hdate" < "$today" ]]; then
+    ok=0; why="uncommitted edit present but header dated $hdate, not today ($today)"
+  fi
+  if [ "$ok" -eq 1 ]; then hdr_ok=$((hdr_ok+1)); else
+    hdr_bad=$((hdr_bad+1))
+    [ "$SUMMARY" -eq 1 ] || printf '         %s\n' "$doc: $why"
+  fi
+done
+if [ "$hdr_bad" -gt 0 ]; then
+  report FAIL documents "$hdr_bad canonical doc(s) with a stale or malformed sync-impact header (§1.1.1)"
+elif [ "$hdr_ok" -gt 0 ]; then
+  report PASS documents "$hdr_ok canonical doc(s) carry a valid sync-impact header"
+fi
+[ "$hdr_missing" -gt 0 ] && report WARN documents "$hdr_missing canonical doc(s) carry no sync-impact header (grandfathered; §1.1.1 binds the next edit)"
+
 if [ -f "$PLAN/ROADMAP.md" ]; then report PASS documents "ROADMAP.md present"
 else report WARN documents "ROADMAP.md missing (required for new plans; historical silos may carry another name)"; fi
 

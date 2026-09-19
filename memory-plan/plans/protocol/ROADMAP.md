@@ -50,3 +50,19 @@ steps ran — this doc consolidates the block framing per PROTOCOL §1.2).
   gateway artifacts and PID-less launchd jobs cannot grade WORKING; scheduler-heartbeat records an
   authenticated HTTP 200 and launchd exit 0.
 - **Unblocks:** federation 2.6's five-task premise benchmark on a stable, honestly observed node.
+
+## Block 5 — Operating-base amendments from outside evidence
+
+- **Intent:** the base has been amended so far only from its own failures. That is a narrow
+  evidence source: it catches what already went wrong here and never what this design simply
+  omits. This block takes amendments from mature outside systems that solve the same problem —
+  agent-governance toolkits with their own constitution/spec/task/verify lifecycles — reads them
+  against our surfaces, and lands only the gaps that are real here, each with a mechanical check.
+  Borrowing prose without a check is how a governance idea decays into etiquette, which is
+  precisely the weakness these outside systems exhibit.
+- **Exit criterion:** every amendment in this block is (a) traceable to the named external source
+  with its licence recorded in DECISIONS, (b) expressed in a canonical doc or template rather than
+  advice, and (c) graded by `plan-lint.sh` — where a check cannot have teeth without grading
+  closed history, it lands as an explicit WARN tier and says so in the script's grading comment.
+- **Unblocks:** nothing downstream depends on this block. It is maintenance of the base itself,
+  which is this silo's whole subject.

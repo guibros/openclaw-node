@@ -82,6 +82,17 @@ test). Steps below use the four-field contract they introduce.
 > **Feeds:** daily digest/vault cadence actually completing; promotion-candidate freshness; any future claim that consolidation is healthy.
 > **Verify:** `code:` per-phase timings returned for all nine checkpoints and asserted in unit tests; an aborted cycle names the phase holding the cap. `runtime:` a deployed real cycle completes under 300000ms with its phase breakdown recorded, and the phase that previously dominated is shown reduced — a raised cap is not acceptable evidence.
 
+## Block 5 — Operating-base amendments from outside evidence
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 5 | 5.1 | v5.1 | [A] | Close three holes in the operating base found by reading `github/spec-kit` against it: audit findings gain a type (`missing`/`partial`/`contradicts`/`unrequested`) and a severity, a deviation from a MASTER_PLAN §4 non-negotiable is authorized only by a written justification table, and a canonical edit must record what it invalidated — each with a `plan-lint.sh` check rather than advice |
+
+> **5.1 — Goal:** the three holes are closed in the canonical base itself, and `plan-lint.sh` grades all three rather than trusting a worker to remember them.
+> **Needs:** operator approval (2026-09-19, "steal the good parts" on the read-only comparison); `github/spec-kit` readable at a pinned commit (`d4229c0`, MIT, Copyright GitHub, Inc.); the existing `canonical/` doc set and `plan-lint.sh` surfaces 2 and 5 as the amendment points.
+> **Feeds:** every future step's AUDIT_PRE/AUDIT_POST via the two new templates; every future canonical edit via §1.1.1; the lint verdict every plan and the tick preflight already read.
+> **Verify:** `code:` `bash -n plan-lint.sh` clean and the three checks appear in a real run — typed-findings WARN, sync-header PASS on the two edited docs, grandfathered WARN on the three untouched; the sync-header FAIL tier demonstrated by backdating a header and observing the failure, then restored. `code:` `sync-canonical.sh --check` rc 0 after propagation, and both new templates instantiate into a valid AUDIT_PRE/AUDIT_POST. `runtime:` the operator reads the amended §1.1.1/§4.11 and confirms the base says what they want it to say — this step amends documents, so operator assent is its runtime evidence, not a host probe.
+
 > **2.1 — Goal:** the rules exist in one place: PROTOCOL.md gains §10 (six-surface conformance: what "functionally implements" each tab means) + §11 (the Goal/Needs/Feeds/Verify step contract); INVENTORY + TICK_PROMPT templates carry both.
 > **Needs:** PROTOCOL.md §1/§6 (present, v1.1) · the viewer tab↔file map (verified live in Block 1) · redesign's LOOPS.md flow framing as lineage (connects-with/produces-for/WIN-FAIL).
 > **Feeds:** 2.2 (the lint checks exactly these rules) · every future plan's INVENTORY/TICK_PROMPT via the templates.

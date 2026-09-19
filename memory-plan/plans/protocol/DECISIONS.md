@@ -144,3 +144,39 @@ ownership defects, not threshold-tuning problems.
 **Consequences.** Each step must deploy and observe its corrected signal before closing. No auth
 exemption, watcher downgrade, dependency duplication, or retrospective health claim is accepted.
 Federation 2.6 remains blocked until Block 4 closes.
+
+## D10 — The operating base takes amendments from outside evidence, and every borrowed rule gets a check (2026-09-19)
+
+**Decision.** The base may be amended from mature external systems that solve the same problem, not
+only from our own post-mortems. The first such source is `github/spec-kit` (MIT, Copyright GitHub,
+Inc.), read at commit `d4229c0`. Three amendments land from it: audit findings carry a type
+(`missing`/`partial`/`contradicts`/`unrequested`) and a severity (PROTOCOL Phase 7); a deviation
+from a MASTER_PLAN §4 non-negotiable is authorized only by a written justification table naming the
+principle, the need, and the rejected simpler alternative (MASTER_PLAN §4.11, PROTOCOL Phase 1); and
+a canonical edit must carry a sync-impact header recording what it invalidated and which dependents
+were re-checked (PROTOCOL §1.1.1). Ideas are adapted in our own words — no template text is copied —
+and provenance is recorded here rather than in the docs themselves.
+
+**Why.** Amending only from our own failures is a narrow evidence source: it catches what already
+went wrong here and never what this design simply omits. Reading an independent implementation of
+the same idea surfaced omissions directly. Findings were binary, so "code that contradicts a
+decision" and "code no step asked for" had no slot and reached the reader as prose if at all — the
+new taxonomy's first use immediately surfaced that step 4.5 shipped with no AUDIT_PRE, which the old
+vocabulary could not express. §4 offered only stop-or-amend, both heavy, so deviations happened
+unremarked and a considered exception was indistinguishable from a lapse. And `sync-canonical.sh`
+fanned five docs into six silos while recording nothing about what an edit broke.
+
+The paired constraint matters as much as the borrowing. spec-kit's own gates are prompt-level: its
+`converge.md` *asks* the agent to read `.specify/extensions.yml` and honour mandatory hooks, and an
+agent that skips the read simply proceeds. Our equivalent is a real `PreToolUse` hook that exits 2.
+Importing spec-kit's prose without a check would have imported its weakness, so each amendment is
+graded by `plan-lint.sh` — and where a check cannot have teeth without grading closed history, it
+lands as an explicit WARN tier that says so in the script's own grading comment.
+
+**Consequences.** Every future canonical edit carries a sync-impact header; a stale or malformed one
+is a lint FAIL, an absent one is grandfathered until that doc's next edit. New audits instantiate
+`canonical/templates/AUDIT_PRE.template.md` / `AUDIT_POST.template.md`. A deviation without a table
+row is unauthorized and is a `contradicts` finding, not a footnote. Historical audits are not
+retrofitted — back-filling provenance nobody reviewed would fabricate the record. A `converge`-style
+repo-vs-plan gap assessor was considered and rejected for now: a build, not an amendment, and it
+overlaps AUDIT_POST §6 carry-forwards.

@@ -1,3 +1,29 @@
+<!--
+SYNC IMPACT — 2026-09-19
+Change: added §1.1.1 (sync-impact header required on every canonical edit); Phase 1 now requires
+  the AUDIT_PRE Principle Deviations table; Phase 7 findings are typed
+  (missing/partial/contradicts/unrequested) and severity-graded, assessed against code rather than
+  the ledger; both phase rows now name their shape template.
+Rationale: findings were binary ([POSITIVE]/[NEGATIVE]), so "code that contradicts a decision" and
+  "code no step asked for" had nowhere to be recorded and reached the reader only as prose, if at
+  all; and canonical edits fanned into six silos while recording nothing about what they
+  invalidated. Borrowed from github/spec-kit (MIT, Copyright GitHub, Inc.) — see protocol
+  DECISIONS D10.
+Dependents re-checked:
+  ✅ canonical/templates/AUDIT_PRE.template.md — added in this edit, carries the deviations table
+  ✅ canonical/templates/AUDIT_POST.template.md — added in this edit, carries the §4 taxonomy
+  ✅ canonical/MASTER_PLAN.md — §4.11 added as the authorization rule the Phase 1 row points at;
+     §4 preamble updated to route to it
+  ✅ workspace-bin/plan-lint.sh — new audit-shape + sync-header checks added in this edit
+  ✅ §6 viewer contract — audits render as files; no parse change, sections are additive
+  ✅ canonical/FRAMEWORK_CANONICAL.md — portable theory doc, describes the 9 phases generically
+     and names no finding vocabulary; no change needed
+  ⚠️ in-flight step 4.5 (protocol) — its AUDIT_PRE/POST predate these sections; grandfathered by
+     plan-lint (WARN, not FAIL) rather than retrofitted, same as the §11 contract rollout
+Follow-ups: a converge-style repo-vs-plan gap assessor was considered and rejected for this step
+  (a build, not an amendment; overlaps AUDIT_POST §6) — captured in protocol OUT_OF_SCOPE.md.
+-->
+
 # PROTOCOL — The Plan-Silo Operating Base
 
 **Canonical doc.** Authored in `memory-plan/canonical/`, recopied into every plan by
@@ -33,6 +59,34 @@ A **plan** is any immediate subdirectory of `memory-plan/plans/` containing `INV
 
 Authored in `memory-plan/canonical/`; `sync-canonical.sh` propagates. Editing a silo's copy is
 drift — the next sync erases it. Change the canonical source instead.
+
+#### 1.1.1 Sync-impact header — required on every canonical edit
+
+A canonical edit is the widest-blast-radius change in the repo: one file becomes six, and it
+governs every plan at once. The sync itself is mechanical (`sync-canonical.sh`, `--check` in CI),
+but mechanical propagation records nothing about what the edit *invalidated* — so an amendment that
+silently contradicts a plan's in-flight assumptions leaves no trace for the next reader.
+
+Every edit to a file in `canonical/` therefore prepends (or updates) an HTML-comment header at the
+top of that file:
+
+```markdown
+<!--
+SYNC IMPACT — <YYYY-MM-DD>
+Change: <one line: what this amendment does>
+Rationale: <why the base was wrong or incomplete; name the failure it prevents>
+Dependents re-checked:
+  ✅ <doc or script> — <still valid / updated in this edit / no change needed and why>
+  ⚠️ <doc or script> — <now stale; what must change and where it is tracked>
+Follow-ups: <none · or the INVENTORY row / OUT_OF_SCOPE capture carrying them>
+-->
+```
+
+Dependents means whatever reads the thing you changed: the other four canonical docs, the
+`canonical/templates/` set, `plan-lint.sh`, `plan-tick.sh`, `TICK_PROMPT.md`, the viewer contract
+(§6), and any plan's in-flight step whose contract leans on the old wording. Listing a dependent
+as re-checked is a claim that you opened it — `✅` with no reading behind it is exactly the
+completion-claim-as-evidence failure MASTER_PLAN §4.1 exists to forbid.
 
 ### 1.2 Instantiated — the working state (scaffolded once by `new-plan.sh`, then plan-owned)
 
@@ -84,10 +138,10 @@ was bypassed.
 | Pre-flight | Pick the first `[ ]`/`[A]` row. Tree clean (or dirty matching an in-flight `-pre`/`-mid`). `BLOCKED.md` present → stop. Read MASTER_PLAN + the step's ROADMAP block + prior step's AUDIT_POST §6. |
 | Scope | Open/refresh `<plan>/SCOPE.md`: Status active, goal = this step, ` ```files ` = this step's deltas, future Expires. The hook now physically gates edits. |
 | 1 · §0 | **Micro Re-Orient** — ≤6 lines, first thing in AUDIT_PRE (§5.1 below). |
-| 1 | `AUDIT_PRE.md` in `audits/stepNN_<slug>/`: intent, design (consume prior carry-forwards), risk register, §6 file-delta outline. **Pre-screen: verify every Need in the step's §11 contract exists; missing → BLOCK.** Write `vX.Y-pre` to `VERSION`. Flip the row `[ ]`→`[A]`. No production work yet. |
+| 1 | `AUDIT_PRE.md` in `audits/stepNN_<slug>/` (shape: `canonical/templates/AUDIT_PRE.template.md`): intent, design (consume prior carry-forwards), risk register, §6 file-delta outline. **Pre-screen: verify every Need in the step's §11 contract exists; missing → BLOCK.** **Any deviation from a MASTER_PLAN §4 non-negotiable is recorded in the `Principle Deviations` table — principle, why this step needs it, simpler alternative rejected — or it does not happen.** Write `vX.Y-pre` to `VERSION`. Flip the row `[ ]`→`[A]`. No production work yet. |
 | 4 | Implement every §6 delta — nothing else. Surprises append to AUDIT_PRE `## Mid-Implementation Findings` and/or `OUT_OF_SCOPE.md`, never silent expansion. Then write `vX.Y-mid` to `VERSION`. |
 | 5 | **Verify** = (a) tests green at baseline (`npm test` here), AND (b) the step's **Verify contract** (§11) executed exactly as written — `runtime:` probe / `code:` check / `visual:` operator confirmation (headless → BLOCK naming it). Cannot observe → BLOCK, never fake-close. |
-| 7 | `AUDIT_POST.md`: §1 promised-vs-landed ledger (every row `yes` or the step isn't done), §2 greppable deltas (command + first hit), §3 cross-refs still valid, §4 findings `[POSITIVE]/[NEGATIVE]`, §5 Phase-8 patches (almost always none), §6 carry-forwards to the next step. |
+| 7 | `AUDIT_POST.md` (shape: `canonical/templates/AUDIT_POST.template.md`): §1 promised-vs-landed ledger (every row `yes` or the step isn't done), §2 greppable deltas (command + first hit), §3 cross-refs still valid, §4 findings — **every one typed `missing`/`partial`/`contradicts`/`unrequested` and graded CRITICAL/HIGH/MEDIUM/LOW, assessed against the code rather than the ledger (a `[x]` row, a green suite and a commit saying "done" are completion claims, and completion claims are not evidence — §4.1, §4.7); a CRITICAL finding is fixed here or the step BLOCKS, never carried forward** — plus `[POSITIVE]` confirmations, §5 Phase-8 patches (almost always none), §6 carry-forwards to the next step. |
 | 8 | Apply §5 patches. An architectural choice not pre-decided in DECISIONS/carry-forwards → BLOCK + propose a DECISIONS entry. |
 | 8.5 | **Deep Review Gate** — all six or BLOCK: ① VERSION is exactly `vX.Y-mid` ② every §6 delta greppable ③ staged diff = §6 deltas + ledger files, nothing more ④ tests green ⑤ INVENTORY/audit docs consistent ⑥ **runtime evidence captured and real**. |
 | 9 | One commit (format §3.1). Flip the row `[A]`→`[x]` with a one-line close note. `VERSION` → clean `vX.Y`. Update COMPONENT_REGISTRY. **Record the Feeds landing (§11): where the output lives, which consumer reaches it.** SCOPE Status → done. Log any DECISIONS. **STOP — one step per work unit.** |

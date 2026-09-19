@@ -1,3 +1,22 @@
+<!--
+SYNC IMPACT — 2026-09-19
+Change: added §4.11 (a deviation is written down or it doesn't happen); §4 preamble now routes the
+  bounded-single-step case to it.
+Rationale: §4 offered only stop-or-amend, both heavy, so in practice deviations happened unremarked
+  and a considered exception was indistinguishable from a lapse six weeks later. OUT_OF_SCOPE.md
+  does not cover it — that file holds drift awaiting triage, not authorized exceptions. Borrowed
+  from github/spec-kit's Complexity Tracking table (MIT, Copyright GitHub, Inc.) — protocol
+  DECISIONS D10.
+Dependents re-checked:
+  ✅ canonical/PROTOCOL.md — Phase 1 row requires the table; §1.1.1 added there in the same edit
+  ✅ canonical/templates/AUDIT_PRE.template.md — carries the table and the "empty is normal" note
+  ✅ workspace-bin/plan-lint.sh — checks the table's presence on new-era audits
+  ✅ §5 done-contract — unchanged; §4.11 gates authorization, not completion
+  ✅ §6 forcing function / .claude/hooks/scope-check.sh — unchanged; the hook gates paths, and a
+     deviation is never a way to widen the allow-list
+Follow-ups: none.
+-->
+
 # OpenClaw Master Plan — North Star + Working Discipline
 
 **Status:** v0 (draft, 2026-05-27). Authored after the May audit revealed that 5 review rounds + 22 commits in 24h produced ~0 production change due to absent work discipline + an undeployed runtime tree.
@@ -100,7 +119,7 @@ SQLite databases (~/.openclaw/)
 
 ## 4. Working principles (non-negotiables)
 
-These are the discipline. They are not aspirational — they are gates. If your work violates one, you stop until SCOPE.md updates or the principle changes (and the change goes through this doc first).
+These are the discipline. They are not aspirational — they are gates. If your work violates one, you stop until SCOPE.md updates or the principle changes (and the change goes through this doc first). For the narrow case of a bounded, justified, single-step deviation, §4.11 is the third path — and the only one.
 
 ### 4.1 Code on disk ≠ shipped
 
@@ -148,6 +167,18 @@ Any audit (CODE_REVIEW, REVIEW_PASS, STUB_AUDIT, AUDIT, etc.) older than 14 days
 ### 4.10 If the framework gets in your way, change the framework first
 
 The previous round saw work happen OUTSIDE the framework's step boundaries (code-review remediation batches that weren't in INVENTORY.md). That's not allowed. If a kind of work doesn't fit the framework, the framework needs an explicit slot for it before that work begins.
+
+### 4.11 A deviation is written down or it doesn't happen
+
+§4 offers two paths when a principle blocks you: stop, or amend the principle. Both are correct and both are heavy, which is why in practice a third thing happened instead — the deviation just occurred, unremarked, and the reader six weeks later could not tell a considered exception from a lapse. `OUT_OF_SCOPE.md` does not cover this: it captures *drift awaiting triage*, and a deliberate exception is neither drifting nor awaiting anything.
+
+So: a step that must deviate from one of these principles records it in its `AUDIT_PRE.md` `Principle Deviations` table — the principle, why this step needs it, and the simpler alternative that was rejected and why. Three consequences follow:
+
+- **The table is the authorization.** No row, no deviation. Discovering the deviation at Phase 7 instead means it was unauthorized, which is a `contradicts` finding against this section, not a footnote.
+- **It is bounded to the step.** A deviation does not survive into the next step by precedent. If it needs to persist, it is no longer a deviation — it is an amendment, and it goes through §4.10 and DECISIONS.
+- **It does not dilute the principle.** Reinterpreting a principle so the work no longer violates it is the failure mode this section is aimed at. Write the violation down plainly and justify it; do not redefine the gate to fit through it.
+
+An empty table is the normal case, and it stays in the doc as evidence the question was asked.
 
 ---
 
