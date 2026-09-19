@@ -1,6 +1,12 @@
 # SCOPE — protocol plan
 
-**Status:** active
+**Status:** idle
+**Closed at:** 2026-09-19 — the Phase 7 window expired 2026-09-10 while the header still read
+`active`. An expired scope contributes nothing to the hook's allow-list, so the stale header
+blocked every write rather than permitting any (the same bookkeeping fault this plan's own
+federation sibling recorded on 2026-08-24). Returned to `idle` so the file states reality and
+one-scope-per-session discipline holds; the `embedder-prefetch-honesty-2026-09-08` block is
+marked `closed` — it shipped in c94eca4 / PR #11. No code claim is changed by this edit.
 **Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
 NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
 operator flips), server users block rendered from the identity registry into an included
@@ -28,7 +34,7 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 **Set at:** 2026-09-06T00:00:00Z
 **Expires:** 2026-09-10T00:00:00Z
 
-```files embedder-prefetch-honesty-2026-09-08
+```files embedder-prefetch-honesty-2026-09-08 closed
 scripts/install/llm-setup.sh
 test/install-modules.test.mjs
 memory-plan/plans/protocol/SCOPE.md

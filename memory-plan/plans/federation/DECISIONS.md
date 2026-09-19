@@ -589,3 +589,58 @@ node id (`mesh.health.<node_id>`, `mesh.agent.<node_id>.>` with per-user publish
 that subject refactor is the follow-up, not this phase. Runtime evidence of the flip on the live
 fleet is the operator's step (MASTER_PLAN §5).
 
+## D18 — Pipeline mode is SPECIFIED: three counted terminators replace the three ways circling could hang (2026-09-19, operator "go")
+
+**Decision.** D16 defined the redesign door as "pipeline mode" in one sentence; this entry binds
+that sentence to a mechanical protocol. `PIPELINE_MODE_SPEC.md` specifies a fixed-pass pipeline —
+draft → reviews ingested → revision → ships unconditionally — governed by one invariant:
+
+> **No participant's output is a precondition for the session reaching a terminal state.**
+
+Termination is by three counted conditions and nothing else: **passes exhausted** (primary, fixed
+at session creation), **per-pass deadline** (the pass closes with whatever landed and the pipeline
+advances), and **cost ceiling** (`max_cost_usd`). Nothing terminal depends on a participant's
+opinion. A `degraded` ledger records every hole so downstream evidence programs can correlate
+score against degradation — D16's "quality is judged downstream by use, never by polling the
+participants", made observable.
+
+**Why these three removals specifically.** The audit of `lib/mesh-collab.js` for this spec found
+that circling carries **three independent hang paths**, not one, which is why the chronic gate
+survived every prior smoke fix:
+1. `isCirclingStepComplete()` advances only when `stepReflections.length >= activeNodes.length` —
+   one silent node that was never marked `dead` stalls the step forever.
+2. `checkConvergence()` with the default `CONVERGENCE.UNANIMOUS` requires every reflection to vote
+   `converged`, and **any** parse failure makes unanimity unreachable.
+3. `advanceCirclingStep()` raises `needsGate` on finalization entry at `automation_tier >= 2`
+   (and on sub-round advance at tier 3) — a human gate inside the flow, which RUN_RULES clause 2
+   makes an immediate forfeit.
+
+D15 recorded the symptom (3 of 5 pairs never delivered, "its own finalization vote failed to
+converge"). Removing only the vote would have left paths 1 and 3 live. All three go.
+
+**Prior art, explicitly not evidence.** MetaGPT (`FoundationAgents/MetaGPT`, MIT, ~70.5k stars,
+default-branch tip 2026-01-21) contains **no agreement machinery in its coordination core** — a
+`vote|quorum|consensus|unanimit` grep returns only its Werewolf *game* simulation, one
+self-consistency retry, and an optimizer prompt. Its `team.py` loop terminates on round count,
+idleness and budget, then archives unconditionally; its `cost_manager.py` makes spend a
+first-class abort. That the most-forked multi-agent framework in existence has independently
+converged on D16's shape is corroboration that the shape is buildable and load-bearing. It is
+**not** evidence under D3: prior art says nothing about this grappe's output quality, and D15
+forbids any iteration from reusing prior artifacts as evidence. Python 3.9–<3.12 against our Node
+runtime, and a default branch cold since January, make it a reference and never a dependency.
+
+**Consequences.** (1) Steps **2.7** (implement) and **2.8** (benchmark) enter INVENTORY as open
+rows with §11 contracts; Block 2's ROADMAP exit criterion, which still read "a converged
+finalization vote", is corrected — D16 killed that criterion and the block cannot close on it.
+(2) `audits/step28_pipeline-benchmark/RUN_RULES.md` is preregistered in DRAFT: D14 clauses 1 and
+3–6 carry over in force, clause 2 (human gate) becomes a **vestigial tripwire** whose firing is a
+spec violation that halts the run, and a new **clause 7** rules that designed degradation is
+neither a forfeit nor rerun-eligible — closing the loophole where an arm buys retries with its own
+unreliability. (3) The D3 bar is untouched, and passing it remains the **sole** condition for
+deleting `BLOCKED.md`. (4) `BLOCKED.md` STAYS: a design document is not a benchmark pass, and this
+entry closes no step and carries no VERSION. (5) Block 4's 3/5 quorum steps (4.1, 4.3) are now
+formally incoherent under D16 and must be re-derived before anything in them is built; they are
+flagged, not fixed, here. (6) Three choices are left explicitly to the operator at 2.8 lock time —
+slate (fresh vs. re-frozen), whether cost becomes a bar at all, and the pass count — because
+inventing any of them after the fact is the retroactive bar-setting D3 forbids.
+

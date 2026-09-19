@@ -129,10 +129,25 @@ execution, mesh-bridge kanban; 93 circling-family tests) and DORMANT (mesh units
   convergence 14.1, parse-retry 14.2) is proven on the mock/qwen **scaffold** (2.1–2.3). **2.4 makes
   the grappe worker the node's full OpenClaw** (advanced-LLM frontend + local harness, D11-guarded)
   and runs the first real adversarial session through it.
-- **Exit criterion:** one observed real adversarial session run by **OpenClaw advanced-LLM workers**
-  (not the scaffold) — artifacts in KV, kanban trail, barriers held, a converged finalization vote.
+- **Exit criterion (SUPERSEDED 2026-09-19, D18):** ~~one observed real adversarial session run by
+  **OpenClaw advanced-LLM workers** (not the scaffold) — artifacts in KV, kanban trail, barriers
+  held, a converged finalization vote.~~ 2.4 met this and the block still cannot close on it: D16
+  killed the converged finalization vote, and 2.6 then falsified the premise it was meant to
+  evidence. A criterion that requires the vote is unreachable by construction under the current law.
   (Paper gap 14.3 reviewer dual-output → deferred [D].)
-- **Unblocks:** Block 3 (modes B/C reuse the proven machinery + the OpenClaw-worker contract), Block 4.
+- **Exit criterion (current):** pipeline mode — the deterministic fixed-pass protocol of
+  `PIPELINE_MODE_SPEC.md` (D16, specified in D18) — is implemented (2.7) and **passes the new
+  preregistered five-task benchmark** (2.8) against the unchanged D3 bar. Nothing less closes this
+  block: 2.6's verdict means the block's whole premise is unevidenced until that benchmark lands.
+- **Why the block reopened:** 2.6 closed PREMISE NOT EVIDENCED (D15) on **reliability** — 3 of 5
+  pairs produced no grappe artifact, each time at the grappe's own finalization gate — while both
+  delivered pairs **won** their blind comparisons (21-18, 20-15) at ~11× cost. The collaboration
+  concept survived; the unanimity-gated finalization protocol did not. 2.7/2.8 replace that
+  protocol and re-test the premise; they do not re-litigate the verdict.
+- **Unblocks:** Block 3 (modes B/C reuse the proven machinery + the OpenClaw-worker contract), Block 4
+  — both now inheriting D16's deterministic-dataflow law, which means **Block 4's 3/5 quorum design
+  must be re-derived before any of it is built** (D16 consequence 4; steps 4.1/4.3 still name quorum
+  approval and are wrong as written).
 
 ## Block 3 — Worker modes B + C: cooperative, collaborative
 
