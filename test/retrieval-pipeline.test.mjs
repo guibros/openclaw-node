@@ -68,7 +68,8 @@ function createExtractionDb() {
       source_type TEXT DEFAULT 'local',
       source_node TEXT,
       source_event_id TEXT,
-      private INTEGER DEFAULT 1
+      private INTEGER DEFAULT 1,
+      superseded_by INTEGER
     );
     CREATE VIRTUAL TABLE decisions_fts USING fts5(
       decision, rationale, content='decisions', content_rowid='id'

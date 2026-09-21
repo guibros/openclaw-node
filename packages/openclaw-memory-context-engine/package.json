@@ -1,0 +1,27 @@
+{
+  "name": "@openclaw-node/memory-context-engine",
+  "version": "0.1.0",
+  "description": "OpenClaw context-engine plugin: injects the openclaw-node memory daemon's recall block (loopback :7893) into every gateway turn, without the companion-bridge proxy.",
+  "type": "module",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "context-engine.js",
+    "memory-client.js",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "keywords": ["openclaw", "plugin", "context-engine", "memory", "openclaw-node"],
+  "engines": {
+    "node": ">=22",
+    "openclaw": ">=2026.5.27"
+  },
+  "openclaw": {
+    "extensions": ["./index.js"],
+    "compat": {
+      "pluginApi": ">=2026.5.27",
+      "minGatewayVersion": "2026.5.27"
+    }
+  },
+  "license": "MIT"
+}

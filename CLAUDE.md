@@ -66,11 +66,25 @@ Fresh runtime probes: R=3 NATS quorum, memory daemon, Mission Control, mesh-task
 node-watch, and workplan viewer are live. `mesh-agent`, gateway, and companion bridge were down at the
 probe. Federation watch = 2 WORKING / 1 OFF / 1 UNKNOWN. This is substrate, not worker-cluster proof.
 
-Queued runtime repair is specific: consolidation has one hard-cap failure then 359 false-busy skips
-because `/api/ps` reports a loaded model, not active inference; NATS auth separately blocks event
-emission; scheduler heartbeat exits 22/HTTP 401; dotted hostnames break local stream names; the nested
-`lib/mcp-knowledge` tree loads Sharp 0.34.5 beside root Sharp 0.35.3 and has unresolved audit findings;
-watcher freshness/running-state gaps remain. Do not claim the August daily note proved consolidation.
+Queued runtime repair is specific (reconciled 2026-09-21 against `plans/protocol/OUT_OF_SCOPE.md`):
+the scheduler's false-busy idle gate, the scheduler/local-event NATS auth failure, and the dotted
+local stream names were all CLOSED at protocol v4.1 (2026-08-02) — do not re-open them. Still open:
+the first queue-authorized consolidation cycle exceeded the 300000 ms hard cap, so daily digest /
+vault cadence is not proven restored (profile the expensive stage; do not merely raise the cap);
+the scheduler heartbeat exit 22 / HTTP 401; the nested `lib/mcp-knowledge` tree loads Sharp 0.34.5
+beside root Sharp 0.35.3 and has unresolved audit findings; watcher freshness/running-state gaps.
+Do not claim the August daily note proved consolidation.
+
+**2026-09-21 — plan `openviking-adopt` (PR pending):** after a review of `volcengine/OpenViking`,
+four of its ideas landed natively (D1 there: ideas, not code — its core is AGPL-3.0): `path_prefix`
+on knowledge search; per-directory L0 abstract / L1 overview summaries (`directory_summaries`,
+knowledge schema v2, tools `knowledge_tree` / `directory_overview` / `search_directories`); typed
+memory merge with read-before-write extraction (`lib/memory-types.mjs`, extraction-store schema v6:
+`entity_aliases`, `decisions.superseded_by`, the extractor is shown KNOWN MEMORIES and answers with
+`ref` / `aliases` / `supersedes`); and an OpenClaw context-engine plugin
+(`packages/openclaw-memory-context-engine`) that injects the :7893 block in-process instead of via
+companion-bridge. Code + container tests only: every INVENTORY row there stays `[ ]` until its
+`runtime:` Verify is observed on the node (its D2).
 
 **Scope after v3.1:** no plan scope is active. The next operator-approved scope is the bounded
 runtime-repair batch described above; federation execution remains locked until that repair lands.
