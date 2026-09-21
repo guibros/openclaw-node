@@ -38,3 +38,16 @@ package-lock.json
   closed blocks, so finished work re-locks while the record stays. One open block per
   in-flight batch.
 - **Override:** `**Override:** true` bypasses the hook (operator emergency escape).
+
+**Hotfix 2026-09-21 (CI, PR #26):** the repo's own `npm audit --audit-level=high` gate went red on
+both trees for sharp advisory GHSA-rgj7-g3m4-5g8c (libheif; fixed in sharp 0.35.4), published after
+main's last green run; both lockfiles pinned 0.35.3 and this batch did not touch them. Ported fix:
+root override `sharp ^0.35.4` + lockfile refresh, Mission Control lockfile `npm update sharp`.
+No source change. Files below are in scope for that one commit only.
+
+```files 2026-09-21-sharp-audit-hotfix
+package.json
+package-lock.json
+mission-control/package.json
+mission-control/package-lock.json
+```
