@@ -9,16 +9,18 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { createSession, COLLAB_MODE, resolvePreferredMode, PREFERRED_MODE_MAP } = require('../lib/mesh-collab.js');
 
-test('resolvePreferredMode maps the three human-facing modes to wire modes', () => {
+test('resolvePreferredMode maps the four human-facing modes to wire modes', () => {
   assert.equal(resolvePreferredMode('adversarial'), COLLAB_MODE.CIRCLING_STRATEGY);
   assert.equal(resolvePreferredMode('cooperative'), COLLAB_MODE.COOPERATIVE);
   assert.equal(resolvePreferredMode('collaborative'), COLLAB_MODE.COLLABORATIVE);
+  assert.equal(resolvePreferredMode('pipeline'), COLLAB_MODE.PIPELINE); // step 2.7 (D16/D18)
   assert.equal(resolvePreferredMode('telepathy'), null);
   assert.equal(resolvePreferredMode(undefined), null);
 });
 
-test('PREFERRED_MODE_MAP matches the §3.4 decision-table rows (3 shapes)', () => {
-  assert.deepEqual(Object.keys(PREFERRED_MODE_MAP).sort(), ['adversarial', 'collaborative', 'cooperative']);
+// Pinned to the §3.4 table: a new row lands here AND in docs/FEDERATION_SPEC.md, or not at all.
+test('PREFERRED_MODE_MAP matches the §3.4 decision-table rows (4 shapes)', () => {
+  assert.deepEqual(Object.keys(PREFERRED_MODE_MAP).sort(), ['adversarial', 'collaborative', 'cooperative', 'pipeline']);
 });
 
 test('createSession honors preferred_mode: adversarial → circling protocol', () => {
@@ -40,6 +42,15 @@ test('createSession honors preferred_mode: collaborative → collaborative proto
   assert.equal(s.mode, COLLAB_MODE.COLLABORATIVE);
   assert.ok(s.collaborative);
   assert.equal(s.cooperative, null);
+});
+
+test('createSession honors preferred_mode: pipeline → fixed-pass protocol, no convergence block (2.7)', () => {
+  const s = createSession('t-3b', { preferred_mode: 'pipeline' });
+  assert.equal(s.mode, COLLAB_MODE.PIPELINE);
+  assert.ok(s.pipeline, 'pipeline builds the pipeline substructure');
+  assert.equal(s.convergence, null, 'D16: a pipeline session has no agreement criterion');
+  assert.equal(s.circling, null);
+  assert.equal(s.min_nodes, 3, 'same 1 worker + 2 reviewers topology as circling');
 });
 
 test('explicit wire mode wins over preferred_mode', () => {

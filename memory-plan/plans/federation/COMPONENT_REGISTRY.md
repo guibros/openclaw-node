@@ -42,6 +42,13 @@ gate. Probed 2026-08-02 EDT; implementation history lives in audits and DECISION
 | **Status** | EMPTY OR UNREADABLE — no live grappe can be observed; historical wg-alpha evidence does not describe the current bus |
 | **Verified** | 2026-08-02 — federation watcher `fed.grappe.members=UNKNOWN`; `fed.session.liveness=OFF` because no active session |
 
+### Pipeline mode — `mode: 'pipeline'` in lib/mesh-collab.js + bin/mesh-task-daemon.js + bin/mesh-agent.js (step 2.7, D16/D18)
+
+| | |
+|---|---|
+| **Status** | IMPLEMENTED, PROVEN ON A SCRATCH BUS, **NOT DEPLOYED** — code on this branch; runtime tree `~/.openclaw/workspace/` and the live fleet untouched (VERSION `v2.7-mid`; Phase 9 close is the operator's) |
+| **Verified** | 2026-09-21 — `test/pipeline-runtime.test.mjs`: real `nats-server` 2.12.6 + real `mesh-task-daemon.js` process in a Linux container; three simulated members; reviewer B silent throughout; session `completed` / `completed_degraded`, ledger `[2, rt-rb, timeout]`, final artifact ≥400 chars, parent task `completed`, no `converged` / `circling_gate` event. This is mechanism evidence of the 2.1–2.3 class, not fleet evidence |
+
 ### Grappe CLI + signing implementation
 
 | | |

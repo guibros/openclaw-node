@@ -1273,6 +1273,94 @@ function parseCirclingReflection(output) {
   });
 }
 
+/**
+ * Build a prompt for a pipeline pass (step 2.7, D16/D18). Same delimiters and parser as
+ * circling; no vote is asked for — a review is findings, not a verdict, and the artifact
+ * ships when the last pass closes whatever anyone thinks of it.
+ */
+function buildPipelinePrompt(task, data) {
+  const { pipeline_pass, pipeline_passes, pipeline_role, pipeline_artifact_type, directed_input } = data;
+  const isWorker = pipeline_role === 'worker';
+  const isLast = pipeline_pass === pipeline_passes;
+  log(`Building pipeline prompt: pass=${pipeline_pass}/${pipeline_passes} role=${pipeline_role}`);
+  const parts = [];
+
+  parts.push(`# Task: ${task.title}`);
+  parts.push('');
+  parts.push(`## Pipeline pass ${pipeline_pass} of ${pipeline_passes}`);
+  parts.push('');
+  if (isWorker && pipeline_pass === 1) {
+    parts.push('## Your Role: WORKER — Draft');
+    parts.push('');
+    parts.push('You OWN the deliverable. Produce the complete work artifact for the task below.');
+    if (!isLast) {
+      parts.push('Two independent reviewers will read it next; you will then revise once.');
+      parts.push('Make it complete and self-contained now: this draft SHIPS as the result if the revision does not land.');
+    } else {
+      parts.push('This single pass is the whole pipeline: your output SHIPS as-is when you submit it.');
+    }
+    parts.push('');
+  } else if (isWorker) {
+    parts.push(isLast ? '## Your Role: WORKER — Final revision' : '## Your Role: WORKER — Revision');
+    parts.push('');
+    parts.push('Below are your current draft and the reviews that arrived. A review may be marked');
+    parts.push('UNAVAILABLE — proceed with what you have; do not wait for it and do not ask for it.');
+    parts.push('For each finding, adopt it, adapt it, or reject it with a reason (a short "Review');
+    parts.push('disposition" section at the end of the artifact is enough).');
+    parts.push(`Then produce the ${isLast ? 'FINAL' : 'revised'} complete artifact. It must stand alone: the reader will`);
+    parts.push('not see the draft or the reviews.');
+    if (isLast) parts.push('This is the final pass. Your output SHIPS as-is when you submit it.');
+    parts.push('');
+  } else {
+    parts.push('## Your Role: REVIEWER');
+    parts.push('');
+    parts.push('Review the work artifact below. Produce concrete, actionable findings. For each finding:');
+    parts.push('- What you found (the issue or observation)');
+    parts.push('- Where in the artifact (location/section)');
+    parts.push('- Why it matters (impact)');
+    parts.push('- What you recommend (suggested fix or improvement)');
+    parts.push('');
+    parts.push('This is a REVIEW, not a verdict: there is no approve/reject and no vote. Your findings are');
+    parts.push("input to the worker's revision, and the artifact ships regardless of them.");
+    parts.push('');
+  }
+
+  // Same harness as circling (2.4 / D11): rules, role, long-term memory, strategy.
+  injectRules(parts, task.scope, taskActivationText(task));
+  injectRole(parts, task.role);
+  injectMemory(parts, task);
+  injectHyperagentStrategy(parts, task);
+
+  if (directed_input) {
+    parts.push('---');
+    parts.push('');
+    parts.push(directed_input);
+    parts.push('');
+  }
+
+  parts.push('---');
+  parts.push('');
+  parts.push('## Output Format');
+  parts.push('');
+  parts.push('Produce your artifact above, then end with:');
+  parts.push('');
+  parts.push('===CIRCLING_REFLECTION===');
+  parts.push(`type: ${pipeline_artifact_type}`);
+  parts.push('summary: [1-2 sentences about what you did]');
+  parts.push('confidence: [0.0 to 1.0]');
+  parts.push('===END_REFLECTION===');
+  parts.push('');
+  parts.push('Rules:');
+  parts.push('- Begin your output with the artifact content DIRECTLY. No preamble, explanation, or commentary before it: everything before the reflection block is treated as the artifact.');
+  if (pipeline_artifact_type !== 'reviewArtifact') {
+    parts.push('- An artifact under 400 characters is treated as preamble-only and you will be asked again.');
+  }
+  parts.push('- There is NO vote line in this protocol. Do not add one.');
+  parts.push('- The reflection block MUST be the last thing in your response.');
+
+  return parts.join('\n');
+}
+
 // ── Collaborative Task Execution ──────────────────────
 
 /**
@@ -1428,7 +1516,8 @@ async function executeCollabTask(task) {
 
       const roundData = JSON.parse(sc.decode(roundMsg.data));
       const { round_number, shared_intel, directed_input, my_scope, my_role, mode, current_turn,
-              round_role, circling_phase, circling_step, circling_subround } = roundData;
+              round_role, circling_phase, circling_step, circling_subround,
+              pipeline_pass, pipeline_passes, pipeline_role, pipeline_artifact_type } = roundData;
 
       // Sequential mode safety guard: skip if it's not our turn.
       if (mode === 'sequential' && current_turn && current_turn !== NODE_ID) {
@@ -1437,14 +1526,17 @@ async function executeCollabTask(task) {
       }
 
       const isCircling = mode === 'circling_strategy';
+      const isPipeline = mode === 'pipeline';
       const stepLabel = isCircling
         ? `${circling_phase === 'init' ? 'Init' : circling_phase === 'finalization' ? 'Final' : `SR${circling_subround}/S${circling_step}`}`
+        : isPipeline ? `P${pipeline_pass}/${pipeline_passes}(${pipeline_role})`
         : `R${round_number}`;
       log(`COLLAB ${stepLabel}: Starting work (role: ${my_role}, scope: ${JSON.stringify(my_scope)})`);
 
-      // Build prompt — circling uses directed inputs, other modes use shared intel
+      // Build prompt — circling and pipeline use directed inputs, other modes use shared intel
       const prompt = isCircling
         ? buildCirclingPrompt(task, roundData)
+        : isPipeline ? buildPipelinePrompt(task, roundData)
         : buildCollabPrompt(task, round_number, shared_intel, my_scope, my_role, round_role);
 
       if (DRY_RUN) {
@@ -1468,6 +1560,33 @@ async function executeCollabTask(task) {
           vote: llmResult.exitCode === 0 ? 'converged' : 'continue',
           parse_failed: false,
         };
+        // Pipeline choreography with the shell provider (MESH_ALLOW_MOCK_WORKERS): stdout IS the artifact.
+        if (isPipeline && output.trim()) circlingArtifacts = [{ type: pipeline_artifact_type, content: output.trim() }];
+      } else if (isPipeline) {
+        // Pipeline (2.7): circling's delimiters and parser, no vote asked for or read. Empty output
+        // is a parse failure (the daemon retries, bounded); a work/final artifact under 400 chars is
+        // preamble-only and also one (D-m). A review has no floor — a short review is still a review.
+        const pipeResult = parseCirclingReflection(output);
+        const firstUsable = (pipeResult.circling_artifacts || []).find(a => String((a && a.content) ?? '').trim());
+        let failReason = null;
+        if (!pipeResult.parse_failed && !firstUsable) failReason = 'empty artifact content after output sanitization';
+        if (!failReason && !pipeResult.parse_failed && pipeline_artifact_type !== 'reviewArtifact'
+            && String(firstUsable.content).trim().length < 400) {
+          failReason = `degenerate ${pipeline_artifact_type} (< 400 chars, preamble-only)`;
+        }
+        if (failReason) {
+          pipeResult.parse_failed = true;
+          pipeResult.summary = failReason;
+          pipeResult.circling_artifacts = [];
+        }
+        reflection = {
+          summary: pipeResult.summary,
+          learnings: '',
+          confidence: pipeResult.confidence,
+          vote: 'continue',
+          parse_failed: pipeResult.parse_failed,
+        };
+        circlingArtifacts = pipeResult.circling_artifacts;
       } else if (isCircling) {
         const circResult = parseCirclingReflection(output);
         // A converged vote must have something to vote on: every circling step
@@ -1554,9 +1673,11 @@ async function executeCollabTask(task) {
           confidence: reflection.confidence,
           vote: reflection.vote,
           parse_failed: reflection.parse_failed,
-          // Circling extensions
+          // Circling extensions (the typed-artifact list is shared with pipeline — D-e)
           circling_step: isCircling ? circling_step : null,
           circling_artifacts: circlingArtifacts,
+          // Pipeline (2.7): which pass this reflection answers
+          pipeline_pass: isPipeline ? pipeline_pass : null,
           // D14 cost record: the daemon accumulates these into
           // session.circling.usage_total.
           usage: roundSessionInfo?.cost ? {

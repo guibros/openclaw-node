@@ -5,7 +5,10 @@
  * Runs the same task through two arms and packages the outputs for BLIND
  * operator scoring (audits/step26_premise-benchmark/AUDIT_PRE.md §1):
  *   solo   — one harness-loaded OpenClaw worker, no collaboration
- *   grappe — circling_strategy, max_subrounds:1, 3 workers
+ *   grappe — pipeline (step 2.7, D16): draft → review → revise, 3 workers, ships
+ *            unconditionally. FED_GRAPPE_MODE=circling_strategy reproduces the D14 arm
+ *            (circling_strategy, max_subrounds:1). FED_PIPELINE_PASSES /
+ *            FED_PIPELINE_PASS_BUDGET_MS / FED_PIPELINE_MAX_COST_USD are RUN_RULES lock knobs.
  *
  * Usage:
  *   node bin/fed-benchmark.mjs submit <task-id> <arm> <task-file.md>
@@ -30,6 +33,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { connect, StringCodec } = require('../node_modules/nats');
 const { natsConnectOpts } = require('../lib/nats-resolve');
+const { pipelineTerminalArtifact } = require('../lib/mesh-collab');
 
 const sc = StringCodec();
 const BENCH_DIR = path.join(process.cwd(), 'benchmark');
@@ -68,6 +72,19 @@ async function bus() {
   return connect({ ...natsConnectOpts(), servers: NATS_URL, timeout: 10000 });
 }
 
+// The grappe arm under test. Pipeline is the D16 forward design (step 2.7); the D14 circling
+// arm stays reproducible behind FED_GRAPPE_MODE=circling_strategy so run 2 can be re-run
+// byte-for-byte. The pipeline knobs are what step-28 RUN_RULES §0 locks.
+export function grappeCollabSpec(env = process.env) {
+  if (env.FED_GRAPPE_MODE === 'circling_strategy') {
+    return { mode: 'circling_strategy', max_subrounds: 1, automation_tier: 1 };
+  }
+  const spec = { mode: 'pipeline', passes: parseInt(env.FED_PIPELINE_PASSES, 10) || 3 };
+  if (env.FED_PIPELINE_PASS_BUDGET_MS) spec.pass_budget_ms = parseInt(env.FED_PIPELINE_PASS_BUDGET_MS, 10);
+  if (env.FED_PIPELINE_MAX_COST_USD) spec.max_cost_usd = parseFloat(env.FED_PIPELINE_MAX_COST_USD);
+  return spec;
+}
+
 async function submit(taskId, arm, file) {
   const raw = fs.readFileSync(file, 'utf8').trim().split('\n');
   const title = raw[0].trim();
@@ -87,7 +104,8 @@ async function submit(taskId, arm, file) {
     llm_provider: 'claude',
   };
   if (arm === 'grappe') {
-    payload.collaboration = { mode: 'circling_strategy', max_subrounds: 1, automation_tier: 1 };
+    payload.collaboration = grappeCollabSpec();
+    console.log(`grappe arm mode: ${payload.collaboration.mode}`);
   } else if (arm !== 'solo') {
     throw new Error(`arm must be solo|grappe, got ${arm}`);
   }
@@ -126,7 +144,19 @@ function artText(v) {
   return String(typeof v === 'string' ? v : v?.content ?? '').trim();
 }
 
-function grappeFinalArtifact(session) {
+// Pipeline (2.7, SPEC §6): the final artifact, or a degraded delivery shipping the draft — both
+// are contract-compliant (RUN_RULES clause 7). The only non-delivery is no artifact at all.
+function pipelineFinalArtifact(session) {
+  const terminal = pipelineTerminalArtifact(session);
+  if (!terminal) throw new Error(`pipeline session shipped no artifact (outcome ${session?.pipeline?.outcome ?? 'unknown'}); pair NOT collectable`);
+  const content = artText(terminal.content);
+  if (content.length < 400) throw new Error(`pipeline ${terminal.type} degenerate (${content.length} chars, preamble-only); pair NOT collectable`);
+  const ledger = session.pipeline.degraded || [];
+  return { key: `pipeline_${terminal.type}`, content, degraded: terminal.degraded || ledger.length > 0, degraded_ledger: ledger };
+}
+
+export function grappeFinalArtifact(session) {
+  if (session?.mode === 'pipeline') return pipelineFinalArtifact(session);
   const arts = session?.circling?.artifacts || {};
   // D14: the deliverable is the FINALIZATION PAIR — workArtifact +
   // completionDiff at step0 of the highest sub-round. Either member absent
@@ -152,7 +182,9 @@ async function status(taskId) {
   const t = await getTask(nc, taskId).catch(() => null);
   console.log('task:', t?.status ?? 'unknown', '· has-output:', !!soloOutput(t));
   const s = await findSession(nc, taskId);
-  if (s) {
+  if (s && s.pipeline) {
+    console.log('session:', s.status, '· pass:', `${s.pipeline.current_pass}/${s.pipeline.passes}`, '· outcome:', s.pipeline.outcome ?? 'in progress', '· degraded entries:', (s.pipeline.degraded || []).length);
+  } else if (s) {
     console.log('session:', s.status, '· phase:', s.circling?.phase, '· arts:', Object.keys(s.circling?.artifacts || {}).length);
   }
   await nc.close();
@@ -178,7 +210,7 @@ async function collect(name, soloId, grappeId, { repackage = false } = {}) {
     throw new Error(`grappe session ${grappeId}: status '${session?.status ?? 'missing'}' — not terminal (unresolved gate or incomplete run); pair NOT collectable`);
   }
   const grappeArt = grappeFinalArtifact(session);
-  if (!grappeArt) throw new Error(`grappe task ${grappeId}: no final workArtifact (phase ${session?.circling?.phase})`);
+  if (!grappeArt) throw new Error(`grappe task ${grappeId}: no final artifact (${session?.pipeline ? `pipeline outcome ${session.pipeline.outcome}` : `phase ${session?.circling?.phase}`})`);
 
   const dir = path.join(PAIRS_ROOT, name);
   const sealedDir = path.join(SEALED_ROOT, name);
@@ -217,6 +249,11 @@ async function collect(name, soloId, grappeId, { repackage = false } = {}) {
   fs.writeFileSync(path.join(sealedDir, 'meta.json'), JSON.stringify({
     name, soloId, grappeId,
     grappeArtifactKey: grappeArt.key,
+    grappeMode: session.mode,
+    // Pipeline (RUN_RULES clause 7 / §5): a degraded delivery is scored normally; the ledger
+    // rides the sealed meta so score can be correlated with degradation after unsealing.
+    grappeDegraded: grappeArt.degraded ?? false,
+    grappeDegradedLedger: grappeArt.degraded_ledger ?? null,
     soloChars: A.arm === 'solo' ? A.text.length : B.text.length,
     grappeChars: A.arm === 'grappe' ? A.text.length : B.text.length,
     // Cost record (D14: quality gain is weighed against cost). Wall-clock is
@@ -228,13 +265,15 @@ async function collect(name, soloId, grappeId, { repackage = false } = {}) {
       solo_wall_ms: wallMs(soloTask?.started_at ?? soloTask?.created_at, soloTask?.completed_at),
       grappe_wall_ms: wallMs(session?.created_at, session?.updated_at ?? session?.completed_at),
       solo_attempts: Array.isArray(soloTask?.attempts) ? soloTask.attempts.length : null,
-      grappe_artifact_count: Object.keys(session?.circling?.artifacts || {}).length,
+      grappe_artifact_count: session?.pipeline
+        ? [session.pipeline.artifacts?.workArtifact, session.pipeline.artifacts?.finalArtifact, ...Object.values(session.pipeline.artifacts?.reviewArtifacts || {})].filter(Boolean).length
+        : Object.keys(session?.circling?.artifacts || {}).length,
       solo_usage: soloTask?.result?.cost ? {
         input_tokens: soloTask.result.cost.inputTokens ?? null,
         output_tokens: soloTask.result.cost.outputTokens ?? null,
         cost_usd: soloTask.result.cost.estimatedCostUsd ?? null,
       } : null,
-      grappe_usage: session?.circling?.usage_total ?? null,
+      grappe_usage: session?.pipeline?.usage_total ?? session?.circling?.usage_total ?? null,
     },
     collectedAt: new Date().toISOString(),
   }, null, 2));

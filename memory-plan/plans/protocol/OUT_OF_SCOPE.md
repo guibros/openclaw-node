@@ -1,4 +1,6 @@
-# OUT_OF_SCOPE — protocol plan
+# OUT_OF_SCOPE
+
+- 2026-09-21 · **`npm ci` flips `lib/mcp-knowledge/server.mjs` from 644 to 755, dirtying the tree after every fresh install** · lib/mcp-knowledge/package.json declares it under `bin`; npm makes bin targets executable at install, git tracks the mode, so a clean clone + `npm ci` shows `M lib/mcp-knowledge/server.mjs` (mode-only, content and mtime untouched — observed in a fresh remote container at federation step 2.7, and caught only because the Phase-8.5 gate ③ enumeration flagged a file no scope covered). Why it matters: PROTOCOL §3 pre-flight requires a clean tree and `plan-tick.sh` writes a stall-BLOCKED on a dirty tree at a clean VERSION, so any tick or session that begins with `npm ci` starts blocked, and an agent that does not notice will either commit a spurious mode change or work around the guard. Either the tracked mode should match what npm produces, or the file should not be a bin target — that choice is the owner's. · **LOW-MEDIUM** (governance friction, no runtime effect) · whoever next scopes lib/mcp-knowledge or the tick guards. — protocol plan
 
 Agnostic-spec capture of things observed while working this plan but not acted on (MASTER_PLAN §4.3). WHAT + WHY, never HOW. Reviewed at scope-closing checkpoints: promote, escalate, archive, or defer.
 

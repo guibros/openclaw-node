@@ -36,7 +36,7 @@ const { createTracer, setNatsConnection } = require('../lib/tracer');
 const tracer = createTracer('mesh-task-daemon');
 const { createTask, TaskStore, TASK_STATUS, DEFAULT_MAX_REJECTIONS, DEFAULT_LEASE_MS, KV_BUCKET } = require('../lib/mesh-tasks');
 const { validateMetricCommand } = require('../lib/exec-safety');
-const { createSession, CollabStore, COLLAB_STATUS, COLLAB_KV_BUCKET, COLLAB_MODE, isModeImplemented } = require('../lib/mesh-collab');
+const { createSession, CollabStore, COLLAB_STATUS, COLLAB_KV_BUCKET, COLLAB_MODE, isModeImplemented, PIPELINE_DEGRADATION } = require('../lib/mesh-collab');
 const { createPlan, autoRoutePlan, PlanStore, PLAN_STATUS, SUBTASK_STATUS, PLANS_KV_BUCKET } = require('../lib/mesh-plans');
 const { findRole, findRoleByScope, validateRequiredOutputs, checkForbiddenPatterns } = require('../lib/role-loader');
 const os = require('os');
@@ -64,6 +64,10 @@ let nc, store, collabStore, planStore;
 // Active step timers for circling sessions — keyed by sessionId.
 // Cleared when the step completes normally; fires degrade logic if step hangs.
 const circlingStepTimers = new Map();
+
+// Pass-deadline timers for pipeline sessions — keyed by sessionId. The deadline is the mode's
+// ONLY liveness mechanism (D16/D18): a pass closes on time whether or not anyone spoke.
+const pipelinePassTimers = new Map();
 
 // ── Logging ─────────────────────────────────────────
 
@@ -785,10 +789,16 @@ async function detectStalls() {
               node_id: task.owner, reason: `Stall detected: no heartbeat for ${silentMin}m`,
             });
 
-            // Re-check if the round is now complete (dead nodes excluded)
-            const updated = await collabStore.get(session.session_id);
-            if (updated && collabStore.isRoundComplete(updated)) {
-              await evaluateRound(session.session_id);
+            if (session.mode === COLLAB_MODE.PIPELINE && session.pipeline) {
+              // Pipeline (2.7): no round barrier to re-check — ledger the loss and close the
+              // pass early only if they were the last one owed.
+              await notePipelineMemberGone(session.session_id, task.owner);
+            } else {
+              // Re-check if the round is now complete (dead nodes excluded)
+              const updated = await collabStore.get(session.session_id);
+              if (updated && collabStore.isRoundComplete(updated)) {
+                await evaluateRound(session.session_id);
+              }
             }
           }
         }
@@ -975,8 +985,12 @@ async function handleCollabLeave(msg) {
   log(`COLLAB LEAVE ${session_id}: ${node_id} (${reason || 'no reason'})`);
   await collabStore.appendAudit(session_id, 'node_left', { node_id, reason: reason || null, remaining_nodes: session.nodes.length });
 
+  if (session.mode === COLLAB_MODE.PIPELINE && session.pipeline) {
+    // Pipeline (D16/D18): a departing member degrades the artifact, never the session — no
+    // member-count abort and no convergence re-check; the pass closes without them.
+    if (session.status === COLLAB_STATUS.ACTIVE) await notePipelineMemberGone(session_id, node_id);
   // If below min_nodes and still active, abort
-  if (session.status === COLLAB_STATUS.ACTIVE && session.nodes.length < session.min_nodes) {
+  } else if (session.status === COLLAB_STATUS.ACTIVE && session.nodes.length < session.min_nodes) {
     await collabStore.markAborted(session_id, `Below min_nodes: ${session.nodes.length} < ${session.min_nodes}`);
     publishCollabEvent('aborted', session);
   } else if (session.status === COLLAB_STATUS.ACTIVE) {
@@ -1082,16 +1096,37 @@ async function handleCollabReflect(msg) {
 
   // D14 cost record: every reflection — accepted, degraded, or about to be
   // retried — carries this round-attempt's real spend. Accumulate before any
-  // early return so retry attempts count too.
+  // early return so retry attempts count too. Each accumulator is a no-op for the
+  // other mode; the pipeline one returns the running total for the T3 ceiling.
+  let pipelineUsage = null;
   if (reflection.usage) {
     await collabStore.addCirclingUsage(session_id, reflection.usage).catch(() => {});
+    pipelineUsage = await collabStore.addPipelineUsage(session_id, reflection.usage).catch(() => null);
   }
 
   // Parse-failure retry (paper §14.2): check before submitReflection so failed attempts
   // do not count toward the circling barrier until the node has used all 3 chances.
   if (reflection.parse_failed) {
     const preSession = await collabStore.get(session_id);
-    if (preSession && preSession.mode === 'circling_strategy' && preSession.circling) {
+    if (preSession && preSession.mode === COLLAB_MODE.PIPELINE && preSession.pipeline) {
+      // Pipeline (2.7, D-c): the same bounded 3-attempt retry; the third failure counts as
+      // the node's submission with a parse_failure ledger entry. A retry is a reliability
+      // aid inside the pass budget, never a gate.
+      const failCount = await collabStore.recordPipelineArtifactFailure(session_id, reflection.node_id);
+      log(`PIPELINE PARSE FAILURE: ${reflection.node_id} in ${session_id} pass ${preSession.pipeline.current_pass} (attempt ${failCount})`);
+      await collabStore.appendAudit(session_id, 'artifact_parse_failed', {
+        node_id: reflection.node_id, pass: preSession.pipeline.current_pass, failure_count: failCount,
+      });
+      if (failCount < 3) {
+        await retryPipelineNodePass(session_id, reflection.node_id, failCount, preSession);
+        respond(msg, { status: 'retried', failure_count: failCount });
+        return;
+      }
+      await collabStore.recordPipelineDegradation(session_id, {
+        pass: preSession.pipeline.current_pass, node_id: reflection.node_id, reason: PIPELINE_DEGRADATION.PARSE_FAILURE,
+      });
+      log(`PIPELINE DEGRADED: ${reflection.node_id} failed ${failCount}x at pass ${preSession.pipeline.current_pass} — counts as submitted, no artifact`);
+    } else if (preSession && preSession.mode === 'circling_strategy' && preSession.circling) {
       const failCount = await collabStore.recordArtifactFailure(session_id, reflection.node_id);
       log(`CIRCLING PARSE FAILURE: ${reflection.node_id} in ${session_id} (attempt ${failCount})`);
       await collabStore.appendAudit(session_id, 'artifact_parse_failed', {
@@ -1122,8 +1157,12 @@ async function handleCollabReflect(msg) {
   });
   publishCollabEvent('reflection_received', session);
 
+  // Pipeline (2.7, D16/D18): store the pass artifact, apply the cost ceiling, close the pass
+  // once every EXPECTED submitter has spoken. Never a barrier over all nodes, never a vote.
+  if (session.mode === COLLAB_MODE.PIPELINE && session.pipeline) {
+    await handlePipelineReflection(session_id, session, reflection, pipelineUsage);
   // Circling Strategy: handle two-step barrier, artifact storage, directed handoffs
-  if (session.mode === 'circling_strategy' && session.circling) {
+  } else if (session.mode === 'circling_strategy' && session.circling) {
     // Store circling artifacts
     if (reflection.circling_artifacts && reflection.circling_artifacts.length > 0) {
       const { current_subround, current_step } = session.circling;
@@ -1578,6 +1617,15 @@ async function notifySequentialTurn(sessionId, nextNodeId) {
  * Evaluate the current round: check convergence, advance or complete.
  */
 async function evaluateRound(sessionId) {
+  // Pipeline (2.7, D16): there is no convergence to evaluate — passes close by count and
+  // deadline in the pipeline functions. This is the structural seam: whatever reaches here
+  // for a pipeline session must not vote. Checked before the claim so the round stays untouched.
+  const modeCheck = await collabStore.get(sessionId);
+  if (modeCheck && modeCheck.mode === COLLAB_MODE.PIPELINE) {
+    log(`PIPELINE: evaluateRound reached for ${sessionId} — ignored (no convergence path in this mode)`);
+    return;
+  }
+
   // Atomic claim (P1 #6): the reflect barrier, the leave handler, and the
   // round-timeout sweep can all reach here for the same round — without this,
   // two callers both integrate/advance (double integrations, double round
@@ -2044,6 +2092,28 @@ async function startRecruitedSession(session_id) {
     await collabStore.put(session);
     log(`COLLABORATIVE ${session.session_id}: ${session.nodes.length} subtasks (partitioned), merger=${session.collaborative.merger_node_id}, work round starting`);
     await startCollabRound(session.session_id);
+  } else if (session.mode === COLLAB_MODE.PIPELINE && session.pipeline) {
+    // Pipeline (2.7): circling's topology (1 worker + 2 reviewers), D16's protocol.
+    const noReviewersYet = session.nodes.every(n => n.role === 'worker');
+    if (noReviewersYet && session.nodes.length >= 3) {
+      session.nodes[0].role = 'worker';
+      session.nodes[1].role = 'reviewer';
+      session.nodes[2].role = 'reviewer';
+      log('PIPELINE: auto-assigned roles (1 worker + 2 reviewers)');
+    }
+    const hasWorker = session.nodes.some(n => n.role === 'worker');
+    const reviewerCount = session.nodes.filter(n => n.role === 'reviewer').length;
+    if (session.nodes.length < 3 || !hasWorker || reviewerCount < 2) {
+      log(`COLLAB RECRUIT FAILED ${session.session_id}: pipeline requires 1 worker + 2 reviewers, got ${session.nodes.length} nodes (worker: ${hasWorker}, reviewers: ${reviewerCount}). Aborting.`);
+      await collabStore.markAborted(session.session_id, `Pipeline requires 1 worker + 2 reviewers; got ${session.nodes.length} nodes`);
+      publishCollabEvent('aborted', await collabStore.get(session.session_id));
+      await store.markReleased(session.task_id, `Pipeline session failed: insufficient role distribution`);
+      return true;
+    }
+    collabStore.assignPipelineRoles(session);
+    await collabStore.put(session);
+    log(`PIPELINE ${session.session_id}: worker=${session.pipeline.worker_node_id} reviewers=${session.pipeline.reviewerA_node_id},${session.pipeline.reviewerB_node_id} passes=${session.pipeline.passes} pass_budget=${session.pipeline.pass_budget_ms}ms`);
+    await startPipelinePass(session.session_id);
   } else if (isModeImplemented(session.mode)) {
     // Legacy protocols (parallel / sequential / review) share startCollabRound.
     await startCollabRound(session.session_id);
@@ -2146,6 +2216,289 @@ async function sweepCollabRoundTimeouts() {
     }
   } catch (err) {
     log(`COLLAB ROUND SWEEP ERROR: ${err.message}`);
+  }
+}
+
+// ── Pipeline mode (step 2.7 · D16/D18) ───────────────
+//
+// The whole protocol is: open a pass → notify only that pass's expected submitters → close
+// the pass when they have all spoken OR when the deadline fires → next pass or complete.
+// Three terminators (passes exhausted · pass deadline · cost ceiling) and nothing else.
+// No function below reads a vote, a sub-round, or a gate.
+
+function pipelineRoundMessage(session, nodeId, directedInput, extra = {}) {
+  const node = session.nodes.find(n => n.node_id === nodeId);
+  return {
+    session_id: session.session_id,
+    task_id: session.task_id,
+    round_number: session.current_round,
+    directed_input: directedInput,
+    shared_intel: '',
+    my_scope: node?.scope,
+    my_role: node?.role,
+    mode: COLLAB_MODE.PIPELINE,
+    pipeline_pass: session.pipeline.current_pass,
+    pipeline_passes: session.pipeline.passes,
+    pipeline_role: collabStore.pipelineRoleOf(session, nodeId),
+    pipeline_artifact_type: collabStore.pipelineArtifactType(session.pipeline.current_pass, session.pipeline.passes),
+    ...extra,
+  };
+}
+
+/** Open the next pass, notify its expected submitters, arm the deadline. */
+async function startPipelinePass(sessionId) {
+  const state = await collabStore.advancePipelinePass(sessionId);
+  if (!state) {
+    log(`PIPELINE ERROR: advancePipelinePass returned null for ${sessionId}`);
+    return;
+  }
+  // A round per pass keeps reflections organised and the membership/dup gates in force.
+  // prune:false — a dead member never shrinks the roster or aborts the session (D-d).
+  const round = await collabStore.startRound(sessionId, { prune: false });
+  if (!round) {
+    log(`PIPELINE ERROR: startRound failed for ${sessionId}`);
+    return;
+  }
+
+  const session = await collabStore.get(sessionId);
+  const parentTask = await store.get(session.task_id);
+  const directedInput = collabStore.compilePipelineInput(session, parentTask?.description || '');
+  const expected = collabStore.pipelineExpectedSubmitters(session);
+  const label = collabStore.pipelinePassLabel(state.pass, state.passes);
+
+  log(`PIPELINE ${sessionId} pass ${state.pass}/${state.passes} (${label}) START — expecting ${expected.join(', ') || 'nobody'}`);
+  await collabStore.appendAudit(sessionId, 'pipeline_pass_started', {
+    pass: state.pass, passes: state.passes, label, expected,
+  });
+  publishCollabEvent('pipeline_pass_started', session);
+
+  // Only this pass's submitters hear about it (D-f); the others learn of completion from
+  // their status heartbeat.
+  let notified = 0;
+  for (const nodeId of expected) {
+    const member = session.nodes.find(n => n.node_id === nodeId);
+    if (!member || member.status === 'dead') continue;
+    debug(`ROUND NOTIFY: session=${sessionId} node=${nodeId} round=${session.current_round} (pipeline pass ${state.pass})`);
+    nc.publish(`mesh.collab.${sessionId}.node.${nodeId}.round`, sc.encode(JSON.stringify(
+      pipelineRoundMessage(session, nodeId, directedInput),
+    )));
+    notified++;
+  }
+
+  clearPipelinePassTimer(sessionId);
+  if (notified === 0) {
+    // Nobody left to wait for — closing now instead of burning a full budget on the known-gone.
+    log(`PIPELINE ${sessionId} pass ${state.pass}: no live expected submitter — closing immediately`);
+    await closePipelinePass(sessionId, { pass: state.pass }, PIPELINE_DEGRADATION.NODE_DEAD);
+    return;
+  }
+  const snapshot = { pass: state.pass };
+  pipelinePassTimers.set(sessionId, setTimeout(() => handlePipelinePassTimeout(sessionId, snapshot), session.pipeline.pass_budget_ms));
+}
+
+/** Re-send this pass's directed input to ONE node after a parse failure (D-c). */
+async function retryPipelineNodePass(sessionId, nodeId, failCount, preSession) {
+  const session = preSession || await collabStore.get(sessionId);
+  if (!session || !session.pipeline) return;
+  const parentTask = await store.get(session.task_id);
+  const directedInput = collabStore.compilePipelineInput(session, parentTask?.description || '');
+  log(`PIPELINE RETRY: ${nodeId} in ${sessionId} pass ${session.pipeline.current_pass} (parse failure ${failCount}/2, attempt ${failCount + 1})`);
+  nc.publish(`mesh.collab.${sessionId}.node.${nodeId}.round`, sc.encode(JSON.stringify(
+    pipelineRoundMessage(session, nodeId, directedInput, { parse_retry: failCount }),
+  )));
+}
+
+/** The reflect handler's pipeline branch: artifact → ceiling → early-exit check. */
+async function handlePipelineReflection(sessionId, session, reflection, usageTotal) {
+  const p = session.pipeline;
+  const pass = p.current_pass;
+  const role = collabStore.pipelineRoleOf(session, reflection.node_id);
+
+  if (!reflection.parse_failed) {
+    const arts = Array.isArray(reflection.circling_artifacts) ? reflection.circling_artifacts : [];
+    const wantType = collabStore.pipelineArtifactType(pass, p.passes);
+    const usable = (a) => a && String(a.content || '').trim();
+    // Positional typing (D-m): prefer the declared type, else the first non-empty artifact —
+    // a mislabelled type: line must not cost a delivery. The mislabel is audited.
+    const pick = arts.find(a => usable(a) && a.type === wantType) || arts.find(usable);
+    if (pick) {
+      if (pick.type !== wantType) {
+        await collabStore.appendAudit(sessionId, 'pipeline_artifact_relabelled', {
+          node_id: reflection.node_id, pass, declared: pick.type, stored_as: wantType,
+        });
+      }
+      await collabStore.storePipelineArtifact(sessionId, role, wantType, pick.content);
+      log(`PIPELINE ARTIFACT: pass ${pass} ${role} ${wantType} stored (${String(pick.content).length} chars)`);
+    } else {
+      // Not flagged as a parse failure, yet nothing usable: it still counts as this member's
+      // submission (no barrier to hold), and the ledger says what happened.
+      await collabStore.recordPipelineDegradation(sessionId, { pass, node_id: reflection.node_id, reason: PIPELINE_DEGRADATION.PARSE_FAILURE });
+      log(`PIPELINE WARNING: ${reflection.node_id} submitted pass ${pass} without a usable artifact — degraded`);
+    }
+  }
+
+  // T3 — cost ceiling. MetaGPT's NoMoneyException shape: the loop stops, the artifact that
+  // exists ships. Closes this pass for whoever has not spoken and completes the session.
+  if (usageTotal && p.max_cost_usd != null && usageTotal.cost_usd >= p.max_cost_usd) {
+    log(`PIPELINE COST CEILING: ${sessionId} $${usageTotal.cost_usd.toFixed(2)} >= $${p.max_cost_usd} at pass ${pass} — closing the pass and completing`);
+    await collabStore.recordPipelineDegradation(sessionId, { pass, node_id: null, reason: PIPELINE_DEGRADATION.COST_CEILING });
+    await closePipelinePass(sessionId, { pass }, PIPELINE_DEGRADATION.NEVER_SUBMITTED, { forceComplete: true });
+    return;
+  }
+
+  const fresh = await collabStore.get(sessionId);
+  if (collabStore.isPipelinePassComplete(fresh)) {
+    clearPipelinePassTimer(sessionId);
+    await advanceOrCompletePipeline(sessionId);
+  }
+}
+
+/**
+ * Close the current pass without waiting: ledger every expected submitter who has not spoken
+ * (with `missingReason`, or node_dead if they are gone), then advance or complete.
+ * Stale snapshots (pass already moved on) and terminal sessions are no-ops.
+ */
+async function closePipelinePass(sessionId, snapshot, missingReason, { forceComplete = false } = {}) {
+  const session = await collabStore.get(sessionId);
+  if (!session || !session.pipeline) return;
+  if (session.status !== COLLAB_STATUS.ACTIVE || session.pipeline.current_pass !== snapshot.pass) return;
+
+  const p = session.pipeline;
+  const round = session.rounds[session.rounds.length - 1];
+  const submitted = new Set((round?.reflections || []).filter(r => r.pipeline_pass === p.current_pass).map(r => r.node_id));
+  const missing = [];
+  for (const id of collabStore.pipelineExpectedSubmitters(session)) {
+    if (submitted.has(id)) continue;
+    const member = session.nodes.find(n => n.node_id === id);
+    const reason = (!member || member.status === 'dead') ? PIPELINE_DEGRADATION.NODE_DEAD : missingReason;
+    await collabStore.recordPipelineDegradation(sessionId, { pass: p.current_pass, node_id: id, reason });
+    missing.push({ node_id: id, reason });
+    log(`PIPELINE PASS ${p.current_pass} CLOSED WITHOUT ${id} (${reason})`);
+  }
+  await collabStore.appendAudit(sessionId, 'pipeline_pass_closed', { pass: p.current_pass, reason: missingReason, missing });
+  await advanceOrCompletePipeline(sessionId, { forceComplete });
+}
+
+async function handlePipelinePassTimeout(sessionId, snapshot) {
+  // clear, not delete: when the timer itself is the caller this is a no-op; when the sweep or
+  // a test invokes it directly, a bare delete would orphan a still-armed timer.
+  clearPipelinePassTimer(sessionId);
+  await closePipelinePass(sessionId, snapshot, PIPELINE_DEGRADATION.TIMEOUT);
+}
+
+/** A member left or was marked dead mid-pass: ledger it; close the pass if only they were owed. */
+async function notePipelineMemberGone(sessionId, nodeId) {
+  const session = await collabStore.get(sessionId);
+  if (!session || !session.pipeline || session.status !== COLLAB_STATUS.ACTIVE || session.pipeline.current_pass === 0) return;
+  const p = session.pipeline;
+  const round = session.rounds[session.rounds.length - 1];
+  const submitted = new Set((round?.reflections || []).filter(r => r.pipeline_pass === p.current_pass).map(r => r.node_id));
+  if (!collabStore.pipelineExpectedSubmitters(session).includes(nodeId) || submitted.has(nodeId)) return;
+
+  await collabStore.recordPipelineDegradation(sessionId, { pass: p.current_pass, node_id: nodeId, reason: PIPELINE_DEGRADATION.NODE_DEAD });
+  log(`PIPELINE: ${nodeId} gone during pass ${p.current_pass} — degraded, the pass continues without them`);
+  const fresh = await collabStore.get(sessionId);
+  if (collabStore.isPipelinePassComplete(fresh, { ignore: [nodeId] })) {
+    clearPipelinePassTimer(sessionId);
+    await advanceOrCompletePipeline(sessionId);
+  }
+}
+
+/** T1/T2 decision after a pass closes: fail (no draft), next pass, or complete. */
+async function advanceOrCompletePipeline(sessionId, { forceComplete = false } = {}) {
+  const session = await collabStore.get(sessionId);
+  if (!session || !session.pipeline || session.status !== COLLAB_STATUS.ACTIVE) return;
+  const p = session.pipeline;
+  // T2 — DRAFT absent: nothing to review or revise. An honest failure, not a hang.
+  if (!p.artifacts.workArtifact && !p.artifacts.finalArtifact) {
+    await failPipelineSession(sessionId, `pass ${p.current_pass} closed with no draft artifact`);
+    return;
+  }
+  if (!forceComplete && p.current_pass < p.passes) {
+    await startPipelinePass(sessionId);
+    return;
+  }
+  await completePipelineSession(sessionId);
+}
+
+/** Ship unconditionally: the final artifact, or the draft flagged degraded (SPEC §3 T2). */
+async function completePipelineSession(sessionId) {
+  clearPipelinePassTimer(sessionId);
+  const session = await collabStore.get(sessionId);
+  if (!session || !session.pipeline || session.status !== COLLAB_STATUS.ACTIVE) return;
+
+  const terminal = collabStore.pipelineTerminalArtifact(session);
+  if (!terminal) {
+    await failPipelineSession(sessionId, 'no artifact at completion');
+    return;
+  }
+  const p = session.pipeline;
+  const degraded = terminal.degraded || p.degraded.length > 0;
+  const outcome = degraded ? 'completed_degraded' : 'completed';
+  const contributions = {};
+  for (const round of session.rounds) for (const r of round.reflections) contributions[r.node_id] = r.summary;
+
+  await collabStore.setPipelineOutcome(sessionId, outcome);
+  log(`PIPELINE COMPLETED ${sessionId}: ${p.current_pass}/${p.passes} passes, shipping ${terminal.type}${degraded ? ` (degraded: ${p.degraded.length} ledger entries)` : ''}`);
+  await collabStore.markCompleted(sessionId, {
+    artifacts: [terminal.type],
+    summary: `Pipeline ${outcome}: ${p.current_pass}/${p.passes} passes, ${session.nodes.length} nodes, shipped ${terminal.type}`,
+    node_contributions: contributions,
+    pipeline_final_artifact: terminal.content,
+    pipeline_final_type: terminal.type,
+    pipeline_degraded: [...p.degraded],
+  });
+  await collabStore.appendAudit(sessionId, 'session_completed', {
+    outcome, passes: p.current_pass, shipped: terminal.type, degraded: p.degraded.length,
+    node_count: session.nodes.length, recruited_count: session.recruited_count,
+  });
+
+  const completedSession = await collabStore.get(sessionId);
+  await store.markCompleted(session.task_id, completedSession.result);
+  publishEvent('completed', await store.get(session.task_id));
+  publishCollabEvent('completed', completedSession);
+}
+
+/** SPEC "terminal FAILED" ≙ ABORTED + outcome 'failed' (D-b): the draft pass never landed. */
+async function failPipelineSession(sessionId, reason) {
+  clearPipelinePassTimer(sessionId);
+  await collabStore.setPipelineOutcome(sessionId, 'failed');
+  const session = await collabStore.markAborted(sessionId, `pipeline failed: ${reason}`);
+  if (!session) return;
+  log(`PIPELINE FAILED ${sessionId}: ${reason}`);
+  await collabStore.appendAudit(sessionId, 'session_aborted', { reason: `pipeline: ${reason}` });
+  publishCollabEvent('aborted', session);
+  await store.markFailed(session.task_id, `Pipeline session failed: ${reason}`);
+  publishEvent('failed', await store.get(session.task_id));
+}
+
+function clearPipelinePassTimer(sessionId) {
+  const existing = pipelinePassTimers.get(sessionId);
+  if (existing) {
+    clearTimeout(existing);
+    pipelinePassTimers.delete(sessionId);
+  }
+}
+
+/**
+ * Deadline rehydration after a daemon restart (in-memory timers die with the process;
+ * pass_started_at survives in KV). Also the safety net for a missed timer. Every 60s.
+ */
+async function sweepPipelinePassTimeouts() {
+  try {
+    const active = await collabStore.list({ status: COLLAB_STATUS.ACTIVE });
+    for (const session of active) {
+      const p = session.pipeline;
+      if (session.mode !== COLLAB_MODE.PIPELINE || !p || !p.pass_started_at || p.current_pass === 0) continue;
+      if (pipelinePassTimers.has(session.session_id)) continue;
+      const elapsed = Date.now() - new Date(p.pass_started_at).getTime();
+      if (elapsed > p.pass_budget_ms) {
+        log(`PIPELINE SWEEP: ${session.session_id} pass ${p.current_pass} stale (${(elapsed / 60000).toFixed(1)}m elapsed). Closing.`);
+        await handlePipelinePassTimeout(session.session_id, { pass: p.current_pass });
+      }
+    }
+  } catch (err) {
+    log(`PIPELINE SWEEP ERROR: ${err.message}`);
   }
 }
 
@@ -2638,6 +2991,17 @@ handleCirclingGateApprove = tracer.wrapAsync('handleCirclingGateApprove', handle
 handleCirclingGateReject = tracer.wrapAsync('handleCirclingGateReject', handleCirclingGateReject, { tier: 1, category: 'state_transition' });
 sweepCirclingStepTimeouts = tracer.wrapAsync('sweepCirclingStepTimeouts', sweepCirclingStepTimeouts, { tier: 1, category: 'state_transition' });
 
+// Tier 1 — state_transition (pipeline, 2.7)
+startPipelinePass = tracer.wrapAsync('startPipelinePass', startPipelinePass, { tier: 1, category: 'state_transition' });
+handlePipelineReflection = tracer.wrapAsync('handlePipelineReflection', handlePipelineReflection, { tier: 1, category: 'state_transition' });
+closePipelinePass = tracer.wrapAsync('closePipelinePass', closePipelinePass, { tier: 1, category: 'state_transition' });
+handlePipelinePassTimeout = tracer.wrapAsync('handlePipelinePassTimeout', handlePipelinePassTimeout, { tier: 1, category: 'state_transition' });
+notePipelineMemberGone = tracer.wrapAsync('notePipelineMemberGone', notePipelineMemberGone, { tier: 1, category: 'state_transition' });
+advanceOrCompletePipeline = tracer.wrapAsync('advanceOrCompletePipeline', advanceOrCompletePipeline, { tier: 1, category: 'state_transition' });
+completePipelineSession = tracer.wrapAsync('completePipelineSession', completePipelineSession, { tier: 1, category: 'state_transition' });
+failPipelineSession = tracer.wrapAsync('failPipelineSession', failPipelineSession, { tier: 1, category: 'state_transition' });
+sweepPipelinePassTimeouts = tracer.wrapAsync('sweepPipelinePassTimeouts', sweepPipelinePassTimeouts, { tier: 1, category: 'state_transition' });
+
 // Tier 2 — compute
 publishEvent = tracer.wrap('publishEvent', publishEvent, { tier: 2, category: 'compute' });
 publishCollabEvent = tracer.wrap('publishCollabEvent', publishCollabEvent, { tier: 2, category: 'compute' });
@@ -2762,6 +3126,7 @@ async function main() {
   }, 5000); // check every 5s
   const circlingStepSweepTimer = setInterval(sweepCirclingStepTimeouts, 60000); // every 60s
   const collabRoundSweepTimer = setInterval(sweepCollabRoundTimeouts, 60000); // every 60s (P1 #4)
+  const pipelinePassSweepTimer = setInterval(sweepPipelinePassTimeouts, 60000); // every 60s (2.7: deadline rehydration)
   const pruneTimer = setInterval(pruneTerminalTasks, 3600000); // hourly (P4-5)
   pruneTerminalTasks();
   log(`Proposal processing: every ${BUDGET_CHECK_INTERVAL / 1000}s`);
@@ -2769,6 +3134,7 @@ async function main() {
   log(`Stall detection: every ${BUDGET_CHECK_INTERVAL / 1000}s (threshold: ${STALL_MINUTES}m)`);
   log(`Collab recruiting check: every 5s`);
   log(`Circling step timeout sweep: every 60s (threshold: ${CIRCLING_STEP_TIMEOUT_MS / 60000}m)`);
+  log('Pipeline pass deadline sweep: every 60s (budget carried per session)');
 
 
   log('Task daemon ready.');
@@ -2783,11 +3149,17 @@ async function main() {
     clearInterval(recruitTimer);
     if (circlingStepSweepTimer) clearInterval(circlingStepSweepTimer);
     if (collabRoundSweepTimer) clearInterval(collabRoundSweepTimer);
+    if (pipelinePassSweepTimer) clearInterval(pipelinePassSweepTimer);
     if (pruneTimer) clearInterval(pruneTimer);
     if (circlingStepTimers) {
       log(`Clearing ${circlingStepTimers.size} circling step timers...`);
       for (const timer of circlingStepTimers.values()) clearTimeout(timer);
       circlingStepTimers.clear();
+    }
+    if (pipelinePassTimers.size) {
+      log(`Clearing ${pipelinePassTimers.size} pipeline pass timers...`);
+      for (const timer of pipelinePassTimers.values()) clearTimeout(timer);
+      pipelinePassTimers.clear();
     }
     log(`Unsubscribing ${subs.length} handlers...`);
     for (const sub of subs) sub.unsubscribe();
@@ -2826,5 +3198,24 @@ if (require.main === module) {
     evaluateRound: (id) => evaluateRound(id),
     sweepCollabRoundTimeouts: () => sweepCollabRoundTimeouts(),
     handleFail: (msg) => handleFail(msg),
+    // Pipeline (2.7): drive the REAL handlers with a fake NATS message. `reply` is what the
+    // handler responded, so a test can assert on 'retried' etc. without a bus.
+    reflect: async (payload) => { const m = fakeMsg(payload); await handleCollabReflect(m); return m.reply; },
+    leave: async (payload) => { const m = fakeMsg(payload); await handleCollabLeave(m); return m.reply; },
+    startPipelinePass: (id) => startPipelinePass(id),
+    handlePipelinePassTimeout: (id, snapshot) => handlePipelinePassTimeout(id, snapshot),
+    sweepPipelinePassTimeouts: () => sweepPipelinePassTimeouts(),
+    pipelineTimerCount: () => pipelinePassTimers.size,
+    clearPipelineTimers() {
+      for (const timer of pipelinePassTimers.values()) clearTimeout(timer);
+      pipelinePassTimers.clear();
+    },
   };
+  function fakeMsg(payload) {
+    return {
+      data: sc.encode(JSON.stringify(payload)),
+      reply: undefined,
+      respond(buf) { this.reply = JSON.parse(sc.decode(buf)); },
+    };
+  }
 }

@@ -1,27 +1,65 @@
 # SCOPE — federation plan
 
 **Status:** active
+**Goal (operator "review and implement" 2026-09-21 — step 2.7, pipeline mode):** implement
+`PIPELINE_MODE_SPEC.md` (D18) as a fourth `architecture` in the session engine, and run step
+2.7's 9-phase lifecycle as far as this environment can honestly carry it.
+
+Phase 4 deltas (the AUDIT_PRE §6 outline is the binding list): `lib/mesh-collab.js` gains
+`COLLAB_MODE.PIPELINE` + the conditional `pipeline` session block + pass-machine / artifact /
+degraded-ledger / usage methods, with **no** `convergence` block for this mode;
+`bin/mesh-task-daemon.js` gains the dispatch branch, `startPipelinePass`, the per-pass deadline
+handler + restart-rehydration sweep, the reflect-handler branch, and a `completePipelineSession`
+that ships unconditionally — plus guards so the leave/stall paths never route a pipeline session
+into `evaluateRound`'s convergence branch; `bin/mesh-agent.js` gains `buildPipelinePrompt` (no
+`vote:` line — D16) and the round-loop branch reusing `lib/circling-parser.js` unchanged;
+`bin/fed-benchmark.mjs`'s collector learns this mode's terminal shape (SPEC §6) and its grappe
+arm submits pipeline by default (`FED_GRAPPE_MODE=circling_strategy` reproduces D14);
+`bin/mesh-bridge.js` materializes `pipeline_pass_started` on the kanban; `docs/FEDERATION_SPEC.md`
+§3/§3.4/§5.1/§8 stop asserting "a finalization vote".
+
+Phase 5, honestly bounded: `code:` — the §11 unreachability test and the three T2 absence
+behaviours as unit tests, full `npm test` green. `runtime:` — the contract's "one reviewer
+deliberately silenced still delivers" is executed against a **real nats-server 2.12.6 (the CI
+pin, sha-verified) with the daemon's real handlers over real JetStream KV, in this container** —
+the same class of evidence steps 2.1–2.3 closed on (mock participants, real bus, real state
+machine). It is NOT the deployed fleet. VERSION therefore stops at **`v2.7-mid`**: Phase 9's close
+(deploy to `~/.openclaw`, `launchctl kickstart`, a fleet log line, `[A]`→`[x]`, clean `v2.7`) is
+the operator's, per MASTER_PLAN §5 items 2–3. `BLOCKED.md` STAYS — it comes down only on 2.8.
+Mission Control's session card is NOT touched (falls back to the zinc badge; carried forward).
+
+**Set at:** 2026-09-21T00:30:00Z
+**Expires:** 2026-09-28T00:00:00Z
+
+```files 2.7-pipeline-mode-2026-09-21
+lib/mesh-collab.js
+bin/mesh-task-daemon.js
+bin/mesh-agent.js
+bin/mesh-bridge.js
+bin/fed-benchmark.mjs
+docs/FEDERATION_SPEC.md
+test/collab-mode-selection.test.mjs
+test/collab-pipeline.test.js
+test/daemon-pipeline-handlers.test.js
+test/pipeline-runtime.test.mjs
+test/fed-benchmark-pipeline.test.mjs
+memory-plan/plans/federation/INVENTORY.md
+memory-plan/plans/federation/VERSION
+memory-plan/plans/federation/COMPONENT_REGISTRY.md
+memory-plan/plans/federation/DECISIONS.md
+memory-plan/plans/federation/PIPELINE_MODE_SPEC.md
+memory-plan/plans/federation/audits/step27_pipeline-mode/*
+```
+
+## Design batch (closed 2026-09-21 — shipped in 46b037a / PR #24)
+
 **Goal (operator "go" 2026-09-19 — pipeline-mode design batch):** discharge the D16 redesign
-door on paper, and only on paper. Produce (a) `PIPELINE_MODE_SPEC.md` — the deterministic
-fixed-pass protocol D16 ordered: draft → reviews ingested → revision → ships unconditionally,
-with the vote / sub-round / gate machinery explicitly removed and three counted terminators in
-its place; (b) the NEW preregistered `RUN_RULES.md` for the benchmark that BLOCKED.md makes the
-sole unblock condition, carried over from the D14 rules with the gate-forfeit clause marked
-vestigial; (c) a DECISIONS entry recording the design and its prior art; (d) INVENTORY rows 2.7
-and 2.8 (open, with §11 contracts) plus the ROADMAP amendment that gives them a basis — Block 2's
-exit criterion still reads "a converged finalization vote", which D16 killed.
+door on paper, and only on paper: `PIPELINE_MODE_SPEC.md`, the preregistered step-28
+`RUN_RULES.md` (DRAFT pending the operator's three lock fields), D18, INVENTORY rows 2.7/2.8
+with §11 contracts, and the ROADMAP Block-2 exit-criterion correction. No code, no executions,
+no step closed, BLOCKED.md untouched.
 
-**This batch ships NO code and runs NO executions.** Pipeline mode is specified here, implemented
-in 2.7, and benchmarked in 2.8. `BLOCKED.md` STAYS — per D15/D16 it comes down only when the new
-benchmark passes, never on a design document. VERSION is not carried, no `audits/step27*` or
-`step28*` AUDIT_PRE/POST is opened, and no INVENTORY row is closed: the 9-phase lifecycle is not
-being run on a blocked plan. The `step28_pipeline-benchmark/RUN_RULES.md` path follows the D14
-precedent, where the rules were predeclared into the audit dir BEFORE the run.
-
-**Set at:** 2026-09-19T20:30:00Z
-**Expires:** 2026-09-26T00:00:00Z
-
-```files pipeline-mode-spec-2026-09-19
+```files pipeline-mode-spec-2026-09-19 closed
 memory-plan/plans/federation/PIPELINE_MODE_SPEC.md
 memory-plan/plans/federation/DECISIONS.md
 memory-plan/plans/federation/INVENTORY.md

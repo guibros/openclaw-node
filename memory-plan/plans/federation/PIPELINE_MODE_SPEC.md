@@ -88,9 +88,13 @@ with whatever artifacts arrived, and the pipeline advances. Per-pass behaviour o
 | REVISE | `finalArtifact` absent | **Terminal, shipping `workArtifact`** as the result, flagged `degraded`. The draft is a real artifact; withholding it because the revision timed out would reintroduce exactly the availability coupling D16 forbids. |
 
 **T3 — cost ceiling.** `max_cost_usd` on the session. Cumulative usage crossing it closes the
-current pass immediately and takes the T2 path for that pass. D15 measured **$20.07 vs $1.81
-(~11×)** *after the fact*; a ceiling makes cost a first-class terminator instead of a post-mortem
-observation.
+current pass immediately (T2 path for whoever has not spoken) **and completes the session — no
+further pass opens.** A ceiling that only closed one pass and let the next one spend would not be
+a ceiling; this is MetaGPT's `NoMoneyException` shape (§8): the loop stops, what exists ships.
+D15 measured **$20.07 vs $1.81 (~11×)** *after the fact*; a ceiling makes cost a first-class
+terminator instead of a post-mortem observation. *(Sharpened 2026-09-21 at step 2.7 — the
+implementation made the "closes and completes" reading explicit; recorded in
+`audits/step27_pipeline-mode/AUDIT_PRE.md` §7.)*
 
 There is no fourth terminator. In particular there is no "converged", no "approved", no
 "finalized" — nothing whose truth depends on a participant's opinion.

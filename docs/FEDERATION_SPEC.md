@@ -124,13 +124,17 @@ Management layer addresses grappes by registry `id`.
 
 ---
 
-## 3. L1 Worker grappes — three modes
+## 3. L1 Worker grappes — four modes
 
-All three architectures share the same state layer (`lib/mesh-collab.js`), session subject
+All four architectures share the same state layer (`lib/mesh-collab.js`), session subject
 namespace (`mesh.collab.*`), and daemon handlers (`bin/mesh-task-daemon.js`). The only
-structural difference is the session `mode` field (set in `lib/mesh-collab.js:54`
-`createSession()`): `"circling_strategy"` for adversarial; new values for
-cooperative/collaborative.
+structural difference is the session `mode` field (set in `lib/mesh-collab.js`
+`createSession()`): `"circling_strategy"` for adversarial; `"cooperative"`; `"collaborative"`;
+and `"pipeline"` — the D16 forward design (step 2.7, `memory-plan/plans/federation/
+PIPELINE_MODE_SPEC.md`): fixed passes draft → review → revise on circling's 1-worker +
+2-reviewer topology, closed by count, deadline or cost ceiling, shipping unconditionally.
+**No mode's terminal state depends on a vote any more** (D16, 2026-08-05): circling's
+finalization vote and tier gates remain in the code as history and are not the forward design.
 
 ### 3.1 Mode A — Adversarial (the circling paper)
 
@@ -267,7 +271,8 @@ reuses the `mesh.plans.{create,subtask.update}` subject family already implement
 
 | Task shape | Recommended mode | Rationale |
 |---|---|---|
-| High-stakes single artifact (contract, migration, spec) | **adversarial** | Information asymmetry prevents groupthink; paper's protocol proven for this case |
+| High-stakes single artifact (contract, migration, spec) — **forward design** | **pipeline** | Draft → independent reviews → revision, ships unconditionally; a silent or dead reviewer degrades the artifact, never its availability (D16/D18 — the D15 reliability failure is structurally impossible). Under benchmark (step 2.8) |
+| High-stakes single artifact — the paper's protocol | **adversarial** | Information asymmetry prevents groupthink; falsified on reliability at step 2.6 (D15): its unanimity-gated finalization is retired from the forward design (D16), the code stays as history |
 | Exploratory, no natural owner | **cooperative** | All nodes contribute equally; integrator rotation keeps perspectives fresh |
 | Decomposable (N independent pieces) | **collaborative** | Parallelism is real (no barriers between nodes during work); merge review catches integration errors |
 
@@ -345,7 +350,7 @@ management: {
   task_id: "<uuid>",                // management session subtask id
   session_id: "<management_sess>",  // management session (return address)
   target_grappe: "wg-alpha",        // registry id (§2.4)
-  preferred_mode: "adversarial",    // "adversarial" | "cooperative" | "collaborative"
+  preferred_mode: "adversarial",    // "adversarial" | "cooperative" | "collaborative" | "pipeline"
   description: "<task text>",
   deadline_ms: 3600000,             // wall-clock budget (ms)
   timestamp: "<ISO timestamp>",     // read by checkEventFreshness (lib/node-identity.mjs:419)
@@ -504,7 +509,7 @@ All federation subjects use `mesh.*` — the `openclaw.*` fleet namespace is ret
 | Layer | Guarantees | Does NOT guarantee |
 |---|---|---|
 | L0 Substrate | JetStream R=3 durable; bus is token-authed + loopback-only; nodes have stable ed25519 identities; grappe registry is KV-backed | Any application-level protocol above the bus |
-| L1 Worker | A session reaches COMPLETE with a finalization vote; artifacts are in JetStream KV with deterministic keys; the paper's protocol (adversarial) is faithfully executed; modes B/C produce their specified work product | Quality of the LLM output; convergence within N rounds; absence of parse failures |
+| L1 Worker | A session reaches a terminal state — **pipeline:** by counted termination only (passes · pass deadline · cost ceiling), shipping the final artifact or the draft flagged degraded, never held by any participant (D16); adversarial / cooperative / collaborative: their specified protocol runs as written; artifacts are in JetStream KV with deterministic keys | Quality of the LLM output; absence of parse failures; that every review lands (pipeline records each hole in its `degraded` ledger instead of waiting) |
 | L2 Management | A complex task is decomposed (quorum-approved), dispatched (signed), results assembled, and quorum-verified before delivery; worker-grappe failure triggers reassignment; the operator gate fires on rejection | Worker grappes actually completing (they guarantee their own COMPLETE); pipeline latency (depends on LLM budget) |
 | L3 Savant | Every change-set is schema-valid, signed, gated via OUT_OF_SCOPE, and observable in MC; no auto-apply path exists; the write-jail is structurally enforced | Change-set quality; operator adoption rate |
 

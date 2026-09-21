@@ -352,6 +352,30 @@ function handleCollabEvent(eventType, taskId, data) {
       break;
     }
 
+    // Pipeline mode (2.7, D16): a pass opened. Same auto-track as circling for CLI-submitted tasks.
+    case 'collab.pipeline_pass_started': {
+      if (!dispatched.has(taskId)) {
+        try {
+          const tasks = readTasks(ACTIVE_TASKS_PATH);
+          if (tasks.find(t => t.task_id === taskId && t.execution === 'mesh')) {
+            dispatched.add(taskId);
+            lastHeartbeat.set(taskId, Date.now());
+            log(`PIPELINE AUTO-TRACK: ${taskId} (CLI-submitted)`);
+          } else { break; }
+        } catch { break; }
+      }
+      const p = session.pipeline || {};
+      const passName = `Pass ${p.current_pass || 0}/${p.passes || '?'}`;
+      log(`PIPELINE ${passName}: started for ${taskId}`);
+      updateTaskInPlace(ACTIVE_TASKS_PATH, taskId, {
+        pipeline_pass: p.current_pass || 0,
+        pipeline_passes: p.passes || 0,
+        next_action: `${passName} in progress (${session.nodes?.length || '?'} nodes; degraded entries: ${(p.degraded || []).length})`,
+        updated_at: isoTimestamp(),
+      });
+      break;
+    }
+
     default:
       log(`COLLAB EVENT: ${eventType} for ${taskId}`);
   }
