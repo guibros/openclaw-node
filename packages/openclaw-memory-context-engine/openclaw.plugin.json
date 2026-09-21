@@ -1,0 +1,58 @@
+{
+  "id": "openclaw-node-memory",
+  "name": "openclaw-node memory",
+  "kind": "context-engine",
+  "description": "Context engine backed by the openclaw-node memory daemon: per-turn recall from the loopback inject server (:7893), extraction left to the daemon's transcript watcher.",
+  "activation": {
+    "onStartup": true,
+    "onCapabilities": ["tool"]
+  },
+  "contracts": {
+    "tools": ["memory_recall", "memory_status"]
+  },
+  "uiHints": {
+    "injectUrl": {
+      "label": "Inject server URL",
+      "placeholder": "http://127.0.0.1:7893",
+      "help": "The memory daemon's loopback inject server. Must be loopback; the daemon refuses anything else."
+    },
+    "tokenPath": {
+      "label": "Token file",
+      "placeholder": "~/.openclaw/config/memory-injection-token",
+      "help": "Bearer token the daemon writes on first start (0600). Re-read on every request so a rotated token is picked up without a restart."
+    },
+    "autoRecall": {
+      "label": "Auto-recall",
+      "help": "Inject the [memory: …] block into the system prompt on every turn (default true)."
+    },
+    "maxInjectedChars": {
+      "label": "Max injected chars",
+      "placeholder": "6000",
+      "advanced": true
+    },
+    "timeoutMs": {
+      "label": "Request timeout (ms)",
+      "placeholder": "4000",
+      "advanced": true,
+      "help": "The daemon answers in well under a second when warm; on timeout the turn proceeds without memory."
+    },
+    "bypassSessionPatterns": {
+      "label": "Bypass session patterns",
+      "placeholder": "agent:*:cron:**",
+      "advanced": true,
+      "help": "Session keys that never get recall. * within one segment, ** across segments."
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "injectUrl": { "type": "string" },
+      "tokenPath": { "type": "string" },
+      "autoRecall": { "type": "boolean" },
+      "maxInjectedChars": { "type": "number", "minimum": 200, "maximum": 60000 },
+      "timeoutMs": { "type": "number", "minimum": 250, "maximum": 60000 },
+      "bypassSessionPatterns": { "type": "array", "items": { "type": "string" } }
+    }
+  }
+}

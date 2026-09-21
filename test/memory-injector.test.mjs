@@ -74,7 +74,8 @@ function createTestExtractionDb() {
       -- Block 7C reconsolidation + Block 9 privacy columns
       salience REAL DEFAULT 0.5,
       last_recalled TEXT,
-      private INTEGER DEFAULT 1
+      private INTEGER DEFAULT 1,
+      superseded_by INTEGER
     );
     CREATE INDEX idx_mentions_entity ON mentions(entity_id);
     CREATE INDEX idx_mentions_session ON mentions(session_id);
