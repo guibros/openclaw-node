@@ -331,6 +331,48 @@ const _logger = require('../lib/logger').createLogger('mesh-agent');
 _logger.attachTracer(tracer);
 const { info: log, warn, error: logError, debug } = _logger;
 
+// ── Foreman supervision (lib/foreman) ─────────────────
+// Shadow by default: the supervisor watches the worker as it streams, asks the
+// local model the ten fixed questions, runs the deterministic policy, and
+// records what it saw and would have done — it never blocks a task. Anything
+// failing here degrades to today's behaviour (foreman plan, DECISIONS D1).
+
+const FOREMAN_ENABLED = process.env.MESH_FOREMAN !== '0';
+
+async function createTaskSupervisor(task, worktreePath) {
+  if (!FOREMAN_ENABLED) return null;
+  try {
+    const foreman = await import('../lib/foreman/index.mjs');
+    const config = foreman.foremanConfigFromEnv(process.env);
+    const assessor = await foreman.createDefaultAssessor({ model: config.model, timeoutMs: config.assess_timeout_ms });
+    const supervisor = foreman.createSupervisor({
+      task, nodeId: NODE_ID, worktreePath, assessor, config,
+      log: (message) => log(`FOREMAN ${task.task_id}: ${message}`),
+      publish: (subject, payload) => nc.publish(subject, sc.encode(JSON.stringify(payload))),
+      timelinePath: config.dir ? path.join(config.dir, `${task.task_id}.jsonl`) : null,
+    });
+    supervisor.start();
+    log(`FOREMAN ${task.task_id}: supervising in ${config.enforce ? 'enforce' : 'shadow'} mode (assessor ${assessor.name}, timeline ${config.dir || 'off'})`);
+    return supervisor;
+  } catch (err) {
+    warn(`FOREMAN ${task.task_id}: supervision unavailable — ${err.message}`);
+    return null;
+  }
+}
+
+async function closeSupervision(supervisor, outcome) {
+  if (!supervisor) return '';
+  try {
+    await supervisor.close({ outcome });
+    const line = supervisor.summaryLine(outcome);
+    log(`FOREMAN ${supervisor.state.task_id}: ${line}`);
+    return ` ${line}`;
+  } catch (err) {
+    warn(`FOREMAN close failed: ${err.message}`);
+    return '';
+  }
+}
+
 // ── NATS Helpers ──────────────────────────────────────
 
 async function natsRequest(subject, payload, timeoutMs = 10000) {
@@ -750,7 +792,7 @@ function cleanupWorktree(worktreePath, keep = false) {
  * @param {object} task
  * @param {string|null} worktreePath - If set, LLM accesses this worktree instead of WORKSPACE
  */
-function runLLM(prompt, task, worktreePath) {
+function runLLM(prompt, task, worktreePath, supervisor = null) {
   return new Promise((resolve) => {
     const provider = resolveProvider(task, CLI_PROVIDER, ENV_PROVIDER);
     const model = resolveModel(task, CLI_MODEL, provider);
@@ -778,6 +820,7 @@ function runLLM(prompt, task, worktreePath) {
       stdio: ['ignore', 'pipe', 'pipe'],  // stdin must be 'ignore' — some CLIs block on piped stdin
       timeout: (task.budget_minutes || 30) * 60 * 1000, // kill if exceeds budget
     });
+    if (supervisor) supervisor.attach(child);
 
     // Heartbeat: signal daemon with activity state.
     // getActivityState reads Claude JSONL files — only useful for Claude provider.
@@ -814,8 +857,9 @@ function runLLM(prompt, task, worktreePath) {
     child.stdout.on('data', (d) => { if (stdout.length < MAX_OUTPUT) stdout += d.toString().slice(0, MAX_OUTPUT - stdout.length); });
     child.stderr.on('data', (d) => { if (stderr.length < MAX_OUTPUT) stderr += d.toString().slice(0, MAX_OUTPUT - stderr.length); });
 
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       clearInterval(heartbeatTimer);
+      if (supervisor) supervisor.workerExited({ exitCode: code, signal });
       // Sanitize before any parsing: terminal control codes + thinking blocks
       // must never reach the artifact pipeline (2.4 finding 6).
       resolve({ exitCode: code, stdout: stripLlmOutput(stdout), stderr, provider: provider.name, model });
@@ -823,6 +867,7 @@ function runLLM(prompt, task, worktreePath) {
 
     child.on('error', (err) => {
       clearInterval(heartbeatTimer);
+      if (supervisor) supervisor.workerExited({ exitCode: 1, signal: null });
       resolve({ exitCode: 1, stdout: '', stderr: err.message, provider: provider.name, model });
     });
   });
@@ -1656,6 +1701,7 @@ async function executeTask(task) {
   writeAgentState('working', task.task_id);
   log(`Started: ${task.task_id} (dir: ${worktreePath ? 'worktree' : 'workspace'})`);
 
+  const supervisor = await createTaskSupervisor(task, worktreePath);
   const attempts = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -1675,11 +1721,13 @@ async function executeTask(task) {
 
     if (DRY_RUN) {
       log(`[DRY RUN] Prompt:\n${prompt}`);
+      await closeSupervision(supervisor, 'dry-run');
       return;
     }
 
-    // Run LLM (with worktree isolation if available)
-    const llmResult = await runLLM(prompt, task, worktreePath);
+    // Run LLM (with worktree isolation if available), supervised as it streams
+    if (supervisor) supervisor.workerStarted({ attempt });
+    const llmResult = await runLLM(prompt, task, worktreePath, supervisor);
     const summary = llmResult.stdout.slice(-500) || '(no output)';
 
     log(`${llmResult.provider} exited with code ${llmResult.exitCode}`);
@@ -1785,9 +1833,10 @@ async function executeTask(task) {
       const keepBranch = await mergeIfApproved(task, commit, completedTask);
       cleanupWorktree(worktreePath, keepBranch);
       writeAgentState('idle', null);
+      const foremanNote = await closeSupervision(supervisor, 'success');
       await recordHyperagentTask(task, {
         outcome: 'success', iterations: attempts.length, startedAt,
-        notes: `Completed without a configured metric. ${summary}`,
+        notes: `Completed without a configured metric. ${summary}${foremanNote}`,
       });
       log(`COMPLETED: ${task.task_id} (no metric, attempt ${attempt})`);
       return;
@@ -1796,6 +1845,7 @@ async function executeTask(task) {
     // Evaluate metric (run in worktree if available)
     log(`Evaluating metric: ${task.metric} (in ${worktreePath ? 'worktree' : 'workspace'})`);
     const metricResult = await evaluateMetric(task.metric, taskDir);
+    if (supervisor) supervisor.recordVerification({ passed: metricResult.passed, summary: metricResult.output.slice(-2000), source: 'metric' });
 
     if (metricResult.passed) {
       const attemptRecord = {
@@ -1838,9 +1888,10 @@ async function executeTask(task) {
       const keepBranch = await mergeIfApproved(task, commit, completedTask);
       cleanupWorktree(worktreePath, keepBranch);
       writeAgentState('idle', null);
+      const foremanNote = await closeSupervision(supervisor, 'success');
       await recordHyperagentTask(task, {
         outcome: 'success', iterations: attempts.length, startedAt,
-        notes: `Configured metric passed on attempt ${attempt}. ${summary}`,
+        notes: `Configured metric passed on attempt ${attempt}. ${summary}${foremanNote}`,
       });
       log(`COMPLETED: ${task.task_id} (metric passed, attempt ${attempt})`);
       return;
@@ -1876,9 +1927,10 @@ async function executeTask(task) {
   // Keep worktree branch on release for post-mortem debugging (don't merge partial work)
   cleanupWorktree(worktreePath, true);
   writeAgentState('idle', null);
+  const foremanNote = await closeSupervision(supervisor, 'failure');
   await recordHyperagentTask(task, {
     outcome: 'failure', iterations: attempts.length, startedAt,
-    notes: `Task released for human triage. ${reason}`,
+    notes: `Task released for human triage. ${reason}${foremanNote}`,
   });
   log(`RELEASED: ${task.task_id} — ${reason}`);
 }

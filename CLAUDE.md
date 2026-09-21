@@ -75,6 +75,15 @@ watcher freshness/running-state gaps remain. Do not claim the August daily note 
 **Scope after v3.1:** no plan scope is active. The next operator-approved scope is the bounded
 runtime-repair batch described above; federation execution remains locked until that repair lands.
 
+**As of 2026-09-21 (foreman plan, step 1.1):** on operator instruction ("integrate the Foreman
+tech"), a new silo [`memory-plan/plans/foreman/`](memory-plan/plans/foreman/) landed
+`lib/foreman/` — the supervisory design of thruwire/foreman (fast local assessor answering ten
+fixed questions → deterministic policy → small action vocabulary) wired into `bin/mesh-agent.js`
+`runLLM`/`executeTask` in **shadow mode**: every task gets a per-task timeline
+(`~/.openclaw/foreman/<task_id>.jsonl`) and `mesh.foreman.*` events; nothing is enforced yet
+(Block 2, `MESH_FOREMAN_ENFORCE=1`). An unavailable assessor is a passthrough, never an
+escalation (D1). Runtime evidence on the operator's node is step 1.2. See `docs/foreman.md`.
+
 ## The forcing function
 
 `.claude/settings.json` registers a PreToolUse hook (`.claude/hooks/scope-check.sh`) on `Edit | Write | MultiEdit | NotebookEdit`. The hook is **per-plan**: it scans every `memory-plan/plans/*/SCOPE.md`, keeps those whose `Status` is `active` and not past `Expires`, and unions their ` ```files ` blocks into the allow-list. It will **block you** if:
