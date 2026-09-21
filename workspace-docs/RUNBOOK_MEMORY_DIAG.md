@@ -14,6 +14,13 @@ Key discriminator in the flush lines: `[llm]: 0 facts` repeatedly = SILENT seman
 (pipeline "works", output garbage). `[regex-diverted]` = LLM path erroring, regex carrying.
 `[llm-dedup] skipped` = tail hash unchanged since last successful extraction — fine if the
 session is idle, suspicious if it's active.
+`[llm-deferred]` = the marginal-value gate held the call back (`— low_marginal_yield` on the
+line): the material added since the last extraction was under the floor. Expected and
+frequent on the gated boundaries (interval, idle, NATS) of a long session. The end-of-session
+flush is never deferred and the extraction window reaches back to the last extraction point,
+so deferred material is delayed, not dropped — suspicious only if a session has ended and its
+facts never landed. Extracting lines carry their reason too (`— sufficient_new_material`,
+`— high_marginal_yield`, `— first_extraction`).
 
 ## 1. Extraction returns 0 facts / "fetch failed"
 - `curl -m 5 http://127.0.0.1:11434/api/version` — server up?

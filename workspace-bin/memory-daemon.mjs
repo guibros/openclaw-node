@@ -1115,9 +1115,8 @@ async function runPhase2ThrottledWork(config, sessionState) {
             // Deferrable: the unconditional end-of-session flush still runs after
             // this one, so low-yield material is delayed, never dropped.
             deferrable: true,
-            contextWindowTokens: config.contextWindowTokens || 200000,
           }));
-          log(`  Phase 2: interval synthesis [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added`);
+          log(`  Phase 2: interval synthesis [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added${result.decision ? ' — ' + result.decision.reason : ''}`);
           if (result.degraded) {
             log(`  Phase 2: ⚠ EXTRACTION DEGRADED — LLM failed, regex fallback used${result.fallback_path ? ` (diverted to ${result.fallback_path}; structured MEMORY.md protected)` : ''}: ${result.extraction_error || ''}`);
             emitDegradeEvent(result.extraction?.session_id || path.basename(currentJsonl, '.jsonl'), result);
@@ -1246,7 +1245,7 @@ async function handleTransitions(transitions, config) {
           }));
           if (!result.skippedByCheck) {
             log(`  pre-compression flush triggered (${result.check?.pctUsed}% of ${result.check?.threshold} token threshold)`);
-            log(`  flush [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped`);
+            log(`  flush [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped${result.decision ? ' — ' + result.decision.reason : ''}`);
             if (result.extraction) {
               emitExtractEvent(result.extraction.session_id, result.extraction);
             }
@@ -1748,7 +1747,7 @@ async function main() {
               deferrable: true,
             }));
             if (!result.skippedByCheck) {
-              log(`  nats-triggered flush [${result.mode || 'regex'}]: ${result.facts} facts, ${result.added} added, ${result.merged} merged`);
+              log(`  nats-triggered flush [${result.mode || 'regex'}]: ${result.facts} facts, ${result.added} added, ${result.merged} merged${result.decision ? ' — ' + result.decision.reason : ''}`);
               if (result.extraction) {
                 emitExtractEvent(result.extraction.session_id, result.extraction);
               }
