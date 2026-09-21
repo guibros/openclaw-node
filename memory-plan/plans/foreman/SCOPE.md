@@ -1,10 +1,11 @@
 # SCOPE — foreman plan
 
-**Status:** done
+**Status:** active
+**Set at:** 2026-09-21 (reopened for the ci-audit-sharp batch below; step 1.1 itself stays closed)
+**Expires:** 2026-09-28T00:00:00Z
 **Closed at:** 2026-09-21 — step 1.1 closed at v1.1 (see audits/step11_shadow-supervision/AUDIT_POST.md). Next scope: step 1.2 is the operator's deploy-and-observe step; open it when the runtime tree carries this commit.
 **Goal:** Step 1.1 — shadow-mode Foreman supervision over mesh workers: `lib/foreman/` (observation · assessment · policy · steering · assessor · supervisor) wired into `bin/mesh-agent.js` `runLLM`/`executeTask`; every decision recorded to a per-task JSONL timeline + `mesh.foreman.*` events, none enforced. Operator instruction 2026-09-21: "integrate the Foreman tech".
-**Set at:** 2026-09-21
-**Expires:** 2026-10-05T00:00:00Z
+**Originally set at:** 2026-09-21 (step 1.1 batch, now closed)
 
 ```files step-1.1 closed
 lib/foreman/index.mjs
@@ -32,6 +33,16 @@ memory-plan/plans/foreman/audits/step11_shadow-supervision/AUDIT_POST.md
 CLAUDE.md
 # scaffolded by workspace-bin/new-plan.sh (PROTOCOL §9); automation.json points at it
 workspace-bin/foreman-tick.sh
+```
+
+```files ci-audit-sharp
+# PR #27 CI red at `npm audit --audit-level=high` in both trees on sharp <0.35.4
+# (GHSA-rgj7-g3m4-5g8c, libheif) — an advisory published after main's last green run,
+# untouched by step 1.1's diff. Lockfile bumps only; ported into the PR so it goes green.
+package.json
+package-lock.json
+mission-control/package.json
+mission-control/package-lock.json
 ```
 
 ## How this file works
