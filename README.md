@@ -372,14 +372,31 @@ flowchart LR
 |---|---|---|
 | **Capture** | `lib/pre-compression-flush.mjs` via `workspace-bin/flush-worker.mjs` | tail flush on a token threshold; ALL transcript parsing (flush, token check, live import) runs in a worker thread so the recall server never starves during a flush. A live import lands the active session into `state.db` every 10 min mid-session (not just at boot/session-end) |
 | **Extract** | `lib/llm-client.mjs` (qwen) + `lib/extraction-{prompt,schema}.mjs`; regex fallback | structured entities / decisions / themes / relationships. Degradation emits `memory.error` and **cannot corrupt** the structured `MEMORY.md` (regex output diverts to a sibling file) |
-| **Store** | `lib/extraction-store.mjs` → `state.db` | entities, mentions, decisions, themes, `concept_edges` (typed relationships); private-by-default |
+| **Store** | `lib/extraction-store.mjs` → `state.db`, ops from `lib/memory-types.mjs` | entities, mentions, decisions, themes, `concept_edges` (typed relationships); private-by-default. **Typed merge:** each kind declares per-field ops (entity `type` immutable, `aliases` union, decision `superseded_by` immutable). **Read-before-write:** the extractor is shown the KNOWN MEMORIES relevant to the transcript and answers with `ref` / `aliases` / `supersedes`, so a re-mention under a new spelling becomes an alias (`entity_aliases`) and a revised decision supersedes its predecessor instead of duplicating it. Superseded decisions are never recalled |
 | **Index** | `lib/mcp-knowledge/core.mjs` (bge-m3, 1024-dim) → `knowledge.db` | per-turn chunks in sqlite-vec; also the MCP semantic-search surface (below) |
 | **Recall** | `lib/memory-injector.mjs` + `lib/retrieval-pipeline.mjs` | 5 channels → RRF fusion → `recallScore` (recency½-life × frequency × salience × graph × rrf) → token budget |
 | **Graph** | `bin/obsidian-graph-cache.mjs` | vault wikilinks **+ the LLM's typed edges** → spreading-activation (channel 5) |
-| **Inject** | `lib/memory-formatter.mjs` + `lib/memory-inject-server.mjs` (loopback `:7893`) | `[memory:]` block into the LLM publisher wrappers; grappe workers query the same endpoint |
+| **Inject** | `lib/memory-formatter.mjs` + `lib/memory-inject-server.mjs` (loopback `:7893`) | `[memory:]` block into the LLM publisher wrappers; grappe workers query the same endpoint; the OpenClaw gateway gets it in-process through the context-engine plugin (below) |
 | **Reconsolidate** | `writeBackReconsolidation` (memory-injector) | recalled → salience / `last_recalled` bump; unused decays |
 | **Privacy** | retrieval-pipeline filter | **session-grain**, fail-closed; the finer federation gating is off locally |
 | **Durable views** | `MEMORY.md` + Obsidian vault | the index + the browsable notes |
+
+### OpenClaw context-engine plugin
+
+`packages/openclaw-memory-context-engine` registers the memory daemon as the gateway's
+`plugins.slots.contextEngine`. On every turn its `assemble()` posts the latest user prompt to
+`:7893` and returns the `[memory:]` block as the system-prompt addition; retrieval, budgets,
+`@memory` directives and reconsolidation stay in the daemon, extraction stays with the daemon's
+transcript watcher, compaction is delegated to OpenClaw's own compactor. This is the same slot
+OpenViking's plugin uses and removes the dependency on the external companion-bridge proxy.
+
+```bash
+openclaw plugins install ./packages/openclaw-memory-context-engine
+openclaw config set plugins.slots.contextEngine openclaw-node-memory
+```
+
+Tools: `memory_recall {query}`, `memory_status`. Daemon down / no token / timeout → the turn runs
+without memory and one warning is logged per distinct reason. See the package README.
 
 **Local-model boundary (D11):** the local model (qwen) is the memory **extraction / embedding / probe organ only** — never a grappe worker's mind (workers run an advanced-LLM OpenClaw; see [Federation](#federation-grappes)). Embeddings are bge-m3 (in-process via transformers.js, **not** the LLM). Cloud keys are optional; the whole loop works offline.
 
@@ -395,10 +412,20 @@ The knowledge server scans markdown files in your workspace, splits them into ch
 
 | Tool | Description |
 |------|-------------|
-| `semantic_search(query, limit)` | Find documents by meaning (e.g. "oracle threat model GPS spoofing") |
-| `find_related(doc_path, limit)` | Find documents similar to a given file |
+| `semantic_search(query, limit, path_prefix?)` | Find documents by meaning (e.g. "oracle threat model GPS spoofing"); `path_prefix` confines hits to one directory subtree (`memory/`, `projects/arcane/lore`). Every hit carries its directory's `dir_abstract` |
+| `find_related(doc_path, limit, path_prefix?)` | Find documents similar to a given file |
+| `knowledge_tree(path_prefix?, depth?)` | The directory tree with a one-line **L0 abstract** per directory — call first to pick a `path_prefix` |
+| `directory_overview(path)` | One directory's **L1 overview**: subdirectories with abstracts, documents with titles |
+| `search_directories(query, limit)` | Rank directories by abstract similarity — find the folder before the file |
 | `reindex(force)` | Re-scan and re-embed changed files |
-| `knowledge_stats()` | Index statistics (doc count, chunk count, model info) |
+| `knowledge_stats()` | Index statistics (doc count, chunk count, directories, model info) |
+
+**Directory summaries (L0/L1).** After every index pass the server rebuilds a per-directory abstract
+and overview, bottom-up and hash-gated (an unchanged subtree costs one SELECT). They are
+deterministic (titles, counts, child abstracts) when no local model answers, and model-written when
+Ollama does (`KNOWLEDGE_SUMMARY_LLM=0` keeps the pass model-free; at most 20 model calls per pass,
+the rest upgrade on later passes). Abstracts are embedded too, so an agent can rank directories
+before searching inside one. Idea borrowed from OpenViking's `.abstract.md` / `.overview.md` tiers.
 
 ### Access paths
 
