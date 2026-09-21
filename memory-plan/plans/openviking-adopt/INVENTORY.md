@@ -11,6 +11,12 @@ session container. No row is closed by that batch: each step flips `[ ]`→`[x]`
 `runtime:` Verify is observed on the deployed node (MASTER_PLAN §4.1/§5). The first `[ ]` row is
 therefore the operator's next runtime action, not a code task.
 
+**Deploy + probe on the node (one command, from the checkout `~/.openclaw/workspace/lib` symlinks to):**
+`bash memory-plan/plans/openviking-adopt/deploy.sh` — installs the sharp lockfile, restarts the memory
+daemon, runs one knowledge index pass (schema v2 + directory summaries), installs the gateway plugin and
+sets the slot, then prints PASS / FAIL / PENDING per row and writes `audits/deploy_<ts>.md` as the
+Runtime-Evidence record. `--probe` re-runs the probes only (3.2 needs a live flush first).
+
 **Status:** `[ ]` queued · `[A]` in-flight · `[x]` closed · `[D]` deferred.
 **Version:** `v<block>.<step>`; carrier starts at `v0.0`.
 **Table format is load-bearing:** the tick engine greps rows shaped exactly
