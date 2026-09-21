@@ -360,6 +360,53 @@ async function createTaskSupervisor(task, worktreePath) {
   }
 }
 
+/**
+ * After a coding worker exits cleanly on a task with no metric, ask the supervisor
+ * for its post-exit decision. START_VERIFIER runs an independent verification
+ * worker whose FOREMAN_VERDICT gates completion; ESCALATE releases the task.
+ * Everything else — and any cycle the assessor could not answer — completes as
+ * before. Tasks with a metric are verified by the metric; the supervisor's
+ * post-exit decision is advisory there.
+ */
+async function foremanVerify(supervisor, task, worktreePath, attempt, llmResult) {
+  const none = { failed: false, escalate: false, attemptRecord: null };
+  if (!supervisor || !supervisor.enforce) return none;
+  let decision;
+  try {
+    decision = await supervisor.assessNow();
+  } catch (err) {
+    warn(`FOREMAN ${task.task_id}: post-exit assessment failed — ${err.message}`);
+    return none;
+  }
+  if (!decision) return none;
+  if (decision.action === 'ESCALATE') {
+    return {
+      failed: false, escalate: true,
+      attemptRecord: { approach: `Attempt ${attempt}: escalated by Foreman after the worker finished — ${decision.reason}`, result: decision.reason, keep: false },
+    };
+  }
+  if (decision.action !== 'START_VERIFIER') return none;
+
+  const foreman = await import('../lib/foreman/index.mjs');
+  let changedFiles = [];
+  try {
+    changedFiles = execFileSync('git', ['-C', worktreePath, 'diff', '--name-only'], { encoding: 'utf-8', timeout: 5000 }).split('\n').filter(Boolean);
+  } catch { /* the verifier can read git status itself */ }
+  log(`FOREMAN ${task.task_id}: independent verification pass (attempt ${attempt})`);
+  const verifier = supervisor.workerStarted({ attempt, kind: 'verifier' });
+  const prompt = foreman.buildVerifierPrompt(task, { workerOutput: llmResult.stdout, changedFiles });
+  const result = await runLLM(prompt, task, worktreePath, supervisor);
+  const verdict = foreman.parseVerdict(result.stdout);
+  const passed = verdict.passed === true && result.exitCode === 0;
+  supervisor.recordVerification({ passed, summary: verdict.summary || result.stderr.slice(-500), source: 'verifier', workerId: verifier.worker_id });
+  log(`FOREMAN ${task.task_id}: verifier ${verdict.verdict || 'returned no verdict'} (exit ${result.exitCode})`);
+  if (passed) return none;
+  return {
+    failed: true, escalate: false,
+    attemptRecord: { approach: `Attempt ${attempt}: Foreman verifier ${verdict.verdict || 'returned no verdict'}`, result: (verdict.summary || 'no findings').slice(-500), keep: false },
+  };
+}
+
 async function closeSupervision(supervisor, outcome) {
   if (!supervisor) return '';
   try {
@@ -819,6 +866,8 @@ function runLLM(prompt, task, worktreePath, supervisor = null) {
       env: cleanEnv,
       stdio: ['ignore', 'pipe', 'pipe'],  // stdin must be 'ignore' — some CLIs block on piped stdin
       timeout: (task.budget_minutes || 30) * 60 * 1000, // kill if exceeds budget
+      // Own process group: a Foreman STOP must end the CLI and everything it spawned.
+      detached: true,
     });
     if (supervisor) supervisor.attach(child);
 
@@ -1738,6 +1787,28 @@ async function executeTask(task) {
       log(`Cost: $${sessionInfo.cost.estimatedCostUsd.toFixed(4)} (${sessionInfo.cost.inputTokens} in / ${sessionInfo.cost.outputTokens} out)`);
     }
 
+    // A worker Foreman stopped is over whatever its exit code says (a CLI that traps
+    // SIGTERM can exit 0): retry with the supervisor's guidance in the prompt, or
+    // release when the stop was an escalation.
+    const foremanStop = supervisor?.state.last_stop?.attempt === attempt ? supervisor.state.last_stop : null;
+    if (foremanStop) {
+      const escalated = Boolean(supervisor.state.escalation);
+      const attemptRecord = {
+        approach: `Attempt ${attempt}: ${escalated ? 'escalated' : 'stopped'} by Foreman — ${foremanStop.reason}`,
+        result: (foremanStop.guidance || foremanStop.reason).slice(-500),
+        keep: false,
+      };
+      attempts.push(attemptRecord);
+      await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...attemptRecord });
+      if (escalated) {
+        log(`Attempt ${attempt}: Foreman escalated (${foremanStop.reason}). Releasing for human triage.`);
+        break;
+      }
+      log(`Attempt ${attempt}: stopped by Foreman (${foremanStop.reason}). Retrying with the guidance.`);
+      await new Promise(r => setTimeout(r, 1000));
+      continue;
+    }
+
     if (llmResult.exitCode !== 0) {
       const attemptRecord = {
         approach: `Attempt ${attempt}: ${llmResult.provider} exited with error (code ${llmResult.exitCode})`,
@@ -1796,8 +1867,20 @@ async function executeTask(task) {
       }
     }
 
-    // If no metric, trust LLM output and complete
+    // If no metric, Foreman's independent verifier is the verification (D2);
+    // without Foreman, trust the LLM output and complete as before.
     if (!task.metric) {
+      const verification = await foremanVerify(supervisor, task, worktreePath, attempt, llmResult);
+      if (verification.attemptRecord) {
+        attempts.push(verification.attemptRecord);
+        await natsRequest('mesh.tasks.attempt', { task_id: task.task_id, node_id: NODE_ID, lease_token: task.lease_token, ...verification.attemptRecord });
+        if (verification.escalate) {
+          log(`Attempt ${attempt}: ${verification.attemptRecord.approach}. Releasing for human triage.`);
+          break;
+        }
+        log(`Attempt ${attempt}: ${verification.attemptRecord.approach}. Retrying with the findings.`);
+        continue;
+      }
       const attemptRecord = {
         approach: `Attempt ${attempt}: executed without metric`,
         result: summary,
@@ -1916,7 +1999,8 @@ async function executeTask(task) {
   // post-mortem, never merged (a released task failed its own verification).
   commitWorktree(worktreePath, task.task_id, 'partial: released after exhausting attempts');
 
-  const reason = `Exhausted ${attempts.length}/${MAX_ATTEMPTS} attempts. Last: ${attempts[attempts.length - 1]?.result?.slice(0, 200) || 'unknown'}`;
+  const escalated = supervisor?.state.escalation ? `Foreman escalated: ${supervisor.state.escalation.reason}. ` : '';
+  const reason = `${escalated}Exhausted ${attempts.length}/${MAX_ATTEMPTS} attempts. Last: ${attempts[attempts.length - 1]?.result?.slice(0, 200) || 'unknown'}`;
   await natsRequest('mesh.tasks.release', {
     task_id: task.task_id,
     node_id: NODE_ID,

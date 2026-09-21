@@ -79,10 +79,13 @@ runtime-repair batch described above; federation execution remains locked until 
 tech"), a new silo [`memory-plan/plans/foreman/`](memory-plan/plans/foreman/) landed
 `lib/foreman/` — the supervisory design of thruwire/foreman (fast local assessor answering ten
 fixed questions → deterministic policy → small action vocabulary) wired into `bin/mesh-agent.js`
-`runLLM`/`executeTask` in **shadow mode**: every task gets a per-task timeline
-(`~/.openclaw/foreman/<task_id>.jsonl`) and `mesh.foreman.*` events; nothing is enforced yet
-(Block 2, `MESH_FOREMAN_ENFORCE=1`). An unavailable assessor is a passthrough, never an
-escalation (D1). Runtime evidence on the operator's node is step 1.2. See `docs/foreman.md`.
+`runLLM`/`executeTask`, **enforcing by default** (Block 2 closed the same day, D2): a stuck or
+off-track worker is stopped (process group) and retried with the reason in its prompt, an escalated
+task is released for human triage, and a no-metric task completes only on an independent verifier's
+`FOREMAN_VERDICT: PASS`. Every task gets a per-task timeline (`~/.openclaw/foreman/<task_id>.jsonl`)
+and `mesh.foreman.*` events; `MESH_FOREMAN_ENFORCE=0` is shadow mode. An unavailable assessor is a
+passthrough, never an escalation (D1). Runtime evidence on the operator's node is step 1.2. See
+`docs/foreman.md`.
 
 ## The forcing function
 

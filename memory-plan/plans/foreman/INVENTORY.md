@@ -35,11 +35,11 @@ the table, not just tests-green.
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 2 | 2.1 | v2.1 | [ ] | Enforce STOP and ESCALATE behind MESH_FOREMAN_ENFORCE=1: kill the worker's process group, feed the reason into the retry prompt, release on ESCALATE |
-| 2 | 2.2 | v2.2 | [ ] | Independent verifier pass: a verification-mission worker with a structured verdict, gating completion through the policy's verification rule |
+| 2 | 2.1 | v2.1 | [x] | Enforce STOP and ESCALATE (default on; MESH_FOREMAN_ENFORCE=0 for shadow): kill the worker's process group, feed the reason into the retry prompt, release on ESCALATE — CLOSED 2026-09-21 with 2.2 in one commit on operator instruction (D2); real detached children stopped in tests. See audits/step21_enforce-stop-escalate |
+| 2 | 2.2 | v2.2 | [x] | Independent verifier pass: a verification-mission worker with a structured verdict, gating completion through the policy's verification rule — CLOSED 2026-09-21 (no-metric tasks; the metric stays the verification where one exists). See audits/step22_verifier-pass |
 
 > **2.1 — Goal:** with enforcement on, a stuck worker is stopped by the supervisor and the agent's attempt loop retries it with the supervisor's reason in the prompt.
-> **Needs:** 1.2 closed with ≥5 real shadow timelines whose STOP decisions the operator judged correct; the `onIntervention` seam (1.1).
+> **Needs:** the supervisor loop (1.1). The "≥5 shadow timelines first" pre-screen was dropped by operator ruling 2026-09-21 (D2): enforcement is the default.
 > **Feeds:** 2.2 (verifier decisions ride the same seam); Block 3 counts enforced actions.
 > **Verify:** `runtime:` a task whose worker loops (`sleep` in a shell provider) is stopped, its attempt record says `stopped by foreman: … stuck`, and the retry prompt contains that line — observed in the agent log and timeline on the operator's node.
 

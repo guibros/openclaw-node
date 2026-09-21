@@ -38,7 +38,7 @@ describe('foreman supervisor — shadow loop', () => {
     const published = [];
     const timelinePath = timelineFor('shadow');
     const supervisor = createSupervisor({
-      task, nodeId: 'node-a', assessor, config: fastConfig, timelinePath,
+      task, nodeId: 'node-a', assessor, config: { ...fastConfig, enforce: false }, timelinePath,
       publish: (subject, payload) => { published.push({ subject, payload }); },
     }).start();
 
@@ -98,10 +98,13 @@ describe('foreman supervisor — shadow loop', () => {
     const enforcedSummary = await enforcing.close();
     assert.ok(calls.length >= 1);
     assert.equal(calls[0].intervention.action, ACTIONS.STOP_WORKER);
-    assert.equal(calls[0].hasMessage, false);
+    assert.equal(calls[0].hasMessage, true);
     const rows = readTimeline(enforcedSummary.timeline).filter((r) => r.type === 'foreman.intervened');
     assert.equal(rows[0].mode, 'enforce');
-    assert.deepEqual(rows[0].outcome, { applied: true });
+    // No real process was attached, so the built-in stop could not apply; the
+    // handler's own result rides along next to it.
+    assert.equal(rows[0].outcome.applied, false);
+    assert.deepEqual(rows[0].outcome.handler, { applied: true });
   });
 
   it('degrades to passthrough when the assessor is unavailable — never a decision, never an escalation', async () => {
@@ -167,10 +170,11 @@ describe('foreman supervisor — shadow loop', () => {
 });
 
 describe('foreman supervisor — configuration from the environment', () => {
-  it('defaults to shadow mode, enabled, with the operator home for timelines', () => {
+  it('defaults to enforcement, enabled, with the operator home for timelines', () => {
     const config = foremanConfigFromEnv({}, '/home/op');
     assert.equal(config.enabled, true);
-    assert.equal(config.enforce, false);
+    assert.equal(config.enforce, true);
+    assert.equal(config.stop_grace_ms, DEFAULT_CONFIG.stop_grace_ms);
     assert.equal(config.min_interval_ms, DEFAULT_CONFIG.min_interval_ms);
     assert.equal(config.dir, path.join('/home/op', '.openclaw', 'foreman'));
     assert.equal(config.policy.max_interventions, 20);
@@ -183,11 +187,11 @@ describe('foreman supervisor — configuration from the environment', () => {
   });
   it('honours the MESH_FOREMAN_* overrides and ignores junk', () => {
     const config = foremanConfigFromEnv({
-      MESH_FOREMAN: '0', MESH_FOREMAN_ENFORCE: '1', MESH_FOREMAN_MIN_INTERVAL_MS: '250', MESH_FOREMAN_PERIODIC_MS: 'junk',
+      MESH_FOREMAN: '0', MESH_FOREMAN_ENFORCE: '0', MESH_FOREMAN_MIN_INTERVAL_MS: '250', MESH_FOREMAN_PERIODIC_MS: 'junk',
       MESH_FOREMAN_MODEL: 'llama3.1:8b', MESH_FOREMAN_DIR: '/var/foreman', MESH_FOREMAN_MAX_INTERVENTIONS: '7', LLM_MODEL: 'qwen3:8b',
     }, '/home/op');
     assert.equal(config.enabled, false);
-    assert.equal(config.enforce, true);
+    assert.equal(config.enforce, false);
     assert.equal(config.min_interval_ms, 250);
     assert.equal(config.periodic_ms, DEFAULT_CONFIG.periodic_ms);
     assert.equal(config.model, 'llama3.1:8b');

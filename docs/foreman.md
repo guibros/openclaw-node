@@ -1,9 +1,10 @@
 # Foreman — deterministic supervision over mesh workers
 
-`lib/foreman/` watches a mesh worker while it works. It is the supervisory design of
-[thruwire/foreman](https://github.com/thruwire/foreman) — reviewed 2026-09-19, its policy defects
-fixed — landed inside `bin/mesh-agent.js`, where the worker's output stream, task worktree and
-lifecycle already live. Plan: `memory-plan/plans/foreman/` (DECISIONS D1).
+`lib/foreman/` watches a mesh worker while it works and acts on what it sees. It is the
+supervisory design of [thruwire/foreman](https://github.com/thruwire/foreman) — reviewed
+2026-09-19, its policy defects fixed — landed inside `bin/mesh-agent.js`, where the worker's output
+stream, task worktree and lifecycle already live. Plan: `memory-plan/plans/foreman/` (DECISIONS
+D1, D2).
 
 ```text
 CODING WORKER (claude -p …)                FOREMAN (same process)
@@ -12,7 +13,8 @@ reason → tool → observe → edit → test      observe   bounded snapshot: o
         └────────────────────────────────►  assess    ten fixed yes/no questions → ten probabilities
                                             decide    pure policy, fixed precedence, 8 actions
                                             record    ~/.openclaw/foreman/<task_id>.jsonl + mesh.foreman.*
-                                            (enforce) STOP / ESCALATE — Block 2, behind MESH_FOREMAN_ENFORCE
+                                            act       STOP → kill + retry with guidance · ESCALATE → release
+                                                      START_VERIFIER → independent pass gates completion
 ```
 
 ## What it watches
@@ -57,15 +59,27 @@ A deterministic policy (`lib/foreman/policy.mjs`), in this precedence:
 7. no active worker → **START_WORKER**; else **CONTINUE**
 
 `claude -p` has no live input channel, so `supports_steering` is false and step 3 resolves to
-STOP. `FINISH` and `START_WORKER` are advisory in this pipeline — the agent's attempt loop and the
-daemon's review own completion.
+STOP.
+
+## What it does about it
+
+| Decision | While the worker runs | After the worker exits (no metric) | After the worker exits (metric) |
+|---|---|---|---|
+| **STOP_WORKER** | SIGTERM the worker's whole process group, SIGKILL after `MESH_FOREMAN_STOP_GRACE_MS`; the agent's attempt loop retries with `stopped by Foreman — <reason>` and the steering guidance in the retry prompt | — | — |
+| **ESCALATE** | same termination, then the loop stops spending attempts and releases the task for human triage with the reason | release instead of completing | advisory — a passed metric wins |
+| **START_VERIFIER** | — | an independent verification worker runs with a read-only mission; `FOREMAN_VERDICT: FAIL` (or no verdict) records a failed attempt with the findings and retries; `PASS` completes | — (the metric is the verification) |
+| **RETRY_WORKER / START_WORKER / FINISH / CONTINUE** | advisory: the agent's loop already owns starting, retrying and completing | | |
+
+The worker leads its own process group (`detached: true` in `runLLM`) so a stop ends the CLI and
+everything it spawned. The retry prompt already renders every attempt's approach and result, so
+the next attempt reads exactly why the last one was stopped and what to change.
 
 ## Modes
 
 | Mode | Default | What happens |
 |---|---|---|
-| **shadow** | yes | Every assessment and decision is recorded; nothing is enforced. The calibration substrate. |
-| **enforce** | `MESH_FOREMAN_ENFORCE=1` | Block 2: STOP kills the worker's process group and the retry prompt carries the reason; ESCALATE releases the task. |
+| **enforce** | yes | Decisions act as in the table above, and are recorded. |
+| **shadow** | `MESH_FOREMAN_ENFORCE=0` | Every assessment and decision is recorded; nothing is enforced. |
 | off | `MESH_FOREMAN=0` | No supervisor is created. |
 
 ## The timeline
@@ -86,7 +100,8 @@ The task's hyperagent telemetry row carries a one-line summary in `meta_notes`:
 | Variable | Default | Meaning |
 |---|---:|---|
 | `MESH_FOREMAN` | `1` | `0` disables supervision |
-| `MESH_FOREMAN_ENFORCE` | `0` | `1` enforces decisions (Block 2) |
+| `MESH_FOREMAN_ENFORCE` | `1` | `0` records decisions without acting (shadow) |
+| `MESH_FOREMAN_STOP_GRACE_MS` | `5000` | SIGTERM → SIGKILL grace when stopping a worker |
 | `MESH_FOREMAN_MIN_INTERVAL_MS` | `5000` | debounce floor between assessments while output flows |
 | `MESH_FOREMAN_PERIODIC_MS` | `30000` | assessment during quiet work |
 | `MESH_FOREMAN_ASSESS_TIMEOUT_MS` | `8000` | analysis-lane ceiling before passthrough |
@@ -103,6 +118,8 @@ Thresholds and observation bounds are fields of `DEFAULT_POLICY` / `DEFAULT_LIMI
 
 `node --test test/foreman-*.test.mjs` — offline: every policy branch (including the three
 fixes above), the strict assessment contract, git evidence in a real temp repository, the
-assessor against a stub analysis lane (llm / fallback / error / rejected), and the supervisor
-loop against fake streams and a **real spawned child process**, asserting the timeline shape,
-burst coalescing, shadow-vs-enforce behaviour and passthrough on assessor failure.
+assessor against a stub analysis lane (llm / fallback / error / rejected), the supervisor loop
+against fake streams and a **real spawned child process**, and enforcement against **real detached
+children**: a stuck worker's process group terminated with SIGTERM, the SIGKILL fallback when it
+ignores SIGTERM, ESCALATE raising the release, shadow mode leaving the worker alone, and the
+verifier's verdict contract.

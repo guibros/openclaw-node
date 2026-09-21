@@ -28,7 +28,7 @@ existing agent calls (MASTER_PLAN §4.6: no new daemon).
 
 ## Block 2 — Enforcement
 
-- **Intent:** behind `MESH_FOREMAN_ENFORCE=1`, the policy's decisions act: STOP kills the worker's
+- **Intent:** by default (`MESH_FOREMAN_ENFORCE=0` for shadow), the policy's decisions act: STOP kills the worker's
   process group and the agent's attempt loop retries with the guidance in the retry prompt;
   ESCALATE releases the task for human triage instead of burning attempts; a verifier pass with a
   structured verdict gates completion the way the metric does today.

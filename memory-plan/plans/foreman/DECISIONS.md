@@ -51,3 +51,29 @@ backend flips one flag. The metric result is recorded as this pipeline's verific
 the verification gate has a real input from day one. `FINISH`/`START_WORKER` are advisory here —
 the agent's attempt loop and the daemon's review own completion; enforcement (Block 2) maps STOP
 onto the process group and ESCALATE onto release, nothing else.
+
+## D2 — Enforcement is the default, not a later gate; the verifier pass owns no-metric completion (2026-09-21, operator instruction "implement the thing")
+
+**Decision.** `MESH_FOREMAN_ENFORCE` defaults to on. The supervisor terminates the worker's process
+group itself on STOP_WORKER and ESCALATE (SIGTERM, then SIGKILL after `MESH_FOREMAN_STOP_GRACE_MS`);
+`bin/mesh-agent.js` spawns workers `detached` so the whole tree ends, records a stopped attempt as
+`stopped by Foreman — <reason>` with the steering guidance as its result (which `buildRetryPrompt`
+already renders), and on ESCALATE stops spending attempts and releases the task with the reason.
+After a coding worker exits cleanly on a task with **no metric**, the agent asks the supervisor for
+its post-exit decision (`assessNow()`): START_VERIFIER runs an independent, read-only verification
+worker whose `FOREMAN_VERDICT: PASS|FAIL` line gates completion (FAIL or no verdict → failed attempt
+with the findings → retry); ESCALATE releases. Tasks **with** a metric are verified by the metric —
+the supervisor's post-exit decision is advisory there, and a passed metric wins.
+
+**Why.** D1's shadow-first posture was the agent's caution, not the operator's requirement; the
+operator ruled that integrating Foreman means the supervisor acts. The safety argument still holds
+in the other direction: a false STOP costs one attempt (the loop retries with guidance), repeated
+ones end in the pipeline's existing *released* state for human triage, and an unavailable
+assessor is still a passthrough — so the worst case of enforcement is bounded by machinery that
+already exists, while the no-metric path today completes on nothing but the worker's own word.
+
+**Consequences.** Shadow mode remains one switch away (`MESH_FOREMAN_ENFORCE=0`) and the
+timelines record `mode` per decision, so calibration (Block 3) reads enforced and shadow runs
+alike. Steps 2.1 and 2.2 shipped in one commit on this instruction — a deliberate departure from
+one-step-per-commit, recorded here rather than hidden. Step 1.2 (first live timeline on the
+operator's node) is unchanged in substance: deploy, run a task, read the file.
