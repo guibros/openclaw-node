@@ -28,7 +28,7 @@ Runtime-Evidence record. `--probe` re-runs the probes only (3.2 needs a live flu
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 1 | 1.1 | v1.1 | [ ] | semantic_search and find_related accept a path_prefix and return only hits under it |
+| 1 | 1.1 | v1.1 | [x] | semantic_search and find_related accept a path_prefix and return only hits under it — closed 2026-09-21, runtime evidence audits/deploy_2026-09-21_113717.md |
 
 > **1.1 — Goal:** a knowledge search can be confined to one directory subtree.
 > **Needs:** `lib/mcp-knowledge/core.mjs` (`semanticSearch`, `findRelated`), `server.mjs` tool schemas, a populated `.knowledge.db` on the node.
@@ -39,8 +39,8 @@ Runtime-Evidence record. `--probe` re-runs the probes only (3.2 needs a live flu
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 2 | 2.1 | v2.1 | [ ] | directory_summaries built bottom-up on every index pass with deterministic abstract/overview; knowledge_tree and directory_overview tools |
-| 2 | 2.2 | v2.2 | [ ] | LLM-written abstract/overview when Ollama answers, hash-gated per directory, and directory-level vector search |
+| 2 | 2.1 | v2.1 | [x] | directory_summaries built bottom-up on every index pass with deterministic abstract/overview; knowledge_tree and directory_overview tools — closed 2026-09-21, runtime evidence audits/deploy_2026-09-21_113717.md |
+| 2 | 2.2 | v2.2 | [x] | LLM-written abstract/overview when Ollama answers, hash-gated per directory, and directory-level vector search — closed 2026-09-21, runtime evidence audits/deploy_2026-09-21_113717.md |
 
 > **2.1 — Goal:** every indexed directory has an L0 abstract and an L1 overview after an index pass.
 > **Needs:** step 1.1; `lib/mcp-knowledge/directory-summaries.mjs`; `indexWorkspace` calling it.
@@ -56,7 +56,7 @@ Runtime-Evidence record. `--probe` re-runs the probes only (3.2 needs a live flu
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 3 | 3.1 | v3.1 | [ ] | memory-types registry with per-field merge ops applied by extraction-store (entity type immutable, aliases union, decision supersession) |
+| 3 | 3.1 | v3.1 | [x] | memory-types registry with per-field merge ops applied by extraction-store (entity type immutable, aliases union, decision supersession) — closed 2026-09-21, runtime evidence audits/deploy_2026-09-21_113717.md |
 | 3 | 3.2 | v3.2 | [ ] | extractor is shown known-memory candidates and its ref/aliases/supersedes fields resolve to existing rows |
 
 > **3.1 — Goal:** the store merges an incoming memory into an existing row by declared field ops instead of ad-hoc upserts.

@@ -142,7 +142,7 @@ describe('buildDirectorySummaries', () => {
       generateAnalysis: async (messages) => {
         calls.push(messages[1].content);
         const dir = messages[1].content.match(/^Directory: (.*)$/m)[1];
-        return { content: `{"abstract":"LLM says ${dir}","overview":"- point one\\n- point two"}` };
+        return { mode: 'llm', value: { content: `{"abstract":"LLM says ${dir}","overview":"- point one\\n- point two"}` } };
       },
     };
     const r = await buildDirectorySummaries(db, { llmClient: llm });
@@ -159,7 +159,7 @@ describe('buildDirectorySummaries', () => {
   });
 
   it('bounds LLM calls per pass and upgrades the deterministic remainder on later passes', async () => {
-    const llm = { generateAnalysis: async () => ({ content: '{"abstract":"llm abstract","overview":"- x"}' }) };
+    const llm = { generateAnalysis: async () => ({ mode: 'llm', value: { content: '{"abstract":"llm abstract","overview":"- x"}' } }) };
     const r1 = await buildDirectorySummaries(db, { llmClient: llm, maxLlmDirs: 2 });
     assert.equal(r1.llm, 2);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM directory_summaries WHERE generator='deterministic'").get().n, 4);
@@ -177,7 +177,7 @@ describe('buildDirectorySummaries', () => {
     assert.equal(calls, 1, 'one failure stops LLM attempts for the pass');
     assert.equal(r.built, 6);
     assert.equal(r.llm, 0);
-    const garbage = { generateAnalysis: async () => ({ content: 'not json at all' }) };
+    const garbage = { generateAnalysis: async () => ({ mode: 'llm', value: { content: 'not json at all' } }) };
     seedDocs(db, [{ path: 'memory/2026-09-03.md', title: 'Daily 3', text: 'x' }]);
     const r2 = await buildDirectorySummaries(db, { llmClient: garbage });
     assert.equal(r2.llm, 0);

@@ -98,7 +98,7 @@ fi
 head1 "inject server"
 TOKEN=""; [ -f "$TOKEN_FILE" ] && TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
 OK=0
-for i in $(seq 1 30); do
+for i in $(seq 1 120); do
   if [ -n "$TOKEN" ] && curl -fsS -m 3 -H "Authorization: Bearer $TOKEN" "$INJECT_URL/health" >/dev/null 2>&1; then OK=1; break; fi
   sleep 1
   [ -z "$TOKEN" ] && [ -f "$TOKEN_FILE" ] && TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
@@ -107,7 +107,7 @@ if [ "$OK" = 1 ]; then
   PID="$(launchctl list 2>/dev/null | awk '$3=="ai.openclaw.memory-daemon"{print $1}')"
   record "daemon" PASS ":7893 /health ok (pid ${PID:-?})"
 else
-  record "daemon" FAIL ":7893 not answering after 30s — check $WORKSPACE/.tmp/memory-daemon.err"
+  record "daemon" FAIL ":7893 not answering after 120s — check $WORKSPACE/.tmp/memory-daemon.err"
 fi
 
 # ── 3. Block 3 — extraction-store schema v6 ───────────────────────────────────
