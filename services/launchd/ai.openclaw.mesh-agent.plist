@@ -45,6 +45,9 @@
       <string>${LLM_MODEL}</string>
       <key>LLM_BASE_URL</key>
       <string>${LLM_BASE_URL}</string>
+      <!-- Foreman supervision (docs/foreman.md): empty = shadow (decisions recorded, nothing enforced); 1 = enforce. -->
+      <key>MESH_FOREMAN_ENFORCE</key>
+      <string>${MESH_FOREMAN_ENFORCE}</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>30</integer>

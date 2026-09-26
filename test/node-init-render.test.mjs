@@ -35,6 +35,22 @@ describe('node-init renders the shared service templates', () => {
     });
   }
 
+  it('renders the Foreman switch empty unless the operator set it — empty is shadow (foreman D3)', () => {
+    const saved = process.env.MESH_FOREMAN_ENFORCE;
+    const render = (t) => renderServiceTemplate(readFileSync(join(ROOT, 'services', t), 'utf8'),
+      serviceTemplateVars({ meshDir: '/opt/openclaw', nodeId: 'worker-7', config: { nats: 'nats://10.0.0.5:4222' } }));
+    try {
+      delete process.env.MESH_FOREMAN_ENFORCE;
+      assert.match(render('systemd/openclaw-mesh-agent.service'), /^Environment=MESH_FOREMAN_ENFORCE=$/m);
+      assert.match(render('launchd/ai.openclaw.mesh-agent.plist'), /<key>MESH_FOREMAN_ENFORCE<\/key>\s*<string><\/string>/);
+      process.env.MESH_FOREMAN_ENFORCE = '1';
+      assert.match(render('systemd/openclaw-mesh-agent.service'), /^Environment=MESH_FOREMAN_ENFORCE=1$/m);
+      assert.match(render('launchd/ai.openclaw.mesh-agent.plist'), /<key>MESH_FOREMAN_ENFORCE<\/key>\s*<string>1<\/string>/);
+    } finally {
+      if (saved === undefined) delete process.env.MESH_FOREMAN_ENFORCE; else process.env.MESH_FOREMAN_ENFORCE = saved;
+    }
+  });
+
   it('an unknown placeholder fails loudly instead of shipping ${GARBAGE} into a unit', () => {
     assert.throws(() => renderServiceTemplate('ExecStart=${NODE_BIN} ${NOT_A_VAR}/x', vars), /unrendered template variable/);
   });

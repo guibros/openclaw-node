@@ -565,6 +565,7 @@ const SERVICE_TEMPLATE_VARS = [
   'HOME', 'NODE_BIN', 'NPM_BIN', 'NATS_SERVER_BIN', 'OPENCLAW_WORKSPACE', 'OPENCLAW_REPO_DIR',
   'OPENCLAW_NATS', 'OPENCLAW_NATS_TOKEN', 'OPENCLAW_NODE_ID', 'OPENCLAW_NODE_ROLE',
   'OPENCLAW_DEPLOY_TRUSTED_KEYS', 'MESH_LLM_PROVIDER', 'LLM_MODEL', 'LLM_BASE_URL',
+  'MESH_FOREMAN_ENFORCE',
 ];
 
 function serviceTemplateVars({ meshDir, nodeId, config }) {
@@ -585,6 +586,8 @@ function serviceTemplateVars({ meshDir, nodeId, config }) {
     MESH_LLM_PROVIDER: config.provider || env.MESH_LLM_PROVIDER || 'claude',
     LLM_MODEL: env.LLM_MODEL || '',
     LLM_BASE_URL: env.LLM_BASE_URL || '',
+    // Foreman enforcement is opt-in: unset renders empty, which is shadow.
+    MESH_FOREMAN_ENFORCE: env.MESH_FOREMAN_ENFORCE || '',
   };
 }
 

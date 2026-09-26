@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { ACTIONS, decide, currentVerificationPassed } from '../lib/foreman/policy.mjs';
+import { ACTIONS, DEFAULT_POLICY, decide, currentVerificationPassed, workerWarning } from '../lib/foreman/policy.mjs';
 
 const BASE = {
   implementation_complete: 0.8,
@@ -25,8 +25,10 @@ function state(overrides = {}) {
 function worker(id, kind, status, extra = {}) {
   return { worker_id: id, kind, status, supports_steering: false, steer_count: 0, steer_failures: 0, last_steered_at: null, ...extra };
 }
-function active(st, { supportsSteering = true } = {}) {
-  st.workers.push(worker('worker-1', 'coding', 'running', { supports_steering: supportsSteering }));
+// `streak` = consecutive warning assessments on an unchanged tree (the supervisor keeps
+// it); the precedence tests below start from a confirmed warning.
+function active(st, { supportsSteering = true, streak = DEFAULT_POLICY.stop_confirmations } = {}) {
+  st.workers.push(worker('worker-1', 'coding', 'running', { supports_steering: supportsSteering, warning_streak: streak }));
   st.active_worker_id = 'worker-1';
   return st.workers[0];
 }
@@ -85,6 +87,34 @@ describe('foreman policy — drift, stuck, steering', () => {
   it('steering disabled by policy stops instead', () => {
     const st = state(); active(st);
     assert.equal(decide(st, scores({ worker_stuck: 0.95 }), { steering_enabled: false }).action, ACTIONS.STOP_WORKER);
+  });
+});
+
+describe('foreman policy — STOP hysteresis (D3)', () => {
+  it('an unconfirmed warning continues and says how far from a stop it is', () => {
+    for (const streak of [0, 1, 2]) {
+      const st = state(); active(st, { supportsSteering: false, streak });
+      const result = decide(st, scores({ worker_stuck: 0.95 }));
+      assert.equal(result.action, ACTIONS.CONTINUE);
+      assert.match(result.reason, new RegExp(`stuck — unconfirmed \\(${streak}/3 consecutive on an unchanged tree\\)`));
+    }
+  });
+  it('stops once the streak reaches stop_confirmations, which is configurable', () => {
+    const st = state(); active(st, { supportsSteering: false, streak: 3 });
+    assert.equal(decide(st, scores({ worker_stuck: 0.95 })).action, ACTIONS.STOP_WORKER);
+    const once = state(); active(once, { supportsSteering: false, streak: 1 });
+    assert.equal(decide(once, scores({ worker_stuck: 0.95 }), { stop_confirmations: 1 }).action, ACTIONS.STOP_WORKER);
+    assert.equal(DEFAULT_POLICY.stop_confirmations, 3);
+  });
+  it('a steerable worker is still steered at once — steering is not destructive', () => {
+    const st = state(); active(st, { streak: 1 });
+    assert.equal(decide(st, scores({ worker_stuck: 0.95 })).action, ACTIONS.STEER_WORKER);
+  });
+  it('workerWarning names the strongest warning, drift first on ties, and null when none is raised', () => {
+    assert.equal(workerWarning(scores()), null);
+    assert.match(workerWarning(scores({ worker_stuck: 0.9, work_off_track: 0.95 })), /off track/);
+    assert.match(workerWarning(scores({ worker_stuck: 0.9, agents_md_drift: 0.9 })), /instructions/);
+    assert.equal(workerWarning(scores({ worker_stuck: 0.85 }), { stuck: 0.9 }), null);
   });
 });
 

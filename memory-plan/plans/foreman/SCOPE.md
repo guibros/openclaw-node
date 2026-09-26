@@ -1,12 +1,39 @@
 # SCOPE — foreman plan
 
-**Status:** done
-**Closed at:** 2026-09-21 — Block 2 closed at v2.2 (steps 2.1 + 2.2, D2). Next: step 1.2 is the operator's deploy-and-observe step (`mesh deploy` on the lead after merging PR #27); open a scope for Block 3 after that.
-**Set at:** 2026-09-21 (Block 2 — enforcement, steps 2.1 + 2.2, operator instruction "implement the thing": enforcement is the default, not a later gate)
-**Expires:** 2026-09-28T00:00:00Z
-**Closed at:** 2026-09-21 — step 1.1 closed at v1.1 (see audits/step11_shadow-supervision/AUDIT_POST.md). Next scope: step 1.2 is the operator's deploy-and-observe step; open it when the runtime tree carries this commit.
-**Goal:** Step 1.1 — shadow-mode Foreman supervision over mesh workers: `lib/foreman/` (observation · assessment · policy · steering · assessor · supervisor) wired into `bin/mesh-agent.js` `runLLM`/`executeTask`; every decision recorded to a per-task JSONL timeline + `mesh.foreman.*` events, none enforced. Operator instruction 2026-09-21: "integrate the Foreman tech".
-**Originally set at:** 2026-09-21 (step 1.1 batch, now closed)
+**Status:** idle
+**Closed at:** 2026-09-26 — batch `audit-remediation-2026-09-26` code-complete on branch `claude/determined-chaplygin-2f5965` (PR to `main`); no step closed: 1.2 stays `[ ]`, 2.1/2.2 stay `[A]` until their `runtime:` Verify is observed on the operator's node (audits/remediation_2026-09-26/AUDIT.md §6). Review fixes on that PR re-open this block under the same approval.
+**Set at:** 2026-09-26 17:30 America/Montreal — batch `audit-remediation-2026-09-26`, operator-approved in session: remediate the five defects the 2026-09-26 audit verified on main (no-metric completion inverted · first-match verdict parser · writable verifier · single-sample STOP · supervisor leak + idle ceiling) and make enforcement opt-in. Operator rulings: STOP hysteresis in; a no-metric `shell` task completes on its exit code when enforcing (no verifier can take its prompt).
+**Expires:** 2026-09-30T00:00:00Z
+**Goal:** Shadow by default (`MESH_FOREMAN_ENFORCE=1` enforces; the knob is rendered into the mesh-agent launchd/systemd units); when enforcing, a no-metric attempt completes only on exactly one well-formed `FOREMAN_VERDICT: PASS` from a verifier that left the worktree unchanged; the supervisor is closed on every exit path and idle decisions neither poll nor count toward the ceiling; STOP needs K consecutive stuck assessments on an unchanged tree. Steps 2.1/2.2 re-opened to `[A]` (their runtime Verify never ran). Code + tests only — runtime evidence is the operator's node (step 1.2, then 2.1/2.2 Verify).
+
+**History:** Block 2 batch closed 2026-09-21 at v2.2 (steps 2.1 + 2.2, D2 — enforcement as default); re-opened by this batch. Step 1.1 batch closed 2026-09-21 at v1.1 (see audits/step11_shadow-supervision/AUDIT_POST.md).
+
+```files audit-remediation-2026-09-26 closed
+lib/foreman/supervisor.mjs
+lib/foreman/policy.mjs
+lib/foreman/verifier.mjs
+lib/foreman/observation.mjs
+lib/foreman/index.mjs
+# shell provider gains acceptsPrompt=false (no verifier can take its prompt)
+lib/llm-providers.js
+bin/mesh-agent.js
+# the unit templates carry ${MESH_FOREMAN_ENFORCE}; both renderers must know it
+bin/openclaw-node-init.js
+scripts/install/services.sh
+services/launchd/ai.openclaw.mesh-agent.plist
+services/systemd/openclaw-mesh-agent.service
+openclaw.env.example
+test/foreman-*.test.mjs
+test/node-init-render.test.mjs
+docs/foreman.md
+CLAUDE.md
+memory-plan/plans/foreman/INVENTORY.md
+memory-plan/plans/foreman/ROADMAP.md
+memory-plan/plans/foreman/DECISIONS.md
+memory-plan/plans/foreman/COMPONENT_REGISTRY.md
+memory-plan/plans/foreman/VERSION
+memory-plan/plans/foreman/audits/remediation_2026-09-26/*
+```
 
 ```files step-1.1 closed
 lib/foreman/index.mjs

@@ -89,16 +89,23 @@ companion-bridge. Code + container tests only: every INVENTORY row there stays `
 **Scope after v3.1:** no plan scope is active. The next operator-approved scope is the bounded
 runtime-repair batch described above; federation execution remains locked until that repair lands.
 
-**As of 2026-09-21 (foreman plan, step 1.1):** on operator instruction ("integrate the Foreman
-tech"), a new silo [`memory-plan/plans/foreman/`](memory-plan/plans/foreman/) landed
-`lib/foreman/` — the supervisory design of thruwire/foreman (fast local assessor answering ten
-fixed questions → deterministic policy → small action vocabulary) wired into `bin/mesh-agent.js`
-`runLLM`/`executeTask`, **enforcing by default** (Block 2 closed the same day, D2): a stuck or
-off-track worker is stopped (process group) and retried with the reason in its prompt, an escalated
-task is released for human triage, and a no-metric task completes only on an independent verifier's
-`FOREMAN_VERDICT: PASS`. Every task gets a per-task timeline (`~/.openclaw/foreman/<task_id>.jsonl`)
-and `mesh.foreman.*` events; `MESH_FOREMAN_ENFORCE=0` is shadow mode. An unavailable assessor is a
-passthrough, never an escalation (D1). Runtime evidence on the operator's node is step 1.2. See
+**As of 2026-09-26 (foreman plan, audit remediation, D3):** the silo
+[`memory-plan/plans/foreman/`](memory-plan/plans/foreman/) (2026-09-21, operator instruction
+"integrate the Foreman tech") landed `lib/foreman/` — the supervisory design of thruwire/foreman
+(fast local assessor answering ten fixed questions → deterministic policy → small action
+vocabulary) wired into `bin/mesh-agent.js` `runLLM`/`executeTask`. It is **shadow by default**:
+every task gets a per-task timeline (`~/.openclaw/foreman/<task_id>.jsonl`) and `mesh.foreman.*`
+events, and nothing acts. `MESH_FOREMAN_ENFORCE=1` (rendered into the mesh-agent units from
+`openclaw.env`) enforces: a worker confirmed stuck — three consecutive assessments on an unchanged
+tree — is stopped (process group) and retried with the reason in its prompt, an escalated task is
+released for human triage, and a no-metric attempt completes only on exactly one
+`FOREMAN_VERDICT: PASS` line from an independent verifier that left the worktree unchanged (a
+`shell` task, which no verifier can run on, completes on its exit code). The 2026-09-21 landing was
+enforcing by default (D2) while that no-metric gate was inverted — no decision meant completed
+unverified — and the verdict parser, the verifier's write access, single-sample STOPs and a leaking
+supervisor were also wrong; the 2026-09-26 audit verified all five and D3 fixed them. Steps 2.1/2.2
+are back to `[A]` (their runtime Verify never ran). An unavailable assessor is a passthrough, never
+an escalation (D1). Runtime evidence on the operator's node is still step 1.2. See
 `docs/foreman.md`.
 
 ## The forcing function

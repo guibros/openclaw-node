@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { DIMENSIONS } from '../lib/foreman/assessment.mjs';
 import { createSimulatedAssessor } from '../lib/foreman/assessor.mjs';
 import { ACTIONS } from '../lib/foreman/policy.mjs';
@@ -80,7 +80,7 @@ describe('foreman supervisor — shadow loop', () => {
   it('records decisions in shadow mode and only calls the enforcement seam when enforce is on', async () => {
     const calls = [];
     const make = (enforce) => createSupervisor({
-      task, assessor: createSimulatedAssessor([STUCK]), config: { ...fastConfig, enforce }, timelinePath: timelineFor(enforce ? 'enf' : 'shd'),
+      task, assessor: createSimulatedAssessor([STUCK]), config: { ...fastConfig, enforce, policy: { stop_confirmations: 1 } }, timelinePath: timelineFor(enforce ? 'enf' : 'shd'),
       onIntervention: async (intervention, context) => { calls.push({ intervention, hasMessage: Boolean(context.steeringMessage) }); return { applied: true }; },
     }).start();
 
@@ -169,11 +169,88 @@ describe('foreman supervisor — shadow loop', () => {
   });
 });
 
+function tempRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'foreman-sup-repo-'));
+  execFileSync('git', ['init', '-q', dir]);
+  execFileSync('git', ['-C', dir, 'config', 'user.email', 't@example.com']);
+  execFileSync('git', ['-C', dir, 'config', 'user.name', 'test']);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n');
+  execFileSync('git', ['-C', dir, 'add', '-A']);
+  execFileSync('git', ['-C', dir, 'commit', '-q', '-m', 'init']);
+  return dir;
+}
+const waitFor = async (predicate, ms = 3_000) => {
+  const deadline = Date.now() + ms;
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error('timed out waiting');
+    await sleep(10);
+  }
+};
+
+describe('foreman supervisor — idle loop and the ceiling', () => {
+  it('does not poll while no worker runs; lifecycle events still force one cycle', async () => {
+    const assessor = createSimulatedAssessor([HEALTHY]);
+    const supervisor = createSupervisor({ task, assessor, config: fastConfig }).start();
+    await sleep(150);
+    assert.equal(assessor.calls.length, 0, 'an idle supervisor must not assess on a timer');
+    supervisor.workerStarted({ attempt: 1 });
+    supervisor.workerExited({ exitCode: 0 });
+    await waitFor(() => assessor.calls.length >= 1);
+    const settled = assessor.calls.length;
+    await sleep(150);
+    assert.equal(assessor.calls.length, settled, 'after the worker exits the loop goes quiet again');
+    await supervisor.close();
+  });
+
+  it('decisions taken with no worker running never count toward the intervention ceiling', async () => {
+    const supervisor = createSupervisor({ task, assessor: createSimulatedAssessor([HEALTHY]), config: fastConfig }).start();
+    for (let i = 0; i < 25; i += 1) assert.equal((await supervisor.assessNow()).action, ACTIONS.START_WORKER);
+    assert.equal(supervisor.state.interventions, 0);
+    assert.equal(supervisor.state.actions.START_WORKER, 25);
+    await supervisor.close();
+  });
+});
+
+describe('foreman supervisor — STOP hysteresis on the tree (D3)', () => {
+  it('a worker flagged stuck while it keeps changing the tree is never stopped', async () => {
+    const dir = tempRepo();
+    const timelinePath = timelineFor('writing');
+    const supervisor = createSupervisor({ task, worktreePath: dir, assessor: createSimulatedAssessor([STUCK]), config: { ...fastConfig, enforce: false }, timelinePath }).start();
+    supervisor.workerStarted({ attempt: 1 }); supervisor.attach(fakeChild());
+    let n = 0;
+    const writer = setInterval(() => fs.writeFileSync(path.join(dir, 'progress.txt'), `step ${n++}\n`), 5);
+    await waitFor(() => supervisor.state.iteration >= 5);
+    clearInterval(writer);
+    await supervisor.close();
+    const decisions = readTimeline(timelinePath).filter((r) => r.type === 'foreman.intervened');
+    assert.ok(decisions.length >= 4);
+    assert.ok(decisions.every((r) => r.action === ACTIONS.CONTINUE), decisions.map((r) => r.reason).join(' | '));
+    assert.ok(decisions.every((r) => /unconfirmed \(1\/3/.test(r.reason)), 'a changed tree restarts the streak');
+  });
+
+  it('three consecutive stuck assessments on an unchanged tree decide STOP', async () => {
+    const dir = tempRepo();
+    fs.writeFileSync(path.join(dir, 'wip.txt'), 'half done\n');
+    const timelinePath = timelineFor('idle-tree');
+    const supervisor = createSupervisor({ task, worktreePath: dir, assessor: createSimulatedAssessor([STUCK]), config: { ...fastConfig, enforce: false }, timelinePath }).start();
+    supervisor.workerStarted({ attempt: 1 }); supervisor.attach(fakeChild());
+    await waitFor(() => supervisor.state.actions.STOP_WORKER >= 1);
+    await supervisor.close();
+    const decisions = readTimeline(timelinePath).filter((r) => r.type === 'foreman.intervened');
+    assert.deepEqual(decisions.slice(0, 3).map((r) => r.action), [ACTIONS.CONTINUE, ACTIONS.CONTINUE, ACTIONS.STOP_WORKER]);
+    assert.match(decisions[0].reason, /unconfirmed \(1\/3/);
+    assert.match(decisions[1].reason, /unconfirmed \(2\/3/);
+    assert.equal(supervisor.state.workers[0].warning_streak >= 3, true);
+  });
+});
+
 describe('foreman supervisor — configuration from the environment', () => {
-  it('defaults to enforcement, enabled, with the operator home for timelines', () => {
+  it('defaults to shadow, enabled, with the operator home for timelines', () => {
     const config = foremanConfigFromEnv({}, '/home/op');
     assert.equal(config.enabled, true);
-    assert.equal(config.enforce, true);
+    assert.equal(config.enforce, false);
+    assert.equal(DEFAULT_CONFIG.enforce, false);
+    assert.equal(config.policy.stop_confirmations, 3);
     assert.equal(config.stop_grace_ms, DEFAULT_CONFIG.stop_grace_ms);
     assert.equal(config.min_interval_ms, DEFAULT_CONFIG.min_interval_ms);
     assert.equal(config.dir, path.join('/home/op', '.openclaw', 'foreman'));
@@ -198,5 +275,12 @@ describe('foreman supervisor — configuration from the environment', () => {
     assert.equal(config.dir, '/var/foreman');
     assert.equal(config.policy.max_interventions, 7);
     assert.equal(foremanConfigFromEnv({ LLM_MODEL: 'qwen3:8b' }).model, 'qwen3:8b');
+    assert.equal(foremanConfigFromEnv({ MESH_FOREMAN_STOP_CONFIRMATIONS: '5' }).policy.stop_confirmations, 5);
+  });
+  it('enforces only on MESH_FOREMAN_ENFORCE=1 — unset, empty (a rendered unit) or anything else is shadow', () => {
+    assert.equal(foremanConfigFromEnv({ MESH_FOREMAN_ENFORCE: '1' }).enforce, true);
+    for (const value of [undefined, '', '0', 'true', 'yes']) {
+      assert.equal(foremanConfigFromEnv({ MESH_FOREMAN_ENFORCE: value }).enforce, false, String(value));
+    }
   });
 });

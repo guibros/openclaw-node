@@ -15,7 +15,9 @@ const STUCK = { ...all(0.05), meaningful_progress: 0.05, worker_stuck: 0.95 };
 const HUMAN = { ...all(0.05), needs_human: 0.95 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const task = { task_id: 'task-enf', title: 'Add rate limiting', description: 'to the API' };
-const fastConfig = { min_interval_ms: 10, periodic_ms: 40, stop_grace_ms: 400 };
+// Enforcement is opt-in (D3); these tests exercise the mechanics of acting on a
+// decision, so a single warning is taken as confirmed (hysteresis has its own tests).
+const fastConfig = { min_interval_ms: 10, periodic_ms: 40, stop_grace_ms: 400, enforce: true, policy: { stop_confirmations: 1 } };
 const children = [];
 after(() => { for (const child of children) { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* gone */ } } });
 

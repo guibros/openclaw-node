@@ -83,6 +83,7 @@ else
           -e "s|\${MESH_LLM_PROVIDER}|$MESH_LLM_PROVIDER|g" \
           -e "s|\${LLM_MODEL}|$LLM_MODEL|g" \
           -e "s|\${LLM_BASE_URL}|$LLM_BASE_URL|g" \
+          -e "s|\${MESH_FOREMAN_ENFORCE}|${MESH_FOREMAN_ENFORCE:-}|g" \
           "$TEMPLATE" > "$DEST"
       fi
       check_rendered "$DEST"
@@ -132,6 +133,7 @@ else
               -e "s|\${MESH_LLM_PROVIDER}|$MESH_LLM_PROVIDER|g" \
               -e "s|\${LLM_MODEL}|$LLM_MODEL|g" \
               -e "s|\${LLM_BASE_URL}|$LLM_BASE_URL|g" \
+              -e "s|\${MESH_FOREMAN_ENFORCE}|${MESH_FOREMAN_ENFORCE:-}|g" \
               "$TEMPLATE" > "$DEST"
           fi
           check_rendered "$DEST"
@@ -172,6 +174,7 @@ else
             -e "s|\${MESH_LLM_PROVIDER}|$MESH_LLM_PROVIDER|g" \
             -e "s|\${LLM_MODEL}|$LLM_MODEL|g" \
             -e "s|\${LLM_BASE_URL}|$LLM_BASE_URL|g" \
+            -e "s|\${MESH_FOREMAN_ENFORCE}|${MESH_FOREMAN_ENFORCE:-}|g" \
             "$TEMPLATE" > "$DEST"
         fi
         check_rendered "$DEST"
