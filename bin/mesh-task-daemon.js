@@ -73,8 +73,21 @@ const { info: log, warn, error: logError, debug } = _logger;
 
 // ── Response helpers ────────────────────────────────
 
+// lease_token fences the owner path, and that path takes node_id on faith, so
+// the token is the owner's whole credential. Only the claim reply carries it
+// (respondToClaimer). Every other reply and every mesh.events.* copy drops it:
+// get/list/events used to hand it to any bus peer, which then completed, failed
+// or released the task as its owner (review 2026-09-15 F1/R1).
+function withoutLeaseToken(key, value) {
+  return key === 'lease_token' ? undefined : value;
+}
+
 function respond(msg, data) {
-  msg.respond(sc.encode(JSON.stringify({ ok: true, data })));
+  msg.respond(sc.encode(JSON.stringify({ ok: true, data }, withoutLeaseToken)));
+}
+
+function respondToClaimer(msg, task) {
+  msg.respond(sc.encode(JSON.stringify({ ok: true, data: task })));
 }
 
 function respondError(msg, error) {
@@ -132,7 +145,19 @@ async function authorize(msg, params, task, { action, allowOwner = false, allowO
 function publishEvent(eventType, task) {
   nc.publish(`mesh.events.${eventType}`, sc.encode(JSON.stringify({
     event: eventType, task_id: task.task_id, task, timestamp: new Date().toISOString(),
-  })));
+  }, withoutLeaseToken)));
+}
+
+// Plan linkage and the review override belong to the daemon. Plan progress
+// follows task.plan_id/subtask_id, and requires_review:false skips the human
+// gate, so a submitter setting them could complete, fail or abort another plan's
+// subtask, or wave its own work past review (review 2026-09-15 F1). Only
+// advancePlanWave sets them, plus handleFail's escalation, which copies them from
+// a task the daemon dispatched. A bus submit or KV proposal carrying them is refused.
+const DAEMON_OWNED_TASK_FIELDS = ['plan_id', 'subtask_id', 'requires_review'];
+
+function daemonOwnedFieldsIn(task) {
+  return DAEMON_OWNED_TASK_FIELDS.filter((k) => task[k] !== undefined && task[k] !== null);
 }
 
 // ── Subject Handlers ────────────────────────────────
@@ -146,6 +171,12 @@ async function handleSubmit(msg) {
 
   if (!params.task_id || !params.title) {
     return respondError(msg, 'task_id and title are required');
+  }
+
+  const owned = daemonOwnedFieldsIn(params);
+  if (owned.length) {
+    log(`SUBMIT REJECTED ${params.task_id}: sets daemon-owned ${owned.join(', ')}`);
+    return respondError(msg, `Submit refused: ${owned.join(', ')} can only be set by the daemon`);
   }
 
   // Server-side metric gate. The worker re-checks before running, but the
@@ -264,7 +295,7 @@ async function handleClaim(msg) {
     }
     log(`CLAIM ${task.task_id} → ${node_id} (budget deadline: ${task.budget_deadline})`);
     publishEvent('claimed', task);
-    respond(msg, task);
+    respondToClaimer(msg, task);
   } else {
     respond(msg, null);
   }
@@ -832,6 +863,15 @@ async function processProposals() {
       task.result = { success: false, summary: 'Missing required fields (title, origin)' };
       await store.put(task);
       log(`REJECTED ${task.task_id}: missing required fields`);
+      publishEvent('rejected', task);
+      continue;
+    }
+    const owned = daemonOwnedFieldsIn(task);
+    if (owned.length) {
+      task.status = TASK_STATUS.REJECTED;
+      task.result = { success: false, summary: `Proposal sets daemon-owned ${owned.join(', ')}` };
+      await store.put(task);
+      log(`REJECTED proposal ${task.task_id} from ${task.origin}: sets daemon-owned ${owned.join(', ')}`);
       publishEvent('rejected', task);
       continue;
     }
@@ -2450,7 +2490,10 @@ async function checkPlanProgress(taskId, status) {
   let plan = null;
   let st = null;
 
-  // Fast path: O(1) lookup via plan_id back-reference on the task
+  // Only the task's own plan_id links it to a plan, and only the daemon sets
+  // it. The pre-back-reference fallback that matched a bare task_id against
+  // every executing plan is gone: a forged task named after a pending subtask
+  // completed or aborted that plan through it (review 2026-09-15 F1).
   const task = await store.get(taskId);
   if (task && task.plan_id) {
     plan = await planStore.get(task.plan_id);
@@ -2462,20 +2505,6 @@ async function checkPlanProgress(taskId, status) {
         s.subtask_id === taskId ||
         (task.subtask_id && s.subtask_id === task.subtask_id)
       );
-    }
-  }
-
-  // LEGACY: Remove after 2026-06-01. O(n*m) fallback for tasks created before
-  // plan_id back-reference was added. Track invocations to know when safe to delete.
-  if (!st) {
-    const allPlans = await planStore.list({ status: PLAN_STATUS.EXECUTING });
-    for (const p of allPlans) {
-      const found = p.subtasks.find(s => s.mesh_task_id === taskId || s.subtask_id === taskId);
-      if (found) {
-        plan = p;
-        st = found;
-        break;
-      }
     }
   }
 
@@ -2826,5 +2855,19 @@ if (require.main === module) {
     evaluateRound: (id) => evaluateRound(id),
     sweepCollabRoundTimeouts: () => sweepCollabRoundTimeouts(),
     handleFail: (msg) => handleFail(msg),
+    // F1/R1 (test/mesh-lease-authz.test.js): the handlers a stranger on the bus reaches.
+    handleSubmit: (msg) => handleSubmit(msg),
+    handleClaim: (msg) => handleClaim(msg),
+    handleGet: (msg) => handleGet(msg),
+    handleList: (msg) => handleList(msg),
+    handleStart: (msg) => handleStart(msg),
+    handleComplete: (msg) => handleComplete(msg),
+    handleAttempt: (msg) => handleAttempt(msg),
+    handleHeartbeat: (msg) => handleHeartbeat(msg),
+    handleRelease: (msg) => handleRelease(msg),
+    handleTaskMerged: (msg) => handleTaskMerged(msg),
+    handlePlanCreate: (msg) => handlePlanCreate(msg),
+    handlePlanApprove: (msg) => handlePlanApprove(msg),
+    processProposals: () => processProposals(),
   };
 }

@@ -1,7 +1,22 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
+**Goal:** F1/R1 of the 2026-09-15 review (operator-approved 2026-09-26): the owner check is only as
+strong as `lease_token` secrecy, and the daemon handed the token to every bus peer. The token is
+redacted from every reply and every `mesh.events.*` copy except the claimer's own claim reply.
+`plan_id`, `subtask_id` and `requires_review` are refused on bus submits and KV proposals: only the
+daemon's plan dispatch sets them. The expired LEGACY bare-`task_id` plan fallback is deleted,
+because a forged task named after a pending subtask still moved the plan. mesh-agent acts on
+`.approved`/`.rejected` only after the daemon reports the task completed (respectively rejected)
+and owned by this node. The owner keeps its claim-time lease for the post-review `mesh.tasks.merged`
+report, since `get` no longer returns it. Mid-implementation finding (same file, same path):
+startup `reconcileKeptBranches` listed branches through a shell, where the unquoted
+`%(refname:short)` is a syntax error. The listing always threw, so reconcile never ran after its
+9cb996a introduction. Fixed with execFileSync, because the reconcile report is the other
+consumer of the kept lease. Tests drive the real handlers. The residual token
+channels (direct KV read, `_INBOX.>` snooping, spoofed replies) are captured in OUT_OF_SCOPE and
+not fixed here. Deploy and restart on the live node are the operator's step.
+Earlier goal — Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
 NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
 operator flips), server users block rendered from the identity registry into an included
 `nats-auth.conf`, worker deny on `mesh.deploy.trigger`, every credential-less connect routed through
@@ -25,10 +40,19 @@ Local consumers that GET :3000 read the 0600 session token like scheduler-heartb
 Code + focused tests + MC build only; runtime evidence on the live host is the operator's step.
 Per-node NATS nkeys is deferred (needs install-time credential provisioning).
 Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved as closed blocks.
-**Set at:** 2026-09-06T00:00:00Z
-**Expires:** 2026-09-10T00:00:00Z
+**Set at:** 2026-09-26T21:29:00Z (operator approval, this session; earlier batches 2026-09-06)
+**Expires:** 2026-09-29T00:00:00Z
 
-```files embedder-prefetch-honesty-2026-09-08
+```files remediation-2026-09-15-F1-lease-authz
+bin/mesh-task-daemon.js
+bin/mesh-agent.js
+test/mesh-lease-authz.test.js
+test/mesh-agent-review-gate.test.js
+memory-plan/plans/protocol/SCOPE.md
+memory-plan/plans/protocol/OUT_OF_SCOPE.md
+```
+
+```files embedder-prefetch-honesty-2026-09-08 closed
 scripts/install/llm-setup.sh
 test/install-modules.test.mjs
 memory-plan/plans/protocol/SCOPE.md
