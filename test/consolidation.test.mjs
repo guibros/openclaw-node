@@ -430,9 +430,9 @@ describe('detectContradictions', () => {
   });
 });
 
-describe('P5-2: pruneStale — decay is terminal', () => {
+describe('P5-2: pruneStale — decay is terminal, and what it removes is not destroyed', () => {
   const DAY = 86_400_000;
-  it('deletes archived entities past retention, decayed-out decisions and idle themes; keeps the rest', () => {
+  it('archives decayed-out decisions, deletes idle themes behind a backup, never purges the archive', () => {
     const db = createTestDb();
     initConsolidationTables(db);
     const now = new Date('2026-09-06T00:00:00Z');
@@ -443,10 +443,15 @@ describe('P5-2: pruneStale — decay is terminal', () => {
                 VALUES ('s', 'dead', 'r', 0.99, ?, 0.01, 'local'), ('s', 'alive', 'r', 0.99, ?, 0.4, 'local')`).run(iso(1), iso(1));
     db.prepare(`INSERT INTO themes (label, first_seen, last_seen, mention_count) VALUES ('stale', ?, ?, 1), ('fresh', ?, ?, 1)`).run(iso(400), iso(300), iso(5), iso(5));
 
-    const r = pruneStale(db, { now });
-    assert.deepEqual(r, { prunedArchived: 1, prunedDecisions: 1, prunedThemes: 1 });
-    assert.deepEqual(db.prepare(`SELECT name FROM entities_archived`).all().map(x => x.name), ['recent']);
+    const r = pruneStale(db, { now, backupDir: mkdtempSync(join(tmpdir(), 'consolidation-backup-')) });
+    assert.equal(r.archivedDecisions, 1);
+    assert.equal(r.prunedThemes, 1);
+    assert.equal(r.themesSkipped, null);
+    assert.equal(r.backup.reused, false, 'the theme delete waited for a fresh backup');
+    assert.deepEqual(db.prepare(`SELECT name FROM entities_archived ORDER BY name`).all().map(x => x.name), ['old', 'recent'],
+      'archives are never purged (operator decision 2026-09-26)');
     assert.deepEqual(db.prepare(`SELECT decision FROM decisions`).all().map(x => x.decision), ['alive']);
+    assert.deepEqual(db.prepare(`SELECT decision FROM decisions_archived`).all().map(x => x.decision), ['dead']);
     assert.deepEqual(db.prepare(`SELECT label FROM themes`).all().map(x => x.label), ['fresh']);
     db.close();
   });
@@ -587,7 +592,7 @@ describe('runConsolidationCycle', () => {
       // F-Q307 added 'summaries-midloop' as a valid abortedAt value when the
       // per-concept summary loop catches the signal mid-iteration (vs. the
       // between-step checkpoints).
-      assert.ok(['decay', 'reinforce', 'clusters', 'summaries',
+      assert.ok(['decay', 'prune', 'reinforce', 'clusters', 'summaries',
                  'summaries-midloop', 'vault-surfaces',
                  'contradictions', 'promotion'].includes(result.abortedAt),
         `abortedAt should be a known step, got: ${result.abortedAt}`);
