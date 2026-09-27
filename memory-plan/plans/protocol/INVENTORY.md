@@ -55,6 +55,7 @@ test). Steps below use the four-field contract they introduce.
 | 4 | 4.2 | v4.2 | [x] | Remove nested Sharp/libvips dependency trees from source and deployment paths — closed 2026-08-02; all mcp-knowledge imports resolve root Sharp 0.35.3 and the full watcher exits normally through isolated native probing |
 | 4 | 4.3 | v4.3 | [x] | Make gateway freshness and launchd PID state load-bearing watcher evidence — closed 2026-08-02; stale gateway activity and PID-less loaded services now grade non-green, while running coordinator/core services carry explicit PID evidence |
 | 4 | 4.4 | v4.4 | [x] | Authenticate the scheduler-heartbeat one-shot against Mission Control — closed 2026-08-02; loopback helper preserves the POST auth gate and launchd recurs with HTTP 200 / exit 0 |
+| 4 | 4.9 | v4.9 | [ ] | Prove the fleet deploy delivers on the nodes: a signed `mesh deploy` of a real change is installed and running after PR #30's rollout |
 
 > **4.1 — Goal:** the standalone consolidation scheduler starts a real cycle when the daemon queue is freshly idle and can emit through the authenticated, validly named local event stream.
 > **Needs:** v3.1 governance recovery closed; live memory daemon exports `.tmp/ollama-queue-state.json`; R=3 NATS cluster and token resolver live; consolidation scheduler launchd unit loaded; operator approval 2026-08-02.
@@ -75,6 +76,12 @@ test). Steps below use the four-field contract they introduce.
 > **Needs:** Mission Control auth token file and POST gate live; heartbeat unit currently reproduces exit 22/HTTP 401; workspace installer owns one-shot scripts and service templates.
 > **Feeds:** at/cron task dispatch; `ops.calendar` watcher; Mission Control scheduler status.
 > **Verify:** `code:` helper/unit/install tests pass and the mutation route remains auth-gated. `runtime:` deployed launchd unit uses the helper, records HTTP 200/tick output, increments its run count with last exit 0, and Mission Control remains reachable.
+
+> **4.9 — Goal:** a signed `mesh deploy` of a real change is running on every online node: the tree its services run from is at the deployed sha and those services restarted onto it.
+> **Needs:** PR #30 on main (`aeffd47`: the listener checks out the signed sha and runs the pinned deploy; one `deploy(fromSha, toSha)` engine). On each node: one forced deploy (`mesh deploy --force`) to record `deployedSha` — a pre-fix listener fast-forwards first, so its first normal deploy installs nothing — then a `mesh-deploy-listener` restart onto a tree containing `aeffd47`. The listener connected to NATS: on this Mac it loops on "NATS connect failed" and `ai.openclaw.nats-1` crash-loops. An operator decision on the lead's runtime tree: its listener runs on the development checkout `/Users/moltymac/openclaw-nodedev`.
+> **Feeds:** MASTER_PLAN §5 deploy + restart for every later runtime step (the fleet path reports what it actually installed); `MESH_NODES.deployVersion` and `mesh.deploy.status` truth for the operator; federation worker rollout.
+> **Verify:** `runtime:` after the forced deploy and listener restart, commit a comment-only change to `bin/mesh-health-publisher.js`, run `mesh deploy`, and observe on each online node: `MESH_DEPLOY_RESULTS` `<sha>-<node>` is `success` with `mesh-daemons` in `componentsDeployed`; the listener's repo is at that sha; the health publisher's PID changed after the deploy; `~/.openclaw/.deploy-state.json` `deployedSha` is that sha. WIN = every online node. `code:` `test/deploy-pinned-sha.test.mjs` green in CI (on main since `aeffd47`).
+> **Note:** 4.5–4.8 are held by the pending local protocol work (DECISIONS D10); this row takes 4.9 so the two do not collide.
 
 > **2.1 — Goal:** the rules exist in one place: PROTOCOL.md gains §10 (six-surface conformance: what "functionally implements" each tab means) + §11 (the Goal/Needs/Feeds/Verify step contract); INVENTORY + TICK_PROMPT templates carry both.
 > **Needs:** PROTOCOL.md §1/§6 (present, v1.1) · the viewer tab↔file map (verified live in Block 1) · redesign's LOOPS.md flow framing as lineage (connects-with/produces-for/WIN-FAIL).
