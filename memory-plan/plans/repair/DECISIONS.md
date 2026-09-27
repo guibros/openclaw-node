@@ -4,6 +4,24 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-09-26 — D9: decay archives, it never destroys; archives are not purged; the one hard delete waits for a backup
+
+**Decision (operator, via AskUserQuestion: "Repair silo batch", "Stop purging archives").** Every row consolidation takes out of the live tables is moved, never lost:
+- **Decisions** that decay below 0.05 move to `decisions_archived` (`pruneStale` had hard-deleted them since 01b7bbb, 2026-09-06) and are resurrected on re-mention by their identity (session, decision text) under the original id at `RESURRECTED_SALIENCE`, registry merge ops applied.
+- **Entity archival** carries every live column (mirrored, so `private`, `reinforcement_count` and `embedding` stop being dropped), its mention rows (`mentions_archived`) and its aliases (`entity_aliases_archived`, which the FK cascade used to delete). Resurrection by canonical name **or archived alias** restores all three under the original id; an alias another entity claimed meanwhile stays with that entity, and an archived identity that is live again under another row resolves to that row.
+- **Decay anchors on the latest of recall and sighting** — entities `max(last_recalled, last_seen)`, decisions `max(last_recalled, created_at)` (the merge refreshes `created_at` on restatement). 1.2's `last_recalled || last_seen` froze the clock at the first recall; the decisions loop had the same defect and is fixed identically, as in 1.2.
+- **No archive is purged.** P5-2's 90-day purge of `entities_archived` is removed: the archive is the recovery path and is inert for retrieval, and a purged entity came back as a fresh 0.5 row instead of the 0.15 resurrection, which weakened P5-2's own anti-planting rule.
+- **Idle-theme deletion (180 days) is the only hard delete left.** It runs only once a `VACUUM INTO` snapshot no older than 24 h exists: `backups/consolidation/` beside the DB, 0700/0600, rotated to 7, overridable with `CONSOLIDATE_BACKUP_DIR` / `CONSOLIDATE_BACKUP_KEEP`. A snapshot that recent already holds every theme idle for 180 days. If no backup can be taken, the themes stay and the event says `prune_status: no_backup`.
+- **`CONSOLIDATE_PRUNE=0`** skips the prune step; decay and its lossless entity archival still run.
+- **Audit trail:** one line per removed row (action, kind, id, salience, session, label) in the scheduler log, plus counts on the completion line. `memory.decayed` is now emitted after prune with `decisions_archived`, `themes_deleted`, `prune_status`, `backup_path` and `removed` (≤ 50 rows, labels ≤ 200 chars).
+- **Schema v7** (extraction store) is additive only: the three new archive tables and mirrored columns, in one transaction, idempotent, re-run on every open so a later column is mirrored too.
+
+**Why.** A read-only audit of the live `state.db` (2026-09-26) found 20 decisions against 337 in the 2026-07-04 review (`sqlite_sequence` 460), 14 live entities against 1,107 archived, 0 aliases, and no automated backup anywhere. A rehearsal on a snapshot of that DB, run 14 days ahead with no recall, moved 14 of the 20 decisions and 10 of the 14 entities (214 mention rows) out of the live tables. The old code would have destroyed those decisions and mention rows. Here live + archived counts were identical before and after, and a re-mention restored them (decision #13 under its id; entity #155 with its 73 mentions). The v6→v7 migration ran in place and a second open left the schema byte-identical. `VACUUM INTO` of the 50 MB DB took 88 ms.
+
+**Consequences.** Nothing consolidation archives is lost; the archive costs kilobytes. Rows destroyed before this change are not recoverable from `state.db`. Recovery candidates on the node are `~/.openclaw/backups/pre-step-0.2-2026-05-28/state.db` (291 decisions) and 62 vault decision notes (an operator decision, outside this batch). This batch is code + tests only. Runtime evidence — deploy, the first scheduled cycle's per-row log, and a backup file the first time a theme goes idle — is the operator's step.
+
+---
+
 ## 2026-06-11 — Block 6 closed (6.1–6.6): the watcher UI tells the truth and stays usable
 
 **Consolidated step ledger:** 6.1 stable row identity (event_id lib→JSONL→API→key; panels stop snapping shut); 6.2 HealthCard reads the probe's real fields (the drift light shows green for the first time — it was structurally red); 6.3 fmtVal basenames only path fields (decision texts with '/' render whole); 6.4 session-less panels fetch nothing; 6.5 watcher.jsonl rotates at 5MB (both appenders routed through one helper); 6.6 the API tail-reads — measured 11ms/4ms against a 54MB synthetic file (was O(file) per 3s poll ×3 hooks).
