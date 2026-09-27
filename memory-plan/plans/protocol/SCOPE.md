@@ -39,7 +39,7 @@ Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved
 **Set at:** 2026-09-26T00:00:00Z
 **Expires:** 2026-09-28T00:00:00Z
 
-```files deploy-pinned-sha-2026-09-26
+```files deploy-pinned-sha-2026-09-26 closed
 bin/mesh-deploy.js
 bin/mesh-deploy-listener.js
 test/deploy-pinned-sha.test.mjs
