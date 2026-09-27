@@ -1,12 +1,21 @@
 # SCOPE — foreman plan
 
-**Status:** idle
+**Status:** active
 **Closed at:** 2026-09-26 — batch `audit-remediation-2026-09-26` code-complete on branch `claude/determined-chaplygin-2f5965` (PR to `main`); no step closed: 1.2 stays `[ ]`, 2.1/2.2 stay `[A]` until their `runtime:` Verify is observed on the operator's node (audits/remediation_2026-09-26/AUDIT.md §6). Review fixes on that PR re-open this block under the same approval.
+
+Reopened 2026-09-27 on operator instruction ('fix the must-fix items on the PR branches') for PR #32's review must-fixes only.
 **Set at:** 2026-09-26 17:30 America/Montreal — batch `audit-remediation-2026-09-26`, operator-approved in session: remediate the five defects the 2026-09-26 audit verified on main (no-metric completion inverted · first-match verdict parser · writable verifier · single-sample STOP · supervisor leak + idle ceiling) and make enforcement opt-in. Operator rulings: STOP hysteresis in; a no-metric `shell` task completes on its exit code when enforcing (no verifier can take its prompt).
 **Expires:** 2026-09-30T00:00:00Z
 **Goal:** Shadow by default (`MESH_FOREMAN_ENFORCE=1` enforces; the knob is rendered into the mesh-agent launchd/systemd units); when enforcing, a no-metric attempt completes only on exactly one well-formed `FOREMAN_VERDICT: PASS` from a verifier that left the worktree unchanged; the supervisor is closed on every exit path and idle decisions neither poll nor count toward the ceiling; STOP needs K consecutive stuck assessments on an unchanged tree. Steps 2.1/2.2 re-opened to `[A]` (their runtime Verify never ran). Code + tests only — runtime evidence is the operator's node (step 1.2, then 2.1/2.2 Verify).
 
 **History:** Block 2 batch closed 2026-09-21 at v2.2 (steps 2.1 + 2.2, D2 — enforcement as default); re-opened by this batch. Step 1.1 batch closed 2026-09-21 at v1.1 (see audits/step11_shadow-supervision/AUDIT_POST.md).
+
+```files review-fixes-2026-09-27
+bin/mesh-agent.js
+lib/foreman/supervisor.mjs
+lib/foreman/observation.mjs
+bin/openclaw-node-init.js
+```
 
 ```files audit-remediation-2026-09-26 closed
 lib/foreman/supervisor.mjs

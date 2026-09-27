@@ -2,7 +2,8 @@
  * foreman-verify-gate.test.mjs — the no-metric completion gate in bin/mesh-agent.js
  * (`foremanVerify`) and the supervision wrapper (`superviseTask`), driven through the
  * agent's real runLLM with a registered stub provider: a node script that plays the
- * verifier (PASS, FAIL, no verdict, a quoted PASS, a writer) in a real git worktree.
+ * verifier (PASS, FAIL, no verdict, a quoted PASS, a writer, a committer, one that
+ * exits 0 on SIGTERM after its PASS, a slow one) in a real git worktree.
  */
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,7 +24,8 @@ const all = (value) => Object.fromEntries(DIMENSIONS.map((name) => [name, value]
 const HEALTHY = { ...all(0.05), implementation_complete: 0.4, meaningful_progress: 0.95 };
 const READY = { ...all(0.02), implementation_complete: 0.99, tests_sufficient: 0.99, requirements_satisfied: 0.99, meaningful_progress: 0.99, ready_to_finish: 0.99 };
 const HUMAN = { ...all(0.05), needs_human: 0.95 };
-const DOWN = { name: 'down', async assess() { return { ok: false, reason: 'assessor unavailable: ollama-busy-extraction' }; } };
+const STUCK = { ...all(0.05), worker_stuck: 0.95 };
+const DOWN ={ name: 'down', async assess() { return { ok: false, reason: 'assessor unavailable: ollama-busy-extraction' }; } };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const fastConfig = { min_interval_ms: 10, periodic_ms: 40 };
 const CODING = { exitCode: 0, stdout: 'Implemented the limiter.\nFOREMAN_VERDICT: PASS', stderr: '' };
@@ -45,6 +47,19 @@ switch (mode) {
     fs.writeFileSync(path.join(dir, 'verifier-notes.txt'), 'scratch');
     fs.writeFileSync(path.join(dir, 'a.txt'), 'rewritten by the verifier\\n');
     say('Fixed a typo while checking.'); say('FOREMAN_VERDICT: PASS'); break;
+  case 'stopped-pass':
+    // A CLI that has printed PASS, then goes quiet, and exits 0 on SIGTERM. The handler is in place
+    // before the verdict is printed, so a stop that follows the verdict always meets it.
+    process.on('SIGTERM', () => process.exit(0));
+    say('Checked the limiter; the tests pass.'); say('FOREMAN_VERDICT: PASS');
+    setInterval(() => {}, 1000);
+    setTimeout(() => process.exit(0), 20000);
+    break;
+  case 'commits':
+    require('child_process').execFileSync('git', ['-C', dir, 'add', '-A']);
+    require('child_process').execFileSync('git', ['-C', dir, 'commit', '-q', '-m', 'verifier: checkpoint']);
+    say('Committed a checkpoint to compare against.'); say('FOREMAN_VERDICT: PASS'); break;
+  case 'slow-pass': setTimeout(() => say('FOREMAN_VERDICT: PASS'), 15000); break;
 }
 `;
 
@@ -82,8 +97,8 @@ function worktree() {
 }
 
 /** A supervisor whose coding worker (attempt 1) just exited cleanly. */
-function supervised({ assessor = createSimulatedAssessor([HEALTHY]), enforce = true, dir = worktree(), mode = 'pass', provider = 'foreman-stub' } = {}) {
-  const task = { task_id: `gate-${path.basename(dir)}`, title: 'Add rate limiting', description: 'to the API', llm_provider: provider, stub_mode: mode, budget_minutes: 1 };
+function supervised({ assessor = createSimulatedAssessor([HEALTHY]), enforce = true, dir = worktree(), mode = 'pass', provider = 'foreman-stub', taskFields = {} } = {}) {
+  const task = { task_id: `gate-${path.basename(dir)}`, title: 'Add rate limiting', description: 'to the API', llm_provider: provider, stub_mode: mode, budget_minutes: 1, ...taskFields };
   const supervisor = createSupervisor({ task, worktreePath: dir, assessor, config: { ...fastConfig, enforce }, log: () => {} }).start();
   supervisor.workerStarted({ attempt: 1 });
   supervisor.workerExited({ exitCode: 0 });
@@ -175,6 +190,74 @@ describe('foremanVerify — enforcing, no metric: only a verifier PASS completes
     assert.equal(supervisor.state.workers.filter((w) => w.kind === 'verifier' && w.status === 'running').length, 0);
     assert.deepEqual(verifications(supervisor), [['exit-code', true]]);
     assert.equal(supervisor.state.workers.length, 2, 'the coding worker + the synthetic exit-code record, no verifier run');
+  });
+});
+
+describe('foremanVerify — a stopped verifier, a committing verifier, and the task deadline (PR #32 review)', () => {
+  /** Answers `reading` only once the running verifier has printed its PASS; HEALTHY otherwise. */
+  const onVerifierPass = (reading) => createSimulatedAssessor([(obs) => (
+    obs.active_workers.some((w) => w.kind === 'verifier' && /FOREMAN_VERDICT: PASS/.test(w.stdout_tail)) ? reading : HEALTHY
+  )]);
+  const verifierOf = (supervisor) => supervisor.state.workers.find((w) => w.kind === 'verifier');
+  const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim();
+
+  it('a verifier Foreman STOPs voids its PASS even when it exits 0, and the attempt is retried', async () => {
+    const { result, supervisor } = await gate({ mode: 'stopped-pass', assessor: onVerifierPass(STUCK) });
+    const verifier = verifierOf(supervisor);
+    assert.equal(supervisor.state.last_stop.worker_id, verifier.worker_id);
+    assert.equal(supervisor.state.last_stop.action, 'STOP_WORKER');
+    assert.equal(verifier.exit_code, 0, 'the CLI trapped SIGTERM and exited 0');
+    assert.match(verifier.stdout, /FOREMAN_VERDICT: PASS/, 'having printed its PASS first');
+    assert.equal(result.escalate, false, 'a STOP is a failed attempt, not a release');
+    assert.match(result.attemptRecord.approach, /^Attempt 1: Foreman verifier stopped — active worker appears stuck/);
+    assert.match(result.attemptRecord.result, /its verdict does not count/);
+    assert.deepEqual(verifications(supervisor), [['verifier', false]]);
+    assert.equal(verifier.status, 'stopped', 'recording the verdict must not turn the stop into a completion');
+  });
+
+  it('a verifier Foreman ESCALATEs voids its PASS and releases the task', async () => {
+    const { result, supervisor } = await gate({ mode: 'stopped-pass', assessor: onVerifierPass(HUMAN) });
+    const verifier = verifierOf(supervisor);
+    assert.equal(supervisor.state.last_stop.worker_id, verifier.worker_id);
+    assert.equal(supervisor.state.last_stop.action, 'ESCALATE');
+    assert.equal(verifier.exit_code, 0);
+    assert.equal(result.escalate, true);
+    assert.match(result.attemptRecord.approach, /^Attempt 1: escalated by Foreman during verification — .*human/);
+    assert.deepEqual(verifications(supervisor), [['verifier', false]]);
+    assert.equal(verifier.status, 'stopped');
+  });
+
+  it('a verifier that commits is caught by HEAD, not the tree hash: voided, its commit dropped, the worker\'s changes kept', async () => {
+    const dir = worktree();
+    const head = git(dir, 'rev-parse', 'HEAD');
+    const { result, supervisor } = await gate({ dir, mode: 'commits' });
+    assert.match(result.attemptRecord.approach, /Foreman verifier modified the worktree/);
+    assert.match(result.attemptRecord.result, /the verifier moved HEAD .*; HEAD was reset, the worker's changes kept/);
+    assert.equal(git(dir, 'rev-parse', 'HEAD'), head, 'HEAD is back where the verifier found it');
+    assert.equal(fs.readFileSync(path.join(dir, 'a.txt'), 'utf8'), 'one\nlimiter\n');
+    assert.equal(fs.readFileSync(path.join(dir, 'new.txt'), 'utf8'), 'limiter test\n');
+    assert.match(git(dir, 'status', '--porcelain'), /a\.txt[\s\S]*new\.txt/, 'the changes are still there for commitWorktree');
+    assert.deepEqual(verifications(supervisor), [['verifier', false]]);
+  });
+
+  it('no verifier is started once the task deadline has passed; the attempt fails for the loop\'s budget check', async () => {
+    const { result, spawned, supervisor } = await gate({ mode: 'pass', taskFields: { budget_deadline: new Date(Date.now() - 60_000).toISOString() } });
+    assert.equal(spawned.length, 0);
+    assert.equal(result.escalate, false);
+    assert.match(result.attemptRecord.approach, /^Attempt 1: Foreman verifier not run/);
+    assert.match(result.attemptRecord.result, /budget was exhausted/);
+    assert.equal(verifierOf(supervisor), undefined);
+    assert.deepEqual(verifications(supervisor), []);
+  });
+
+  it('the verifier runs on what is left of the deadline, not a fresh budget_minutes', async () => {
+    const started = Date.now();
+    // budget_minutes: 1 would let this verifier print PASS at 15 s; the deadline stops it at ~3 s.
+    const { result, spawned, supervisor } = await gate({ mode: 'slow-pass', taskFields: { budget_deadline: new Date(Date.now() + 3_000).toISOString() } });
+    assert.equal(spawned.length, 1);
+    assert.ok(Date.now() - started < 12_000, `the verifier outlived the task deadline (${Date.now() - started} ms)`);
+    assert.match(result.attemptRecord.approach, /Foreman verifier returned no verdict line/);
+    assert.deepEqual(verifications(supervisor), [['verifier', false]]);
   });
 });
 

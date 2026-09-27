@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFile, execFileSync, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
 import { DIMENSIONS } from '../lib/foreman/assessment.mjs';
 import { createSimulatedAssessor } from '../lib/foreman/assessor.mjs';
 import { ACTIONS } from '../lib/foreman/policy.mjs';
@@ -241,6 +242,21 @@ describe('foreman supervisor — STOP hysteresis on the tree (D3)', () => {
     assert.match(decisions[0].reason, /unconfirmed \(1\/3/);
     assert.match(decisions[1].reason, /unconfirmed \(2\/3/);
     assert.equal(supervisor.state.workers[0].warning_streak >= 3, true);
+  });
+
+  it('a tree that cannot be snapshotted never confirms a stop — a null snapshot reads as changed', async () => {
+    const dir = tempRepo();
+    const execFileAsync = promisify(execFile);
+    const exec = (file, args, opts) => (args.includes('write-tree') ? Promise.reject(new Error('git write-tree timed out')) : execFileAsync(file, args, opts));
+    const timelinePath = timelineFor('no-snapshot');
+    const supervisor = createSupervisor({ task, worktreePath: dir, assessor: createSimulatedAssessor([STUCK]), exec, config: { ...fastConfig, enforce: false }, timelinePath }).start();
+    supervisor.workerStarted({ attempt: 1 }); supervisor.attach(fakeChild());
+    await waitFor(() => supervisor.state.iteration >= 5);
+    await supervisor.close();
+    const decisions = readTimeline(timelinePath).filter((r) => r.type === 'foreman.intervened');
+    assert.ok(decisions.length >= 4);
+    assert.ok(decisions.every((r) => r.action === ACTIONS.CONTINUE), decisions.map((r) => r.reason).join(' | '));
+    assert.ok(decisions.every((r) => /unconfirmed \(1\/3/.test(r.reason)), 'no snapshot, no streak');
   });
 });
 

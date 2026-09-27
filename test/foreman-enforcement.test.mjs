@@ -39,6 +39,13 @@ function timelineFor(name) {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), `foreman-enf-${name}-`)), 'task.jsonl');
 }
 const rows = (file) => fs.readFileSync(file, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+const waitFor = async (predicate, ms = 3_000) => {
+  const deadline = Date.now() + ms;
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error('timed out waiting');
+    await sleep(10);
+  }
+};
 
 describe('foreman enforcement — the supervisor acts on its own decisions', () => {
   it('STOP_WORKER terminates a stuck worker\'s process group and records why', async () => {
@@ -79,6 +86,52 @@ describe('foreman enforcement — the supervisor acts on its own decisions', () 
     assert.equal(supervisor.state.last_stop.action, ACTIONS.ESCALATE);
     assert.equal(supervisor.state.last_stop.attempt, 2);
     assert.match(summary.escalation, /human/);
+  });
+
+  it('a decision lands only on the worker it observed: a late ESCALATE about attempt 1 never stops attempt 2 (F14.6)', async () => {
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    const seen = [];
+    const assessor = {
+      name: 'slow',
+      async assess(observation) {
+        const ids = observation.active_workers.map((w) => w.worker_id);
+        seen.push(ids.join(',') || 'idle');
+        if (!ids.includes('worker-1')) return { ok: true, assessment: HEALTHY };
+        await held;
+        return { ok: true, assessment: HUMAN };
+      },
+    };
+    const timelinePath = timelineFor('stale');
+    const supervisor = createSupervisor({ task, assessor, config: fastConfig, timelinePath }).start();
+    let second = null;
+    try {
+      supervisor.workerStarted({ attempt: 1 });
+      const first = worker();
+      supervisor.attach(first);
+      await waitFor(() => seen.includes('worker-1'));
+      process.kill(-first.pid, 'SIGKILL');
+      const exit = await closed(first);
+      supervisor.workerExited({ exitCode: exit.code, signal: exit.signal });
+      supervisor.workerStarted({ attempt: 2 });
+      second = worker();
+      supervisor.attach(second);
+      release();
+      await supervisor.assessNow();   // runs after the held cycle has settled
+
+      assert.equal(second.exitCode, null, 'attempt 2 is still running');
+      assert.equal(second.signalCode, null);
+      assert.equal(supervisor.state.last_stop, null);
+      assert.equal(supervisor.state.escalation, null);
+      const timeline = rows(timelinePath);
+      const dropped = timeline.filter((r) => r.type === 'foreman.decision_dropped');
+      assert.deepEqual(dropped.map((r) => [r.observed, r.active]), [['worker-1', 'worker-2']]);
+      assert.ok(!timeline.some((r) => r.type === 'foreman.intervened' && r.action === ACTIONS.ESCALATE));
+    } finally {
+      release();
+      if (second) { try { process.kill(-second.pid, 'SIGKILL'); } catch { /* gone */ } }
+      await supervisor.close();
+    }
   });
 
   it('falls back to SIGKILL when the worker ignores SIGTERM past the grace period', async () => {

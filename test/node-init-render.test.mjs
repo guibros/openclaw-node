@@ -35,20 +35,46 @@ describe('node-init renders the shared service templates', () => {
     });
   }
 
-  it('renders the Foreman switch empty unless the operator set it — empty is shadow (foreman D3)', () => {
-    const saved = process.env.MESH_FOREMAN_ENFORCE;
-    const render = (t) => renderServiceTemplate(readFileSync(join(ROOT, 'services', t), 'utf8'),
-      serviceTemplateVars({ meshDir: '/opt/openclaw', nodeId: 'worker-7', config: { nats: 'nats://10.0.0.5:4222' } }));
-    try {
-      delete process.env.MESH_FOREMAN_ENFORCE;
-      assert.match(render('systemd/openclaw-mesh-agent.service'), /^Environment=MESH_FOREMAN_ENFORCE=$/m);
-      assert.match(render('launchd/ai.openclaw.mesh-agent.plist'), /<key>MESH_FOREMAN_ENFORCE<\/key>\s*<string><\/string>/);
-      process.env.MESH_FOREMAN_ENFORCE = '1';
-      assert.match(render('systemd/openclaw-mesh-agent.service'), /^Environment=MESH_FOREMAN_ENFORCE=1$/m);
-      assert.match(render('launchd/ai.openclaw.mesh-agent.plist'), /<key>MESH_FOREMAN_ENFORCE<\/key>\s*<string>1<\/string>/);
-    } finally {
-      if (saved === undefined) delete process.env.MESH_FOREMAN_ENFORCE; else process.env.MESH_FOREMAN_ENFORCE = saved;
+  // The switch is also read from ~/.openclaw/openclaw.env, so each case runs under a temp HOME:
+  // the operator's own env file must not decide these assertions.
+  function withForemanEnv(envFile, fn) {
+    const saved = { enforce: process.env.MESH_FOREMAN_ENFORCE, home: process.env.HOME };
+    const home = mkdtempSync(join(tmpdir(), 'openclaw-foreman-'));
+    if (envFile !== null) {
+      mkdirSync(join(home, '.openclaw'), { recursive: true });
+      writeFileSync(join(home, '.openclaw', 'openclaw.env'), envFile);
     }
+    process.env.HOME = home;
+    delete process.env.MESH_FOREMAN_ENFORCE;
+    try { return fn(); } finally {
+      process.env.HOME = saved.home;
+      if (saved.enforce === undefined) delete process.env.MESH_FOREMAN_ENFORCE; else process.env.MESH_FOREMAN_ENFORCE = saved.enforce;
+      rmSync(home, { recursive: true, force: true });
+    }
+  }
+  const renderAgent = (t) => renderServiceTemplate(readFileSync(join(ROOT, 'services', t), 'utf8'),
+    serviceTemplateVars({ meshDir: '/opt/openclaw', nodeId: 'worker-7', config: { nats: 'nats://10.0.0.5:4222' } }));
+  const switchIn = (value) => {
+    assert.match(renderAgent('systemd/openclaw-mesh-agent.service'), new RegExp(`^Environment=MESH_FOREMAN_ENFORCE=${value}$`, 'm'));
+    assert.match(renderAgent('launchd/ai.openclaw.mesh-agent.plist'), new RegExp(`<key>MESH_FOREMAN_ENFORCE</key>\\s*<string>${value}</string>`));
+  };
+
+  it('renders the Foreman switch empty unless the operator set it — empty is shadow (foreman D3)', () => {
+    withForemanEnv(null, () => {
+      switchIn('');
+      process.env.MESH_FOREMAN_ENFORCE = '1';
+      switchIn('1');
+    });
+  });
+
+  it('reads the Foreman switch from ~/.openclaw/openclaw.env, as install.sh does; the process env wins', () => {
+    withForemanEnv('OPENCLAW_NATS=nats://10.0.0.5:4222\nMESH_FOREMAN_ENFORCE=1\n', () => {
+      switchIn('1');
+      process.env.MESH_FOREMAN_ENFORCE = '0';
+      switchIn('0');
+    });
+    // openclaw.env.example carries the switch commented out: that is still shadow.
+    withForemanEnv('# MESH_FOREMAN_ENFORCE=1\n', () => switchIn(''));
   });
 
   it('an unknown placeholder fails loudly instead of shipping ${GARBAGE} into a unit', () => {
