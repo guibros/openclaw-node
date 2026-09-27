@@ -25,7 +25,7 @@ the table, not just tests-green.
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 1 | 1.1 | v1.1 | [x] | Shadow-mode supervisor: lib/foreman (observation · assessment · policy · steering · assessor · supervisor) wired into mesh-agent runLLM/executeTask; per-task JSONL timeline + mesh.foreman.* events; decisions recorded, none enforced — CLOSED 2026-09-21: 47 foreman tests + root suite green; real-child timeline evidence in this container; operator-node evidence is 1.2. See audits/step11_shadow-supervision |
-| 1 | 1.2 | v1.2 | [ ] | First live shadow timeline on the operator's node: deploy, restart the agent, run one real task, read its timeline and telemetry note |
+| 1 | 1.2 | v1.2 | [A] | First live shadow timeline on the operator's node: deploy, restart the agent, run one real task, read its timeline and telemetry note — RAN 2026-09-27: deployed (node-deploy/2026-09-27-foreman), timeline with 8 `llm:qwen3:8b` assessments recorded, but the telemetry check FAILS (the error-path row lacks `Foreman[shadow]`) and the worker's claude CLI login has expired. See audits/step12_first-live-timeline |
 
 > **1.1 — Goal:** every mesh task run by `bin/mesh-agent.js` is supervised in shadow mode and leaves a timeline of what the supervisor observed, assessed and would have decided.
 > **Needs:** `bin/mesh-agent.js` `runLLM`/`executeTask` (present); `lib/llm-client.mjs` `generateAnalysis` + `useJsonFormat` (present); `lib/hyperagent-store.mjs` telemetry notes (present); DECISIONS D1 (logged).
@@ -33,7 +33,7 @@ the table, not just tests-green.
 > **Verify:** `code:` `node --test test/foreman-*.test.mjs` green (policy precedence, verification gate, steer accounting, passthrough on assessor failure, real child process supervised end to end, no per-output-line timeline writes) and `npm test` green at baseline · `runtime:` `node --test test/foreman-supervisor.test.mjs` writes a JSONL timeline whose rows include `foreman.assessed` and `foreman.closed` for a real spawned child (this container); the operator's-node timeline is step 1.2.
 
 > **1.2 — Goal:** one real task's timeline exists on the operator's node with a local-model assessment in it.
-> **Needs:** 1.1 closed; `~/.openclaw/workspace` deployed at a commit carrying D3 (shadow default); `ai.openclaw.mesh-agent` restarted with `MESH_FOREMAN_ENFORCE` unset; Ollama serving `LLM_MODEL`.
+> **Needs:** 1.1 closed; `~/.openclaw/workspace` deployed at a commit carrying D3 (shadow default); `ai.openclaw.mesh-agent` restarted with `MESH_FOREMAN_ENFORCE` unset; Ollama serving `LLM_MODEL` within `MESH_FOREMAN_ASSESS_TIMEOUT_MS`; the agent's `MESH_WORKSPACE` is a git repository; the worker provider's CLI is authenticated (the 2026-09-27 run found the last three missing: see audits/step12_first-live-timeline).
 > **Feeds:** Block 2's go/no-go (are shadow decisions sane on real work?); Block 3's calibration input.
 > **Verify:** `runtime:` `ls ~/.openclaw/foreman/*.jsonl` non-empty; `grep -c '"type":"foreman.assessed"'` ≥ 1 with `"assessor":"llm:` in the row; `sqlite3 ~/.openclaw/state.db "select meta_notes from ha_telemetry where task_id = '<that task>'"` contains `Foreman[shadow]` (the table is `ha_telemetry` — this line named a nonexistent `hyperagent_telemetry` until 2026-09-26 — and `Foreman[shadow]` is right again because shadow is the default under D3).
 
