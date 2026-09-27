@@ -37,12 +37,12 @@ containing `### <component>` headings with a `| **Status** | <value> |` row.
 
 | | |
 |---|---|
-| **Status** | LIVE — first timeline 2026-09-27: `~/.openclaw/foreman/foreman-step12-20260927.jsonl` (10,123 B; 10 iterations, 8 `foreman.assessed`, 8 `foreman.intervened` CONTINUE shadow, 2 `foreman.assessor_unavailable`, `foreman.closed` outcome `error`) |
+| **Status** | LIVE — two timelines on 2026-09-27: `foreman-step12-20260927-r2.jsonl` (3,151 B; completed task, 2 `foreman.assessed`, `foreman.closed` outcome `success`) and the first run's `~/.openclaw/foreman/foreman-step12-20260927.jsonl` (10,123 B; 10 iterations, 8 `foreman.assessed`, 8 `foreman.intervened` CONTINUE shadow, 2 `foreman.assessor_unavailable`, `foreman.closed` outcome `error`) |
 | **Verified** | 2026-09-21 — shape proven only by the test timeline in this container: `foreman.started, worker.started, foreman.observed, foreman.assessed, foreman.intervened, worker.exited, verification.recorded, foreman.closed`, no `worker.output` rows |
 
 ### hyperagent telemetry meta_notes — `Foreman[shadow] …` summary line
 
 | | |
 |---|---|
-| **Status** | Error-path GAP FIXED IN CODE 2026-09-27 (`superviseTask` hands the summary to the main loop as `err.foremanNote`; `test/foreman-verify-gate.test.mjs`), not yet observed on the node — the 2026-09-27 task's row, written before the fix, reads `Unhandled worker error: Task foreman-step12-20260927 not found`, with no `Foreman[shadow]` line; no normal-path row yet (the row lands in `ha_telemetry.meta_notes` — step 1.2's Verify named a nonexistent `hyperagent_telemetry` until 2026-09-26) |
+| **Status** | LIVE 2026-09-27 — `ha_telemetry` row 60 (task `foreman-step12-20260927-r2`, outcome success) carries `Foreman[shadow] iterations=2 interventions=0 actions=CONTINUE:1,START_WORKER:1 assessor=llm:qwen3:8b failures=0 …`. The error-path fix (`superviseTask` → `err.foremanNote`) is deployed (e57f89b) but not yet exercised on the node; the 2026-09-27 task's row, written before the fix, reads `Unhandled worker error: Task foreman-step12-20260927 not found`, with no `Foreman[shadow]` line; no normal-path row yet (the row lands in `ha_telemetry.meta_notes` — step 1.2's Verify named a nonexistent `hyperagent_telemetry` until 2026-09-26) |
 | **Verified** | 2026-09-21 — `closeSupervision()` return appended to the `notes` of all three `recordHyperagentTask` calls in `executeTask` (grep above) |

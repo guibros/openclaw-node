@@ -1,8 +1,9 @@
 # AUDIT_PRE — step 1.2 · First live shadow timeline on the operator's node
 
 Run on 2026-09-27 (times below are UTC as the logs print them; EDT = UTC−4). The step ran and its
-Verify was executed as written: two of three checks pass, the third fails, so the row stays open
-(`[A]`). Nothing here closes the step.
+Verify was executed as written: two of three checks passed and the third failed, so this first run
+did not close the step. **The same day's re-run, after the operator re-authenticated the worker's
+claude CLI, closed it: see `AUDIT_POST.md`.**
 
 ## §0 Re-orient
 
