@@ -20,8 +20,9 @@
  */
 
 import dns from 'node:dns/promises';
+import { realpathSync } from 'node:fs';
 import net from 'node:net';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 export const MAX_OUTPUT_BYTES = Number(process.env.WEB_FETCH_MAX_BYTES) || 2 * 1024 * 1024;
 
@@ -144,6 +145,17 @@ async function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Compare real paths: Node resolves symlinks in the main module's URL but not
+// in argv[1], so a launch through a symlinked bin/ would otherwise do nothing.
+function isEntrypoint() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false; // argv[1] is not a path, e.g. `node -e '…' arg`
+  }
+}
+
+if (isEntrypoint()) {
   main().catch((err) => { console.error(`web-fetch: ${err.message}`); process.exit(1); });
 }
