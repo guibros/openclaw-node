@@ -26,8 +26,8 @@ const ent = (name, extra = {}) => ({ name, type: 'technology', salience: 0.6, ..
 const dec = (decision, extra = {}) => ({ decision, rationale: 'because', confidence: 0.7, ...extra });
 
 describe('schema v6', () => {
-  it('bumps user_version to 6 and adds entity_aliases + decisions.superseded_by', () => {
-    assert.equal(store.db.pragma('user_version', { simple: true }), 6);
+  it('adds entity_aliases + decisions.superseded_by (user_version is 7 since the lossless archive, repair 2026-09-26)', () => {
+    assert.equal(store.db.pragma('user_version', { simple: true }), 7);
     assert.ok(store.db.prepare("SELECT name FROM sqlite_master WHERE name='entity_aliases'").get());
     assert.ok(store.db.pragma('table_info(decisions)').some((c) => c.name === 'superseded_by'));
   });

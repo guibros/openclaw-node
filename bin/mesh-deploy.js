@@ -18,13 +18,23 @@
  *   - validate:    how to confirm the deploy worked
  *   - risk:        "safe" (auto-deploy) | "careful" (warn) | "manual" (skip unless --force)
  *
+ *   Every mode runs one function, deploy(fromSha, toSha): check out toSha, apply
+ *   `git diff --name-status fromSha toSha` (deletions and renames included) to
+ *   the affected components, then restart each affected service once. fromSha
+ *   defaults to the sha this node last deployed in full (deploy state), not
+ *   HEAD: the tree moves without a deploy (the lead's repo is a working
+ *   checkout whose HEAD `mesh deploy` publishes), and a HEAD-based diff is empty.
+ *
  * USAGE:
  *   mesh deploy                         — deploy everything that changed
  *   mesh deploy --dry-run               — preview what would happen
- *   mesh deploy --component mc          — deploy only Mission Control
- *   mesh deploy --component mesh        — deploy only mesh daemons
- *   mesh deploy --component all         — deploy everything (even unchanged)
+ *   mesh deploy --component mc          — reinstall only Mission Control (all its files)
+ *   mesh deploy --component all         — reinstall everything (even unchanged)
+ *   mesh deploy --force                 — reinstall everything, manual-risk components too
  *   mesh deploy --local                 — this node only
+ *   mesh deploy --local --to <sha> [--from <sha>]
+ *                                       — pinned: no fetch; check out <sha> and apply the
+ *                                         diff from <from> (default: last deployed sha)
  *   mesh deploy --node ubuntu           — remote node only
  *   mesh deploy --include-services      — also update launchd/systemd units
  *   mesh deploy --rollback              — revert last deploy
@@ -36,7 +46,7 @@
  *   OPENCLAW_NATS            — NATS server URL (from env or openclaw.env)
  */
 
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -144,6 +154,31 @@ function fileHash(filePath) {
   } catch { return null; }
 }
 
+// Git takes shas and paths as argv, never through a shell.
+function git(repoDir, args, encoding = 'utf8') {
+  return execFileSync('git', args, {
+    cwd: repoDir, encoding, timeout: 120000, maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function gitLine(repoDir, args) {
+  return git(repoDir, args).trim();
+}
+
+function resolveCommit(repoDir, rev) {
+  if (!rev || rev.startsWith('-')) return null;
+  try { return gitLine(repoDir, ['rev-parse', '--verify', '--quiet', `${rev}^{commit}`]); } catch { return null; }
+}
+
+function isAncestor(repoDir, ancestor, descendant) {
+  try { git(repoDir, ['merge-base', '--is-ancestor', ancestor, descendant]); return true; } catch { return false; }
+}
+
+function currentBranch(repoDir) {
+  try { return gitLine(repoDir, ['symbolic-ref', '--quiet', '--short', 'HEAD']); } catch { return null; }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPONENT MANIFEST — every deployable piece of OpenClaw
 // ═══════════════════════════════════════════════════════════════════════════
@@ -161,16 +196,21 @@ const MANIFEST = [
                 'bin/mesh-health-publisher.js', 'bin/mesh-deploy-listener.js'],
     targets: [DIRS.CLI_BIN],
     // Lead runs all 4; worker runs only agent + health publisher.
-    // Service names differ: macOS=launchd labels, Linux=systemd unit names.
+    // Service names differ: macOS=launchd labels, Linux=systemd unit names
+    // (services/service-manifest.json). A service not installed on this node
+    // is skipped at restart time, so one list serves both roles.
     servicesMac: ['ai.openclaw.mesh-task-daemon', 'ai.openclaw.mesh-bridge',
                   'ai.openclaw.mesh-agent', 'ai.openclaw.mesh-health-publisher'],
-    servicesLinux: ['openclaw-agent', 'openclaw-mesh-health-publisher'],
+    servicesLinux: ['openclaw-mesh-task-daemon', 'openclaw-mesh-bridge',
+                    'openclaw-mesh-agent', 'openclaw-mesh-health-publisher'],
     nodeFilter: 'all',  // Every node gets daemon binaries; services are per-role
     validate: () => {
-      const cmd = IS_MAC
-        ? 'launchctl list ai.openclaw.mesh-task-daemon 2>/dev/null | grep PID'
-        : 'systemctl is-active openclaw-agent 2>/dev/null';
-      return exec(cmd, { ignoreError: true }).length > 0;
+      // The Linux agent unit is started by hand (autostart false); the health
+      // publisher runs on every role.
+      if (IS_MAC) {
+        return exec('launchctl list ai.openclaw.mesh-task-daemon 2>/dev/null | grep PID', { ignoreError: true }).length > 0;
+      }
+      return exec('systemctl --user is-active openclaw-mesh-health-publisher 2>/dev/null', { ignoreError: true }) === 'active';
     },
   },
 
@@ -200,7 +240,7 @@ const MANIFEST = [
     targets: [DIRS.CLI_LIB],
     servicesMac: ['ai.openclaw.mesh-task-daemon', 'ai.openclaw.mesh-bridge',
                   'ai.openclaw.mesh-agent'],
-    servicesLinux: ['openclaw-agent'],
+    servicesLinux: ['openclaw-mesh-task-daemon', 'openclaw-mesh-bridge', 'openclaw-mesh-agent'],
     nodeFilter: 'all',
   },
 
@@ -214,17 +254,19 @@ const MANIFEST = [
     repoPaths: ['mission-control/'],
     targets: [DIRS.MC_PROJECT],
     servicesMac: ['ai.openclaw.mission-control'],
-    servicesLinux: [],  // MC only runs on lead
+    servicesLinux: ['openclaw-mission-control'],
     nodeFilter: 'lead',
     postInstall: (changedFiles) => {
-      const needsNpm = changedFiles.some(f =>
-        f.includes('package.json') || f.includes('package-lock.json')
-      );
-      if (needsNpm) {
+      if (changedFiles.some(f => /(^|\/)package(-lock)?\.json$/.test(f))) {
         info('Running npm install for Mission Control...');
-        exec('npm install', { cwd: DIRS.MC_PROJECT, timeout: 180000 });
+        exec('npm install', { cwd: DIRS.MC_PROJECT, timeout: 300000 });
         ok('npm install complete');
       }
+      // The service runs `next start`, which serves the prebuilt .next — a
+      // restart without a rebuild keeps serving the old UI.
+      info('Building Mission Control (next build)...');
+      exec('npm run build', { cwd: DIRS.MC_PROJECT, timeout: 900000 });
+      ok('Mission Control built');
     },
     validate: () => {
       const dbPath = path.join(DIRS.MC_PROJECT, 'data', 'mission-control.db');
@@ -245,7 +287,7 @@ const MANIFEST = [
     repoPaths: ['workspace-bin/memory-daemon.mjs', 'workspace-bin/memory-maintenance.mjs'],
     targets: [DIRS.WORKSPACE_BIN],
     servicesMac: ['ai.openclaw.memory-daemon'],
-    servicesLinux: [],  // Lead only
+    servicesLinux: ['openclaw-memory-daemon'],
     nodeFilter: 'lead',
   },
 
@@ -257,7 +299,7 @@ const MANIFEST = [
     repoPaths: ['config/memory-config.json', 'config/extraction-rules.json'],
     targets: [DIRS.CONFIG],
     servicesMac: ['ai.openclaw.memory-daemon'],
-    servicesLinux: [],
+    servicesLinux: ['openclaw-memory-daemon'],
     nodeFilter: 'lead',
     notes: 'Does NOT overwrite MEMORY.md, memory-vault/, or daily logs — those are user data. ' +
            'Only deploys config templates that control extraction and consolidation behavior.',
@@ -345,6 +387,7 @@ const MANIFEST = [
     servicesLinux: [],
     nodeFilter: 'all',
     preInstall: (changedFiles) => {
+      let differs = false;
       for (const f of changedFiles) {
         const basename = path.basename(f);
         const targetPath = path.join(DIRS.WORKSPACE, basename);
@@ -356,10 +399,11 @@ const MANIFEST = [
             console.log(C.dim(diff.split('\n').map(l => `      ${l}`).join('\n')));
             info(`Repo version saved to ${basename}.repo — merge manually if needed`);
             fs.copyFileSync(srcPath, targetPath + '.repo');
-            return; // Don't overwrite
+            differs = true;
           }
         }
       }
+      if (differs) return false; // Don't overwrite
     },
     notes: 'These files are your agent identity docs. They are NOT auto-overwritten. ' +
            'If the repo has updates, they are saved as .repo files for manual merge.',
@@ -534,7 +578,7 @@ const MANIFEST = [
     repoPaths: ['bin/lane-watchdog.js'],
     targets: [DIRS.CLI_BIN],
     servicesMac: ['ai.openclaw.lane-watchdog'],
-    servicesLinux: [],  // Lead only
+    servicesLinux: ['openclaw-lane-watchdog'],
     nodeFilter: 'lead',
   },
 
@@ -562,7 +606,7 @@ const MANIFEST = [
     repoPaths: ['bin/mesh-tool-discord.js', 'bin/discord-read.js'],
     targets: [DIRS.CLI_BIN],
     servicesMac: ['ai.openclaw.mesh-tool-discord'],
-    servicesLinux: [],  // Lead only
+    servicesLinux: ['openclaw-mesh-tool-discord'],
     nodeFilter: 'lead',
   },
 ];
@@ -580,7 +624,7 @@ function loadDeployState() {
       return JSON.parse(fs.readFileSync(DIRS.DEPLOY_STATE, 'utf8'));
     }
   } catch (err) { console.warn(`[mesh-deploy] load deploy state: ${err.message}`); }
-  return { lastDeploy: null, lastSha: null, components: {} };
+  return { lastDeploy: null, lastSha: null, deployedSha: null, components: {} };
 }
 
 function saveDeployState(state) {
@@ -590,166 +634,303 @@ function saveDeployState(state) {
 }
 
 /**
- * Git operations on the repo.
+ * The sha this node last deployed in full — the base of the next diff. Falls
+ * back to HEAD on a node mesh-deploy has not recorded yet.
  */
-function gitFetchAndDiff(repoDir) {
-  if (!fs.existsSync(path.join(repoDir, '.git'))) {
-    fail(`Not a git repo: ${repoDir}`);
-    return { currentSha: null, remoteSha: null, changedFiles: [], upToDate: true };
-  }
-
-  info(`Fetching origin/${DEPLOY_BRANCH}...`);
-  exec(`git fetch origin ${DEPLOY_BRANCH}`, { cwd: repoDir });
-  const currentSha = exec('git rev-parse HEAD', { cwd: repoDir });
-  const remoteSha = exec(`git rev-parse origin/${DEPLOY_BRANCH}`, { cwd: repoDir });
-  const upToDate = currentSha === remoteSha;
-
-  let changedFiles = [];
-  if (!upToDate) {
-    const diff = exec(`git diff --name-only ${currentSha}..${remoteSha}`, { cwd: repoDir });
-    changedFiles = diff ? diff.split('\n').filter(Boolean) : [];
-  }
-
-  info(`Local: ${currentSha} Remote: ${remoteSha} Changed: ${changedFiles.length} files`);
-  return { currentSha, remoteSha, changedFiles, upToDate };
-}
-
-function gitMerge(repoDir) {
-  info(`Merging origin/${DEPLOY_BRANCH}...`);
-  const prevSha = exec('git rev-parse HEAD', { cwd: repoDir });
-  exec(`git merge origin/${DEPLOY_BRANCH} --ff-only`, { cwd: repoDir });
-  const newSha = exec('git rev-parse --short HEAD', { cwd: repoDir });
-  ok(`Merged: ${prevSha.slice(0,7)} → ${newSha.slice(0,7)}`);
-  return { prevSha, newSha };
+function deployedBase(repoDir) {
+  return resolveCommit(repoDir, loadDeployState().deployedSha) || gitLine(repoDir, ['rev-parse', 'HEAD']);
 }
 
 /**
- * Determine which manifest components are affected by the changed files.
+ * `git diff --name-status` between two commits. --no-renames turns a rename
+ * into delete-old + add-new, which is what the runtime needs.
  */
-function getAffectedComponents(changedFiles, filterIds) {
-  const affected = [];
+function diffChanges(repoDir, fromSha, toSha) {
+  if (fromSha === toSha) return [];
+  const parts = git(repoDir, ['diff', '--name-status', '--no-renames', '-z', fromSha, toSha]).split('\0');
+  const changes = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    changes.push({ status: parts[i], path: parts[i + 1] });
+  }
+  return changes;
+}
+
+function listFiles(repoDir, sha, repoPaths) {
+  return git(repoDir, ['ls-tree', '-r', '--name-only', '-z', sha, '--', ...repoPaths]).split('\0').filter(Boolean);
+}
+
+function ownsPath(comp, file) {
+  return comp.repoPaths.some(rp => rp.endsWith('/') ? file.startsWith(rp) : file === rp);
+}
+
+// Destination of a repo file under a target: the matching repoPath prefix is stripped.
+function targetSubPath(comp, file) {
+  for (const rp of comp.repoPaths) {
+    if (rp.endsWith('/') && file.startsWith(rp)) return file.slice(rp.length);
+    if (file === rp) return path.basename(file);
+  }
+  return file;
+}
+
+/**
+ * Which components the changes touch, and with which files. A component named
+ * with --component (every component under --force or --component all) is
+ * reinstalled in full: all its files at the target sha, changed or not.
+ * npm-based components (no repoPaths) deploy when named, or when detectExternal
+ * is set and detect() reports an update.
+ */
+function planComponents(changes, { filterIds = [], force = false, detectExternal = false, listAll }) {
+  const named = filterIds.filter(id => id !== 'all');
+  const reinstallAll = force || filterIds.includes('all');
+  const plans = [];
 
   for (const comp of MANIFEST) {
-    // Skip components not meant for this node's role
-    if (comp.nodeFilter && comp.nodeFilter !== 'all' && comp.nodeFilter !== NODE_ROLE) {
-      continue;
-    }
+    if (comp.nodeFilter !== 'all' && comp.nodeFilter !== NODE_ROLE) continue;
+    if (named.length > 0 && !named.includes(comp.id)) continue;
 
-    // Filter by component ID if specified
-    if (filterIds && filterIds.length > 0 && !filterIds.includes(comp.id) && !filterIds.includes('all')) {
-      continue;
-    }
-
-    // npm-based components have their own detect() logic
-    if (comp.repoPaths.length === 0 && comp.detect) {
-      const result = comp.detect();
-      if (result.changed || (filterIds && filterIds.includes(comp.id))) {
-        affected.push({ ...comp, changedFiles: [], detectResult: result });
+    if (comp.repoPaths.length === 0) {
+      if (comp.detect && (named.includes(comp.id) || (detectExternal && comp.detect().changed))) {
+        plans.push({ comp, install: [], remove: [] });
       }
       continue;
     }
 
-    // Check if any changed file matches this component's repo paths
-    const matches = changedFiles.filter(f =>
-      comp.repoPaths.some(rp => {
-        if (rp.endsWith('/')) return f.startsWith(rp);
-        return f === rp;
-      })
-    );
-
-    if (matches.length > 0 || (filterIds && filterIds.includes('all'))) {
-      affected.push({ ...comp, changedFiles: matches });
-    }
+    const own = changes.filter(c => ownsPath(comp, c.path));
+    const remove = own.filter(c => c.status === 'D').map(c => c.path);
+    const install = (reinstallAll || named.includes(comp.id))
+      ? listAll(comp.repoPaths)
+      : own.filter(c => c.status !== 'D').map(c => c.path);
+    if (install.length > 0 || remove.length > 0) plans.push({ comp, install, remove });
   }
-
-  return affected;
+  return plans;
 }
 
 /**
- * Install files from repo to target directory.
+ * Copy a component's files from the checked-out tree to its targets.
  */
-function installComponentFiles(comp, repoDir, dryRun) {
-  if (!comp.changedFiles || comp.changedFiles.length === 0) return 0;
-  let copied = 0;
-
+function installFiles(comp, repoDir, files, dryRun) {
+  let count = 0;
   for (const target of comp.targets) {
-    for (const relFile of comp.changedFiles) {
+    for (const relFile of files) {
       const srcPath = path.join(repoDir, relFile);
-      if (!fs.existsSync(srcPath)) continue;
-
-      // Strip matching repoPath prefix to determine destination subpath
-      let subPath = relFile;
-      for (const rp of comp.repoPaths) {
-        if (rp.endsWith('/') && relFile.startsWith(rp)) {
-          subPath = relFile.slice(rp.length);
-          break;
-        } else if (relFile === rp) {
-          subPath = path.basename(relFile);
-          break;
-        }
-      }
-      const dstPath = path.join(target, subPath);
-
+      const dstPath = path.join(target, targetSubPath(comp, relFile));
       if (dryRun) {
         info(`  ${relFile} → ${dstPath}`);
-        copied++;
+        count++;
         continue;
       }
-
-      const dstDir = path.dirname(dstPath);
-      if (!fs.existsSync(dstDir)) fs.mkdirSync(dstDir, { recursive: true });
+      if (!fs.existsSync(srcPath)) {
+        warn(`  ${relFile} is missing from the working tree — not installed`);
+        continue;
+      }
+      // Where the repo IS the runtime (bin/ and lib/ under the default
+      // ~/openclaw), the checkout already installed the file — and a chmod
+      // would dirty the tree and make the next checkout refuse.
+      if (fs.existsSync(dstPath) && fs.realpathSync(dstPath) === fs.realpathSync(srcPath)) {
+        count++;
+        continue;
+      }
+      fs.mkdirSync(path.dirname(dstPath), { recursive: true });
       fs.copyFileSync(srcPath, dstPath);
       console.log(`  ${C.dim('copy')} ${srcPath} → ${dstPath}`);
-
-      // Preserve executable bit
-      if (relFile.endsWith('.js') || relFile.endsWith('.sh')) {
-        fs.chmodSync(dstPath, 0o755);
-        console.log(`  ${C.dim('chmod +x')} ${dstPath}`);
-      }
-      copied++;
+      if (relFile.endsWith('.js') || relFile.endsWith('.sh')) fs.chmodSync(dstPath, 0o755);
+      count++;
     }
   }
-  return copied;
+  return count;
 }
 
 /**
- * Restart services for a component — rolling, one at a time.
+ * Remove what the diff deleted (or renamed away) from a component's targets —
+ * but only copies still identical to what fromSha shipped. A copy edited on
+ * this node (learned soul genes, an operator's doc) stays, with a warning.
  */
-function restartComponentServices(comp, dryRun) {
-  const services = IS_MAC ? comp.servicesMac : comp.servicesLinux;
-  if (!services || services.length === 0) return;
-
-  for (const svc of services) {
-    if (dryRun) {
-      info(`  Would restart: ${svc}`);
-      continue;
-    }
-
-    try {
-      if (IS_MAC) {
-        const plistPath = path.join(DIRS.SERVICES_MAC, `${svc}.plist`);
-        if (!fs.existsSync(plistPath)) { warn(`  Plist not found: ${svc}`); continue; }
-        exec(`launchctl unload "${plistPath}"`, { ignoreError: true });
-        exec(`launchctl load "${plistPath}"`);
-      } else {
-        exec(`systemctl --user restart ${svc}`, { ignoreError: true });
+function removeFiles(comp, repoDir, fromSha, files, dryRun) {
+  let count = 0;
+  for (const target of comp.targets) {
+    for (const relFile of files) {
+      const dstPath = path.join(target, targetSubPath(comp, relFile));
+      if (!fs.existsSync(dstPath)) continue;
+      const shipped = git(repoDir, ['show', `${fromSha}:${relFile}`], 'buffer');
+      if (!fs.readFileSync(dstPath).equals(shipped)) {
+        warn(`  ${dstPath} left in place — removed from the repo but modified on this node`);
+        continue;
       }
-      ok(`  Restarted ${svc}`);
-    } catch (err) {
-      warn(`  Failed to restart ${svc}: ${err.message}`);
+      if (dryRun) {
+        info(`  remove ${dstPath}`);
+        count++;
+        continue;
+      }
+      fs.unlinkSync(dstPath);
+      console.log(`  ${C.dim('remove')} ${dstPath}`);
+      let dir = path.dirname(dstPath);
+      while (dir.startsWith(target + path.sep) && fs.readdirSync(dir).length === 0) {
+        fs.rmdirSync(dir);
+        dir = path.dirname(dir);
+      }
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Restart one service. One not installed on this node (no plist; a unit
+ * systemd does not know) is skipped — component service lists span roles.
+ * A failed restart throws: a deploy whose new code is not running did not
+ * succeed, and the listener rolls it back.
+ */
+function restartService(svc) {
+  try {
+    if (IS_MAC) {
+      const plistPath = path.join(DIRS.SERVICES_MAC, `${svc}.plist`);
+      if (!fs.existsSync(plistPath)) {
+        skip(`  ${svc} not installed on this node`);
+        return false;
+      }
+      exec(`launchctl unload "${plistPath}"`, { ignoreError: true });
+      exec(`launchctl load "${plistPath}"`);
+    } else {
+      const loadState = exec(`systemctl --user show -p LoadState --value ${svc}`);
+      if (loadState !== 'loaded') {
+        skip(`  ${svc} not installed on this node (${loadState})`);
+        return false;
+      }
+      exec(`systemctl --user restart ${svc}`);
+    }
+  } catch (err) {
+    fail(`  Restart ${svc} failed`);
+    throw new Error(`restart ${svc} failed: ${String(err.stderr || err.message).trim()}`);
+  }
+  ok(`  Restarted ${svc}`);
+  return true;
+}
+
+/**
+ * Deploy toSha on this node: check it out, apply the fromSha..toSha diff to
+ * every affected component, then restart each affected service once — after
+ * all files are in place, so no daemon boots new bin/ against old lib/.
+ * Throws on any failed step. Never fetches: the caller brought toSha in.
+ */
+function deploy({ repoDir, fromSha, toSha, filterIds = [], force = false, includeServices = false,
+                  dryRun = false, noRestart = false, detectExternal = false }) {
+  if (!dryRun && gitLine(repoDir, ['rev-parse', 'HEAD']) !== toSha) {
+    info(`Checking out ${toSha.slice(0, 8)}`);
+    git(repoDir, ['checkout', '--detach', '--quiet', toSha]);
+  }
+  const changes = diffChanges(repoDir, fromSha, toSha);
+  info(`${fromSha.slice(0, 8)} → ${toSha.slice(0, 8)}: ${changes.length} changed file(s)`);
+
+  const plans = planComponents(changes, {
+    filterIds, force, detectExternal,
+    listAll: repoPaths => listFiles(repoDir, toSha, repoPaths),
+  });
+  if (plans.length === 0) ok('No components affected');
+  else info(`${plans.length} component(s) to deploy:\n`);
+
+  const deployed = [];
+  const services = [];
+  for (const { comp, install, remove } of plans) {
+    const risk = comp.risk === 'safe' ? C.green('●')
+      : comp.risk === 'careful' ? C.yellow('●')
+      : C.red('●');
+    console.log(`  ${risk} ${C.bold(comp.name)} ${C.dim(`(${comp.id})`)}`);
+    console.log(`    ${C.dim(comp.description)}`);
+
+    // Skip manual-risk components unless forced or named
+    if (comp.risk === 'manual' && !force && !filterIds.includes(comp.id)) {
+      if (comp.id === 'services' && !includeServices) {
+        skip(`    Skipped (use --include-services)`);
+        continue;
+      }
+      if (comp.id !== 'services') {
+        skip(`    Skipped (use --force or --component ${comp.id})`);
+        continue;
+      }
     }
 
-    // Brief pause between restarts
-    exec('sleep 1', { ignoreError: true });
+    // Pre-install hook (backup, merge protection, etc.) — false vetoes the component
+    if (comp.preInstall && comp.preInstall(install) === false) continue;
+
+    let installed = 0;
+    let removed = 0;
+    if (comp.install) {
+      comp.install(dryRun);
+    } else {
+      installed = installFiles(comp, repoDir, install, dryRun);
+      removed = removeFiles(comp, repoDir, fromSha, remove, dryRun);
+      if (!dryRun) ok(`    Installed ${installed}, removed ${removed} file(s)`);
+    }
+
+    // Post-install hook (npm install, next build, config regen, boot compile, etc.)
+    if (comp.postInstall && !dryRun) comp.postInstall([...install, ...remove]);
+
+    for (const svc of (IS_MAC ? comp.servicesMac : comp.servicesLinux) || []) {
+      if (!services.includes(svc)) services.push(svc);
+    }
+    if (comp.notes && dryRun) console.log(`    ${C.dim('Note: ' + comp.notes)}`);
+    console.log('');
+    deployed.push({ comp, installed, removed });
   }
+
+  const restarted = [];
+  if (services.length > 0 && dryRun) {
+    info(`Would restart: ${services.join(', ')}`);
+  } else if (services.length > 0 && noRestart) {
+    info(`${services.length} service(s) need manual restart: ${services.join(', ')}`);
+  } else {
+    for (const svc of services) {
+      if (restarted.length > 0) exec('sleep 1', { ignoreError: true }); // rolling, one at a time
+      if (restartService(svc)) restarted.push(svc);
+    }
+  }
+
+  if (!dryRun) {
+    for (const { comp } of deployed) {
+      if (!comp.validate) continue;
+      if (comp.validate()) ok(`${comp.name}: validated`);
+      else warn(`${comp.name}: validation failed — check manually`);
+    }
+    recordDeploy({ fromSha, toSha, filterIds, deployed });
+  }
+
+  return {
+    from: fromSha,
+    to: toSha,
+    changedFiles: changes.length,
+    components: deployed.map(({ comp, installed, removed }) => ({ id: comp.id, installed, removed })),
+    restarted,
+  };
+}
+
+/**
+ * deployedSha (the next diff base) moves only on an unfiltered run: a
+ * --component run leaves the other components behind. lastSha (the --rollback
+ * target) moves only when this run changed something and left a version that
+ * had actually been deployed — not on a run that deploys nothing, and not on
+ * the listener's rollback away from a sha that failed.
+ */
+function recordDeploy({ fromSha, toSha, filterIds, deployed }) {
+  const state = loadDeployState();
+  const complete = filterIds.every(id => id === 'all');
+  const leftDeployedVersion = fromSha !== toSha && (!state.deployedSha || state.deployedSha === fromSha);
+  if (deployed.length > 0) {
+    if (leftDeployedVersion) state.lastSha = fromSha;
+    state.lastDeploy = new Date().toISOString();
+    for (const { comp, installed, removed } of deployed) {
+      state.components[comp.id] = { deployedAt: state.lastDeploy, sha: toSha.slice(0, 8), filesChanged: installed + removed };
+    }
+  }
+  if (complete) state.deployedSha = toSha;
+  if (complete || deployed.length > 0) saveDeployState(state);
 }
 
 // ── Tracer Instrumentation ───────────────────────────────────────────────
-gitFetchAndDiff = tracer.wrap('gitFetchAndDiff', gitFetchAndDiff, { tier: 2, category: 'lifecycle' });
-gitMerge = tracer.wrap('gitMerge', gitMerge, { tier: 2, category: 'lifecycle' });
-getAffectedComponents = tracer.wrap('getAffectedComponents', getAffectedComponents, { tier: 2, category: 'lifecycle' });
-installComponentFiles = tracer.wrap('installComponentFiles', installComponentFiles, { tier: 2, category: 'lifecycle' });
-restartComponentServices = tracer.wrap('restartComponentServices', restartComponentServices, { tier: 2, category: 'lifecycle' });
+planComponents = tracer.wrap('planComponents', planComponents, { tier: 2, category: 'lifecycle' });
+installFiles = tracer.wrap('installFiles', installFiles, { tier: 2, category: 'lifecycle' });
+removeFiles = tracer.wrap('removeFiles', removeFiles, { tier: 2, category: 'lifecycle' });
+restartService = tracer.wrap('restartService', restartService, { tier: 2, category: 'lifecycle' });
+deploy = tracer.wrap('deploy', deploy, { tier: 2, category: 'lifecycle' });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN
@@ -774,6 +955,11 @@ async function main() {
     }
   }
 
+  // --to <sha> [--from <sha>]: pinned mode — no fetch, this node only
+  const argValue = flag => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : undefined; };
+  const fromArg = argValue('--from');
+  const toArg = argValue('--to');
+
   // Parse --node flag
   let deployLocal = true, deployRemote = !localOnly;
   for (let i = 0; i < args.length; i++) {
@@ -794,32 +980,37 @@ async function main() {
   if (showStatus) {
     header('Deployment Status');
     const state = loadDeployState();
-    const git = gitFetchAndDiff(REPO_DIR);
+    info(`Fetching origin/${DEPLOY_BRANCH}...`);
+    git(REPO_DIR, ['fetch', 'origin', DEPLOY_BRANCH]);
+    const head = gitLine(REPO_DIR, ['rev-parse', 'HEAD']);
+    const remoteSha = gitLine(REPO_DIR, ['rev-parse', `origin/${DEPLOY_BRANCH}^{commit}`]);
+    const changes = diffChanges(REPO_DIR, deployedBase(REPO_DIR), remoteSha);
 
     console.log(`  Repo:     ${REPO_DIR}`);
     console.log(`  Branch:   ${DEPLOY_BRANCH}`);
-    console.log(`  Local:    ${git.currentSha?.slice(0, 8) || 'unknown'}`);
-    console.log(`  Remote:   ${git.remoteSha?.slice(0, 8) || 'unknown'}`);
-    console.log(`  Status:   ${git.upToDate ? C.green('up to date') : C.yellow(`${git.changedFiles.length} files behind`)}`);
+    console.log(`  HEAD:     ${head.slice(0, 8)}`);
+    console.log(`  Remote:   ${remoteSha.slice(0, 8)}`);
+    console.log(`  Deployed: ${state.deployedSha ? state.deployedSha.slice(0, 8) : 'not recorded (HEAD assumed)'}`);
+    console.log(`  Status:   ${changes.length === 0 ? C.green('up to date') : C.yellow(`${changes.length} files behind`)}`);
 
     if (state.lastDeploy) {
       console.log(`  Last deploy: ${state.lastDeploy}`);
     }
 
-    if (!git.upToDate) {
+    if (changes.length > 0) {
       console.log(`\n  Changed files:`);
-      for (const f of git.changedFiles) {
-        console.log(`    ${f}`);
+      for (const c of changes) {
+        console.log(`    ${c.status} ${c.path}`);
       }
 
-      const affected = getAffectedComponents(git.changedFiles, []);
+      const affected = planComponents(changes, { listAll: () => [] });
       if (affected.length > 0) {
         console.log(`\n  Affected components:`);
-        for (const comp of affected) {
+        for (const { comp, install, remove } of affected) {
           const risk = comp.risk === 'safe' ? C.green(comp.risk)
             : comp.risk === 'careful' ? C.yellow(comp.risk)
             : C.red(comp.risk);
-          console.log(`    ${comp.name} [${risk}] — ${comp.changedFiles.length} files`);
+          console.log(`    ${comp.name} [${risk}] — ${install.length + remove.length} files`);
         }
       }
     }
@@ -846,33 +1037,15 @@ async function main() {
       fail('No previous deploy state found — cannot rollback');
       return;
     }
-
-    // Validate SHA format before shell interpolation (guards against corrupted state file)
-    if (!/^[0-9a-f]{7,40}$/i.test(state.lastSha)) {
-      fail(`Invalid SHA in deploy state: ${JSON.stringify(state.lastSha).slice(0, 50)}`);
+    const toSha = resolveCommit(REPO_DIR, state.lastSha);
+    if (!toSha) {
+      fail(`lastSha in deploy state is not a commit in ${REPO_DIR}: ${JSON.stringify(state.lastSha).slice(0, 50)}`);
       return;
     }
-    info(`Reverting to ${state.lastSha.slice(0, 8)}`);
-    const dirty = exec('git status --porcelain', { cwd: REPO_DIR, ignoreError: true });
-    if (dirty) {
-      warn('Stashing local changes for rollback');
-      exec('git stash push -m "pre-rollback-stash"', { cwd: REPO_DIR });
-    }
-    warn(`Rolling back to ${state.lastSha.slice(0,7)}`);
-    exec(`git reset --hard ${state.lastSha}`, { cwd: REPO_DIR });
-
-    // Full reinstall from the reverted state
-    const allFiles = exec('git ls-files', { cwd: REPO_DIR }).split('\n').filter(Boolean);
-    const affected = getAffectedComponents(allFiles, ['all']);
-    for (const comp of affected) {
-      comp.changedFiles = allFiles.filter(f =>
-        comp.repoPaths.some(rp => rp.endsWith('/') ? f.startsWith(rp) : f === rp)
-      );
-      installComponentFiles(comp, REPO_DIR, false);
-      if (!noRestart) restartComponentServices(comp, false);
-    }
-
-    ok(`Rolled back to ${state.lastSha.slice(0, 8)}`);
+    const fromSha = deployedBase(REPO_DIR);
+    warn(`Rolling back ${fromSha.slice(0, 7)} → ${toSha.slice(0, 7)}`);
+    deploy({ repoDir: REPO_DIR, fromSha, toSha, dryRun, noRestart });
+    ok(`Rolled back to ${toSha.slice(0, 8)}`);
 
     if (deployRemote) {
       header('Rolling back remote nodes');
@@ -882,7 +1055,7 @@ async function main() {
         const { natsConnectOpts: natsOpts } = require('../lib/nats-resolve');
         const nc = await connect(natsOpts({ name: 'deploy-rollback', timeout: 10000 }));
         try {
-          // Trigger fleet deploy at the rollback SHA — nodes will git fetch + ff to it
+          // Trigger fleet deploy at the rollback SHA — listeners check it out exactly
           await fleetDeploy(nc, {
             components: null,
             targetNodes: null,
@@ -905,6 +1078,19 @@ async function main() {
     return;
   }
 
+  // ── Pinned mode: no fetch, this node only (the deploy listener's forward
+  // deploy and its rollback). DEPLOY_RESULT is the line the listener parses.
+  if (toArg) {
+    header(`Pinned deploy (${NODE_ROLE})`);
+    const toSha = resolveCommit(REPO_DIR, toArg);
+    if (!toSha) throw new Error(`--to ${toArg} is not a commit in ${REPO_DIR} (pinned mode never fetches)`);
+    const fromSha = fromArg ? resolveCommit(REPO_DIR, fromArg) : deployedBase(REPO_DIR);
+    if (!fromSha) throw new Error(`--from ${fromArg} is not a commit in ${REPO_DIR}`);
+    const result = deploy({ repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll, includeServices, dryRun, noRestart });
+    console.log(`DEPLOY_RESULT ${JSON.stringify(result)}`);
+    return;
+  }
+
   // ═══ Normal deploy flow ═══
 
   if (deployLocal) {
@@ -916,117 +1102,26 @@ async function main() {
       process.exit(1);
     }
 
-    // Step 1: Git fetch and diff
-    const git = gitFetchAndDiff(REPO_DIR);
-    const state = loadDeployState();
-
-    if (git.upToDate && filterIds.length === 0 && !forceAll) {
-      ok('Repo is up to date — nothing to deploy');
-    } else {
-      // Save pre-deploy SHA for rollback
-      state.lastSha = git.currentSha;
-
-      if (!git.upToDate && !dryRun) {
-        const { newSha } = gitMerge(REPO_DIR);
-        ok(`Git updated to ${newSha}`);
-      }
-
-      // Step 2: Determine affected components
-      const affected = getAffectedComponents(
-        git.upToDate ? [] : git.changedFiles,
-        filterIds.length > 0 ? filterIds : undefined
-      );
-
-      if (affected.length === 0) {
-        ok('No components affected by changes');
-      } else {
-        info(`${affected.length} component(s) to deploy:\n`);
-
-        // Step 3: Deploy each component
-        for (const comp of affected) {
-          const risk = comp.risk === 'safe' ? C.green('●')
-            : comp.risk === 'careful' ? C.yellow('●')
-            : C.red('●');
-
-          console.log(`  ${risk} ${C.bold(comp.name)} ${C.dim(`(${comp.id})`)}`);
-          console.log(`    ${C.dim(comp.description)}`);
-
-          // Skip manual-risk components unless explicitly included
-          if (comp.risk === 'manual' && !forceAll) {
-            if (comp.id === 'services' && !includeServices) {
-              skip(`    Skipped (use --include-services)`);
-              continue;
-            }
-            if (comp.id !== 'services') {
-              skip(`    Skipped (use --force or --component ${comp.id})`);
-              continue;
-            }
-          }
-
-          // Pre-install hook (backup, merge protection, etc.)
-          if (comp.preInstall) {
-            const result = comp.preInstall(comp.changedFiles || []);
-            if (result === false) continue; // Component vetoed installation
-          }
-
-          // npm-based components have their own install logic
-          if (comp.install) {
-            comp.install(dryRun);
-          } else {
-            // File-based components — copy changed files
-            const count = installComponentFiles(comp, REPO_DIR, dryRun);
-            if (count > 0 && !dryRun) ok(`    Installed ${count} file(s)`);
-          }
-
-          // Post-install hook (npm install, config regen, boot compile, etc.)
-          if (comp.postInstall && !dryRun) {
-            comp.postInstall(comp.changedFiles || []);
-          }
-
-          // Restart affected services
-          if (!noRestart && !dryRun) {
-            restartComponentServices(comp, dryRun);
-          } else if (noRestart && !dryRun) {
-            const services = IS_MAC ? comp.servicesMac : comp.servicesLinux;
-            if (services && services.length > 0) {
-              info(`    ${services.length} service(s) need manual restart`);
-            }
-          }
-
-          // Validation
-          if (comp.validate && !dryRun) {
-            const valid = comp.validate();
-            if (valid) {
-              ok(`    Validated`);
-            } else {
-              warn(`    Validation failed — check manually`);
-            }
-          }
-
-          // Notes
-          if (comp.notes && dryRun) {
-            console.log(`    ${C.dim('Note: ' + comp.notes)}`);
-          }
-
-          console.log('');
-
-          // Track component deploy
-          if (!dryRun) {
-            state.components[comp.id] = {
-              deployedAt: new Date().toISOString(),
-              sha: git.remoteSha?.slice(0, 8),
-              filesChanged: (comp.changedFiles || []).length,
-            };
-          }
-        }
-      }
-
-      // Save deploy state
-      if (!dryRun) {
-        state.lastDeploy = new Date().toISOString();
-        saveDeployState(state);
-      }
+    info(`Fetching origin/${DEPLOY_BRANCH}...`);
+    git(REPO_DIR, ['fetch', 'origin', DEPLOY_BRANCH]);
+    const head = gitLine(REPO_DIR, ['rev-parse', 'HEAD']);
+    const toSha = gitLine(REPO_DIR, ['rev-parse', `origin/${DEPLOY_BRANCH}^{commit}`]);
+    if (!isAncestor(REPO_DIR, head, toSha)) {
+      throw new Error(`HEAD ${head.slice(0, 8)} has commits that are not on origin/${DEPLOY_BRANCH} — ` +
+        'push them first, or deploy an exact commit with --local --to <sha>');
     }
+    // Read before the fast-forward: with nothing recorded the base is HEAD, and
+    // after the merge HEAD is already the target.
+    const fromSha = deployedBase(REPO_DIR);
+    if (!dryRun && head !== toSha && currentBranch(REPO_DIR) === DEPLOY_BRANCH) {
+      git(REPO_DIR, ['merge', '--ff-only', '--quiet', toSha]);
+      ok(`Fast-forwarded ${DEPLOY_BRANCH}: ${head.slice(0, 7)} → ${toSha.slice(0, 7)}`);
+    }
+    const result = deploy({
+      repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll, includeServices, dryRun, noRestart,
+      detectExternal: true,
+    });
+    console.log(`DEPLOY_RESULT ${JSON.stringify(result)}`);
   }
 
   // ── Fleet deploy (replaces old SSH remote block) ──
@@ -1072,5 +1167,6 @@ async function main() {
 
 main().catch(err => {
   fail(`Deploy error: ${err.message}`);
+  console.log(`DEPLOY_ERROR ${JSON.stringify(err.message)}`); // the cause the listener reports
   process.exit(1);
 });

@@ -37,6 +37,12 @@ describe('shouldCatchUp (deploy catch-up verdict)', () => {
     assert.match(behind.reason, /not retrying/);
   });
 
+  it('does not catch up to a sha this node skipped (wrong role, or it would move the tree backward)', () => {
+    const v = shouldCatchUp({ currentSha: 'ccccccc', latestSha: 'bbbbbbb', lastDeploy: { sha: 'bbbbbbb', status: 'skipped', attempts: 1, reason: 'HEAD ccccccc is ahead of bbbbbbb' } });
+    assert.equal(v.deploy, false);
+    assert.match(v.reason, /skipped/);
+  });
+
   it('a failed marker for a DIFFERENT sha does not block catching up to latest', () => {
     const v = shouldCatchUp({ currentSha: 'aaaaaaa', latestSha: 'ccccccc', lastDeploy: { sha: 'bbbbbbb', status: 'failed', attempts: 5 }, maxAttempts: 2 });
     assert.equal(v.deploy, true);

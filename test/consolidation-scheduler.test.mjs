@@ -225,6 +225,45 @@ describe('createConsolidationScheduler', () => {
     scheduler.stop(); // cleanup
   });
 
+  it('runOnce logs every removed row and the prune counts on completion (repair 2026-09-26)', async () => {
+    const idle = () => ({
+      current_job: null, queue_depth: 0,
+      history: { extraction: { count: 0, avg_ms: 0 }, analysis: { count: 0, avg_ms: 0 } },
+      recent_fallbacks: [],
+    });
+    const logs = [];
+    const scheduler = createConsolidationScheduler({
+      getStateFn: idle,
+      log: (msg) => logs.push(msg),
+      hardCapMs: 5000,
+      runCycle: async () => ({
+        decayed: {
+          decayedEntities: 4, decayedDecisions: 2, archivedEntities: 1,
+          removed: [{ action: 'archived', kind: 'entity', id: 7, label: 'Faded Thing', salience: 0.04 }],
+        },
+        pruned: {
+          archivedDecisions: 1, prunedThemes: 1, themesSkipped: null,
+          backup: { path: '/tmp/backups/state-20260926T120000000Z.db', reused: false, removed: [] },
+          removed: [
+            { action: 'archived', kind: 'decision', id: 42, label: 'Use JetStream', salience: 0.049, session_id: '1bbee00d-aaaa' },
+            { action: 'deleted', kind: 'theme', id: 5, label: 'old theme' },
+          ],
+        },
+      }),
+    });
+
+    const result = await scheduler.runOnce();
+
+    assert.equal(result.ok, true);
+    assert.ok(logs.some((l) => l.includes('archived entity #7 (salience 0.040) "Faded Thing"')), logs.join('\n'));
+    assert.ok(logs.some((l) => l.includes('archived decision #42 (salience 0.049, session 1bbee00d) "Use JetStream"')));
+    assert.ok(logs.some((l) => l.includes('deleted theme #5 "old theme"')));
+    const done = logs.find((l) => l.includes('cycle complete'));
+    assert.match(done, /archived 1 entities/);
+    assert.match(done, /pruned: archived 1 decisions, deleted 1 idle themes/);
+    assert.match(done, /backup written \/tmp\/backups\/state-20260926T120000000Z\.db/);
+  });
+
   it('runOnce skips when system is busy', async () => {
     const getStateFn = () => ({
       current_job: { type: 'extraction', elapsed_ms: 1000 },

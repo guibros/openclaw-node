@@ -16,6 +16,17 @@ startup `reconcileKeptBranches` listed branches through a shell, where the unquo
 consumer of the kept lease. Tests drive the real handlers. The residual token
 channels (direct KV read, `_INBOX.>` snooping, spoofed replies) are captured in OUT_OF_SCOPE and
 not fixed here. Deploy and restart on the live node are the operator's step.
+Earlier goal — Deploy that deploys (2026-09-26, operator-approved batch; audit of main df503b3). The listener
+fetched + fast-forwarded before spawning `mesh-deploy.js --local`, whose own fetch-and-diff then saw
+HEAD == origin and deployed nothing (reporting success); rollback re-ran that fetch and fast-forwarded
+straight back to the bad commit; the signed `trigger.sha` was never the thing checked out. Batch: one
+deploy function over `(preSha, targetSha)` driven by `git diff --name-status` (deletions and renames
+included), a no-fetch pinned mode (`--from/--to`) used for both the forward deploy and the rollback,
+the listener checking out exactly the signed SHA, `lastSha` untouched by runs that deploy nothing,
+workspace-docs `preInstall` vetoing with `false`, Linux units named as installed (`openclaw-mesh-agent`)
+with restart failures failing the deploy, and `next build` when Mission Control sources change.
+Integration test: bare origin + clone, deploy installs/restarts the changed components, a failing
+deploy rolls back to preSha and stays there. Code + tests; runtime evidence is the operator's step.
 Earlier goal — Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
 NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
 operator flips), server users block rendered from the identity registry into an included
@@ -50,6 +61,15 @@ test/mesh-lease-authz.test.js
 test/mesh-agent-review-gate.test.js
 memory-plan/plans/protocol/SCOPE.md
 memory-plan/plans/protocol/OUT_OF_SCOPE.md
+```
+
+```files deploy-pinned-sha-2026-09-26 closed
+bin/mesh-deploy.js
+bin/mesh-deploy-listener.js
+test/deploy-pinned-sha.test.mjs
+test/deploy-rollback.test.mjs
+test/wiring-manifest.test.mjs
+memory-plan/plans/protocol/SCOPE.md
 ```
 
 ```files embedder-prefetch-honesty-2026-09-08 closed
