@@ -11,7 +11,7 @@
 #
 # What it does, in order:
 #   1. preflight — the runtime lib IS this checkout (else refuse), node, sqlite3
-#   2. root `npm install` (the sharp 0.35.4 lockfile) — non-destructive
+#   2. root `npm ci` (the sharp 0.35.4 lockfile, dev deps included)
 #   3. restart ai.openclaw.memory-daemon (launchd kickstart -k), wait for :7893
 #   4. Block 2/1 deploy: one knowledge index pass (schema v2, directory
 #      summaries built) + the path-scope probe, via probe.mjs
@@ -24,7 +24,9 @@
 # (schema bumps are additive; old code ignores the new tables/columns) and
 # `openclaw config set plugins.slots.contextEngine legacy`.
 
-set -u
+# pipefail: the npm step and the plugin install pipe into `tail`; without it their
+# failures are masked by tail's exit 0 and the script carries on as if they passed.
+set -uo pipefail
 
 PLAN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$PLAN_DIR/../../.." && pwd)"
@@ -82,7 +84,10 @@ fi
 # ── 2. deps + daemon restart ──────────────────────────────────────────────────
 if [ "$DO_DEPLOY" = 1 ]; then
   head1 "root dependencies (sharp 0.35.4 lockfile)"
-  (cd "$REPO" && npm install --no-audit --no-fund --omit=dev 2>&1 | tail -3) || die "npm install failed"
+  # npm ci, not `npm install --omit=dev`: omitting dev deps prunes typescript, which
+  # `npm test` (pretest builds event-schemas with tsc) needs, and the plan tick's close
+  # gate runs `npm test`, so every later close would go red.
+  (cd "$REPO" && npm ci --no-audit --no-fund 2>&1 | tail -3) || die "npm ci failed"
   if [ -f "$REPO/packages/event-schemas/tsconfig.json" ] && [ ! -f "$REPO/packages/event-schemas/dist/index.js" ]; then
     (cd "$REPO" && npx --yes --package typescript@5 tsc -p packages/event-schemas/tsconfig.json) || die "event-schemas build failed"
   fi
@@ -180,7 +185,8 @@ mkdir -p "$PLAN_DIR/audits"
 {
   echo "# openviking-adopt — deploy + runtime probes ($TS)"
   echo
-  echo "repo \`$(git -C "$REPO" rev-parse --abbrev-ref HEAD)\` @ \`$(git -C "$REPO" rev-parse --short HEAD)\` · host \`$(hostname)\` · workspace \`$WORKSPACE\`"
+  # describe --dirty: a PASS earned on uncommitted edits must not read as the committed HEAD's.
+  echo "repo \`$(git -C "$REPO" rev-parse --abbrev-ref HEAD)\` @ \`$(git -C "$REPO" describe --always --dirty)\` · host \`$(hostname)\` · workspace \`$WORKSPACE\`"
   echo
   echo "| Step | Result | Evidence |"
   echo "|---|---|---|"
