@@ -28,9 +28,9 @@ chaining is either in-session subagents or orchestration you build at the REST l
 
 | Cowork concept | Our implementation |
 |---|---|
-| Agent definition (system prompt + tools + skills) | `CLAUDE.md` bootstrap + `MASTER_PLAN.md` (north star) + `WORKFLOW.md` (9-phase) + `.claude/hooks/scope-check.sh` |
+| Agent definition (system prompt + tools + skills) | `CLAUDE.md` bootstrap + `MASTER_PLAN.md` (north star) + `WORKFLOW.md` (9-phase) |
 | Environment / sandbox | the live repo + `~/.openclaw/workspace` runtime (we deliberately do **not** add a per-task VM — stay light) |
-| A single task | one `INVENTORY.md` step + its `SCOPE.md` contract + `TICK_PROMPT.md` (the recurring prompt) |
+| A single task | one `INVENTORY.md` step + `TICK_PROMPT.md` (the recurring prompt) |
 | Scheduler (cron) | launchd plist (`ai.openclaw.<plan>-tick`) firing the tick script on an interval |
 | Pipeline / chaining | the **INVENTORY walk**: each tick does the first open step; the next tick does the next — a within-plan task DAG |
 | Outputs / lifecycle | `audits/` (AUDIT_PRE/POST), `tick-logs/`, one git commit per step, the `VERSION` carrier, `COMPONENT_REGISTRY.md` |
@@ -39,7 +39,7 @@ chaining is either in-session subagents or orchestration you build at the REST l
 
 **The plan dir is the portable bundle.** After the silo remaster, a `plans/<id>/` directory is a
 complete agent-context bundle (its own MASTER_PLAN, WORKFLOW, FRAMEWORK, DECISIONS, INVENTORY,
-SCOPE, TICK_PROMPT). That is the local analogue of a cowork agent+environment definition.
+TICK_PROMPT). That is the local analogue of a cowork agent+environment definition.
 
 ## 3. The chain engine
 
@@ -71,7 +71,7 @@ Automation → run-once / load) is what turns the autonomous chain on.
 ## 4. How the viewer surfaces a run
 
 - **Steps tab** ← `INVENTORY.md` (status, per-step audit links). The plan as a checklist.
-- **Master Plan tab** ← `SCOPE.md` + `COMPONENT_REGISTRY.md` + `DECISIONS.md` + `OUT_OF_SCOPE.md`.
+- **Master Plan tab** ← `COMPONENT_REGISTRY.md` + `DECISIONS.md`.
 - **Documents tab** ← every `.md` in the plan dir (fully siloed — no reach-up).
 - **Live tab** ← SSE `/stream`: a live `tail -f` of the current tick's **pretty** log
   (`tick-logs/current.log`). Raw human-readable agent output.

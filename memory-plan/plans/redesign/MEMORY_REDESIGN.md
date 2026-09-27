@@ -3,7 +3,7 @@
 **Date:** 2026-05-28. **Status:** PROPOSAL — awaiting operator alignment.
 **Derived from:** the 6 decisions in DECISIONS.md (2026-05-28) + DESIGN_INPUTS.md + COMPONENT_REGISTRY.md (current state) + AUDIT_2026-05-27.md (verified truth).
 
-This is a plan, not code. It sequences the work to get the **local** memory system actually running, readable, and observable — federation stays dormant until local is solid (D4). Nothing already built is deleted (D1, D3, D4). Each phase is a future SCOPE.md with runtime-evidence done-criteria.
+This is a plan, not code. It sequences the work to get the **local** memory system actually running, readable, and observable — federation stays dormant until local is solid (D4). Nothing already built is deleted (D1, D3, D4). Each phase is a block of INVENTORY steps with runtime-evidence done-criteria.
 
 ---
 
@@ -67,7 +67,7 @@ Rationale: close the gap that makes anything observable (L0), build the spine + 
 
 **Done-evidence:** `diff -rq lib/ ~/.openclaw/workspace/lib/` empty; `lsof :4222` shows nats-server; daemon log shows a line that only current code emits.
 
-**Risk:** symlink means a broken mid-edit file could crash the daemon. Mitigation: the scope-check hook already keeps edits deliberate; daemon has KeepAlive.
+**Risk:** symlink means a broken mid-edit file could crash the daemon. Mitigation: daemon has KeepAlive. (The scope-check hook once cited here was removed 2026-09-23, protocol D11.)
 
 ### L1 — Event log as the spine *(D3)*
 
@@ -170,10 +170,10 @@ L0 (deploy gap + NATS)  →  L1 (event log)  →  L2 (watcher)  →  L3 (ingest/
    →  G (multi-node / federation online)
 ```
 
-Each phase = one SCOPE.md, runtime-verified, one focused unit of work. We do them in order, finishing each before the next (MASTER_PLAN §4.4).
+Each phase = one INVENTORY block, runtime-verified, one focused unit of work. We do them in order, finishing each before the next (MASTER_PLAN §4.4).
 
 ---
 
 ## How to use this doc
 
-This is the master sequence for the memory redesign. When starting a phase, open a SCOPE.md for it with that phase's done-evidence as the contract. Update COMPONENT_REGISTRY.md as each component moves from INERT/STALE/DEGRADED to LIVE. Log any sub-decision (§4) in DECISIONS.md before acting on it.
+This is the master sequence for the memory redesign. When starting a phase, take that phase's done-evidence as the contract for its steps. Update COMPONENT_REGISTRY.md as each component moves from INERT/STALE/DEGRADED to LIVE. Log any sub-decision (§4) in DECISIONS.md before acting on it.

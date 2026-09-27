@@ -39,42 +39,6 @@ report() {
 [ "$SUMMARY" -eq 1 ] || echo "plan-lint: $ID  ($PLAN)"
 
 # ── surface 1: master-plan ──────────────────────────────────────────────────
-STATUS_LC=""
-if [ -f "$PLAN/SCOPE.md" ]; then
-  status=$(grep -iE '^\*\*Status:\*\*' "$PLAN/SCOPE.md" | head -1 | sed -E 's/^\*\*Status:\*\*[[:space:]]*//' || true)
-  STATUS_LC=$(printf '%s' "$status" | tr -d ' ' | tr 'A-Z' 'a-z')
-  if [ -n "$status" ]; then report PASS master-plan "SCOPE.md parseable (Status: $status)"
-  else report FAIL master-plan "SCOPE.md present but no **Status:** field"; fi
-else report FAIL master-plan "SCOPE.md missing"; fi
-
-# Scope hygiene — the drift that actually bites (2026-07-04 deep review): an
-# active scope that grows unbounded or lives for weeks is the hook's designed
-# failure mode performed openly. Only OPEN (non-`closed`) files blocks count.
-if [ "$STATUS_LC" = "active" ] && [ -f "$PLAN/SCOPE.md" ]; then
-  open_files=$(awk '
-    /^```files([[:space:]]|$)/ { flag = ($0 ~ /[[:space:]]closed[[:space:]]*$/) ? 0 : 1; next }
-    /^```[[:space:]]*$/ { flag=0 }
-    flag && !/^[[:space:]]*(#|$)/ { n++ }
-    END { print n+0 }
-  ' "$PLAN/SCOPE.md")
-  if [ "$open_files" -gt 80 ]; then report FAIL master-plan "scope hygiene: $open_files open allow-list entries (>80) — close shipped batches (\`\`\`files <label> closed)"
-  elif [ "$open_files" -gt 40 ]; then report WARN master-plan "scope hygiene: $open_files open allow-list entries (>40) — prune closed batches"
-  else report PASS master-plan "scope hygiene: $open_files open allow-list entries"; fi
-
-  set_at=$(grep -E '^\*\*Set at:\*\*' "$PLAN/SCOPE.md" | tail -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || true)
-  if [ -n "$set_at" ]; then
-    set_epoch=$(date -j -f '%Y-%m-%d' "$set_at" '+%s' 2>/dev/null || date -d "$set_at" '+%s' 2>/dev/null || echo "")
-    if [ -n "$set_epoch" ]; then
-      age_days=$(( ( $(date '+%s') - set_epoch ) / 86400 ))
-      if [ "$age_days" -gt 30 ]; then report FAIL master-plan "scope hygiene: active scope is ${age_days}d old (>30) — re-set or retire it"
-      elif [ "$age_days" -gt 14 ]; then report WARN master-plan "scope hygiene: active scope is ${age_days}d old (>14)"
-      else report PASS master-plan "scope hygiene: active scope age ${age_days}d"; fi
-    fi
-  else
-    report WARN master-plan "scope hygiene: active scope has no dated **Set at:** line"
-  fi
-fi
-
 if [ -f "$PLAN/COMPONENT_REGISTRY.md" ]; then
   fams=$(grep -cE '^## +Family [0-9]+:' "$PLAN/COMPONENT_REGISTRY.md" 2>/dev/null || true)
   sts=$(grep -cE '^\|\s*\*\*Status\*\*\s*\|' "$PLAN/COMPONENT_REGISTRY.md" 2>/dev/null || true)
@@ -91,9 +55,6 @@ if [ -f "$PLAN/DECISIONS.md" ]; then
   if grep -qE '^## D[0-9]+' "$PLAN/DECISIONS.md"; then report PASS master-plan "DECISIONS.md has entries"
   else report WARN master-plan "DECISIONS.md present but no D-entries (log D1: why this plan exists)"; fi
 else report FAIL master-plan "DECISIONS.md missing"; fi
-
-if [ -f "$PLAN/OUT_OF_SCOPE.md" ]; then report PASS master-plan "OUT_OF_SCOPE.md present"
-else report FAIL master-plan "OUT_OF_SCOPE.md missing"; fi
 
 # ── surface 2: steps ────────────────────────────────────────────────────────
 INV="$PLAN/INVENTORY.md"
@@ -205,9 +166,11 @@ else report FAIL history "VERSION missing"; fi
 
 # Activity-vs-machinery drift (2026-07-04 deep review): work flowing through the
 # repo while the plan's step machinery sits idle is the bypass signature. Only
-# graded for the plan holding an active scope — repo-wide signals would nag
-# dormant silos forever.
-if [ "$STATUS_LC" = "active" ] && git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
+# graded for a plan with open INVENTORY rows and no BLOCKED.md — repo-wide
+# signals would nag dormant and blocked silos forever.
+OPEN_ROW_RE='^\|[[:space:]]*[0-9]+[[:space:]]*\|[[:space:]]*[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*v[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*\[(A| )\]'
+OPEN_ROWS=$(grep -cE "$OPEN_ROW_RE" "$INV" 2>/dev/null || true)
+if [ "${OPEN_ROWS:-0}" -gt 0 ] && [ ! -f "$PLAN/BLOCKED.md" ] && git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
   evid=$(git -C "$REPO" log -15 --format='%B' 2>/dev/null | grep -c 'Runtime-Evidence:' || true)
   if [ "${evid:-0}" -eq 0 ]; then
     report WARN history "no Runtime-Evidence: trailer in the last 15 commits (done-contract §5 evidence not riding commits)"
