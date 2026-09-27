@@ -1823,11 +1823,16 @@ async function executeTask(task) {
 /**
  * Every exit from a supervised task — completion, release, dry run, or a throw
  * anywhere in the attempt loop — closes its supervisor: a loop left running would
- * keep assessing a task that is gone.
+ * keep assessing a task that is gone. A throw carries the supervisor's summary out
+ * as `err.foremanNote`, because the telemetry row for a thrown task is written by
+ * the main loop, which never sees the supervisor.
  */
 async function superviseTask(supervisor, run) {
   try {
     return await run();
+  } catch (err) {
+    if (supervisor && !supervisor.closed) err.foremanNote = await closeSupervision(supervisor, 'error');
+    throw err;
   } finally {
     if (supervisor && !supervisor.closed) await closeSupervision(supervisor, 'error');
   }
@@ -2332,7 +2337,7 @@ async function main() {
       if (claimedTask) {
         await recordHyperagentTask(claimedTask, {
           outcome: 'failure', iterations: 1, startedAt: claimedAt,
-          notes: `Unhandled worker error: ${err.message}`,
+          notes: `Unhandled worker error: ${err.message}${err.foremanNote || ''}`,
         });
         claimedTask = null;
       }

@@ -44,5 +44,5 @@ containing `### <component>` headings with a `| **Status** | <value> |` row.
 
 | | |
 |---|---|
-| **Status** | GAP on the error path — the 2026-09-27 task's row reads `Unhandled worker error: Task foreman-step12-20260927 not found`, with no `Foreman[shadow]` line (only completion and release carry it); no normal-path row yet (the row lands in `ha_telemetry.meta_notes` — step 1.2's Verify named a nonexistent `hyperagent_telemetry` until 2026-09-26) |
+| **Status** | Error-path GAP FIXED IN CODE 2026-09-27 (`superviseTask` hands the summary to the main loop as `err.foremanNote`; `test/foreman-verify-gate.test.mjs`), not yet observed on the node — the 2026-09-27 task's row, written before the fix, reads `Unhandled worker error: Task foreman-step12-20260927 not found`, with no `Foreman[shadow]` line; no normal-path row yet (the row lands in `ha_telemetry.meta_notes` — step 1.2's Verify named a nonexistent `hyperagent_telemetry` until 2026-09-26) |
 | **Verified** | 2026-09-21 — `closeSupervision()` return appended to the `notes` of all three `recordHyperagentTask` calls in `executeTask` (grep above) |

@@ -286,7 +286,12 @@ describe('superviseTask — every exit closes the supervisor', () => {
     const supervisor = createSupervisor({ task: { task_id: 'leak' }, assessor, config: fastConfig, timelinePath, log: () => {} }).start();
     supervisor.workerStarted({ attempt: 1 });
     try {
-      await assert.rejects(superviseTask(supervisor, async () => { await sleep(60); throw new Error('natsRequest mesh.tasks.attempt: timeout'); }), /timeout/);
+      await assert.rejects(superviseTask(supervisor, async () => { await sleep(60); throw new Error('natsRequest mesh.tasks.attempt: timeout'); }), (err) => {
+        assert.match(err.message, /timeout/);
+        // The main loop writes this task's telemetry row; the summary must reach it (step 1.2, 2026-09-27).
+        assert.match(err.foremanNote, /^ Foreman\[shadow\] iterations=\d+ /);
+        return true;
+      });
       assert.equal(supervisor.closed, true);
       const last = rows(timelinePath).at(-1);
       assert.equal(last.type, 'foreman.closed');

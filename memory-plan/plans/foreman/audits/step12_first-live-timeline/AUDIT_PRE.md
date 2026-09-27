@@ -90,9 +90,11 @@ Verify was executed as written: two of three checks pass, the third fails, so th
 1. **Blocker — the node's claude CLI login.** Its OAuth access token has expired. Re-authenticating
    is the operator's move (interactive `claude`, then `/login`); until then no claude task can run
    on this node.
-2. **Code gap (D3 area).** On the error path `superviseTask` closes the supervisor, but the Foreman
-   summary line never reaches the `Unhandled worker error` telemetry row the main loop writes. Only
-   a task that completes or is released normally can satisfy 1.2's Verify.
+2. **Code gap (D3 area) — fixed in code the same day.** On the error path `superviseTask` closed
+   the supervisor, but the Foreman summary line never reached the `Unhandled worker error`
+   telemetry row the main loop writes, so only a task that completed or was released normally
+   could satisfy 1.2's Verify. `superviseTask` now hands the line out as `err.foremanNote` and
+   the main loop appends it (PR #32, covered by `test/foreman-verify-gate.test.mjs`).
 3. **Daemon/agent race (pre-existing, not Foreman code).** When budget enforcement fails a task
    under a running agent, the agent's next attempt or release call gets `not found` and the rest of
    its bookkeeping is skipped: worktree cleanup, the agent-state reset, the normal telemetry write.

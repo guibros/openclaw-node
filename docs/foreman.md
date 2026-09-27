@@ -134,7 +134,9 @@ always did.
 
 Every exit from `executeTask` — completion, release, dry run, or an error thrown anywhere in the
 attempt loop — closes the task's supervisor (`superviseTask`); an abnormal exit records
-`foreman.closed` with `outcome: "error"`. A closed supervisor never assesses again.
+`foreman.closed` with `outcome: "error"`, and the summary line rides the error out so the main
+loop's `Unhandled worker error` telemetry row carries `Foreman[…]` too. A closed supervisor never
+assesses again.
 
 ## Modes
 
