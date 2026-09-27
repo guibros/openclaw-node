@@ -3,12 +3,17 @@
  * summaries (openviking-adopt Block 2).
  *
  * Model-free: documents/chunks are seeded directly, `embed` is a stub that
- * returns deterministic unit vectors, and the LLM is a stub client.
+ * returns deterministic unit vectors, and the LLM is the real client
+ * (createLlmClient → ollama-queue → fetch) against a fake Ollama, so the
+ * module sees exactly what generateAnalysis returns. A stub returning
+ * {content} kept this suite green while every model answer went unapplied.
  */
 
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 
+import { createLlmClient, DEFAULT_ANALYSIS_TIMEOUT } from '../lib/llm-client.mjs';
 import { initDatabase, semanticSearch, getStats, EMBEDDING_DIM } from '../lib/mcp-knowledge/core.mjs';
 import {
   buildDirectorySummaries,
@@ -59,6 +64,53 @@ const DOCS = [
   { path: 'SOUL.md', title: 'Soul', text: 'who I am' },
 ];
 
+// Fake Ollama /api/chat: records each request body and hands `reply` a
+// send(status, content) that answers in the native response shape.
+const ollama = { requests: [], reply: null, server: null };
+
+function startFakeOllama() {
+  ollama.server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => { raw += c; });
+    req.on('end', () => {
+      const body = JSON.parse(raw);
+      ollama.requests.push(body);
+      ollama.reply(body, (status, content) => {
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(status === 200
+          ? { message: { role: 'assistant', content }, done_reason: 'stop', prompt_eval_count: 1, eval_count: 1 }
+          : { error: content }));
+      });
+    });
+  });
+  return new Promise((r) => ollama.server.listen(0, '127.0.0.1', r));
+}
+
+function stopFakeOllama() {
+  ollama.server.closeAllConnections();
+  return new Promise((r) => ollama.server.close(r));
+}
+
+// The real generateAnalysis with a short wall: the queue's wait-timeout timer
+// outlives the call it raced, so the module's 120 s batch wall would hold the
+// test process open for two minutes. `asked` records what the module passed.
+function realLlm(reply) {
+  ollama.requests = [];
+  ollama.reply = reply;
+  const client = createLlmClient({ baseUrl: `http://127.0.0.1:${ollama.server.address().port}`, model: 'test-model' });
+  const asked = [];
+  return {
+    client,
+    asked,
+    generateAnalysis: (messages, opts) => {
+      asked.push(opts);
+      return client.generateAnalysis(messages, { ...opts, waitTimeoutMs: 5_000 });
+    },
+  };
+}
+
+const answer = (content) => (body, send) => send(200, content);
+
 describe('pure helpers', () => {
   it('titleOf prefers the first heading, else the basename', () => {
     assert.equal(titleOf('a/b/File Name.md', '# Real Title'), 'Real Title');
@@ -91,6 +143,8 @@ describe('pure helpers', () => {
 
 describe('buildDirectorySummaries', () => {
   let db;
+  before(startFakeOllama);
+  after(stopFakeOllama);
   beforeEach(() => { db = initDatabase(':memory:'); seedDocs(db, DOCS); });
   afterEach(() => db.close());
 
@@ -137,29 +191,27 @@ describe('buildDirectorySummaries', () => {
   });
 
   it('uses the LLM when given, validates its JSON, and cascades the upgrade to parents', async () => {
-    const calls = [];
-    const llm = {
-      generateAnalysis: async (messages) => {
-        calls.push(messages[1].content);
-        const dir = messages[1].content.match(/^Directory: (.*)$/m)[1];
-        return { content: `{"abstract":"LLM says ${dir}","overview":"- point one\\n- point two"}` };
-      },
-    };
+    const llm = realLlm((body, send) => {
+      const dir = body.messages[1].content.match(/^Directory: (.*)$/m)[1];
+      send(200, `{"abstract":"LLM says ${dir}","overview":"- point one\\n- point two"}`);
+    });
     const r = await buildDirectorySummaries(db, { llmClient: llm });
     assert.equal(r.llm, 6);
+    assert.equal(ollama.requests.length, 6);
+    // A batch job: the inject hot path's analysis wall is too short for a summary.
+    assert.ok(llm.asked.every((o) => o.waitTimeoutMs > DEFAULT_ANALYSIS_TIMEOUT), JSON.stringify(llm.asked));
     assert.equal(getDirectorySummary(db, 'memory').generator, 'llm');
     assert.equal(getDirectorySummary(db, 'memory').abstract, 'LLM says memory/');
     // The parent's overview lists the child's LLM abstract, not the deterministic one.
     assert.match(getDirectorySummary(db, '').overview, /point one/);
     // Unchanged tree → no further LLM calls.
-    const before = calls.length;
     const r2 = await buildDirectorySummaries(db, { llmClient: llm });
-    assert.equal(calls.length, before);
+    assert.equal(ollama.requests.length, 6);
     assert.equal(r2.unchanged, 6);
   });
 
   it('bounds LLM calls per pass and upgrades the deterministic remainder on later passes', async () => {
-    const llm = { generateAnalysis: async () => ({ content: '{"abstract":"llm abstract","overview":"- x"}' }) };
+    const llm = realLlm(answer('{"abstract":"llm abstract","overview":"- x"}'));
     const r1 = await buildDirectorySummaries(db, { llmClient: llm, maxLlmDirs: 2 });
     assert.equal(r1.llm, 2);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM directory_summaries WHERE generator='deterministic'").get().n, 4);
@@ -171,18 +223,37 @@ describe('buildDirectorySummaries', () => {
   });
 
   it('falls back to deterministic when the LLM fails or answers garbage, and stops calling a dead model', async () => {
-    let calls = 0;
-    const dead = { generateAnalysis: async () => { calls++; throw new Error('ECONNREFUSED'); } };
+    const dead = realLlm((body, send) => send(500, 'model requires more system memory than is available'));
     const r = await buildDirectorySummaries(db, { llmClient: dead, log: () => {} });
-    assert.equal(calls, 1, 'one failure stops LLM attempts for the pass');
+    assert.equal(dead.asked.length, 1, 'one failure stops LLM attempts for the pass');
     assert.equal(r.built, 6);
     assert.equal(r.llm, 0);
-    const garbage = { generateAnalysis: async () => ({ content: 'not json at all' }) };
+    const garbage = realLlm(answer('not json at all'));
     seedDocs(db, [{ path: 'memory/2026-09-03.md', title: 'Daily 3', text: 'x' }]);
     const r2 = await buildDirectorySummaries(db, { llmClient: garbage });
     assert.equal(r2.llm, 0);
     assert.equal(getDirectorySummary(db, 'memory').generator, 'deterministic');
     assert.match(getDirectorySummary(db, 'memory').abstract, /Daily 3/);
+  });
+
+  it('treats a queue fallback as no model: deterministic for the rest of the pass', async () => {
+    // An extraction holds the single-flight queue, so the real generateAnalysis
+    // answers {mode:'fallback'} without reaching the model.
+    let release;
+    let arrived;
+    const held = new Promise((r) => { arrived = r; });
+    const llm = realLlm((body, send) => { release = send; arrived(); });
+    const extraction = llm.client.generate([{ role: 'user', content: 'a long transcript' }]);
+    await held;
+    const logs = [];
+    const r = await buildDirectorySummaries(db, { llmClient: llm, log: (m) => logs.push(m) });
+    assert.equal(r.built, 6);
+    assert.equal(r.llm, 0);
+    assert.equal(llm.asked.length, 1, 'a fallback stops LLM attempts for the pass');
+    assert.equal(ollama.requests.length, 1, 'only the extraction reached the model');
+    assert.match(logs.join('\n'), /ollama-busy-extraction/);
+    release(200, '{}');
+    assert.equal((await extraction).content, '{}');
   });
 
   it('embeds abstracts so directories can be ranked, and search hits carry dir_abstract', async () => {
