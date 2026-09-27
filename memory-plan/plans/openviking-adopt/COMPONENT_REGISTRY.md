@@ -14,8 +14,8 @@ until the operator re-verifies on the node.
 
 | | |
 |---|---|
-| **Status** | UNPROBED (runtime) / code-verified |
-| **Verified** | 2026-09-21 — `node --test test/mcp-knowledge-path-scope.test.mjs test/mcp-knowledge-directory-summaries.test.mjs` green in the container (embedder-gated cases skip visibly) |
+| **Status** | BROKEN on the node as a stdio MCP server (observed 2026-09-26); entrypoint fixed in code 2026-09-26, not deployed |
+| **Verified** | 2026-09-26 — node MCP logs (`~/Library/Caches/claude-cli-nodejs/*/mcp-logs-knowledge/`): last successful `knowledge` connect 2026-09-21 10:50 EDT, 9 `CONNECTION_CLOSED` since; the live checkout moved to a tree carrying db94e64's entrypoint check at 10:54 EDT that day. In a worktree, the fixed server answers `initialize`, `tools/list`, `knowledge_tree` and a `path_prefix` search from an MCP client when launched through a symlinked `lib/` and through npm's bin link. 2026-09-21 — `node --test test/mcp-knowledge-path-scope.test.mjs test/mcp-knowledge-directory-summaries.test.mjs` green in the container (embedder-gated cases skip visibly) |
 | **Owner files** | `lib/mcp-knowledge/core.mjs`, `lib/mcp-knowledge/server.mjs`, `lib/mcp-knowledge/directory-summaries.mjs` |
 | **Delta this plan** | `pathPrefix` on `semanticSearch`/`findRelated`; `directory_summaries` + `directory_vectors` tables (knowledge schema v2); tools `knowledge_tree`, `directory_overview`, `search_directories`; `dir_abstract` on hits |
 

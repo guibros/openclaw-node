@@ -51,3 +51,14 @@ package-lock.json
 mission-control/package.json
 mission-control/package-lock.json
 ```
+
+**Hotfix 2026-09-26 (knowledge MCP entrypoint, found while verifying PR #29):** `.mcp.json` starts
+`lib/mcp-knowledge/server.mjs` through `~/.openclaw/workspace/lib`, a symlink to the checkout. The
+entrypoint check (db94e64) compared `import.meta.url`, which Node resolves through symlinks, with
+`argv[1]`, which it does not, so `main()` never ran and the process exited 0 without output. On the
+node the last successful `knowledge` connect was 2026-09-21 10:50 EDT, four minutes before the live
+checkout moved to a tree carrying the check; every session that has loaded it since logged
+`knowledge (CONNECTION_CLOSED)`, so none of Blocks 1–2's MCP tools reached a session. Fix: compare
+real paths; regression test `test/mcp-knowledge-entrypoint.test.mjs`. Both files sit in the open
+`2026-09-21-openviking-adopt` block, so no files are added. Runtime evidence is the operator's step
+(the live checkout must carry the fix): a Claude Code session on the node connects to `knowledge`.
