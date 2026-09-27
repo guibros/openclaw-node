@@ -12,12 +12,12 @@
  * test copied in — a throwaway HOME as the runtime tree, and launchctl /
  * systemctl / npm stubs on PATH that log what the deploy asked of them.
  */
-import { describe, it, after } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -78,24 +78,34 @@ function commit(message) {
 }
 
 // A daemon built from a tree whose mesh-agent.js says BREAK_DEPLOY fails to start.
+// DEPLOY_TEST_UNITS: systemd units installed here. DEPLOY_TEST_STOPPED: units
+// or launchd labels installed but stopped, as the service manager reports them.
 const broken = 'grep -q BREAK_DEPLOY "$OPENCLAW_REPO_DIR/bin/mesh-agent.js" 2>/dev/null';
 stub('systemctl', `case "$*" in
   *LoadState*) for u in $DEPLOY_TEST_UNITS; do [ "$u" = "$6" ] && { echo loaded; exit 0; }; done; echo not-found; exit 0 ;;
-  *is-active*) echo active; exit 0 ;;
+  *is-active*) for u in $DEPLOY_TEST_STOPPED; do [ "$u" = "$3" ] && { echo inactive; exit 3; }; done; echo active; exit 0 ;;
 esac
 if ${broken}; then echo "Job for $3.service failed" >&2; exit 1; fi`);
-stub('launchctl', `if [ "$1" = load ] && ${broken}; then echo "Load failed: 5: Input/output error" >&2; exit 1; fi`);
-stub('npm', 'exit 0');
+stub('launchctl', `case "$1" in
+  print) for u in $DEPLOY_TEST_STOPPED; do [ "$u" = "\${2##*/}" ] && { echo "state = not running"; exit 0; }; done; printf 'state = running\\npid = 4242\\n' ;;
+  kickstart) if ${broken}; then echo "kickstart: service failed to start" >&2; exit 1; fi ;;
+esac`);
+// The registry has a newer openclaw than the installed CLI: what made the old
+// fetching deploy run `npm update -g openclaw` on its own.
+stub('npm', 'case "$*" in "view openclaw version") echo 9.9.9 ;; esac');
+stub('openclaw', 'echo 1.0.0');
 if (IS_MAC) {
   for (const label of ['ai.openclaw.mesh-agent', 'ai.openclaw.mission-control']) {
     write(HOME, `Library/LaunchAgents/${label}.plist`, '<plist/>\n');
   }
 }
 
+// What a node's clone needs to run bin/mesh-deploy.js.
+const DEPLOY_SCRIPT_FILES = ['bin/mesh-deploy.js', 'lib/tracer.js', 'lib/obs-db.js'];
 git(ROOT, 'init', '-q', '--bare', '-b', 'main', ORIGIN);
 git(ROOT, 'init', '-q', '-b', 'main', SEED);
 git(SEED, 'remote', 'add', 'origin', ORIGIN);
-for (const rel of ['bin/mesh-deploy.js', 'lib/tracer.js', 'lib/obs-db.js']) {
+for (const rel of DEPLOY_SCRIPT_FILES) {
   write(SEED, rel, fs.readFileSync(path.join(REPO, rel)));
 }
 write(SEED, 'bin/mesh-agent.js', '// agent v0\n');
@@ -117,12 +127,14 @@ const head = () => git(NODE, 'rev-parse', 'HEAD');
 const state = () => JSON.parse(read(RT.state));
 const trigger = (sha, extra = {}) => ({ sha: sha.slice(0, 7), branch: 'main', components: ['all'], initiator: 'lead-test', ...extra });
 const restartOf = svc => (IS_MAC
-  ? `launchctl load ${path.join(HOME, 'Library', 'LaunchAgents', `ai.openclaw.${svc}.plist`)}`
-  : `systemctl --user restart openclaw-${svc}`);
+  ? `launchctl kickstart -k gui/${process.getuid()}/ai.openclaw.${svc}`
+  : `systemctl --user try-restart openclaw-${svc}`);
+
+// File-level: the describes below all use ROOT's stubs and fixtures.
+after(() => fs.rmSync(ROOT, { recursive: true, force: true }));
 
 describe('pinned-sha deploy through the listener (bare origin + node clone)', () => {
   let S1, S2, S3;
-  after(() => fs.rmSync(ROOT, { recursive: true, force: true }));
 
   it('--force reinstalls every component at the signed sha even when nothing changed', async () => {
     const r = await runDeploy(trigger(S0, { force: true }));
@@ -222,6 +234,26 @@ describe('pinned-sha deploy through the listener (bare origin + node clone)', ()
     assert.equal(state().lastSha, S1);
   });
 
+  it('refuses a checkout whose tracked files differ from the signed sha, before anything moves', async () => {
+    write(SEED, 'bin/mesh-agent.js', '// agent v4\n');
+    const S4 = commit('v4');
+    // The lead's listener runs on the operator's working checkout, at the HEAD it published.
+    git(NODE, 'fetch', '-q', 'origin', 'main');
+    git(NODE, 'checkout', '-q', '--detach', S4);
+    write(NODE, 'bin/mesh-agent.js', '// WIP, uncommitted\n');
+    try {
+      const r = await runDeploy(trigger(S4));
+      assert.equal(r.status, 'failed', 'an uncommitted edit is not deployed as the signed sha');
+      assert.match(r.errors[0], /tracked files differ from the commit \(M bin\/mesh-agent\.js\)/);
+      assert.equal(r.rolledBack, undefined, 'refused before anything was touched, so nothing to roll back');
+      assert.equal(read(path.join(RT.bin, 'mesh-agent.js')), '// agent v3\n', 'the edit never reached the runtime');
+      assert.equal(state().deployedSha, S3);
+    } finally {
+      git(NODE, 'checkout', '-q', '--', 'bin/mesh-agent.js');
+      git(NODE, 'checkout', '-q', '--detach', S3);
+    }
+  });
+
   it('refuses a sha that is not on origin, and a checkout carrying unpushed commits', async () => {
     const unknown = await runDeploy(trigger('0123456789abcdef0123456789abcdef01234567'));
     assert.equal(unknown.status, 'failed');
@@ -237,5 +269,247 @@ describe('pinned-sha deploy through the listener (bare origin + node clone)', ()
     assert.equal(r.status, 'failed');
     assert.match(r.errors[0], /not on origin\/main — refusing to move this checkout/);
     assert.equal(head(), local, 'the checkout was left where it was');
+  });
+});
+
+// ── Independent nodes, bin/mesh-deploy.js run directly ──────────────────────
+// Each case below gets its own origin, clone and runtime HOME, and runs the
+// clone's deploy script as the listener does (`--local --to <sha>`) or as
+// `mesh deploy` does on the node itself (`--local`). The preload makes
+// os.platform() answer DEPLOY_TEST_PLATFORM, so the launchd and the systemd
+// restart paths both run on any host.
+const PRELOAD = path.join(ROOT, 'platform.cjs');
+write(ROOT, 'platform.cjs', "if (process.env.DEPLOY_TEST_PLATFORM) require('os').platform = () => process.env.DEPLOY_TEST_PLATFORM;\n");
+
+function makeNode(name, files) {
+  const dir = path.join(ROOT, name);
+  const fx = {
+    home: path.join(dir, 'home'), origin: path.join(dir, 'origin.git'), seed: path.join(dir, 'seed'),
+    node: path.join(dir, 'node'), callLog: path.join(dir, 'calls.log'),
+  };
+  fx.rt = rel => path.join(fx.home, rel);
+  fx.commit = (message, changed) => {
+    for (const [rel, content] of Object.entries(changed)) write(fx.seed, rel, content);
+    git(fx.seed, 'add', '-A');
+    git(fx.seed, 'commit', '-q', '-m', message);
+    git(fx.seed, 'push', '-q', 'origin', 'main');
+    // Pinned mode never fetches: the listener brings the sha in first, and so does this.
+    if (fs.existsSync(fx.node)) git(fx.node, 'fetch', '-q', 'origin', 'main');
+    return git(fx.seed, 'rev-parse', 'HEAD');
+  };
+  fx.deploy = (args, env = {}) => spawnSync(process.execPath,
+    ['--require', PRELOAD, path.join(fx.node, 'bin', 'mesh-deploy.js'), '--local', ...args], {
+      cwd: fx.node, encoding: 'utf8',
+      env: { ...process.env, HOME: fx.home, OPENCLAW_REPO_DIR: fx.node, DEPLOY_TEST_CALLS: fx.callLog, ...env },
+    });
+  // Each stub call as logged, without the " @ <cwd>" suffix.
+  fx.calls = () => (fs.existsSync(fx.callLog) ? read(fx.callLog) : '').split('\n').filter(Boolean).map(l => l.split(' @ ')[0]);
+  git(ROOT, 'init', '-q', '--bare', '-b', 'main', fx.origin);
+  git(ROOT, 'init', '-q', '-b', 'main', fx.seed);
+  git(fx.seed, 'remote', 'add', 'origin', fx.origin);
+  const script = Object.fromEntries(DEPLOY_SCRIPT_FILES.map(rel => [rel, fs.readFileSync(path.join(REPO, rel))]));
+  fx.S0 = fx.commit('v0', { ...script, ...files });
+  git(ROOT, 'clone', '-q', fx.origin, fx.node);
+  return fx;
+}
+const ranOk = run => assert.equal(run.status, 0, `deploy failed:\n${run.stdout}\n${run.stderr}`);
+const resultOf = run => JSON.parse(run.stdout.split('\n').find(l => l.startsWith('DEPLOY_RESULT ')).slice('DEPLOY_RESULT '.length));
+const fileMode = p => fs.statSync(p).mode & 0o777;
+
+describe('`mesh deploy --force` on a live node leaves what the node owns alone', () => {
+  // A worker (Mission Control, whose build runs npm, is lead-only) with a live
+  // node's state: an operator-configured openclaw.json, learned soul genes and
+  // events, and a repo that carries a quarantined skill.
+  const LIVE_CONFIG = '{"gateway":"configured on this node: channels, tokens, auth profiles"}\n';
+  const LEARNED_GENES = '{"genes":"learned on this node"}\n';
+  const LEARNED_EVENTS = '{"event":"learned on this node"}\n';
+  let fx, run;
+  before(() => {
+    fx = makeNode('force', {
+      'bin/mesh-agent.js': '// agent v0\n',
+      'config/openclaw.json.template': '{"workspace":"${OPENCLAW_WORKSPACE}"}\n',
+      'souls/daedalus/evolution/genes.json': '{"genes":"seed"}\n',
+      'souls/daedalus/evolution/events.jsonl': '{"event":"seed"}\n',
+      'souls/newcomer/evolution/genes.json': '{"genes":"newcomer seed"}\n',
+      'skills/demo/SKILL.md': '# demo\n',
+      'skills/_quarantine/memorylayer/SKILL.md': '# quarantined: ships memory to a SaaS\n',
+    });
+    write(fx.home, '.openclaw/openclaw.json', LIVE_CONFIG);
+    write(fx.home, '.openclaw/openclaw.env', 'DISCORD_BOT_TOKEN=discord-fixture\n');
+    write(fx.home, '.openclaw/souls/daedalus/evolution/genes.json', LEARNED_GENES);
+    write(fx.home, '.openclaw/souls/daedalus/evolution/events.jsonl', LEARNED_EVENTS);
+    // The fetching flow: what `mesh deploy --force` runs on the node itself,
+    // and what the pre-fix listener ran for every trigger.
+    run = fx.deploy(['--force'], { OPENCLAW_NODE_ROLE: 'worker' });
+  });
+
+  it('reinstalls the node and succeeds', () => {
+    ranOk(run);
+    assert.equal(read(fx.rt('.openclaw/skills/demo/SKILL.md')), '# demo\n');
+  });
+
+  it('leaves openclaw.json alone when its template did not change: no rewrite, no backup', () => {
+    assert.equal(read(fx.rt('.openclaw/openclaw.json')), LIVE_CONFIG);
+    assert.deepEqual(fs.readdirSync(fx.rt('.openclaw')).filter(f => f.startsWith('openclaw.json.bak')), []);
+  });
+
+  it('never overwrites learned soul genes or events, and seeds a soul that has none', () => {
+    assert.equal(read(fx.rt('.openclaw/souls/daedalus/evolution/genes.json')), LEARNED_GENES);
+    assert.equal(read(fx.rt('.openclaw/souls/daedalus/evolution/events.jsonl')), LEARNED_EVENTS);
+    assert.equal(read(fx.rt('.openclaw/souls/newcomer/evolution/genes.json')), '{"genes":"newcomer seed"}\n');
+  });
+
+  it('never installs skills/_quarantine', () => {
+    assert.ok(!fs.existsSync(fx.rt('.openclaw/skills/_quarantine')), 'the quarantined skill reached the node');
+  });
+
+  it('never runs npm or the openclaw CLI: no implicit, unpinned CLI update', () => {
+    assert.deepEqual(fx.calls().filter(l => /^(npm|openclaw) /.test(l)), []);
+  });
+});
+
+describe('openclaw.json is rewritten only from a changed template, rendered as the installer renders it', () => {
+  const LIVE_CONFIG = '{"gateway":"configured on this node"}\n';
+  const TEMPLATE = v => `{"workspace":"\${OPENCLAW_WORKSPACE}","token":"\${DISCORD_BOT_TOKEN}","unset":"\${DEPLOY_TEST_UNSET}","v":${v}}\n`;
+  let fx, S1, S2;
+  const config = () => fx.rt('.openclaw/openclaw.json');
+  const backups = () => fs.readdirSync(fx.rt('.openclaw')).filter(f => f.startsWith('openclaw.json.bak.'));
+  before(() => {
+    fx = makeNode('config', { 'config/openclaw.json.template': TEMPLATE(0), 'config/harness-rules.json': '{"v":0}\n' });
+    // An earlier deploy installed the template; the operator has since configured the gateway.
+    write(fx.home, '.openclaw/config/openclaw.json.template', TEMPLATE(0));
+    write(fx.home, '.openclaw/openclaw.json', LIVE_CONFIG);
+    write(fx.home, '.openclaw/openclaw.env', '# node secrets\nDISCORD_BOT_TOKEN="discord-fixture"\n');
+  });
+
+  it('a diff that changes another config/ file leaves openclaw.json alone', () => {
+    S1 = fx.commit('v1: harness rules', { 'config/harness-rules.json': '{"v":1}\n' });
+    ranOk(fx.deploy(['--from', fx.S0, '--to', S1]));
+    assert.equal(read(config()), LIVE_CONFIG);
+    assert.deepEqual(backups(), []);
+  });
+
+  it('a diff that changes the template re-renders it, after a timestamped 0600 backup', () => {
+    S2 = fx.commit('v2: template', { 'config/openclaw.json.template': TEMPLATE(2) });
+    ranOk(fx.deploy(['--from', S1, '--to', S2]));
+    const text = read(config());
+    assert.ok(!text.includes('${'), `a placeholder was left in: ${text}`);
+    assert.deepEqual(JSON.parse(text), { workspace: fx.rt('.openclaw/workspace'), token: 'discord-fixture', unset: '', v: 2 });
+    assert.equal(fileMode(config()), 0o600);
+    assert.equal(backups().length, 1);
+    const backup = fx.rt(path.join('.openclaw', backups()[0]));
+    assert.equal(read(backup), LIVE_CONFIG);
+    assert.equal(fileMode(backup), 0o600);
+  });
+
+  it('a missing openclaw.json is generated by a same-sha reinstall', () => {
+    fs.rmSync(config());
+    ranOk(fx.deploy(['--from', S2, '--to', S2, '--force']));
+    assert.equal(JSON.parse(read(config())).workspace, fx.rt('.openclaw/workspace'));
+    assert.equal(fileMode(config()), 0o600);
+    assert.equal(backups().length, 1, 'nothing existed to back up');
+  });
+});
+
+describe('the openclaw CLI is installed only when named, and only at a pinned version', () => {
+  let fx;
+  before(() => { fx = makeNode('openclaw-cli', { 'bin/mesh-agent.js': '// agent v0\n' }); });
+
+  it('`--component openclaw` refuses without an exact OPENCLAW_CLI_VERSION', () => {
+    for (const version of [undefined, 'latest', '^1.2.0']) {
+      const run = fx.deploy(['--from', fx.S0, '--to', fx.S0, '--component', 'openclaw'], { OPENCLAW_CLI_VERSION: version });
+      assert.equal(run.status, 1, `OPENCLAW_CLI_VERSION=${version}:\n${run.stdout}`);
+      assert.match(run.stdout, /DEPLOY_ERROR .*OPENCLAW_CLI_VERSION/);
+    }
+    assert.deepEqual(fx.calls().filter(l => l.startsWith('npm ')), []);
+  });
+
+  it('installs exactly the pinned version', () => {
+    ranOk(fx.deploy(['--from', fx.S0, '--to', fx.S0, '--component', 'openclaw'], { OPENCLAW_CLI_VERSION: '2026.9.1' }));
+    assert.deepEqual(fx.calls().filter(l => l.startsWith('npm ')), ['npm install -g openclaw@2026.9.1']);
+  });
+});
+
+describe('a deploy restarts only the services that are running', () => {
+  let fx, S1;
+  before(() => {
+    fx = makeNode('restart', { 'bin/mesh-agent.js': '// agent v0\n' });
+    for (const label of ['ai.openclaw.mesh-agent', 'ai.openclaw.mesh-health-publisher']) {
+      write(fx.home, `Library/LaunchAgents/${label}.plist`, '<plist/>\n');
+    }
+  });
+
+  it('systemd: an inactive unit is left stopped, a running one gets try-restart', () => {
+    S1 = fx.commit('v1', { 'bin/mesh-agent.js': '// agent v1\n' });
+    const run = fx.deploy(['--from', fx.S0, '--to', S1], {
+      DEPLOY_TEST_PLATFORM: 'linux',
+      DEPLOY_TEST_UNITS: 'openclaw-mesh-agent openclaw-mesh-health-publisher',
+      DEPLOY_TEST_STOPPED: 'openclaw-mesh-agent', // autostart:false — the operator starts it
+    });
+    ranOk(run);
+    const systemctl = fx.calls().filter(l => l.startsWith('systemctl '));
+    assert.ok(systemctl.includes('systemctl --user try-restart openclaw-mesh-health-publisher'), systemctl.join('\n'));
+    assert.deepEqual(systemctl.filter(l => /start openclaw-mesh-agent$/.test(l)), [], 'the stopped unit was started');
+    assert.match(run.stdout, /openclaw-mesh-agent not running \(inactive\) — left stopped/);
+    assert.doesNotMatch(run.stdout, /Restarted openclaw-mesh-agent/);
+    assert.deepEqual(resultOf(run).restarted, ['openclaw-mesh-health-publisher']);
+  });
+
+  it('launchd: a stopped agent is neither loaded nor kickstarted, a running one gets kickstart -k', () => {
+    fs.rmSync(fx.callLog, { force: true });
+    const S2 = fx.commit('v2', { 'bin/mesh-agent.js': '// agent v2\n' });
+    const run = fx.deploy(['--from', S1, '--to', S2], {
+      DEPLOY_TEST_PLATFORM: 'darwin',
+      DEPLOY_TEST_STOPPED: 'ai.openclaw.mesh-agent', // RunAtLoad=false, not started by hand
+    });
+    ranOk(run);
+    const uid = process.getuid();
+    const launchctl = fx.calls().filter(l => l.startsWith('launchctl '));
+    assert.ok(launchctl.includes(`launchctl kickstart -k gui/${uid}/ai.openclaw.mesh-health-publisher`), launchctl.join('\n'));
+    assert.deepEqual(launchctl.filter(l => /^launchctl (load|unload) /.test(l)), [], 'unload/load kills a hand-started agent');
+    assert.ok(!launchctl.includes(`launchctl kickstart -k gui/${uid}/ai.openclaw.mesh-agent`), 'the stopped agent was started');
+    assert.match(run.stdout, /ai\.openclaw\.mesh-agent not running — left stopped/);
+    assert.deepEqual(resultOf(run).restarted, ['ai.openclaw.mesh-health-publisher']);
+  });
+});
+
+describe('a deploy installs the commit, never the working tree', () => {
+  let fx, S1;
+  const nodeHead = () => git(fx.node, 'rev-parse', 'HEAD');
+  before(() => {
+    fx = makeNode('dirty', { 'bin/mesh-agent.js': '// agent v0\n', 'skills/demo/SKILL.md': '# demo v0\n' });
+    ranOk(fx.deploy(['--from', fx.S0, '--to', fx.S0, '--component', 'all']));
+    S1 = fx.commit('v1', { 'bin/mesh-agent.js': '// agent v1\n' });
+  });
+
+  it('`mesh deploy` refuses a tracked edit before fast-forwarding, and installs nothing', () => {
+    // Unchanged S0 → S1, so a fast-forward would carry it and --force would install it.
+    write(fx.node, 'skills/demo/SKILL.md', '# demo, edited in the checkout\n');
+    try {
+      const run = fx.deploy(['--force']);
+      assert.equal(run.status, 1, run.stdout);
+      assert.match(run.stdout, /DEPLOY_ERROR .*tracked files in .* differ from the commit \(M skills\/demo\/SKILL\.md\)/);
+      assert.equal(nodeHead(), fx.S0, 'the branch was not fast-forwarded');
+      assert.equal(read(fx.rt('.openclaw/skills/demo/SKILL.md')), '# demo v0\n');
+      assert.equal(read(fx.rt('openclaw/bin/mesh-agent.js')), '// agent v0\n');
+    } finally {
+      git(fx.node, 'checkout', '-q', '--', 'skills/demo/SKILL.md');
+    }
+  });
+
+  it('a pinned deploy refuses an uncommitted edit at the target sha; untracked files and mode-only changes do not block', () => {
+    git(fx.node, 'checkout', '-q', '--detach', S1);
+    write(fx.node, 'bin/mesh-agent.js', '// WIP, uncommitted\n');
+    const refused = fx.deploy(['--from', fx.S0, '--to', S1]);
+    assert.equal(refused.status, 1, refused.stdout);
+    assert.match(refused.stdout, /DEPLOY_ERROR .*differ from the commit \(M bin\/mesh-agent\.js\)/);
+    assert.equal(read(fx.rt('openclaw/bin/mesh-agent.js')), '// agent v0\n', 'the WIP edit reached the runtime');
+    assert.equal(JSON.parse(read(fx.rt('.openclaw/.deploy-state.json'))).deployedSha, fx.S0);
+
+    git(fx.node, 'checkout', '-q', '--', 'bin/mesh-agent.js');
+    write(fx.node, 'notes/scratch.txt', 'untracked — nothing installs it\n');
+    fs.chmodSync(path.join(fx.node, 'skills', 'demo', 'SKILL.md'), 0o755); // as the installer's chmod +x does
+    ranOk(fx.deploy(['--from', fx.S0, '--to', S1]));
+    assert.equal(read(fx.rt('openclaw/bin/mesh-agent.js')), '// agent v1\n');
   });
 });

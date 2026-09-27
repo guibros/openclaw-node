@@ -248,6 +248,15 @@ async function runDeploy(trigger, { forwardOnly = false } = {}) {
         console.log(`[deploy-listener] HEAD ${head.slice(0, 7)} is ahead of ${trigger.sha} — catch-up never moves a node backward`);
         return { ...result, status: 'skipped', log: `HEAD ${head.slice(0, 7)} is ahead of ${trigger.sha}` };
       }
+      // Tracked edits are refused before anything moves: the daemons run this
+      // checkout's files, so the edit would go live as the signed sha. The
+      // deploy script refuses them too, but only after this checkout — and the
+      // rollback could not then move the tree back over the same edit. Content
+      // only, as there: mode-only changes never reach a runtime copy.
+      const dirty = git('-c', 'core.fileMode=false', 'status', '--porcelain', '--untracked-files=no');
+      if (dirty) {
+        throw new Error(`tracked files differ from the commit (${dirty.split('\n').slice(0, 5).map(l => l.trim()).join(', ')}) — refusing to deploy over them`);
+      }
       if (head !== targetSha) {
         console.log(`[deploy-listener] Checking out ${targetSha.slice(0, 7)} (was ${head.slice(0, 7)})`);
         touched = true;

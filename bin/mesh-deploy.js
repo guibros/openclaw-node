@@ -44,6 +44,8 @@
  *   OPENCLAW_DEPLOY_BRANCH   — git branch (default: main)
  *   OPENCLAW_REPO_DIR        — repo location (default: ~/openclaw)
  *   OPENCLAW_NATS            — NATS server URL (from env or openclaw.env)
+ *   OPENCLAW_CLI_VERSION     — exact openclaw version `--component openclaw` installs
+ *                              (required; no deploy updates the CLI implicitly)
  */
 
 const { execSync, execFileSync } = require('child_process');
@@ -177,6 +179,46 @@ function isAncestor(repoDir, ancestor, descendant) {
 
 function currentBranch(repoDir) {
   try { return gitLine(repoDir, ['symbolic-ref', '--quiet', '--short', 'HEAD']); } catch { return null; }
+}
+
+/**
+ * Refuse a checkout whose tracked files differ from its commit, staged or not.
+ * The mesh daemons run this checkout's own files (their units exec
+ * ${OPENCLAW_REPO_DIR}/bin/...), installFiles copies from it, and a checkout
+ * carries such an edit onto the next commit — so the edit would go live and be
+ * reported as the sha. Installing from `git show` could not stop the daemons
+ * running it, so the deploy refuses. Untracked files stay out: nothing installs
+ * them. So do mode-only changes (the installer's `chmod +x bin/*.sh` makes them
+ * where the checkout is the mesh home): no runtime copy takes git's mode.
+ */
+function assertCommitted(repoDir) {
+  const dirty = git(repoDir, ['-c', 'core.fileMode=false', 'status', '--porcelain', '--untracked-files=no'])
+    .split('\n').filter(Boolean);
+  if (dirty.length === 0) return;
+  const shown = dirty.slice(0, 5).map(l => l.trim()).join(', ') + (dirty.length > 5 ? `, +${dirty.length - 5} more` : '');
+  throw new Error(`tracked files in ${repoDir} differ from the commit (${shown}) — ` +
+    'a deploy installs exactly the commit: commit, stash or discard them first');
+}
+
+/**
+ * Render a config template the way install.sh does (scripts/install/config.sh
+ * generate_config): openclaw.env values over the process environment,
+ * OPENCLAW_WORKSPACE forced to the workspace (config.sh exports it after
+ * reading the env file), and every ${VAR} replaced — an unset one with
+ * nothing, as envsubst does. The old regen only substituted keys present in
+ * openclaw.env, which left a literal ${OPENCLAW_WORKSPACE} in openclaw.json.
+ */
+function renderConfigTemplate(template, envText) {
+  const vars = { ...process.env };
+  for (const line of envText.split('\n')) {
+    if (/^\s*(#|$)/.test(line) || !line.includes('=')) continue;
+    const key = line.slice(0, line.indexOf('=')).trim();
+    // The installer trims with xargs, which also drops surrounding quotes.
+    const value = line.slice(line.indexOf('=') + 1).trim().replace(/^(["'])(.*)\1$/, '$2');
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) vars[key] = value;
+  }
+  vars.OPENCLAW_WORKSPACE = DIRS.WORKSPACE;
+  return template.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name) => vars[name] ?? '');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -317,20 +359,12 @@ const MANIFEST = [
     servicesMac: [],
     servicesLinux: [],
     nodeFilter: 'all',
-    preInstall: (changedFiles) => {
-      for (const f of changedFiles) {
-        if (f.includes('genes.json') || f.includes('events.jsonl')) {
-          const targetPath = path.join(DIRS.SOULS, f.replace('souls/', ''));
-          if (fs.existsSync(targetPath)) {
-            const backupPath = targetPath + '.pre-deploy';
-            fs.copyFileSync(targetPath, backupPath);
-            info(`Backed up ${path.basename(targetPath)} → .pre-deploy`);
-          }
-        }
-      }
-    },
+    // A soul's evolved genes and event log are learned on the node; the repo
+    // copy only seeds a soul that has none. The old backup-then-overwrite reset
+    // them to the seed on every --force and kept one .pre-deploy copy.
+    seedOnly: /^souls\/[^/]+\/evolution\/(genes\.json|events\.jsonl)$/,
     notes: 'Evolution genes (genes.json) and event logs (events.jsonl) contain ' +
-           'learned behavior. Pre-deploy backup is automatic.',
+           'learned behavior: seeded where missing, never overwritten.',
   },
 
   // ── SKILLS ──────────────────────────────────────────────────────────────
@@ -341,6 +375,9 @@ const MANIFEST = [
     description: 'Skill definitions for AI agent capabilities',
     risk: 'safe',
     repoPaths: ['skills/'],
+    // Quarantined skills must never reach a node (skills/_quarantine/README.md):
+    // neither installed nor, through the diff, removed.
+    exclude: ['skills/_quarantine/'],
     targets: [DIRS.SKILLS],
     servicesMac: [],
     servicesLinux: [],
@@ -441,26 +478,32 @@ const MANIFEST = [
     servicesMac: [],
     servicesLinux: [],
     nodeFilter: 'all',
-    postInstall: () => {
+    postInstall: (changedFiles, changes) => {
       const templatePath = path.join(DIRS.CONFIG, 'openclaw.json.template');
       const envPath = path.join(DIRS.OPENCLAW_HOME, 'openclaw.env');
-      if (fs.existsSync(templatePath) && fs.existsSync(envPath)) {
-        info('Regenerating openclaw.json from template + env...');
-        try {
-          let template = fs.readFileSync(templatePath, 'utf8');
-          const env = fs.readFileSync(envPath, 'utf8');
-          for (const line of env.split('\n')) {
-            const match = line.match(/^\s*([A-Z_]+)\s*=\s*(.+)/);
-            if (match) {
-              template = template.replace(new RegExp(`\\$\\{${match[1]}\\}`, 'g'), match[2].trim());
-            }
-          }
-          const outPath = path.join(DIRS.OPENCLAW_HOME, 'openclaw.json');
-          fs.writeFileSync(outPath, template);
-          ok('openclaw.json regenerated');
-        } catch (err) {
-          warn(`Config regen failed: ${err.message}`);
+      const outPath = path.join(DIRS.OPENCLAW_HOME, 'openclaw.json');
+      // openclaw.json is the node's live gateway config (channels, tokens, auth
+      // profiles); the template only seeds it. Create it when missing; rewrite
+      // it only when this diff changed the template itself — never on a same-sha
+      // --force/--component reinstall, never for another file under config/.
+      const exists = fs.existsSync(outPath);
+      const templateChanged = changes.some(c => c.path === 'config/openclaw.json.template' && c.status !== 'D');
+      if (exists && !templateChanged) return;
+      if (!fs.existsSync(templatePath) || !fs.existsSync(envPath)) return;
+      info(`${exists ? 'Regenerating' : 'Generating'} openclaw.json from template + env...`);
+      try {
+        const rendered = renderConfigTemplate(fs.readFileSync(templatePath, 'utf8'), fs.readFileSync(envPath, 'utf8'));
+        if (exists) {
+          // Written 0600 from the start: the file carries the node's tokens.
+          const backupPath = `${outPath}.bak.${new Date().toISOString().replace(/[:.]/g, '-')}`;
+          fs.writeFileSync(backupPath, fs.readFileSync(outPath), { mode: 0o600, flag: 'wx' });
+          info(`Previous openclaw.json kept as ${path.basename(backupPath)}`);
         }
+        fs.writeFileSync(outPath, rendered, { mode: 0o600 });
+        fs.chmodSync(outPath, 0o600); // an existing file keeps its mode through writeFileSync
+        ok(`openclaw.json ${exists ? 'regenerated' : 'generated'}`);
+      } catch (err) {
+        warn(`Config regen failed: ${err.message}`);
       }
     },
     notes: 'openclaw.env is NEVER deployed — it contains API keys and is per-node.',
@@ -517,14 +560,22 @@ const MANIFEST = [
       } catch (err) { console.warn(`[mesh-deploy] detect openclaw version: ${err.message}`); }
       return { changed: false };
     },
+    // Deployed only when named (--component openclaw), at an exact version.
+    // `npm update -g openclaw` ran implicitly on every fetching deploy and
+    // installed whatever the registry served that minute.
     install: (dryRun) => {
+      const version = process.env.OPENCLAW_CLI_VERSION || '';
+      if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
+        throw new Error('--component openclaw installs an exact pinned version: set OPENCLAW_CLI_VERSION=<x.y.z>' +
+          (version ? ` (got ${JSON.stringify(version).slice(0, 40)})` : ''));
+      }
       if (dryRun) {
-        info('Would run: npm update -g openclaw');
+        info(`Would run: npm install -g openclaw@${version}`);
         return;
       }
-      info('Updating OpenClaw gateway...');
-      exec('npm update -g openclaw', { timeout: 180000 });
-      ok('OpenClaw updated');
+      info(`Installing OpenClaw gateway ${version}...`);
+      exec(`npm install -g openclaw@${version}`, { timeout: 180000 });
+      ok(`OpenClaw ${version} installed`);
     },
   },
 
@@ -660,6 +711,7 @@ function listFiles(repoDir, sha, repoPaths) {
 }
 
 function ownsPath(comp, file) {
+  if ((comp.exclude || []).some(ex => file.startsWith(ex))) return false;
   return comp.repoPaths.some(rp => rp.endsWith('/') ? file.startsWith(rp) : file === rp);
 }
 
@@ -676,10 +728,10 @@ function targetSubPath(comp, file) {
  * Which components the changes touch, and with which files. A component named
  * with --component (every component under --force or --component all) is
  * reinstalled in full: all its files at the target sha, changed or not.
- * npm-based components (no repoPaths) deploy when named, or when detectExternal
- * is set and detect() reports an update.
+ * npm/git-sourced components (no repoPaths) deploy only when named — never
+ * implicitly: --force and --component all leave them out too.
  */
-function planComponents(changes, { filterIds = [], force = false, detectExternal = false, listAll }) {
+function planComponents(changes, { filterIds = [], force = false, listAll }) {
   const named = filterIds.filter(id => id !== 'all');
   const reinstallAll = force || filterIds.includes('all');
   const plans = [];
@@ -689,16 +741,14 @@ function planComponents(changes, { filterIds = [], force = false, detectExternal
     if (named.length > 0 && !named.includes(comp.id)) continue;
 
     if (comp.repoPaths.length === 0) {
-      if (comp.detect && (named.includes(comp.id) || (detectExternal && comp.detect().changed))) {
-        plans.push({ comp, install: [], remove: [] });
-      }
+      if (named.includes(comp.id)) plans.push({ comp, install: [], remove: [] });
       continue;
     }
 
     const own = changes.filter(c => ownsPath(comp, c.path));
     const remove = own.filter(c => c.status === 'D').map(c => c.path);
     const install = (reinstallAll || named.includes(comp.id))
-      ? listAll(comp.repoPaths)
+      ? listAll(comp.repoPaths).filter(f => ownsPath(comp, f))
       : own.filter(c => c.status !== 'D').map(c => c.path);
     if (install.length > 0 || remove.length > 0) plans.push({ comp, install, remove });
   }
@@ -714,6 +764,10 @@ function installFiles(comp, repoDir, files, dryRun) {
     for (const relFile of files) {
       const srcPath = path.join(repoDir, relFile);
       const dstPath = path.join(target, targetSubPath(comp, relFile));
+      if (comp.seedOnly && comp.seedOnly.test(relFile) && fs.existsSync(dstPath)) {
+        console.log(`  ${C.dim('keep')} ${dstPath} (learned on this node — the repo copy only seeds)`);
+        continue;
+      }
       if (dryRun) {
         info(`  ${relFile} → ${dstPath}`);
         count++;
@@ -775,10 +829,14 @@ function removeFiles(comp, repoDir, fromSha, files, dryRun) {
 }
 
 /**
- * Restart one service. One not installed on this node (no plist; a unit
- * systemd does not know) is skipped — component service lists span roles.
- * A failed restart throws: a deploy whose new code is not running did not
- * succeed, and the listener rolls it back.
+ * Restart one service if it is running. One not installed on this node (no
+ * plist; a unit systemd does not know) is skipped — component service lists
+ * span roles. One installed but stopped is left stopped and reported as such:
+ * some are off on purpose (openclaw-mesh-agent is autostart:false, the Mac
+ * agent RunAtLoad=false and started by hand), and a deploy must not bring a
+ * worker online that the operator took offline. A failed restart throws: a
+ * deploy whose new code is not running did not succeed, and the listener rolls
+ * it back.
  */
 function restartService(svc) {
   try {
@@ -788,15 +846,31 @@ function restartService(svc) {
         skip(`  ${svc} not installed on this node`);
         return false;
       }
-      exec(`launchctl unload "${plistPath}"`, { ignoreError: true });
-      exec(`launchctl load "${plistPath}"`);
+      // kickstart -k restarts a running job in place; unload/load killed a
+      // hand-started agent and left it stopped. The state line is the one
+      // lib/fed-probes.mjs parseLaunchdPrint reads (ESM, not loadable here);
+      // a job that is not loaded fails `print`, so it reads as not running.
+      const target = `gui/${process.getuid()}/${svc}`;
+      const state = exec(`launchctl print ${target}`, { ignoreError: true }).match(/^\s*state = (.+)$/m)?.[1]?.trim();
+      if (state !== 'running') {
+        skip(`  ${svc} not running${state === 'not running' ? '' : ` (${state || 'not loaded'})`} — left stopped`);
+        return false;
+      }
+      exec(`launchctl kickstart -k ${target}`);
     } else {
       const loadState = exec(`systemctl --user show -p LoadState --value ${svc}`);
       if (loadState !== 'loaded') {
         skip(`  ${svc} not installed on this node (${loadState})`);
         return false;
       }
-      exec(`systemctl --user restart ${svc}`);
+      // `restart` starts an inactive unit. try-restart only restarts a running
+      // one, and stays a no-op if it stops between this check and the call.
+      const activeState = exec(`systemctl --user is-active ${svc}`, { ignoreError: true });
+      if (!['active', 'activating', 'reloading'].includes(activeState)) {
+        skip(`  ${svc} not running (${activeState || 'unknown'}) — left stopped`);
+        return false;
+      }
+      exec(`systemctl --user try-restart ${svc}`);
     }
   } catch (err) {
     fail(`  Restart ${svc} failed`);
@@ -813,7 +887,8 @@ function restartService(svc) {
  * Throws on any failed step. Never fetches: the caller brought toSha in.
  */
 function deploy({ repoDir, fromSha, toSha, filterIds = [], force = false, includeServices = false,
-                  dryRun = false, noRestart = false, detectExternal = false }) {
+                  dryRun = false, noRestart = false }) {
+  assertCommitted(repoDir);
   if (!dryRun && gitLine(repoDir, ['rev-parse', 'HEAD']) !== toSha) {
     info(`Checking out ${toSha.slice(0, 8)}`);
     git(repoDir, ['checkout', '--detach', '--quiet', toSha]);
@@ -822,7 +897,7 @@ function deploy({ repoDir, fromSha, toSha, filterIds = [], force = false, includ
   info(`${fromSha.slice(0, 8)} → ${toSha.slice(0, 8)}: ${changes.length} changed file(s)`);
 
   const plans = planComponents(changes, {
-    filterIds, force, detectExternal,
+    filterIds, force,
     listAll: repoPaths => listFiles(repoDir, toSha, repoPaths),
   });
   if (plans.length === 0) ok('No components affected');
@@ -862,8 +937,9 @@ function deploy({ repoDir, fromSha, toSha, filterIds = [], force = false, includ
       if (!dryRun) ok(`    Installed ${installed}, removed ${removed} file(s)`);
     }
 
-    // Post-install hook (npm install, next build, config regen, boot compile, etc.)
-    if (comp.postInstall && !dryRun) comp.postInstall([...install, ...remove]);
+    // Post-install hook (npm install, next build, config regen, boot compile, etc.).
+    // It also gets the diff: under --force/--component, `install` lists every file.
+    if (comp.postInstall && !dryRun) comp.postInstall([...install, ...remove], changes);
 
     for (const svc of (IS_MAC ? comp.servicesMac : comp.servicesLinux) || []) {
       if (!services.includes(svc)) services.push(svc);
@@ -875,7 +951,7 @@ function deploy({ repoDir, fromSha, toSha, filterIds = [], force = false, includ
 
   const restarted = [];
   if (services.length > 0 && dryRun) {
-    info(`Would restart: ${services.join(', ')}`);
+    info(`Would restart the running ones of: ${services.join(', ')}`);
   } else if (services.length > 0 && noRestart) {
     info(`${services.length} service(s) need manual restart: ${services.join(', ')}`);
   } else {
@@ -1110,6 +1186,8 @@ async function main() {
       throw new Error(`HEAD ${head.slice(0, 8)} has commits that are not on origin/${DEPLOY_BRANCH} — ` +
         'push them first, or deploy an exact commit with --local --to <sha>');
     }
+    // Before the fast-forward, so a refused tree leaves the branch where it was.
+    assertCommitted(REPO_DIR);
     // Read before the fast-forward: with nothing recorded the base is HEAD, and
     // after the merge HEAD is already the target.
     const fromSha = deployedBase(REPO_DIR);
@@ -1119,7 +1197,6 @@ async function main() {
     }
     const result = deploy({
       repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll, includeServices, dryRun, noRestart,
-      detectExternal: true,
     });
     console.log(`DEPLOY_RESULT ${JSON.stringify(result)}`);
   }
