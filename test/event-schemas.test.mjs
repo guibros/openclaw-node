@@ -267,6 +267,28 @@ describe('Boundary event schemas (Block 1 vocabulary)', () => {
     assert.equal(result.data.entities_decayed, 14);
   });
 
+  it('memory.decayed carries the prune outcome and per-row identity, capped (repair 2026-09-26)', () => {
+    const row = { action: 'archived', kind: 'decision', id: 412, label: 'Use NATS JetStream' };
+    const data = {
+      entities_decayed: 3,
+      decisions_archived: 1,
+      themes_deleted: 0,
+      prune_status: 'ran',
+      backup_path: '/Users/x/.openclaw/backups/consolidation/state-20260926T120000000Z.db',
+      removed: [row],
+      removed_more: 0,
+      duration_ms: 40,
+    };
+    const result = MemoryDecayedSchema.parse(makeMemEvent('memory.decayed', data));
+    assert.deepEqual(result.data.removed, [row], 'per-row records survive parsing (zod strips unknown keys)');
+    assert.equal(result.data.prune_status, 'ran');
+
+    const bad = (patch) => MemoryDecayedSchema.safeParse(makeMemEvent('memory.decayed', { ...data, ...patch })).success;
+    assert.equal(bad({ removed: Array.from({ length: 51 }, () => row) }), false, 'at most 50 rows');
+    assert.equal(bad({ removed: [{ ...row, label: 'x'.repeat(201) }] }), false, 'labels byte-capped');
+    assert.equal(bad({ prune_status: 'purged' }), false, 'status is a closed set');
+  });
+
   it('validates memory.promoted', () => {
     const event = makeMemEvent('memory.promoted', {
       entities_promoted: 3,

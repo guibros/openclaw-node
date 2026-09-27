@@ -9,7 +9,7 @@ which `workspace-bin/new-plan.sh <id> ["goal"]` instantiates into a new viewer-v
 front it (the viewer/launchd invoke tick commands argv-less). Every plan doc lives inside a
 self-contained plan dir under `memory-plan/plans/<id>/`:
 - [`memory-plan/plans/redesign/`](memory-plan/plans/redesign/) — local-first memory redesign. **COMPLETE at v6.5** (Blocks 0–6 delivered; Block 7 federation DEFERRED per its DECISIONS D4).
-- [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **COMPLETE at v7.8** (49/49 steps, all active blocks closed; scope idle). Suite as of 2026-09-06: 1920 root / 118 Mission Control, green in CI.
+- [`memory-plan/plans/repair/`](memory-plan/plans/repair/) — chain repair. **COMPLETE at v7.8** (49/49 steps, all active blocks closed). Suite as of 2026-09-06: 1920 root / 118 Mission Control, green in CI.
 - [`memory-plan/plans/protocol/`](memory-plan/plans/protocol/) — the meta-plan: the workplan operating base itself (canonical docs, generic engine, scaffolder).
 - [`memory-plan/plans/federation/`](memory-plan/plans/federation/) — worker/management/savant grappes. **EVIDENCE FRONTIER at v2.6-pre**; management has not started.
 - [`memory-plan/plans/hyperagent-evidence/`](memory-plan/plans/hyperagent-evidence/) — human-gated strategy evidence loop. **SUBSTRATE LIVE, COHORT NOT STARTED at v2.0**.
@@ -26,8 +26,6 @@ Then the per-plan documents of the silo you are working in — every silo carrie
 4. [`plans/<id>/COMPONENT_REGISTRY.md`](memory-plan/plans/redesign/COMPONENT_REGISTRY.md) — current runtime state of what the plan touches. Reality, not aspiration.
 5. [`plans/<id>/DECISIONS.md`](memory-plan/plans/redesign/DECISIONS.md) — append-only ledger of every architectural decision. The fastest way to absorb what was decided and why.
 6. [`plans/<id>/INVENTORY.md`](memory-plan/plans/redesign/INVENTORY.md) — the atomic step list. The first `[ ]` row is the plan's next action. (Pre-protocol plans also carry their historical `WORKFLOW.md`/`FRAMEWORK.md` — for them, those govern; PROTOCOL.md governs plans created after 2026-06-03.)
-7. [`plans/<id>/SCOPE.md`](memory-plan/plans/redesign/SCOPE.md) — the plan's work contract. If no plan's `SCOPE.md` has `Status: active`, you MUST set scope with the operator before editing anything.
-8. [`plans/<id>/OUT_OF_SCOPE.md`](memory-plan/plans/redesign/OUT_OF_SCOPE.md) — captured drift awaiting triage.
 
 The current ground-truth reconciliation is protocol step 3.1 under
 [`memory-plan/plans/protocol/audits/step31_governance_recovery/`](memory-plan/plans/protocol/audits/step31_governance_recovery/).
@@ -66,7 +64,7 @@ Fresh runtime probes: R=3 NATS quorum, memory daemon, Mission Control, mesh-task
 node-watch, and workplan viewer are live. `mesh-agent`, gateway, and companion bridge were down at the
 probe. Federation watch = 2 WORKING / 1 OFF / 1 UNKNOWN. This is substrate, not worker-cluster proof.
 
-Queued runtime repair is specific (reconciled 2026-09-21 against `plans/protocol/OUT_OF_SCOPE.md`):
+Queued runtime repair is specific (reconciled 2026-09-21):
 the scheduler's false-busy idle gate, the scheduler/local-event NATS auth failure, and the dotted
 local stream names were all CLOSED at protocol v4.1 (2026-08-02) — do not re-open them. Still open:
 the first queue-authorized consolidation cycle exceeded the 300000 ms hard cap, so daily digest /
@@ -86,8 +84,8 @@ memory merge with read-before-write extraction (`lib/memory-types.mjs`, extracti
 companion-bridge. Code + container tests only: every INVENTORY row there stays `[ ]` until its
 `runtime:` Verify is observed on the node (its D2).
 
-**Scope after v3.1:** no plan scope is active. The next operator-approved scope is the bounded
-runtime-repair batch described above; federation execution remains locked until that repair lands.
+**Next work after v3.1:** the bounded runtime-repair batch described above. Federation execution
+stays locked until that repair lands.
 
 **As of 2026-09-26 (foreman plan, audit remediation, D3):** the silo
 [`memory-plan/plans/foreman/`](memory-plan/plans/foreman/) (2026-09-21, operator instruction
@@ -108,21 +106,6 @@ are back to `[A]` (their runtime Verify never ran). An unavailable assessor is a
 an escalation (D1). Runtime evidence on the operator's node is still step 1.2. See
 `docs/foreman.md`.
 
-## The forcing function
-
-`.claude/settings.json` registers a PreToolUse hook (`.claude/hooks/scope-check.sh`) on `Edit | Write | MultiEdit | NotebookEdit`. The hook is **per-plan**: it scans every `memory-plan/plans/*/SCOPE.md`, keeps those whose `Status` is `active` and not past `Expires`, and unions their ` ```files ` blocks into the allow-list. It will **block you** if:
-
-- no active scope exists (no `plans/*/SCOPE.md` with `Status: active`)
-- the active scope's `Expires` timestamp has passed
-- the file you're trying to edit is not in any active scope's ` ```files ` block
-
-Keep exactly **one** scope active at a time (one-scope-per-session discipline). Always-writeable exceptions: every plan's own `SCOPE.md` and `OUT_OF_SCOPE.md` (so the operator can refresh scope, and so drift capture is never blocked). A scope carrying `**Override:** true` disables enforcement for that scope.
-
-If the hook blocks you, **do not work around it**. Either:
-- Update the relevant plan's `SCOPE.md` with the operator's approval, or
-- Write your observation to that plan's `OUT_OF_SCOPE.md` and proceed with the original scope, or
-- Stop.
-
 ## Why this exists
 
 In May 2026, 5 review rounds + 22 commits in 24h produced ~0 production change because:
@@ -131,10 +114,11 @@ In May 2026, 5 review rounds + 22 commits in 24h produced ~0 production change b
 - Two parallel daemons got built next to each other
 - Code-on-disk and runtime drifted 4+ days apart
 
-This plan + hook + scope contract is the structural fix. Don't bypass it. It is enforced at the tool
-layer for `Edit | Write | MultiEdit | NotebookEdit`; Bash file writes (`sed -i`, `tee`, redirects) are
-NOT gated — that is a known hole, not permission. Treat the scope contract as binding for every write,
-whatever tool performs it.
+The plan structure — blocks, atomic steps, runtime evidence on every close — is the response.
+There is no write gate: the scope contract (`.claude/hooks/scope-check.sh`, per-plan `SCOPE.md` and
+`OUT_OF_SCOPE.md`, their `Expires` dates) was removed on 2026-09-23 at the operator's instruction
+(protocol DECISIONS D11). Don't reintroduce it unless the operator asks. Commits and pushes are
+still validated (`.claude/hooks/validate-{commit,push}.sh`, also wired as git hooks).
 
 ## Pointers
 
@@ -148,7 +132,7 @@ whatever tool performs it.
 - Default to writing no comments. WHY when non-obvious, never WHAT (MASTER_PLAN §4.8).
 - Don't add error handling, fallbacks, or validation for scenarios that can't happen. Trust internal code.
 - Don't introduce backwards-compatibility shims when you can just change the code.
-- No half-finished implementations. Either finish per MASTER_PLAN §5 done-contract, or capture to OUT_OF_SCOPE.md, or revert.
+- No half-finished implementations. Either finish per MASTER_PLAN §5 done-contract, or track the remainder in the plan's INVENTORY.md (MASTER_PLAN §4.4), or revert.
 
 ## When you ask the operator something
 

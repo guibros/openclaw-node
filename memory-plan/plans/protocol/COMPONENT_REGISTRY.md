@@ -5,12 +5,12 @@ older implementation history remains in git and audits.
 
 ## Family 1: plan control plane
 
-### Scope enforcement — plans/*/SCOPE.md
+### Scope enforcement — REMOVED (D11)
 
 | | |
 |---|---|
-| **Status** | RECOVERED — expired scope history is retired; runtime repair now advances through one bounded protocol step at a time |
-| **Verified** | 2026-08-02 — step 4.1 used the only active scope and closes its only open allow-list block at v4.1; step 4.2 is the next contract |
+| **Status** | REMOVED 2026-09-23 — `.claude/hooks/scope-check.sh`, its settings registration, every `SCOPE.md` / `OUT_OF_SCOPE.md`, both templates, the plan-lint checks and the viewer cards are gone. Nothing gates edits |
+| **Verified** | 2026-09-23 — hook absent; 0 `SCOPE.md` / `OUT_OF_SCOPE.md` under `memory-plan/`; `.claude/settings.json` has no Edit/Write PreToolUse entry; an Edit to this file (never in any allow-list) went through |
 
 ### Plan lint — workspace-bin/plan-lint.sh
 

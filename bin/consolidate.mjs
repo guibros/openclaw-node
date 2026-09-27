@@ -4,8 +4,10 @@
  * consolidate.mjs — CLI orchestrator for one full consolidation cycle.
  *
  * Runs all 6 consolidation jobs in sequence:
- *   1. Init tables (entities_archived)
- *   2. Decay weights (salience half-life 14d + archival)
+ *   1. Init tables (consolidation columns + the archive tables)
+ *   2. Decay weights (salience half-life 14d + lossless archival), then prune
+ *      (decayed-out decisions archived; idle themes deleted behind a backup).
+ *      CONSOLIDATE_PRUNE=0 skips the prune step.
  *   3. Reinforce co-occurrence (bump frequently paired entities)
  *   4. Detect clusters (candidate theme notes)
  *   5. Regenerate summaries (concept notes via LLM/data fallback)
@@ -30,6 +32,9 @@ import {
   regenerateSummaries,
   detectContradictions,
   evaluatePromotionCandidates,
+  cycleRemovals,
+  formatRemoval,
+  summarizeRemovals,
 } from '../lib/consolidation.mjs';
 import { buildMemoryEvent } from '../lib/local-event-log.mjs';
 import { backfillSessionNotes } from '../lib/obsidian-session-notes.mjs';
@@ -40,6 +45,31 @@ import { generateDailyDigest } from '../lib/obsidian-digest.mjs';
 const require = createRequire(import.meta.url);
 
 const DEFAULT_DB_PATH = path.join(os.homedir(), '.openclaw/state.db');
+
+const REMOVED_SAMPLE = 50;
+
+// memory.decayed is built after the prune step so the one event carries the
+// whole removal: counts, the prune outcome, and which rows left the live
+// tables (per-row identity, capped like every content sample — R31).
+function decayedEventData(decay, prune, durationMs) {
+  const archived = decay.archivedNames || [];
+  const removed = cycleRemovals({ decayed: decay, pruned: prune });
+  return {
+    entities_decayed: decay.decayedEntities + decay.decayedDecisions,
+    archived_count: decay.archivedEntities,
+    archived_names: archived.slice(0, 20),
+    archived_more: Math.max(0, archived.length - 20),
+    decisions_archived: prune?.archivedDecisions ?? 0,
+    themes_deleted: prune?.prunedThemes ?? 0,
+    prune_status: !prune ? 'aborted' : prune.skipped ? 'disabled' : prune.themesSkipped ? 'no_backup' : 'ran',
+    ...(prune?.backup ? { backup_path: prune.backup.path } : {}),
+    removed: removed.slice(0, REMOVED_SAMPLE).map((r) => ({
+      action: r.action, kind: r.kind, id: r.id, label: String(r.label).slice(0, 200),
+    })),
+    removed_more: Math.max(0, removed.length - REMOVED_SAMPLE),
+    duration_ms: durationMs,
+  };
+}
 
 /**
  * Run one full consolidation cycle.
@@ -99,28 +129,25 @@ export async function runConsolidationCycle(opts = {}) {
 
     // 2. Decay weights
     abortInfo = checkpoint('decay');
-    if (!abortInfo) {
-      const decayStart = Date.now();
-      decayResult = decayWeights(db);
-      if (eventLog) {
-        const archived = decayResult.archivedNames || [];
-        const evt = buildMemoryEvent('memory.decayed', 'consolidation', 'memory', {
-          entities_decayed: decayResult.decayedEntities + decayResult.decayedDecisions,
-          archived_count: decayResult.archivedEntities,
-          // Capped sample of WHICH entities were archived out (the meaningful loss).
-          archived_names: archived.slice(0, 20),
-          archived_more: Math.max(0, archived.length - 20),
-          duration_ms: Date.now() - decayStart,
-        }, nodeId);
-        eventLog.publishLocal(evt).catch(() => {});
-      }
-    }
+    const decayStart = Date.now();
+    if (!abortInfo) decayResult = decayWeights(db);
 
-    // 2b. Prune what decay made irrelevant (P5-2): archived entities past
-    // retention, decayed-out decisions, idle themes. Decay is not terminal
-    // without this step.
+    // 2b. Prune what decay made irrelevant (P5-2): decayed-out decisions move
+    // to the archive, idle themes are deleted once a backup exists.
+    // CONSOLIDATE_PRUNE=0 (or opts.prune === false) is the operator's off
+    // switch — decay itself still runs, and its archival is lossless.
     if (!abortInfo) abortInfo = checkpoint('prune');
-    if (!abortInfo) pruneResult = pruneStale(db);
+    if (!abortInfo) {
+      const pruneOn = opts.prune ?? process.env.CONSOLIDATE_PRUNE !== '0';
+      pruneResult = pruneOn
+        ? pruneStale(db, { backupDir: opts.backupDir })
+        : { skipped: 'CONSOLIDATE_PRUNE=0', archivedDecisions: 0, prunedThemes: 0, themesSkipped: null, backup: null, removed: [] };
+    }
+    if (decayResult && eventLog) {
+      const evt = buildMemoryEvent('memory.decayed', 'consolidation', 'memory',
+        decayedEventData(decayResult, pruneResult, Date.now() - decayStart), nodeId);
+      eventLog.publishLocal(evt).catch(() => {});
+    }
 
     // 3. Reinforce co-occurrence
     if (!abortInfo) abortInfo = checkpoint('reinforce');
@@ -276,8 +303,8 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     .then(async result => {
       console.log('Consolidation cycle complete.');
       console.log(`  Duration: ${result.durationMs}ms`);
-      console.log(`  Decayed: ${result.decayed.decayedEntities} entities, ${result.decayed.decayedDecisions} decisions, ${result.decayed.archivedEntities} archived`);
-      if (result.pruned) console.log(`  Pruned: ${result.pruned.prunedArchived} archived entities, ${result.pruned.prunedDecisions} decayed decisions, ${result.pruned.prunedThemes} idle themes`);
+      console.log(`  ${summarizeRemovals(result)}`);
+      for (const r of cycleRemovals(result)) console.log(`    ${formatRemoval(r)}`);
       console.log(`  Reinforced: ${result.reinforced.reinforcedEntities} entities across ${result.reinforced.pairs.length} pairs`);
       console.log(`  Clusters: ${result.clusters.clusters.length} detected`);
       console.log(`  Summaries: ${result.summariesRegenerated.regenerated} regenerated`);

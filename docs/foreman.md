@@ -193,8 +193,19 @@ Thresholds and observation bounds are fields of `DEFAULT_POLICY` / `DEFAULT_LIMI
 - `needs_human` ≥ 0.80 escalates on a single sample; hysteresis covers STOP only.
 - `claude -p --output-format text` prints nothing until it finishes, so the assessor sees a
   silent worker; the tree snapshot is the progress signal for it.
+- A STOP signals the worker's process group only while its leader is alive; once the CLI has
+  exited, whatever it left running in the group keeps working in the worktree.
+- Workers are spawned detached in every mode, shadow included. If the agent itself stops (a
+  launchd unload on deploy), a running CLI is suspected to be orphaned on macOS.
+- The assessor prompt is bounded field by field but not as a whole, and the request sets no
+  `num_ctx`. The review measured it growing from 28k to 157k characters.
+- While a cycle is in flight the scheduler spins on zero-delay timers. A lifecycle event that
+  arrives mid-cycle is dropped rather than deferred.
+- Not Foreman code, but on the same path: `commitWorktree` returns null both for "nothing to
+  commit" and for a failed commit. Completion then reports success and deletes the task branch.
 
-These are tracked in `memory-plan/plans/foreman/OUT_OF_SCOPE.md`.
+The plan's `OUT_OF_SCOPE.md`, which carried these, was retired with the scope contract (protocol
+D11). Its last text: `git show 88e3441:memory-plan/plans/foreman/OUT_OF_SCOPE.md`.
 
 ## Tests
 

@@ -144,3 +144,33 @@ ownership defects, not threshold-tuning problems.
 **Consequences.** Each step must deploy and observe its corrected signal before closing. No auth
 exemption, watcher downgrade, dependency duplication, or retrospective health claim is accepted.
 Federation 2.6 remains blocked until Block 4 closes.
+
+## D11 — The scope contract is removed (2026-09-23)
+
+**Decision.** At the operator's instruction, the write-gate scope contract is removed entirely:
+`.claude/hooks/scope-check.sh` and its `.claude/settings.json` registration; every
+`plans/<id>/SCOPE.md` and `OUT_OF_SCOPE.md` (8 + 8) and both canonical templates; plan-lint's
+SCOPE, scope-hygiene and OUT_OF_SCOPE checks; the viewer's Current Scope and Out of Scope cards
+with their `/scope` and `/out-of-scope` routes; and every instruction to set, refresh, expire or
+override a scope (canonical docs and silo copies, TICK_PROMPTs, CLAUDE.md, AGENTS.md, the
+pre-protocol WORKFLOW docs). Nothing gates edits. An unrelated observation made during a step goes
+under AUDIT_PRE `## Mid-Implementation Findings` or to the operator (MASTER_PLAN §4.3); unfinished
+work is tracked in INVENTORY (§4.4). `validate-commit.sh`, `validate-push.sh` and the force-push
+deny list stay.
+
+**Why.** The hook refused every edit in the repo whenever no active, unexpired scope existed, so each
+lapsed `Expires` date locked the repo until someone rewrote a SCOPE.md, including for work the
+operator had asked for. D8 already recorded three scopes still advertising `Status: active` after
+their expiries; the protocol scope then sat expired from 2026-09-10 until the 2026-09-26 deploy
+batch reopened it, and each batch since has had to rewrite a SCOPE.md just to be allowed to edit.
+The operator judged the gate not worth that cost. D11 rather than D10: the pending protocol 4.5
+work already claims D10.
+
+**Consequences.** PR #15 (an earlier, unmerged removal attempt) is superseded. D8's "every future
+batch opens one fresh labeled scope block with a bounded expiry" no longer applies. The observations
+captured in the removed OUT_OF_SCOPE.md files (fifteen of them added on 2026-09-26) are not
+migrated; read them from `main` as it stood before this change:
+`git show aeffd47:memory-plan/plans/<id>/OUT_OF_SCOPE.md`. Federation step 5.3 used
+OUT_OF_SCOPE.md as the savant-proposal inbox and must choose a new one before it can start (flagged
+on its row). repair P.4 (scope-check tightening) is moot. Audits, older DECISIONS entries and close
+notes that mention SCOPE.md are records and stay as written.

@@ -12,7 +12,7 @@
   and real — MASTER_PLAN §5).
 - `{VERSION_LOG_FILE}` and `{RESUME_FILE}` are placeholder ledgers for non-git contexts. In
   this repo they are deliberately **not instantiated** (protocol DECISIONS D2): one commit
-  per step makes `git log` the version ledger, and `VERSION` + `SCOPE.md` close notes +
+  per step makes `git log` the version ledger, and `VERSION` + INVENTORY close notes +
   `AUDIT_POST §6` carry the resume state.
 - The INVENTORY status vocabulary here is `[ ]/[A]/[x]`; the binding adds **`[D]` deferred**
   (deliberately postponed — never a next step, never blocks plan completion).

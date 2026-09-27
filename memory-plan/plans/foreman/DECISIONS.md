@@ -125,6 +125,7 @@ count of timelines is required by this decision. With enforcement on, a no-metri
 verifier run per attempt, and a node whose worktree cannot be snapshotted cannot complete no-metric
 tasks (fail-closed). What the gate still cannot see — a verifier writing outside the worktree, a
 verifier on a provider that cannot inspect the repository, single-sample `needs_human` escalation,
-a silent `claude` worker — is captured in `OUT_OF_SCOPE.md`. The remediation shipped as one batch
+a silent `claude` worker — is listed under Known limits in `docs/foreman.md` (the plan's
+`OUT_OF_SCOPE.md` was retired by protocol D11). The remediation shipped as one batch
 on operator instruction (`audits/remediation_2026-09-26/`); like D2's, a deliberate departure from
 one-step-per-commit, recorded here.

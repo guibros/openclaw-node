@@ -22,6 +22,7 @@ import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 import { QUEUE_STATE_PATH, readStateSnapshot } from '../lib/ollama-queue.mjs';
+import { cycleRemovals, formatRemoval, summarizeRemovals } from '../lib/consolidation.mjs';
 
 const _require = createRequire(import.meta.url);
 
@@ -205,6 +206,7 @@ export async function runScheduledCycle(opts = {}) {
  * @param {string} [opts.queueStatePath]
  * @param {number} [opts.hardCapMs]
  * @param {(msg: string) => void} [opts.log] — logger
+ * @param {(opts: object) => Promise<object>} [opts.runCycle] — injectable cycle function (for testing)
  * @returns {{ start: () => void, stop: () => void, runOnce: () => Promise<object> }}
  */
 export function createConsolidationScheduler(opts = {}) {
@@ -223,6 +225,7 @@ export function createConsolidationScheduler(opts = {}) {
       hardCapMs: opts.hardCapMs,
       eventLog: opts.eventLog,
       nodeId: opts.nodeId,
+      runCycle: opts.runCycle,
     }),
     {
       maxAgeMs: hardCapMs + 60_000,
@@ -250,7 +253,11 @@ export function createConsolidationScheduler(opts = {}) {
     }
 
     if (result.ok) {
-      log(`[consolidation-scheduler] cycle complete (${result.durationMs}ms)`);
+      // The audit trail: every row this cycle took out of the live tables,
+      // then the counts, in the launchd log that outlives the process.
+      for (const r of cycleRemovals(result.result)) log(`[consolidation-scheduler] ${formatRemoval(r)}`);
+      const summary = summarizeRemovals(result.result);
+      log(`[consolidation-scheduler] cycle complete (${result.durationMs}ms)${summary ? `: ${summary}` : ''}`);
     } else {
       log(`[consolidation-scheduler] cycle failed: ${result.error} (${result.durationMs}ms)`);
       notifyCycleFailure(`${result.error} (${result.durationMs}ms)`);
@@ -340,7 +347,9 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
           console.log(`Consolidation complete (${result.durationMs}ms)`);
           const r = result.result;
           if (r) {
-            console.log(`  Decayed: ${r.decayed?.decayedEntities ?? '?'} entities, ${r.decayed?.archivedEntities ?? '?'} archived`);
+            console.log(`  Decayed: ${r.decayed?.decayedEntities ?? '?'} entities, ${r.decayed?.decayedDecisions ?? '?'} decisions, ${r.decayed?.archivedEntities ?? '?'} entities archived`);
+            if (r.pruned?.skipped) console.log(`  Pruned: skipped (${r.pruned.skipped})`);
+            else console.log(`  Pruned: ${r.pruned?.archivedDecisions ?? '?'} decisions archived, ${r.pruned?.prunedThemes ?? '?'} idle themes deleted${r.pruned?.themesSkipped ? ` — idle themes kept (${r.pruned.themesSkipped})` : ''}${r.pruned?.backup ? ` — backup ${r.pruned.backup.path}` : ''}`);
             console.log(`  Reinforced: ${r.reinforced?.reinforcedEntities ?? '?'} entities`);
             console.log(`  Clusters: ${r.clusters?.clusters?.length ?? '?'} detected`);
             console.log(`  Contradictions: ${r.contradictions?.total ?? '?'} found`);
