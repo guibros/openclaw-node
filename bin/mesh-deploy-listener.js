@@ -3,8 +3,12 @@
 /**
  * mesh-deploy-listener.js — Fleet deploy receiver daemon.
  *
- * Runs on every node. When the lead publishes a deploy trigger on NATS,
- * this daemon pulls from git and self-deploys. No SSH needed.
+ * Runs on every node. When the lead publishes a signed deploy trigger on NATS,
+ * this daemon fetches, checks out exactly the signed sha, and runs the pinned
+ * deploy (`mesh-deploy.js --local --from <deployed> --to <sha>`). A failure
+ * checks the previous sha back out and runs the same pinned deploy in reverse
+ * — never a fetching deploy, which would fast-forward onto the failed commit
+ * again. No SSH needed.
  *
  * NATS subjects:
  *   mesh.deploy.trigger    — deploy command from lead
@@ -16,7 +20,8 @@
  */
 
 const { connect, StringCodec } = require('nats');
-const { execSync, execFile, execFileSync } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
+const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -33,6 +38,12 @@ const REPO_DIR = process.env.OPENCLAW_REPO_DIR ||
 const REPO_REMOTE_URL = process.env.OPENCLAW_REPO_URL ||
   'https://github.com/moltyguibros-design/openclaw-node.git';
 const DEPLOY_SCRIPT = path.join(REPO_DIR, 'bin', 'mesh-deploy.js');
+// mesh-deploy's record of the sha this node last deployed in full.
+const DEPLOY_STATE = path.join(os.homedir(), '.openclaw', '.deploy-state.json');
+// npm install + `next build` + rolling restarts; each step inside the deploy
+// script has its own shorter timeout.
+const DEPLOY_TIMEOUT_MS = 20 * 60 * 1000;
+const execFileAsync = promisify(execFile);
 
 const { NATS_URL, natsConnectOpts } = require('../lib/nats-resolve');
 const sc = StringCodec();
@@ -87,12 +98,17 @@ function writeDeployMarker(marker) {
  *   - HEAD at latest but that deploy FAILED (rollback impossible or
  *     incomplete) → yes, it is not done just because the tree moved.
  *   - latest already failed `maxAttempts` times here → no (operator's turn).
+ *   - latest was skipped here (not for this role, or catch-up would have
+ *     moved the tree backward) → no.
  */
 function shouldCatchUp({ currentSha, latestSha, lastDeploy, maxAttempts = MAX_DEPLOY_ATTEMPTS }) {
   const same = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
   const lastForLatest = lastDeploy && same(lastDeploy.sha, latestSha) ? lastDeploy : null;
   if (lastForLatest && lastForLatest.status === 'failed' && (lastForLatest.attempts || 0) >= maxAttempts) {
     return { deploy: false, reason: `sha ${latestSha} failed ${lastForLatest.attempts}× here — not retrying automatically` };
+  }
+  if (lastForLatest && lastForLatest.status === 'skipped') {
+    return { deploy: false, reason: `sha ${latestSha} was skipped here (${lastForLatest.reason || 'not applicable'})` };
   }
   if (same(currentSha, latestSha)) {
     if (lastForLatest && lastForLatest.status === 'failed') {
@@ -118,7 +134,173 @@ function notifyDesktop(kind, title, message) {
 
 // ── Deploy Execution ─────────────────────────────────────────────────────
 
-async function executeDeploy(trigger, resultsKv, nodesKv) {
+function git(...args) {
+  return execFileSync('git', args, {
+    cwd: REPO_DIR, encoding: 'utf8', timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+}
+
+function isAncestor(ancestor, descendant) {
+  try { git('merge-base', '--is-ancestor', ancestor, descendant); return true; } catch { return false; }
+}
+
+// The diff base: the sha mesh-deploy last deployed here in full, not HEAD.
+// HEAD moves without deploying — on the lead the repo is a working checkout
+// and `mesh deploy` publishes its HEAD, so a HEAD-based diff is always empty.
+function deployedBase() {
+  let recorded = null;
+  try { recorded = JSON.parse(fs.readFileSync(DEPLOY_STATE, 'utf8')).deployedSha; } catch { /* not recorded yet */ }
+  if (/^[0-9a-f]{40}$/.test(recorded || '')) {
+    try { return git('rev-parse', '--verify', '--quiet', `${recorded}^{commit}`); } catch { /* not in this clone */ }
+  }
+  return git('rev-parse', 'HEAD');
+}
+
+// The signed sha, resolved after the fetch: it must be a commit on the
+// trigger's branch, not whatever the branch tip happens to be now.
+function resolveSignedSha(sha, branch) {
+  let full = null;
+  try { full = git('rev-parse', '--verify', '--quiet', `${sha}^{commit}`); } catch { /* unknown object */ }
+  if (!full || !isAncestor(full, `origin/${branch}`)) {
+    throw new Error(`signed sha ${sha} is not on origin/${branch}`);
+  }
+  return full;
+}
+
+// Run the checked-out tree's mesh-deploy.js in pinned mode (no fetch).
+async function runDeployScript(args) {
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync(process.execPath, [DEPLOY_SCRIPT, '--local', ...args], {
+      cwd: REPO_DIR, encoding: 'utf8', timeout: DEPLOY_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, OPENCLAW_REPO_DIR: REPO_DIR },
+    }));
+  } catch (err) {
+    const reported = String(err.stdout || '').split('\n').reverse().find(l => l.startsWith('DEPLOY_ERROR '));
+    if (reported) err.message = JSON.parse(reported.slice('DEPLOY_ERROR '.length));
+    throw err;
+  }
+  const line = stdout.split('\n').reverse().find(l => l.startsWith('DEPLOY_RESULT '));
+  if (!line) {
+    throw Object.assign(new Error(`${DEPLOY_SCRIPT} printed no DEPLOY_RESULT — that tree's deploy script predates pinned deploys`), { stdout });
+  }
+  return { stdout, deployed: JSON.parse(line.slice('DEPLOY_RESULT '.length)) };
+}
+
+/**
+ * Deploy exactly `trigger.sha` on this node and, if that fails, put the
+ * previous deployed sha back. Returns the result record (status success |
+ * skipped | failed); never throws.
+ *
+ * forwardOnly (catch-up): never move the tree backward. The `latest` marker
+ * is state read at every restart; a node ahead of it was moved on purpose
+ * (the lead's working checkout), and rewinding it is not catching up.
+ */
+async function runDeploy(trigger, { forwardOnly = false } = {}) {
+  const result = { status: 'success', sha: trigger.sha, preSha: null, componentsDeployed: [], warnings: [], errors: [], log: '' };
+
+  // Requested components this role runs; a filtered run reinstalls them in full.
+  const componentArgs = [];
+  if (trigger.components && !trigger.components.includes('all')) {
+    const applicable = trigger.components.filter(c => NODE_COMPONENTS.has(c));
+    if (applicable.length === 0) {
+      console.log(`[deploy-listener] No applicable components for role=${NODE_ROLE} — skipping`);
+      return { ...result, status: 'skipped', log: `No matching components for role ${NODE_ROLE}` };
+    }
+    for (const c of applicable) componentArgs.push('--component', c);
+  }
+
+  // Pre-deploy SHA (P4-9): the point to roll back to. Null on the bootstrap
+  // path (no git tree yet) — nothing to revert to; the failure is reported as-is.
+  let preSha = null;
+  let targetSha = null;
+  let touched = false; // tree moved or deploy script ran: a failure needs a rollback
+  try {
+    // trigger.sha/branch come from NATS; they reach git as argv, never a shell.
+    const branch = trigger.branch || 'main';
+    if (!/^[a-zA-Z0-9._/-]+$/.test(branch) || branch.startsWith('-')) {
+      throw new Error(`Invalid branch name: ${trigger.branch}`);
+    }
+    if (!/^[0-9a-f]{7,40}$/i.test(trigger.sha || '')) throw new Error(`Invalid sha: ${trigger.sha}`);
+
+    let deployArgs;
+    if (!fs.existsSync(path.join(REPO_DIR, '.git'))) {
+      // Provisioner copied files without git clone: nothing recorded to diff
+      // from, so every component is reinstalled at the signed sha.
+      if (!fs.existsSync(REPO_DIR)) throw new Error(`Repo dir not found at ${REPO_DIR}`);
+      console.log(`[deploy-listener] No .git found — bootstrapping git repo`);
+      git('init', '--quiet');
+      git('remote', 'add', 'origin', REPO_REMOTE_URL);
+      git('fetch', 'origin', branch);
+      targetSha = resolveSignedSha(trigger.sha, branch);
+      git('reset', '--hard', '--quiet', targetSha);
+      deployArgs = ['--from', targetSha, '--to', targetSha, ...(componentArgs.length ? componentArgs : ['--component', 'all'])];
+    } else {
+      preSha = deployedBase();
+      console.log(`[deploy-listener] git fetch origin ${branch}...`);
+      git('fetch', 'origin', branch);
+      targetSha = resolveSignedSha(trigger.sha, branch);
+      const head = git('rev-parse', 'HEAD');
+      if (!isAncestor(head, `origin/${branch}`)) {
+        throw new Error(`HEAD ${head.slice(0, 7)} has commits that are not on origin/${branch} — refusing to move this checkout`);
+      }
+      if (forwardOnly && !isAncestor(head, targetSha)) {
+        console.log(`[deploy-listener] HEAD ${head.slice(0, 7)} is ahead of ${trigger.sha} — catch-up never moves a node backward`);
+        return { ...result, status: 'skipped', log: `HEAD ${head.slice(0, 7)} is ahead of ${trigger.sha}` };
+      }
+      if (head !== targetSha) {
+        console.log(`[deploy-listener] Checking out ${targetSha.slice(0, 7)} (was ${head.slice(0, 7)})`);
+        touched = true;
+        git('checkout', '--detach', '--quiet', targetSha);
+      }
+      deployArgs = ['--from', preSha, '--to', targetSha, ...componentArgs];
+    }
+    if (trigger.force) deployArgs.push('--force');
+
+    console.log(`[deploy-listener] Running: mesh-deploy.js --local ${deployArgs.join(' ')}`);
+    touched = true;
+    const { stdout, deployed } = await runDeployScript(deployArgs);
+    const head = git('rev-parse', 'HEAD');
+    if (head !== targetSha) throw new Error(`deploy left HEAD at ${head.slice(0, 7)}, expected ${targetSha.slice(0, 7)}`);
+
+    result.log = stdout.slice(-5000);
+    result.componentsDeployed = deployed.components;
+    result.sha = git('rev-parse', '--short', 'HEAD');
+    const ids = deployed.components.map(c => c.id).join(', ');
+    console.log(`[deploy-listener] Success — now at ${result.sha} (${ids || 'no component changed'})`);
+  } catch (err) {
+    result.status = 'failed';
+    result.errors.push(err.message);
+    result.log = String(err.stdout || err.stderr || err.message).slice(-5000);
+    console.error(`[deploy-listener] Deploy FAILED: ${err.message}`);
+
+    // Rollback: check preSha back out and deploy the reverse diff with the
+    // known-good tree's own script, pinned. The old path re-ran a fetching
+    // deploy, which fast-forwarded straight back onto the failed commit.
+    if (touched && preSha && targetSha && preSha !== targetSha) {
+      try {
+        if (git('rev-parse', 'HEAD') !== preSha) {
+          console.log(`[deploy-listener] Rolling back ${targetSha.slice(0, 7)} → ${preSha.slice(0, 7)}`);
+          git('checkout', '--detach', '--quiet', preSha);
+        }
+        await runDeployScript(['--from', targetSha, '--to', preSha, ...componentArgs]);
+        const head = git('rev-parse', 'HEAD');
+        if (head !== preSha) throw new Error(`rollback left HEAD at ${head.slice(0, 7)}`);
+        result.rolledBack = true;
+        result.rollbackSha = preSha.slice(0, 7);
+        console.log(`[deploy-listener] Rolled back to ${preSha.slice(0, 7)} and redeployed`);
+      } catch (rbErr) {
+        result.rolledBack = false;
+        result.errors.push(`rollback failed: ${rbErr.message}`);
+        console.error(`[deploy-listener] ROLLBACK FAILED: ${rbErr.message} — node is at an unverified tree`);
+      }
+    }
+  }
+  result.preSha = preSha ? preSha.slice(0, 7) : null;
+  return result;
+}
+
+async function executeDeploy(trigger, resultsKv, nodesKv, opts = {}) {
   if (deploying) {
     console.log(`[deploy-listener] Already deploying — ignoring trigger for ${trigger.sha} (from ${trigger.initiator || 'unknown'})`);
     return;
@@ -140,140 +322,19 @@ async function executeDeploy(trigger, resultsKv, nodesKv) {
       })));
     } catch (err) { console.warn(`[deploy-listener] write deploying status: ${err.message}`); }
 
-    const result = {
-      nodeId: NODE_ID,
-      sha: trigger.sha,
-      status: 'success',
-      startedAt,
-      completedAt: null,
-      durationSeconds: 0,
-      componentsDeployed: [],
-      warnings: [],
-      errors: [],
-      log: '',
-    };
-
-    // Pre-deploy SHA (P4-9): the point to roll back to if anything after the
-    // fetch fails. Null when there is no git tree yet (bootstrap path) — then
-    // there is nothing to revert to and the failure is reported as-is.
-    let preSha = null;
-    try {
-      preSha = execSync('git rev-parse HEAD', { cwd: REPO_DIR, encoding: 'utf8', timeout: 5000 }).trim();
-    } catch { /* no repo yet */ }
     const prior = readDeployMarker();
     const sameSha = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
     const attempts = (prior && sameSha(prior.sha, trigger.sha) ? (prior.attempts || 0) : 0) + 1;
 
-    try {
-      // Validate branch name to prevent command injection (trigger.branch comes from NATS)
-      const branch = (trigger.branch || 'main').replace(/[^a-zA-Z0-9._/-]/g, '');
-      if (!branch || branch !== (trigger.branch || 'main')) {
-        throw new Error(`Invalid branch name: ${trigger.branch}`);
-      }
-
-      // Bootstrap git repo if directory exists but .git doesn't
-      // (provisioner may have copied files without git clone)
-      if (!fs.existsSync(path.join(REPO_DIR, '.git'))) {
-        if (!fs.existsSync(REPO_DIR)) {
-          throw new Error(`Repo dir not found at ${REPO_DIR}`);
-        }
-        console.log(`[deploy-listener] No .git found — bootstrapping git repo`);
-        execSync('git init', { cwd: REPO_DIR, encoding: 'utf8', timeout: 10000 });
-        execSync(`git remote add origin ${REPO_REMOTE_URL}`, {
-          cwd: REPO_DIR, encoding: 'utf8', timeout: 10000,
-        });
-        console.log(`[deploy-listener] git fetch origin ${branch}...`);
-        execSync(`git fetch origin ${branch}`, {
-          cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
-        });
-        console.log(`[deploy-listener] git reset --hard origin/${branch}...`);
-        execSync(`git reset --hard origin/${branch}`, {
-          cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
-        });
-        console.log(`[deploy-listener] Git bootstrapped from origin/${branch}`);
-      } else {
-        // Normal path: fetch + ff merge
-        console.log(`[deploy-listener] git fetch origin ${branch}...`);
-        execSync(`git fetch origin ${branch}`, {
-          cwd: REPO_DIR, encoding: 'utf8', timeout: 60000,
-        });
-        console.log(`[deploy-listener] git merge origin/${branch} --ff-only...`);
-        execSync(`git merge origin/${branch} --ff-only`, {
-          cwd: REPO_DIR, encoding: 'utf8', timeout: 30000,
-        });
-      }
-
-      // Build deploy command — filter requested components against what this node runs
-      let cmd = `"${process.execPath}" "${DEPLOY_SCRIPT}" --local`;
-      if (trigger.components && !trigger.components.includes('all')) {
-        const applicable = trigger.components.filter(c => NODE_COMPONENTS.has(c));
-        if (applicable.length === 0) {
-          console.log(`[deploy-listener] No applicable components for role=${NODE_ROLE} — skipping`);
-          result.status = 'skipped';
-          result.log = `No matching components for role ${NODE_ROLE}`;
-          result.completedAt = new Date().toISOString();
-          try { await resultsKv.put(resultKey, sc.encode(JSON.stringify(result))); } catch (err) { console.warn(`[deploy-listener] write skipped result: ${err.message}`); }
-          return;
-        }
-        for (const c of applicable) cmd += ` --component ${c}`;
-      }
-      if (trigger.force) cmd += ' --force';
-
-      console.log(`[deploy-listener] Running: ${cmd}`);
-      const output = execSync(cmd, {
-        cwd: REPO_DIR,
-        encoding: 'utf8',
-        timeout: 300000, // 5 min max (npm install can be slow)
-        env: { ...process.env, OPENCLAW_REPO_DIR: REPO_DIR },
-      });
-
-      result.log = output.slice(-5000);
-      result.status = 'success';
-      result.sha = execSync('git rev-parse --short HEAD', {
-        cwd: REPO_DIR, encoding: 'utf8',
-      }).trim();
-
-      console.log(`[deploy-listener] Success — now at ${result.sha}`);
-
-    } catch (err) {
-      result.status = 'failed';
-      result.errors.push(err.message);
-      result.log = (err.stdout || err.stderr || err.message).slice(-5000);
-      console.error(`[deploy-listener] Deploy FAILED: ${err.message}`);
-
-      // Rollback (P4-9): a failed deploy used to leave the tree at the new
-      // commit with services half-restarted, and the catch-up check then saw
-      // HEAD == latest and called it done. Revert the tree and re-run the
-      // deploy script on the known-good commit so services match the tree.
-      if (preSha) {
-        try {
-          const nowSha = execSync('git rev-parse HEAD', { cwd: REPO_DIR, encoding: 'utf8', timeout: 5000 }).trim();
-          if (nowSha !== preSha) {
-            console.log(`[deploy-listener] Rolling back ${nowSha.slice(0, 7)} → ${preSha.slice(0, 7)}`);
-            execFileSync('git', ['reset', '--hard', preSha], { cwd: REPO_DIR, encoding: 'utf8', timeout: 30000 });
-            execSync(`"${process.execPath}" "${DEPLOY_SCRIPT}" --local`, {
-              cwd: REPO_DIR, encoding: 'utf8', timeout: 300000,
-              env: { ...process.env, OPENCLAW_REPO_DIR: REPO_DIR },
-            });
-            result.rolledBack = true;
-            result.rollbackSha = preSha.slice(0, 7);
-            console.log(`[deploy-listener] Rolled back to ${preSha.slice(0, 7)} and redeployed`);
-          }
-        } catch (rbErr) {
-          result.rolledBack = false;
-          result.errors.push(`rollback failed: ${rbErr.message}`);
-          console.error(`[deploy-listener] ROLLBACK FAILED: ${rbErr.message} — node is at an unverified tree`);
-        }
-      }
-    }
-
+    const result = { nodeId: NODE_ID, startedAt, ...(await runDeploy(trigger, opts)) };
     result.completedAt = new Date().toISOString();
     result.attempts = attempts;
     // Local marker: what this node last tried, and how it ended.
     writeDeployMarker({
       sha: trigger.sha, status: result.status, attempts,
-      completedAt: result.completedAt, preSha: preSha ? preSha.slice(0, 7) : null,
+      completedAt: result.completedAt, preSha: result.preSha,
       rolledBack: result.rolledBack ?? null, initiator: trigger.initiator || null,
+      ...(result.status === 'skipped' ? { reason: result.log } : {}),
     });
     result.durationSeconds = Math.round(
       (new Date(result.completedAt) - new Date(result.startedAt)) / 1000
@@ -325,7 +386,7 @@ async function checkAndCatchUp(resultsKv, nodesKv) {
 
     const marker = JSON.parse(sc.decode(latest.value));
 
-    // C2: the marker steers a `git reset --hard` exactly like a live trigger —
+    // C2: the marker steers a checkout + deploy exactly like a live trigger —
     // it gets the same signature+trust gate (no freshness: markers are state,
     // read possibly days after the deploy). Without this, the signed-trigger
     // check was fully bypassed on every startup/reconnect by whoever could
@@ -338,9 +399,7 @@ async function checkAndCatchUp(resultsKv, nodesKv) {
     }
 
     const { sha, branch } = marker;
-    const currentSha = execSync('git rev-parse --short HEAD', {
-      cwd: REPO_DIR, encoding: 'utf8',
-    }).trim();
+    const currentSha = git('rev-parse', '--short', 'HEAD');
 
     // P4-9: "HEAD == latest" is not "deployed" — a merged-but-failed deploy
     // leaves the tree there too. The local marker breaks the tie, and caps
@@ -350,7 +409,7 @@ async function checkAndCatchUp(resultsKv, nodesKv) {
     if (verdict.deploy) {
       await executeDeploy(
         { sha, branch: branch || 'main', components: ['all'], initiator: 'auto-catchup' },
-        resultsKv, nodesKv
+        resultsKv, nodesKv, { forwardOnly: true }
       );
     }
   } catch (err) {
@@ -441,9 +500,7 @@ async function main() {
     for await (const msg of statusSub) {
       let currentSha = 'unknown';
       try {
-        currentSha = execSync('git rev-parse --short HEAD', {
-          cwd: REPO_DIR, encoding: 'utf8',
-        }).trim();
+        currentSha = git('rev-parse', '--short', 'HEAD');
       } catch (err) { console.warn(`[deploy-listener] read git HEAD: ${err.message}`); }
 
       const response = {
@@ -483,7 +540,7 @@ async function main() {
   console.log(`[deploy-listener] ═══ Ready ═══`);
 }
 
-module.exports = { shouldCatchUp };
+module.exports = { shouldCatchUp, runDeploy };
 
 if (require.main === module) {
   main().catch(err => {

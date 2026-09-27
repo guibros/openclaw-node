@@ -202,6 +202,18 @@ describe('classifyStatus', () => {
     assert.equal(classifyStatus(event), 'noop');
   });
 
+  it('classifies memory.decayed whose prune archived or deleted rows as ok, even with no salience moved', () => {
+    for (const extra of [{ decisions_archived: 2 }, { themes_deleted: 1 }]) {
+      const event = buildFixtureEvent('memory.decayed', 'd2', 'memory', {
+        entities_decayed: 0,
+        ...extra,
+        prune_status: 'ran',
+        duration_ms: 100,
+      }, 'daedalus');
+      assert.equal(classifyStatus(event), 'ok', JSON.stringify(extra));
+    }
+  });
+
   it('classifies memory.promoted with entities_promoted>0 as ok', () => {
     const event = buildFixtureEvent('memory.promoted', 'p1', 'memory', {
       entities_promoted: 3,

@@ -476,6 +476,10 @@ NO AUTO-APPLY PATH EXISTS (write-jail: gate-security test cells G1–G5, step 5.
 NO write path to any file outside that contract. The gate is structural, not policy — step 5.3's
 Verify includes a grep-asserting test that no apply-path exists that bypasses the gate.
 
+> **2026-09-23:** the per-plan `OUT_OF_SCOPE.md` files this pipeline used as its proposal inbox
+> were removed with the scope contract (protocol DECISIONS D11). Step 5.3 must name a replacement
+> inbox file before it starts; the write-jail invariant above is unchanged.
+
 **Self-referential safety note (from D3):** same-model reviewers (identical advanced-LLM weights reviewing each other)
 can share failure modes. The write-jail is the safety mechanism, not the review itself. A
 change-set proposing to weaken the gate must be flagged by the G4 test cell (self-referential
