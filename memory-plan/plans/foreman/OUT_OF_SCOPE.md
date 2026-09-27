@@ -47,6 +47,9 @@ Observed 2026-09-26 while remediating the audit of main (D3, `audits/remediation
   removing the NATS JetStream temp dir), `install.sh --dry-run writes nothing under $HOME` (the
   Command Line Tools python writes `.pyc` caches under the temp `$HOME/Library/Caches`),
   `plan-protocol` "blocks a listed path that is a symlink escaping the repo" (the hook exits 0
-  where the test expects 2; cause not investigated — if it is not environmental, the scope hook's
-  symlink-escape refusal is not holding on macOS). CI (Linux) is the green reference; locally the
-  suite cannot be green as-is. · low (medium if the hook finding is real) · protocol / test infra.
+  where the test expects 2: the fixture checkout sits under the default macOS TMPDIR, `/var` →
+  `/private/var`, so its lexical path never matches the hook's physical `pwd -P` repo root and the
+  escaping symlink is waved through as a non-repo file; with a non-symlinked TMPDIR it passes —
+  reproduced 2026-09-26. This repo's own path has no symlink, so the refusal holds here; it fails
+  open only for a checkout that itself lives under a symlinked path). CI (Linux) is the green
+  reference; locally the suite cannot be green as-is. · low · protocol / test infra.
