@@ -337,6 +337,8 @@ const { info: log, warn, error: logError, debug } = _logger;
 // local model the ten fixed questions, runs the deterministic policy, and
 // records what it saw and would have done — it never blocks a task. Anything
 // failing here degrades to today's behaviour (foreman plan, DECISIONS D1).
+// MESH_FOREMAN_ENFORCE=1 lets STOP/ESCALATE act and gates no-metric completion
+// on the verifier (D3).
 
 const FOREMAN_ENABLED = process.env.MESH_FOREMAN !== '0';
 
@@ -362,50 +364,114 @@ async function createTaskSupervisor(task, worktreePath) {
 }
 
 /**
- * After a coding worker exits cleanly on a task with no metric, ask the supervisor
- * for its post-exit decision. START_VERIFIER runs an independent verification
- * worker whose FOREMAN_VERDICT gates completion; ESCALATE releases the task.
- * Everything else — and any cycle the assessor could not answer — completes as
- * before. Tasks with a metric are verified by the metric; the supervisor's
- * post-exit decision is advisory there.
+ * The no-metric completion gate, called after a coding worker exits cleanly and
+ * passes the harness. Without enforcement (shadow, or no supervisor) the attempt
+ * completes as it always did. Enforcing (D3), it completes only on exactly one
+ * well-formed FOREMAN_VERDICT: PASS from an independent verifier that ran to its
+ * end unstopped, within the task's remaining budget, and left the worktree and
+ * HEAD as it found them — whatever the post-exit assessment says, and whether
+ * or not the assessor answered; ESCALATE releases instead. A provider that
+ * ignores its prompt (shell) cannot host a verifier: its exit status is the
+ * verification, as a metric's would be. Tasks with a metric never come here.
  */
 async function foremanVerify(supervisor, task, worktreePath, attempt, llmResult) {
-  const none = { failed: false, escalate: false, attemptRecord: null };
-  if (!supervisor || !supervisor.enforce) return none;
-  let decision;
+  const complete = { escalate: false, attemptRecord: null };
+  if (!supervisor || !supervisor.enforce) return complete;
+  const record = (approach, result, escalate = false) => ({
+    escalate,
+    attemptRecord: { approach: `Attempt ${attempt}: ${approach}`, result: String(result || 'no findings').slice(-500), keep: false },
+  });
+  let decision = null;
   try {
     decision = await supervisor.assessNow();
   } catch (err) {
     warn(`FOREMAN ${task.task_id}: post-exit assessment failed — ${err.message}`);
-    return none;
   }
-  if (!decision) return none;
-  if (decision.action === 'ESCALATE') {
-    return {
-      failed: false, escalate: true,
-      attemptRecord: { approach: `Attempt ${attempt}: escalated by Foreman after the worker finished — ${decision.reason}`, result: decision.reason, keep: false },
-    };
+  if (decision?.action === 'ESCALATE') {
+    return record(`escalated by Foreman after the worker finished — ${decision.reason}`, decision.reason, true);
   }
-  if (decision.action !== 'START_VERIFIER') return none;
+
+  const provider = resolveProvider(task, CLI_PROVIDER, ENV_PROVIDER);
+  if (provider.acceptsPrompt === false) {
+    supervisor.recordVerification({ passed: true, summary: `${provider.name} exited 0; no verifier can take its prompt, so the exit status is the verification`, source: 'exit-code' });
+    log(`FOREMAN ${task.task_id}: no verifier for provider ${provider.name} — exit status 0 is the verification`);
+    return complete;
+  }
 
   const foreman = await import('../lib/foreman/index.mjs');
-  let changedFiles = [];
-  try {
-    changedFiles = execFileSync('git', ['-C', worktreePath, 'diff', '--name-only'], { encoding: 'utf-8', timeout: 5000 }).split('\n').filter(Boolean);
-  } catch { /* the verifier can read git status itself */ }
+  // The tree hash is content only, so a verifier that commits leaves it equal: HEAD is held too.
+  const head = () => {
+    try {
+      return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worktreePath, timeout: 5000, encoding: 'utf-8', stdio: 'pipe' }).trim();
+    } catch {
+      return null;
+    }
+  };
+  const before = await foreman.treeSnapshot(worktreePath, { timeoutMs: 60_000 });
+  const headBefore = before ? head() : null;
+  if (!before || !headBefore) return record('Foreman verifier not run', 'the worktree could not be snapshotted, so a verifier could not be held read-only');
+  const { changed_files: changedFiles } = await foreman.gitEvidence(worktreePath);
+  // The verifier spends what is left of the task's budget, not a fresh one (F14.5). With none
+  // left it is not started: the failed attempt meets the attempt loop's own budget check, which
+  // releases the task exactly as it does before an attempt. No deadline: the budget_minutes timeout.
+  const deadline = Date.parse(task.budget_deadline);
+  const remainingMs = Number.isFinite(deadline) ? deadline - Date.now() : null;
+  if (remainingMs !== null && remainingMs <= 0) {
+    log(`FOREMAN ${task.task_id}: budget exhausted before the verification pass (attempt ${attempt})`);
+    return record('Foreman verifier not run', 'the task budget was exhausted before the verification pass could start');
+  }
   log(`FOREMAN ${task.task_id}: independent verification pass (attempt ${attempt})`);
   const verifier = supervisor.workerStarted({ attempt, kind: 'verifier' });
-  const prompt = foreman.buildVerifierPrompt(task, { workerOutput: llmResult.stdout, changedFiles });
-  const result = await runLLM(prompt, task, worktreePath, supervisor);
+  const result = await runLLM(foreman.buildVerifierPrompt(task, { workerOutput: llmResult.stdout, changedFiles }), task, worktreePath, supervisor, remainingMs);
+
+  // Read-only is checked, not trusted: a changed tree voids the verdict and is put back,
+  // so nothing the verifier wrote reaches the commit or the next attempt.
+  let tampered = null;
+  let movedHead = null;
+  const headAfter = head();
+  if (headAfter !== headBefore) {
+    // Left in place, the verifier's commit makes the status clean: commitWorktree reads that as
+    // "no changes" and cleanup deletes the task branch. A soft reset drops the commit and keeps
+    // the worker's content for the commit this gate exists to allow.
+    try {
+      execFileSync('git', ['reset', '--soft', headBefore], { cwd: worktreePath, timeout: 10_000, stdio: 'pipe' });
+      movedHead = `the verifier moved HEAD (${headBefore.slice(0, 12)} -> ${headAfter ? headAfter.slice(0, 12) : 'unreadable'}); HEAD was reset, the worker's changes kept`;
+    } catch (err) {
+      movedHead = `the verifier moved HEAD and resetting it to ${headBefore.slice(0, 12)} failed: ${err.message}`;
+    }
+  }
+  const after = await foreman.treeSnapshot(worktreePath, { timeoutMs: 60_000 });
+  if (after !== before) {
+    tampered = 'the worktree could not be re-read after the verifier ran';
+    if (after) {
+      try {
+        const touched = await foreman.restoreTree(worktreePath, before, after);
+        const reverted = (await foreman.treeSnapshot(worktreePath, { timeoutMs: 60_000 })) === before;
+        tampered = `the verifier modified the worktree (${touched.slice(0, 10).join(', ')}${touched.length > 10 ? `, +${touched.length - 10} more` : ''}); ${reverted ? 'its changes were reverted' : 'the revert was incomplete'}`;
+      } catch (err) {
+        tampered = `the verifier modified the worktree and the revert failed: ${err.message}`;
+      }
+    }
+  }
+  if (movedHead) tampered = tampered ? `${movedHead}; ${tampered}` : movedHead;
   const verdict = foreman.parseVerdict(result.stdout);
-  const passed = verdict.passed === true && result.exitCode === 0;
-  supervisor.recordVerification({ passed, summary: verdict.summary || result.stderr.slice(-500), source: 'verifier', workerId: verifier.worker_id });
-  log(`FOREMAN ${task.task_id}: verifier ${verdict.verdict || 'returned no verdict'} (exit ${result.exitCode})`);
-  if (passed) return none;
-  return {
-    failed: true, escalate: false,
-    attemptRecord: { approach: `Attempt ${attempt}: Foreman verifier ${verdict.verdict || 'returned no verdict'}`, result: (verdict.summary || 'no findings').slice(-500), keep: false },
-  };
+  // Any Foreman stop of the verifier voids its verdict (F14.2): it was cut off mid-check, and
+  // a PASS printed before the signal, or the 0 a CLI that traps SIGTERM exits with, proves
+  // nothing. ESCALATE releases below; STOP is a failed attempt, retried like any other.
+  const stop = supervisor.state.last_stop?.worker_id === verifier.worker_id ? supervisor.state.last_stop : null;
+  const passed = !tampered && !stop && verdict.passed === true && result.exitCode === 0;
+  const findings = tampered
+    || (stop && `Foreman stopped the verification pass before it finished (${stop.reason}); its verdict does not count`)
+    || (verdict.verdict ? verdict.summary : `${verdict.reason}. ${verdict.summary || result.stderr.slice(-500)}`);
+  supervisor.recordVerification({ passed, summary: findings, source: 'verifier', workerId: verifier.worker_id });
+  const outcome = tampered ? 'modified the worktree' : stop ? `stopped — ${stop.reason}` : verdict.verdict ? `${verdict.verdict} (exit ${result.exitCode})` : `returned ${verdict.reason}`;
+  log(`FOREMAN ${task.task_id}: verifier ${outcome}`);
+
+  if (stop?.action === 'ESCALATE') {
+    return record(`escalated by Foreman during verification — ${stop.reason}`, stop.reason, true);
+  }
+  if (passed) return complete;
+  return record(`Foreman verifier ${outcome}`, findings);
 }
 
 async function closeSupervision(supervisor, outcome) {
@@ -916,7 +982,7 @@ function cleanupWorktree(worktreePath, keep = false) {
  * @param {object} task
  * @param {string|null} worktreePath - If set, LLM accesses this worktree instead of WORKSPACE
  */
-function runLLM(prompt, task, worktreePath, supervisor = null) {
+function runLLM(prompt, task, worktreePath, supervisor = null, timeoutMs = null) {
   return new Promise((resolve) => {
     const provider = resolveProvider(task, CLI_PROVIDER, ENV_PROVIDER);
     const model = resolveModel(task, CLI_MODEL, provider);
@@ -942,7 +1008,8 @@ function runLLM(prompt, task, worktreePath, supervisor = null) {
       cwd: cleanCwd,
       env: cleanEnv,
       stdio: ['ignore', 'pipe', 'pipe'],  // stdin must be 'ignore' — some CLIs block on piped stdin
-      timeout: (task.budget_minutes || 30) * 60 * 1000, // kill if exceeds budget
+      // Kill if it exceeds the budget; the verifier passes what is left of the task deadline (F14.5).
+      timeout: timeoutMs ?? (task.budget_minutes || 30) * 60 * 1000,
       // Own process group: a Foreman STOP must end the CLI and everything it spawned.
       detached: true,
     });
@@ -1817,7 +1884,6 @@ async function executeTask(task) {
     writeAgentState('idle', null);
     return;
   }
-  const taskDir = worktreePath;
   const workspaceIsolated = true;
 
   // Signal start (include isolation status so daemon knows)
@@ -1828,6 +1894,29 @@ async function executeTask(task) {
   log(`Started: ${task.task_id} (dir: ${worktreePath ? 'worktree' : 'workspace'})`);
 
   const supervisor = await createTaskSupervisor(task, worktreePath);
+  await superviseTask(supervisor, () => runAttempts(task, worktreePath, supervisor, startedAt));
+}
+
+/**
+ * Every exit from a supervised task — completion, release, dry run, or a throw
+ * anywhere in the attempt loop — closes its supervisor: a loop left running would
+ * keep assessing a task that is gone. A throw carries the supervisor's summary out
+ * as `err.foremanNote`, because the telemetry row for a thrown task is written by
+ * the main loop, which never sees the supervisor.
+ */
+async function superviseTask(supervisor, run) {
+  try {
+    return await run();
+  } catch (err) {
+    if (supervisor && !supervisor.closed) err.foremanNote = await closeSupervision(supervisor, 'error');
+    throw err;
+  } finally {
+    if (supervisor && !supervisor.closed) await closeSupervision(supervisor, 'error');
+  }
+}
+
+/** The attempt loop — try → measure → keep/discard → retry — then release. */
+async function runAttempts(task, worktreePath, supervisor, startedAt) {
   const attempts = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -1944,8 +2033,8 @@ async function executeTask(task) {
       }
     }
 
-    // If no metric, Foreman's independent verifier is the verification (D2);
-    // without Foreman, trust the LLM output and complete as before.
+    // If no metric, an enforcing Foreman's independent verifier is the verification
+    // (D3); in shadow mode or without Foreman, trust the LLM output as before.
     if (!task.metric) {
       const verification = await foremanVerify(supervisor, task, worktreePath, attempt, llmResult);
       if (verification.attemptRecord) {
@@ -2004,7 +2093,7 @@ async function executeTask(task) {
 
     // Evaluate metric (run in worktree if available)
     log(`Evaluating metric: ${task.metric} (in ${worktreePath ? 'worktree' : 'workspace'})`);
-    const metricResult = await evaluateMetric(task.metric, taskDir);
+    const metricResult = await evaluateMetric(task.metric, worktreePath);
     if (supervisor) supervisor.recordVerification({ passed: metricResult.passed, summary: metricResult.output.slice(-2000), source: 'metric' });
 
     if (metricResult.passed) {
@@ -2320,7 +2409,7 @@ async function main() {
       if (claimedTask) {
         await recordHyperagentTask(claimedTask, {
           outcome: 'failure', iterations: 1, startedAt: claimedAt,
-          notes: `Unhandled worker error: ${err.message}`,
+          notes: `Unhandled worker error: ${err.message}${err.foremanNote || ''}`,
         });
         claimedTask = null;
       }
@@ -2351,8 +2440,9 @@ if (require.main === module) {
   });
 }
 
-// Test surface: the pure prompt builders + harness injectors (no NATS / side effects).
-module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, buildRetryPrompt, injectRules, injectRole, injectMemory, injectHyperagentStrategy, recallForTask, readNodeMemory, recordHyperagentTask, deriveExecutionClass };
+// Test surface (no NATS): the prompt builders + harness injectors, and the Foreman
+// completion gate + supervision wrapper (they spawn the task's provider, nothing else).
+module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, buildRetryPrompt, injectRules, injectRole, injectMemory, injectHyperagentStrategy, recallForTask, readNodeMemory, recordHyperagentTask, deriveExecutionClass, foremanVerify, superviseTask };
 // Review-gate surface (test/mesh-agent-review-gate.test.js): the real merge/review
 // handlers against a real git workspace, with only the NATS connection injected.
 module.exports.__test = {

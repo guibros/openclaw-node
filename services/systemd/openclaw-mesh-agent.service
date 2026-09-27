@@ -17,6 +17,8 @@ Environment=OPENCLAW_NODE_ID=${OPENCLAW_NODE_ID}
 Environment=MESH_LLM_PROVIDER=${MESH_LLM_PROVIDER}
 Environment=LLM_MODEL=${LLM_MODEL}
 Environment=LLM_BASE_URL=${LLM_BASE_URL}
+# Foreman supervision (docs/foreman.md): empty = shadow (decisions recorded, nothing enforced); 1 = enforce.
+Environment=MESH_FOREMAN_ENFORCE=${MESH_FOREMAN_ENFORCE}
 Environment=TZ=America/Montreal
 WorkingDirectory=${OPENCLAW_REPO_DIR}
 StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-mesh-agent.log
