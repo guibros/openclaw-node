@@ -11,8 +11,9 @@ export const MemoryDecayedSchema = EventEnvelopeSchema.extend({
     archived_more: z.number().int().nonnegative().optional(),
     // The prune step that follows decay (repair 2026-09-26): decisions moved
     // to decisions_archived, idle themes hard-deleted, and how the step went —
-    // disabled = CONSOLIDATE_PRUNE=0, no_backup = themes kept because no
-    // VACUUM INTO backup could be taken, aborted = hard cap before prune.
+    // disabled = CONSOLIDATE_PRUNE=0, no_backup = themes or decayed-out
+    // decisions kept because no VACUUM INTO backup could be taken,
+    // aborted = hard cap before prune.
     decisions_archived: z.number().int().nonnegative().optional(),
     themes_deleted: z.number().int().nonnegative().optional(),
     prune_status: z.enum(['ran', 'disabled', 'no_backup', 'aborted']).optional(),
