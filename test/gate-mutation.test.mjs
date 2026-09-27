@@ -53,54 +53,7 @@ describe('tarball-smoke gate rejects doctored listings', () => {
   });
 });
 
-// ── 2. scope-check.sh — the most load-bearing gate in the repo ──────────────
-// Stable cases only: the BLOCK path (whose silent death would be a fail-open
-// hole), the always-writeable escape valves, and the documented fail-opens.
-// The allow-via-open-batch path is exercised by every real edit.
-
-function runHook(payload) {
-  try {
-    execFileSync('bash', [join(REPO, '.claude/hooks/scope-check.sh')], {
-      input: payload, stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    return 0;
-  } catch (e) {
-    return e.status;
-  }
-}
-const forPath = (p) => JSON.stringify({ tool_name: 'Write', tool_input: { file_path: p } });
-
-describe('scope hook blocks out-of-scope writes', () => {
-  it('blocks a path in no scope (exit 2)', () => {
-    assert.equal(runHook(forPath('lib/definitely-not-in-any-scope-gate-mutation-probe.mjs')), 2);
-  });
-  it('blocks an absolute out-of-scope path', () => {
-    assert.equal(runHook(forPath(join(REPO, 'bin/not-in-any-scope-probe.mjs'))), 2);
-  });
-  it('always allows plan OUT_OF_SCOPE.md (drift-capture escape valve)', () => {
-    assert.equal(runHook(forPath('memory-plan/plans/federation/OUT_OF_SCOPE.md')), 0);
-  });
-  it('always allows plan SCOPE.md (operator scope-refresh escape valve)', () => {
-    assert.equal(runHook(forPath('memory-plan/plans/federation/SCOPE.md')), 0);
-  });
-  // Review I4 (2026-09-06): these two were documented fail-OPENS — "can't
-  // decide → allow" — on the only mechanically enforced write gate in the repo.
-  // A write gate that cannot determine its target must refuse.
-  it('fails CLOSED on pathless tool input', () => {
-    assert.equal(runHook(JSON.stringify({ tool_name: 'Write', tool_input: {} })), 2);
-  });
-  it('fails CLOSED on empty stdin', () => {
-    assert.equal(runHook(''), 2);
-  });
-  it("refuses a '..' traversal that would land on an escape valve", () => {
-    assert.equal(runHook(forPath('lib/../memory-plan/plans/federation/OUT_OF_SCOPE.md')), 2);
-  });
-  it('does not govern a path outside the repo', () => {
-    assert.equal(runHook(forPath('/tmp/scope-check-outside-probe.md')), 0);
-  });
-});
-
-// ── 3. Inject probe budget vs server design ─────────────────────────────────
+// ── 2. Inject probe budget vs server design ─────────────────────────────────
 // The relationship that rotted once: the probe's HTTP budget must clear the
 // inject server's DESIGNED worst case (analysis fallback wait + retrieval),
 // or a live-but-loaded server grades BROKEN.
@@ -120,7 +73,7 @@ describe('MEM-L2-INJECT budget clears the designed worst case', () => {
   });
 });
 
-// ── 4. MC eslint gate vacuity ───────────────────────────────────────────────
+// ── 3. MC eslint gate vacuity ───────────────────────────────────────────────
 // Rot mode: the flat config's ignores silently swallowing src/ — the gate then
 // passes because nothing is linted. Assert eslint still scans a real file AND
 // still rejects a seeded error-level violation. Skips visibly where MC deps

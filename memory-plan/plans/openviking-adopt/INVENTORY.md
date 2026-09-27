@@ -5,9 +5,8 @@ per-directory L0/L1 summaries, typed memory merge with read-before-write extract
 context-engine plugin.
 
 **How this plan ran (2026-09-21):** the operator requested the whole batch interactively
-("implement this"). The code for every step below landed in ONE labeled scope batch
-(`SCOPE.md` block `2026-09-21-openviking-adopt`) with `code:` verification executed in the
-session container. No row is closed by that batch: each step flips `[ ]`→`[x]` only when its
+("implement this"). The code for every step below landed in ONE batch (PR #26) with `code:`
+verification executed in the session container. No row is closed by that batch: each step flips `[ ]`→`[x]` only when its
 `runtime:` Verify is observed on the deployed node (MASTER_PLAN §4.1/§5). The first `[ ]` row is
 therefore the operator's next runtime action, not a code task.
 
@@ -28,7 +27,7 @@ Runtime-Evidence record. `--probe` re-runs the probes only (3.2 needs a live flu
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 1 | 1.1 | v1.1 | [ ] | semantic_search and find_related accept a path_prefix and return only hits under it — reopened 2026-09-27: the 2026-09-21 PASS (audits/deploy_2026-09-21_113717.md) was probe.mjs calling the library in-process, while the MCP server does not start through the symlinked lib (OUT_OF_SCOPE 2026-09-26), so no session reaches the tool; re-close on the Verify's tool call from a session on the node |
+| 1 | 1.1 | v1.1 | [ ] | semantic_search and find_related accept a path_prefix and return only hits under it — reopened 2026-09-27: the 2026-09-21 PASS (audits/deploy_2026-09-21_113717.md) was probe.mjs calling the library in-process, while the MCP server does not start through the symlinked lib (db94e64's entrypoint guard compares the resolved module URL with the symlink path), so no session reaches the tool; re-close on the Verify's tool call from a session on the node |
 
 > **1.1 — Goal:** a knowledge search can be confined to one directory subtree.
 > **Needs:** `lib/mcp-knowledge/core.mjs` (`semanticSearch`, `findRelated`), `server.mjs` tool schemas, a populated `.knowledge.db` on the node.
@@ -39,7 +38,7 @@ Runtime-Evidence record. `--probe` re-runs the probes only (3.2 needs a live flu
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 2 | 2.1 | v2.1 | [ ] | directory_summaries built bottom-up on every index pass with deterministic abstract/overview; knowledge_tree and directory_overview tools — reopened 2026-09-27: the 25 summaries of 2026-09-21 came from probe.mjs's one in-process pass; no runtime index pass or knowledge_tree call has run since, because the daemon never runs indexWorkspace and the MCP server does not start (OUT_OF_SCOPE 2026-09-26); re-close on the Verify as written |
+| 2 | 2.1 | v2.1 | [ ] | directory_summaries built bottom-up on every index pass with deterministic abstract/overview; knowledge_tree and directory_overview tools — reopened 2026-09-27: the 25 summaries of 2026-09-21 came from probe.mjs's one in-process pass; no runtime index pass or knowledge_tree call has run since, because the daemon never runs indexWorkspace and the MCP server does not start (see 1.1); re-close on the Verify as written |
 | 2 | 2.2 | v2.2 | [ ] | LLM-written abstract/overview when Ollama answers, hash-gated per directory, and directory-level vector search — reopened 2026-09-27: generator='llm' (25) and the 0-call re-pass were measured inside probe.mjs, not in a runtime pass's log as the Verify names; same MCP gap as 2.1 |
 
 > **2.1 — Goal:** every indexed directory has an L0 abstract and an L1 overview after an index pass.
@@ -67,7 +66,7 @@ Runtime-Evidence record. `--probe` re-runs the probes only (3.2 needs a live flu
 > **3.2 — Goal:** a re-mention of a known entity under a new spelling lands as an alias, not a new row.
 > **Needs:** step 3.1; `lib/extraction-prompt.mjs` known-memories section; `pre-compression-flush.mjs` passing candidates.
 > **Feeds:** `memory.extracted` event (aliases_resolved, decisions_superseded counts); MEMORY.md.
-> **Verify:** `runtime:` on the node after live flushes, `sqlite3 ~/.openclaw/state.db "SELECT COUNT(*) FROM entity_aliases"` ≥ 1 or `"SELECT COUNT(*) FROM decisions WHERE superseded_by IS NOT NULL"` ≥ 1, and `entities` row count is unchanged on a re-flush of the same tail (the daemon log line for the flush shows `aliases_resolved`; the event payload does not carry it yet — OUT_OF_SCOPE) · `code:` `node --test test/extraction-merge.test.mjs test/extraction-prompt.test.mjs test/extraction-store.test.mjs` green.
+> **Verify:** `runtime:` on the node after live flushes, `sqlite3 ~/.openclaw/state.db "SELECT COUNT(*) FROM entity_aliases"` ≥ 1 or `"SELECT COUNT(*) FROM decisions WHERE superseded_by IS NOT NULL"` ≥ 1, and `entities` row count is unchanged on a re-flush of the same tail (the daemon log line for the flush shows `aliases_resolved`; the event payload does not carry it yet: `emitExtractEvent` and `packages/event-schemas` don't declare the typed-merge counts) · `code:` `node --test test/extraction-merge.test.mjs test/extraction-prompt.test.mjs test/extraction-store.test.mjs` green.
 
 ## Block 4 — OpenClaw context-engine plugin
 
@@ -87,6 +86,6 @@ Runtime-Evidence record. `--probe` re-runs the probes only (3.2 needs a live flu
 | 5 | 5.1 | v5.1 | [ ] | CLAUDE.md queued-repair paragraph no longer lists the closed /api/ps false-busy skip; README documents the plugin |
 
 > **5.1 — Goal:** CLAUDE.md's runtime-repair list matches the protocol ledger.
-> **Needs:** `memory-plan/plans/protocol/OUT_OF_SCOPE.md` v4.1 close record.
+> **Needs:** the protocol v4.1 close record (`memory-plan/plans/protocol/INVENTORY.md` row 4.1 + `audits/step41_memory_cadence/`).
 > **Feeds:** every future session's bootstrap read.
 > **Verify:** `code:` `grep -c "api/ps" CLAUDE.md` = 0.

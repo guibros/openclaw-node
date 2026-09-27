@@ -17,7 +17,7 @@ until the operator re-verifies on the node.
 
 | | |
 |---|---|
-| **Status** | DOWN as an MCP server on the node (it does not start through the symlinked lib — OUT_OF_SCOPE 2026-09-26); library probed in-process / code-verified |
+| **Status** | DOWN as an MCP server on the node (it does not start through the symlinked lib: db94e64's entrypoint guard compares the resolved module URL with the symlink path); library probed in-process / code-verified |
 | **Verified** | 2026-09-21 — `node --test test/mcp-knowledge-path-scope.test.mjs test/mcp-knowledge-directory-summaries.test.mjs` green in the container (embedder-gated cases skip visibly). 2026-09-21 on the node — `probe.mjs` called the library in-process against the live `.knowledge.db`: scoped hits all inside their prefix, 25 directory summaries, 25 LLM-written; no MCP tool call. 2026-09-26 on the node — every Claude Code session logged `knowledge (CONNECTION_CLOSED)` |
 | **Owner files** | `lib/mcp-knowledge/core.mjs`, `lib/mcp-knowledge/server.mjs`, `lib/mcp-knowledge/directory-summaries.mjs` |
 | **Delta this plan** | `pathPrefix` on `semanticSearch`/`findRelated`; `directory_summaries` + `directory_vectors` tables (knowledge schema v2); tools `knowledge_tree`, `directory_overview`, `search_directories`; `dir_abstract` on hits |

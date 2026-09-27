@@ -190,7 +190,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 |-------|------|---------|--------|-------------|
 | 5 | 5.1 | v5.1 | [ ] | Telemetry substrate: federation-wide feed (watch snapshots, ledger, session outcomes, digests). The node-local HyperAgent loop is now mechanically wired and observed (2026-07-20), but its 1-row local database is not the federation-wide feed and does not close this step. |
 | 5 | 5.2 | v5.2 | [ ] | Change-set artifact: savant adversarial session producing {level, rationale, edit, evidence} |
-| 5 | 5.3 | v5.3 | [ ] | Proposal pipeline: signed change-set → notification + PROPOSED OUT_OF_SCOPE entry → operator gate |
+| 5 | 5.3 | v5.3 | [ ] | Proposal pipeline: signed change-set → notification + PROPOSED inbox entry → operator gate |
 | 5 | 5.4 | v5.4 | [ ] | First savant cycle over ≥7 days of real telemetry: ≥1 gated change-set per level, zero auto-applies |
 | 5 | 5.5 | v5.5 | [ ] | PHASE-3 GATE: savant-cluster operational testing program (gate-security chaos, 7-day soak, closed improvement loop, T7) |
 
@@ -205,9 +205,9 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Verify:** `runtime:` one savant session over seeded telemetry yields a change-set that validates against the schema AND names a concrete edit (patch hunk or scope-addendum text) with expected evidence; reviewers' critiques recorded.
 
 > **5.3 — Goal:** change-sets reach the operator through the workplan protocol — never the codebase directly.
-> **Needs:** 5.2 artifacts; 1.4 signing; OUT_OF_SCOPE always-writeable convention; openclaw-notify.
-> **Feeds:** operator decision loop; approved edits enter normal SCOPE/commit discipline.
-> **Verify:** `runtime:` a change-set lands as a ledgered notification (click-through to MC) + a PROPOSED entry in the target plan's OUT_OF_SCOPE.md with valid signature; `code:` no apply path exists that skips the gate (grep + test asserting the pipeline has no write access outside OUT_OF_SCOPE).
+> **Needs:** 5.2 artifacts; 1.4 signing; a named per-plan proposal inbox file (the design used `OUT_OF_SCOPE.md`, removed 2026-09-23 by protocol D11 — choose its replacement first); openclaw-notify.
+> **Feeds:** operator decision loop; approved edits enter the normal step/commit discipline.
+> **Verify:** `runtime:` a change-set lands as a ledgered notification (click-through to MC) + a PROPOSED entry in the target plan's proposal inbox with valid signature; `code:` no apply path exists that skips the gate (grep + test asserting the pipeline has no write access outside the proposal inbox).
 
 > **5.4 — Goal:** the savant layer proves useful on reality, not seeds.
 > **Needs:** 5.1-5.3; ≥7 days of real federation telemetry (Blocks 2-4 running in the interim).
@@ -217,7 +217,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **5.5 — Goal:** the savant cluster is operationally PROVEN and the whole plan closes — Phase 3's gate (IMPLEMENTATION_PHASES §3.B).
 > **Needs:** 4.6 Phase-2 gate closed; steps 5.1–5.4 closed; fed.savant.* probes + MC change-set review view landed.
 > **Feeds:** plan-done (ROADMAP); the standing self-improvement loop the operator keeps.
-> **Verify:** `runtime:` gate-security cells G1–G5 observed (write-jail throw, unsigned/tampered refusal, self-referential flag, rate limit); 7-day soak: all emissions schema-valid + cited + gated, zero writes outside OUT_OF_SCOPE (fs-audit) · `visual:` operator confirms one approved change-set was implemented through normal scope discipline and its expected_evidence probe observed true — the closed loop.
+> **Verify:** `runtime:` gate-security cells G1–G5 observed (write-jail throw, unsigned/tampered refusal, self-referential flag, rate limit); 7-day soak: all emissions schema-valid + cited + gated, zero writes outside the proposal inbox (fs-audit) · `visual:` operator confirms one approved change-set was implemented through normal step discipline and its expected_evidence probe observed true — the closed loop.
 
 ## Block 6 — Ops: fleet, surfaces, watch
 
