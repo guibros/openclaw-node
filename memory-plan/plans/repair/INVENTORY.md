@@ -7,7 +7,7 @@ Every finding from `FINDINGS_2026-06-02.md` decomposed to **true atomic grain**,
 **Structure rule:** every step carries an explicit **Goal** (the single outcome) and a **Proof** (the runtime-observable validation gate). *A step whose Proof is not produced and captured is NOT done — it is in-flight or blocked, never closed.* A step whose Proof cannot be written concretely is not ready to start (applies to the two `defined-at` placeholders, 2.9 and 3.4).
 
 **Procedural rule:** every step runs the full per-step lifecycle in `WORKFLOW.md` §3 (identical protocol to the redesign plan):
-Pre-flight → **Scope** (per-step SCOPE.md: goal = the step, files = its deltas, evidence = its Proof; hook gates) → **Phase 1·§0 micro Re-Orient** → Phase 1 AUDIT_PRE (in `audits/stepNN_<slug>/`) → Phase 4 implement (surprises → OUT_OF_SCOPE.md) → Phase 5 VERIFY = tests green **+ runtime evidence per the Proof line** (deploy via symlinks, restart, observe) → Phase 7 AUDIT_POST → Phase 8 corrections-or-BLOCK → Phase 8.5 Deep Review Gate (5 checks + Proof cited) → Phase 9 one commit with `Runtime-Evidence:` trailer + flip `[ ]→[x]` + registry/DECISIONS updates → **macro Re-Orient at every block close** (where placeholder steps get defined and the next block is re-atomicity-checked). Tripwire (WORKFLOW §7.3): ≥2 mid-implementation findings or sub-action sprawl = the step wasn't atomic → stop, split, re-plan.
+Pre-flight → **Phase 1·§0 micro Re-Orient** → Phase 1 AUDIT_PRE (in `audits/stepNN_<slug>/`) → Phase 4 implement (surprises → AUDIT_PRE Mid-Implementation Findings) → Phase 5 VERIFY = tests green **+ runtime evidence per the Proof line** (deploy via symlinks, restart, observe) → Phase 7 AUDIT_POST → Phase 8 corrections-or-BLOCK → Phase 8.5 Deep Review Gate (5 checks + Proof cited) → Phase 9 one commit with `Runtime-Evidence:` trailer + flip `[ ]→[x]` + registry/DECISIONS updates → **macro Re-Orient at every block close** (where placeholder steps get defined and the next block is re-atomicity-checked). Tripwire (WORKFLOW §7.3): ≥2 mid-implementation findings or sub-action sprawl = the step wasn't atomic → stop, split, re-plan.
 
 **Operator priorities (2026-06-02):** (1) vault + wikilink referential system fully implemented, transparent, working — D7; (2) LLM infrastructure audited before further wiring — D8; (3) security PARKED until working prototype (Block P).
 
@@ -259,7 +259,7 @@ Deliberately deferred until a working prototype. Remarks live in FINDINGS Cluste
 | P | P.1 | — | [ ] | operator | (PARKED) Narrow memory-file API jail to vault/MEMORY.md/logs (R34 — ~1-line; recommended early) |
 | P | P.2 | — | [ ] | operator | (PARKED) Revisit prompt-plaintext + vault-sync exposure before federation (R35, R36) |
 | P | P.3 | — | [ ] | operator | (PARKED) Federation daemon merge-or-delete per §4.6 + extraction-store db-option contract (R37) |
-| P | P.4 | — | [ ] | operator | (PARKED) scope-check.sh tightening: glob depth, non-UTC expiry, heredoc note (R38) |
+| P | P.4 | — | [D] | operator | (MOOT 2026-09-23, protocol D11) scope-check.sh tightening (R38) — the script was removed |
 
 ---
 
@@ -284,5 +284,5 @@ Applied the redesign atomicity test to every v1 step; 30 → 48. Splits: 1.5 (tu
 
 ## Work infrastructure
 
-- Standard silo: per-step SCOPE contracts (hook-gated, one active scope repo-wide), canonical docs via `sync-canonical.sh`, viewer auto-discovery, per-step audits in `audits/stepNN_<slug>/`.
+- Standard silo: canonical docs via `sync-canonical.sh`, viewer auto-discovery, per-step audits in `audits/stepNN_<slug>/`.
 - **Tick automation:** not built. When wanted, clone the redesign pattern (`workspace-bin/redesign-tick.sh` + `TICK_PROMPT.md` + plist, RunAtLoad=false, BLOCK-not-fake + Runtime-Evidence trailer rules) as one scoped step. 1.7, 1.8, 3.1 and 7.8 stay operator-driven regardless.

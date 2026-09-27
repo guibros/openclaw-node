@@ -261,7 +261,7 @@ Status legend:
 
 **Gap:**
 - No integration with memory yet. Rule violations not logged as memory events. Memory observations don't promote into soft rules.
-- Out of scope for this round unless explicitly added to SCOPE.md.
+- Not planned this round unless explicitly added as an INVENTORY step.
 
 ---
 
@@ -446,6 +446,6 @@ These don't fit one component but show up across many:
 
 ## How to use this doc
 
-When SCOPE.md gets set, the goal in scope should map to a specific component above. The done-criteria from this doc become (or refine) the done-criteria in SCOPE.md.
+When a step starts, its goal should map to a specific component above. The done-criteria from this doc become (or refine) the step's done-evidence.
 
 When this doc is updated, it's because reality changed (a service started running, a deploy landed, a database was created). Updates land in their own commit with subject `registry: <component> <status-change>`.
