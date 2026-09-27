@@ -175,6 +175,7 @@ describe('createExtractionStore', () => {
     // Simulate a pre-v5 DB: the v2 (session, entity, turn) index, and one entity
     // sighted at two turns of one live session (flushed twice as it grew)
     const db = store.db;
+    const latest = db.pragma('user_version', { simple: true });
     db.prepare(`INSERT INTO entities (name, type, canonical_name, first_seen, last_seen, mention_count)
                 VALUES ('NATS', 'technology', 'nats', 't1', 't2', 0)`).run();
     const id = db.prepare(`SELECT id FROM entities WHERE name = 'NATS'`).get().id;
@@ -188,9 +189,9 @@ describe('createExtractionStore', () => {
     const dbPath = db.prepare('PRAGMA database_list').get().file;
     store.close();
 
-    // Re-open: v5 runs
+    // Re-open: v5 runs, and the ladder climbs back to the current version
     store = createExtractionStore({ dbPath });
-    assert.equal(store.db.pragma('user_version', { simple: true }), 6);
+    assert.equal(store.db.pragma('user_version', { simple: true }), latest);
     const rows = store.db.prepare('SELECT session_id, turn_index FROM mentions WHERE entity_id = ? ORDER BY session_id').all(id);
     assert.deepEqual(rows.map((r) => [r.session_id, r.turn_index]), [['s-1', 9], ['s-2', 4]], 'one mention per session, at its latest turn');
     assert.equal(store.db.prepare('SELECT mention_count FROM entities WHERE id = ?').get(id).mention_count, 2);
