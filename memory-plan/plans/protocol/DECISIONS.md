@@ -169,7 +169,7 @@ work already claims D10.
 **Consequences.** PR #15 (an earlier, unmerged removal attempt) is superseded. D8's "every future
 batch opens one fresh labeled scope block with a bounded expiry" no longer applies. The observations
 captured in the removed OUT_OF_SCOPE.md files (fifteen of them added on 2026-09-26) are not
-migrated; read them at the last `main` commit that had them:
+migrated; read them from `main` as it stood before this change:
 `git show aeffd47:memory-plan/plans/<id>/OUT_OF_SCOPE.md`. Federation step 5.3 used
 OUT_OF_SCOPE.md as the savant-proposal inbox and must choose a new one before it can start (flagged
 on its row). repair P.4 (scope-check tightening) is moot. Audits, older DECISIONS entries and close
