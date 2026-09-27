@@ -42,6 +42,7 @@ const { spawn, execSync, execFileSync } = require('child_process');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { getActivityState, getSessionInfo } = require('../lib/agent-activity');
 const { loadAllRules, matchRules, formatRulesForPrompt, detectFrameworks, activateFrameworkRules } = require('../lib/rule-loader');
 const { loadHarnessRules, runMeshHarness, runPostCommitValidation, formatHarnessForPrompt } = require('../lib/mesh-harness');
@@ -642,6 +643,7 @@ function buildRetryPrompt(task, previousAttempts, attemptNumber) {
 // ── Worktree Isolation ────────────────────────────────
 
 const WORKTREE_BASE = process.env.MESH_WORKTREE_BASE || path.join(process.env.HOME, '.openclaw', 'worktrees');
+const LEASE_DIR = process.env.MESH_LEASE_DIR || path.join(process.env.HOME, '.openclaw', 'mesh-leases');
 
 /**
  * Create a git worktree for a task. Returns the worktree path.
@@ -668,6 +670,7 @@ function createWorktree(taskId) {
         fs.rmSync(worktreePath, { recursive: true, force: true });
       }
       // Also clean up the branch if it exists
+      forgetLease(taskId);
       try {
         execFileSync('git', ['branch', '-D', branch], { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' });
       } catch { /* Intentional: branch may not exist after worktree cleanup */ }
@@ -805,6 +808,7 @@ function mergeTaskBranch(taskId) {
  */
 async function mergeIfApproved(task, commit, completedTask) {
   if (!commit?.committed) return false;
+  rememberLease(task.task_id, task.lease_token);
   if (completedTask?.status !== 'completed') {
     log(`Branch ${commit.branch} kept unmerged — task ${task.task_id} is ${completedTask?.status || 'unknown'} (merge after review)`);
     return true;
@@ -826,10 +830,80 @@ async function reportMerge(taskId, merge) {
 }
 
 function deleteTaskBranch(taskId) {
+  forgetLease(taskId);
   try {
     execFileSync('git', ['branch', '-D', `mesh/${taskId}`], { cwd: WORKSPACE, timeout: 5000, stdio: 'ignore' });
     log(`Deleted branch mesh/${taskId}`);
   } catch { /* already gone */ }
+}
+
+// mesh.tasks.merged is an owner action fenced by the claim-time lease token,
+// and the daemon no longer returns that token on mesh.tasks.get (review
+// 2026-09-15 F1/R1). So the agent keeps the lease of each committed task branch
+// itself, in a 0600 file written with fs (a git argv would show it in ps),
+// dropped wherever the branch is deleted. The file name is a hash: task ids
+// on review notices come off the bus.
+function leaseFile(taskId) {
+  return path.join(LEASE_DIR, crypto.createHash('sha256').update(String(taskId)).digest('hex'));
+}
+
+function rememberLease(taskId, leaseToken) {
+  if (!leaseToken) return;
+  try {
+    fs.mkdirSync(LEASE_DIR, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(leaseFile(taskId), leaseToken, { mode: 0o600 });
+  } catch (err) {
+    warn(`rememberLease ${taskId}: ${err.message} — a post-review merge report will be refused`);
+  }
+}
+
+function keptLease(taskId) {
+  try {
+    return fs.readFileSync(leaseFile(taskId), 'utf-8').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function forgetLease(taskId) {
+  try { fs.unlinkSync(leaseFile(taskId)); } catch { /* none kept */ }
+}
+
+function describeReviewState(task) {
+  return task ? `${task.status}, owner ${task.owner || 'none'}` : 'no such task, or the daemon did not answer';
+}
+
+// The review notices below arrive as plain core publishes that any bus peer can
+// send. Acting on the notice alone let a forged `.approved` merge unreviewed
+// work onto main, and a forged `.rejected` destroy work awaiting review (review
+// 2026-09-15 F1). Each one now acts only after the daemon itself reports the
+// matching state for a task this node owns.
+async function onReviewApproved(taskId) {
+  const task = await natsRequest('mesh.tasks.get', { task_id: taskId }, 5000).catch(() => null);
+  if (!task || task.owner !== NODE_ID || task.status !== 'completed') {
+    warn(`APPROVED ${taskId} ignored — daemon reports ${describeReviewState(task)}`);
+    return false;
+  }
+  log(`APPROVED ${taskId} — merging kept branch`);
+  const merge = mergeTaskBranch(taskId);
+  await reportMerge(taskId, { ...merge, lease_token: keptLease(taskId) });
+  if (merge.merged) deleteTaskBranch(taskId);
+  return true;
+}
+
+// A review rejection re-queues the task, or fails it at the rejection cap. In
+// both cases the daemon keeps the owner and counts the rejection.
+async function onReviewRejected(taskId) {
+  const task = await natsRequest('mesh.tasks.get', { task_id: taskId }, 5000).catch(() => null);
+  const rejected = task && task.owner === NODE_ID && task.rejection_count > 0
+    && (task.status === 'queued' || task.status === 'failed');
+  if (!rejected) {
+    warn(`REJECTED ${taskId} ignored — daemon reports ${describeReviewState(task)}`);
+    return false;
+  }
+  log(`REJECTED ${taskId} — dropping kept branch`);
+  deleteTaskBranch(taskId);
+  return true;
 }
 
 /**
@@ -841,7 +915,9 @@ function deleteTaskBranch(taskId) {
 async function reconcileKeptBranches() {
   let branches = [];
   try {
-    branches = execSync("git branch --list 'mesh/*' --format=%(refname:short)", {
+    // execFile, not a shell: an unquoted %(refname:short) is a sh syntax error,
+    // so this listing always threw and startup reconcile never ran.
+    branches = execFileSync('git', ['branch', '--list', 'mesh/*', '--format=%(refname:short)'], {
       cwd: WORKSPACE, timeout: 5000, encoding: 'utf-8', stdio: 'pipe',
     }).split('\n').map(b => b.trim()).filter(Boolean);
   } catch (err) {
@@ -856,7 +932,7 @@ async function reconcileKeptBranches() {
     if (task.status === 'completed' && task.result?.merged !== true) {
       log(`RECONCILE: ${branch} approved while offline — merging`);
       const merge = mergeTaskBranch(taskId);
-      await reportMerge(taskId, { ...merge, branch, lease_token: task.lease_token });
+      await reportMerge(taskId, { ...merge, branch, lease_token: keptLease(taskId) });
       if (merge.merged) deleteTaskBranch(taskId);
     } else if (['failed', 'released', 'cancelled', 'rejected'].includes(task.status)) {
       deleteTaskBranch(taskId);
@@ -882,6 +958,7 @@ function cleanupWorktree(worktreePath, keep = false) {
       stdio: 'pipe',
     });
     if (!keep) {
+      forgetLease(taskId);
       execFileSync('git', ['branch', '-D', branch], {
         cwd: WORKSPACE,
         timeout: 5000,
@@ -2202,12 +2279,7 @@ async function main() {
     for await (const msg of approvedSub) {
       try {
         const { task_id } = JSON.parse(sc.decode(msg.data));
-        if (!task_id) continue;
-        log(`APPROVED ${task_id} — merging kept branch`);
-        const merge = mergeTaskBranch(task_id);
-        const approved = await natsRequest('mesh.tasks.get', { task_id }, 5000).catch(() => null);
-        await reportMerge(task_id, { ...merge, lease_token: approved?.lease_token });
-        if (merge.merged) deleteTaskBranch(task_id);
+        if (task_id) await onReviewApproved(task_id);
       } catch (err) {
         warn(`approved handler: ${err.message}`);
       }
@@ -2218,7 +2290,7 @@ async function main() {
     for await (const msg of rejectedSub) {
       try {
         const { task_id } = JSON.parse(sc.decode(msg.data));
-        if (task_id) { log(`REJECTED ${task_id} — dropping kept branch`); deleteTaskBranch(task_id); }
+        if (task_id) await onReviewRejected(task_id);
       } catch (err) {
         warn(`rejected handler: ${err.message}`);
       }
@@ -2371,4 +2443,10 @@ if (require.main === module) {
 // Test surface (no NATS): the prompt builders + harness injectors, and the Foreman
 // completion gate + supervision wrapper (they spawn the task's provider, nothing else).
 module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, buildRetryPrompt, injectRules, injectRole, injectMemory, injectHyperagentStrategy, recallForTask, readNodeMemory, recordHyperagentTask, deriveExecutionClass, foremanVerify, superviseTask };
+// Review-gate surface (test/mesh-agent-review-gate.test.js): the real merge/review
+// handlers against a real git workspace, with only the NATS connection injected.
+module.exports.__test = {
+  setContext(ctx) { if (ctx.nc !== undefined) nc = ctx.nc; },
+  mergeIfApproved, onReviewApproved, onReviewRejected, reconcileKeptBranches,
+};
 // deploy-v7f0130b

@@ -61,8 +61,9 @@ function decayedEventData(decay, prune, durationMs) {
     archived_more: Math.max(0, archived.length - 20),
     decisions_archived: prune?.archivedDecisions ?? 0,
     themes_deleted: prune?.prunedThemes ?? 0,
-    prune_status: !prune ? 'aborted' : prune.skipped ? 'disabled' : prune.themesSkipped ? 'no_backup' : 'ran',
-    ...(prune?.backup ? { backup_path: prune.backup.path } : {}),
+    prune_status: !prune ? 'aborted' : prune.skipped ? 'disabled' : prune.themesSkipped || prune.decisionsSkipped ? 'no_backup' : 'ran',
+    // decay's archival may have taken the cycle's backup, prune only reused it
+    ...(prune?.backup || decay.backup ? { backup_path: (prune?.backup || decay.backup).path } : {}),
     removed: removed.slice(0, REMOVED_SAMPLE).map((r) => ({
       action: r.action, kind: r.kind, id: r.id, label: String(r.label).slice(0, 200),
     })),
@@ -130,7 +131,7 @@ export async function runConsolidationCycle(opts = {}) {
     // 2. Decay weights
     abortInfo = checkpoint('decay');
     const decayStart = Date.now();
-    if (!abortInfo) decayResult = decayWeights(db);
+    if (!abortInfo) decayResult = decayWeights(db, { backupDir: opts.backupDir });
 
     // 2b. Prune what decay made irrelevant (P5-2): decayed-out decisions move
     // to the archive, idle themes are deleted once a backup exists.

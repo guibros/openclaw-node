@@ -4,6 +4,32 @@ Append-only. Newest at top. Each entry: date, decision, why, consequences. Refer
 
 ---
 
+## 2026-09-26 — D9 deployed on the node
+
+**Deploy (operator: "merge it and deploy to the node").** PR #33 merged as `7ddb2e4`.
+
+- The node's live checkout (`/Users/moltymac/openclaw-nodedev`, which `~/.openclaw/workspace/lib` symlinks to) was not on `main`. It ran `fa96e51` plus two live deploys from the same evening: `6911644` (knowledge-server entrypoint fix) and `3fe34d4`/`ac8682d` (F1/R1).
+- D9 was cherry-picked on top of those as `e4671bc` on `node-deploy/2026-09-26-d9`. Switching the checkout to `main` would have dropped `fa96e51`'s deployed fixes and pulled in undeployed Foreman code.
+- Before the change, `state.db` was backed up to `~/.openclaw/backups/pre-d9-2026-09-26/state.db` (integrity ok, v6), and the consolidation scheduler was paused across the switch.
+- That checkout has no TypeScript, so the `decayed.ts` outputs of event-schemas came from a build of identical sources.
+- The runtime scheduler copy, last refreshed 2026-08-02, was replaced with the repo version. The old copy is kept as `consolidation-scheduler.mjs.bak-2026-08-02`.
+- ai.openclaw.memory-daemon was restarted.
+
+**Runtime evidence.**
+- The daemon logged `Extraction store initialized` at 21:51:56 EDT. The live DB then reads `user_version` 7.
+- `decisions_archived`, `mentions_archived` and `entity_aliases_archived` exist. `entities_archived` gained `embedding`, `private`, `last_decayed_at` and `reinforcement_count`, and kept `restored_at`.
+- Row counts are unchanged: 20 decisions, 14 entities, 1,107 archived entities, 289 mentions, 724 themes.
+- The first cycle on the new code wrote `cycle complete (186419ms): decayed 0 entities + 1 decisions, archived 0 entities · pruned: archived 0 decisions, deleted 0 idle themes`. Only the new scheduler writes that line.
+- Not yet observed:
+  - the first per-row `archived …` line, when the next decision decays out (the audit projected five within seven days);
+  - the first backup under `~/.openclaw/backups/consolidation/`, when a theme first goes 180 days idle.
+
+**Found while deploying (reported to the operator).**
+- The node's local event log is unavailable to both the daemon and the scheduler ("subjects overlap with an existing stream"). `memory.decayed`, with D9's per-row records, therefore does not reach the stream here; the scheduler log is the audit trail until that is fixed.
+- The daemon's boot-time integrity scan of the 192 MB knowledge DB took 3 min 40 s, against 5–28 s on earlier boots. It competed with concurrent knowledge index passes (the knowledge-server fix's probes, 21:30–21:56) and a load average of ~30. That kept :7893 down from 21:47:43 to 21:51:56.
+
+---
+
 ## 2026-09-26 — D9: decay archives, it never destroys; archives are not purged; the one hard delete waits for a backup
 
 **Decision (operator, via AskUserQuestion: "Repair silo batch", "Stop purging archives").** Every row consolidation takes out of the live tables is moved, never lost:

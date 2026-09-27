@@ -120,3 +120,27 @@ describe('semanticSearch with pathPrefix', () => {
     assert.ok(rel.every((h) => h.path.startsWith('projects/')));
   });
 });
+
+describe('pathPrefix over-fetch on an index past the sqlite-vec k ceiling', () => {
+  // sqlite-vec refuses a knn k above 4096; the node's index holds ~9,300 chunks.
+  // The subtree sits outside the first over-fetch window but inside the ceiling.
+  let db;
+  before(() => {
+    db = initDatabase(':memory:');
+    const docs = [];
+    for (let i = 0; i < 4200; i++) docs.push({ path: `noise/n-${i}.md`, text: 'noise', vec: unitVec(1, 0.001 * (i + 1)) });
+    docs.push({ path: 'target/t.md', text: 'target', vec: unitVec(1, 0.25) });
+    seed(db, docs);
+  });
+  after(() => db.close());
+
+  it('semanticSearch still finds the subtree', async () => {
+    const hits = await semanticSearch(db, 'q', 10, { precomputedEmbedding: unitVec(1), pathPrefix: 'target' });
+    assert.deepEqual(hits.map((h) => h.path), ['target/t.md']);
+  });
+
+  it('findRelated still finds the subtree', async () => {
+    const rel = await findRelated(db, 'noise/n-0.md', 10, { pathPrefix: 'target' });
+    assert.deepEqual(rel.map((h) => h.path), ['target/t.md']);
+  });
+});

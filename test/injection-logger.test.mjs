@@ -20,7 +20,7 @@ process.env.INJECTION_LOG_PATH = LOG_PATH;
 process.env.INJECTION_LOG_ROTATE_BYTES = '1024';  // small for rotation tests
 delete process.env.INJECTION_LOG_DISABLED;
 
-const { logInjection, channelStats, promptExcerpt, getLogPath } = await import('../lib/injection-logger.mjs');
+const { logInjection, flushInjectionLog, channelStats, promptExcerpt, getLogPath } = await import('../lib/injection-logger.mjs');
 
 after(() => {
   rmSync(TMP, { recursive: true, force: true });
@@ -110,6 +110,15 @@ describe('logInjection', () => {
     // Should still have 2 lines
     const lines = readFileSync(LOG_PATH, 'utf-8').trim().split('\n');
     assert.equal(lines.length, 2);
+  });
+
+  it('flushInjectionLog resolves once writes nobody awaited have landed', async () => {
+    writeFileSync(LOG_PATH, '');
+    // The injector fires these and forgets them; close() relies on the flush instead.
+    for (let i = 0; i < 5; i++) logInjection({ session_id: `unawaited-${i}` });
+    await flushInjectionLog();
+    const lines = readFileSync(LOG_PATH, 'utf-8').trim().split('\n');
+    assert.equal(lines.length, 5);
   });
 
   it('rotates the file when it exceeds ROTATE_AT_BYTES', async () => {
