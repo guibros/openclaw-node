@@ -171,6 +171,32 @@ describe('createExtractionStore', () => {
     assert.equal(orphan.c, 0, 'no orphaned mentions');
   });
 
+  it('v5 migration collapses per-turn mentions of one session despite the v2 turn-keyed index', () => {
+    // Simulate a pre-v5 DB: the v2 (session, entity, turn) index, and one entity
+    // sighted at two turns of one live session (flushed twice as it grew)
+    const db = store.db;
+    const latest = db.pragma('user_version', { simple: true });
+    db.prepare(`INSERT INTO entities (name, type, canonical_name, first_seen, last_seen, mention_count)
+                VALUES ('NATS', 'technology', 'nats', 't1', 't2', 0)`).run();
+    const id = db.prepare(`SELECT id FROM entities WHERE name = 'NATS'`).get().id;
+    db.exec('DROP INDEX idx_mentions_session_unique');
+    db.exec('CREATE UNIQUE INDEX idx_mentions_dedup ON mentions(session_id, entity_id, IFNULL(turn_index, -1))');
+    const mention = db.prepare(`INSERT INTO mentions (entity_id, session_id, turn_index, salience, created_at) VALUES (?, ?, ?, 0.8, 't1')`);
+    mention.run(id, 's-1', 3);
+    mention.run(id, 's-1', 9);
+    mention.run(id, 's-2', 4);
+    db.pragma('user_version = 4');
+    const dbPath = db.prepare('PRAGMA database_list').get().file;
+    store.close();
+
+    // Re-open: v5 runs, and the ladder climbs back to the current version
+    store = createExtractionStore({ dbPath });
+    assert.equal(store.db.pragma('user_version', { simple: true }), latest);
+    const rows = store.db.prepare('SELECT session_id, turn_index FROM mentions WHERE entity_id = ? ORDER BY session_id').all(id);
+    assert.deepEqual(rows.map((r) => [r.session_id, r.turn_index]), [['s-1', 9], ['s-2', 4]], 'one mention per session, at its latest turn');
+    assert.equal(store.db.prepare('SELECT mention_count FROM entities WHERE id = ?').get(id).mention_count, 2);
+  });
+
   it('re-extracting a decision refreshes rationale/confidence instead of duplicating', () => {
     store.storeExtractionResult('session-001', mockExtractionResult);
     const updated = {
