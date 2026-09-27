@@ -153,7 +153,9 @@ renders empty, which is shadow. Changing it means re-rendering the unit and rest
 
 One JSONL file per task at `~/.openclaw/foreman/<task_id>.jsonl` (`MESH_FOREMAN_DIR`):
 `foreman.started` · `worker.started` · `foreman.observed` · `foreman.assessed` ·
-`foreman.intervened` (with `mode` and, when enforced, `outcome`) · `foreman.assessor_unavailable` ·
+`foreman.intervened` (with `mode` and, when enforced, `outcome`) · `foreman.decision_dropped` (enforcing:
+the worker an assessment observed was no longer the active one when it returned, so it was not acted
+on) · `foreman.assessor_unavailable` ·
 `worker.exited` · `verification.recorded` (`source`: `metric`, `verifier` or `exit-code`) ·
 `foreman.closed` (the summary). Worker output feeds the observation in memory and is **never**
 written per line. `foreman.assessed`, `foreman.intervened`, `foreman.assessor_unavailable` and

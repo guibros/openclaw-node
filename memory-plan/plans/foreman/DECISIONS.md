@@ -118,8 +118,9 @@ work. Steps 2.1/2.2 were marked closed with container tests as their evidence, w
 Verify lines are `runtime:` on the operator's node — and 2.1's (`sleep` in a shell task) could not
 have run, since the shell filter refuses `sleep`.
 
-**Consequences.** A node that never sets the variable behaves as before Foreman, plus timelines:
-the calibration substrate D1 wanted. Turning enforcement on is a deliberate operator act per node
+**Consequences.** A node that never sets the variable behaves as before Foreman, plus timelines —
+the calibration substrate D1 wanted — except that workers are spawned detached in every mode (Known
+limits in `docs/foreman.md`). Turning enforcement on is a deliberate operator act per node
 (re-render the unit, restart the agent); step 1.2's shadow timeline is its natural input, though no
 count of timelines is required by this decision. With enforcement on, a no-metric task costs one
 verifier run per attempt, and a node whose worktree cannot be snapshotted cannot complete no-metric

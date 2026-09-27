@@ -1,6 +1,7 @@
 # AUDIT — audit remediation 2026-09-26 (D3)
 
-Batch `audit-remediation-2026-09-26` (SCOPE.md), operator-approved in session on 2026-09-26.
+Batch `audit-remediation-2026-09-26`, operator-approved in session on 2026-09-26 (it ran under the
+scope contract, which protocol D11 has since removed).
 One batch on operator instruction: five defects the 2026-09-26 audit verified on main, plus making
 enforcement opt-in. Steps 2.1 and 2.2 go back to `[A]`; no step closes here.
 
@@ -41,7 +42,7 @@ refuses `sleep`; 1.2's Verify queried `hyperagent_telemetry` (the table is `ha_t
 | `services/launchd/ai.openclaw.mesh-agent.plist`, `services/systemd/openclaw-mesh-agent.service` | `MESH_FOREMAN_ENFORCE=${MESH_FOREMAN_ENFORCE}` |
 | `scripts/install/services.sh`, `bin/openclaw-node-init.js` | both renderers map the new variable (unset → empty → shadow); `openclaw.env.example` documents it |
 | `test/foreman-*.test.mjs`, `test/node-init-render.test.mjs` | new `foreman-verify-gate.test.mjs` (12); policy, verifier, observation, supervisor, enforcement suites updated and extended; the unit renders `MESH_FOREMAN_ENFORCE` empty unless set |
-| docs | `docs/foreman.md`, `CLAUDE.md`, this silo's INVENTORY/ROADMAP/DECISIONS (D3)/COMPONENT_REGISTRY/VERSION/OUT_OF_SCOPE |
+| docs | `docs/foreman.md`, `CLAUDE.md`, this silo's INVENTORY/ROADMAP/DECISIONS (D3)/COMPONENT_REGISTRY/VERSION |
 
 ## §3 Evidence (code — this checkout, macOS, Node v24.13.0)
 
@@ -79,7 +80,7 @@ refuses `sleep`; 1.2's Verify queried `hyperagent_telemetry` (the table is `ha_t
 
 Every failure is outside the changed code. `install.sh --dry-run writes nothing under $HOME` and
 `plan-protocol` "blocks a listed path that is a symlink escaping the repo" fail on unmodified main
-here too (captured in `OUT_OF_SCOPE.md`). The rest were NATS request timeouts in live-mesh suites —
+here too (Known limits in `docs/foreman.md`). The rest were NATS request timeouts in live-mesh suites —
 `collab-integration` ×3 on the first run, `agent-recruit` ×1 on the final — which load none of the
 changed files and pass alone once the node's shared mesh is quiet (52/52 and 5/5). The baseline's
 `circling-adaptive-convergence` ENOTEMPTY teardown failure did not recur; the 4 embedding-model
@@ -101,10 +102,12 @@ is observed there.
 ## §5 Findings
 
 - [POSITIVE] With shadow as the default, a node that never sets the variable behaves as before
-  Foreman, plus timelines — the substrate D1 wanted, without D2's risk.
+  Foreman, plus timelines — the substrate D1 wanted, without D2's risk — except that workers are
+  spawned detached in every mode (Known limits in `docs/foreman.md`).
 - [POSITIVE] The gate's decisive facts (verdict count, tree hash, exit code) are all mechanical;
   the assessor can only release (ESCALATE), never complete.
-- [NEGATIVE] What the gate still cannot see is captured in `OUT_OF_SCOPE.md` (verifier writes
+- [NEGATIVE] What the gate still cannot see is listed under Known limits in `docs/foreman.md`
+  (the retired OUT_OF_SCOPE.md's last text: `git show 88e3441:memory-plan/plans/foreman/OUT_OF_SCOPE.md`) (verifier writes
   outside the worktree, verifiers that cannot inspect the tree, single-sample `needs_human`,
   silent claude output, sticky escalation, unrendered units via `mesh deploy --include-services`).
 
