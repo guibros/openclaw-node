@@ -62,3 +62,13 @@ checkout moved to a tree carrying the check; every session that has loaded it si
 real paths; regression test `test/mcp-knowledge-entrypoint.test.mjs`. Both files sit in the open
 `2026-09-21-openviking-adopt` block, so no files are added. Runtime evidence is the operator's step
 (the live checkout must carry the fix): a Claude Code session on the node connects to `knowledge`.
+
+`workspace-bin/web-fetch.mjs` carries the same check. The operator extended this scope to it on
+2026-09-26 20:57 EDT (asked in the session: "Extend scope, fix on #34"): same fix, regression test
+`test/web-fetch-entrypoint.test.mjs`. It cannot fire on the node today because the runtime copy in
+`~/.openclaw/workspace/bin/` is a plain file, but a symlinked `bin/` would make the SSRF-guarded
+fetcher exit 0 without fetching anything. The file below is in scope for that commit only.
+
+```files 2026-09-26-entrypoint-hotfix
+workspace-bin/web-fetch.mjs
+```
