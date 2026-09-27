@@ -1,7 +1,18 @@
 # SCOPE — protocol plan
 
 **Status:** active
-**Goal:** Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
+**Goal:** Deploy that deploys (2026-09-26, operator-approved batch; audit of main df503b3). The listener
+fetched + fast-forwarded before spawning `mesh-deploy.js --local`, whose own fetch-and-diff then saw
+HEAD == origin and deployed nothing (reporting success); rollback re-ran that fetch and fast-forwarded
+straight back to the bad commit; the signed `trigger.sha` was never the thing checked out. Batch: one
+deploy function over `(preSha, targetSha)` driven by `git diff --name-status` (deletions and renames
+included), a no-fetch pinned mode (`--from/--to`) used for both the forward deploy and the rollback,
+the listener checking out exactly the signed SHA, `lastSha` untouched by runs that deploy nothing,
+workspace-docs `preInstall` vetoing with `false`, Linux units named as installed (`openclaw-mesh-agent`)
+with restart failures failing the deploy, and `next build` when Mission Control sources change.
+Integration test: bare origin + clone, deploy installs/restarts the changed components, a failing
+deploy rolls back to preSha and stays there. Code + tests; runtime evidence is the operator's step.
+Earlier goal — Phase 7 (2026-09-07): per-node NATS credentials — the identity ed25519 key doubles as the
 NATS nkey, `OPENCLAW_NATS_AUTH=token|nkey|nkey-strict` (default token, no behaviour change until the
 operator flips), server users block rendered from the identity registry into an included
 `nats-auth.conf`, worker deny on `mesh.deploy.trigger`, every credential-less connect routed through
@@ -25,10 +36,19 @@ Local consumers that GET :3000 read the 0600 session token like scheduler-heartb
 Code + focused tests + MC build only; runtime evidence on the live host is the operator's step.
 Per-node NATS nkeys is deferred (needs install-time credential provisioning).
 Phase 0+1, prior runtime-repair (4.1-4.4) and the review-doc batch are preserved as closed blocks.
-**Set at:** 2026-09-06T00:00:00Z
-**Expires:** 2026-09-10T00:00:00Z
+**Set at:** 2026-09-26T00:00:00Z
+**Expires:** 2026-09-28T00:00:00Z
 
-```files embedder-prefetch-honesty-2026-09-08
+```files deploy-pinned-sha-2026-09-26
+bin/mesh-deploy.js
+bin/mesh-deploy-listener.js
+test/deploy-pinned-sha.test.mjs
+test/deploy-rollback.test.mjs
+test/wiring-manifest.test.mjs
+memory-plan/plans/protocol/SCOPE.md
+```
+
+```files embedder-prefetch-honesty-2026-09-08 closed
 scripts/install/llm-setup.sh
 test/install-modules.test.mjs
 memory-plan/plans/protocol/SCOPE.md
