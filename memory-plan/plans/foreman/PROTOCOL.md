@@ -185,7 +185,7 @@ enabling the chain is an explicit operator decision per plan (viewer Automation 
 
 A PreToolUse hook (`.claude/hooks/scope-check.sh`) used to refuse any edit whose target was not
 listed in an active, unexpired `<plan>/SCOPE.md`. The hook, every `SCOPE.md` and every
-`OUT_OF_SCOPE.md` were removed at the operator's instruction (protocol DECISIONS D10). Nothing
+`OUT_OF_SCOPE.md` were removed at the operator's instruction (protocol DECISIONS D11). Nothing
 gates edits; §3's phase discipline is convention.
 
 ## 9. Starting a new plan iteration

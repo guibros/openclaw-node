@@ -5,7 +5,7 @@ older implementation history remains in git and audits.
 
 ## Family 1: plan control plane
 
-### Scope enforcement — REMOVED (D10)
+### Scope enforcement — REMOVED (D11)
 
 | | |
 |---|---|

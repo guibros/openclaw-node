@@ -205,7 +205,7 @@ Blocks per [ROADMAP.md](ROADMAP.md); the paper is docs/circling-strategy-impleme
 > **Verify:** `runtime:` one savant session over seeded telemetry yields a change-set that validates against the schema AND names a concrete edit (patch hunk or scope-addendum text) with expected evidence; reviewers' critiques recorded.
 
 > **5.3 — Goal:** change-sets reach the operator through the workplan protocol — never the codebase directly.
-> **Needs:** 5.2 artifacts; 1.4 signing; a named per-plan proposal inbox file (the design used `OUT_OF_SCOPE.md`, removed 2026-09-23 by protocol D10 — choose its replacement first); openclaw-notify.
+> **Needs:** 5.2 artifacts; 1.4 signing; a named per-plan proposal inbox file (the design used `OUT_OF_SCOPE.md`, removed 2026-09-23 by protocol D11 — choose its replacement first); openclaw-notify.
 > **Feeds:** operator decision loop; approved edits enter the normal step/commit discipline.
 > **Verify:** `runtime:` a change-set lands as a ledgered notification (click-through to MC) + a PROPOSED entry in the target plan's proposal inbox with valid signature; `code:` no apply path exists that skips the gate (grep + test asserting the pipeline has no write access outside the proposal inbox).
 

@@ -110,7 +110,7 @@ In May 2026, 5 review rounds + 22 commits in 24h produced ~0 production change b
 The plan structure — blocks, atomic steps, runtime evidence on every close — is the response.
 There is no write gate: the scope contract (`.claude/hooks/scope-check.sh`, per-plan `SCOPE.md` and
 `OUT_OF_SCOPE.md`, their `Expires` dates) was removed on 2026-09-23 at the operator's instruction
-(protocol DECISIONS D10). Don't reintroduce it unless the operator asks. Commits and pushes are
+(protocol DECISIONS D11). Don't reintroduce it unless the operator asks. Commits and pushes are
 still validated (`.claude/hooks/validate-{commit,push}.sh`, also wired as git hooks).
 
 ## Pointers

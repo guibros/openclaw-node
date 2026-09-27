@@ -67,7 +67,7 @@ Rationale: close the gap that makes anything observable (L0), build the spine + 
 
 **Done-evidence:** `diff -rq lib/ ~/.openclaw/workspace/lib/` empty; `lsof :4222` shows nats-server; daemon log shows a line that only current code emits.
 
-**Risk:** symlink means a broken mid-edit file could crash the daemon. Mitigation: daemon has KeepAlive. (The scope-check hook once cited here was removed 2026-09-23, protocol D10.)
+**Risk:** symlink means a broken mid-edit file could crash the daemon. Mitigation: daemon has KeepAlive. (The scope-check hook once cited here was removed 2026-09-23, protocol D11.)
 
 ### L1 — Event log as the spine *(D3)*
 

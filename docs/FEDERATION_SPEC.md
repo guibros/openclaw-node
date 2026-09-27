@@ -477,7 +477,7 @@ NO write path to any file outside that contract. The gate is structural, not pol
 Verify includes a grep-asserting test that no apply-path exists that bypasses the gate.
 
 > **2026-09-23:** the per-plan `OUT_OF_SCOPE.md` files this pipeline used as its proposal inbox
-> were removed with the scope contract (protocol DECISIONS D10). Step 5.3 must name a replacement
+> were removed with the scope contract (protocol DECISIONS D11). Step 5.3 must name a replacement
 > inbox file before it starts; the write-jail invariant above is unchanged.
 
 **Self-referential safety note (from D3):** same-model reviewers (identical advanced-LLM weights reviewing each other)

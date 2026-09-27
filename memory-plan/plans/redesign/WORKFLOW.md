@@ -75,7 +75,7 @@ One commit per step. No mid-step commits, no amends, no force-push (FRAMEWORK §
 The old framework closed 59 steps with zero gate failures — and produced ~0 working production change, because "done" meant "committed + tests green," and the runtime was never updated. The five additions fix exactly that:
 
 1. **Done = runtime-observable** (Phase 5b + Gate check 6). A step that compiles and passes tests but doesn't change the running system is NOT done.
-2. **One step, its §6 deltas only.** No drift, no "while I'm here." (The scope-check hook that once gated this was removed 2026-09-23, protocol D10.)
+2. **One step, its §6 deltas only.** No drift, no "while I'm here." (The scope-check hook that once gated this was removed 2026-09-23, protocol D11.)
 3. **No parallel implementations / no work outside the inventory** (MASTER_PLAN §4.6, §4.10). The thing that produced the dead `bin/openclaw-memory-daemon.mjs` is forbidden.
 4. **COMPONENT_REGISTRY is living truth**, updated per step — so "what actually runs" is never a mystery again.
 5. **DESIGN_INPUTS taste check** — a step that fails the Karpathy-wiki intent or the one-hop bar needs an explicit DECISIONS entry before it's built.

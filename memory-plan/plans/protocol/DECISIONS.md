@@ -145,7 +145,7 @@ ownership defects, not threshold-tuning problems.
 exemption, watcher downgrade, dependency duplication, or retrospective health claim is accepted.
 Federation 2.6 remains blocked until Block 4 closes.
 
-## D10 — The scope contract is removed (2026-09-23)
+## D11 — The scope contract is removed (2026-09-23)
 
 **Decision.** At the operator's instruction, the write-gate scope contract is removed entirely:
 `.claude/hooks/scope-check.sh` and its `.claude/settings.json` registration; every
@@ -161,14 +161,16 @@ deny list stay.
 **Why.** The hook refused every edit in the repo whenever no active, unexpired scope existed, so each
 lapsed `Expires` date locked the repo until someone rewrote a SCOPE.md, including for work the
 operator had asked for. D8 already recorded three scopes still advertising `Status: active` after
-their expiries; at removal, the protocol scope had been expired since 2026-09-10 and the only other
-active one (openviking-adopt) would have lapsed on 2026-09-28. The operator judged the gate not
-worth that cost.
+their expiries; the protocol scope then sat expired from 2026-09-10 until the 2026-09-26 deploy
+batch reopened it, and each batch since has had to rewrite a SCOPE.md just to be allowed to edit.
+The operator judged the gate not worth that cost. D11 rather than D10: the pending protocol 4.5
+work already claims D10.
 
 **Consequences.** PR #15 (an earlier, unmerged removal attempt) is superseded. D8's "every future
 batch opens one fresh labeled scope block with a bounded expiry" no longer applies. The observations
-captured in the removed OUT_OF_SCOPE.md files are not migrated; read them at the last commit that had
-them: `git show df503b3:memory-plan/plans/<id>/OUT_OF_SCOPE.md`. Federation step 5.3 used
+captured in the removed OUT_OF_SCOPE.md files (fifteen of them added on 2026-09-26) are not
+migrated; read them at the last `main` commit that had them:
+`git show aeffd47:memory-plan/plans/<id>/OUT_OF_SCOPE.md`. Federation step 5.3 used
 OUT_OF_SCOPE.md as the savant-proposal inbox and must choose a new one before it can start (flagged
 on its row). repair P.4 (scope-check tightening) is moot. Audits, older DECISIONS entries and close
 notes that mention SCOPE.md are records and stay as written.

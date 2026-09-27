@@ -183,7 +183,7 @@ The repo's `CLAUDE.md` instructs every session to read this doc before any tool 
 A PreToolUse hook (`.claude/hooks/scope-check.sh`) used to refuse any `Edit`/`Write` whose target
 was not listed in an active, unexpired `plans/<id>/SCOPE.md`, so every edit in the repo was refused
 whenever no unexpired scope existed. The hook, every `SCOPE.md` and every `OUT_OF_SCOPE.md` were
-removed at the operator's instruction (protocol DECISIONS D10). Nothing gates edits; §4 is held by
+removed at the operator's instruction (protocol DECISIONS D11). Nothing gates edits; §4 is held by
 whoever is working.
 
 ### 6.3 Done-contract gate (commit-time enforcement)
