@@ -72,3 +72,12 @@ fetcher exit 0 without fetching anything. The file below is in scope for that co
 ```files 2026-09-26-entrypoint-hotfix
 workspace-bin/web-fetch.mjs
 ```
+
+**Follow-up 2026-09-26 (knowledge MCP startup; the operator chose "Connect first, index after" in the
+session):** once the entrypoint fix was deployed, the server on the node answered only after its
+startup index pass, which took 137.8 s and then 205.9 s waiting on LLM directory abstracts. Claude Code
+gives an MCP server 30 s. `createKnowledgeEngine({ background: true })` now returns before that pass,
+so the server connects first, and the initial pass, polls and `reindex` run one at a time.
+`lib/mcp-knowledge/core.mjs` and `server.mjs` are in the open batch block; the regression test is
+`test/mcp-knowledge-startup.test.mjs`. Runtime evidence: a Claude Code session on the node connects to
+`knowledge`.
