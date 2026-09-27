@@ -4,6 +4,49 @@ Things observed while doing repair-plan work that deserve attention later. Agnos
 
 ---
 
+## 2026-09-26 — Concurrent first opens of a never-migrated DB can fail
+
+- **Observed while:** stress-testing D9's v7 migration: four processes (two extraction-store opens, two consolidation inits) racing on one DB that had never been migrated.
+- **Area:** the pre-existing column migrations (`ensureReinforcementColumn`, the `last_decayed_at` ALTERs in `initConsolidationTables`) and the `decisions_fts` creation in `createExtractionStore` — none run under a write-locking transaction.
+- **Problem:** every round produced `duplicate column name: reinforcement_count` or `vtable constructor failed: decisions_fts` in one of the processes. D9's own migration is IMMEDIATE and showed 0 errors in 12 rounds on a DB already carrying those columns (its DEFERRED variant: 2 of 12).
+- **Why it matters:** on a fresh install the daemon and the first scheduler cycle can hit it; the loser fails once (cycle error / launchd restart) and the next attempt succeeds — noisy rather than lossy.
+- **Severity guess:** LOW.
+- **Who-touches-next:** whoever next touches the store or consolidation migrations.
+
+## 2026-09-26 — `bin/consolidate.mjs --dry-run` writes to state.db
+
+- **Observed while:** consolidation-archive batch (D9).
+- **Area:** the consolidation CLI's `--dry-run` flag / `runConsolidationCycle` `dryRun` option.
+- **Problem:** documented as "skip writes, just report what would happen", but only the vault surfaces honor it; decay, entity archival, the prune step (decision archival, idle-theme deletion and its backup), reinforcement and the promotion fingerprint all write.
+- **Why it matters:** an operator previewing a cycle against the live DB mutates it — the natural way to check what the next cycle will remove is itself a removal.
+- **Severity guess:** MEDIUM.
+- **Who-touches-next:** whoever next works the consolidation CLI.
+
+## 2026-09-26 — Mentions never raise salience; an entity discussed daily but never injected still decays out
+
+- **Observed while:** D9's decay-anchor fix and its +14-day rehearsal on a snapshot of the live DB (10 of 14 live entities would archive without recall).
+- **Area:** the decay model (`lib/consolidation.mjs`) and the store's mention path.
+- **Problem:** salience rises only through recall (injection) and co-occurrence reinforcement. The idle clock now restarts at a sighting, but that forgives only the gap between the previous decay application and the sighting, so steady mentions without injection still decay to the archive on wall-clock time.
+- **Why it matters:** with D9 the archive keeps and restores everything, so this is churn rather than loss — but "actively discussed" and "archived" can coincide, and the injector ranks by the salience that only it can raise.
+- **Severity guess:** LOW–MEDIUM (a model question, not a bug).
+- **Who-touches-next:** whoever next revisits the decay model or the injector's selection.
+
+## 2026-09-26 — `~/.openclaw/state.db` is world-readable
+
+- **Observed while:** sizing D9's backups: `state.db` is mode 0644; the three `pre-step-*` backup directories under `~/.openclaw/backups/` are 0755 (D9's own backups are 0700/0600).
+- **Area:** memory DB creation (`openStore`) and operator backup directories.
+- **Problem:** conversation-derived memory is readable by every local account; the 2026-09-06 secrets-permissions remediation did not cover the memory DB or its copies.
+- **Severity guess:** MEDIUM on a shared machine, LOW on a single-user one.
+- **Who-touches-next:** Block P / the protocol 4.8 security batch.
+
+## 2026-09-26 — The runtime tree mixes symlinks into a feature-branch checkout with stale copies
+
+- **Observed while:** preparing D9's deploy notes. `~/.openclaw/workspace/lib` is a directory symlink and `bin/consolidate.mjs` a file symlink into `/Users/moltymac/openclaw-nodedev`, whose checkout is on a feature branch (not `main`); `bin/consolidation-scheduler.mjs` is a plain copy dated 2026-08-02 that differs from that checkout's HEAD, and `packages/event-schemas` is a copy too.
+- **Problem:** what runs is whatever branch that checkout has open (for symlinked paths) combined with whenever each copy was last made — a partial deploy is easy and invisible (the live scheduler predates every scheduler change since August).
+- **Why it matters:** a fix spanning linked and copied files can land half-deployed; "deployed" is not a single fact.
+- **Severity guess:** MEDIUM.
+- **Who-touches-next:** protocol 4.7 (drift truth); related to the known "deploy-drift probe diffs a symlink against itself".
+
 ## 2026-06-11 — mission-control fails `tsc --noEmit` with ~25 pre-existing type errors
 
 - **Observed while:** hydration-mismatch hotfix (skeleton widths). Typecheck of the workspace surfaced errors in `src/components/observability/event-timeline.tsx` (10), `src/app/watcher/page.tsx` (7, incl. `lib_symlinked` vs `lib_symlink` property-name drift against the typed API), `src/lib/__tests__/mesh-kv-sync.test.ts` (5), `src/components/mesh/network-topology.tsx` (3). Verified pre-existing: identical with the hotfix stashed.
