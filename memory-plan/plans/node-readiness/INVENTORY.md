@@ -6,7 +6,7 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 |---|---|---|---|---|
 | 1 | 1.1 | v1.1 | [x] | Restore gateway startup with schema-valid streaming configuration — 2026-09-27: 703s stable PID/run count, validator, healthy loopback and anonymous 401 |
 | 1 | 1.2 | v1.2 | [x] | Restore installed Mission Control — fa54a0d deployed; 605.21s healthy, supervised recovery 2.41s, auth/maintenance verified, 537 tasks preserved |
-| 1 | 1.6 | v1.6 | [ ] | Restore the plan viewer with authenticated control endpoints |
+| 1 | 1.6 | v1.6 | [A] | Restore the plan viewer with authenticated control endpoints |
 | 1 | 1.3 | v1.3 | [ ] | Establish restorable persisted-state backups |
 | 1 | 1.4 | v1.4 | [ ] | Reconcile message-bus topology |
 | 1 | 1.5 | v1.5 | [ ] | Make deployment revision and services reproducible |

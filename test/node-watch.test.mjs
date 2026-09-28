@@ -190,10 +190,17 @@ describe('node-watch observed verdicts', () => {
     assert.equal((await target('obs.graph_cache').run(envFor(stale))).status, STATUS.BROKEN);
   });
 
-  it('roadmap viewer OFF when not listening, WORKING on 200', async () => {
+  it('roadmap viewer requires authenticated plan discovery, not a public sign-in page', async () => {
     const down = makeCtx({ httpGet: async () => { throw new Error('ECONNREFUSED'); } });
     assert.equal((await target('ops.roadmap').run(envFor(down))).status, STATUS.OFF);
-    const up = makeCtx({ httpGet: async () => ({ status: 200 }) });
+    const shell = makeCtx({ httpGet: async () => ({ status: 200 }) });
+    assert.equal((await target('ops.roadmap').run(envFor(shell))).status, STATUS.BROKEN);
+    const denied = makeCtx({ httpGet: async () => ({ status: 401 }) });
+    assert.equal((await target('ops.roadmap').run(envFor(denied))).status, STATUS.BROKEN);
+    const up = makeCtx({ httpGet: async url => {
+      assert.equal(url, 'http://127.0.0.1:7892/api/plans');
+      return { status: 200, json: { plans: [] } };
+    } });
     assert.equal((await target('ops.roadmap').run(envFor(up))).status, STATUS.WORKING);
   });
 
