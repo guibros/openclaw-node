@@ -1,0 +1,96 @@
+{
+  "sourceCommit": "0f2e148892c709aa59808fcb9c230db20e64885c",
+  "liveBase": "e57f89b264a30892389cabe573786fb516a6a208",
+  "release": {
+    "base": "e57f89b264a30892389cabe573786fb516a6a208",
+    "candidate": "0f2e148892c709aa59808fcb9c230db20e64885c",
+    "release": "/Users/moltymac/.openclaw/releases/task-drain-0f2e148-e57f89b",
+    "trackedFilesChecked": 1911,
+    "changedFiles": [
+      "bin/mesh-task-daemon.js"
+    ],
+    "patchSha256": "83d7fc337d45d472126dfc0ca684fa5793e8eb01a274571d323588cebb6744d6",
+    "runtimeEntrySha256": "26da708ee9167d1ddc35fba0cf010304109ee2ce14951286d93cbff1f1798e36",
+    "runtimeNode": "/usr/local/bin/node",
+    "previousEntry": "/Users/moltymac/openclaw-nodedev/bin/mesh-task-daemon.js",
+    "workingDirectory": null,
+    "unitEnvKeys": [
+      "HOME",
+      "MESH_CIRCLING_STEP_TIMEOUT_MS",
+      "NODE_PATH",
+      "OPENCLAW_NATS",
+      "OPENCLAW_REPO_DIR",
+      "PATH"
+    ],
+    "nodeModules": "/Users/moltymac/openclaw-nodedev/node_modules",
+    "activated": false
+  },
+  "deployedAt": "2026-09-28T14:27:36.246070+00:00",
+  "deployment": {
+    "initialPID": "93906",
+    "firstDeployedPID": "9201",
+    "firstRestartedPID": "9294",
+    "normalExit": 0,
+    "oneCompletionLine": true,
+    "unrelatedCoreOwnersUnchanged": true,
+    "unitOnlyEntryChanged": true
+  },
+  "gapProof": {
+    "at": "2026-09-28T14:29:25.098704+00:00",
+    "before": {
+      "loaded": true,
+      "pid": 9294
+    },
+    "gapSubscriptions": 0,
+    "after": {
+      "loaded": true,
+      "pid": 10032
+    },
+    "subscriptionCounts": [
+      1,
+      0,
+      1
+    ],
+    "oneCompletionLine": true,
+    "noDisconnectOrReconnectInWindow": true,
+    "forcedKill": false,
+    "unitUnchanged": true,
+    "accepted": true
+  },
+  "finalSignalProof": {
+    "at": "2026-09-28T14:31:21.823297+00:00",
+    "beforePID": 10032,
+    "after": {
+      "pid": "10490",
+      "runs": "2",
+      "last exit code": "0"
+    },
+    "actualDaemonReadOnlyReplyBeforeSignal": true,
+    "actualDaemonReadOnlyReplyAfterRestart": true,
+    "daemonQueuedTasks": 0,
+    "singleInstance": true,
+    "normalExit": 0,
+    "oneCompletionLine": true,
+    "noDisconnectOrReconnectInWindow": true,
+    "forcedKill": false,
+    "initialPostRestartProbe": "PID appeared before subscriptions; first read-only request refused, later readiness succeeded",
+    "accepted": true
+  },
+  "dependencies": {
+    "nats": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+    "js-yaml": "/Users/moltymac/openclaw-nodedev/node_modules/js-yaml/index.js",
+    "better-sqlite3": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js"
+  },
+  "noDisconnectOrReconnectInShutdownWindow": true,
+  "claudeReview": {
+    "thread": "OpenClaw code and architecture review",
+    "message": 86,
+    "approvedSource": "0f2e148",
+    "verdict": "idle planned-stop contract approved; no blocker",
+    "independentLinuxNode": "22.22.2",
+    "independentTests": 4,
+    "mutantsRejected": 6
+  },
+  "privateJournal": "/Users/moltymac/.openclaw/backups/node-readiness/task-daemon-drain-0f2e148",
+  "activeHandlerGuarantee": false
+}
