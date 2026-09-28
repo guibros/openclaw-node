@@ -47,6 +47,7 @@ const { getActivityState, getSessionInfo } = require('../lib/agent-activity');
 const { loadAllRules, matchRules, formatRulesForPrompt, detectFrameworks, activateFrameworkRules } = require('../lib/rule-loader');
 const { loadHarnessRules, runMeshHarness, runPostCommitValidation, formatHarnessForPrompt } = require('../lib/mesh-harness');
 const { validateMetricCommand } = require('../lib/exec-safety');
+const { TASK_TERMINAL } = require('../lib/mesh-tasks');
 const { findRole, formatRoleForPrompt } = require('../lib/role-loader');
 
 const sc = StringCodec();
@@ -495,7 +496,8 @@ async function natsRequest(subject, payload, timeoutMs = 10000) {
     const response = JSON.parse(sc.decode(msg.data));
     if (!response.ok) {
       warn(`natsRequest ${subject}: ${response.error}`);
-      throw new Error(response.error);
+      // A TASK_TERMINAL refusal carries the task's status so the caller can stop.
+      throw Object.assign(new Error(response.error), { code: response.code, taskStatus: response.status });
     }
     return response.data;
   } catch (err) {
@@ -2185,6 +2187,30 @@ async function runAttempts(task, worktreePath, supervisor, startedAt) {
   log(`RELEASED: ${task.task_id} — ${reason}`);
 }
 
+// A task the daemon already ended (budget auto-fail, stall release, cancel)
+// surfaces here as the TASK_TERMINAL refusal of the worker's next call. That
+// is a stop, not a crash: wind down like the release path, so the worktree,
+// the agent state and the telemetry are not left on a dead task.
+async function onWorkerError(task, startedAt, err) {
+  if (task && err.code === TASK_TERMINAL) {
+    log(`STOPPED: ${task.task_id} — ${err.message}`);
+    const worktreePath = path.join(WORKTREE_BASE, task.task_id);
+    if (fs.existsSync(worktreePath)) {
+      commitWorktree(worktreePath, task.task_id, `partial: the daemon ended this task (${err.taskStatus})`);
+      cleanupWorktree(worktreePath, true);
+    }
+    writeAgentState('idle', null);
+    await recordHyperagentTask(task, { outcome: 'failure', iterations: 1, startedAt, notes: `Stopped: ${err.message}${err.foremanNote || ''}` });
+    return;
+  }
+  log(`ERROR: ${err.message}`);
+  if (!task) return;
+  await recordHyperagentTask(task, {
+    outcome: 'failure', iterations: 1, startedAt,
+    notes: `Unhandled worker error: ${err.message}${err.foremanNote || ''}`,
+  });
+}
+
 // ── Tracer wrapping ──────────────────────────────────
 executeTask = tracer.wrapAsync('executeTask', executeTask, { tier: 1, category: 'state_transition' });
 executeCollabTask = tracer.wrapAsync('executeCollabTask', executeCollabTask, { tier: 1, category: 'state_transition' });
@@ -2405,14 +2431,8 @@ async function main() {
       claimedTask = null;
 
     } catch (err) {
-      log(`ERROR: ${err.message}`);
-      if (claimedTask) {
-        await recordHyperagentTask(claimedTask, {
-          outcome: 'failure', iterations: 1, startedAt: claimedAt,
-          notes: `Unhandled worker error: ${err.message}${err.foremanNote || ''}`,
-        });
-        claimedTask = null;
-      }
+      await onWorkerError(claimedTask, claimedAt, err);
+      claimedTask = null;
       currentTaskId = null;
       // Don't crash the loop — wait and retry
       await new Promise(r => setTimeout(r, POLL_INTERVAL));
@@ -2443,10 +2463,13 @@ if (require.main === module) {
 // Test surface (no NATS): the prompt builders + harness injectors, and the Foreman
 // completion gate + supervision wrapper (they spawn the task's provider, nothing else).
 module.exports = { buildCirclingPrompt, buildCollabPrompt, buildInitialPrompt, buildRetryPrompt, injectRules, injectRole, injectMemory, injectHyperagentStrategy, recallForTask, readNodeMemory, recordHyperagentTask, deriveExecutionClass, foremanVerify, superviseTask };
-// Review-gate surface (test/mesh-agent-review-gate.test.js): the real merge/review
-// handlers against a real git workspace, with only the NATS connection injected.
+// Review-gate and worker-error surfaces (test/mesh-agent-review-gate.test.js,
+// test/mesh-agent-terminal-task.test.js): the real merge/review handlers and the
+// real daemon client and error path, against a real git workspace, with only the
+// NATS connection injected.
 module.exports.__test = {
   setContext(ctx) { if (ctx.nc !== undefined) nc = ctx.nc; },
   mergeIfApproved, onReviewApproved, onReviewRejected, reconcileKeptBranches,
+  natsRequest, createWorktree, onWorkerError,
 };
 // deploy-v7f0130b

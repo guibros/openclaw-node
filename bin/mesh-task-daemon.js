@@ -34,7 +34,7 @@
 const { connect, StringCodec } = require('nats');
 const { createTracer, setNatsConnection } = require('../lib/tracer');
 const tracer = createTracer('mesh-task-daemon');
-const { createTask, TaskStore, TASK_STATUS, DEFAULT_MAX_REJECTIONS, DEFAULT_LEASE_MS, KV_BUCKET } = require('../lib/mesh-tasks');
+const { createTask, TaskStore, TASK_STATUS, TASK_TERMINAL, DEFAULT_MAX_REJECTIONS, DEFAULT_LEASE_MS, KV_BUCKET } = require('../lib/mesh-tasks');
 const { validateMetricCommand } = require('../lib/exec-safety');
 const { createSession, CollabStore, COLLAB_STATUS, COLLAB_KV_BUCKET, COLLAB_MODE, isModeImplemented } = require('../lib/mesh-collab');
 const { createPlan, autoRoutePlan, PlanStore, PLAN_STATUS, SUBTASK_STATUS, PLANS_KV_BUCKET } = require('../lib/mesh-plans');
@@ -90,9 +90,20 @@ function respondToClaimer(msg, task) {
   msg.respond(sc.encode(JSON.stringify({ ok: true, data: task })));
 }
 
-function respondError(msg, error) {
+function respondError(msg, error, extra) {
   warn(`RPC error: ${error}`);
-  msg.respond(sc.encode(JSON.stringify({ ok: false, error })));
+  msg.respond(sc.encode(JSON.stringify({ ok: false, error, ...extra })));
+}
+
+// The store's mutators return null when the task has already ended (budget
+// auto-fail, stall release, cancel), or in the rare case that it vanished
+// after it was read. Answering "not found" for the first case had workers
+// chasing a deletion that never happened, so re-read the task and name the case.
+async function respondUnchanged(msg, task_id) {
+  const current = await store.get(task_id);
+  if (!current) return respondError(msg, `Task ${task_id} not found`);
+  const why = current.result?.summary ? ` (${current.result.summary})` : '';
+  return respondError(msg, `Task ${task_id} is already ${current.status}${why}`, { code: TASK_TERMINAL, status: current.status });
 }
 
 function parseRequest(msg) {
@@ -317,7 +328,7 @@ async function handleStart(msg) {
   if (!(await authorize(msg, params, existing, { action: 'start', allowOwner: true, allowOperator: false }))) return;
 
   const task = await store.markRunning(task_id);
-  if (!task) return respondError(msg, `Task ${task_id} not found`);
+  if (!task) return respondUnchanged(msg, task_id);
 
   log(`START ${task_id} (owner: ${task.owner})`);
   publishEvent('started', task);
@@ -413,6 +424,7 @@ async function handleComplete(msg) {
       role_validation: roleValidation,
     };
     task = await store.markPendingReview(task_id, enrichedResult);
+    if (!task) return respondUnchanged(msg, task_id);
     const elapsed = task.started_at
       ? ((new Date(task.review_requested_at) - new Date(task.started_at)) / 60000).toFixed(1)
       : '?';
@@ -424,6 +436,7 @@ async function handleComplete(msg) {
     // Do NOT advance plan wave — task is not yet "completed" for dependency purposes
   } else {
     task = await store.markCompleted(task_id, result || { success: true });
+    if (!task) return respondUnchanged(msg, task_id);
     const elapsed = task.started_at
       ? ((new Date(task.completed_at) - new Date(task.started_at)) / 60000).toFixed(1)
       : '?';
@@ -471,7 +484,7 @@ async function handleFail(msg) {
   }
 
   const task = await store.markFailed(task_id, reason || 'unknown', attempts || []);
-  if (!task) return respondError(msg, `Task ${task_id} not found`);
+  if (!task) return respondUnchanged(msg, task_id);
 
   log(`FAIL ${task_id}: ${reason}`);
   publishEvent('failed', task);
@@ -543,7 +556,7 @@ async function handleAttempt(msg) {
   if (!(await authorize(msg, params, existing, { action: 'attempt', allowOwner: true, allowOperator: false }))) return;
 
   const task = await store.logAttempt(task_id, { approach, result, keep });
-  if (!task) return respondError(msg, `Task ${task_id} not found`);
+  if (!task) return respondUnchanged(msg, task_id);
 
   const status = keep ? 'KEEP' : 'DISCARD';
   log(`ATTEMPT ${task_id} [${status}]: ${approach}`);
@@ -592,7 +605,7 @@ async function handleHeartbeat(msg) {
   if (!(await authorize(msg, params, existing, { action: 'heartbeat', allowOwner: true, allowOperator: false }))) return;
 
   const task = await store.touchActivity(task_id);
-  if (!task) return respondError(msg, `Task ${task_id} not found`);
+  if (!task) return respondUnchanged(msg, task_id);
 
   publishEvent('heartbeat', task);
   respond(msg, { task_id, last_activity: task.last_activity });
@@ -613,7 +626,7 @@ async function handleRelease(msg) {
   if (!(await authorize(msg, params, existing, { action: 'release', allowOwner: true, allowOperator: true }))) return;
 
   const task = await store.markReleased(task_id, reason || 'released for human triage', attempts || []);
-  if (!task) return respondError(msg, `Task ${task_id} not found`);
+  if (!task) return respondUnchanged(msg, task_id);
 
   log(`RELEASED ${task_id}: ${reason || 'no reason'} (needs human triage)`);
   publishEvent('released', task);
@@ -2856,6 +2869,7 @@ if (require.main === module) {
     sweepCollabRoundTimeouts: () => sweepCollabRoundTimeouts(),
     handleFail: (msg) => handleFail(msg),
     // F1/R1 (test/mesh-lease-authz.test.js): the handlers a stranger on the bus reaches.
+    // Also owner calls on a task that already ended (test/daemon-terminal-task.test.js).
     handleSubmit: (msg) => handleSubmit(msg),
     handleClaim: (msg) => handleClaim(msg),
     handleGet: (msg) => handleGet(msg),
