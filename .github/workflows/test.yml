@@ -21,6 +21,14 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
+      - name: SQLite recovery fixtures
+        if: matrix.node-version == 22
+        run: |
+          python3 memory-plan/plans/node-state-recovery/audits/step11_sqlite/test_backup.py
+          extension="$(node -p "require('sqlite-vec').getLoadablePath()")"
+          binding="$(node -p "require.resolve('better-sqlite3')")"
+          node memory-plan/plans/node-state-recovery/audits/step11_sqlite/test_native.cjs "$binding" "$extension"
+          node memory-plan/plans/node-state-recovery/audits/step11_sqlite/test_native.cjs node:sqlite "$extension"
       # Mesh stack for the integration suites (~148 tests used to skip
       # VISIBLY as "mesh stack unavailable"). Same pinned nats-server and
       # SHA256 as bootstrap.sh; the task daemon runs against it with an
