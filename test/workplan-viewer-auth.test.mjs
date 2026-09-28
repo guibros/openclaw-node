@@ -53,19 +53,19 @@ function request({ host = `localhost:${PORT}`, url = '/api/plans', headers = {},
 function watch(auth, token) {
   const req = new EventEmitter();
   const res = new EventEmitter();
-  res.endCount = 0;
-  res.end = () => {
-    res.endCount++;
-    res.emit('finish');
+  res.destroyCount = 0;
+  res.destroy = () => {
+    res.destroyCount++;
+    res.emit('close');
   };
   auth.watch(req, res, token);
   return { req, res };
 }
 
-async function waitForFinish(res) {
+async function waitForClose(res) {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), 3000);
-  try { await once(res, 'finish', { signal: controller.signal }); }
+  try { await once(res, 'close', { signal: controller.signal }); }
   finally { clearTimeout(deadline); }
 }
 
@@ -204,8 +204,8 @@ test('sessions expire at their deadline and revocation leaves other grants intac
   const retainedStream = watch(auth, retained.token);
   auth.revoke(revoked.token);
   assert.equal(auth.authorize(`Bearer ${revoked.token}`), null);
-  assert.equal(revokedStream.res.endCount, 1);
-  assert.equal(retainedStream.res.endCount, 0);
+  assert.equal(revokedStream.res.destroyCount, 1);
+  assert.equal(retainedStream.res.destroyCount, 0);
   assert.equal(auth.authorize(`Bearer ${retained.token}`), retained.token);
   assert.equal(auth.authorize(`Bearer ${MASTER}`), MASTER);
 });
@@ -229,15 +229,15 @@ test('token rotation revokes old grants and closes active streams without anothe
   const masterStream = watch(auth, MASTER);
   const sessionStream = watch(auth, session.token);
   const finished = Promise.all([
-    waitForFinish(masterStream.res),
-    waitForFinish(sessionStream.res),
+    waitForClose(masterStream.res),
+    waitForClose(sessionStream.res),
   ]);
   const replacement = path.join(f.dir, 'replacement');
   fs.writeFileSync(replacement, REPLACEMENT + '\n', { mode: 0o600 });
   fs.renameSync(replacement, f.file);
   await finished;
-  assert.equal(masterStream.res.endCount, 1);
-  assert.equal(sessionStream.res.endCount, 1);
+  assert.equal(masterStream.res.destroyCount, 1);
+  assert.equal(sessionStream.res.destroyCount, 1);
   assert.equal(auth.authorize(`Bearer ${MASTER}`), null);
   assert.equal(auth.authorize(`Bearer ${session.token}`), null);
   assert.equal(auth.issue(MASTER), null);
@@ -253,11 +253,11 @@ test('expired session streams close while a master stream remains open', async (
   const session = auth.issue(MASTER);
   const masterStream = watch(auth, MASTER);
   const sessionStream = watch(auth, session.token);
-  const finished = waitForFinish(sessionStream.res);
+  const finished = waitForClose(sessionStream.res);
   now = session.expiresAt;
   await finished;
-  assert.equal(sessionStream.res.endCount, 1);
-  assert.equal(masterStream.res.endCount, 0);
+  assert.equal(sessionStream.res.destroyCount, 1);
+  assert.equal(masterStream.res.destroyCount, 0);
   assert.equal(auth.authorize(`Bearer ${session.token}`), null);
 });
 
@@ -276,14 +276,14 @@ for (const [name, damage] of [
     assert.equal(auth.authorize(`Bearer ${MASTER}`), null);
     assert.equal(auth.authorize(`Bearer ${session.token}`), null);
     assert.equal(auth.issue(MASTER), null);
-    assert.equal(stream.res.endCount, 1);
+    assert.equal(stream.res.destroyCount, 1);
     f.write();
     assert.equal(auth.authorize(`Bearer ${MASTER}`), MASTER);
     assert.equal(auth.authorize(`Bearer ${session.token}`), null);
   });
 }
 
-test('disconnected streams are forgotten and close ends remaining streams once', (t) => {
+test('disconnected streams are forgotten and close destroys remaining streams once', (t) => {
   const f = fixture(t);
   f.write();
   const auth = f.create();
@@ -292,11 +292,11 @@ test('disconnected streams are forgotten and close ends remaining streams once',
   const active = watch(auth, MASTER);
   disconnected.res.emit('close');
   auth.revoke(session.token);
-  assert.equal(disconnected.res.endCount, 0);
+  assert.equal(disconnected.res.destroyCount, 0);
   auth.close();
   auth.close();
-  assert.equal(active.res.endCount, 1);
-  assert.equal(disconnected.res.endCount, 0);
+  assert.equal(active.res.destroyCount, 1);
+  assert.equal(disconnected.res.destroyCount, 0);
   assert.equal(auth.authorize(`Bearer ${session.token}`), null);
 });
 
@@ -308,7 +308,7 @@ test('request completion does not stop tracking a still-open response stream', (
   const stream = watch(auth, session.token);
   stream.req.emit('close');
   auth.revoke(session.token);
-  assert.equal(stream.res.endCount, 1);
+  assert.equal(stream.res.destroyCount, 1);
 });
 
 test('allows exact loopback hosts, matching origins and same-origin browser metadata', () => {

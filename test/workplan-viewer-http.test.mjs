@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import net from 'node:net';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
@@ -43,7 +43,13 @@ async function fixture(t) {
   child.stdout.on('data', chunk => { output += chunk; });
   child.stderr.on('data', chunk => { output += chunk; });
   t.after(async () => {
-    if (child.exitCode === null) { child.kill('SIGTERM'); await once(child, 'exit'); }
+    if (child.exitCode === null) {
+      const exited = once(child, 'exit');
+      const deadline = setTimeout(() => child.kill('SIGKILL'), 2000);
+      child.kill('SIGTERM');
+      await exited;
+      clearTimeout(deadline);
+    }
     fs.rmSync(root, { recursive: true, force: true });
   });
   function request(route, { method = 'GET', token, headers = {}, body } = {}) {
@@ -69,7 +75,7 @@ async function fixture(t) {
     try { await request('/'); ready = true; break; } catch { await sleep(30); }
   }
   assert.ok(ready, output);
-  return { root, plan, port, origin, tokenFile, master, request, output: () => output };
+  return { root, plan, port, origin, tokenFile, master, request, child, output: () => output };
 }
 
 test('all private routes reject anonymous access before effects; the shell exposes no data', async t => {
@@ -98,6 +104,100 @@ test('all private routes reject anonymous access before effects; the shell expos
   assert.equal(shell.headers['access-control-allow-origin'], undefined);
   assert.equal((await f.request('/viewer-client.js')).status, 200);
   assert.equal((await f.request('/viewer-session.mjs')).status, 200);
+});
+
+function pinnedHandles(pid, file) {
+  file = fs.realpathSync(file);
+  if (process.platform === 'linux') {
+    const dir = `/proc/${pid}/fd`;
+    return fs.readdirSync(dir).filter(fd => {
+      try { return fs.readlinkSync(path.join(dir, fd)) === file; }
+      catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+    }).length;
+  }
+  return execFileSync('/usr/sbin/lsof', ['-a', '-p', String(pid), '-F', 'n'], { encoding: 'utf8' })
+    .split('\n').filter(line => line === `n${file}`).length;
+}
+
+function streamConnections(pid, clientPort) {
+  if (process.platform === 'linux') {
+    const dir = `/proc/${pid}/fd`;
+    const sockets = new Set(fs.readdirSync(dir).flatMap(fd => {
+      try { return [fs.readlinkSync(path.join(dir, fd)).match(/^socket:\[(\d+)\]$/)?.[1]]; }
+      catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+    }));
+    const remote = `0100007F:${clientPort.toString(16).toUpperCase().padStart(4, '0')}`;
+    return fs.readFileSync(`/proc/${pid}/net/tcp`, 'utf8').trim().split('\n').slice(1)
+      .map(line => line.trim().split(/\s+/)).filter(row => row[2] === remote && sockets.has(row[9])).length;
+  }
+  return execFileSync('/usr/sbin/lsof', ['-a', '-p', String(pid), '-nP', '-iTCP', '-F', 'n'], { encoding: 'utf8' })
+    .split('\n').filter(line => line.endsWith(`->127.0.0.1:${clientPort}`)).length;
+}
+
+async function stalledLog(t, f, token) {
+  const file = path.join(f.plan, 'tick-logs/sample.log');
+  fs.writeFileSync(file, 'x'.repeat(24 * 1024 * 1024) + '\n');
+  const socket = net.connect({ host: '127.0.0.1', port: f.port, highWaterMark: 1024 });
+  t.after(() => socket.destroy());
+  await once(socket, 'connect');
+  const ready = new Promise((resolve, reject) => {
+    let headers = '';
+    const deadline = setTimeout(() => reject(new Error('stream headers timeout')), 5000);
+    socket.on('error', reject);
+    socket.on('data', chunk => {
+      headers += chunk.toString('utf8');
+      if (!headers.includes('\r\n\r\n')) return;
+      socket.pause();
+      clearTimeout(deadline);
+      assert.match(headers, /^HTTP\/1\.1 200 /);
+      resolve();
+    });
+  });
+  socket.write(`GET /api/plans/fixture/stream?log=sample.log HTTP/1.1\r\nHost: 127.0.0.1:${f.port}\r\nAuthorization: Bearer ${token}\r\n\r\n`);
+  await ready;
+  assert.equal(pinnedHandles(f.child.pid, file), 1);
+  const clientPort = socket.localPort;
+  assert.equal(streamConnections(f.child.pid, clientPort), 1);
+  return { file, socket, clientPort };
+}
+
+for (const scenario of ['revoke', 'rotate-growing', 'rotate-idle']) {
+  test(`a stalled log stream releases its file without crashing on ${scenario}`, async t => {
+    const f = await fixture(t);
+    const grant = JSON.parse((await f.request('/api/session', { method: 'POST', body: { token: f.master } })).text).token;
+    const { file, clientPort } = await stalledLog(t, f, grant);
+    if (scenario !== 'rotate-idle') fs.appendFileSync(file, 'APPENDED_AFTER_BACKPRESSURE\n');
+    let accepted = f.master;
+    if (scenario === 'revoke') {
+      assert.equal((await f.request('/api/session', { method: 'DELETE', token: grant })).status, 200);
+    } else {
+      accepted = 'b'.repeat(64);
+      fs.writeFileSync(f.tokenFile, accepted);
+    }
+    await sleep(1200);
+    assert.equal(f.child.exitCode, null, f.output());
+    assert.equal(pinnedHandles(f.child.pid, file), 0);
+    assert.equal(streamConnections(f.child.pid, clientPort), 0);
+    assert.equal((await f.request('/api/plans', { token: accepted })).status, 200);
+    assert.equal((await f.request('/api/plans', { token: grant })).status, 401);
+    if (scenario === 'rotate-idle') {
+      await sleep(15000);
+      assert.equal(f.child.exitCode, null, f.output());
+      assert.equal((await f.request('/api/plans', { token: accepted })).status, 200);
+    }
+  });
+}
+
+test('shutdown cuts a stalled stream and exits cleanly', async t => {
+  const f = await fixture(t);
+  await stalledLog(t, f, f.master);
+  const exited = once(f.child, 'exit');
+  const deadline = setTimeout(() => f.child.kill('SIGKILL'), 2000);
+  f.child.kill('SIGTERM');
+  const [code, signal] = await exited;
+  clearTimeout(deadline);
+  assert.equal(code, 0, f.output());
+  assert.equal(signal, null);
 });
 
 test('credentials cannot bypass authority, origin, metadata or duplicate-header rejection', async t => {
@@ -158,7 +258,7 @@ test('session exchange, streamed logs, revocation and file rotation work through
   let text = '';
   while (!text.includes('FIXTURE_LOG')) { const next = await reader.read(); assert.equal(next.done, false); text += Buffer.from(next.value).toString(); }
   assert.equal((await f.request('/api/session', { method: 'DELETE', token })).status, 200);
-  assert.equal((await reader.read()).done, true);
+  await assert.rejects(reader.read(), /terminated/);
   assert.equal((await f.request('/api/plans', { token })).status, 401);
   const again = JSON.parse((await login()).text).token;
   fs.writeFileSync(f.tokenFile, 'b'.repeat(64));

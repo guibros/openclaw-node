@@ -64,3 +64,10 @@ HTTP-port normalization edge cases. Both remain within this boundary and have
 focused regressions. Browser automation stalled at an existing native confirmation
 dialog; browser control acceptance is still incomplete. The production service
 remains disabled while these checks are completed.
+
+Claude reproduced a write-after-end crash on the real viewer when a stalled
+stream is ended during revocation or key rotation. Authorization termination
+now destroys the connection, including expiry and shutdown, so response close
+releases the pinned file. The HTTP suite exercises 24 MiB stalled logs, checks
+file release and healthy authenticated requests, and includes the idle
+heartbeat and shutdown cases. The old source must fail the same regression.

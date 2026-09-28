@@ -15,6 +15,7 @@ The browser retains a separate session in tab session storage. Sessions expire
 after four hours and are invalidated by sign-out, service restart or key
 rotation. Restored browser tabs can retain session storage; closing a tab is
 not a revocation mechanism. The master key is not saved in browser storage.
+Notification links open a new tab, which needs its own sign-in.
 
 Private APIs and live streams require `Authorization: Bearer <key-or-session>`.
 Requests with foreign Host, Origin or fetch metadata are rejected. No cookies,
