@@ -1,7 +1,7 @@
-# SQLite recovery evidence — source review pending
+# SQLite recovery evidence — accepted
 
 Observed on the Mac, 2026-09-28 08:31 EDT. This is a per-store recovery result,
-not a completed coordinated SQLite/JetStream acceptance or AUDIT_POST.
+not a completed coordinated SQLite/JetStream acceptance.
 
 The strengthened helper ran using installed Python 3.12.14 / SQLite 3.53.1.
 All twelve live application stores reported WAL mode. Raw source connections
@@ -49,9 +49,11 @@ temporaries have February 4 mtimes and no open owner. New SQLite headers or
 directory links cause refusal. Source pin timestamps and current-WAL-inclusive
 capacity are recorded; manifests are replaced atomically.
 Gateway PID 2902/runs 17074, MC 26400/runs 2, memory daemon 58622/runs 2, viewer
-35823/runs 3 and watcher 29201/runs 1 remained running. Gateway and authenticated
-viewer discovery returned 200 afterwards; authenticated MC health passed after
-the prior set and its process/run count remains unchanged.
+35823/runs 3 and watcher 29201/runs 1 remained running. Gateway, authenticated
+viewer discovery and authenticated MC health returned 200 afterwards.
+Verified-3 has the same byte/table totals as verified-2; state, knowledge and
+MC file hashes differ between the runs. No claim is made that production writes
+overlapped a particular pinned window; concurrency safety rests on the fixtures.
 
 Private copies, fingerprints and native results live under
 `~/.openclaw/backups/node-readiness/sqlite-20260928-verified-3/`.
@@ -65,6 +67,10 @@ extension code off production connections. Claude's source/evidence challenge
 at b965148 found no source blocker in pinning/digests; all five core mutants
 failed its fixtures 3/3 times, and additional precision, corruption and four-writer
 counterexamples held. Its owner-engine and coverage corrections above are
-implemented; review of this follow-up must finish before step 1.1 closes.
+implemented. Message 68 accepts e750e3e with no source blocker and confirms the
+gateway engine fixture and real-corruption/four-writer regressions independently.
+The CI recovery fixture step executed successfully. Atomic-rename file churn
+can abort the inventory scan safely; this robustness carry-forward belongs to
+1.3 alongside its non-SQLite canonical-source classification and capture.
 Step 1.3 separately establishes coordinated
 cursors and bus acknowledgements before parent node-readiness 1.3 can close.

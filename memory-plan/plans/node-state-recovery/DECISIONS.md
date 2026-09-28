@@ -11,3 +11,14 @@ Standalone and cluster names overlap but histories differ. Online snapshots miss
 
 ## D4 — Individual snapshots do not prove coordinated recovery (2026-09-28)
 Claude identified the coupling between SQLite cursors and JetStream durable acknowledgements. Step 1.1 proves recoverability per store; 1.2 proves the bus histories. New step 1.3 takes their final coordinated set under verified writer quiescence before parent topology repair. Each individual snapshot records its own time window; no globally consistent point is inferred from sequential live copies. Native virtual-table checks run only on declared isolated restores. Source connections load no extension. Self-vector queries accept distance-zero duplicates, since tied results need not choose the probe's identity first.
+
+## D5 — Complete application recovery includes file sources (2026-09-28 08:45 EDT)
+Claude accepted child 1.1's SQLite outcome. It does not cover raw session JSONL,
+gateway memory-source files, the vault, tokens/configs, notification ledger,
+foreman timelines or browser profiles. Step 1.3 must label every store as primary
+or derived and include or explicitly exclude these source families in the common
+quiet window. Browser vendor state remains excluded from 1.1 only; its coordinated
+recovery policy is not silently inherited. ENOENT caused by atomic file churn
+currently refuses scans safely; handle it without weakening missing/unknown-store
+refusal before the coordinated run. On-disk copies are logical rollback points,
+not proof against machine or disk loss.
