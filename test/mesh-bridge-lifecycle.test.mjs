@@ -41,7 +41,7 @@ async function exited(bridge, timeoutMs = 10_000) {
   return bridge.result;
 }
 
-async function fixture(t, interval = 100) {
+async function fixture(t, interval = 100, requestMux = false) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mesh-bridge-drain-'));
   const children = [];
   let nc;
@@ -55,7 +55,9 @@ async function fixture(t, interval = 100) {
   const memory = path.join(home, '.openclaw', 'workspace', 'memory');
   await fs.mkdir(memory, { recursive: true, mode: 0o700 });
   const kanban = path.join(memory, 'active-tasks.md');
-  const original = '# Owned fixture\n\n## Live Tasks\n\n- task_id: owned-local-card\n  title: Preserve this local card\n  status: waiting-user\n  execution: local\n';
+  const original = requestMux
+    ? '# Owned fixture\n\n## Live Tasks\n\n- task_id: owned-missing-card\n  title: Owned stale running card\n  status: running\n  execution: mesh\n  owner: mesh\n'
+    : '# Owned fixture\n\n## Live Tasks\n\n- task_id: owned-local-card\n  title: Preserve this local card\n  status: waiting-user\n  execution: local\n';
   await fs.writeFile(kanban, original, { mode: 0o600 });
   const port = await freePort();
   const monitorPort = await freePort();
@@ -66,6 +68,15 @@ async function fixture(t, interval = 100) {
   await fs.writeFile(config, `listen: 127.0.0.1:${port}\nhttp: 127.0.0.1:${monitorPort}\nauthorization { token: ${JSON.stringify(token)} }\n`, { mode: 0o600 });
   const server = await startNatsServer(config);
   children.push(server.proc);
+  let lookups = 0;
+  if (requestMux) {
+    nc = await connect({ servers: `nats://127.0.0.1:${port}`, token, maxReconnectAttempts: 0 });
+    nc.subscribe('mesh.tasks.get', { callback: (_err, msg) => {
+      lookups++;
+      msg.respond(Buffer.from('{"ok":true,"data":null}'));
+    } });
+    await nc.flush();
+  }
   const env = {
     PATH: process.env.PATH,
     HOME: home,
@@ -90,13 +101,16 @@ async function fixture(t, interval = 100) {
     const state = await fetch(`http://127.0.0.1:${monitorPort}/connz?subs=1`).then(r => r.json());
     return state.connections.some(c => c.subscriptions_list?.includes('mesh.events.>') && c.subscriptions_list?.includes('mesh.bridge.wake'));
   });
-  nc = await connect({ servers: env.OPENCLAW_NATS, token, maxReconnectAttempts: 0 });
+  if (!nc) nc = await connect({ servers: env.OPENCLAW_NATS, token, maxReconnectAttempts: 0 });
   nc.publish('mesh.bridge.wake');
   await nc.flush();
   await until(() => bridge.output.includes('WAKE: received wake signal'));
   await nc.close();
   nc = null;
-  assert.ok(bridge.output.includes('RECONCILE: no orphaned mesh tasks found'), bridge.output);
+  if (requestMux) {
+    assert.equal(lookups, 1);
+    assert.ok(bridge.output.includes('RECONCILE: done. Tracking 0 in-flight task(s)'), bridge.output);
+  } else assert.ok(bridge.output.includes('RECONCILE: no orphaned mesh tasks found'), bridge.output);
   const assertKanban = async () => assert.equal(await fs.readFile(kanban, 'utf8'), original);
   return { bridge, server, assertKanban };
 }
@@ -154,6 +168,34 @@ for (const stopRequested of [false, true]) {
 
 test('bridge permanent loss overlapping the requested default drain is not a clean stop', { skip, timeout: 60_000 }, async (t) => {
   const { bridge, server, assertKanban } = await fixture(t, null);
+  bridge.proc.kill('SIGTERM');
+  await until(() => bridge.output.includes('SIGTERM received'));
+  await stop(server.proc);
+  assert.deepEqual(await exited(bridge, 45_000), { code: 1, signal: null }, bridge.output);
+  assert.ok(!bridge.output.includes('Bridge stopped.'), bridge.output);
+  await assertKanban();
+});
+
+test('bridge planned drain closes its prior request subscription normally', { skip, timeout: 20_000 }, async (t) => {
+  const { bridge, assertKanban } = await fixture(t, 100, true);
+  bridge.proc.kill('SIGTERM');
+  assert.deepEqual(await exited(bridge), { code: 0, signal: null }, bridge.output);
+  assert.equal((bridge.output.match(/Bridge stopped\./g) || []).length, 1);
+  await assertKanban();
+});
+
+test('bridge loss during drain with a prior request subscription fails without completion', { skip, timeout: 60_000 }, async (t) => {
+  const { bridge, server, assertKanban } = await fixture(t, null, true);
+  bridge.proc.kill('SIGTERM');
+  await until(() => bridge.output.includes('SIGTERM received'));
+  await stop(server.proc);
+  assert.deepEqual(await exited(bridge, 45_000), { code: 1, signal: null }, bridge.output);
+  assert.ok(!bridge.output.includes('Bridge stopped.'), bridge.output);
+  await assertKanban();
+});
+
+test('bridge late request-subscription drain retains permanent close failure', { skip, timeout: 60_000 }, async (t) => {
+  const { bridge, server, assertKanban } = await fixture(t, 20_000, true);
   bridge.proc.kill('SIGTERM');
   await until(() => bridge.output.includes('SIGTERM received'));
   await stop(server.proc);
