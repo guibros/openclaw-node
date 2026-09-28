@@ -6,11 +6,11 @@
 
 | | |
 |---|---|
-| **Status** | LIVE, idle planned drain VERIFIED |
-| **Verified** | 2026-09-28 10:31 America/Montreal: PID 10490, runs 2, last exit 0; one Shutdown complete, actual read-only RPC before signal/after restart, no disconnect/reconnect in window; separate subscription gap 1→0→1. |
-| **Source** | Live e57f89b264a30892389cabe573786fb516a6a208; main 88c7ad058589a60a566fa902d81d6dc0a6b88bed includes the accepted repair; runtime preserves the e57 base with the reviewed lifecycle patch. |
-| **Runtime** | /usr/local/bin/node /Users/moltymac/.openclaw/releases/task-drain-0f2e148-e57f89b/bin/mesh-task-daemon.js; other unit values/cwd preserved. |
-| **Constraint** | The live file lacks current-main terminal-task guards. Preserve this drift in the narrow lifecycle release; reconcile it in node-readiness 1.5. |
+| **Status** | LIVE, connected idle planned drain VERIFIED; owned outage failure semantics VERIFIED |
+| **Verified** | 2026-09-28 13:26 EDT: PID79423/runs2/last0, one completion on managed SIGTERM, same-server CID304246→0→304431/list readiness,65s continuous guard after each ready replacement. Task rows/Kanban/KV counters/core owners unchanged. Claude141 accepts1.4. |
+| **Source** | a2f5293fa0111e614682f431598c54c1757d6ad9, tests6cc27c3; both isolated full CI green. Runtime preserves live e57 base with cumulative1.1+1.4 lifecycle patch. |
+| **Runtime** | /usr/local/bin/node ~/.openclaw/releases/task-outage-a2f5293-e57f89b/bin/mesh-task-daemon.js; entry SHA17a70c25c0d0fcbd99ad83578c39923bed2cb7550026149314b69cc46289e787; unit values/cwd/dependencies preserved. |
+| **Constraint** | Live connected proof introduces no bus outage; owned controls prove outage behavior. Current-main terminal-task guards and general async-handler drain remain absent/unproved. Original1.1 release remains intact; four refused attempts retained. |
 
 ### Managed NATS preservation prerequisite
 
@@ -45,4 +45,4 @@
 | **Constraint** | Service installation or mesh-deploy --include-services re-renders primary entry paths and can revert task/bridge repairs. Ordinary restart keeps current entries. |
 | **Dependencies** | All three lifecycle releases intentionally link primary node_modules. npm install/ci/rebuild there changes their runtime dependencies. |
 | **Gate** | Before preservation, assert repaired clients' unit entry/runtime SHA, then createRequire real paths and package versions under their exact unit environment. Bridge packages are in step12_bridge/RUNTIME_EVIDENCE.json. |
-| **Feeds** | node-readiness 1.5 deployment reconciliation and 2.2 installation. Task outage semantics remain queued atomic 1.4; 1.1 connected-idle proof stands. Worker task-time ESM graph was statically checked in its release; idle acceptance is not task execution. |
+| **Feeds** | node-readiness 1.5 deployment reconciliation and 2.2 installation. Task outage1.4 is accepted; connected idle and owned outage evidence remain distinct. Worker task-time ESM graph was statically checked in its release; idle acceptance is not task execution. |

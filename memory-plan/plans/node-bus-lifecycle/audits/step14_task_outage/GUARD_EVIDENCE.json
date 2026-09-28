@@ -1,0 +1,466 @@
+{
+  "ownedMutation": {
+    "at": "2026-09-28T16:44:55.728Z",
+    "ownedOnly": true,
+    "sameServer": true,
+    "pausedQueueRPC": true,
+    "directKVWriteRefused": true,
+    "guardExit": 1
+  },
+  "preflight": {
+    "at": "2026-09-28T16:45:02.188505+00:00",
+    "accepted": true,
+    "noServiceMutation": true,
+    "claim": {
+      "nullClaimAt": "2026-09-28T16:45:01.683Z"
+    },
+    "guard": {
+      "observerCID": 296022,
+      "sameServerId": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+      "passiveAdmissionContinuous": true,
+      "noReconnect": true,
+      "checks": 14,
+      "streamsUnchanged": true,
+      "streamBaseline": {
+        "KV_MESH_TASKS": {
+          "messages": 397,
+          "firstSequence": 406,
+          "lastSequence": 2184
+        },
+        "KV_MESH_COLLAB": {
+          "messages": 227,
+          "firstSequence": 12,
+          "lastSequence": 3818
+        },
+        "KV_MESH_PLANS": {
+          "messages": 7,
+          "firstSequence": 29,
+          "lastSequence": 35
+        }
+      },
+      "boundedQueueRPCPauses": [
+        169
+      ],
+      "nullClaims": 1
+    },
+    "dependencies": {
+      "nats": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+        "version": "2.29.3"
+      },
+      "js-yaml": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/js-yaml/index.js",
+        "version": "4.3.2"
+      },
+      "better-sqlite3": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+        "version": "11.10.0"
+      }
+    }
+  },
+  "runtimeAdmission": "passive mutating KV and action subjects remain active; independently verify exact stream-state counters even during bounded RPC pause",
+  "currentPreflight": {
+    "at": "2026-09-28T16:52:24.275359+00:00",
+    "accepted": true,
+    "noServiceMutation": true,
+    "claim": {
+      "nullClaimAt": "2026-09-28T16:52:23.996Z"
+    },
+    "guard": {
+      "observerCID": 296780,
+      "sameServerId": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+      "passiveAdmissionContinuous": true,
+      "noReconnect": true,
+      "checks": 56,
+      "streamsUnchanged": true,
+      "streamBaseline": {
+        "KV_MESH_TASKS": {
+          "messages": 397,
+          "firstSequence": 406,
+          "lastSequence": 2184
+        },
+        "KV_MESH_COLLAB": {
+          "messages": 227,
+          "firstSequence": 12,
+          "lastSequence": 3818
+        },
+        "KV_MESH_PLANS": {
+          "messages": 7,
+          "firstSequence": 29,
+          "lastSequence": 35
+        }
+      },
+      "boundedQueueRPCPauses": [
+        124
+      ],
+      "nullClaims": 1,
+      "preconditions": {
+        "limits": {
+          "KV_MESH_TASKS": {
+            "maxAge": 0,
+            "maxMessages": -1,
+            "maxBytes": -1,
+            "maxMessagesPerSubject": 1,
+            "messages": 397,
+            "bytes": 45997
+          },
+          "KV_MESH_COLLAB": {
+            "maxAge": 0,
+            "maxMessages": -1,
+            "maxBytes": -1,
+            "maxMessagesPerSubject": 1,
+            "messages": 227,
+            "bytes": 294101
+          },
+          "KV_MESH_PLANS": {
+            "maxAge": 0,
+            "maxMessages": -1,
+            "maxBytes": -1,
+            "maxMessagesPerSubject": 1,
+            "messages": 7,
+            "bytes": 882
+          }
+        },
+        "unreferencedTerminalTasksWithTimestamp": 2,
+        "oldestAgeMilliseconds": 92487867,
+        "pruneMarginAtLeastMilliseconds": 600000
+      }
+    },
+    "dependencies": {
+      "nats": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+        "version": "2.29.3"
+      },
+      "js-yaml": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/js-yaml/index.js",
+        "version": "4.3.2"
+      },
+      "better-sqlite3": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+        "version": "11.10.0"
+      }
+    }
+  },
+  "guardedAfterEachReadinessSeconds": 65,
+  "rollbackOwnedStubs": {
+    "ownedStubsOnly": true,
+    "exactRollbackFunction": true,
+    "cases": [
+      {
+        "case": "old-pid-alive",
+        "outcome": "refused",
+        "falseRestorationRecord": false
+      },
+      {
+        "case": "unit-still-loaded",
+        "outcome": "refused",
+        "falseRestorationRecord": false
+      },
+      {
+        "case": "bootstrap-nonzero",
+        "outcome": "refused",
+        "falseRestorationRecord": false
+      },
+      {
+        "case": "no-new-pid",
+        "outcome": "refused",
+        "falseRestorationRecord": false
+      },
+      {
+        "case": "new-pid-not-ready",
+        "outcome": "refused",
+        "falseRestorationRecord": false
+      },
+      {
+        "case": "list-no-answer",
+        "outcome": "refused",
+        "falseRestorationRecord": false
+      },
+      {
+        "case": "old-cid-reused",
+        "outcome": "refused",
+        "falseRestorationRecord": false
+      },
+      {
+        "case": "foreign-holder",
+        "outcome": "refused",
+        "falseRestorationRecord": false
+      },
+      {
+        "case": "normal",
+        "outcome": "accepted",
+        "falseRestorationRecord": false
+      }
+    ]
+  },
+  "retryPreflight": {
+    "at": "2026-09-28T17:03:05.668488+00:00",
+    "accepted": true,
+    "noServiceMutation": true,
+    "claim": {
+      "nullClaimAt": "2026-09-28T17:03:05.406Z"
+    },
+    "guard": {
+      "observerCID": 298989,
+      "sameServerId": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+      "passiveAdmissionContinuous": true,
+      "noReconnect": true,
+      "checks": 19,
+      "streamsUnchanged": true,
+      "streamBaseline": {
+        "KV_MESH_TASKS": {
+          "messages": 397,
+          "firstSequence": 406,
+          "lastSequence": 2184
+        },
+        "KV_MESH_COLLAB": {
+          "messages": 227,
+          "firstSequence": 12,
+          "lastSequence": 3818
+        },
+        "KV_MESH_PLANS": {
+          "messages": 7,
+          "firstSequence": 29,
+          "lastSequence": 35
+        }
+      },
+      "boundedQueueRPCPauses": [
+        135
+      ],
+      "nullClaims": 1,
+      "preconditions": {
+        "limits": {
+          "KV_MESH_TASKS": {
+            "maxAge": 0,
+            "maxMessages": -1,
+            "maxBytes": -1,
+            "maxMessagesPerSubject": 1,
+            "messages": 397,
+            "bytes": 45997
+          },
+          "KV_MESH_COLLAB": {
+            "maxAge": 0,
+            "maxMessages": -1,
+            "maxBytes": -1,
+            "maxMessagesPerSubject": 1,
+            "messages": 227,
+            "bytes": 294101
+          },
+          "KV_MESH_PLANS": {
+            "maxAge": 0,
+            "maxMessages": -1,
+            "maxBytes": -1,
+            "maxMessagesPerSubject": 1,
+            "messages": 7,
+            "bytes": 882
+          }
+        },
+        "unreferencedTerminalTasksWithTimestamp": 2,
+        "oldestAgeMilliseconds": 93138990,
+        "pruneMarginAtLeastMilliseconds": 600000
+      }
+    },
+    "dependencies": {
+      "nats": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+        "version": "2.29.3"
+      },
+      "js-yaml": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/js-yaml/index.js",
+        "version": "4.3.2"
+      },
+      "better-sqlite3": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+        "version": "11.10.0"
+      }
+    }
+  },
+  "latencyProfile": [
+    {
+      "periodMs": 250,
+      "subjects": {
+        "mesh.tasks.list": {
+          "requests": 137,
+          "errors": [],
+          "maxMs": 658,
+          "medianMs": 13,
+          "overThreeSeconds": 0
+        },
+        "mesh.collab.recruiting": {
+          "requests": 137,
+          "errors": [],
+          "maxMs": 1285,
+          "medianMs": 14,
+          "overThreeSeconds": 0
+        }
+      }
+    },
+    {
+      "periodMs": 2500,
+      "subjects": {
+        "mesh.tasks.list": {
+          "requests": 17,
+          "errors": [],
+          "maxMs": 1542,
+          "medianMs": 18,
+          "overThreeSeconds": 0
+        },
+        "mesh.collab.recruiting": {
+          "requests": 17,
+          "errors": [],
+          "maxMs": 260,
+          "medianMs": 17,
+          "overThreeSeconds": 0
+        }
+      }
+    },
+    {
+      "at": "2026-09-28T17:14:56.123Z",
+      "sameServerId": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+      "ownedObserverCID": 302385,
+      "streamCountersUnchanged": true,
+      "noReconnect": true
+    }
+  ],
+  "causality": "No timeout reproduced in90seconds on original; earlier3s TIMEOUT cause remains unresolved. Own full RPCs were already serialized. Lower cadence reduces observation load without weakening continuous KV/action subscriptions or250ms exact counters.",
+  "currentCadencePreflight": {
+    "at": "2026-09-28T17:18:59.004431+00:00",
+    "accepted": true,
+    "noServiceMutation": true,
+    "claim": {
+      "nullClaimAt": "2026-09-28T17:17:53.791Z"
+    },
+    "guard": {
+      "observerCID": 303440,
+      "sameServerId": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+      "passiveAdmissionContinuous": true,
+      "noReconnect": true,
+      "checks": 18,
+      "streamsUnchanged": true,
+      "streamBaseline": {
+        "KV_MESH_TASKS": {
+          "messages": 397,
+          "firstSequence": 406,
+          "lastSequence": 2184
+        },
+        "KV_MESH_COLLAB": {
+          "messages": 227,
+          "firstSequence": 12,
+          "lastSequence": 3818
+        },
+        "KV_MESH_PLANS": {
+          "messages": 7,
+          "firstSequence": 29,
+          "lastSequence": 35
+        }
+      },
+      "boundedQueueRPCPauses": [
+        133
+      ],
+      "nullClaims": 5,
+      "preconditions": {
+        "limits": {
+          "KV_MESH_TASKS": {
+            "maxAge": 0,
+            "maxMessages": -1,
+            "maxBytes": -1,
+            "maxMessagesPerSubject": 1,
+            "messages": 397,
+            "bytes": 45997
+          },
+          "KV_MESH_COLLAB": {
+            "maxAge": 0,
+            "maxMessages": -1,
+            "maxBytes": -1,
+            "maxMessagesPerSubject": 1,
+            "messages": 227,
+            "bytes": 294101
+          },
+          "KV_MESH_PLANS": {
+            "maxAge": 0,
+            "maxMessages": -1,
+            "maxBytes": -1,
+            "maxMessagesPerSubject": 1,
+            "messages": 7,
+            "bytes": 882
+          }
+        },
+        "unreferencedTerminalTasksWithTimestamp": 2,
+        "oldestAgeMilliseconds": 94020135,
+        "pruneMarginAtLeastMilliseconds": 600000
+      },
+      "fullRPCPeriodMilliseconds": 5000,
+      "fullRPCDeadlineMilliseconds": 5000,
+      "streamPeriodMilliseconds": 250
+    },
+    "dependencies": {
+      "nats": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+        "version": "2.29.3"
+      },
+      "js-yaml": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/js-yaml/index.js",
+        "version": "4.3.2"
+      },
+      "better-sqlite3": {
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+        "version": "11.10.0"
+      }
+    }
+  },
+  "signalBoundaryOwnedControls": {
+    "exactSignalFunction": true,
+    "ownedStubsOnly": true,
+    "cases": [
+      {
+        "case": "busy-then-empty",
+        "outcome": "accepted",
+        "signals": 1,
+        "guardResumedBeforeRetry": true
+      },
+      {
+        "case": "stale-then-fresh",
+        "outcome": "accepted",
+        "signals": 1,
+        "guardResumedBeforeRetry": true
+      },
+      {
+        "case": "old-anchor-then-fresh",
+        "outcome": "accepted",
+        "signals": 1,
+        "guardResumedBeforeRetry": true
+      },
+      {
+        "case": "changed-owner",
+        "outcome": "refused",
+        "signals": 0,
+        "guardResumedBeforeRetry": false
+      },
+      {
+        "case": "shutting-down",
+        "outcome": "refused",
+        "signals": 0,
+        "guardResumedBeforeRetry": false
+      },
+      {
+        "case": "missing-snapshot",
+        "outcome": "refused",
+        "signals": 0,
+        "guardResumedBeforeRetry": false
+      },
+      {
+        "case": "fresh-empty",
+        "outcome": "accepted",
+        "signals": 1,
+        "guardResumedBeforeRetry": false
+      }
+    ]
+  },
+  "currentOwnedMutation": {
+    "verifiedAt": "2026-09-28T17:17:31Z",
+    "ownedOnly": true,
+    "directKVWriteRefused": true,
+    "guardExit": 1
+  },
+  "followupDiagnostics": "Claude139 suggests10s observer deadline and timeout latency/event-loop/holder metadata; future preservation tooling. Current accepted attempt5 used5s deadline and refused on timeout."
+}

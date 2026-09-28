@@ -89,3 +89,11 @@
 **Why.** Owned Mac controls reproduce both false completion and silent exit0. The daemon’s shutdown is an async signal callback outside main’s catch; a throw would depend on unhandled-rejection policy. Claude message123 requires explicit failure and loss-relative timing.
 
 **Consequences.** New e57 release, never edit the running 1.1 release. Managed idle signal follows a real worker null claim; refuse handler-error lines, permit healthy pingTimer, preserve dependency/unit values and startup-prune/task state. Task service remains available until worker exits during preservation. Active application drain stays parent4.1.
+
+## D12 — Lifecycle block closure and preservation re-orientation (2026-09-28 13:31 America/Montreal)
+
+**Decision.** Close1.4 only on exact owned negative controls and accepted connected managed deployment. Return to recovery1.2 with all three actual entry/dependency assertions, fresh prune eligibility, checked natural client stops, observers closed and continuous65s zero connections before healthy NATS stops.
+
+**Why.** Attempt5 meets the written contract and Claude141 accepts. Four previous refusals reveal verification risks, not license to relax state preservation. Attempt2/3 timeout/guard causes stay unresolved; no queue-overload explanation is adopted.
+
+**Consequences.** Preserve the primary e57 tree and prior releases. Carry10s observer deadlines plus latency/lag/holder diagnostics into the next preservation harness. Define normal stop evidence for each other client from code; worker must exit before task service stops. Parent coordinated recovery, source/dependency reconciliation, direct-KV authorization, active handlers and actual two-machine acceptance remain open. No new autonomous tick is enabled.
