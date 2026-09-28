@@ -2447,6 +2447,7 @@ async function main() {
   approvedSub.unsubscribe();
   rejectedSub.unsubscribe();
   draining = true;
+  log('Draining NATS...');
   await nc.drain();
   if (!nc.isClosed()) throw new Error('NATS drain did not close the connection');
   log('Agent worker stopped.');

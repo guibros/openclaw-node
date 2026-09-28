@@ -112,9 +112,14 @@ async function fixture(t, interval = 1_000) {
   };
   await assertEmpty();
   const claimReplies = new Map();
+  let lastNullClaimAt = 0;
   nc.subscribe('mesh.tasks.claim', { callback: (_err, msg) => { claimReplies.set(msg.reply, null); } });
   nc.subscribe('_INBOX.>', { callback: (_err, msg) => {
-    if (claimReplies.has(msg.subject)) claimReplies.set(msg.subject, JSON.parse(codec.decode(msg.data)));
+    if (claimReplies.has(msg.subject)) {
+      const reply = JSON.parse(codec.decode(msg.data));
+      claimReplies.set(msg.subject, reply);
+      if (reply.ok && reply.data === null) lastNullClaimAt = performance.now();
+    }
   } });
   await nc.flush();
   const proc = spawn(process.execPath, [entry], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -132,7 +137,14 @@ async function fixture(t, interval = 1_000) {
   assert.deepEqual(alive, { alive: false, task_id: null });
   assert.ok(!worker.output.includes('CLAIMED:'), worker.output);
   await assertEmpty();
-  return { worker, server, assertEmpty };
+  const anchorClaim = async () => {
+    const previous = lastNullClaimAt;
+    if (performance.now() - previous > 250) {
+      await until(() => lastNullClaimAt > previous, (interval ?? 15_000) + 5_000);
+    }
+    return lastNullClaimAt;
+  };
+  return { worker, server, assertEmpty, anchorClaim };
 }
 
 for (const signal of ['SIGTERM', 'SIGINT']) {
@@ -146,8 +158,9 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
   });
 }
 
-test('worker default 15s poll completes an idle stop', { skip, timeout: 35_000 }, async t => {
-  const { worker, assertEmpty } = await fixture(t, null);
+test('worker default 15s poll completes an idle stop', { skip, timeout: 50_000 }, async t => {
+  const { worker, assertEmpty, anchorClaim } = await fixture(t, null);
+  await anchorClaim();
   worker.proc.kill('SIGTERM');
   assert.deepEqual(await exited(worker, 20_000), { code: 0, signal: null }, worker.output);
   assert.equal((worker.output.match(/Agent worker stopped\./g) || []).length, 1);
@@ -155,11 +168,11 @@ test('worker default 15s poll completes an idle stop', { skip, timeout: 35_000 }
 });
 
 test('worker repeated signals during a held real drain complete once', { skip, timeout: 25_000 }, async t => {
-  const { worker, server, assertEmpty } = await fixture(t);
+  const { worker, server, assertEmpty, anchorClaim } = await fixture(t);
+  await anchorClaim();
   server.proc.kill('SIGSTOP');
   worker.proc.kill('SIGTERM');
-  await until(() => worker.output.includes('Received SIGTERM'));
-  await delay(1_200);
+  await until(() => worker.output.includes('Draining NATS...'));
   assert.equal(worker.result, null, worker.output);
   worker.proc.kill('SIGINT');
   worker.proc.kill('SIGTERM');
@@ -170,8 +183,9 @@ test('worker repeated signals during a held real drain complete once', { skip, t
 });
 
 for (const stopRequested of [false, true]) {
-  test(`worker unexpected permanent loss${stopRequested ? ' before requested drain starts' : ''} exits for restart`, { skip, timeout: 70_000 }, async t => {
-    const { worker, server } = await fixture(t, stopRequested ? 60_000 : 1_000);
+  test(`worker unexpected permanent loss${stopRequested ? ' before requested drain starts' : ''} exits for restart`, { skip, timeout: 100_000 }, async t => {
+    const { worker, server, anchorClaim } = await fixture(t, stopRequested ? 60_000 : 1_000);
+    await anchorClaim();
     if (stopRequested) {
       worker.proc.kill('SIGTERM');
       await until(() => worker.output.includes('Received SIGTERM'));
@@ -180,16 +194,51 @@ for (const stopRequested of [false, true]) {
     assert.deepEqual(await exited(worker, 45_000), { code: 1, signal: null }, worker.output);
     assert.ok(worker.output.includes('permanently closed — exiting for launchd restart'), worker.output);
     assert.ok(!worker.output.includes('Agent worker stopped.'), worker.output);
+    if (stopRequested) assert.ok(!worker.output.includes('Draining NATS...'), worker.output);
   });
 }
 
-for (const interval of [null, 20_000]) {
-  test(`worker ${interval === null ? 'default' : 'late'} request-subscription drain loss is not a clean stop`, { skip, timeout: 70_000 }, async t => {
-    const { worker, server } = await fixture(t, interval);
+for (const interval of [1_000, null]) {
+  test(`worker ${interval === null ? 'default' : 'early'} request-subscription drain loss is not a clean stop`, { skip, timeout: 70_000 }, async t => {
+    const { worker, server, anchorClaim } = await fixture(t, interval);
+    await anchorClaim();
     worker.proc.kill('SIGTERM');
     await until(() => worker.output.includes('Received SIGTERM'));
     await stop(server.proc);
     assert.deepEqual(await exited(worker, 45_000), { code: 1, signal: null }, worker.output);
+    assert.ok(worker.output.includes('Draining NATS...'), worker.output);
     assert.ok(!worker.output.includes('Agent worker stopped.'), worker.output);
   });
 }
+
+test('worker late request-subscription drain retains error-bearing permanent close failure', { skip, timeout: 120_000 }, async t => {
+  const calibration = await fixture(t, 60_000);
+  await calibration.anchorClaim();
+  calibration.server.proc.kill('SIGKILL');
+  await until(() => calibration.worker.output.includes('permanently closed — exiting for launchd restart'), 45_000);
+  assert.deepEqual(await exited(calibration.worker), { code: 1, signal: null }, calibration.worker.output);
+  const timestamp = (output, message) => {
+    const line = output.split('\n').find(line => line.includes(message));
+    assert.ok(line, output);
+    return Date.parse(line.match(/^\[([^\]]+)\]/)[1]);
+  };
+  const budget = timestamp(calibration.worker.output, 'permanently closed')
+    - timestamp(calibration.worker.output, 'NATS status: disconnect');
+  let interval = Math.round(budget - 1_000);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    assert.ok(interval > 1_000);
+    const { worker, server, anchorClaim } = await fixture(t, interval);
+    await anchorClaim();
+    worker.proc.kill('SIGTERM');
+    server.proc.kill('SIGKILL');
+    assert.deepEqual(await exited(worker, 45_000), { code: 1, signal: null }, worker.output);
+    assert.ok(!worker.output.includes('Agent worker stopped.'), worker.output);
+    const drain = worker.output.indexOf('Draining NATS...');
+    const closed = worker.output.indexOf('permanently closed — exiting for launchd restart');
+    if (drain >= 0 && closed > drain && !worker.output.includes('Fatal:')) return;
+    assert.ok(attempt < 2, worker.output);
+    const observedBudget = closed >= 0 ? timestamp(worker.output, 'permanently closed')
+      - timestamp(worker.output, 'NATS status: disconnect') : budget;
+    interval = Math.round(observedBudget - (drain < 0 || closed < drain ? 2_000 : 500));
+  }
+});

@@ -28,8 +28,18 @@ Main-local draining flag immediately before existing await nc.drain, suppress on
 
 ## 5 — Acceptance
 
-Execute INVENTORY 1.3 with eight real controls locally and full isolated CI. Reject unmodified connected stop and both weakened error/actual-close conditions. Claude independently challenges immutable source and staged bytes. Live managed SIGTERM must emit exactly one completion and exit 0, then replacement answers idle alive without a claim; task-state and unrelated-owner comparisons hold. Record entry/dependency versions for preservation revalidation.
+Execute INVENTORY 1.3 with nine real controls locally and full isolated CI. Reject unmodified connected stop and both weakened error/actual-close conditions. Claude independently challenges immutable source and staged bytes. Live managed SIGTERM must emit exactly one completion and exit 0, then replacement answers idle alive without a claim; task-state and unrelated-owner comparisons hold. Record entry/dependency versions for preservation revalidation.
 
 ## 6 — File deltas
 
 bin/mesh-agent.js lifecycle conditions; test/mesh-agent-lifecycle.test.mjs owned controls; silo audit/evidence/carriers. Private e57 worker-only release and existing unit entry are the only intended runtime changes.
+
+## Runtime pre-screen correction
+
+Actual unit KeepAlive=false/RunAtLoad=false, ThrottleInterval=30; D9 requires explicit kickstart after observing natural stop status. Its actual MESH_WORKSPACE is ~/.openclaw/mesh-workspace, with zero kept mesh branches on the fresh read-only check. Preserve that workspace HEAD/status as well as the primary code checkout. No automatic-restart claim.
+
+## Mid-Implementation Findings
+
+Claude found that a fixed late-loss timing can pass without reaching the error-bearing-close boundary on a different machine. Measure the no-signal reconnect budget from actual worker log timestamps, anchor on an actual null claim, kill only the owned fixture server instantly, and assert the drain precedes permanent close with no earlier Fatal. Retry timing misses at most three times; an exit 0 or completion fails immediately. Held-drain repeated signals must follow the actual drain-start marker. The 60s pre-drain loss control requires permanent close before any drain marker.
+
+Fresh live idle pre-screen finds nine retained WORKTREE_BASE directories: seven have dangling March test Git pointers; two clean August benchmark worktrees remain registered to the primary repo, with no ignored files/submodules. No open files were observed. Claude message 106 verifies the worker never lists the base, so these old directories cannot affect an idle stop/restart and are left unchanged in 1.3. Their reversible preservation and the force-delete fallback on a future task-ID collision feed parent 4.1. The actual worker workspace has only its main registered worktree and no kept branches; its lease directory is empty and unit environment overrides neither path. The agent-state file is absent because startup/empty claims do not write it; use actual null claim/alive RPC, no executor children and live queue/recruit checks for idle proof. No state file is invented to pass a gate.

@@ -23,7 +23,7 @@
 > **1.3 — Goal:** the existing worker completes a requested idle shutdown normally.
 > **Needs:** 1.2 closed; same-race source/owned worker repro reverified; owned NATS/task daemon and isolated worker HOME/Git/state; existing worker unit; e57 base; D4.
 > **Feeds:** node-state-recovery 1.2's worker stop gate.
-> **Verify:** `code:` unpatched real idle worker fails the completion control; patched SIGTERM/SIGINT complete once, unexpected permanent loss retains exit 1, full isolated CI green. `runtime:` lifecycle-only staged release; fresh idle proof; managed stop emits `Agent worker stopped.` with normal exit, managed restart answers alive=false/task_id=null without claiming work; unrelated service owners and task rows unchanged.
+> **Verify:** `code:` unpatched real idle worker fails the completion control; patched SIGTERM/SIGINT complete once, unexpected permanent loss retains exit 1, full isolated CI green. `runtime:` lifecycle-only staged release; fresh idle proof; managed stop emits `Agent worker stopped.` with normal exit, explicit kickstart of the preserved loaded unit (KeepAlive=false/RunAtLoad=false) answers alive=false/task_id=null without claiming work; unrelated service owners and task rows unchanged.
 
 > **1.4 — Goal:** requested task-daemon drain must not report success while reconnecting or when permanent close carries an error.
 > **Needs:** 1.3 closed; fresh owned reproduction of the independent task-daemon outage findings; accepted 1.1 source/runtime preserved as its narrow connected-idle contract.
