@@ -57,3 +57,11 @@
 **Why.** Claude independently reproduced early bus-loss/shutdown overlap reporting completion while not closed, and late request-subscription drain loss exiting 0 silently. The daemon's KV operations create the request subscription. These are separate from the original deliberate connected-close race.
 
 **Consequences.** Do not fold the daemon fix into bridge 1.2. Reproduce and test both failure paths with owned resources before a new narrow deployment. Healthy bus preservation keeps its no-disconnect/reconnect and idle gates; never treat vanished PIDs as completion. General active async work remains node-readiness 4.1.
+
+## D8 — Worker owns drain at the boundary and retains real closure failures (2026-09-28 11:22 America/Montreal)
+
+**Decision.** Apply the reviewed bridge lifecycle conditions to the existing worker: main-local flag at drain, only error-free deliberate close suppressed, and actual closed state required before completion. Preserve polling, provider choice, signals and application handlers.
+
+**Why.** The owned real worker answered alive=false/task_id=null after a real empty daemon claim, then exited 1 through the old permanent-close callback during its own SIGTERM drain. Its claim/recruiting requests create the request subscription, so both bridge failure conditions are required.
+
+**Consequences.** Eight real owned controls cover connected TERM/INT/default 15s polling, held drain/repeated signals and early/default/late permanent-loss boundaries. The fixture explicitly chooses a provider but launches no model because the owned task service is empty. Runtime release preserves e57 drift and the original unset cwd. Live acceptance is strictly idle/no-claim; general active handlers remain parent 4.1.

@@ -2266,6 +2266,7 @@ async function main() {
   });
   setNatsConnection(nc, sc);
   log(`Connected to NATS`);
+  let draining = false;
 
   // Exit on permanent NATS disconnect so launchd restarts us
   (async () => {
@@ -2276,7 +2277,8 @@ async function main() {
       }
     }
   })();
-  nc.closed().then(() => {
+  nc.closed().then(err => {
+    if (draining && !err) return;
     log('NATS connection permanently closed — exiting for launchd restart');
     process.exit(1);
   });
@@ -2444,7 +2446,9 @@ async function main() {
   aliveSub.unsubscribe();
   approvedSub.unsubscribe();
   rejectedSub.unsubscribe();
+  draining = true;
   await nc.drain();
+  if (!nc.isClosed()) throw new Error('NATS drain did not close the connection');
   log('Agent worker stopped.');
 }
 

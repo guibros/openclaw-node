@@ -1,0 +1,25 @@
+{
+  "at": "2026-09-28T15:26:17.121159+00:00",
+  "node24": "24.13.0",
+  "node22": "22.22.0",
+  "passedEach": 8,
+  "skippedEach": 0,
+  "realOwnedTaskDaemon": true,
+  "readiness": [
+    "one connection with alive/approved/rejected/recruit subscriptions",
+    "actual empty claim reply",
+    "actual idle alive reply",
+    "empty daemon list before and after connected stops"
+  ],
+  "unmodifiedSIGTERM": {
+    "expectedNormal": true,
+    "actualExit": 1,
+    "completionLine": false,
+    "reproducedAt": "2026-09-28T15:21:21Z"
+  },
+  "sourceSha256": "5a21da3b69b0d9c1fc9df2e9d10c2040bbec13b4ce7c2a5d0fea08d4df17cb8f",
+  "testSha256": "d46258c8c5721d2a126c334e1d6d0b73ea7880527ae794c5f153e4cd3663f151",
+  "mutantChecks": "running in owned scratch; not yet accepted",
+  "managedRuntime": "pending",
+  "activeApplicationWorkDrain": false
+}
