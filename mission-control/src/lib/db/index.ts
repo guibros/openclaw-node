@@ -7,6 +7,7 @@ import path from "path";
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let _sqlite: Database.Database | null = null;
+let initializationError: unknown = null;
 
 function ensureDataDir() {
   const dir = path.dirname(DB_PATH);
@@ -529,6 +530,7 @@ function runMigrations(sqlite: Database.Database) {
 
 export function getDb() {
   if (_db) return _db;
+  if (initializationError !== null) throw initializationError;
 
   ensureDataDir();
 
@@ -559,6 +561,7 @@ export function getDb() {
     _db = db;
     return db;
   } catch (err) {
+    initializationError = err;
     sqlite.close();
     throw err;
   }

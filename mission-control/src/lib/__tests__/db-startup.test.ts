@@ -53,7 +53,8 @@ test.each(["integrity failure", "pragma throws"])("database startup refuses %s w
     const { getRawDb, dbHealth } = await import("@/lib/db");
     expect(() => getRawDb()).toThrow();
     expect(dbHealth().ok).toBe(false);
-    expect(close).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(pragma.mock.calls.filter(([source]) => source === "quick_check")).toHaveLength(1);
     expect(exec).not.toHaveBeenCalled();
     const verify = new Database(dbPath);
     expect(verify.prepare("SELECT value FROM preserved").get()).toEqual({ value: "keep" });
