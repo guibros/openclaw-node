@@ -7,7 +7,7 @@
 | 1 | 1.1 | v1.1 | [x] | Complete deliberate task-daemon shutdown normally — 2026-09-28: reviewed 0f2e148 on staged e57, real managed exit 0/completion, single-instance gap and RPC readiness pass |
 | 1 | 1.2 | v1.2 | [x] | Complete deliberate idle bridge shutdown normally — 2026-09-28: reviewed 9056e59, ten owned controls, managed exit 0/completion and restart, task states unchanged |
 | 1 | 1.3 | v1.3 | [x] | Complete deliberate idle worker shutdown normally — 2026-09-28: source 69b7f37, nine owned controls, two managed exit-0 stops/restarts, task state unchanged, Claude closure accepted |
-| 1 | 1.4 | v1.4 | [ ] | Reject task-daemon false completion or silent success when bus loss overlaps requested drain |
+| 1 | 1.4 | v1.4 | [A] | Reject task-daemon false completion or silent success when bus loss overlaps requested drain |
 
 > **1.1 — Goal:** the existing task daemon completes a requested idle shutdown with its normal exit status.
 > **Needs:** live idle task daemon; owned nats-server 2.12.6 fixture; immutable live e57f89b source; D1/D2; user-authorized implementation/deployment and Claude adversarial collaboration.

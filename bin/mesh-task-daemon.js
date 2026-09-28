@@ -2716,8 +2716,8 @@ async function main() {
   (async () => {
     for await (const s of nc.status()) log(`NATS status: ${s.type}`);
   })();
-  nc.closed().then(() => {
-    if (shuttingDown) return;
+  nc.closed().then(err => {
+    if (shuttingDown && !err) return;
     log('NATS connection permanently closed — exiting for launchd restart');
     process.exit(1);
   });
@@ -2839,6 +2839,10 @@ async function main() {
     for (const sub of subs) sub.unsubscribe();
     log('Draining NATS...');
     await nc.drain();
+    if (!nc.isClosed()) {
+      log('NATS drain did not close the connection — exiting for launchd restart');
+      process.exit(1);
+    }
     log('Shutdown complete.');
     process.exit(0);
   };
