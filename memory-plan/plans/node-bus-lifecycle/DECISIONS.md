@@ -41,3 +41,11 @@
 **Why.** SIGTERM only requests the polling loop to finish; loss while it is still finishing must remain an unexpected-loss exit. Fresh source inspection shows the bridge has no Mission Control HTTP dependency: the owned fixture needs its actual kanban and observability files, not an invented MC service.
 
 **Consequences.** Test real subscriptions and a harmless wake as readiness; include unexpected loss both normally and after a stop request while the poll is still sleeping. Stage only this patch onto e57; preserve all unit values except the entry. Active event-handler/file-write completion is not established by this idle contract.
+
+## D6 — Reject a drain that only appears to finish (2026-09-28 10:50 America/Montreal)
+
+**Decision.** Preserve error-bearing permanent-close exit 1 during requested drain, and require the connection to actually be closed after drain resolves before emitting Bridge stopped.
+
+**Why.** Claude found, and the exact Mac fixture reproduced, SIGTERM followed by owned server loss with the production 10s poll: the NATS client's protocol drain swallows a rejected flush. Candidate 737a713 logged completion at 10s while reconnecting, then exited 0 at 21s. A resolved drain promise alone is insufficient.
+
+**Consequences.** Add the production-interval loss regression. Retain ordinary connected idle-stop semantics, repeat signals and normal/default polling behavior. Do not deploy the superseded candidate. This is a correction to 1.2's lifecycle acceptance, not a new application-work drain claim.

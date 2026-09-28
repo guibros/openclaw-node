@@ -151,3 +151,13 @@ for (const stopRequested of [false, true]) {
     await assertKanban();
   });
 }
+
+test('bridge permanent loss overlapping the requested default drain is not a clean stop', { skip, timeout: 60_000 }, async (t) => {
+  const { bridge, server, assertKanban } = await fixture(t, null);
+  bridge.proc.kill('SIGTERM');
+  await until(() => bridge.output.includes('SIGTERM received'));
+  await stop(server.proc);
+  assert.deepEqual(await exited(bridge, 45_000), { code: 1, signal: null }, bridge.output);
+  assert.ok(!bridge.output.includes('Bridge stopped.'), bridge.output);
+  await assertKanban();
+});

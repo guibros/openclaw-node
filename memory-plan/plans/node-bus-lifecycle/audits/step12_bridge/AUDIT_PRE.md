@@ -18,7 +18,7 @@ Fresh 2026-09-28 source: live e57 and main 88c7ad0 bridge files are identical. T
 
 ## 3 — Design
 
-Main-local draining false; suppress the closed callback only when true; set true directly before await nc.drain(). Keep the dispatch loop and signal handlers unchanged. Owned fresh authenticated loopback server, random ports/token, temporary HOME/cwd and kanban, no inherited OpenClaw configuration. Verify both server-side subscriptions and a harmless wake callback before signal. Include TERM/INT, held drain with repeated signals, unexpected loss, and loss while a requested stop is still waiting for the polling sleep. Compare original kanban bytes.
+Main-local draining false; suppress the closed callback only when true and the close has no error; set true directly before await nc.drain(); require nc.isClosed() after resolution before completion. Keep the dispatch loop and signal handlers unchanged. Owned fresh authenticated loopback server, random ports/token, temporary HOME/cwd and kanban, no inherited OpenClaw configuration. Verify both server-side subscriptions and a harmless wake callback before signal. Include TERM/INT, held drain with repeated signals, unexpected loss, and loss while a requested stop is still waiting for the polling sleep. Compare original kanban bytes.
 
 ## 4 — Risks
 
@@ -42,4 +42,6 @@ Execute INVENTORY 1.2. Full suite in isolated CI; focused owned fixtures locally
 
 ## Mid-Implementation Findings
 
-None yet. General async application-work shutdown remains node-readiness 4.1.
+Claude's default-interval outage counterexample reproduced on the exact Mac candidate: 737a713 logged Bridge stopped while reconnecting, then exited 0. D6 corrects the completion/error conditions and adds this seventh owned regression; managed deployment remains held. The host Python archive filter option was unsupported during private staging; no service changed, and archive extraction was retried only in the empty private release after validating member paths.
+
+Claude also identified existing unawaited updateTaskInPlace promises: deleted cards or lock failures can become unhandled rejections. General async application-work/file-write shutdown remains node-readiness 4.1 and is not repaired here.

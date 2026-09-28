@@ -1,19 +1,19 @@
 {
-  "at": "2026-09-28T14:43:00Z",
+  "at": "2026-09-28T14:52:00Z",
   "sourceBase": "88c7ad058589a60a566fa902d81d6dc0a6b88bed",
-  "delta": "three added lines; main-local flag set immediately before existing drain",
+  "delta": "planned drain flag, suppress only error-free owned close, require actual closed connection before completion",
   "unpatchedSIGTERM": {
     "exit": 1,
     "completion": false
   },
   "node24.13.0": {
-    "tests": 6,
-    "passed": 6,
+    "tests": 7,
+    "passed": 7,
     "skipped": 0
   },
   "node22.22.0": {
-    "tests": 6,
-    "passed": 6,
+    "tests": 7,
+    "passed": 7,
     "skipped": 0
   },
   "controls": [
@@ -22,10 +22,16 @@
     "default 10s poll stop",
     "held server plus repeated signals",
     "unexpected permanent loss",
-    "unexpected permanent loss after stop request before drain"
+    "unexpected permanent loss after stop request before drain",
+    "permanent loss overlaps the requested production/default drain; no clean completion"
   ],
   "isolation": "fresh authenticated owned loopback server, nonproduction ports, private HOME/kanban/observability, minimal environment, owned cleanup",
   "readiness": "both real bridge subscriptions visible on owned monitor; harmless wake handler observed",
   "kanbanBytesUnchanged": true,
-  "runtimeDeployment": "pending"
+  "runtimeDeployment": "pending",
+  "superseded737a713DefaultPollOutage": {
+    "exit": 0,
+    "falseCompletion": true,
+    "regressionTestFails": true
+  }
 }
