@@ -43,5 +43,5 @@
 ### Source and review
 | | |
 |---|---|
-| **Status** | Main 4112855 after merged gateway #140 and Mission Control #141; live checkout e57f89b preserved; viewer source b4bbac2 deployed from draft #142, head 4b5c0e2 |
+| **Status** | Main 4112855 after merged gateway #140 and Mission Control #141; live checkout e57f89b preserved; viewer source b4bbac2 deployed from draft #142, documentation head 860c853 |
 | **Verified** | 2026-09-28 07:21 EDT: #142 CI green on Node 20/22 and Mission Control; Claude independently approved source, passed 103 focused tests on Node 22.22.2/24.13.0 and caught six deliberate mutations. Runtime/browser acceptance remains distinct. |

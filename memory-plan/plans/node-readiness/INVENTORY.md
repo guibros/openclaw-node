@@ -89,9 +89,9 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 > **Verify:** runtime/code: Create, observe, cancel and inspect controlled tasks through actual UI; UI matches durable state.
 
 > **4.3 — Goal:** Bound workplan history loading.
-> **Needs:** 1.6 source deployed; 2.1 closed; Claude's whole-file pinned-log observation reverified in a disposable fixture.
+> **Needs:** 1.6 source deployed; 2.1 closed; whole-file reads on default Live, Activity and pinned History reverified in a disposable fixture.
 > **Feeds:** Responsive history viewing on consumer hardware.
-> **Verify:** runtime/code: A 512 MiB synthetic pinned log serves a bounded tail while an authenticated discovery request completes within one second on the declared test machine; additional resident memory stays below 32 MiB and the response clearly identifies truncated history. Run against the staged and deployed viewer without changing production logs.
+> **Verify:** runtime/code: Each of default Live, Activity and pinned History serves bounded initial history from a 512 MiB synthetic log while an authenticated discovery request completes within one second on the declared test machine; additional resident memory stays below 32 MiB and each response clearly identifies truncation. Run against the staged and deployed viewer without changing production logs.
 
 > **5.1 — Goal:** Establish explicit peer trust.
 > **Needs:** 1.4, 1.5 and 2.3 closed; two distinct accessible machines identified.
