@@ -3,7 +3,7 @@
 | Block | Step | Version | Status | Description |
 |---|---|---|---|---|
 | 1 | 1.1 | v1.1 | [x] | Establish verified application SQLite recovery snapshots |
-| 1 | 1.2 | v1.2 | [ ] | Establish verified JetStream history recovery snapshots |
+| 1 | 1.2 | v1.2 | [A] | Establish verified JetStream history recovery snapshots |
 | 1 | 1.3 | v1.3 | [ ] | Establish a coordinated application and bus recovery point |
 
 > **1.1 — Goal:** Establish verified application SQLite recovery snapshots.
@@ -14,7 +14,7 @@
 Closed 2026-09-28: twelve stores / 116 physical tables restored with matching fingerprints, six native FTS checks and eight vector probes; private deployed tools; unchanged service PIDs/runs; green isolated CI and Claude Message 68 acceptance. See step11_sqlite/AUDIT_POST.md. Individual points only; parent 1.3 remains open.
 
 > **1.2 — Goal:** Establish verified JetStream history recovery snapshots.
-> **Needs:** Four stores and both configurations inventoried; offline R=1 histories preserved; independent review of snapshot/restore sequence.
+> **Needs:** Four distinct store directories and four configurations inventoried; offline R=1 directories intact; installed NATS CLI/server available; independent review of snapshot/restore sequence.
 > **Feeds:** Node-readiness 1.3 and topology 1.4.
 > **Verify:** runtime/code: Reachable streams snapshot/restore on isolated loopback servers; stopped-server copies preserve all four stores including unavailable R=1 streams. Restored counts, messages and last sequences match captured originals, with explicit treatment of expiring health streams. No isolated server routes to production; histories remain separate.
 

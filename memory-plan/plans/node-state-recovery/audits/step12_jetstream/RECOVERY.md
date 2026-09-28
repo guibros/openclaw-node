@@ -1,0 +1,97 @@
+# JetStream preservation runbook
+
+These tools wrap the installed official NATS CLI 0.3.1 and server 2.12.6. They
+create no daemon and initialize no OpenClaw application. Use only explicit
+loopback URLs and the matching installed server binary. Keep every transcript,
+payload, token and original configuration private. Both plan chains stay off.
+
+## Tools
+
+`recovery.mjs` exports private/fsynced writes, official CLI backup/restore,
+read-only message/consumer capture, stopped-store copy and content manifests.
+`take_snapshots.mjs` backs up every reachable stream and records explicitly
+named offline assignments. It clears inherited NATS CLI settings and disables
+selected contexts. `test_recovery.mjs` creates and gracefully stops owned servers
+on fresh loopback ports outside the production port set. It keeps private
+fixture evidence in its reported temporary directory.
+
+Run the driver with an existing token supplied through its process environment,
+never argv, URLs, tracing or a public transcript:
+
+```
+NATS_TOKEN=<loaded privately> node take_snapshots.mjs \
+  nats://127.0.0.1:<port> <new-private-absolute-dir> <installed-nats-cli> \
+  [comma-separated-known-offline-streams]
+```
+
+The placeholder is explanatory, not an instruction to paste a secret. The
+operator's local process reads the existing private configuration and passes the
+value directly into the child environment. No shell command substitution or
+printout. Unexpected offline streams or changed inventory refuse acceptance.
+The manifest records snapshot-time metadata plus before/after observations;
+these are separate points and must not be claimed simultaneous.
+
+For an isolated R3 stream restored to a standalone fixture, use the explicit
+`--replicas=1` override and record this sole configuration delta. CLI 0.3.1's
+`--config` is ignored because of upstream variable shadowing; the R3 fixture
+reproduced the failure. Do not use that option or change production replicas.
+Keep health TTL: an old health entry expires on restore and proves no liveness.
+
+## Production preservation sequence
+
+1. Before each operation reverify PIDs, loaded units, binary hash/version, config
+   hashes, distinct real store paths, listeners, route/leaf/gateway lists and
+   client ownership/resolved URLs. No non-local server routes are permitted.
+2. Verify member 1 still fails at monitor 8222 and serves no clients. Boot out
+   only `ai.openclaw.nats-1`, confirm absence of process/file owners, then copy
+   its intact store and original config/unit into a new private master. Hash
+   source before/after, fsync copied files/directories, compare copy hashes.
+   Hold this non-serving unit unloaded until topology 1.4 (D6).
+3. Take official reachable snapshots with consumers for standalone and cluster
+   into distinct new directories. Account for the two known offline cluster
+   streams through the stopped member-1 master. Never union same-named streams.
+4. Before the remaining cold copies prove zero active executors, task claims,
+   collaboration sessions, child processes and consumer ack-pending. Resolve
+   stale MC statuses using their linked worker evidence; do not mark stale rows
+   done as part of preservation. Inventory and temporarily unload all managed
+   clients/timers that can connect. Confirm every connz is empty. If ownership
+   or drain is unproved, leave healthy buses running and track the outstanding
+   gate; snapshot verification can continue independently.
+5. Stop members 2/3 before standalone. Use managed bootout rather than raw kill.
+   Wait for exit and a clean shutdown log, verify no store owners, then copy all
+   remaining stores/configs/units. An enforced SIGKILL is crash-consistent and
+   must be labelled; do not assert clean shutdown merely because a PID vanished.
+6. In finally, start standalone first; require the correct process/config to own
+   BOTH 4222/8222 and JetStream health ready. Start members 2/3, wait for metadata
+   leader, then restore previously loaded client/timer jobs. Keep member 1 held.
+   Confirm original connection sets, streams, consumer positions and health.
+   Never let failed standalone recovery cause member 1 to claim its client port.
+
+## Isolated recovery and acceptance
+
+Open working copies only; masters never become server store_dir. Generate fresh
+configs rather than editing copied originals. Keep original server/cluster names
+and the global account, adequate production storage limits, unique loopback
+client/monitor/route ports, route authorization and no_advertise. For routez,
+compare peer server IDs and loopback IPs: inbound route ports are ephemeral and
+cannot be compared directly to listener-port allowlists. Check leafz/gatewayz
+are empty. No OpenClaw client, watcher or task executor connects to recovery.
+
+The owned fixture confirms this server version can read an R1 member's working
+store without cluster routing. Use that separate working copy to inspect offline
+R1 history before any catch-up. For the remapped cluster start 2/3, verify offline
+stream assignments remain, then start 1. If the assignments have been deleted,
+stop; never risk the protected master. Snapshot restores use separate empty
+servers, never clones that already contain those streams.
+
+Compare each snapshot restore to its own backup.json state. Digest exact
+sequence/hole, subject, nanosecond timestamp, raw headers and payload bytes.
+Capture consumer config, delivered, ack floor, pending ack/redelivery and
+remaining pending counts. Check cold clones against snapshots at snapshot
+high-water marks; later updates/retention can remove older KV revisions, so a
+mismatch must be explained or retaken under quiescence, never called a match.
+TTL health expiry is explicit. Hash masters again after all clone tests.
+
+This verifies recovery mechanisms only. Child 1.3 still establishes a common
+SQLite/JetStream/file-source quiet point. Same-disk copies offer logical rollback,
+not disaster recovery after loss of the machine or disk.

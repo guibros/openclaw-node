@@ -74,6 +74,13 @@ jobs:
           done
           node -e "const {connect}=require('nats');connect({servers:'nats://127.0.0.1:4222',timeout:2000,maxReconnectAttempts:0}).then(()=>{console.error('bare connect ACCEPTED — bus is not authenticated');process.exit(1)},e=>{console.log('bare connect refused as expected:',e.message);process.exit(0)})"
           tail -20 /tmp/mesh-task-daemon.log
+      - name: JetStream recovery fixtures
+        if: matrix.node-version == 22
+        run: |
+          curl -fsSL -o /tmp/nats-cli.zip "https://github.com/nats-io/natscli/releases/download/v0.3.1/nats-0.3.1-linux-amd64.zip"
+          echo "f48374be6fc903b954b90b729321772bdd5bc745234edf3d31cd17ab79e85629  /tmp/nats-cli.zip" | sha256sum -c -
+          unzip -q /tmp/nats-cli.zip -d /tmp/nats-cli
+          node memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_recovery.mjs /tmp/nats-cli/nats-0.3.1-linux-amd64/nats /usr/local/bin/nats-server
       - name: Root unit tests
         # npm test (not bare node --test): the pretest hook builds the
         # event-schemas workspace dist that the broadcast libs fail loud on.

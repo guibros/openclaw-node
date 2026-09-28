@@ -22,3 +22,19 @@ recovery policy is not silently inherited. ENOENT caused by atomic file churn
 currently refuses scans safely; handle it without weakening missing/unknown-store
 refusal before the coordinated run. On-disk copies are logical rollback points,
 not proof against machine or disk loss.
+
+## D6 — Preserve split bus histories before repair (2026-09-28 08:58 EDT)
+Claude Message 70 challenged the sequence. Step 1.2's Needs now requires intact
+offline directories, not its own future preservation output. Installed live
+units all run the same NATS 2.12.6 binary; the observed member-1 failure is the
+monitor bind on 8222, before JetStream recovery. Reconfirm immediately before
+operations. After owned fixtures pass, boot out this failing unit and copy its
+unopened store first. Keep the non-serving member under a documented preservation
+hold until topology 1.4, instead of restarting its failure loop. This reversible
+service hold is within the operator's authorized repairs; no stream is deleted
+or merged. For the remaining cold copies, drain all clients/timers, stop members
+2/3 before standalone, and resume standalone first. Clone routes use fresh
+loopback ports, explicit route credentials and no_advertise. Masters are never
+server-opened. Replica/TTL overrides affect only isolated recovery, are recorded,
+and never become production configuration. File-source coordinated recovery
+remains child 1.3; per-stream snapshots are not a common recovery point.
