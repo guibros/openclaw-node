@@ -42,7 +42,7 @@ test.each(["integrity failure", "pragma throws"])("database startup refuses %s w
   const original = Database.prototype.pragma;
   const pragma = vi.spyOn(Database.prototype, "pragma").mockImplementation(function (this: Database.Database, source, options) {
     if (source === "quick_check") {
-      if (failure === "pragma throws") throw new Error("SQLITE_CORRUPT");
+      if (failure === "pragma throws") throw Object.assign(new Error("database disk image is malformed"), { code: "SQLITE_CORRUPT" });
       return "*** in database main *** corruption";
     }
     return original.call(this, source, options);
@@ -69,3 +69,29 @@ test.each(["integrity failure", "pragma throws"])("database startup refuses %s w
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("startup retries after a real migration write lock is released", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mc-startup-busy-"));
+  const dbPath = path.join(root, "mission-control.db");
+  const writer = new Database(dbPath);
+  writer.pragma("journal_mode = WAL");
+  writer.exec("CREATE TABLE preserved (value TEXT); INSERT INTO preserved VALUES ('keep'); BEGIN IMMEDIATE;");
+  vi.stubEnv("DB_PATH", dbPath);
+  vi.stubEnv("WORKSPACE_ROOT", root);
+  vi.resetModules();
+  let db: Database.Database | undefined;
+  try {
+    const { getRawDb, dbHealth } = await import("@/lib/db");
+    expect(() => getRawDb()).toThrowError(expect.objectContaining({ code: "SQLITE_BUSY" }));
+    writer.exec("ROLLBACK");
+    db = getRawDb();
+    expect(dbHealth().ok).toBe(true);
+    expect(db.prepare("SELECT value FROM preserved").get()).toEqual({ value: "keep" });
+  } finally {
+    db?.close();
+    writer.close();
+    vi.unstubAllEnvs();
+    vi.resetModules();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}, 15000);

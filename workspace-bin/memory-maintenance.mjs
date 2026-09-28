@@ -22,11 +22,17 @@ import { mcAuthHeaders } from '../lib/mc-session-token.mjs';
 
 const execFileAsync = promisify(execFile);
 const MC_TOKEN_PATH = process.env.MC_SESSION_TOKEN_PATH
+  || process.env.OPENCLAW_MC_TOKEN_FILE
   || path.join(os.homedir(), '.openclaw', 'config', 'mc-session-token');
 const MC_LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+const MC_URL = process.env.MC_URL || 'http://127.0.0.1:3000';
+const mcOrigin = new URL(MC_URL);
+if (mcOrigin.protocol !== 'http:' || !MC_LOOPBACK_HOSTS.has(mcOrigin.hostname) || mcOrigin.username || mcOrigin.password) {
+  throw new Error('MC_URL must be loopback HTTP without credentials');
+}
 
 /**
- * POST one Mission Control mutation, authenticated, and prove it succeeded (protocol 4.5).
+ * POST one Mission Control mutation, authenticated, and prove it succeeded (88be4f2, node-readiness 1.2).
  *
  * All three maintenance mutations (sync, consolidate, graph) sent no Authorization
  * header and resolved on `res.on('end')` without ever reading `statusCode`. Against
@@ -263,7 +269,7 @@ async function checkMissionControl() {
 
   // Use health endpoint for real diagnostics
   const healthResult = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/system/health', { timeout: 5000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
+    const req = http.get(`${MC_URL}/api/system/health`, { timeout: 5000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
       let data = '';
       res.on('data', d => { data += d; });
       res.on('end', () => {
@@ -298,7 +304,7 @@ async function checkMissionControl() {
   if (DRY_RUN) { log('DRY RUN: Would sync Mission Control'); return; }
 
   try {
-    const r = await postAuthenticatedMutation('http://127.0.0.1:3000/api/memory/sync', { timeoutMs: 5000 });
+    const r = await postAuthenticatedMutation(`${MC_URL}/api/memory/sync`, { timeoutMs: 5000 });
     log(`MC memory sync: HTTP ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
     actions++;
     report('MC_SYNC: Memory index refreshed');
@@ -345,7 +351,7 @@ async function checkConsolidation() {
 
   // Call MC API for consolidation — the logic lives in the TS codebase
   const isUp = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/tasks', { timeout: 3000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
+    const req = http.get(`${MC_URL}/api/tasks`, { timeout: 3000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
       resolve(res.statusCode === 200);
       res.resume();
     });
@@ -357,7 +363,7 @@ async function checkConsolidation() {
   if (DRY_RUN) { log('DRY RUN: Would run consolidation'); return; }
 
   try {
-    const r = await postAuthenticatedMutation('http://127.0.0.1:3000/api/memory/consolidate', { timeoutMs: 10000 });
+    const r = await postAuthenticatedMutation(`${MC_URL}/api/memory/consolidate`, { timeoutMs: 10000 });
     log(`Consolidation: HTTP ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
     actions++;
     report('CONSOLIDATION: Memory items consolidated');
@@ -371,7 +377,7 @@ async function checkGraphHealth() {
   log('Checking knowledge graph health...');
 
   const isUp = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/tasks', { timeout: 3000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
+    const req = http.get(`${MC_URL}/api/tasks`, { timeout: 3000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
       resolve(res.statusCode === 200);
       res.resume();
     });
@@ -384,13 +390,13 @@ async function checkGraphHealth() {
   try {
     // Seed known entities if graph is empty
     if (!DRY_RUN) {
-      const r = await postAuthenticatedMutation('http://127.0.0.1:3000/api/memory/graph', { timeoutMs: 5000 });
+      const r = await postAuthenticatedMutation(`${MC_URL}/api/memory/graph`, { timeoutMs: 5000 });
       log(`Graph seed: HTTP ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
     }
 
     // Get stats
     const statsData = await new Promise((resolve, reject) => {
-      const req = http.get('http://localhost:3000/api/memory/graph', { timeout: 5000 }, res => {
+      const req = http.get(`${MC_URL}/api/memory/graph`, { timeout: 5000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
         let data = '';
         res.on('data', d => { data += d; });
         res.on('end', () => {

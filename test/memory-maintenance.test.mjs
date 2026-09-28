@@ -1,5 +1,5 @@
 /**
- * Protocol 4.5 — completion integrity for Mission Control maintenance mutations.
+ * Node-readiness 1.2 (ported from 88be4f2) — completion integrity for Mission Control maintenance mutations.
  *
  * All three mutations (sync, consolidate, graph) posted with no Authorization header
  * and resolved on `res.on('end')` without reading statusCode. Against the middleware
@@ -11,6 +11,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
+import http from 'node:http';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const MAINT = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -93,3 +98,50 @@ test('refuses an endpoint carrying embedded credentials', async () => {
   );
 });
 
+for (const authorized of [true, false]) {
+  test(`real maintenance cycle ${authorized ? 'authenticates every read and mutation' : 'skips mutations after authentication rejection'}`, async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-maintenance-http-'));
+    const tokenPath = path.join(root, 'session-token');
+    fs.writeFileSync(tokenPath, 'fixture-session-token\n', { mode: 0o600 });
+    const requests = [];
+    const server = http.createServer((req, res) => {
+      requests.push({ method: req.method, url: req.url, auth: req.headers.authorization });
+      const accepted = authorized && req.headers.authorization === 'Bearer fixture-session-token';
+      res.writeHead(accepted ? 200 : 401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(accepted ? {
+        status: 'healthy', db: { taskCount: 2 },
+        stats: { entityCount: 3, activeRelations: 4 }, ok: true,
+      } : { error: 'token' }));
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const result = await promisify(execFile)(process.execPath, [MAINT, '--force', '--verbose'], {
+        env: { ...process.env, HOME: root, OPENCLAW_WORKSPACE: root,
+          MC_URL: `http://127.0.0.1:${server.address().port}`,
+          MC_SESSION_TOKEN_PATH: '', OPENCLAW_MC_TOKEN_FILE: tokenPath },
+        timeout: 15000,
+      }).catch(error => {
+        assert.equal(error.code, 1);
+        return error;
+      });
+      assert.ok(requests.every(r => r.auth === 'Bearer fixture-session-token'));
+      assert.deepEqual(requests.map(r => `${r.method} ${r.url}`), authorized ? [
+        'GET /api/system/health', 'POST /api/memory/sync',
+        'GET /api/tasks', 'POST /api/memory/consolidate',
+        'GET /api/tasks', 'POST /api/memory/graph', 'GET /api/memory/graph',
+      ] : ['GET /api/system/health', 'GET /api/tasks', 'GET /api/tasks']);
+      if (authorized) {
+        assert.match(result.stdout, /MC_SYNC: Memory index refreshed/);
+        assert.match(result.stdout, /CONSOLIDATION: Memory items consolidated/);
+        assert.match(result.stdout, /GRAPH: 3 entities, 4 relations/);
+      } else {
+        assert.match(result.stdout, /MC_UNHEALTHY: token/);
+        assert.doesNotMatch(result.stdout, /MC_SYNC:|CONSOLIDATION:|GRAPH:/);
+      }
+    } finally {
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+}

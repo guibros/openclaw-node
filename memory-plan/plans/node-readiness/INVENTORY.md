@@ -30,7 +30,7 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 > **1.2 — Goal:** Restore installed Mission Control.
 > **Needs:** Existing service and deployed project inventoried.
 > **Feeds:** Dashboard and scheduler.
-> **Verify:** runtime/code: Deploy a known source revision including current API auth before start; service survives restart, serves UI and authenticated API; anonymous reads and mutations remain rejected.
+> **Verify:** runtime/code: Deploy a known source revision and hash manifest; preserve task IDs, scheduling fields, token and existing data; serve authenticated UI/API and reject anonymous GET/POST plus foreign Host/Origin. Prove supervised crash recovery and ten minutes of healthy stable PID/run count, observe the authenticated scheduler with zero dispatch candidates, and confirm no unmanaged next dev.
 
 > **1.3 — Goal:** Establish restorable persisted-state backups.
 > **Needs:** SQLite and NATS stores enumerated.

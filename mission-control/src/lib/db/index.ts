@@ -9,6 +9,8 @@ let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let _sqlite: Database.Database | null = null;
 let initializationError: unknown = null;
 
+class IntegrityCheckError extends Error {}
+
 function ensureDataDir() {
   const dir = path.dirname(DB_PATH);
   if (!fs.existsSync(dir)) {
@@ -534,15 +536,17 @@ export function getDb() {
 
   ensureDataDir();
 
-  const sqlite = new Database(DB_PATH);
+  const sqlite = new Database(DB_PATH, { timeout: 5000 });
   try {
     sqlite.pragma("journal_mode = WAL");
     sqlite.pragma("foreign_keys = ON");
     sqlite.pragma("wal_autocheckpoint = 1000");
     console.log(`[db] Opening database: ${DB_PATH}`);
 
-    if (sqlite.pragma("quick_check", { simple: true }) !== "ok") {
-      throw new Error("Mission Control database integrity check failed; restore or repair from a verified backup");
+    const integrity = sqlite.pragma("quick_check", { simple: true });
+    if (integrity !== "ok") {
+      const reason = String(integrity).split(/[\r\n]/, 1)[0].slice(0, 200);
+      throw new IntegrityCheckError(`Mission Control database integrity check failed: ${reason}; restore or repair from a verified backup`);
     }
 
     const walPath = DB_PATH + "-wal";
@@ -561,7 +565,10 @@ export function getDb() {
     _db = db;
     return db;
   } catch (err) {
-    initializationError = err;
+    const code = (err as { code?: string } | null)?.code || "";
+    if (err instanceof IntegrityCheckError || /^SQLITE_(CORRUPT(?:_|$)|NOTADB$)/.test(code)) {
+      initializationError = err;
+    }
     sqlite.close();
     throw err;
   }

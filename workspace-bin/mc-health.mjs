@@ -5,7 +5,7 @@
  * Probes GET /api/system/health. If unhealthy or unreachable:
  *   1. Logs the failure
  *   2. Optionally restarts MC (--restart flag)
- *   3. Verifies MC came back up (polls for 30s)
+ *   3. Verifies MC came back up (polls for 60s)
  *
  * Usage:
  *   node bin/mc-health.mjs              # check only, exit 0/1
@@ -57,7 +57,7 @@ function sleep(ms) {
 }
 
 /** Poll health endpoint until healthy or timeout */
-async function waitForHealthy(maxWaitMs = 30000) {
+async function waitForHealthy(maxWaitMs = 60000) {
   const start = Date.now();
   const interval = 2000;
   while (Date.now() - start < maxWaitMs) {
@@ -96,14 +96,14 @@ async function restartMC() {
 
   // Verify it actually came back
   console.error('[mc-health] Waiting for MC to become healthy...');
-  const result = await waitForHealthy(30000);
+  const result = await waitForHealthy(60000);
 
   if (result.ok) {
     const db = result.body?.db || {};
     console.error(`[mc-health] MC restarted and healthy: tasks=${db.taskCount} wal=${db.walSizeMB}MB`);
     return true;
   } else {
-    console.error('[mc-health] MC failed to become healthy after 30s');
+    console.error('[mc-health] MC failed to become healthy after 60s');
     return false;
   }
 }
