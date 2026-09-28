@@ -95,9 +95,13 @@ if [ -f "$INV" ] && grep -qE "$ROW_RE" "$INV"; then
   [ "$contract_warn" -gt 0 ] && report WARN steps "$contract_warn closed row(s) predate the contract (grandfathered)"
 
   closed=$(grep -cE '^\|[[:space:]]*[0-9]+[[:space:]]*\|[[:space:]]*[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*v[0-9]+\.[0-9]+[[:space:]]*\|[[:space:]]*\[x\]' "$INV" 2>/dev/null || true)
-  pres=$(find "$PLAN/audits" -name 'AUDIT_PRE.md' 2>/dev/null | wc -l | tr -d ' ')
-  posts=$(find "$PLAN/audits" -name 'AUDIT_POST.md' 2>/dev/null | wc -l | tr -d ' ')
-  if [ "${closed:-0}" -gt 0 ] && [ "${posts:-0}" -lt "${closed}" ]; then
+  # audits/ can be absent: git drops the empty dir new-plan.sh creates, and under
+  # pipefail a find over a missing dir would abort the lint before its summary.
+  pres=$(find "$PLAN/audits" -name 'AUDIT_PRE.md' 2>/dev/null | wc -l | tr -d ' ' || true)
+  posts=$(find "$PLAN/audits" -name 'AUDIT_POST.md' 2>/dev/null | wc -l | tr -d ' ' || true)
+  if [ "${closed:-0}" -gt 0 ] && [ ! -d "$PLAN/audits" ]; then
+    report WARN steps "audit coverage: no audits/ dir for $closed closed step(s)"
+  elif [ "${closed:-0}" -gt 0 ] && [ "${posts:-0}" -lt "${closed}" ]; then
     report WARN steps "audit coverage: $posts AUDIT_POST for $closed closed step(s)"
   else
     report PASS steps "audit coverage: $pres PRE / $posts POST for $closed closed step(s)"
@@ -181,7 +185,7 @@ if [ "${OPEN_ROWS:-0}" -gt 0 ] && [ ! -f "$PLAN/BLOCKED.md" ] && git -C "$REPO" 
   # A CLOSED version (no -pre/-mid) whose closing commit carries no Runtime-Evidence:
   # trailer is a done-contract violation, not a hygiene warning: the step was
   # declared done with nothing observable behind it (MASTER_PLAN §5, review L4).
-  if [ -n "$vh" ] && printf '%s' "$ver" | grep -qvE -- '-pre$|-mid$'; then
+  if [ -n "$vh" ] && [ -f "$PLAN/VERSION" ] && printf '%s' "$ver" | grep -qvE -- '-pre$|-mid$'; then
     if git -C "$REPO" log -1 --format='%B' "$vh" 2>/dev/null | grep -qE '^Runtime-Evidence:'; then
       report PASS history "closing commit ${vh:0:7} carries a Runtime-Evidence: trailer"
     else

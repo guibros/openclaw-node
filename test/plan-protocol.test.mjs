@@ -40,10 +40,10 @@ describe('plan-lint — [D] deferred state and drift checks', () => {
   let root, lint;
   const CANON_DOCS = ['MASTER_PLAN.md', 'PROTOCOL.md', 'FRAMEWORK_CANONICAL.md', 'COWORK_MODEL.md', 'BLOCK_TEMPLATE.md'];
 
-  function silo(id, { inventory }) {
+  function silo(id, { inventory, audits = true }) {
     const plan = path.join(root, 'memory-plan', 'plans', id);
     fs.mkdirSync(path.join(plan, 'tick-logs'), { recursive: true });
-    fs.mkdirSync(path.join(plan, 'audits'), { recursive: true });
+    if (audits) fs.mkdirSync(path.join(plan, 'audits'), { recursive: true });
     for (const d of CANON_DOCS) fs.copyFileSync(path.join(root, 'memory-plan', 'canonical', d), path.join(plan, d));
     fs.writeFileSync(path.join(plan, 'INVENTORY.md'), inventory);
     fs.writeFileSync(path.join(plan, 'VERSION'), 'v1.1\n');
@@ -92,6 +92,22 @@ describe('plan-lint — [D] deferred state and drift checks', () => {
     silo('tspace', { inventory: inv });
     const r = spawnSync('bash', [lint, 'tspace'], { encoding: 'utf8' });
     assert.match(r.stdout, /1 row\(s\) in the load-bearing format/);
+  });
+
+  it('a silo without audits/ lints to the summary line; closed steps WARN on the missing dir', () => {
+    const inv = `# INV\n\n${ROW('1.1', ' ', 'open')}\n\n${CONTRACT('1.1')}`;
+    silo('tnoaudits', { inventory: inv, audits: false });
+    const r = spawnSync('bash', [lint, 'tnoaudits'], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /\[PASS\] steps +audit coverage: 0 PRE \/ 0 POST for 0 closed step\(s\)/);
+    assert.match(r.stdout, /^summary: .* → CONFORMANT$/m);
+
+    const inv2 = `# INV\n\n${ROW('1.1', 'x', 'done')}\n\n${CONTRACT('1.1')}`;
+    silo('tnoaudits-closed', { inventory: inv2, audits: false });
+    const r2 = spawnSync('bash', [lint, 'tnoaudits-closed'], { encoding: 'utf8' });
+    assert.equal(r2.status, 0, r2.stdout + r2.stderr);
+    assert.match(r2.stdout, /\[WARN\] steps +audit coverage: no audits\/ dir for 1 closed step\(s\)/);
+    assert.match(r2.stdout, /^summary: .* → CONFORMANT$/m);
   });
 
 });
