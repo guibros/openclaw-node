@@ -6,7 +6,7 @@
 |-------|------|---------|--------|-------------|
 | 1 | 1.1 | v1.1 | [x] | Complete deliberate task-daemon shutdown normally — 2026-09-28: reviewed 0f2e148 on staged e57, real managed exit 0/completion, single-instance gap and RPC readiness pass |
 | 1 | 1.2 | v1.2 | [x] | Complete deliberate idle bridge shutdown normally — 2026-09-28: reviewed 9056e59, ten owned controls, managed exit 0/completion and restart, task states unchanged |
-| 1 | 1.3 | v1.3 | [ ] | Complete deliberate idle worker shutdown normally |
+| 1 | 1.3 | v1.3 | [x] | Complete deliberate idle worker shutdown normally — 2026-09-28: source 69b7f37, nine owned controls, two managed exit-0 stops/restarts, task state unchanged, Claude closure accepted |
 | 1 | 1.4 | v1.4 | [ ] | Reject task-daemon false completion or silent success when bus loss overlaps requested drain |
 
 > **1.1 — Goal:** the existing task daemon completes a requested idle shutdown with its normal exit status.
@@ -21,9 +21,9 @@
 > **Verify:** `code:` unpatched real idle bridge fails the completion control; patched SIGTERM/SIGINT complete once, unexpected permanent loss retains exit 1, full isolated CI green. `runtime:` lifecycle-only staged release; fresh idle proof; managed stop emits `Bridge stopped.` with normal exit, managed restart reports no orphaned mesh tasks under the idle precondition without changing task state; prior-request owned fixtures cover existing-ID reconciliation; unrelated service owners unchanged.
 
 > **1.3 — Goal:** the existing worker completes a requested idle shutdown normally.
-> **Needs:** 1.2 closed; same-race source/owned worker repro reverified; owned NATS/task daemon and isolated state/MC fixture; existing worker unit; e57 base; D4.
+> **Needs:** 1.2 closed; same-race source/owned worker repro reverified; owned NATS/task daemon and isolated worker HOME/Git/state; existing worker unit; e57 base; D4.
 > **Feeds:** node-state-recovery 1.2's worker stop gate.
-> **Verify:** `code:` unpatched real idle worker fails the completion control; patched SIGTERM/SIGINT complete once, unexpected permanent loss retains exit 1, full isolated CI green. `runtime:` lifecycle-only staged release; fresh idle proof; managed stop emits `Agent worker stopped.` with normal exit, managed restart answers alive=false/task_id=null without claiming work; unrelated service owners and task rows unchanged.
+> **Verify:** `code:` unpatched real idle worker fails the completion control; patched SIGTERM/SIGINT complete once, unexpected permanent loss retains exit 1, full isolated CI green. `runtime:` lifecycle-only staged release; fresh idle proof; managed stop emits `Agent worker stopped.` with normal exit, explicit kickstart of the preserved loaded unit (KeepAlive=false/RunAtLoad=false) answers alive=false/task_id=null without claiming work; unrelated service owners and task rows unchanged.
 
 > **1.4 — Goal:** requested task-daemon drain must not report success while reconnecting or when permanent close carries an error.
 > **Needs:** 1.3 closed; fresh owned reproduction of the independent task-daemon outage findings; accepted 1.1 source/runtime preserved as its narrow connected-idle contract.

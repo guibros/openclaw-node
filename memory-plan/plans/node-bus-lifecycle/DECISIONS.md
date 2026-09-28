@@ -57,3 +57,27 @@
 **Why.** Claude independently reproduced early bus-loss/shutdown overlap reporting completion while not closed, and late request-subscription drain loss exiting 0 silently. The daemon's KV operations create the request subscription. These are separate from the original deliberate connected-close race.
 
 **Consequences.** Do not fold the daemon fix into bridge 1.2. Reproduce and test both failure paths with owned resources before a new narrow deployment. Healthy bus preservation keeps its no-disconnect/reconnect and idle gates; never treat vanished PIDs as completion. General active async work remains node-readiness 4.1.
+
+## D8 — Worker owns drain at the boundary and retains real closure failures (2026-09-28 11:22 America/Montreal)
+
+**Decision.** Apply the reviewed bridge lifecycle conditions to the existing worker: main-local flag at drain, only error-free deliberate close suppressed, and actual closed state required before completion. Preserve polling, provider choice, signals and application handlers.
+
+**Why.** The owned real worker answered alive=false/task_id=null after a real empty daemon claim, then exited 1 through the old permanent-close callback during its own SIGTERM drain. Its claim/recruiting requests create the request subscription, so both bridge failure conditions are required.
+
+**Consequences.** Eight real owned controls cover connected TERM/INT/default 15s polling, held drain/repeated signals and early/default/late permanent-loss boundaries. The fixture explicitly chooses a provider but launches no model because the owned task service is empty. Runtime release preserves e57 drift and the original unset cwd. Live acceptance is strictly idle/no-claim; general active handlers remain parent 4.1.
+
+## D9 — Preserve the worker's actual managed start policy (2026-09-28 11:30 America/Montreal)
+
+**Decision.** Keep the live worker's KeepAlive=false, RunAtLoad=false and ThrottleInterval=30 unchanged. After a proven natural exit, explicitly kickstart the existing loaded unit for the managed restart acceptance. Bootstrap alone is not worker readiness.
+
+**Why.** Fresh actual-unit inspection matches the source template: launchd does not auto-restart this worker. Its configured workspace is ~/.openclaw/mesh-workspace, not the primary code checkout. Startup reconciliation can mutate kept mesh branches, so enumerate that actual workspace before any restart; the fresh count is zero.
+
+**Consequences.** No unrelated supervisor-policy change in the drain repair. Record exit status before kickstart, preserve both primary and actual worker-workspace HEAD/status, require zero kept mesh branches and an actual idle alive reply. General service lifecycle/reproducible installation belongs to parent 1.5/2.2.
+
+## D10 — Prove the worker boundary and preserve old idle artifacts (2026-09-28 11:49 America/Montreal)
+
+**Decision.** Nine owned controls include a measured-budget late loss, actual drain-start marker, explicit early ordering and claim-anchored held drain. Track preservation of the nine old runtime directories in a separate private journal; they are not an idle-stop prerequisite because the worker never enumerates the base. Before live deployment verify the actual worker workspace has only its main registered worktree, no kept branches, no leases or owned pending review, and observe queue/recruit conditions continuously.
+
+**Why.** Fixed polling offsets can catch a different failure path, and a leftover directory is not a proof of active work or safe deletion. Seven have already lost their original Git metadata; two are clean benchmark worktrees. Fresh read-only probes found no open files.
+
+**Consequences.** Treat old eight-control timing evidence as superseded. Leave the nine old directories unchanged during 1.3. Their preservation and the unsafe task-ID collision cleanup feed parent 4.1. A future private preservation journal must retain content, metadata, branches and primary refs, with reversible same-volume moves. Compare primary and actual worker-workspace HEAD/status during 1.3; signal only after an actual null worker claim. General active handler completion remains parent 4.1.

@@ -1,0 +1,43 @@
+{
+  "at": "2026-09-28T15:53:43.582571+00:00",
+  "node24": "24.13.0",
+  "node22": "22.22.0",
+  "passedEach": 9,
+  "skippedEach": 0,
+  "realOwnedTaskDaemon": true,
+  "readiness": [
+    "one connection with alive/approved/rejected/recruit subscriptions",
+    "actual empty claim reply",
+    "actual idle alive reply",
+    "empty daemon list before and after connected stops"
+  ],
+  "unmodifiedSIGTERM": {
+    "expectedNormal": true,
+    "actualExit": 1,
+    "completionLine": false,
+    "reproducedAt": "2026-09-28T15:21:21Z"
+  },
+  "sourceSha256": "7e09d15c2ec8b033866211f6a2511c0109a4f8b9b84f074e04124c4f07a093c2",
+  "testSha256": "53b0a54f636eb9158f725cd5039283620b01fbf407b26180271642ddfe33a0dc",
+  "mutantChecks": [
+    {
+      "removed": "error-bearing-close condition",
+      "rejected": true
+    },
+    {
+      "removed": "actual-closed condition",
+      "rejected": true
+    }
+  ],
+  "managedRuntime": "pending; live worker unchanged",
+  "activeApplicationWorkDrain": false,
+  "durationsMs": {
+    "node24": 134428.67575,
+    "node22": 134287.331417
+  },
+  "lateControl": "budget from actual worker disconnect/permanent-close timestamps; actual null claim anchor; owned SIGKILL; at most three timing-only retries; exit 0/completion fail immediately; actual drain before permanent close/no Fatal required",
+  "earlyControl": "60s poll after actual null claim; permanent close before any drain marker",
+  "heldControl": "actual null claim; wait for drain marker before repeated signals",
+  "supersedes": "7a6dbc2 eight-control fixed-offset timing evidence",
+  "timingMissHandling": "Fatal before permanent close retries from calibration when no later close timestamp exists"
+}
