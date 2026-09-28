@@ -379,7 +379,9 @@ async function cmdBroadcast(args) {
  * Also accepts --id <task-id> to submit a task from active-tasks.md.
  */
 async function cmdSubmit(args) {
-  const yaml = require('yaml');
+  // js-yaml is the repo's declared YAML parser; the `yaml` module this required
+  // was never a dependency, so `mesh submit` failed on every clean install.
+  const yaml = require('js-yaml');
 
   // Option A: submit from active-tasks.md by ID
   const idIdx = args.indexOf('--id');
@@ -444,7 +446,7 @@ async function cmdSubmit(args) {
 
   if (!input.trim()) { console.error('No input. Provide a YAML file or pipe from stdin.'); process.exit(1); }
 
-  const task = yaml.parse(input);
+  const task = yaml.load(input);
   if (!task.task_id || !task.title) { console.error('YAML must have task_id and title.'); process.exit(1); }
 
   const nc = await natsConnect();
