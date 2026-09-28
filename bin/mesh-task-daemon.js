@@ -2709,6 +2709,7 @@ async function main() {
   });
   setNatsConnection(nc, sc);
   log(`Connected to NATS at ${NATS_URL}`);
+  let shuttingDown = false;
 
   // Survive NATS blips (incl. the 1.5 cutover bus restart); exit on permanent
   // disconnect so launchd restarts us instead of hanging alive-but-dead (mirrors mesh-bridge).
@@ -2716,6 +2717,7 @@ async function main() {
     for await (const s of nc.status()) log(`NATS status: ${s.type}`);
   })();
   nc.closed().then(() => {
+    if (shuttingDown) return;
     log('NATS connection permanently closed — exiting for launchd restart');
     process.exit(1);
   });
@@ -2817,6 +2819,8 @@ async function main() {
 
   // Shutdown handler
   const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     log('Shutting down...');
     log('Clearing timers...');
     clearInterval(proposalTimer);
