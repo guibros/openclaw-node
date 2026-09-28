@@ -8,9 +8,9 @@
 |---|---|
 | **Status** | LIVE, idle planned drain VERIFIED |
 | **Verified** | 2026-09-28 10:31 America/Montreal: PID 10490, runs 2, last exit 0; one Shutdown complete, actual read-only RPC before signal/after restart, no disconnect/reconnect in window; separate subscription gap 1→0→1. |
-| **Source** | Live e57f89b264a30892389cabe573786fb516a6a208; current-main 5e088cc85af46391efab5286970525ebd5f3a0f4 has the same unconditional closed callback. |
+| **Source** | Live e57f89b264a30892389cabe573786fb516a6a208; main 88c7ad058589a60a566fa902d81d6dc0a6b88bed includes the accepted repair; runtime preserves the e57 base with the reviewed lifecycle patch. |
 | **Runtime** | /usr/local/bin/node /Users/moltymac/.openclaw/releases/task-drain-0f2e148-e57f89b/bin/mesh-task-daemon.js; other unit values/cwd preserved. |
-| **Constraint** | The live file lacks current-main terminal-task guards. Preserve this drift in the narrow lifecycle release; reconcile it in node-readiness 2.2. |
+| **Constraint** | The live file lacks current-main terminal-task guards. Preserve this drift in the narrow lifecycle release; reconcile it in node-readiness 1.5. |
 
 ### Managed NATS preservation prerequisite
 
@@ -25,9 +25,9 @@
 
 | | |
 |---|---|
-| **Status** | LIVE, planned drain DEGRADED |
-| **Verified** | 2026-09-28 10:22 America/Montreal: private managed-window log contains permanent-close exit at 09:54:20 and no Bridge stopped. Source matches main exactly for this file. |
-| **Consumer** | Original unit still uses /Users/moltymac/openclaw-nodedev/bin/mesh-bridge.js; single mesh.events.> subscription on standalone bus observed. |
+| **Status** | LIVE, connected idle planned drain VERIFIED |
+| **Verified** | 2026-09-28 11:11 America/Montreal: deployed PID 26682 exits 0 after one completion; managed replacement 26822/runs 2; subscriptions 1→0→1, fresh idle reconcile/wake, task rows and Kanban bytes unchanged. Claude message 100 accepts closure. |
+| **Consumer** | /usr/local/bin/node /Users/moltymac/.openclaw/releases/bridge-drain-9056e59-e57f89b/bin/mesh-bridge.js; bridge-only patch on e57, entry SHA f894fc1813cdb0fa40d73f6ba81c97cb1c10b8b18ba76204c0f4aae5a74deaeb. |
 
 ### ai.openclaw.mesh-agent
 
@@ -36,3 +36,12 @@
 | **Status** | LIVE, planned drain UNPROVEN |
 | **Verified** | 2026-09-28 10:22 America/Montreal: one mesh.agent.moltymacs-virtual-machine.alive subscription, reply alive=false/task_id=null; same unconditional closed callback in live and main. Claude independently reproduced idle SIGTERM exit 1 without completion. |
 | **Constraint** | Runtime acceptance still required; current-main has additional terminal-task handling absent from live e57. |
+
+### Narrow lifecycle release durability
+
+| | |
+|---|---|
+| **Constraint** | Service installation or mesh-deploy --include-services re-renders primary entry paths and can revert task/bridge repairs. Ordinary restart keeps current entries. |
+| **Dependencies** | Both releases intentionally link primary node_modules. npm install/ci/rebuild there changes their runtime dependencies. |
+| **Gate** | Before preservation, assert repaired clients' unit entry/runtime SHA, then createRequire real paths and package versions under their exact unit environment. Bridge packages are in step12_bridge/RUNTIME_EVIDENCE.json. |
+| **Feeds** | node-readiness 1.5 deployment reconciliation and 2.2 installation. Task outage semantics remain queued atomic 1.4; 1.1 connected-idle proof stands. |

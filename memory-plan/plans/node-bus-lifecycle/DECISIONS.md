@@ -33,3 +33,27 @@
 **Why.** The live bridge stop log confirms the same permanent-close race. Claude reproduced it in both idle current-main bridge and worker; live source has the same callbacks. The preservation guard must not be relaxed to accept vanished processes.
 
 **Consequences.** This is a plan re-orientation, not a widened task-daemon implementation. No bridge/worker code is edited before 1.1 closes. The active-submission partial-work defect feeds node-readiness 4.1 and remains outside these idle stop contracts. Production-resource test isolation remains node-readiness 2.1; full suites stay in isolated CI.
+
+## D5 — Bridge owns shutdown only at its drain boundary (2026-09-28 10:42 America/Montreal)
+
+**Decision.** Set a main-local draining flag immediately before the existing bridge drain. The permanent-close callback returns only after that boundary. Preserve the signal handlers, dispatch/reconciliation loop, subscriptions and timers.
+
+**Why.** SIGTERM only requests the polling loop to finish; loss while it is still finishing must remain an unexpected-loss exit. Fresh source inspection shows the bridge has no Mission Control HTTP dependency: the owned fixture needs its actual kanban and observability files, not an invented MC service.
+
+**Consequences.** Test real subscriptions and a harmless wake as readiness; include unexpected loss both normally and after a stop request while the poll is still sleeping. Stage only this patch onto e57; preserve all unit values except the entry. Active event-handler/file-write completion is not established by this idle contract.
+
+## D6 — Reject a drain that only appears to finish (2026-09-28 10:50 America/Montreal)
+
+**Decision.** Preserve error-bearing permanent-close exit 1 during requested drain, and require the connection to actually be closed after drain resolves before emitting Bridge stopped.
+
+**Why.** Claude found, and the exact Mac fixture reproduced, SIGTERM followed by owned server loss with the production 10s poll: the NATS client's protocol drain swallows a rejected flush. Candidate 737a713 logged completion at 10s while reconnecting, then exited 0 at 21s. A resolved drain promise alone is insufficient.
+
+**Consequences.** Add the production-interval loss regression. Retain ordinary connected idle-stop semantics, repeat signals and normal/default polling behavior. Do not deploy the superseded candidate. This is a correction to 1.2's lifecycle acceptance, not a new application-work drain claim.
+
+## D7 — Track task-daemon outage semantics as a distinct follow-up (2026-09-28 11:13 America/Montreal)
+
+**Decision.** Queue atomic 1.4 after worker 1.3 for actual-closed and error-bearing-close checks in the task daemon. Preserve 1.1's accepted connected, idle planned-stop contract and its runtime evidence.
+
+**Why.** Claude independently reproduced early bus-loss/shutdown overlap reporting completion while not closed, and late request-subscription drain loss exiting 0 silently. The daemon's KV operations create the request subscription. These are separate from the original deliberate connected-close race.
+
+**Consequences.** Do not fold the daemon fix into bridge 1.2. Reproduce and test both failure paths with owned resources before a new narrow deployment. Healthy bus preservation keeps its no-disconnect/reconnect and idle gates; never treat vanished PIDs as completion. General active async work remains node-readiness 4.1.

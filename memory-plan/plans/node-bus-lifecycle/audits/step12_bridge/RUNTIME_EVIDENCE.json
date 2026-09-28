@@ -1,0 +1,307 @@
+{
+  "at": "2026-09-28T15:11:37.363324+00:00",
+  "accepted": true,
+  "release": {
+    "sourceSha": "9056e59add2c521f438cc85cf6f5abd81a187f23",
+    "liveBaseSha": "e57f89b264a30892389cabe573786fb516a6a208",
+    "changedFiles": [
+      "bin/mesh-bridge.js"
+    ],
+    "trackedFilesChecked": 1911,
+    "patchSha256": "5eb6f1a49924937e502bf8f40fdfbdba3fd140ff279f33c3331f9ddafdc88eb2",
+    "runtimeEntrySha256": "f894fc1813cdb0fa40d73f6ba81c97cb1c10b8b18ba76204c0f4aae5a74deaeb",
+    "nodeModules": "/Users/moltymac/openclaw-nodedev/node_modules",
+    "runtimeEntry": "/Users/moltymac/.openclaw/releases/bridge-drain-9056e59-e57f89b/bin/mesh-bridge.js"
+  },
+  "initial": {
+    "loaded": true,
+    "pid": "24336",
+    "runs": "1",
+    "last exit code": "(never exited)",
+    "state": "running"
+  },
+  "deployed": {
+    "loaded": true,
+    "pid": "26682",
+    "runs": "1",
+    "last exit code": "(never exited)",
+    "state": "running"
+  },
+  "restarted": {
+    "loaded": true,
+    "pid": "26822",
+    "runs": "2",
+    "last exit code": "0",
+    "state": "running"
+  },
+  "lastExit": "0",
+  "completionCount": 1,
+  "noNatsStatusDuringStop": true,
+  "newFatalStderr": false,
+  "patchedZeroGap": [
+    {
+      "at": "2026-09-28T15:11:35.243871+00:00",
+      "events": 0,
+      "wake": 0
+    }
+  ],
+  "dependencyResolution": {
+    "nats": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+    "better-sqlite3": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+    "nkeys.js": "/Users/moltymac/openclaw-nodedev/node_modules/nkeys.js/lib/index.js"
+  },
+  "priorFailedAttemptRestored": true,
+  "unrelatedOwnersUnchanged": true,
+  "coreBefore": {
+    "ai.openclaw.nats": {
+      "loaded": true,
+      "pid": "874",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.nats-2": {
+      "loaded": true,
+      "pid": "887",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.nats-3": {
+      "loaded": true,
+      "pid": "858",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.workplan-viewer": {
+      "loaded": true,
+      "pid": "35823",
+      "runs": "3",
+      "last exit code": null,
+      "state": "running"
+    },
+    "ai.openclaw.gateway": {
+      "loaded": true,
+      "pid": "2902",
+      "runs": "17074",
+      "last exit code": null,
+      "state": "running"
+    },
+    "ai.openclaw.memory-daemon": {
+      "loaded": true,
+      "pid": "93840",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.mesh-task-daemon": {
+      "loaded": true,
+      "pid": "10490",
+      "runs": "2",
+      "last exit code": "0",
+      "state": "running"
+    },
+    "ai.openclaw.mesh-agent": {
+      "loaded": true,
+      "pid": "93953",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    }
+  },
+  "coreAfter": {
+    "ai.openclaw.nats": {
+      "loaded": true,
+      "pid": "874",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.nats-2": {
+      "loaded": true,
+      "pid": "887",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.nats-3": {
+      "loaded": true,
+      "pid": "858",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.workplan-viewer": {
+      "loaded": true,
+      "pid": "35823",
+      "runs": "3",
+      "last exit code": null,
+      "state": "running"
+    },
+    "ai.openclaw.gateway": {
+      "loaded": true,
+      "pid": "2902",
+      "runs": "17074",
+      "last exit code": null,
+      "state": "running"
+    },
+    "ai.openclaw.memory-daemon": {
+      "loaded": true,
+      "pid": "93840",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.mesh-task-daemon": {
+      "loaded": true,
+      "pid": "10490",
+      "runs": "2",
+      "last exit code": "0",
+      "state": "running"
+    },
+    "ai.openclaw.mesh-agent": {
+      "loaded": true,
+      "pid": "93953",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    }
+  },
+  "unitOnlyEntryChanged": true,
+  "cwdPreserved": "unset",
+  "taskRowsUnchanged": true,
+  "kanbanBytesUnchanged": true,
+  "singleInstance": {
+    "before": {
+      "mesh.events.>": [
+        {
+          "subject": "mesh.events.>",
+          "sid": "1",
+          "cid": 284820
+        }
+      ],
+      "mesh.bridge.wake": [
+        {
+          "subject": "mesh.bridge.wake",
+          "sid": "2",
+          "cid": 284820
+        }
+      ]
+    },
+    "deployed": {
+      "mesh.events.>": [
+        {
+          "subject": "mesh.events.>",
+          "sid": "1",
+          "cid": 285427
+        }
+      ],
+      "mesh.bridge.wake": [
+        {
+          "subject": "mesh.bridge.wake",
+          "sid": "2",
+          "cid": 285427
+        }
+      ]
+    },
+    "restarted": {
+      "mesh.events.>": [
+        {
+          "subject": "mesh.events.>",
+          "sid": "1",
+          "cid": 285444
+        }
+      ],
+      "mesh.bridge.wake": [
+        {
+          "subject": "mesh.bridge.wake",
+          "sid": "2",
+          "cid": 285444
+        }
+      ]
+    },
+    "gapZeroObserved": true
+  },
+  "selectedLogLines": [
+    "[2026-09-28T15:11:29.063Z] [mesh-bridge:moltymacs-virtual-machine-local] SIGTERM received...",
+    "[2026-09-28T15:11:35.141Z] [mesh-bridge:moltymacs-virtual-machine-local] Bridge stopped.",
+    "[2026-09-28T15:11:35.475Z] [mesh-bridge:moltymacs-virtual-machine-local] Starting mesh bridge (event-driven)",
+    "[2026-09-28T15:11:35.777Z] [mesh-bridge:moltymacs-virtual-machine-local] RECONCILE: no orphaned mesh tasks found",
+    "[2026-09-28T15:11:36.000Z] [mesh-bridge:moltymacs-virtual-machine-local] WAKE: received wake signal, triggering immediate poll"
+  ],
+  "idleProof": {
+    "at": "2026-09-28T15:11:36.164Z",
+    "daemonQueuedTasks": 0,
+    "agentAlive": {
+      "alive": false,
+      "task_id": null
+    },
+    "allConsumerAckPendingZero": true,
+    "terminalLatestStates": {
+      "KV_MESH_TASKS": {
+        "subjects": 397,
+        "tombstones": 395,
+        "states": {
+          "failed": 1,
+          "completed": 1
+        }
+      },
+      "KV_MESH_COLLAB": {
+        "subjects": 227,
+        "tombstones": 221,
+        "states": {
+          "aborted": 4,
+          "completed": 2
+        }
+      }
+    },
+    "kanbanLockAbsent": true,
+    "noExecutorChildren": true
+  },
+  "sourceTestsCommit": "f2e13d2b769c39b94fbf1e952ceea460f13154f4",
+  "runtimeNode": "/usr/local/bin/node (24.13.0)",
+  "privateJournal": "/Users/moltymac/.openclaw/backups/node-readiness/bridge-drain-9056e59-attempt2",
+  "failedAttempt": {
+    "at": "2026-09-28T15:05:02Z",
+    "reason": "harness published wake before waiting for subscriptions",
+    "originalUnitRestored": true,
+    "acceptance": false,
+    "privateJournal": "/Users/moltymac/.openclaw/backups/node-readiness/bridge-drain-9056e59"
+  },
+  "claudeSourceApproval": {
+    "thread": "OpenClaw code and architecture review",
+    "message": 96,
+    "source": "9056e59",
+    "tests": "f2e13d2",
+    "testsPassed": 10,
+    "mutantsRejected": "main; flag-only; at-signal; no-error-check; no-actual-close-check",
+    "runtimeReview": {
+      "message": 100,
+      "verdict": "close bridge 1.2; no blocker",
+      "liveExistingIDReconciliation": "not exercised: idle precondition; prior-request owned fixture only"
+    }
+  },
+  "activeHandlerGuarantee": false,
+  "stderr": {
+    "bytesNow": 0,
+    "modifiedAt": "2026-07-14T23:41:47.333403+00:00",
+    "measuredAfter": "2026-09-28T15:16:45.033172+00:00",
+    "stopWindowByteDelta": 0,
+    "basis": "zero-length stderr retains mtime before both deployment attempts"
+  },
+  "dependencyPackages": {
+    "nats": {
+      "path": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+      "version": "2.29.3"
+    },
+    "better-sqlite3": {
+      "path": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+      "version": "11.10.0"
+    },
+    "nkeys.js": {
+      "path": "/Users/moltymac/openclaw-nodedev/node_modules/nkeys.js/lib/index.js",
+      "version": "1.1.0"
+    }
+  }
+}
