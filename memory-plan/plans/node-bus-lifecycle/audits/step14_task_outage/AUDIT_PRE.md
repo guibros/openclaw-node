@@ -27,3 +27,7 @@ This is still connected idle runtime acceptance. Owned tests exercise outages; n
 ## 6 — Intended deltas
 
 bin/mesh-task-daemon.js: error-aware callback and actual-closed failure before completion only. test/task-daemon-lifecycle.test.mjs: owned early/late loss controls and readiness/clock proof. Silo audit/evidence/carriers/decision. Private staged release and task unit entry only for runtime. No unrelated daemon/harness/topology change.
+
+## Mid-Implementation Findings
+
+Claude’s throw mutant passes the initial warn-mode control because the daemon eventually exits through the error-bearing close callback. Add absence of the permanent-close line to both early controls: early failure must come from the explicit actual-open guard. Focused current controls pass Node22/24; the warn-mode throw mutant now fails. Source bytes are unchanged. Mission Control can write MESH_TASKS KV directly, so queue-RPC pause alone is insufficient for runtime admission observation. The private guard observes mutations on all three actual $KV bucket subjects continuously, including its bounded RPC pause; read-only preflight still changes no service.

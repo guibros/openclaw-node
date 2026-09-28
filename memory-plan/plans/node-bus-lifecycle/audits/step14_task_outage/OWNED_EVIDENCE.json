@@ -30,5 +30,21 @@
     ],
     "ownedScratchRemoved": true
   },
-  "fullSuite": "pending isolated CI; no root suite run against production resources"
+  "fullSuite": "pending isolated CI; no root suite run against production resources",
+  "earlyAssertions": "both early controls now reject permanent-close line; explicit guard must cause the failure",
+  "strongEarlyControls": {
+    "Node22": 2,
+    "Node24": 2,
+    "skipped": 0
+  },
+  "warnThrowMutant": {
+    "mutants": [
+      {
+        "variant": "warn-throw",
+        "rejected": true,
+        "controlledFailure": true
+      }
+    ],
+    "ownedScratchRemoved": true
+  }
 }

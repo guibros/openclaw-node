@@ -151,6 +151,7 @@ for (const warnRejections of [false, true]) {
     const drain = daemon.output.indexOf('Draining NATS...');
     assert.ok(drain >= 0 && drain < daemon.output.indexOf('NATS drain did not close the connection'), daemon.output);
     assert.ok(daemon.output.includes('NATS drain did not close the connection'), daemon.output);
+    assert.ok(!daemon.output.includes('permanently closed — exiting for launchd restart'), daemon.output);
   });
 }
 
