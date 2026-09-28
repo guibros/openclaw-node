@@ -1,6 +1,6 @@
 # SQLite recovery evidence — source review pending
 
-Observed on the Mac, 2026-09-28 08:06 EDT. This is a per-store recovery result,
+Observed on the Mac, 2026-09-28 08:31 EDT. This is a per-store recovery result,
 not a completed coordinated SQLite/JetStream acceptance or AUDIT_POST.
 
 The strengthened helper ran using installed Python 3.12.14 / SQLite 3.53.1.
@@ -15,37 +15,56 @@ user_version, application_id, page size, encoding, auto-vacuum and foreign-key
 results match their isolated restores; core integrity is ok. Individual snapshot
 time windows are recorded. This set is not one cross-store point in time.
 
-Native checks on the isolated restores pass for all twelve stores. Memory and
-knowledge use actual Node 24.13.0 / SQLite 3.49.2; Mission Control uses its launchd
+Native checks on the isolated restores pass for all twelve stores. The daemon's
+state/graph and knowledge use Node 24.13.0 / SQLite 3.49.2; Mission Control uses its launchd
 PATH's Node 22.22.0 / SQLite 3.53.2. The knowledge module resolves the recorded
 sqlite-vec dylib, v0.1.7, from the root dependency; no nested vec package exists.
+The gateway's memory/main.sqlite, task runs, plugin and flow stores now use its
+actual Node 24.13.0 node:sqlite engine, SQLite 3.50.4 and sqlite-vec 0.1.9. Installed
+gateway source uses DatabaseSync; its default vector configuration has no path
+override and resolves the recorded gateway vec binary. The three Codex agent
+stores and empty lcm.db pass repository-engine compatibility probes; their
+owner's engine equivalence is not claimed.
 All six FTS5 rank=1 integrity checks pass. Vector counts/self-queries pass for
 chunks_vec (13), chunk_vectors (9,290), session_chunk_vectors (20,399) and
-directory_vectors (25). Each sampled query returned distance zero and the same
-key; this is representative query evidence, not an exhaustive vector scan.
+directory_vectors (25). First and last keys provide eight distance-zero probes;
+this is representative query evidence, not an exhaustive vector scan.
 Restored file hashes are unchanged after native probes.
 
-Five isolated Python fixtures pass: concurrent WAL writer, rollback-mode refusal,
+Seven isolated Python fixtures pass: concurrent WAL writer, rollback-mode refusal,
 integers above 2^53, invalid UTF-8/TEXT-versus-BLOB distinction, and rowid plus
-WITHOUT ROWID preservation. Native fixtures pass both integer and text-keyed
+WITHOUT ROWID preservation, unknown-store refusal and failed atomic manifest
+replacement retaining the previous file. Native fixtures pass both integer and text-keyed
 vector queries and detect deliberately drifted external-content FTS with
-SQLITE_CORRUPT_VTAB while preserving its file hash. No root suite ran locally.
+SQLITE_CORRUPT_VTAB while preserving its file hash, using both repository and
+gateway engines. Deployed copies of the new fixtures pass too. No root suite ran locally.
 
 All backup/restore directories are 0700 and files 0600. Helper code was copied
 into the private runtime evidence directory with a hash manifest. Application
-stores were explicitly listed; browser caches and rotating app backups excluded.
+stores were explicitly listed; the header scan found exactly twelve declared
+application stores. Browser vendor state, historical backups, dependencies and
+three known source-code links are explicitly excluded. Four dated root backups
+and two unpromoted gateway reindex temporaries are excluded by exact path; the
+temporaries have February 4 mtimes and no open owner. New SQLite headers or
+directory links cause refusal. Source pin timestamps and current-WAL-inclusive
+capacity are recorded; manifests are replaced atomically.
 Gateway PID 2902/runs 17074, MC 26400/runs 2, memory daemon 58622/runs 2, viewer
-35823/runs 3 and watcher 29201/runs 1 remained running. Gateway, authenticated MC
-health and authenticated viewer discovery returned 200 afterwards.
+35823/runs 3 and watcher 29201/runs 1 remained running. Gateway and authenticated
+viewer discovery returned 200 afterwards; authenticated MC health passed after
+the prior set and its process/run count remains unchanged.
 
 Private copies, fingerprints and native results live under
-`~/.openclaw/backups/node-readiness/sqlite-20260928-verified-2/`.
-Helper SHA256: ff204767d85b0a15c0271e0cd03cf29355e276ddfe708725ff267173a33344ae.
-Manifest SHA256: 29db455cc32a4db985ba03508aaaa009b856f0389495438e02f8b0d71a732d4d.
+`~/.openclaw/backups/node-readiness/sqlite-20260928-verified-3/`.
+Helper SHA256: 89f4a965fc08bef47c512d2c89f9fa5983ac3678fa30511c47e6e30fcd8b3f6a.
+Manifest SHA256: 885c192d6085e0994adc92d7a1135483bd8d52486dddf3855bc83a8caeccabff.
 No credentials, vectors or conversation rows are published.
 
 Earlier preliminary copies and failed-run metadata are retained privately.
 The strengthened run adds raw byte/type/rowid/header verification and leaves
 extension code off production connections. Claude's source/evidence challenge
-must finish before step 1.1 closes. Step 1.3 separately establishes coordinated
+at b965148 found no source blocker in pinning/digests; all five core mutants
+failed its fixtures 3/3 times, and additional precision, corruption and four-writer
+counterexamples held. Its owner-engine and coverage corrections above are
+implemented; review of this follow-up must finish before step 1.1 closes.
+Step 1.3 separately establishes coordinated
 cursors and bus acknowledgements before parent node-readiness 1.3 can close.

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 
 spec = importlib.util.spec_from_file_location('backup_verify', Path(__file__).with_name('backup_verify.py'))
@@ -90,6 +91,31 @@ class RecoveryTests(unittest.TestCase):
         self.writer.commit()
         self.assertNotEqual(first, self.current_digest())
         self.assertTrue(backup.snapshot_store(self.root, 'fixture.db', self.root / 'output')['sourceSnapshotEqualsRestore'])
+
+    def test_inventory_refuses_new_store(self):
+        backup.inventory_stores(self.root, ('fixture.db',))
+        unknown = sqlite3.connect(self.root / 'new-agent-state')
+        unknown.execute('CREATE TABLE state(value)')
+        unknown.close()
+        with self.assertRaisesRegex(RuntimeError, 'undeclared=.*new-agent-state'):
+            backup.inventory_stores(self.root, ('fixture.db',))
+        excluded = self.root / 'backups'
+        excluded.mkdir()
+        (self.root / 'new-agent-state').rename(excluded / 'old.db')
+        result = backup.inventory_stores(self.root, ('fixture.db',))
+        self.assertIn('backups/', result['excluded'])
+        os.mkfifo(self.root / 'pipe')
+        backup.inventory_stores(self.root, ('fixture.db',))
+
+    def test_manifest_replacement_failure_retains_previous(self):
+        path = self.root / 'manifest.json'
+        backup.write_manifest(path, {'verified': 1})
+        before = path.read_bytes()
+        with patch.object(backup.os, 'replace', side_effect=OSError('fixture interruption')):
+            with self.assertRaises(OSError):
+                backup.write_manifest(path, {'verified': 2})
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(list(self.root.glob('.manifest.json-*')), [])
 
 
 if __name__ == '__main__':

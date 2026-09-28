@@ -31,6 +31,7 @@ Dated owner-private snapshots, isolated restores and fingerprint manifest. No cr
 - audits/step11_sqlite/RECOVERY.md: owner-stop and sidecar-safe restore runbook; cross-store consistency limits.
 - AUDIT_POST and sanitized evidence after acceptance.
 - Generated argv-less shim; chain stays unloaded.
+- .github/workflows/test.yml: run isolated recovery fixtures on the Node 22 CI job.
 
 ## Mid-Implementation Findings
 
@@ -47,3 +48,17 @@ Production connections now load no extension. Native offline FTS5 checks and
 representative vector self-queries supplement core integrity. Snapshots remain
 per-store, with individual time windows; a coordinated SQLite/JetStream set is
 explicitly required before parent topology repair. No repair or index rebuild.
+
+Claude's PR review found the gateway store was checked with the repository's
+engine, and fixed enumeration could omit a new application database. The same
+step now scans regular-file SQLite headers, fails on an undeclared store, and
+records explicit historical/browser/dependency exclusions. The two February
+gateway reindex temporaries are excluded by exact path, retain their originals,
+and have no open owner; future temporary paths are not silently excluded.
+Directory symlink targets are outside this physical-root inventory.
+The native verifier supports the gateway's own node:sqlite/vec build and probes
+both ends of each vector table. Agent Codex stores receive compatibility probes,
+not an assertion about their owner's SQLite engine. Manifest replacement is
+atomic, capacity includes WAL bytes, and pin timestamps sharpen the windows.
+This extends verification of the same recoverability outcome; no production
+storage or application code is modified.

@@ -6,9 +6,11 @@ import os
 from pathlib import Path
 import shutil
 import sqlite3
+import stat
 import struct
 import sys
 import time
+import tempfile
 
 
 STORES = (
@@ -25,6 +27,67 @@ STORES = (
     'plugin-state/state.sqlite',
     'flows/registry.sqlite',
 )
+
+EXCLUDED_DIRECTORIES = {'backups': 'historical recovery copies', 'browser': 'browser vendor state'}
+EXCLUDED_COMPONENTS = {'node_modules': 'dependency fixtures', '.git': 'repository metadata'}
+EXCLUDED_LINKS = {
+    'workspace/lib': 'runtime source-code link',
+    'workspace/.claude/rules': 'prompt source-code link',
+    'plugin-skills/browser-automation': 'skill source-code link',
+}
+EXCLUDED_FILES = {
+    'state.db.bak-2026-07-04-pre-v4': 'historical recovery copy',
+    'state.db.bak-2026-07-03-predeployday': 'historical recovery copy',
+    'state.db.bak-pre-heal-20260530-142727': 'historical recovery copy',
+    'state.db.bak-pre-consolidate-20260531-234925': 'historical recovery copy',
+    'memory/main.sqlite.tmp-5c2f6a45-63d5-46c4-b5f1-e2d57f017fc6': 'unpromoted gateway reindex temporary; unchanged since 2026-02-04, no open owner',
+    'memory/main.sqlite.tmp-4c374136-e5c9-42e1-895e-509021c85fb9': 'unpromoted gateway reindex temporary; unchanged since 2026-02-04, no open owner',
+}
+
+
+def inventory_stores(root, declared=STORES):
+    found = set()
+    excluded = {}
+
+    def scan_error(error):
+        raise error
+
+    for current, directories, files in os.walk(root, followlinks=False, onerror=scan_error):
+        retained = []
+        for name in directories:
+            path = Path(current) / name
+            relative = str(path.relative_to(root))
+            reason = EXCLUDED_DIRECTORIES.get(relative) or EXCLUDED_COMPONENTS.get(name)
+            if reason:
+                excluded[relative + '/'] = reason
+            elif path.is_symlink():
+                if relative not in EXCLUDED_LINKS:
+                    raise RuntimeError('undeclared directory symlink in SQLite inventory: ' + relative)
+                excluded[relative + '/'] = EXCLUDED_LINKS[relative]
+            else:
+                retained.append(name)
+        directories[:] = retained
+        for name in files:
+            path = Path(current) / name
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                if not path.is_file():
+                    continue
+            elif not stat.S_ISREG(mode):
+                continue
+            with path.open('rb') as source:
+                if source.read(16) != b'SQLite format 3\0':
+                    continue
+            relative = str(path.relative_to(root))
+            if relative in EXCLUDED_FILES:
+                excluded[relative] = EXCLUDED_FILES[relative]
+            else:
+                found.add(relative)
+    unknown = found - set(declared)
+    missing = set(declared) - found
+    if unknown or missing:
+        raise RuntimeError('SQLite inventory differs: undeclared=' + repr(sorted(unknown)) + '; missing=' + repr(sorted(missing)))
+    return {'declared': sorted(found), 'excluded': excluded, 'physicalRoot': str(root.resolve())}
 
 
 def quoted(identifier):
@@ -119,12 +182,18 @@ def file_digest(path):
 
 
 def write_manifest(path, manifest):
-    with path.open('w') as target:
-        json.dump(manifest, target, indent=2)
-        target.write('\n')
-        target.flush()
-        os.fsync(target.fileno())
-    sync_directory(path.parent)
+    descriptor, temporary = tempfile.mkstemp(prefix='.' + path.name + '-', dir=path.parent)
+    try:
+        with os.fdopen(descriptor, 'w') as target:
+            json.dump(manifest, target, indent=2)
+            target.write('\n')
+            target.flush()
+            os.fsync(target.fileno())
+        os.replace(temporary, path)
+        sync_directory(path.parent)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def sync_directory(path):
@@ -150,6 +219,7 @@ def snapshot_store(root, relative, output):
     started = time.monotonic()
     snapshot_time = time.time()
     with closing(connect_readonly(source)) as reader:
+        pinned_at = time.time()
         before = fingerprint(reader)
         destination = sqlite3.connect(str(backup))
         try:
@@ -178,6 +248,7 @@ def snapshot_store(root, relative, output):
         'bytes': backup.stat().st_size,
         'seconds': round(time.monotonic() - started, 3),
         'snapshotStartedAt': snapshot_time,
+        'pinnedAt': pinned_at,
         'snapshotEndedAt': time.time(),
         'fileSha256': file_digest(backup),
         'sourceSnapshotEqualsRestore': True,
@@ -188,15 +259,18 @@ def snapshot_store(root, relative, output):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=Path, required=True)
-    parser.add_argument('--extension', type=Path, required=True)
+    parser.add_argument('--extension', type=Path, action='append', required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     os.umask(0o077)
-    if not args.extension.is_file():
+    if any(not extension.is_file() for extension in args.extension):
         raise FileNotFoundError('sqlite-vec extension missing')
     if any(not (args.root / store).is_file() for store in STORES):
         raise FileNotFoundError('declared application store missing')
-    required = sum((args.root / store).stat().st_size for store in STORES) * 3
+    inventory = inventory_stores(args.root)
+    required = sum((args.root / store).stat().st_size +
+                   (Path(str(args.root / store) + '-wal').stat().st_size if Path(str(args.root / store) + '-wal').exists() else 0)
+                   for store in STORES) * 3
     if shutil.disk_usage(args.output.parent).free < required:
         raise RuntimeError('insufficient free space')
     args.output.mkdir(mode=0o700)
@@ -205,7 +279,8 @@ def main():
         'sqliteVersion': sqlite3.sqlite_version,
         'python': sys.version.split()[0],
         'helperSha256': file_digest(Path(__file__)),
-        'extensionSha256': file_digest(args.extension),
+        'extensions': [{'path': str(extension.resolve()), 'sha256': file_digest(extension)} for extension in args.extension],
+        'inventory': inventory,
         'method': 'read-only WAL pinned transactions without extensions; SQLite backup API; isolated file restores',
         'setConsistency': 'per-store snapshots; not one cross-store or JetStream point in time',
         'stores': [],
@@ -213,6 +288,7 @@ def main():
     }
     manifest_path = args.output / 'manifest.json'
     write_manifest(manifest_path, manifest)
+    store = None
     try:
         for store in STORES:
             result = snapshot_store(args.root, store, args.output)
