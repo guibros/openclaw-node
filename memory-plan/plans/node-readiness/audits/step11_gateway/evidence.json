@@ -1,0 +1,42 @@
+{
+  "baseline_main": "cbae56be97aa0f6d4faf9fedd444dad119885d9a",
+  "upstream_version": "2026.5.27",
+  "config_changed": [
+    "channels.telegram.streaming",
+    "channels.discord.streaming"
+  ],
+  "unrelated_config_equal": true,
+  "backup_mode": "0600",
+  "template_and_live_validator": true,
+  "health": [
+    {
+      "timestamp": "2026-09-27T23:07:28.712641-04:00",
+      "exit": 0,
+      "ok": true,
+      "event_loop_degraded": false,
+      "plugin_errors": 0,
+      "active_channels": 0
+    },
+    {
+      "timestamp": "2026-09-27T23:08:10.484223-04:00",
+      "exit": 0,
+      "ok": true,
+      "event_loop_degraded": false,
+      "plugin_errors": 0,
+      "active_channels": 0,
+      "seconds_since_first_success": 41.771582
+    }
+  ],
+  "tests": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 node --test test/install-modules.test.mjs",
+    "pass": 19,
+    "fail": 0,
+    "skip": 0,
+    "unmodified_environment": "18 pass; known #53 Python cache dry-run failure"
+  },
+  "limitations": [
+    "model inference and external channels not exercised",
+    "full root suite awaits isolation",
+    "gateway currently generates ephemeral startup auth token"
+  ]
+}
