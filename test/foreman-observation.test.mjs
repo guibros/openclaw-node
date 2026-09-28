@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { buildObservation, gitEvidence, readInstructions, tail, DEFAULT_LIMITS } from '../lib/foreman/observation.mjs';
+import { buildObservation, gitEvidence, readInstructions, restoreTree, tail, treeSnapshot, DEFAULT_LIMITS } from '../lib/foreman/observation.mjs';
 
 function tempRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'foreman-obs-'));
@@ -44,7 +44,18 @@ describe('foreman observation — git evidence', () => {
     assert.match(evidence.status, /M a\.txt/);
     assert.match(evidence.status, /\?\? new\.txt/);
     assert.match(evidence.diff, /\+two/);
-    assert.deepEqual(evidence.changed_files, ['a.txt']);
+    assert.deepEqual(evidence.changed_files, ['a.txt', 'new.txt']);
+  });
+  it('measures against HEAD: staged edits and new files are changes too', async () => {
+    const dir = tempRepo();
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'one\nstaged\n');
+    execFileSync('git', ['-C', dir, 'add', 'a.txt']);
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'build/\n');
+    fs.mkdirSync(path.join(dir, 'build'));
+    fs.writeFileSync(path.join(dir, 'build', 'out.js'), 'ignored');
+    const evidence = await gitEvidence(dir, DEFAULT_LIMITS);
+    assert.match(evidence.diff, /\+staged/);
+    assert.deepEqual(evidence.changed_files, ['a.txt', '.gitignore']);
   });
   it('bounds the diff to the configured limit', async () => {
     const dir = tempRepo();
@@ -59,6 +70,59 @@ describe('foreman observation — git evidence', () => {
     assert.equal(evidence.diff, '');
     assert.deepEqual(evidence.changed_files, []);
     assert.deepEqual(await gitEvidence(null), { status: '', diff: '', changed_files: [] });
+  });
+});
+
+describe('foreman observation — tree snapshots', () => {
+  it('hashes the tree git add -A would commit, without touching the worker\'s index', async () => {
+    const dir = tempRepo();
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'one\nstaged\n');
+    execFileSync('git', ['-C', dir, 'add', 'a.txt']);
+    fs.writeFileSync(path.join(dir, 'new.txt'), 'new\n');
+    const status = () => execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' });
+    const before = status();
+    const first = await treeSnapshot(dir);
+    assert.match(first, /^[0-9a-f]{40,64}$/);
+    assert.equal(await treeSnapshot(dir), first, 'stable while nothing changes');
+    assert.equal(status(), before, 'the real index is untouched');
+    fs.writeFileSync(path.join(dir, 'new.txt'), 'new\nmore\n');
+    const second = await treeSnapshot(dir);
+    assert.notEqual(second, first, 'an untracked file\'s content counts');
+    fs.writeFileSync(path.join(dir, '.gitignore'), '*.log\n');
+    const third = await treeSnapshot(dir);
+    fs.writeFileSync(path.join(dir, 'debug.log'), 'noise');
+    assert.equal(await treeSnapshot(dir), third, 'ignored files do not');
+  });
+  it('is null outside a repository and without a worktree', async () => {
+    assert.equal(await treeSnapshot(fs.mkdtempSync(path.join(os.tmpdir(), 'foreman-nogit-'))), null);
+    assert.equal(await treeSnapshot(null), null);
+  });
+  it('restoreTree puts back what changed and removes what was added, leaving staging alone', async () => {
+    const dir = tempRepo();
+    fs.writeFileSync(path.join(dir, 'b.txt'), 'b\n');
+    execFileSync('git', ['-C', dir, 'add', 'b.txt']);
+    execFileSync('git', ['-C', dir, 'commit', '-q', '-m', 'b']);
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'one\nstaged\n');
+    execFileSync('git', ['-C', dir, 'add', 'a.txt']);
+    fs.writeFileSync(path.join(dir, 'wip.txt'), 'worker file\n');
+    const statusBefore = execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' });
+    const snapshot = await treeSnapshot(dir);
+
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'clobbered\n');
+    fs.rmSync(path.join(dir, 'b.txt'));
+    fs.rmSync(path.join(dir, 'wip.txt'));
+    fs.mkdirSync(path.join(dir, 'sub'));
+    fs.writeFileSync(path.join(dir, 'sub', 'added.txt'), 'x');
+    const drifted = await treeSnapshot(dir);
+    assert.notEqual(drifted, snapshot);
+
+    const touched = await restoreTree(dir, snapshot, drifted);
+    assert.deepEqual(touched.sort(), ['a.txt', 'b.txt', 'sub/added.txt', 'wip.txt']);
+    assert.equal(await treeSnapshot(dir), snapshot);
+    assert.equal(fs.readFileSync(path.join(dir, 'a.txt'), 'utf8'), 'one\nstaged\n');
+    assert.equal(fs.readFileSync(path.join(dir, 'wip.txt'), 'utf8'), 'worker file\n');
+    assert.equal(fs.existsSync(path.join(dir, 'sub', 'added.txt')), false);
+    assert.equal(execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' }), statusBefore);
   });
 });
 
@@ -110,7 +174,7 @@ describe('foreman observation — the snapshot', () => {
     assert.ok(observation.active_workers[0].stdout_tail.length < 200);
     assert.ok(observation.latest_worker_output.length < 200);
     assert.match(observation.git_diff, /\+changed/);
-    assert.deepEqual(observation.changed_files, ['a.txt']);
+    assert.deepEqual(observation.changed_files, ['a.txt', 'CLAUDE.md']);
     assert.equal(observation.instructions_path, 'CLAUDE.md');
     assert.match(observation.instructions, /generated files/);
     assert.deepEqual(observation.previous_assessment, { worker_stuck: 0.2 });

@@ -21,6 +21,10 @@ import { join } from 'node:path';
 const TMP_HOME = mkdtempSync(join(tmpdir(), 'mis-test-home-'));
 process.env.HOME = TMP_HOME;
 process.env.MEMORY_INJECT_PORT = '0';  // OS-assigned random port
+// Every /memory/inject request fires an unawaited injection-log write into
+// $HOME/.openclaw; one still landing during after()'s rmSync failed the hook
+// with ENOTEMPTY (CI, 2 of 5 runs on 2026-09-27). The logger has its own tests.
+process.env.INJECTION_LOG_DISABLED = '1';
 
 const { startInjectionServer, getOrCreateToken } = await import('../lib/memory-inject-server.mjs');
 

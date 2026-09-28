@@ -28,10 +28,12 @@ existing agent calls (MASTER_PLAN §4.6: no new daemon).
 
 ## Block 2 — Enforcement
 
-- **Intent:** by default (`MESH_FOREMAN_ENFORCE=0` for shadow), the policy's decisions act: STOP kills the worker's
-  process group and the agent's attempt loop retries with the guidance in the retry prompt;
-  ESCALATE releases the task for human triage instead of burning attempts; a verifier pass with a
-  structured verdict gates completion the way the metric does today.
+- **Intent:** when the operator switches it on (`MESH_FOREMAN_ENFORCE=1`; shadow is the default —
+  D3, which superseded D2's enforce-by-default), the policy's decisions act: a STOP confirmed by
+  consecutive stuck assessments on an unchanged tree kills the worker's process group and the
+  agent's attempt loop retries with the guidance in the retry prompt; ESCALATE releases the task
+  for human triage instead of burning attempts; a no-metric attempt completes only on a single
+  well-formed PASS from a verifier that left the tree unchanged — the way the metric gates it today.
 - **Exit criterion (runtime-observable):** a deliberately stuck task is stopped by the supervisor,
   retried once, and released with `ESCALATE` in its timeline — observed on the operator's node.
 - **Unblocks:** Block 3.
