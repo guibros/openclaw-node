@@ -44,4 +44,4 @@ Execute INVENTORY 1.1 exactly. Source review plus CI do not close the runtime ga
 
 ## Mid-Implementation Findings
 
-None yet.
+Claude's separate scratch review reports that buffered active submissions can continue after unsubscribe and leave partial collaboration work during shutdown. This is outside the idle planned-stop contract and is not repaired here. The execution-harness lifecycle work must explicitly own in-flight async handlers; a clean NATS drain alone is not proof of that outcome. The production preservation gate still requires fresh idle/executor/consumer evidence.
