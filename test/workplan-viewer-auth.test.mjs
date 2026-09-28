@@ -62,6 +62,13 @@ function watch(auth, token) {
   return { req, res };
 }
 
+async function waitForFinish(res) {
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 3000);
+  try { await once(res, 'finish', { signal: controller.signal }); }
+  finally { clearTimeout(deadline); }
+}
+
 test('default HTTP port accepts both authority forms with canonical origins', () => {
   for (const host of ['localhost', 'localhost:80', '127.0.0.1', '127.0.0.1:80']) {
     const origin = new URL(`http://${host}`).origin;
@@ -222,8 +229,8 @@ test('token rotation revokes old grants and closes active streams without anothe
   const masterStream = watch(auth, MASTER);
   const sessionStream = watch(auth, session.token);
   const finished = Promise.all([
-    once(masterStream.res, 'finish', { signal: AbortSignal.timeout(3_000) }),
-    once(sessionStream.res, 'finish', { signal: AbortSignal.timeout(3_000) }),
+    waitForFinish(masterStream.res),
+    waitForFinish(sessionStream.res),
   ]);
   const replacement = path.join(f.dir, 'replacement');
   fs.writeFileSync(replacement, REPLACEMENT + '\n', { mode: 0o600 });
@@ -246,7 +253,7 @@ test('expired session streams close while a master stream remains open', async (
   const session = auth.issue(MASTER);
   const masterStream = watch(auth, MASTER);
   const sessionStream = watch(auth, session.token);
-  const finished = once(sessionStream.res, 'finish', { signal: AbortSignal.timeout(3_000) });
+  const finished = waitForFinish(sessionStream.res);
   now = session.expiresAt;
   await finished;
   assert.equal(sessionStream.res.endCount, 1);
