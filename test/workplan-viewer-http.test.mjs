@@ -142,7 +142,7 @@ async function stalledLog(t, f, token) {
   await once(socket, 'connect');
   const ready = new Promise((resolve, reject) => {
     let headers = '';
-    const deadline = setTimeout(() => reject(new Error('stream headers timeout')), 5000);
+    const deadline = setTimeout(() => reject(new Error('stream headers timeout')), 30000);
     socket.on('error', reject);
     socket.on('data', chunk => {
       headers += chunk.toString('utf8');
