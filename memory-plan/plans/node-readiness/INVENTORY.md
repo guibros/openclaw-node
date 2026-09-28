@@ -5,7 +5,8 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 | Block | Step | Version | Status | Description |
 |---|---|---|---|---|
 | 1 | 1.1 | v1.1 | [x] | Restore gateway startup with schema-valid streaming configuration — 2026-09-27: 703s stable PID/run count, validator, healthy loopback and anonymous 401 |
-| 1 | 1.2 | v1.2 | [ ] | Restore installed Mission Control |
+| 1 | 1.2 | v1.2 | [A] | Restore installed Mission Control |
+| 1 | 1.6 | v1.6 | [ ] | Restore the plan viewer with authenticated control endpoints |
 | 1 | 1.3 | v1.3 | [ ] | Establish restorable persisted-state backups |
 | 1 | 1.4 | v1.4 | [ ] | Reconcile message-bus topology |
 | 1 | 1.5 | v1.5 | [ ] | Make deployment revision and services reproducible |
@@ -100,3 +101,8 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 > **Needs:** All required rows closed; backlog and PR notes reconciled; provenance checked.
 > **Feeds:** Installation and support.
 > **Verify:** runtime/code: Released artifact installs/upgrades, CI passes and instructions accurately state limitations.
+
+> **1.6 — Goal:** Restore the existing plan viewer with authenticated control endpoints.
+> **Needs:** 1.2 closed; private review of viewer request handling and current unit; no active tick jobs.
+> **Feeds:** Safe operator plan monitoring/control.
+> **Verify:** runtime/code: authorized viewer reads and controls work; foreign Host/Origin and missing/invalid credentials fail closed; existing service survives restart and uses the reviewed source.

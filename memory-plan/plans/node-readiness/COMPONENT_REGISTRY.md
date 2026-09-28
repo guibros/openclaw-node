@@ -6,18 +6,18 @@
 | | |
 |---|---|
 | **Status** | LIVE startup: PID 2902 listens on loopback 18789; inference not yet accepted |
-| **Verified** | 2026-09-27 23:08 EDT: validator accepts migrated config; two healthy probes 41.77s apart, no plugin errors; external channels remain disabled |
+| **Verified** | 2026-09-27 23:23 EDT: validator accepts config; PID/run count stable over 703 seconds, healthy checks, no plugin errors; anonymous completions 401 |
 
 ### Mission Control
 | | |
 |---|---|
-| **Status** | DOWN: launchd exit 127; next: command not found |
+| **Status** | STOPPED for restoration: backed up; current source deployed; dependencies/startup rehearsal under verification |
 | **Verified** | 2026-09-27 22:59 EDT: no listener on 3000; deployed project lacks working Next binary |
 
 ### Memory daemon and viewer
 | | |
 |---|---|
-| **Status** | LISTENING on 7893 / 7892; functional acceptance pending |
+| **Status** | Memory listening on 7893; viewer 7892 stopped and persistently disabled pending authentication repair |
 | **Verified** | 2026-09-27 22:59 EDT: PIDs and loopback listeners; runtime lib symlinks into live checkout |
 
 ### Message bus

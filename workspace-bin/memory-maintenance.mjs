@@ -225,46 +225,16 @@ async function checkMissionControl() {
     log('Mission Control unreachable — skipping');
     report('MC_DOWN: Mission Control unreachable (timeout or connection refused)');
     warnings++;
-    // Attempt restart if MC is completely down
-    try {
-      const { execSync: execSyncImport } = await import('child_process');
-      const mcHealthScript = path.join(WORKSPACE, 'bin', 'mc-health.mjs');
-      const result = execSyncImport(`node "${mcHealthScript}" --restart`, {
-        timeout: 45000,
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      log(`MC restart result: ${result.trim()}`);
-      report('MC_RESTART: Auto-restart from unreachable state');
-      actions++;
-    } catch (e) {
-      log(`MC restart attempt failed: ${e.message}`);
-    }
+
     return;
   }
 
-  if (healthResult.status === 503 || healthResult.body?.status === 'unhealthy') {
+  if (healthResult.status !== 200 || healthResult.body?.status === 'unhealthy') {
     const err = healthResult.body?.error || 'unknown';
     log(`Mission Control UNHEALTHY: ${err}`);
     report(`MC_UNHEALTHY: ${err}`);
     warnings++;
-    // Attempt restart via mc-health script (handles kill + restart + verification)
-    try {
-      const { execSync: execSyncImport } = await import('child_process');
-      const mcHealthScript = path.join(WORKSPACE, 'bin', 'mc-health.mjs');
-      const result = execSyncImport(`node "${mcHealthScript}" --restart`, {
-        timeout: 45000,
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      log(`MC restart result: ${result.trim()}`);
-      report('MC_RESTART: Auto-restart triggered and verified');
-      actions++;
-    } catch (e) {
-      log(`MC restart failed: ${e.message}`);
-      report('MC_RESTART_FAILED: Could not recover Mission Control');
-      warnings++;
-    }
+
     return;
   }
 

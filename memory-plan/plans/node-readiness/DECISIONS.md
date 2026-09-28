@@ -11,3 +11,9 @@ Root-suite tests can reach live defaults (#52/#61). Until isolation is establish
 
 ## D4 — Strengthen gateway acceptance after independent challenge (2026-09-27 23:10 EDT)
 Claude accepted the two-field repair's scope but identified that two health probes 30s apart miss deferred startup failures. Reopen 1.1 for a ten-minute stable launchd PID/run-count window and unauthenticated chat rejection. Do not infer whole-product readiness from gateway health. All live config comparisons stay structural or hashed; no token-bearing diffs are published. The full-file validator is the meaningful schema test; a source-shape assertion alone would only mirror the patch.
+
+## D5 — Mission Control has one service owner (2026-09-27 23:30 EDT)
+The health helper must restart the existing launchd/systemd user service. It must not kill whichever process owns a port or spawn an unmanaged development server. This is required to keep the restored production build running under the same service definition. Runtime source, database and environment are backed up before replacement.
+
+## D6 — 2026-09-27: supervisor owns automatic MC restarts
+Memory maintenance reports failed health and skips dependent work; it does not restart MC. launchd KeepAlive/systemd Restart own crash recovery. Explicit mc-health --restart remains a managed operator recovery action with authentication checks and cooldown. This avoids an additional health controller killing a valid cold start or repeatedly attempting to repair a damaged database. Database startup refuses unhealthy integrity results and closes the failed handle; no unbacked automatic REINDEX. Verified-backup restoration is the recovery path.
