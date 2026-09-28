@@ -771,6 +771,7 @@ async function main() {
   });
   setNatsConnection(nc, sc);
   log('Connected to NATS');
+  let draining = false;
 
   // Re-reconcile on reconnect — catches events missed during NATS blip (#2)
   // Exit on permanent disconnect so launchd restarts us
@@ -784,6 +785,7 @@ async function main() {
     }
   })();
   nc.closed().then(() => {
+    if (draining) return;
     log('NATS connection permanently closed — exiting for launchd restart');
     process.exit(1);
   });
@@ -887,6 +889,7 @@ async function main() {
   clearInterval(stalenessTimer);
   wakeSub.unsubscribe();
   sub.unsubscribe();
+  draining = true;
   await nc.drain();
   log('Bridge stopped.');
 }

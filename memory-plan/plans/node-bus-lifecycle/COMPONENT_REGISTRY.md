@@ -8,9 +8,9 @@
 |---|---|
 | **Status** | LIVE, idle planned drain VERIFIED |
 | **Verified** | 2026-09-28 10:31 America/Montreal: PID 10490, runs 2, last exit 0; one Shutdown complete, actual read-only RPC before signal/after restart, no disconnect/reconnect in window; separate subscription gap 1→0→1. |
-| **Source** | Live e57f89b264a30892389cabe573786fb516a6a208; current-main 5e088cc85af46391efab5286970525ebd5f3a0f4 has the same unconditional closed callback. |
+| **Source** | Live e57f89b264a30892389cabe573786fb516a6a208; main 88c7ad058589a60a566fa902d81d6dc0a6b88bed includes the accepted repair; runtime preserves the e57 base with the reviewed lifecycle patch. |
 | **Runtime** | /usr/local/bin/node /Users/moltymac/.openclaw/releases/task-drain-0f2e148-e57f89b/bin/mesh-task-daemon.js; other unit values/cwd preserved. |
-| **Constraint** | The live file lacks current-main terminal-task guards. Preserve this drift in the narrow lifecycle release; reconcile it in node-readiness 2.2. |
+| **Constraint** | The live file lacks current-main terminal-task guards. Preserve this drift in the narrow lifecycle release; reconcile it in node-readiness 1.5. |
 
 ### Managed NATS preservation prerequisite
 

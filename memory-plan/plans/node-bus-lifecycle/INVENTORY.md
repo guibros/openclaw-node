@@ -5,7 +5,7 @@
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
 | 1 | 1.1 | v1.1 | [x] | Complete deliberate task-daemon shutdown normally — 2026-09-28: reviewed 0f2e148 on staged e57, real managed exit 0/completion, single-instance gap and RPC readiness pass |
-| 1 | 1.2 | v1.2 | [ ] | Complete deliberate idle bridge shutdown normally |
+| 1 | 1.2 | v1.2 | [A] | Complete deliberate idle bridge shutdown normally |
 | 1 | 1.3 | v1.3 | [ ] | Complete deliberate idle worker shutdown normally |
 
 > **1.1 — Goal:** the existing task daemon completes a requested idle shutdown with its normal exit status.
@@ -15,7 +15,7 @@
 
 
 > **1.2 — Goal:** the existing bridge completes a requested idle shutdown normally.
-> **Needs:** 1.1 closed; same-race source and live stop log reverified; owned NATS plus isolated MC fixture; original runtime unit; immutable e57 base; D4.
+> **Needs:** 1.1 closed; same-race source and live stop log reverified; owned authenticated NATS plus isolated kanban/observability state; original runtime unit; immutable e57 base; D4.
 > **Feeds:** node-state-recovery 1.2's bridge stop gate.
 > **Verify:** `code:` unpatched real idle bridge fails the completion control; patched SIGTERM/SIGINT complete once, unexpected permanent loss retains exit 1, full isolated CI green. `runtime:` lifecycle-only staged release; fresh idle proof; managed stop emits `Bridge stopped.` with normal exit, managed restart reconciles existing task IDs without changing their state; unrelated service owners unchanged.
 
