@@ -9,7 +9,7 @@
 
 - **Test command:** `NODE_PATH=/Users/moltymac/openclaw-nodedev/node_modules node --test test/task-daemon-lifecycle.test.mjs`; full root suite only in isolated CI until node-readiness 2.1 closes
 - **Runtime deploy target:** `~/.openclaw/releases/task-drain-<source>-e57f89b`, selected by the existing task-daemon unit; preserve the primary repo
-- **Plan-specific required reading:** `audits/step11_drain/AUDIT_PRE.md` and the node-state-recovery 1.2 preservation carry-forward
+- **Plan-specific required reading:** `audits/step12_bridge/AUDIT_POST.md`, DECISIONS D7 and the node-state-recovery 1.2 preservation carry-forward
 
 ---
 
