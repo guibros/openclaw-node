@@ -62,8 +62,11 @@ if verification fails; do not roll back to unauthenticated exposure.
 The independent candidate review identified selected-log replacement and default
 HTTP-port normalization edge cases. Both remain within this boundary and have
 focused regressions. Browser automation stalled at an existing native confirmation
-dialog; browser control acceptance is still incomplete. The production service
-remains disabled while these checks are completed.
+dialog. A later disposable fixture confirmed sign-in, a live append, sign-out,
+key rotation and a harmless run-once. Production browser acceptance remains
+incomplete: Chrome reports ERR_BLOCKED_BY_CLIENT before requests reach the
+viewer, and the operator was asked to enter the private key locally. The repaired
+service is now deployed; the step remains open.
 
 Claude reproduced a write-after-end crash on the real viewer when a stalled
 stream is ended during revocation or key rotation. Authorization termination
@@ -71,3 +74,33 @@ now destroys the connection, including expiry and shutdown, so response close
 releases the pinned file. The HTTP suite exercises 24 MiB stalled logs, checks
 file release and healthy authenticated requests, and includes the idle
 heartbeat and shutdown cases. The old source must fail the same regression.
+
+Claude independently approved b4bbac2 on 2026-09-28. On old source, revocation
+reproduces the crash and rotation fails because resources remain open. The
+shutdown case is a behavior check; reverting expiry/shutdown to end() is caught
+by unit tests. The test-only 4b5c0e2 extends the large-log header deadline from
+five to thirty seconds; resource-release checks remain unchanged.
+
+Nonblocking carry-forwards: CI currently tests Node 20/22 while the deployed
+viewer/watcher engine is Node 24 (step 2.1). Pinned raw history logs are read and
+encoded in one blocking operation, with memory/time growing with file size;
+Claude measured approximately 300 ms and 179 MB peak for 24 MiB on an idle Linux
+Node 24 instance. Bound history loading in a separate viewer performance step;
+this observation is not a Mac runtime measurement or an authentication regression.
+
+The watcher bootstrap initially returned error 5 during the old service's
+bootout. After verifying the service was absent, bootstrap succeeded with the
+reviewed unit. No overlapping watcher remains. Record this deployment sequencing
+requirement in step 1.5; do not infer an application startup defect from the
+supervisor transition.
+
+Deployment guard until steps 1.5/2.2: do not rerun the installer/services stage
+or manually launch the old viewer from e57f89b/workspace copies. The current
+accepted viewer/watcher units point at the reviewed release; a services reinstall
+could overwrite the watcher unit. Repeat its missing-key negative after any
+installer/stack action. The authenticated API's roots field names the original
+live directory; federation log 20260711-143943.log is returned by its logs API
+and absent from the release snapshot. There is exactly one installed viewer
+LaunchAgent and one loopback listener, both attributed to the release. The
+release root was already 0700; all owned files/directories now also have private
+modes, with executable bits preserved and all 1,915 content hashes unchanged.

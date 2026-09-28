@@ -14,11 +14,17 @@
 | **Status** | LIVE: fa54a0d build JoDmTRHsYJYZLQg5CKnKW; supervised production service with authenticated API and maintenance |
 | **Verified** | 2026-09-28 00:25 EDT: 605.21s healthy stable PID/run count, recovery 2.41s, loopback 3000, 537 original tasks unchanged; anonymous 401 and foreign Host/Origin 403; seven real maintenance requests 200 |
 
-### Memory daemon and viewer
+### Memory daemon
 | | |
 |---|---|
-| **Status** | Memory listening on 7893; viewer 7892 stopped and persistently disabled pending authentication repair |
+| **Status** | Memory listening on 7893; autonomous capture is not accepted and remains stale |
 | **Verified** | 2026-09-27 22:59 EDT: PIDs and loopback listeners; runtime lib symlinks into live checkout |
+
+### Plan viewer and watcher
+| | |
+|---|---|
+| **Status** | LIVE b4bbac2 overlay on preserved e57f89b base; viewer PID 35823/runs 3 after intentional crash recovery; watcher PID 29201/runs 1; production browser acceptance pending |
+| **Verified** | 2026-09-28 07:30 EDT: authenticated discovery matches nine live plans/versions, served assets match release, anonymous controls 401 and foreign authority/origin 403, sign-out/rotation close real streams without restart, pre-restart session rejected; watcher positive WORKING and missing-key negative BROKEN/401. Plan files/logs/schedules unchanged. 603.38s healthy stable PID/runs; subsequent intentional crash recovers in 0.447s with key inode/mtime preserved. |
 
 ### Message bus
 | | |
@@ -37,5 +43,5 @@
 ### Source and review
 | | |
 |---|---|
-| **Status** | Main 07a9c7e after merged gateway PR #140; live checkout e57f89b preserved; MC fa54a0d staged in PR #141 |
-| **Verified** | 2026-09-28 00:25 EDT: CI green and Claude independently approved #141 source/runtime acceptance; historical issue/PR reconciliation continues |
+| **Status** | Main 4112855 after merged gateway #140 and Mission Control #141; live checkout e57f89b preserved; viewer source b4bbac2 deployed from draft #142, head 4b5c0e2 |
+| **Verified** | 2026-09-28 07:21 EDT: #142 CI green on Node 20/22 and Mission Control; Claude independently approved source, passed 103 focused tests on Node 22.22.2/24.13.0 and caught six deliberate mutations. Runtime/browser acceptance remains distinct. |
