@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { once } from 'node:events';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { api, capture, cliBackup, cliRestore, consumerState, copyCold, digest, hashTree, jsonPrivate, openBus, privateDir, run, writePrivate } from './recovery.mjs';
 const { headers } = createRequire(import.meta.url)('nats');
@@ -80,7 +80,7 @@ async function waitOffline(nc, stream) {
 }
 
 async function assertRoutes(items) {
-  const allowed = new Set(await Promise.all(items.map(async i => (await (await fetch(`http://127.0.0.1:${i.monitor}/varz`)).json()).server_id))); 
+  const allowed = new Set(await Promise.all(items.map(async i => (await (await fetch(`http://127.0.0.1:${i.monitor}/varz`)).json()).server_id)));
   for (const item of items) {
     const routes = await (await fetch(`http://127.0.0.1:${item.monitor}/routez`)).json();
     assert(routes.routes.every(r => r.ip === '127.0.0.1' && allowed.has(r.remote_id)), 'route escaped fixture peers');
@@ -91,6 +91,7 @@ async function assertRoutes(items) {
   }
 }
 
+const provenance = [cli, binary].map(file => ({ path: fs.realpathSync(file), version: execFileSync(file, ['--version'], { encoding: 'utf8' }).trim(), sha256: createHash('sha256').update(fs.readFileSync(file)).digest('hex') }));
 const results = {};
 let passed = false;
 const originalRecord = { seq: 1, subject: 'history.x', time: '2026-09-28T00:00:00.123456789Z', hdrs: Buffer.from('NATS/1.0\r\nX-Key: a\r\n\r\n').toString('base64'), data: Buffer.from([0, 255, 1]).toString('base64') };
@@ -99,7 +100,9 @@ const baseDigest = await digest(fakeBus(originalRecord), 'fixture', 1, 1);
 for (const [key, value] of Object.entries({ subject: 'history.y', time: '2026-09-28T00:00:00.123456788Z', hdrs: Buffer.from('NATS/1.0\r\nX-Key: b\r\n\r\n').toString('base64'), data: Buffer.from([0, 255, 2]).toString('base64') })) {
   assert.notEqual((await digest(fakeBus({ ...originalRecord, [key]: value }), 'fixture', 1, 1)).sha256, baseDigest.sha256, `digest ignores ${key}`);
 }
-results.digestSensitivity = { subject: true, nanosecondTimestamp: true, rawHeaders: true, binaryPayload: true };
+const holeBus = { request: async () => ({ data: Buffer.from(JSON.stringify({ error: { code: 404, err_code: 10037, description: 'no message found' } })) }) };
+assert.notEqual((await digest(holeBus, 'fixture', 1, 1)).sha256, baseDigest.sha256);
+results.digestSensitivity = { subject: true, nanosecondTimestamp: true, rawHeaders: true, binaryPayload: true, deletedHole: true };
 try {
   const source = await start('snapshot-source', path.join(root, 'source'));
   const nc = await bus(source), js = nc.jetstream(), jsm = await nc.jetstreamManager();
@@ -125,6 +128,7 @@ try {
   const restored = await capture(restoredNC, 'HISTORY');
   assert.deepEqual(restored.content, original.content);
   assert.deepEqual(restored.config, original.config);
+  for (const key of ['messages', 'bytes', 'first_seq', 'last_seq', 'num_deleted', 'deleted']) assert.deepEqual(restored.state[key], original.state[key]);
   assert.deepEqual(restored.consumers, original.consumers);
   assert.deepEqual(restored.content.holes, [3, 8]);
   await delay(1100);
@@ -138,6 +142,11 @@ try {
   await cliBackup(cli, `nats://127.0.0.1:${source.client}`, token, 'HEALTH', healthBackup);
   await delay(1600);
   await cliRestore(cli, `nats://127.0.0.1:${restoredServer.client}`, token, healthBackup);
+  for (let i = 0; i < 30; i++) {
+    const info = await api(restoredNC, '$JS.API.STREAM.INFO.HEALTH');
+    if (info.state.messages === 0) break;
+    await delay(100);
+  }
   const health = await capture(restoredNC, 'HEALTH');
   assert.equal(health.state.messages, 0); assert.equal(health.state.last_seq, 1);
   results.expiry = { messages: 0, last: 1, policy: 'original TTL applies on restore; no revived liveness' };
@@ -152,7 +161,9 @@ try {
   const cold = path.join(root, 'master-standalone'); const coldHashes = copyCold(source.store, cold);
   const working = path.join(root, 'working-standalone'); copyCold(cold, working);
   const clone = await start('snapshot-source', working), cloneNC = await bus(clone);
-  assert.deepEqual((await capture(cloneNC, 'HISTORY')).content, original.content);
+  const coldRestored = await capture(cloneNC, 'HISTORY');
+  assert.deepEqual(coldRestored.content, original.content);
+  assert.deepEqual(coldRestored.consumers, original.consumers);
   assert.deepEqual(hashTree(cold), coldHashes);
   results.coldStandalone = { immutableMaster: true, contentMatches: true };
 
@@ -171,6 +182,9 @@ try {
   const located = await waitInfo(memberNC, 'OFFLINE_R1');
   const ownerName = located.cluster.leader, owner = members.find(i => fs.readFileSync(i.config, 'utf8').includes(`server_name: ${ownerName}\n`)); assert(owner);
   for (let i = 0; i < 7; i++) await memberNC.jetstream().publish('offline', Buffer.from('record-' + i));
+  await manager.consumers.add('OFFLINE_R1', { durable_name: 'offline-drained', ack_policy: 'explicit', deliver_policy: 'all' });
+  const offlineConsumer = await memberNC.jetstream().consumers.get('OFFLINE_R1', 'offline-drained');
+  for (let i = 0; i < 3; i++) { const m = await offlineConsumer.next({ expires: 1000 }); assert(await m.ackAck()); }
   const offlineOriginal = await capture(memberNC, 'OFFLINE_R1');
   await assertRoutes(members);
   await assert.rejects(assertRoutes(members.slice(0, 2)), /route escaped fixture peers/);
@@ -184,6 +198,7 @@ try {
   const r1restored = await capture(restoredNC, 'REPLICATED');
   assert.deepEqual(r1restored.content, replicated.content);
   assert.equal(r1restored.config.num_replicas, 1);
+  assert.deepEqual({ ...r1restored.config, num_replicas: 3 }, replicated.config);
   results.replicaOverride = { source: 3, isolatedRestore: 1, contentMatches: true, unexpectedPeerDetected: true };
   await memberNC.close(); await stop(owner);
   const survivors = members.filter(m => m !== owner);
@@ -207,7 +222,11 @@ try {
   const oi = members.indexOf(owner);
   cloned.push(await start('member-' + (oi + 1), path.join(root, 'working-member-' + oi), cloneTriples.map(p => p[2]), cloneTriples[oi]));
   await waitInfo(isolatedNC, 'OFFLINE_R1');
-  assert.deepEqual((await capture(isolatedNC, 'OFFLINE_R1')).content, offlineOriginal.content);
+  const clusterRestored = await capture(isolatedNC, 'OFFLINE_R1');
+  assert.deepEqual(clusterRestored.content, offlineOriginal.content);
+  assert.deepEqual(clusterRestored.consumers, offlineOriginal.consumers);
+  await delay(1100);
+  assert.deepEqual((await capture(isolatedNC, 'OFFLINE_R1')).consumers, offlineOriginal.consumers);
   await assertRoutes(cloned);
   for (let i = 0; i < 3; i++) assert.deepEqual(hashTree(masters[i]), hashes[i]);
   results.offlineR1 = { messages: 7, remappedThreeMemberCluster: true, immutableMasters: true, routesConfined: true };
@@ -216,9 +235,9 @@ try {
   const singleNC = await bus(singleMember);
   const standaloneMemberContent = await capture(singleNC, 'OFFLINE_R1');
   assert.deepEqual(standaloneMemberContent.content, offlineOriginal.content);
+  assert.deepEqual(standaloneMemberContent.consumers, offlineOriginal.consumers);
   results.offlineR1.nonClusteredLoad = true;
   assert.deepEqual(hashTree(masters[oi]), hashes[oi]);
-  jsonPrivate(path.join(root, 'acceptance.json'), results);
   passed = true;
 } catch (err) {
   console.error('Fixture evidence retained at', root);
@@ -229,4 +248,6 @@ try {
 }
 
 assert(passed);
-console.log(JSON.stringify({ pass: true, root, results, allOwnedServersStopped: true }, null, 2));
+const acceptance = { pass: true, at: new Date().toISOString(), root, provenance, results, allOwnedServersStopped: true };
+jsonPrivate(path.join(root, 'acceptance.json'), acceptance);
+console.log(JSON.stringify(acceptance, null, 2));

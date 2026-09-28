@@ -52,3 +52,27 @@ before JetStream. Private preflight-owners.json and idle-preflight.json record
 actual evidence. Quiescence, all four production masters, isolated production
 restores and service resumption are outstanding. VERSION remains v1.2-pre;
 child 1.3 and parent node-readiness 1.3 remain open.
+
+## Final fixture correction and deployed rerun
+
+2026-09-28 09:17:45 EDT: tools-v4 ran the complete fixture successfully from the
+private runtime backup directory. It adds explicit state/config comparisons,
+consumer-position checks after cold clone boot and idle waiting, hole digest
+sensitivity, binary provenance and bounded health expiry. The copied directory's
+parent is fsynced too. All owned servers stopped before publishing acceptance.
+
+- recovery.mjs: 18a956bfcb483256ec93a3d2a95657993a243a45711ed4d531a297808ea11dfe
+- test_recovery.mjs: 9d46f283e65667fe5eeea42da447a757d9d8bb6b6eacc597a6049291611c2d76
+- take_snapshots.mjs: 067c538f2bc0ca3a8971bc84db270b00c2de31c8a796d93a762674afeaa36e8a
+- CLI real path: /opt/homebrew/Cellar/nats/0.3.1/bin/nats;
+  SHA256 6be41e7097aac6278c3b9e4f394fc1536996608e921aa14fceae1bf0e800da0f
+- Server real path: /opt/homebrew/Cellar/nats-server/2.12.6/bin/nats-server;
+  SHA256 c3a71e72f6fc5dd008988f34b57fd2ab1fe69ab18d409f0a0aeebc51160e76e1
+- Fixture root: openclaw-jetstream-fixture-V2OvXG under the private macOS temp root;
+  ten-message digest 20b9cf54d1bc5e2e390986dd4b6ea4dd515a0f5b17f7089a8033b43535e847b5.
+
+The expiry fixture initially queried before the restored timer had aged out the
+old health point. A bounded three-second poll now requires the expected empty
+state; it does not alter TTL or restore timestamps. Readiness waits require an
+actual known metadata leader rather than the truthy unknown sentinel. No source
+history or production service was touched by these fixture corrections.

@@ -167,6 +167,8 @@ export function copyCold(source, target) {
   durableTree(target);
   assert.deepEqual(hashTree(source), before, 'source changed during cold copy');
   assert.deepEqual(hashTree(target), before, 'copy content differs');
+  const parent = fs.openSync(path.dirname(target), 'r');
+  try { fs.fsyncSync(parent); } finally { fs.closeSync(parent); }
   return before;
 }
 
