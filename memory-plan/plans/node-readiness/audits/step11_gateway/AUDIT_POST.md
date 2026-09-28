@@ -24,3 +24,10 @@ None. No unrelated changes.
 
 ## 6. Feeds / carry-forwards
 Running gateway is available for later plugin/harness acceptance. Next bounded outcome is Mission Control startup. Record persistent gateway authentication as a separate acceptance prerequisite before harness access. Claude adversarial review is in progress; do not claim merged approval until received.
+
+## Independent review follow-up (2026-09-27)
+Claude accepted the code scope and required stronger runtime evidence before merge. Step 1.1 was reopened locally, then reclosed only after a 703.0-second observation from 2026-09-27T23:10:13.117108-04:00 through 2026-09-27T23:21:56.135839-04:00: PID 2902 and runs 17074 unchanged in every sample. Earlier process observation began after the 23:06 restart; the explicit counter window starts at 23:10, not retroactively at first listen. Error log last modified 23:06:33, the already-recorded ephemeral-token warning; no later errors. Final health passes, anonymous chat returns 401, unchanged-field SHA256 matches, config stays 0600 in the operator's ownership and backup directory 0700. Config mtime remains 23:05:21 (candidate creation).
+
+CI on 812c0fc passes root Node 20/22 and Mission Control. Local full-suite isolation remains separate. Fresh-clone plan lint still has #70's missing runtime automation.json/tick-logs failures; this chain is unloaded and is not claimed portable. Installer acceptance includes that defect. Verify dependencies now require recovered bus and attributable runtime before later runtime acceptance. Persistent gateway authentication is a harness prerequisite.
+
+No schema-mirroring unit test added: the whole-file upstream validator is the behavioral compatibility check for the exact installed version. Future versions and other machines remain installation acceptance, not inferred compatibility.

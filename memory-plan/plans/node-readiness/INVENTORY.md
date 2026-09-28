@@ -4,7 +4,7 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 
 | Block | Step | Version | Status | Description |
 |---|---|---|---|---|
-| 1 | 1.1 | v1.1 | [x] | Restore gateway startup with schema-valid streaming configuration — 2026-09-27: validator and two live health probes pass |
+| 1 | 1.1 | v1.1 | [x] | Restore gateway startup with schema-valid streaming configuration — 2026-09-27: 703s stable PID/run count, validator, healthy loopback and anonymous 401 |
 | 1 | 1.2 | v1.2 | [ ] | Restore installed Mission Control |
 | 1 | 1.3 | v1.3 | [ ] | Establish restorable persisted-state backups |
 | 1 | 1.4 | v1.4 | [ ] | Reconcile message-bus topology |
@@ -24,17 +24,17 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 > **1.1 — Goal:** Restore gateway startup with schema-valid streaming configuration.
 > **Needs:** Installed gateway 2026.5.27, issue #66 and private live config.
 > **Feeds:** Gateway and subsequent plugin acceptance.
-> **Verify:** runtime/code: Rendered template and live config validate; restarted gateway health succeeds twice at least 30 seconds apart; channel enablement unchanged.
+> **Verify:** runtime/code: Rendered template and live config validate; loopback gateway health succeeds; launchd PID/run count remain stable through a ten-minute observation window; anonymous chat POST returns 401; unrelated config and permissions unchanged.
 
 > **1.2 — Goal:** Restore installed Mission Control.
 > **Needs:** Existing service and deployed project inventoried.
 > **Feeds:** Dashboard and scheduler.
-> **Verify:** runtime/code: Service survives restart, serves UI and authenticated API; anonymous mutations remain rejected.
+> **Verify:** runtime/code: Deploy a known source revision including current API auth before start; service survives restart, serves UI and authenticated API; anonymous reads and mutations remain rejected.
 
 > **1.3 — Goal:** Establish restorable persisted-state backups.
 > **Needs:** SQLite and NATS stores enumerated.
 > **Feeds:** Safe topology and storage changes.
-> **Verify:** runtime/code: Private consistent backups restore into isolation with matching counts and integrity checks.
+> **Verify:** runtime/code: SQLite backup API (not a raw live file copy) and JetStream snapshots or stopped-server backups preserve both histories; restore in isolation and compare integrity_check, row counts, stream counts and last sequences.
 
 > **1.4 — Goal:** Reconcile message-bus topology.
 > **Needs:** 1.3 verified; #68/#88 and distinct histories reviewed; migration decision recorded.
@@ -57,12 +57,12 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 > **Verify:** runtime/code: Clean macOS and Linux environments install from one documented command and survive restart with passing acceptance.
 
 > **2.3 — Goal:** Close execution authorization gaps.
-> **Needs:** 2.1 closed; #123–#127 reverified against merged repairs.
+> **Needs:** 1.4, 1.5 and 2.1 closed; #123–#127 reverified against merged repairs.
 > **Feeds:** Safe workers and cluster.
 > **Verify:** runtime/code: Unauthorized task, plan, reply and state transitions rejected; authorized lifecycle succeeds on isolated bus.
 
 > **3.1 — Goal:** Make autonomous memory capture recoverable.
-> **Needs:** 1.3 and 2.1 closed; frontend sources declared; #102/#120 reviewed.
+> **Needs:** 1.3, 1.4, 1.5 and 2.1 closed; frontend sources declared; #102/#120 reviewed.
 > **Feeds:** Durable extraction.
 > **Verify:** runtime/code: Controlled frontend sessions ingest and extract automatically, including restart during pending work.
 
@@ -77,17 +77,17 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 > **Verify:** runtime/code: Reproducible precision and coverage meet preregistered thresholds; failures reported.
 
 > **4.1 — Goal:** Verify structured harness lifecycle.
-> **Needs:** 2.3 closed; Foreman decisions and #128–#139 reverified.
+> **Needs:** 1.4, 1.5 and 2.3 closed; persistent gateway authentication verified; Foreman decisions and #128–#139 reverified.
 > **Feeds:** Bounded execution.
 > **Verify:** runtime/code: Real task passes independent verification; cancellation, failure and escalation preserve work and report truthful state.
 
 > **4.2 — Goal:** Verify dashboard task control.
-> **Needs:** 1.2 and 4.1 closed; current Kanban schemas reviewed.
+> **Needs:** 1.2, 1.4, 1.5 and 4.1 closed; current Kanban schemas reviewed.
 > **Feeds:** Operator workflow.
 > **Verify:** runtime/code: Create, observe, cancel and inspect controlled tasks through actual UI; UI matches durable state.
 
 > **5.1 — Goal:** Establish explicit peer trust.
-> **Needs:** 2.3 closed; two distinct accessible machines identified.
+> **Needs:** 1.4, 1.5 and 2.3 closed; two distinct accessible machines identified.
 > **Feeds:** Optional membership.
 > **Verify:** runtime/code: Intended peers authenticate; unauthorized peer rejected; stable node identities after restart.
 

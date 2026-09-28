@@ -17,7 +17,7 @@ Installed upstream 2026.5.27 schema requires streaming objects with mode. Live m
 Broad doctor rewrites unrelated settings; avoid it. Health does not prove model provider operation. Root-suite isolation unresolved (#52/#61), explicitly tracked in 2.1; use actual upstream validator and inspected focused tests.
 
 ## 4. Verification
-Template and migrated live config validate. Two post-restart health checks at least 30 seconds apart pass. All unrelated configuration identical.
+Template and migrated live config validate. Two initial health checks pass; adversarial follow-up also requires a ten-minute launchd PID/run-count observation window, anonymous chat rejection, and unchanged config. All unrelated configuration identical.
 
 ## 5. Review
 Send focused diff and evidence to the actual Claude collaborator before merge.
@@ -30,3 +30,6 @@ Send focused diff and evidence to the actual Claude collaborator before merge.
 
 ## Mid-Implementation Findings
 None.
+
+## Adversarial follow-up
+Claude reviewed the narrow change in the actual task, 2026-09-27 23:10 EDT. Accepted scope; requested longer runtime observation, 401 negative case, file mode/ownership preservation and schema-derived modes. Conditions are recorded in D4 and inventory. Gateway units use a machine-specific upstream module path and installer --update overwrites config; these remain installer acceptance work, not folded into this patch.
