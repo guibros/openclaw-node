@@ -77,13 +77,13 @@
       "dmPolicy": "pairing",
       "botToken": "${TELEGRAM_BOT_TOKEN}",
       "groupPolicy": "allowlist",
-      "streaming": "partial"
+      "streaming": { "mode": "partial" }
     },
     "discord": {
       "enabled": false,
       "token": "${DISCORD_BOT_TOKEN}",
       "groupPolicy": "allowlist",
-      "streaming": "off",
+      "streaming": { "mode": "off" },
       "dmPolicy": "allowlist",
       "allowFrom": [],
       "guilds": {}

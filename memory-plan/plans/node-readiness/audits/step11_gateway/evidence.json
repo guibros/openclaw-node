@@ -1,0 +1,196 @@
+{
+  "baseline_main": "cbae56be97aa0f6d4faf9fedd444dad119885d9a",
+  "upstream_version": "2026.5.27",
+  "config_changed": [
+    "channels.telegram.streaming",
+    "channels.discord.streaming"
+  ],
+  "unrelated_config_equal": true,
+  "backup_mode": "0600",
+  "template_and_live_validator": true,
+  "health": [
+    {
+      "timestamp": "2026-09-27T23:07:28.712641-04:00",
+      "exit": 0,
+      "ok": true,
+      "event_loop_degraded": false,
+      "plugin_errors": 0,
+      "active_channels": 0
+    },
+    {
+      "timestamp": "2026-09-27T23:08:10.484223-04:00",
+      "exit": 0,
+      "ok": true,
+      "event_loop_degraded": false,
+      "plugin_errors": 0,
+      "active_channels": 0,
+      "seconds_since_first_success": 41.771582
+    }
+  ],
+  "tests": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 node --test test/install-modules.test.mjs",
+    "pass": 19,
+    "fail": 0,
+    "skip": 0,
+    "unmodified_environment": "18 pass; known #53 Python cache dry-run failure"
+  },
+  "limitations": [
+    "model inference and external channels not exercised",
+    "full root suite awaits isolation",
+    "gateway currently generates ephemeral startup auth token"
+  ],
+  "final_health": {
+    "timestamp": "2026-09-27T23:23:32.261505-04:00",
+    "exit": 0,
+    "ok": true,
+    "event_loop_degraded": false,
+    "plugin_errors": 0
+  },
+  "stability_baseline": {
+    "timestamp": "2026-09-27T23:10:13.117108-04:00",
+    "runs": "17074",
+    "pid": "2902",
+    "last exit code": null,
+    "last terminating signal": "Terminated: 15",
+    "anonymous_chat_status": 401,
+    "persistent_token_present": false,
+    "file_mode": "0o600"
+  },
+  "stability_samples": [
+    {
+      "timestamp": "2026-09-27T23:12:28.035847-04:00",
+      "elapsed_s": 134.9,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:12:58.058547-04:00",
+      "elapsed_s": 164.9,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:13:28.094881-04:00",
+      "elapsed_s": 195.0,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:13:58.117629-04:00",
+      "elapsed_s": 225.0,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:14:28.152610-04:00",
+      "elapsed_s": 255.0,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:14:58.176319-04:00",
+      "elapsed_s": 285.1,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:15:28.197559-04:00",
+      "elapsed_s": 315.1,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:15:58.226953-04:00",
+      "elapsed_s": 345.1,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:16:28.246485-04:00",
+      "elapsed_s": 375.1,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:16:58.264336-04:00",
+      "elapsed_s": 405.1,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:17:28.282521-04:00",
+      "elapsed_s": 435.2,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:17:58.301777-04:00",
+      "elapsed_s": 465.2,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:18:28.316014-04:00",
+      "elapsed_s": 495.2,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:18:58.329832-04:00",
+      "elapsed_s": 525.2,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:20:10.983483-04:00",
+      "elapsed_s": 597.9,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    },
+    {
+      "timestamp": "2026-09-27T23:21:56.135839-04:00",
+      "elapsed_s": 703.0,
+      "runs": "17074",
+      "pid": "2902",
+      "stable": true
+    }
+  ],
+  "config_integrity_after_window": {
+    "timestamp": "2026-09-27T23:23:32.261505-04:00",
+    "unchanged_fields_sha256_before": "01d11a2bbad5607f9636214c0d14125751ee7a907606334672d8facca8fa475c",
+    "unchanged_fields_sha256_after": "01d11a2bbad5607f9636214c0d14125751ee7a907606334672d8facca8fa475c",
+    "config_mode": "0o600",
+    "config_uid": 501,
+    "config_gid": 20,
+    "backup_dir_mode": "0o700",
+    "config_mtime": "2026-09-27T23:05:21.154870-04:00",
+    "error_log_mtime": "2026-09-27T23:06:33.821091-04:00"
+  },
+  "anonymous_chat_status": 401,
+  "listener": "127.0.0.1:18789 and [::1]:18789 only",
+  "ci": {
+    "commit": "812c0fc",
+    "checks": [
+      "unit-tests (20): pass",
+      "unit-tests (22): pass",
+      "mission-control-tests: pass"
+    ],
+    "url": "https://github.com/moltyguibros-design/openclaw-node/actions/runs/36372621560"
+  },
+  "review": "Claude task accepted code scope; extended evidence and dependency graph corrected before merge"
+}
