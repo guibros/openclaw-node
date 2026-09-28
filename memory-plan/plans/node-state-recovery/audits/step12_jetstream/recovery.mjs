@@ -94,7 +94,12 @@ export async function capture(nc, stream) {
   const content = await digest(nc, stream, before.state.first_seq || 1, before.state.last_seq);
   const after = await api(nc, `$JS.API.STREAM.INFO.${stream}`, { deleted_details: true });
   for (const key of ['messages', 'first_seq', 'last_seq', 'bytes', 'num_deleted']) assert.equal(after.state[key], before.state[key], `stream changed during capture: ${key}`);
+  assert.deepEqual(after.state.deleted, before.state.deleted, 'deleted sequences changed during capture');
   assert.equal(content.messages, before.state.messages);
+  const deleted = before.state.deleted || [];
+  assert.equal(deleted.length, before.state.num_deleted || 0);
+  assert(deleted.every(seq => seq > 0 || (seq === 0 && before.state.messages === 0 && before.state.last_seq === 0)));
+  assert.deepEqual(content.holes, deleted.filter(seq => seq >= content.first && seq <= content.last).sort((a, b) => a - b), 'deleted sequences differ from message-get holes');
   return { at: new Date().toISOString(), config: before.config, created: before.created, state: before.state, consumers, content };
 }
 
@@ -150,8 +155,8 @@ export function hashTree(dir) {
     for (const name of fs.readdirSync(current).sort()) {
       const file = path.join(current, name), st = fs.lstatSync(file);
       assert(!st.isSymbolicLink());
-      if (st.isDirectory()) walk(file);
-      else { assert(st.isFile()); entries.push({ path: path.relative(dir, file), size: st.size, sha256: createHash('sha256').update(fs.readFileSync(file)).digest('hex') }); }
+      if (st.isDirectory()) { entries.push({ path: path.relative(dir, file), type: 'directory' }); walk(file); }
+      else { assert(st.isFile()); entries.push({ path: path.relative(dir, file), type: 'file', size: st.size, sha256: createHash('sha256').update(fs.readFileSync(file)).digest('hex') }); }
     }
   };
   walk(dir);

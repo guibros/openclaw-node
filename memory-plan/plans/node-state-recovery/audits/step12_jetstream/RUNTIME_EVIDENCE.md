@@ -76,3 +76,36 @@ old health point. A bounded three-second poll now requires the expected empty
 state; it does not alter TTL or restore timestamps. Readiness waits require an
 actual known metadata leader rather than the truthy unknown sentinel. No source
 history or production service was touched by these fixture corrections.
+
+## Independent challenge and actual online restores
+
+2026-09-28 09:40 EDT: Claude Messages 74/76 passed the pinned Linux fixture,
+independently exercised the offline driver and demonstrated assignment deletion
+wiping an unprotected R1 working copy on rejoin. D6/runbook now require durable
+member-1 disable, assignment preservation and exact MC scheduler restart gates.
+No live unit has been stopped yet. MC status is scheduled at/cron=0/0, ready=0,
+running=3, overdue=0; the exact dispatchable and dependency-eligible sets are both
+empty. Running owners are null/null/Gui; no rows were edited.
+
+Actual online archives were taken 09:24:13–09:24:16 EDT into separate private
+standalone-online and cluster-online directories. Eleven reachable stream
+archives restored on two isolated empty loopback servers at online-restore-3.
+80,156 non-expiring messages, detailed sequence/deletion state, exact configs
+against matching source queries and durable consumer positions match. Original
+health TTLs apply; expired points remain expired. R3-to-R1 affects only the
+isolated OPENCLAW_SHARED restore. Masters unchanged and both owned servers
+stopped gracefully before acceptance. This is not a common recovery point.
+
+Earlier isolated attempts refused on serializer/query representation differences
+and are retained. backup.json omits zero defaults and server metadata; restored
+config matches the full live before/after config exactly apart from the recorded
+replica override. Detailed STREAM.INFO reports a sequence-zero deleted marker on
+a never-used empty stream; backup.json's non-detailed state omits it. Identical
+API options agree. No production configuration or payload was changed.
+
+The final deployed tools-v8 with spaces fixture passed at 09:40:34 EDT, root
+openclaw-jetstream-fixture-zaASTh. It adds holes/deleted-list negative control,
+empty-directory detection, paths with spaces, KV revision/delete/purge/TTL round
+trip, empty R3 restore, exact non-default stream/consumer config, offline driver
+and assignment-deletion refusal. All owned servers stopped. Bounded source TTL
+polling removed an immediate-expiry test assumption without changing TTL.

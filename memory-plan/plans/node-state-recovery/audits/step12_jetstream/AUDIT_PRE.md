@@ -25,7 +25,7 @@ Owned fixtures cover deleted holes, binary payload/duplicate headers, pending
 acks, TTL expiry, R1 offline-member recovery and route confinement.
 
 After fixtures: boot out failing member 1, verify no owner, copy/fsync/hash its
-intact store and config privately. Hold it unloaded (D6). Take reachable online
+intact store and config privately. Persistently disable it and verify print-disabled (D6). Take reachable online
 CLI snapshots. Before the other cold copies, prove idle executors/leases, all
 consumer ack-pending zero, all clients/timers quiesced and connz empty; stop
 members 2/3 before standalone. Copy only after verified exit/clean shutdown.
@@ -84,3 +84,11 @@ still fails with replicas>1 on a standalone server. Use the explicit `--replicas
 flag without --config; test it. No upstream fix or tool upgrade in this step.
 Original health TTL remains intact; restored expired points are not liveness.
 Source: https://github.com/nats-io/natscli/blob/v0.3.1/cli/stream_command.go#L1271
+
+Claude Message 74 independently passed the pinned Linux fixture and actual
+offline-driver path. Its operational blocker was the reboot race left by bootout:
+D6 now requires a persistent reversible disable. The assignment deletion negative
+case, deleted-list cross-check, empty-directory hashing and path decoding refine
+the same preservation outcome. Production snapshot restore exposed the explicitly
+listed serializer differences in RECOVERY.md; compare equivalent API queries,
+never weaken policy or content checks to get a pass.

@@ -7,6 +7,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import { randomBytes, createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { api, capture, cliBackup, cliRestore, consumerState, copyCold, digest, hashTree, jsonPrivate, openBus, privateDir, run, writePrivate } from './recovery.mjs';
 const { headers } = createRequire(import.meta.url)('nats');
 process.umask(0o077);
@@ -93,6 +94,12 @@ async function assertRoutes(items) {
 
 const provenance = [cli, binary].map(file => ({ path: fs.realpathSync(file), version: execFileSync(file, ['--version'], { encoding: 'utf8' }).trim(), sha256: createHash('sha256').update(fs.readFileSync(file)).digest('hex') }));
 const results = {};
+const emptySource = path.join(root, 'empty-directory-source'); privateDir(path.join(emptySource, 'nested-empty'));
+const emptyCopy = path.join(root, 'empty-directory-copy'); copyCold(emptySource, emptyCopy);
+assert(hashTree(emptyCopy).some(entry => entry.path === 'nested-empty' && entry.type === 'directory'));
+fs.rmdirSync(path.join(emptyCopy, 'nested-empty'));
+assert.notDeepEqual(hashTree(emptyCopy), hashTree(emptySource));
+results.emptyDirectories = true;
 let passed = false;
 const originalRecord = { seq: 1, subject: 'history.x', time: '2026-09-28T00:00:00.123456789Z', hdrs: Buffer.from('NATS/1.0\r\nX-Key: a\r\n\r\n').toString('base64'), data: Buffer.from([0, 255, 1]).toString('base64') };
 const fakeBus = record => ({ request: async () => ({ data: Buffer.from(JSON.stringify({ message: record })) }) });
@@ -102,17 +109,25 @@ for (const [key, value] of Object.entries({ subject: 'history.y', time: '2026-09
 }
 const holeBus = { request: async () => ({ data: Buffer.from(JSON.stringify({ error: { code: 404, err_code: 10037, description: 'no message found' } })) }) };
 assert.notEqual((await digest(holeBus, 'fixture', 1, 1)).sha256, baseDigest.sha256);
+const mismatchedDeletes = {
+  request: async (subject, data) => ({ data: Buffer.from(JSON.stringify(subject.includes('.INFO.')
+    ? { config: {}, state: { messages: 1, first_seq: 1, last_seq: 2, bytes: 3, num_deleted: 1, deleted: [1] } }
+    : JSON.parse(Buffer.from(data)).seq === 1 ? { message: originalRecord } : { error: { code: 404, err_code: 10037 } })) }),
+  jetstreamManager: async () => ({ consumers: { list: async function* () {} } })
+};
+await assert.rejects(capture(mismatchedDeletes, 'fixture'), /deleted sequences differ/);
 results.digestSensitivity = { subject: true, nanosecondTimestamp: true, rawHeaders: true, binaryPayload: true, deletedHole: true };
+results.deletedListMismatchRejected = true;
 try {
   const source = await start('snapshot-source', path.join(root, 'source'));
   const nc = await bus(source), js = nc.jetstream(), jsm = await nc.jetstreamManager();
-  await jsm.streams.add({ name: 'HISTORY', subjects: ['history.>'], storage: 'file', num_replicas: 1 });
+  await jsm.streams.add({ name: 'HISTORY', subjects: ['history.>'], storage: 'file', num_replicas: 1, compression: 's2', allow_msg_ttl: true, subject_delete_marker_ttl: 2000000000, allow_direct: true, max_msgs_per_subject: 5, discard: 'new', duplicate_window: 7000000000, metadata: { fixture: 'nondefault' } });
   for (let i = 1; i <= 12; i++) {
     const h = headers(); h.append('X-Fixture', 'first'); h.append('X-Fixture', 'second');
     await js.publish('history.' + (i % 3), Buffer.from([0, 255, i, 13, 10]), { headers: h });
   }
   await jsm.streams.deleteMessage('HISTORY', 3); await jsm.streams.deleteMessage('HISTORY', 8);
-  await jsm.consumers.add('HISTORY', { durable_name: 'drained', ack_policy: 'explicit', deliver_policy: 'all' });
+  await jsm.consumers.add('HISTORY', { durable_name: 'drained', ack_policy: 'explicit', deliver_policy: 'all', backoff: [1000000000, 2000000000], max_ack_pending: 7, max_deliver: 4, ack_wait: 5000000000, filter_subject: 'history.>', metadata: { fixture: 'consumer-nondefault' } });
   const consumer = await js.consumers.get('HISTORY', 'drained');
   for (let i = 0; i < 4; i++) { const m = await consumer.next({ expires: 1000 }); assert(m); assert(await m.ackAck()); }
   await jsm.consumers.add('HISTORY', { durable_name: 'pending', ack_policy: 'explicit', deliver_policy: 'all', ack_wait: 1000000000 });
@@ -121,6 +136,8 @@ try {
   const original = await capture(nc, 'HISTORY');
   const backup = path.join(root, 'snapshot-HISTORY');
   const metadata = await cliBackup(cli, `nats://127.0.0.1:${source.client}`, token, 'HISTORY', backup);
+  for (const key of ['compression', 'allow_msg_ttl', 'subject_delete_marker_ttl', 'allow_direct', 'max_msgs_per_subject', 'discard', 'duplicate_window']) assert.deepEqual(metadata.config[key], original.config[key], `non-default config lost: ${key}`);
+  assert.equal(metadata.config.metadata.fixture, 'nondefault');
   jsonPrivate(path.join(root, 'backup-metadata.json'), metadata);
   const restoredServer = await start('snapshot-restored', path.join(root, 'restored'));
   const restoredNC = await bus(restoredServer);
@@ -135,6 +152,24 @@ try {
   const replay = await (await restoredNC.jetstream().consumers.get('HISTORY', 'pending')).next({ expires: 2000 });
   assert.equal(replay.info.streamSequence, 1); assert(replay.info.redelivered); assert(await replay.ackAck());
   results.snapshot = { messages: restored.content.messages, holes: restored.content.holes, sha256: restored.content.sha256, exactHeadersAndTimestamps: true, consumerPositions: true, pendingRedelivery: true };
+  results.nondefaultConfig = { archiveValuesRetained: true, streamConfigExact: true, consumerConfigExact: true };
+
+  const kv = await js.views.kv('FIXTURE', { history: 3, ttl: 60000, storage: 'file' });
+  for (let i = 0; i < 5; i++) await kv.put('revisions', Buffer.from('revision-' + i));
+  await kv.put('deleted', Buffer.from('old')); await kv.delete('deleted');
+  await kv.put('purged', Buffer.from('old')); await kv.purge('purged');
+  const kvOriginal = await capture(nc, 'KV_FIXTURE');
+  const kvBackup = path.join(root, 'snapshot-KV');
+  await cliBackup(cli, `nats://127.0.0.1:${source.client}`, token, 'KV_FIXTURE', kvBackup);
+  await cliRestore(cli, `nats://127.0.0.1:${restoredServer.client}`, token, kvBackup);
+  const kvRestored = await capture(restoredNC, 'KV_FIXTURE');
+  assert.deepEqual(kvRestored.content, kvOriginal.content);
+  assert.deepEqual(kvRestored.config, kvOriginal.config);
+  const restoredKV = await restoredNC.jetstream().views.kv('FIXTURE', { bindOnly: true });
+  assert.equal((await restoredKV.get('revisions')).string(), 'revision-4');
+  assert.equal((await restoredKV.get('deleted')).operation, 'DEL');
+  assert.equal((await restoredKV.get('purged')).operation, 'PURGE');
+  results.keyValue = { revisions: true, deleteMarker: true, purgeMarker: true, originalTTL: true, exactContent: true };
 
   await jsm.streams.add({ name: 'HEALTH', subjects: ['health'], storage: 'file', max_age: 1500000000 });
   await js.publish('health', Buffer.from('fixture-health'));
@@ -150,9 +185,14 @@ try {
   const health = await capture(restoredNC, 'HEALTH');
   assert.equal(health.state.messages, 0); assert.equal(health.state.last_seq, 1);
   results.expiry = { messages: 0, last: 1, policy: 'original TTL applies on restore; no revived liveness' };
+  for (let i = 0; i < 30; i++) {
+    if ((await api(nc, '$JS.API.STREAM.INFO.HEALTH')).state.messages === 0) break;
+    await delay(100);
+  }
+  assert.equal((await api(nc, '$JS.API.STREAM.INFO.HEALTH')).state.messages, 0);
 
   const driverTarget = path.join(root, 'driver-snapshots');
-  await run(process.execPath, [path.join(path.dirname(new URL(import.meta.url).pathname), 'take_snapshots.mjs'), `nats://127.0.0.1:${source.client}`, driverTarget, cli], { env: { ...process.env, NATS_TOKEN: token }, stdio: 'ignore' });
+  await run(process.execPath, [path.join(path.dirname(fileURLToPath(import.meta.url)), 'take_snapshots.mjs'), `nats://127.0.0.1:${source.client}`, driverTarget, cli], { env: { ...process.env, NATS_TOKEN: token }, stdio: 'ignore' });
   const driverManifest = JSON.parse(fs.readFileSync(path.join(driverTarget, 'manifest.json')));
   assert.equal(driverManifest.streams.find(s => s.stream === 'HISTORY').snapshot.state.messages, 10);
   assert.equal(driverManifest.streams.find(s => s.stream === 'HEALTH').snapshot.state.messages, 0);
@@ -189,6 +229,15 @@ try {
   await assertRoutes(members);
   await assert.rejects(assertRoutes(members.slice(0, 2)), /route escaped fixture peers/);
   await manager.streams.add({ name: 'REPLICATED', subjects: ['replicated'], storage: 'file', num_replicas: 3 });
+  await manager.streams.add({ name: 'EMPTY_R3', subjects: ['empty'], storage: 'file', num_replicas: 3 });
+  const emptyOriginal = await capture(memberNC, 'EMPTY_R3');
+  const emptyBackup = path.join(root, 'snapshot-EMPTY-R3');
+  await cliBackup(cli, `nats://127.0.0.1:${members[0].client}`, token, 'EMPTY_R3', emptyBackup);
+  await cliRestore(cli, `nats://127.0.0.1:${restoredServer.client}`, token, emptyBackup, 1);
+  const emptyRestored = await capture(restoredNC, 'EMPTY_R3');
+  assert.deepEqual(emptyRestored.content, emptyOriginal.content);
+  assert.deepEqual(emptyRestored.state, emptyOriginal.state);
+  results.emptyStream = true;
   for (let i = 0; i < 3; i++) await memberNC.jetstream().publish('replicated', Buffer.from('R3-' + i));
   const replicated = await capture(memberNC, 'REPLICATED');
   const replicatedBackup = path.join(root, 'snapshot-REPLICATED');
@@ -204,6 +253,12 @@ try {
   const survivors = members.filter(m => m !== owner);
   const survivorNC = await bus(survivors[0]);
   await waitOffline(survivorNC, 'OFFLINE_R1');
+  const offlineTarget = path.join(root, 'driver-offline');
+  await run(process.execPath, [path.join(path.dirname(fileURLToPath(import.meta.url)), 'take_snapshots.mjs'), `nats://127.0.0.1:${survivors[0].client}`, offlineTarget, cli, 'OFFLINE_R1'], { env: { ...process.env, NATS_TOKEN: token }, stdio: 'ignore' });
+  const offlineManifest = JSON.parse(fs.readFileSync(path.join(offlineTarget, 'manifest.json')));
+  assert.equal(offlineManifest.streams.find(s => s.stream === 'OFFLINE_R1').offline, true);
+  assert.equal(offlineManifest.streams.find(s => s.stream === 'REPLICATED').snapshot.state.messages, 3);
+  results.offlineSnapshotDriver = true;
   await survivorNC.close();
   for (const m of survivors) await stop(m);
   const masters = members.map((m, i) => path.join(root, 'master-member-' + i));
@@ -238,6 +293,12 @@ try {
   assert.deepEqual(standaloneMemberContent.consumers, offlineOriginal.consumers);
   results.offlineR1.nonClusteredLoad = true;
   assert.deepEqual(hashTree(masters[oi]), hashes[oi]);
+  await stop(cloned.find(m => m.store === path.join(root, 'working-member-' + oi)));
+  await waitOffline(isolatedNC, 'OFFLINE_R1');
+  await (await isolatedNC.jetstreamManager()).streams.delete('OFFLINE_R1');
+  await assert.rejects(waitOffline(isolatedNC, 'OFFLINE_R1'), err => err.api?.code === 404);
+  assert.deepEqual(hashTree(masters[oi]), hashes[oi]);
+  results.deletedAssignmentRefusesRejoin = true;
   passed = true;
 } catch (err) {
   console.error('Fixture evidence retained at', root);

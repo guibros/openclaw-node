@@ -29,8 +29,10 @@ offline directories, not its own future preservation output. Installed live
 units all run the same NATS 2.12.6 binary; the observed member-1 failure is the
 monitor bind on 8222, before JetStream recovery. Reconfirm immediately before
 operations. After owned fixtures pass, boot out this failing unit and copy its
-unopened store first. Keep the non-serving member under a documented preservation
-hold until topology 1.4, instead of restarting its failure loop. This reversible
+unopened store first. Persist the non-serving member
+hold with `launchctl disable gui/$UID/ai.openclaw.nats-1` and verify it using
+`print-disabled`; bootout alone would reload at login and race with standalone.
+Keep it disabled until topology 1.4, instead of restarting its failure loop. This reversible
 service hold is within the operator's authorized repairs; no stream is deleted
 or merged. For the remaining cold copies, drain all clients/timers, stop members
 2/3 before standalone, and resume standalone first. Clone routes use fresh
@@ -38,3 +40,9 @@ loopback ports, explicit route credentials and no_advertise. Masters are never
 server-opened. Replica/TTL overrides affect only isolated recovery, are recorded,
 and never become production configuration. File-source coordinated recovery
 remains child 1.3; per-stream snapshots are not a common recovery point.
+
+D6 review correction (2026-09-28 09:32 EDT): Claude Message 74 independently
+confirmed that deleting an offline stream assignment through survivors causes
+its owner to erase the R1 working history on rejoin. Never delete the offline
+COLLAB/PLANS assignments. The hold is reversible with enable only after topology
+1.4 has independently verified preservation and uncontested listeners.

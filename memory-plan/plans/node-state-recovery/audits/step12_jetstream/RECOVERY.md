@@ -32,7 +32,7 @@ The manifest records snapshot-time metadata plus before/after observations;
 these are separate points and must not be claimed simultaneous.
 
 For an isolated R3 stream restored to a standalone fixture, use the explicit
-`--replicas=1` override and record this sole configuration delta. CLI 0.3.1's
+`--replicas=1` override and record this replica policy delta. CLI 0.3.1's
 `--config` is ignored because of upstream variable shadowing; the R3 fixture
 reproduced the failure. Do not use that option or change production replicas.
 Keep health TTL: an old health entry expires on restore and proves no liveness.
@@ -43,18 +43,21 @@ Keep health TTL: an old health entry expires on restore and proves no liveness.
    hashes, distinct real store paths, listeners, route/leaf/gateway lists and
    client ownership/resolved URLs. No non-local server routes are permitted.
 2. Verify member 1 still fails at monitor 8222 and serves no clients. Boot out
-   only `ai.openclaw.nats-1`, confirm absence of process/file owners, then copy
+   `ai.openclaw.nats-1` and persist the hold with
+   `launchctl disable gui/$UID/ai.openclaw.nats-1`; verify print-disabled. Confirm absence of process/file owners, then copy
    its intact store and original config/unit into a new private master. Hash
    source before/after, fsync copied files/directories, compare copy hashes.
-   Hold this non-serving unit unloaded until topology 1.4 (D6).
+   Hold it disabled and unloaded until topology 1.4 (D6). Never delete its
+   offline COLLAB/PLANS assignments through survivors: catch-up would erase them.
 3. Take official reachable snapshots with consumers for standalone and cluster
    into distinct new directories. Account for the two known offline cluster
    streams through the stopped member-1 master. Never union same-named streams.
 4. Before the remaining cold copies prove zero active executors, task claims,
    collaboration sessions, child processes and consumer ack-pending. Resolve
    stale MC statuses using their linked worker evidence; do not mark stale rows
-   done as part of preservation. Inventory and temporarily unload all managed
-   clients/timers that can connect. Confirm every connz is empty. If ownership
+   done as part of preservation. Record the MC scheduler scheduled/ready/running/overdue summary and owners;
+   require no new trigger or dispatch after its first resumed tick. Inventory and
+   temporarily unload all managed clients/timers, including the deploy listener. Confirm every connz is empty. If ownership
    or drain is unproved, leave healthy buses running and track the outstanding
    gate; snapshot verification can continue independently.
 5. Stop members 2/3 before standalone. Use managed bootout rather than raw kill.
@@ -90,8 +93,22 @@ Capture consumer config, delivered, ack floor, pending ack/redelivery and
 remaining pending counts. Check cold clones against snapshots at snapshot
 high-water marks; later updates/retention can remove older KV revisions, so a
 mismatch must be explained or retaken under quiescence, never called a match.
-TTL health expiry is explicit. Hash masters again after all clone tests.
+TTL health expiry is explicit. Remove write permission from masters after copying; on macOS also set uchg.
+Hash masters again after all clone tests. Content hashes include empty dirs;
+private permission and immutable-flag checks are separate from content equality.
 
 This verifies recovery mechanisms only. Child 1.3 still establishes a common
 SQLite/JetStream/file-source quiet point. Same-disk copies offer logical rollback,
 not disaster recovery after loss of the machine or disk.
+
+## Installed serializer differences
+
+Actual 2.12.6 source configs include compression:none, allow_msg_ttl:false and
+_nats.level:3/_nats.ver:2.12.6 metadata that CLI 0.3.1 backup.json omits. Compare
+restored configs to the complete matching source before/after configs. Accept
+only those exact observed omitted defaults plus an explicitly recorded isolated
+replica override; refuse arbitrary metadata or policy differences. The snapshot
+state omits deleted_details: compare equivalent API options, and separately
+compare captured source deleted sequences to restored message-get holes. This
+server reports a sequence-zero deleted marker for a never-used empty stream;
+it is not a message hole. Keep it explicit, never turn it into a payload record.
