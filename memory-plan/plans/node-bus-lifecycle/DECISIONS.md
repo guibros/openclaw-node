@@ -81,3 +81,19 @@
 **Why.** Fixed polling offsets can catch a different failure path, and a leftover directory is not a proof of active work or safe deletion. Seven have already lost their original Git metadata; two are clean benchmark worktrees. Fresh read-only probes found no open files.
 
 **Consequences.** Treat old eight-control timing evidence as superseded. Leave the nine old directories unchanged during 1.3. Their preservation and the unsafe task-ID collision cleanup feed parent 4.1. A future private preservation journal must retain content, metadata, branches and primary refs, with reversible same-volume moves. Compare primary and actual worker-workspace HEAD/status during 1.3; signal only after an actual null worker claim. General active handler completion remains parent 4.1.
+
+## D11 — Explicit task-drain failure and loss-relative controls (2026-09-28 12:27 America/Montreal)
+
+**Decision.** Keep 1.1 intact; in separate1.4 suppress only error-free requested close and explicitly log/exit1 when drain returns without actual closure. Calibrate the late outage test from actual daemon disconnect/permanent-close timestamps; require drain before permanent close and no earlier open-drain failure.
+
+**Why.** Owned Mac controls reproduce both false completion and silent exit0. The daemon’s shutdown is an async signal callback outside main’s catch; a throw would depend on unhandled-rejection policy. Claude message123 requires explicit failure and loss-relative timing.
+
+**Consequences.** New e57 release, never edit the running 1.1 release. Managed idle signal follows a real worker null claim; refuse handler-error lines, permit healthy pingTimer, preserve dependency/unit values and startup-prune/task state. Task service remains available until worker exits during preservation. Active application drain stays parent4.1.
+
+## D12 — Lifecycle block closure and preservation re-orientation (2026-09-28 13:31 America/Montreal)
+
+**Decision.** Close1.4 only on exact owned negative controls and accepted connected managed deployment. Return to recovery1.2 with all three actual entry/dependency assertions, fresh prune eligibility, checked natural client stops, observers closed and continuous65s zero connections before healthy NATS stops.
+
+**Why.** Attempt5 meets the written contract and Claude141 accepts. Four previous refusals reveal verification risks, not license to relax state preservation. Attempt2/3 timeout/guard causes stay unresolved; no queue-overload explanation is adopted.
+
+**Consequences.** Preserve the primary e57 tree and prior releases. Carry10s observer deadlines plus latency/lag/holder diagnostics into the next preservation harness. Define normal stop evidence for each other client from code; worker must exit before task service stops. Parent coordinated recovery, source/dependency reconciliation, direct-KV authorization, active handlers and actual two-machine acceptance remain open. No new autonomous tick is enabled.

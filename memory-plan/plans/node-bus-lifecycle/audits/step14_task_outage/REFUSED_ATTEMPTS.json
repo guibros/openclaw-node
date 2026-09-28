@@ -1,0 +1,165 @@
+{
+  "acceptanceClaimed": false,
+  "attempts": [
+    {
+      "privateJournal": "/Users/moltymac/.openclaw/backups/node-readiness/task-outage-a2f5293",
+      "failure": {
+        "at": "2026-09-28T16:54:31.601046+00:00",
+        "type": "AssertionError",
+        "reason": ""
+      },
+      "rollback": {
+        "at": "2026-09-28T16:54:31.642441+00:00",
+        "unitRestored": true,
+        "task": {
+          "loaded": true,
+          "pid": "66964",
+          "runs": "1",
+          "last exit code": "(never exited)",
+          "state": "SIGTERMed"
+        },
+        "taskRowsUnchanged": true,
+        "kanbanBytesUnchanged": true
+      },
+      "manualVerifiedRestoration": {
+        "at": 1790614543.607424,
+        "unitEntryRestored": true,
+        "oldPIDAbsent": true,
+        "originalReleaseReady": true,
+        "task": {
+          "loaded": true,
+          "pid": "67801",
+          "runs": "1",
+          "last exit code": "(never exited)",
+          "state": "running"
+        }
+      }
+    },
+    {
+      "privateJournal": "/Users/moltymac/.openclaw/backups/node-readiness/task-outage-a2f5293-attempt2",
+      "failure": {
+        "at": "2026-09-28T17:04:36.167677+00:00",
+        "type": "AssertionError",
+        "reason": "idle admission/connection guard refused",
+        "queueWaits": []
+      },
+      "rollback": {
+        "at": "2026-09-28T17:04:40.313590+00:00",
+        "unitRestored": true,
+        "oldPIDAbsent": true,
+        "originalReleaseReady": true,
+        "task": {
+          "loaded": true,
+          "pid": "70983",
+          "runs": "1",
+          "last exit code": "(never exited)",
+          "state": "running"
+        },
+        "singleInstance": {
+          "cid": 299600,
+          "subjects": [
+            "mesh.tasks.submit",
+            "mesh.tasks.list",
+            "mesh.collab.create",
+            "mesh.plans.create"
+          ]
+        },
+        "readiness": {
+          "serverId": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+          "listAnswered": true,
+          "activeTasks": 0
+        },
+        "taskRowsUnchanged": true,
+        "kanbanBytesUnchanged": true
+      }
+    },
+    {
+      "privateJournal": "/Users/moltymac/.openclaw/backups/node-readiness/task-outage-a2f5293-attempt3",
+      "failure": {
+        "at": "2026-09-28T17:11:26.766845+00:00",
+        "type": "AssertionError",
+        "reason": "idle admission/connection guard refused",
+        "queueWaits": []
+      },
+      "rollback": {
+        "at": "2026-09-28T17:11:34.322589+00:00",
+        "unitRestored": true,
+        "oldPIDAbsent": true,
+        "originalReleaseReady": true,
+        "task": {
+          "loaded": true,
+          "pid": "73838",
+          "runs": "1",
+          "last exit code": "(never exited)",
+          "state": "running"
+        },
+        "singleInstance": {
+          "cid": 302233,
+          "subjects": [
+            "mesh.tasks.submit",
+            "mesh.tasks.list",
+            "mesh.collab.create",
+            "mesh.plans.create"
+          ]
+        },
+        "readiness": {
+          "serverId": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+          "listAnswered": true,
+          "activeTasks": 0
+        },
+        "taskRowsUnchanged": true,
+        "kanbanBytesUnchanged": true
+      },
+      "violation": {
+        "violation": true,
+        "at": "2026-09-28T17:11:26.765Z",
+        "category": "guard-check",
+        "errorCode": "TIMEOUT",
+        "message": "TIMEOUT"
+      }
+    },
+    {
+      "privateJournal": "/Users/moltymac/.openclaw/backups/node-readiness/task-outage-a2f5293-attempt4",
+      "failure": {
+        "at": "2026-09-28T17:20:39.829710+00:00",
+        "type": "AssertionError",
+        "reason": "signal-boundary queue: {\"ageSeconds\": 6.611114025115967, \"empty\": false, \"ownerMatches\": true, \"shuttingDown\": false}",
+        "queueWaits": []
+      },
+      "rollback": {
+        "at": "2026-09-28T17:20:41.581726+00:00",
+        "unitRestored": true,
+        "oldPIDAbsent": true,
+        "originalReleaseReady": true,
+        "task": {
+          "loaded": true,
+          "pid": "77486",
+          "runs": "1",
+          "last exit code": "(never exited)",
+          "state": "running"
+        },
+        "singleInstance": {
+          "cid": 303879,
+          "subjects": [
+            "mesh.tasks.submit",
+            "mesh.tasks.list",
+            "mesh.tasks.claim",
+            "mesh.collab.create",
+            "mesh.plans.create"
+          ]
+        },
+        "readiness": {
+          "serverId": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+          "listAnswered": true,
+          "activeTasks": 0
+        },
+        "taskRowsUnchanged": true,
+        "kanbanBytesUnchanged": true
+      },
+      "violation": []
+    }
+  ],
+  "incidentalStopErrors": "The list/recruiting CONNECTION_DRAINING errors were own monitor requests, not application-task evidence.",
+  "acceptedAttempt": "attempt5, separate RUNTIME_EVIDENCE.json",
+  "timeoutCausality": "Unresolved. Serialized90second original-daemon pacing profile reproduced no TIMEOUT."
+}

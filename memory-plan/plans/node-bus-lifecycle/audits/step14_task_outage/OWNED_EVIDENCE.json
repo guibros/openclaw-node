@@ -1,0 +1,50 @@
+{
+  "ownedOnly": true,
+  "natsServer": "2.12.6",
+  "node24": {
+    "passed": 7,
+    "skipped": 0,
+    "durationMs": 77093.041584
+  },
+  "node22": {
+    "passed": 7,
+    "skipped": 0,
+    "durationMs": 77439.273
+  },
+  "baseline": {
+    "early": "unchanged1.1 emits Shutdown complete and exit0 after disconnect+3s",
+    "late": "unchanged1.1 calibrated pending drain exits0 without completion"
+  },
+  "mutants": {
+    "mutants": [
+      {
+        "variant": "no-error-check",
+        "rejected": true,
+        "controlledFailure": true
+      },
+      {
+        "variant": "no-actual-close-check",
+        "rejected": true,
+        "controlledFailure": true
+      }
+    ],
+    "ownedScratchRemoved": true
+  },
+  "fullSuite": "pending isolated CI; no root suite run against production resources",
+  "earlyAssertions": "both early controls now reject permanent-close line; explicit guard must cause the failure",
+  "strongEarlyControls": {
+    "Node22": 2,
+    "Node24": 2,
+    "skipped": 0
+  },
+  "warnThrowMutant": {
+    "mutants": [
+      {
+        "variant": "warn-throw",
+        "rejected": true,
+        "controlledFailure": true
+      }
+    ],
+    "ownedScratchRemoved": true
+  }
+}

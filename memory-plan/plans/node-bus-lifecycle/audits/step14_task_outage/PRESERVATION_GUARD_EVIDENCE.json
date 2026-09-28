@@ -1,0 +1,22 @@
+{
+  "at": "2026-09-28T16:29:58.369Z",
+  "ownedOnly": true,
+  "sameServer": true,
+  "exactFunctionExtracted": true,
+  "foreign": {
+    "mode": "foreign",
+    "refused": true,
+    "milliseconds": 10
+  },
+  "observerOnlyGap": {
+    "mode": "zero",
+    "accepted": true,
+    "result": {
+      "nodeSubscriptions": 0,
+      "oldCid": 6,
+      "oldCidAbsent": true,
+      "foreignHolderFailsImmediately": true
+    },
+    "milliseconds": 7
+  }
+}
