@@ -417,7 +417,7 @@ async function handleComplete(msg) {
       ? ((new Date(task.review_requested_at) - new Date(task.started_at)) / 60000).toFixed(1)
       : '?';
     log(`PENDING REVIEW ${task_id} in ${elapsed}m: ${result?.summary || 'no summary'}`);
-    log(`  Approve: mesh task approve ${task_id}  |  Reject: mesh task reject ${task_id} --reason "..."`);
+    log(`  Approve: mesh tasks approve ${task_id}  |  Reject: mesh tasks reject ${task_id} --reason "..."`);
     publishEvent('pending_review', task);
     // Update plan subtask status so `mesh plan show` reflects pending_review
     await updatePlanSubtaskStatus(task_id, 'pending_review');

@@ -136,6 +136,22 @@ async function natsRequest(nc, subject, payload, timeoutMs = 35000) {
 }
 
 /**
+ * The task daemon answers { ok: true, data } or { ok: false, error }. A refusal
+ * is a normal reply rather than a transport error, and printing fields off one
+ * reported approvals that never happened ("Task approved: undefined →
+ * undefined"). Every task-daemon call goes through here. The exec and capture
+ * responders on other nodes reply in their own shape and keep using natsRequest.
+ */
+async function daemonRequest(nc, subject, payload) {
+  const reply = await natsRequest(nc, subject, payload);
+  if (!reply.ok) {
+    console.error(`Error: ${subject} refused: ${reply.error}`);
+    process.exit(1);
+  }
+  return reply.data;
+}
+
+/**
  * Collect recent heartbeats to build node status.
  */
 async function collectHeartbeats(nc, waitMs = 3000) {
@@ -376,7 +392,7 @@ async function cmdSubmit(args) {
     if (task.status !== 'queued') { console.error(`Task ${taskId} is ${task.status}, not queued`); process.exit(1); }
 
     const nc = await natsConnect();
-    const result = await natsRequest(nc, 'mesh.tasks.submit', {
+    const submitted = await daemonRequest(nc, 'mesh.tasks.submit', {
       task_id: task.task_id,
       title: task.title,
       description: task.description || '',
@@ -390,7 +406,7 @@ async function cmdSubmit(args) {
       preferred_nodes: task.preferred_nodes || [],
       exclude_nodes: task.exclude_nodes || [],
     });
-    console.log(`Submitted: ${result.data.task_id} [${result.data.status}]`);
+    console.log(`Submitted: ${submitted.task_id} [${submitted.status}]`);
     // Mark as 'submitted' — NOT 'running'. The card reflects actual mesh state.
     // The bridge event handler promotes to 'running' when mesh.events.claimed fires.
     // This prevents the Schrödinger state where kanban says 'running' before any agent has claimed.
@@ -432,7 +448,7 @@ async function cmdSubmit(args) {
   if (!task.task_id || !task.title) { console.error('YAML must have task_id and title.'); process.exit(1); }
 
   const nc = await natsConnect();
-  const result = await natsRequest(nc, 'mesh.tasks.submit', {
+  const submitted = await daemonRequest(nc, 'mesh.tasks.submit', {
     task_id: task.task_id,
     title: task.title,
     description: task.description || '',
@@ -450,11 +466,11 @@ async function cmdSubmit(args) {
     collaboration: task.collaboration || undefined,
   });
 
-  console.log(`Submitted: ${result.data.task_id} "${result.data.title}"`);
-  console.log(`  Status:  ${result.data.status}`);
-  console.log(`  Budget:  ${result.data.budget_minutes}m`);
-  console.log(`  Metric:  ${result.data.metric || 'none'}`);
-  if (result.data.llm_provider) console.log(`  Provider: ${result.data.llm_provider}`);
+  console.log(`Submitted: ${submitted.task_id} "${submitted.title}"`);
+  console.log(`  Status:  ${submitted.status}`);
+  console.log(`  Budget:  ${submitted.budget_minutes}m`);
+  console.log(`  Metric:  ${submitted.metric || 'none'}`);
+  if (submitted.llm_provider) console.log(`  Provider: ${submitted.llm_provider}`);
   await nc.close();
 }
 
@@ -470,8 +486,8 @@ async function cmdTasks(args) {
     if (!taskId) { console.error('Usage: mesh tasks approve <task-id>'); process.exit(1); }
     const nc = await natsConnect();
     try {
-      const result = await natsRequest(nc, 'mesh.tasks.approve', await signOperatorRequest({ task_id: taskId }));
-      console.log(`Task approved: ${result.task_id} → ${result.status}`);
+      const task = await daemonRequest(nc, 'mesh.tasks.approve', await signOperatorRequest({ task_id: taskId }));
+      console.log(`Task approved: ${task.task_id} → ${task.status}`);
     } finally { await nc.close(); }
     return;
   }
@@ -485,8 +501,9 @@ async function cmdTasks(args) {
     }
     const nc = await natsConnect();
     try {
-      const result = await natsRequest(nc, 'mesh.tasks.reject', await signOperatorRequest({ task_id: taskId, reason }));
-      console.log(`Task rejected: ${result.task_id} → re-queued`);
+      const task = await daemonRequest(nc, 'mesh.tasks.reject', await signOperatorRequest({ task_id: taskId, reason }));
+      // markRejected re-queues, or fails the task once the rejection cap is reached.
+      console.log(`Task rejected: ${task.task_id} → ${task.status === 'queued' ? 're-queued' : `${task.status} (rejection cap reached)`}`);
       console.log(`  Reason: ${reason}`);
     } finally { await nc.close(); }
     return;
@@ -495,8 +512,7 @@ async function cmdTasks(args) {
   if (subCmd === 'review') {
     // List only pending_review tasks
     const nc = await natsConnect();
-    const result = await natsRequest(nc, 'mesh.tasks.list', { status: 'pending_review' });
-    const tasks = result.data || [];
+    const tasks = await daemonRequest(nc, 'mesh.tasks.list', { status: 'pending_review' });
     if (tasks.length === 0) {
       console.log('No tasks pending review.');
       await nc.close();
@@ -523,8 +539,7 @@ async function cmdTasks(args) {
   const statusIdx = args.indexOf('--status');
   if (statusIdx >= 0 && args[statusIdx + 1]) filter.status = args[statusIdx + 1];
 
-  const result = await natsRequest(nc, 'mesh.tasks.list', filter);
-  const tasks = result.data || [];
+  const tasks = await daemonRequest(nc, 'mesh.tasks.list', filter);
 
   if (tasks.length === 0) {
     console.log('No tasks in mesh.');
