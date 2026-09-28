@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-28T16:05:36.553976+00:00",
+  "sourceSha": "69b7f377b53f7850e168af16512b2161b00ee7ac",
+  "run": "https://github.com/moltyguibros-design/openclaw-node/actions/runs/36447265256",
+  "attempt": 2,
+  "green": [
+    "unit-tests (20)",
+    "unit-tests (22)",
+    "mission-control-tests"
+  ],
+  "attempt1": "worker controls 9/9 pass; federation-resilience setup binds an occupied random-range port15800; six child tests canceled, Node20 matrix canceled",
+  "causeOwner": "not proven by the log; overlapping federation-3node ports are a source-identified candidate",
+  "carryForward": "node-readiness 2.1 fixture-port allocation/isolation"
+}

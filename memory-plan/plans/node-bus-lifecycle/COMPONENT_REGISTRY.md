@@ -33,15 +33,16 @@
 
 | | |
 |---|---|
-| **Status** | LIVE, planned drain UNPROVEN |
-| **Verified** | 2026-09-28 10:22 America/Montreal: one mesh.agent.moltymacs-virtual-machine.alive subscription, reply alive=false/task_id=null; same unconditional closed callback in live and main. Claude independently reproduced idle SIGTERM exit 1 without completion. |
-| **Constraint** | Runtime acceptance still required; current-main has additional terminal-task handling absent from live e57. |
+| **Status** | LIVE, connected idle planned drain VERIFIED |
+| **Verified** | 2026-09-28 12:12 America/Montreal: two natural managed stops, exit 0/one completion; replacement PID 50887, runs 3. Old CID292231 closed normally, zero-holder gap, replacement CID292648 idle. 537 task rows/Kanban/core owners unchanged. Claude message 121 accepts closure. |
+| **Consumer** | /usr/local/bin/node ~/.openclaw/releases/worker-drain-69b7f37-e57f89b/bin/mesh-agent.js; entry SHA 1304cb310551cec27739852686bafcd356641d6c4e993011fb74fba5ed14666c. |
+| **Constraint** | KeepAlive=false/RunAtLoad=false preserved: permanent-loss exit does not automatically restart despite existing log wording; restoration needs explicit kickstart. Default poll can leave 15s before drain versus launchd’s 20s stop limit; keep task service available until worker exits. Current-main terminal-task handling absent from live e57. |
 
 ### Narrow lifecycle release durability
 
 | | |
 |---|---|
 | **Constraint** | Service installation or mesh-deploy --include-services re-renders primary entry paths and can revert task/bridge repairs. Ordinary restart keeps current entries. |
-| **Dependencies** | Both releases intentionally link primary node_modules. npm install/ci/rebuild there changes their runtime dependencies. |
+| **Dependencies** | All three lifecycle releases intentionally link primary node_modules. npm install/ci/rebuild there changes their runtime dependencies. |
 | **Gate** | Before preservation, assert repaired clients' unit entry/runtime SHA, then createRequire real paths and package versions under their exact unit environment. Bridge packages are in step12_bridge/RUNTIME_EVIDENCE.json. |
-| **Feeds** | node-readiness 1.5 deployment reconciliation and 2.2 installation. Task outage semantics remain queued atomic 1.4; 1.1 connected-idle proof stands. |
+| **Feeds** | node-readiness 1.5 deployment reconciliation and 2.2 installation. Task outage semantics remain queued atomic 1.4; 1.1 connected-idle proof stands. Worker task-time ESM graph was statically checked in its release; idle acceptance is not task execution. |

@@ -1,0 +1,21 @@
+{
+  "preservedMainDrift": "current-main terminal-task handling is not included in this e57 lifecycle release",
+  "sourceSha": "69b7f377b53f7850e168af16512b2161b00ee7ac",
+  "liveBaseSha": "e57f89b264a30892389cabe573786fb516a6a208",
+  "changedFiles": [
+    "bin/mesh-agent.js"
+  ],
+  "trackedFilesChecked": 1911,
+  "patchSha256": "ad20001c909c29e5461b0a9ee995586a46fe01988bce341130d298fe8883949d",
+  "runtimeEntrySha256": "1304cb310551cec27739852686bafcd356641d6c4e993011fb74fba5ed14666c",
+  "nodeModules": "/Users/moltymac/openclaw-nodedev/node_modules",
+  "runtimeEntry": "/Users/moltymac/.openclaw/releases/worker-drain-69b7f37-e57f89b/bin/mesh-agent.js",
+  "at": "2026-09-28T16:00:05.947585+00:00",
+  "stageNode": "24.13.0",
+  "realOwnedControlsPassed": 9,
+  "skipped": 0,
+  "durationMs": 133394.119916,
+  "liveWorkerUnchanged": true,
+  "managedRuntime": "pending",
+  "dependencyPolicy": "same exact primary runtime module tree; preserve live terminal-task drift"
+}

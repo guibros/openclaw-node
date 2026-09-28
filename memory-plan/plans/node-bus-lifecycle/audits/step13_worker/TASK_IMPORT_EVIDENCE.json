@@ -1,0 +1,28 @@
+{
+  "root": "/Users/moltymac/.openclaw/releases/worker-drain-69b7f37-e57f89b",
+  "files": [
+    "lib/atomic-write.mjs",
+    "lib/foreman/assessment.mjs",
+    "lib/foreman/assessor.mjs",
+    "lib/foreman/index.mjs",
+    "lib/foreman/observation.mjs",
+    "lib/foreman/policy.mjs",
+    "lib/foreman/steering.mjs",
+    "lib/foreman/supervisor.mjs",
+    "lib/foreman/verifier.mjs",
+    "lib/hyperagent-store.mjs",
+    "lib/llm-client.mjs",
+    "lib/ollama-queue.mjs",
+    "lib/parse-env.mjs",
+    "lib/sqlite-store.mjs"
+  ],
+  "barePackages": [
+    {
+      "file": "lib/sqlite-store.mjs",
+      "specifier": "better-sqlite3",
+      "resolvedESM": "file:///Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js"
+    }
+  ],
+  "missing": [],
+  "staticOnly": true
+}
