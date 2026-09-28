@@ -5,7 +5,8 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 | Block | Step | Version | Status | Description |
 |---|---|---|---|---|
 | 1 | 1.1 | v1.1 | [x] | Restore gateway startup with schema-valid streaming configuration — 2026-09-27: 703s stable PID/run count, validator, healthy loopback and anonymous 401 |
-| 1 | 1.2 | v1.2 | [ ] | Restore installed Mission Control |
+| 1 | 1.2 | v1.2 | [x] | Restore installed Mission Control — fa54a0d deployed; 605.21s healthy, supervised recovery 2.41s, auth/maintenance verified, 537 tasks preserved |
+| 1 | 1.6 | v1.6 | [ ] | Restore the plan viewer with authenticated control endpoints |
 | 1 | 1.3 | v1.3 | [ ] | Establish restorable persisted-state backups |
 | 1 | 1.4 | v1.4 | [ ] | Reconcile message-bus topology |
 | 1 | 1.5 | v1.5 | [ ] | Make deployment revision and services reproducible |
@@ -29,7 +30,7 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 > **1.2 — Goal:** Restore installed Mission Control.
 > **Needs:** Existing service and deployed project inventoried.
 > **Feeds:** Dashboard and scheduler.
-> **Verify:** runtime/code: Deploy a known source revision including current API auth before start; service survives restart, serves UI and authenticated API; anonymous reads and mutations remain rejected.
+> **Verify:** runtime/code: Deploy a known source revision and hash manifest; preserve task IDs, scheduling fields, token and existing data; serve authenticated UI/API and reject anonymous GET/POST plus foreign Host/Origin. Prove supervised crash recovery and ten minutes of healthy stable PID/run count, observe the authenticated scheduler with zero dispatch candidates, and confirm no unmanaged next dev.
 
 > **1.3 — Goal:** Establish restorable persisted-state backups.
 > **Needs:** SQLite and NATS stores enumerated.
@@ -100,3 +101,8 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 > **Needs:** All required rows closed; backlog and PR notes reconciled; provenance checked.
 > **Feeds:** Installation and support.
 > **Verify:** runtime/code: Released artifact installs/upgrades, CI passes and instructions accurately state limitations.
+
+> **1.6 — Goal:** Restore the existing plan viewer with authenticated control endpoints.
+> **Needs:** 1.2 closed; private review of viewer request handling and current unit; no active tick jobs.
+> **Feeds:** Safe operator plan monitoring/control.
+> **Verify:** runtime/code: authorized viewer reads and controls work; foreign Host/Origin and missing/invalid credentials fail closed; existing service survives restart and uses the reviewed source.

@@ -11,3 +11,14 @@ Root-suite tests can reach live defaults (#52/#61). Until isolation is establish
 
 ## D4 — Strengthen gateway acceptance after independent challenge (2026-09-27 23:10 EDT)
 Claude accepted the two-field repair's scope but identified that two health probes 30s apart miss deferred startup failures. Reopen 1.1 for a ten-minute stable launchd PID/run-count window and unauthenticated chat rejection. Do not infer whole-product readiness from gateway health. All live config comparisons stay structural or hashed; no token-bearing diffs are published. The full-file validator is the meaningful schema test; a source-shape assertion alone would only mirror the patch.
+
+## D5 — Mission Control has one service owner (2026-09-27 23:30 EDT)
+The health helper must restart the existing launchd/systemd user service. It must not kill whichever process owns a port or spawn an unmanaged development server. This is required to keep the restored production build running under the same service definition. Runtime source, database and environment are backed up before replacement.
+
+## D6 — 2026-09-27: supervisor owns automatic MC restarts
+Memory maintenance reports failed health and skips dependent work; it does not restart MC. launchd KeepAlive/systemd Restart own crash recovery. Explicit mc-health --restart remains a managed operator recovery action with authentication checks and cooldown. This avoids an additional health controller killing a valid cold start or repeatedly attempting to repair a damaged database. Database startup refuses unhealthy integrity results and closes the failed handle; no unbacked automatic REINDEX. Verified-backup restoration is the recovery path.
+
+## D7 — Retry temporary database startup failures (2026-09-28 00:13 EDT)
+Claude's review of e73b284 identified that caching every initialization error strands a healthy database after a temporary lock. Cache only a failed integrity verdict or SQLite corruption/NOTADB code. Close all failed handles; permit a later request to retry BUSY/LOCKED, permission and other non-corruption failures. Use an explicit five-second busy timeout (also the dependency's current default). Successful startup requires owner-private database/journal permissions; a chmod failure remains visible and retryable. Integrity errors include a bounded first line of the diagnostic. Never automatically repair a live database.
+
+Maintenance's graph-stats GET must authenticate alongside every other request. Keep the local 88be4f2 mutation semantics and support the shared OPENCLAW_MC_TOKEN_FILE override. MC_URL follows the existing health-helper convention but is restricted to loopback HTTP without URL credentials. Verify the actual maintenance cycle against an isolated HTTP server, including rejection without false success.

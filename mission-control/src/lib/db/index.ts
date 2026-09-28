@@ -7,6 +7,9 @@ import path from "path";
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let _sqlite: Database.Database | null = null;
+let initializationError: unknown = null;
+
+class IntegrityCheckError extends Error {}
 
 function ensureDataDir() {
   const dir = path.dirname(DB_PATH);
@@ -518,15 +521,7 @@ function runMigrations(sqlite: Database.Database) {
   } catch (err) {
     const e = err as { code?: string; message?: string } | null;
     if (e?.code === "SQLITE_CORRUPT_INDEX" || e?.message?.includes("malformed")) {
-      console.warn("[db] Corrupt index detected — running REINDEX...");
-      try {
-        sqlite.exec("REINDEX");
-        console.log("[db] REINDEX complete — retrying cleanup");
-        sqlite.exec(`DELETE FROM observability_events WHERE timestamp < ${Date.now() - 86400000}`);
-        console.log("[db] Observability events cleanup done (after recovery)");
-      } catch (reindexErr) {
-        console.error("[db] REINDEX failed — skipping cleanup:", reindexErr);
-      }
+      throw err;
     } else {
       console.error("[db] Observability cleanup failed:", err);
     }
@@ -537,70 +532,46 @@ function runMigrations(sqlite: Database.Database) {
 
 export function getDb() {
   if (_db) return _db;
+  if (initializationError !== null) throw initializationError;
 
   ensureDataDir();
 
-  _sqlite = new Database(DB_PATH);
-  _sqlite.pragma("journal_mode = WAL");
-  _sqlite.pragma("foreign_keys = ON");
-  // Checkpoint every 1000 pages (~4MB) to prevent WAL bloat
-  _sqlite.pragma("wal_autocheckpoint = 1000");
-
-  console.log(`[db] Opening database: ${DB_PATH}`);
-
-  // Integrity check on startup — catch WAL corruption early
+  const sqlite = new Database(DB_PATH, { timeout: 5000 });
   try {
+    sqlite.pragma("journal_mode = WAL");
+    sqlite.pragma("foreign_keys = ON");
+    sqlite.pragma("wal_autocheckpoint = 1000");
+    console.log(`[db] Opening database: ${DB_PATH}`);
+
+    const integrity = sqlite.pragma("quick_check", { simple: true });
+    if (integrity !== "ok") {
+      const reason = String(integrity).split(/[\r\n]/, 1)[0].slice(0, 200);
+      throw new IntegrityCheckError(`Mission Control database integrity check failed: ${reason}; restore or repair from a verified backup`);
+    }
+
     const walPath = DB_PATH + "-wal";
     const walSize = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;
-    // Only run full integrity check if WAL is suspiciously large (>100MB)
-    // or quick_check always (very fast, catches most issues)
-    const quickResult = _sqlite.pragma("quick_check") as Array<{ integrity_check: string }>;
-    const quickOk = quickResult?.[0]?.integrity_check === "ok";
-
-    if (!quickOk) {
-      console.warn("[db] quick_check FAILED — attempting REINDEX recovery...");
-      try {
-        _sqlite.exec("REINDEX");
-        console.log("[db] REINDEX complete after quick_check failure");
-      } catch (reindexErr) {
-        console.error("[db] REINDEX failed:", reindexErr);
-      }
-    }
-
     if (walSize > 100 * 1024 * 1024) {
-      console.warn(`[db] Large WAL detected (${Math.round(walSize / 1024 / 1024)}MB) — forcing checkpoint`);
-      try {
-        _sqlite.pragma("wal_checkpoint(TRUNCATE)");
-        console.log("[db] WAL checkpoint (TRUNCATE) complete on startup");
-      } catch (cpErr) {
-        console.error("[db] Startup WAL checkpoint failed:", cpErr);
-      }
+      sqlite.pragma("wal_checkpoint(TRUNCATE)");
     }
+
+    runMigrations(sqlite);
+
+    for (const file of [DB_PATH, walPath, DB_PATH + "-journal"]) {
+      if (existsSync(file)) chmodSync(file, 0o600);
+    }
+    const db = drizzle(sqlite, { schema });
+    _sqlite = sqlite;
+    _db = db;
+    return db;
   } catch (err) {
-    console.error("[db] Startup integrity check error:", err);
+    const code = (err as { code?: string } | null)?.code || "";
+    if (err instanceof IntegrityCheckError || /^SQLITE_(CORRUPT(?:_|$)|NOTADB$)/.test(code)) {
+      initializationError = err;
+    }
+    sqlite.close();
+    throw err;
   }
-
-  runMigrations(_sqlite);
-
-  // Lock down DB file permissions — owner read/write only
-  try {
-    if (existsSync(DB_PATH)) {
-      chmodSync(DB_PATH, 0o600);
-    }
-    const walPath = DB_PATH + "-wal";
-    if (existsSync(walPath)) {
-      chmodSync(walPath, 0o600);
-    }
-    const journalPath = DB_PATH + "-journal";
-    if (existsSync(journalPath)) {
-      chmodSync(journalPath, 0o600);
-    }
-  } catch (err) {
-    console.warn(`[db] chmod failed: ${(err as Error).message}`);
-  }
-
-  _db = drizzle(_sqlite, { schema });
-  return _db;
 }
 
 export function getRawDb(): Database.Database {

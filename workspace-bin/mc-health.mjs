@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * mc-health — Mission Control health check + auto-restart
+ * mc-health — Mission Control health check + explicit managed restart
  *
  * Probes GET /api/system/health. If unhealthy or unreachable:
  *   1. Logs the failure
  *   2. Optionally restarts MC (--restart flag)
- *   3. Verifies MC came back up (polls for 30s)
+ *   3. Verifies MC came back up (polls for 60s)
  *
  * Usage:
  *   node bin/mc-health.mjs              # check only, exit 0/1
@@ -16,32 +16,22 @@
  *   0 = healthy
  *   1 = unhealthy or unreachable
  *   2 = restarted and verified healthy
- *   3 = restarted but failed to come back up
+ *   3 = restart failed, suppressed, or did not restore health
  */
 
 import http from 'http';
-import { execSync, spawn } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { mcAuthHeaders } from '../lib/mc-session-token.mjs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.dirname(__dirname);
-const MC_DIR = path.join(WORKSPACE, 'projects', 'mission-control');
+const runFile = promisify(execFile);
 const MC_URL = process.env.MC_URL || 'http://localhost:3000';
 const args = process.argv.slice(2);
 const doRestart = args.includes('--restart');
 const jsonOutput = args.includes('--json');
-
-/** Extract port from MC_URL for lsof kill */
-function getMCPort() {
-  try {
-    return new URL(MC_URL).port || '3000';
-  } catch {
-    return '3000';
-  }
-}
 
 function httpGet(url, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
@@ -58,7 +48,7 @@ function httpGet(url, timeoutMs = 5000) {
       });
     });
     req.on('error', (err) => reject(err));
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('timeout', () => { req.destroy(); reject(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })); });
   });
 }
 
@@ -67,7 +57,7 @@ function sleep(ms) {
 }
 
 /** Poll health endpoint until healthy or timeout */
-async function waitForHealthy(maxWaitMs = 30000) {
+async function waitForHealthy(maxWaitMs = 60000) {
   const start = Date.now();
   const interval = 2000;
   while (Date.now() - start < maxWaitMs) {
@@ -83,51 +73,37 @@ async function waitForHealthy(maxWaitMs = 30000) {
 }
 
 async function restartMC() {
-  const port = getMCPort();
-  console.error('[mc-health] Stopping MC...');
-
-  // Kill existing process on the port
+  const statePath = path.join(os.homedir(), '.openclaw', 'run', 'mc-health-restart');
+  fs.mkdirSync(path.dirname(statePath), { recursive: true, mode: 0o700 });
+  if (fs.existsSync(statePath) && Date.now() - fs.statSync(statePath).mtimeMs < 15 * 60 * 1000) {
+    console.error('[mc-health] Managed restart suppressed during 15-minute cooldown');
+    return false;
+  }
+  fs.writeFileSync(statePath, new Date().toISOString(), { mode: 0o600 });
+  console.error('[mc-health] Restarting the managed Mission Control service...');
   try {
-    execSync(`lsof -ti:${port} | xargs kill 2>/dev/null || true`, { timeout: 5000 });
-  } catch { /* ignore */ }
-
-  // Wait for port to free up
-  await sleep(2000);
-
-  // Kill harder if still alive
-  try {
-    const pids = execSync(`lsof -ti:${port} 2>/dev/null`, { timeout: 3000 }).toString().trim();
-    if (pids) {
-      execSync(`echo "${pids}" | xargs kill -9 2>/dev/null || true`, { timeout: 3000 });
-      await sleep(1000);
+    if (process.platform === 'darwin') {
+      await runFile('launchctl', ['kickstart', '-k', `gui/${process.getuid()}/ai.openclaw.mission-control`], { timeout: 15000 });
+    } else if (process.platform === 'linux') {
+      await runFile('systemctl', ['--user', 'restart', 'openclaw-mission-control.service'], { timeout: 15000 });
+    } else {
+      throw new Error(`unsupported service platform: ${process.platform}`);
     }
-  } catch { /* port is free */ }
-
-  // Clear stale lock
-  try {
-    execSync(`rm -f "${MC_DIR}/.next/dev/lock"`, { timeout: 3000 });
-  } catch { /* ignore */ }
-
-  console.error('[mc-health] Starting MC...');
-  const child = spawn('npm', ['run', 'dev'], {
-    cwd: MC_DIR,
-    detached: true,
-    stdio: 'ignore',
-    env: { ...process.env, NODE_ENV: 'development' },
-  });
-  child.unref();
-  console.error(`[mc-health] MC process spawned (PID ${child.pid})`);
+  } catch (err) {
+    console.error(`[mc-health] Managed restart failed: ${err.message}`);
+    return false;
+  }
 
   // Verify it actually came back
   console.error('[mc-health] Waiting for MC to become healthy...');
-  const result = await waitForHealthy(30000);
+  const result = await waitForHealthy(60000);
 
   if (result.ok) {
     const db = result.body?.db || {};
     console.error(`[mc-health] MC restarted and healthy: tasks=${db.taskCount} wal=${db.walSizeMB}MB`);
     return true;
   } else {
-    console.error('[mc-health] MC failed to become healthy after 30s');
+    console.error('[mc-health] MC failed to become healthy after 60s');
     return false;
   }
 }
@@ -135,8 +111,18 @@ async function restartMC() {
 async function main() {
   const ts = new Date().toISOString();
 
+  if (!mcAuthHeaders().Authorization) {
+    console.error('[mc-health] AUTH MISCONFIGURED: session token missing; no restart');
+    process.exitCode = 1;
+    return;
+  }
+
   try {
-    const { status, body } = await httpGet(`${MC_URL}/api/system/health`);
+    let { status, body } = await httpGet(`${MC_URL}/api/system/health`);
+    for (let attempt = 1; doRestart && status >= 500 && attempt < 3; attempt++) {
+      await sleep(1000);
+      ({ status, body } = await httpGet(`${MC_URL}/api/system/health`));
+    }
 
     if (status === 200 && body?.status !== 'unhealthy') {
       if (jsonOutput) {
@@ -157,7 +143,7 @@ async function main() {
       console.log(JSON.stringify({ ts, status: 'unhealthy', error: errMsg }));
     }
 
-    if (doRestart) {
+    if (doRestart && status >= 500) {
       const success = await restartMC();
       process.exitCode = success ? 2 : 3;
       return;
@@ -174,7 +160,7 @@ async function main() {
       console.log(JSON.stringify({ ts, status: 'unreachable', error: errMsg }));
     }
 
-    if (doRestart) {
+    if (doRestart && ['ECONNREFUSED', 'ETIMEDOUT'].includes(err.code)) {
       const success = await restartMC();
       process.exitCode = success ? 2 : 3;
       return;

@@ -1,0 +1,154 @@
+{
+  "source_revision": "fa54a0d5a66bb9b64b9983e3b871f225161b3a97",
+  "build_id": "JoDmTRHsYJYZLQg5CKnKW",
+  "tracked_file_count": 194,
+  "manifest_sha256": "03459b685a3b3fb6fad39bb1aea3b656a6941b2679bbc202e7f7689457e41835",
+  "soak": {
+    "first": {
+      "timestamp": "2026-09-28T00:14:58.263307-04:00",
+      "elapsed_seconds": 0.01,
+      "service": {
+        "pid": 26400,
+        "runs": 2
+      },
+      "http": 200,
+      "health": "healthy",
+      "task_count": 537,
+      "wal_mb": 4
+    },
+    "last": {
+      "timestamp": "2026-09-28T00:25:03.464915-04:00",
+      "elapsed_seconds": 605.21,
+      "service": {
+        "pid": 26400,
+        "runs": 2
+      },
+      "http": 200,
+      "health": "healthy",
+      "task_count": 537,
+      "wal_mb": 4
+    },
+    "samples": 11,
+    "all_healthy": true
+  },
+  "supervisor_recovery": {
+    "timestamp": "2026-09-28T00:14:58.205179-04:00",
+    "before": {
+      "pid": 26208,
+      "runs": 1
+    },
+    "after": {
+      "pid": 26400,
+      "runs": 2
+    },
+    "fault": "SIGTERM to verified supervised listener",
+    "recovered_by": "launchd KeepAlive",
+    "recovery_seconds": 2.41,
+    "health": "healthy",
+    "task_count": 537,
+    "token_unchanged": true
+  },
+  "task_data": {
+    "timestamp": "2026-09-28T00:17:00.930100-04:00",
+    "task_count": 537,
+    "added_columns": [
+      "extra"
+    ],
+    "changed_existing_columns": {},
+    "original_task_data_equal": true,
+    "next_dev_processes": 0
+  },
+  "scheduler_preflight": {
+    "timestamp": "2026-09-28T00:25:42.925020-04:00",
+    "task_count": 537,
+    "board_task_count": 537,
+    "scheduling_differences": {
+      "status": 0,
+      "needs_approval": 0,
+      "trigger_kind": 0,
+      "trigger_at": 0,
+      "trigger_cron": 0,
+      "execution": 0,
+      "is_recurring": 0
+    },
+    "dispatchable": 0,
+    "recurring_done": 0,
+    "queued_timed": 0,
+    "task_state_hash": "68c7047baea186af94ad341204551117e9c229f467b20209b3e2e05793bec6a6"
+  },
+  "maintenance_requests": [
+    {
+      "method": "GET",
+      "path": "/api/system/health",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/memory/sync",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/memory/consolidate",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/memory/graph",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/memory/graph",
+      "status": 200
+    }
+  ],
+  "http": {
+    "authenticated_health": {
+      "status": 200,
+      "seconds": 0.02,
+      "health": {
+        "status": "healthy",
+        "db": {
+          "taskCount": 537,
+          "obsEventCount": 111244,
+          "dbSizeMB": 556,
+          "walSizeMB": 4
+        },
+        "checkpoint": null,
+        "uptime_s": 28
+      }
+    },
+    "anonymous_get": {
+      "status": 401,
+      "seconds": 0.0
+    },
+    "anonymous_post": {
+      "status": 401,
+      "seconds": 0.0
+    },
+    "foreign_host": {
+      "status": 403,
+      "seconds": 0.0
+    },
+    "foreign_origin": {
+      "status": 403,
+      "seconds": 0.0
+    },
+    "authenticated_page": {
+      "status": 200,
+      "seconds": 0.01,
+      "html_bytes": 25270
+    }
+  }
+}

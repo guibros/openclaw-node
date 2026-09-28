@@ -17,9 +17,69 @@ import path from 'path';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import http from 'http';
+import os from 'os';
 import { mcAuthHeaders } from '../lib/mc-session-token.mjs';
 
 const execFileAsync = promisify(execFile);
+const MC_TOKEN_PATH = process.env.MC_SESSION_TOKEN_PATH
+  || process.env.OPENCLAW_MC_TOKEN_FILE
+  || path.join(os.homedir(), '.openclaw', 'config', 'mc-session-token');
+const MC_LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+const MC_URL = process.env.MC_URL || 'http://127.0.0.1:3000';
+const mcOrigin = new URL(MC_URL);
+if (mcOrigin.protocol !== 'http:' || !MC_LOOPBACK_HOSTS.has(mcOrigin.hostname) || mcOrigin.username || mcOrigin.password) {
+  throw new Error('MC_URL must be loopback HTTP without credentials');
+}
+
+/**
+ * POST one Mission Control mutation, authenticated, and prove it succeeded (88be4f2, node-readiness 1.2).
+ *
+ * All three maintenance mutations (sync, consolidate, graph) sent no Authorization
+ * header and resolved on `res.on('end')` without ever reading `statusCode`. Against
+ * the middleware auth gate every one returned 401 `{"error":"token"}` — which was
+ * logged verbatim and then reported as `MC_SYNC: Memory index refreshed`. The
+ * rejected body was printed one line above the success claim.
+ *
+ * A mutation counts as performed only when it authenticates, returns 2xx, and returns
+ * a body that parses and does not carry an `error` field.
+ *
+ * @returns {Promise<{status: number, body: object|string}>} — throws on any failure
+ */
+export async function postAuthenticatedMutation(url, { timeoutMs = 5000, readToken, fetchImpl } = {}) {
+  const endpoint = new URL(url);
+  if (endpoint.protocol !== 'http:' || !MC_LOOPBACK_HOSTS.has(endpoint.hostname)) {
+    throw new Error(`maintenance mutation must target loopback HTTP: ${url}`);
+  }
+  if (endpoint.username || endpoint.password) throw new Error('maintenance endpoint must not contain credentials');
+
+  const read = readToken || ((p) => fs.promises.readFile(p, 'utf8'));
+  const token = (await read(MC_TOKEN_PATH)).trim();
+  if (!token) throw new Error(`Mission Control session token is empty: ${MC_TOKEN_PATH}`);
+
+  const request = fetchImpl || fetch;
+  const res = await request(endpoint.toString(), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    redirect: 'error',
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} from ${endpoint.pathname}: ${text.slice(0, 200)}`);
+  }
+
+  let body;
+  try { body = text ? JSON.parse(text) : {}; }
+  catch { throw new Error(`non-JSON success body from ${endpoint.pathname}: ${text.slice(0, 200)}`); }
+
+  // A 200 carrying an error field is a rejection wearing a success status.
+  if (body && typeof body === 'object' && body.error) {
+    throw new Error(`${endpoint.pathname} returned HTTP ${res.status} with error: ${String(body.error).slice(0, 200)}`);
+  }
+  return { status: res.status, body };
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -209,7 +269,7 @@ async function checkMissionControl() {
 
   // Use health endpoint for real diagnostics
   const healthResult = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/system/health', { timeout: 5000, headers: mcAuthHeaders() }, res => {
+    const req = http.get(`${MC_URL}/api/system/health`, { timeout: 5000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
       let data = '';
       res.on('data', d => { data += d; });
       res.on('end', () => {
@@ -225,46 +285,16 @@ async function checkMissionControl() {
     log('Mission Control unreachable — skipping');
     report('MC_DOWN: Mission Control unreachable (timeout or connection refused)');
     warnings++;
-    // Attempt restart if MC is completely down
-    try {
-      const { execSync: execSyncImport } = await import('child_process');
-      const mcHealthScript = path.join(WORKSPACE, 'bin', 'mc-health.mjs');
-      const result = execSyncImport(`node "${mcHealthScript}" --restart`, {
-        timeout: 45000,
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      log(`MC restart result: ${result.trim()}`);
-      report('MC_RESTART: Auto-restart from unreachable state');
-      actions++;
-    } catch (e) {
-      log(`MC restart attempt failed: ${e.message}`);
-    }
+
     return;
   }
 
-  if (healthResult.status === 503 || healthResult.body?.status === 'unhealthy') {
+  if (healthResult.status !== 200 || healthResult.body?.status === 'unhealthy') {
     const err = healthResult.body?.error || 'unknown';
     log(`Mission Control UNHEALTHY: ${err}`);
     report(`MC_UNHEALTHY: ${err}`);
     warnings++;
-    // Attempt restart via mc-health script (handles kill + restart + verification)
-    try {
-      const { execSync: execSyncImport } = await import('child_process');
-      const mcHealthScript = path.join(WORKSPACE, 'bin', 'mc-health.mjs');
-      const result = execSyncImport(`node "${mcHealthScript}" --restart`, {
-        timeout: 45000,
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      log(`MC restart result: ${result.trim()}`);
-      report('MC_RESTART: Auto-restart triggered and verified');
-      actions++;
-    } catch (e) {
-      log(`MC restart failed: ${e.message}`);
-      report('MC_RESTART_FAILED: Could not recover Mission Control');
-      warnings++;
-    }
+
     return;
   }
 
@@ -274,16 +304,8 @@ async function checkMissionControl() {
   if (DRY_RUN) { log('DRY RUN: Would sync Mission Control'); return; }
 
   try {
-    await new Promise((resolve, reject) => {
-      const req = http.request('http://localhost:3000/api/memory/sync', { method: 'POST', timeout: 5000, headers: mcAuthHeaders() }, res => {
-        let data = '';
-        res.on('data', d => { data += d; });
-        res.on('end', () => { log(`MC memory sync: ${data.slice(0, 200)}`); resolve(); });
-      });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-      req.end();
-    });
+    const r = await postAuthenticatedMutation(`${MC_URL}/api/memory/sync`, { timeoutMs: 5000 });
+    log(`MC memory sync: HTTP ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
     actions++;
     report('MC_SYNC: Memory index refreshed');
   } catch (e) {
@@ -329,7 +351,7 @@ async function checkConsolidation() {
 
   // Call MC API for consolidation — the logic lives in the TS codebase
   const isUp = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/tasks', { timeout: 3000, headers: mcAuthHeaders() }, res => {
+    const req = http.get(`${MC_URL}/api/tasks`, { timeout: 3000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
       resolve(res.statusCode === 200);
       res.resume();
     });
@@ -341,19 +363,8 @@ async function checkConsolidation() {
   if (DRY_RUN) { log('DRY RUN: Would run consolidation'); return; }
 
   try {
-    await new Promise((resolve, reject) => {
-      const req = http.request('http://localhost:3000/api/memory/consolidate', { method: 'POST', timeout: 10000 }, res => {
-        let data = '';
-        res.on('data', d => { data += d; });
-        res.on('end', () => {
-          log(`Consolidation: ${data.slice(0, 200)}`);
-          resolve();
-        });
-      });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-      req.end();
-    });
+    const r = await postAuthenticatedMutation(`${MC_URL}/api/memory/consolidate`, { timeoutMs: 10000 });
+    log(`Consolidation: HTTP ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
     actions++;
     report('CONSOLIDATION: Memory items consolidated');
   } catch (e) {
@@ -366,7 +377,7 @@ async function checkGraphHealth() {
   log('Checking knowledge graph health...');
 
   const isUp = await new Promise(resolve => {
-    const req = http.get('http://localhost:3000/api/tasks', { timeout: 3000, headers: mcAuthHeaders() }, res => {
+    const req = http.get(`${MC_URL}/api/tasks`, { timeout: 3000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
       resolve(res.statusCode === 200);
       res.resume();
     });
@@ -379,24 +390,13 @@ async function checkGraphHealth() {
   try {
     // Seed known entities if graph is empty
     if (!DRY_RUN) {
-      await new Promise((resolve, reject) => {
-        const req = http.request('http://localhost:3000/api/memory/graph', { method: 'POST', timeout: 5000 }, res => {
-          let data = '';
-          res.on('data', d => { data += d; });
-          res.on('end', () => {
-            log(`Graph seed: ${data.slice(0, 200)}`);
-            resolve();
-          });
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-        req.end();
-      });
+      const r = await postAuthenticatedMutation(`${MC_URL}/api/memory/graph`, { timeoutMs: 5000 });
+      log(`Graph seed: HTTP ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
     }
 
     // Get stats
     const statsData = await new Promise((resolve, reject) => {
-      const req = http.get('http://localhost:3000/api/memory/graph', { timeout: 5000 }, res => {
+      const req = http.get(`${MC_URL}/api/memory/graph`, { timeout: 5000, headers: mcAuthHeaders({ tokenPath: MC_TOKEN_PATH }) }, res => {
         let data = '';
         res.on('data', d => { data += d; });
         res.on('end', () => {
