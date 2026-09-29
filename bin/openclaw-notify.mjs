@@ -50,7 +50,7 @@ if (args['_wait-click']) {
 
 if (args.help) {
   console.log(`usage: openclaw-notify [--kind ${KINDS.join('|')}] [--source NAME] --title T [--message M]
-                       [--subtitle S] [--url URL] [--icon FILE] [--sound NAME] [--strict] [--json]
+                       [--subtitle S] [--url URL] [--icon FILE] [--sound NAME] [--strict] [--json] [--foreground]
        openclaw-notify --list [N] [--json]
        openclaw-notify --test
 ledger: ${paths.ledger}
@@ -86,7 +86,7 @@ function spawnClickWaiter(evt) {
 }
 
 async function fire(input) {
-  const evt = await notify(input, { spawnClickWaiter });
+  const evt = await notify(input, { spawnClickWaiter: args.foreground ? undefined : spawnClickWaiter });
   if (args.json) console.log(JSON.stringify(evt, null, 2));
   else console.log(`ledgered ${evt.id} · delivery=${evt.delivery.method} clickable=${evt.delivery.clickable} ok=${evt.delivery.ok}`);
   if (args.strict && !evt.delivery.ok) process.exit(2);

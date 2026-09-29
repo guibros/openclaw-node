@@ -320,6 +320,32 @@ describe('queryConceptData + generateConceptNotes integration', () => {
     }
   });
 
+  it('forwards cancellation and does not write a concept after its analysis aborts', async () => {
+    const db = seedDb();
+    const vaultPath = join(tmpDir, 'vault-abort');
+    const ac = new AbortController();
+    let analyses = 0;
+    try {
+      const result = await generateConceptNotes({
+        db, vaultPath, threshold: 5, signal: ac.signal,
+        client: {
+          async generateAnalysis(messages, opts) {
+            assert.equal(opts.signal, ac.signal);
+            analyses++;
+            ac.abort(new Error('owned concept cancellation'));
+            return { mode: 'llm', value: { content: 'This must never reach the concept note.' } };
+          },
+        },
+      });
+      assert.equal(result.aborted, true);
+      assert.equal(result.generated, 0);
+      assert.equal(analyses, 1);
+      assert.deepEqual(await readdir(join(vaultPath, 'concepts')), []);
+    } finally {
+      db.close();
+    }
+  });
+
   it('generateConceptNotes returns zero when no entities above threshold', async () => {
     const db = seedDb();
     const vaultPath = join(tmpDir, 'vault-empty');

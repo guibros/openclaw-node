@@ -46,7 +46,7 @@
 | Block | Step | Version | Status | Description |
 |---|---|---|---|---|
 | 3 | 3.1 | v3.1 | [x] | Establish the durable foreground execution-hold primitive — 2026-09-29: approved source0f0dcc2/CI3of3;40 Mac controls, actual timer drain/159 inert exit0 fires/real reopen and verified cleanup |
-| 3 | 3.2 | v3.2 | [ ] | Complete local consolidation invocations before reporting completion or releasing their foreground guard |
+| 3 | 3.2 | v3.2 | [x] | Complete local consolidation invocations before reporting completion or releasing their foreground guard — 2026-09-29: approved159b8dd/CI3of3;158 Mac/Linux controls, seven old-source failures, owned gate/notification and pending atomic-write completion |
 | 3 | 3.3 | v3.3 | [ ] | Stop the explicitly disabled Discord tool from crash-looping before a new preservation baseline |
 | 3 | 3.4 | v3.4 | [ ] | Restore interrupted execution holds through the sole durable preservation journal |
 | 3 | 3.5 | v3.5 | [ ] | Install the reviewed execution hold on the five actual Mac timers |

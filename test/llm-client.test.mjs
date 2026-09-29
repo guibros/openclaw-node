@@ -17,6 +17,7 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { getState } from '../lib/ollama-queue.mjs';
 
 import {
   createLlmClient,
@@ -162,6 +163,35 @@ describe('generate — native /api/chat path (LLM_NATIVE_API=true default)', () 
 });
 
 describe('generateAnalysis — separate budget', () => {
+  it('forwards caller cancellation to a real owned HTTP request and settles the queue', async () => {
+    let received;
+    let closed;
+    const requestReceived = new Promise(r => { received = r; });
+    const responseClosed = new Promise(r => { closed = r; });
+    const owned = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', received);
+      res.on('close', closed);
+    });
+    await new Promise(r => owned.listen(0, '127.0.0.1', r));
+    const ac = new AbortController();
+    const client = createLlmClient({ baseUrl: `http://127.0.0.1:${owned.address().port}`, model: 'owned-cancel' });
+    const result = client.generateAnalysis([{ role: 'user', content: 'owned fixture' }], { signal: ac.signal, waitTimeoutMs: 5000 });
+    const rejected = assert.rejects(result, /owned HTTP cancellation/);
+    try {
+      await requestReceived;
+      assert.equal(getState().current_job?.model, 'owned-cancel');
+      ac.abort(new Error('owned HTTP cancellation'));
+      await rejected;
+      await responseClosed;
+      assert.equal(getState().current_job, null);
+    } finally {
+      ac.abort(new Error('fixture cleanup'));
+      owned.closeAllConnections();
+      await new Promise(r => owned.close(r));
+    }
+  });
+
   it('uses DEFAULT_ANALYSIS_MAX_TOKENS by default', async () => {
     const c = createLlmClient({ baseUrl: baseUrl() });
     nextResponse = { status: 200, body: { message: { content: 'a' }, done_reason: 'stop' } };

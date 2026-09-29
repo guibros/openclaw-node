@@ -105,3 +105,24 @@ and absence verified.3.1[x]/v3.1;3.2/3.3/3.4/3.5 queued. No production
 installation, preservation, Linux continuous-watch or VM durability claim.
 Fresh resume snapshot08:23UTC confirms13 exact ownerPID/runs unchanged and
 primarye57 preserved; this is continuity, not all-service health.
+
+
+Local consolidation completion candidate2026-09-29 05:13 EDT:private
+source-equivalent Node24 consumer passes158 focused controls/no skips;five
+new regressions fail old0f source. Actual owned gate retains its foreground
+Node through delayed abort cleanup, then the real default notification CLI
+and private platform child, exits0 only after both finish; drain and clean
+reopen pass. No production unit/source/dependency change. Profile on a copy
+of accepted51.9MB snapshot completes12 local stages; source snapshot hash
+unchanged. Remote LLM time and live-vault scale excluded.3.2[A]/v3.2-mid:
+exact CI and independent source challenge pending, no production gate claim.
+
+Local consolidation closure2026-09-29 05:26 EDT:source159b8dd approved as-is
+by Claude72/74, Linux158 independently reproduced, exactCI36547696359 green
+3/3. Private Mac owned gate+default notification and admitted atomic-write
+controls pass with normal exit0, source/snapshot unchanged.3.2[x]/v3.2 only
+closes the written private-consumer contract; production installation3.5 and
+delegated-memory/general-daemon/preservation acceptance remain open. Seven
+old-source controls fail as expected. Partial-result audit and long-wait
+visibility are separate parent follow-ups. Fresh09:20UTC13 ownerPID/runs same;
+primarye57/shared modules/live units preserved.3.3 disabled Discord is next.
