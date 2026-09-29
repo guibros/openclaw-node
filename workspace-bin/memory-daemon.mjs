@@ -1831,7 +1831,7 @@ async function main() {
     // Federation teardown (no-ops unless OPENCLAW_FEDERATION=1 wired them) —
     // same order as the retired daemon: scheduler, subscriber, then federation.
     if (federationState.scheduler) {
-      try { federationState.scheduler.stop(); } catch (_) {}
+      try { await federationState.scheduler.stop(); } catch (_) {}
     }
     if (federationState.subscriber) {
       try { await federationState.subscriber.stop(); } catch (_) {}

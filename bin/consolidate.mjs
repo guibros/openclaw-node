@@ -147,7 +147,7 @@ export async function runConsolidationCycle(opts = {}) {
     if (decayResult && eventLog) {
       const evt = buildMemoryEvent('memory.decayed', 'consolidation', 'memory',
         decayedEventData(decayResult, pruneResult, Date.now() - decayStart), nodeId);
-      eventLog.publishLocal(evt).catch(() => {});
+      await eventLog.publishLocal(evt).catch(() => {});
     }
 
     // 3. Reinforce co-occurrence
@@ -175,16 +175,19 @@ export async function runConsolidationCycle(opts = {}) {
         vaultSurfaceResult.sessionNotes = r.generated;
         vaultSurfaceResult.sessionNotesRemaining = r.remaining;
       } catch (e) { vaultSurfaceResult.sessionNotesError = e.message; }
-      try {
+      if (!abortInfo) abortInfo = checkpoint('vault-surfaces');
+      if (!abortInfo) try {
         const r = await generateDecisionNotes({ db, ...vp });
         vaultSurfaceResult.decisionNotes = r.notes.length;
       } catch (e) { vaultSurfaceResult.decisionNotesError = e.message; }
-      try {
+      if (!abortInfo) abortInfo = checkpoint('vault-surfaces');
+      if (!abortInfo) try {
         const r = await generateThemeNotes({ db, ...vp });
         vaultSurfaceResult.themeNotes = r.notes.length;
       } catch (e) { vaultSurfaceResult.themeNotesError = e.message; }
       // Daily digest reads vault state — must run after the writers above.
-      try {
+      if (!abortInfo) abortInfo = checkpoint('vault-surfaces');
+      if (!abortInfo) try {
         const r = await generateDailyDigest({ ...vp });
         vaultSurfaceResult.dailyDigest = r.generated ? 1 : 0;
       } catch (e) { vaultSurfaceResult.dailyDigestError = e.message; }
@@ -242,7 +245,7 @@ export async function runConsolidationCycle(opts = {}) {
             promoted_more: Math.max(0, names.length - 20),
             duration_ms: Date.now() - promoStart,
           }, nodeId);
-          eventLog.publishLocal(evt).catch(() => {});
+          await eventLog.publishLocal(evt).catch(() => {});
           db.prepare(`INSERT INTO consolidation_meta (key, value) VALUES ('last_promoted_fingerprint', ?)
                       ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(fingerprint);
         }

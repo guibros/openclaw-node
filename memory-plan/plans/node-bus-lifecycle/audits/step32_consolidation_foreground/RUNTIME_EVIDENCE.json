@@ -1,0 +1,133 @@
+{
+  "recordedAtUTC": "2026-09-29T09:11:32.538163+00:00",
+  "source": {
+    "atUTC": "2026-09-29T09:08:55.540835+00:00",
+    "stage": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/consolidation-foreground-pre/candidate-v2",
+    "source": "/Users/moltymac/.codex/worktrees/bus-lifecycle/openclaw-nodedev",
+    "sourceHashes": {
+      "bin/consolidation-scheduler.mjs": "57af6dc929916dd13e81f4f1db4e48e98de9c03e815d0919734af994d6d6961e",
+      "bin/consolidate.mjs": "dc627767d7ec2b13da603873ded7140ca6481cade24bf54849231afde0f300d0",
+      "bin/openclaw-notify.mjs": "afec358dc35a46740348b0e6958c783f16d4db2a0ea136bdc4f2dcbef2f769d5",
+      "workspace-bin/memory-daemon.mjs": "bd8a76394ffe34c2fb299c95bc1addc666e97ab463cda853e404ada8e9719467",
+      "lib/ollama-queue.mjs": "19e7f83e0a1ba5f6309a3ae0bae067156deb6931f2e87fff9207f5f6d5aac0d6",
+      "lib/llm-client.mjs": "a56c022700997b871c70d0242f2b4c18163b3be909f946fac263934edf6104ed",
+      "lib/obsidian-summarizer.mjs": "6a984c559fb2a05e1d4ada41bf35e2d4ea0c91e49dae65d6c7788fee5d1161d3"
+    },
+    "sameSource": true,
+    "sharedDependencyMutation": false,
+    "productionWrites": 0
+  },
+  "focused": {
+    "node": "24.13.0",
+    "passed": 158,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 18055.078958,
+    "logSha256": "7395248e1aee6cbc734d1eb4fb479c8276f2228f71b180daeb3c19e639ce5939"
+  },
+  "oldSourceNegative": {
+    "source": "0f0dcc26f0ed63cbe3441e7839ee6be470441fa9",
+    "expectedFail": 5,
+    "unexpectedPass": 0,
+    "logSha256": "381f4aa6f54cc463f429e57f0120e08dcdfd5a18fc12800384eebc5032eda276"
+  },
+  "ownedForeground": {
+    "record": "OWNED_FOREGROUND_EVIDENCE.json",
+    "rawSha256": "48f63d4e7c14b33073a19494b23fdf2fd5b838e707cbd414dc7336edc87dd99c",
+    "status": "passed",
+    "actualMacOS": true,
+    "productionMutation": false,
+    "holds": [
+      "delayed abort cleanup",
+      "actual default notification CLI and real platform child"
+    ],
+    "normalExit": 0,
+    "sourceUnchanged": true,
+    "explicitPrivateReopen": true
+  },
+  "profile": {
+    "startedAt": "2026-09-29T09:05:27.971Z",
+    "node": "v24.13.0",
+    "productionWrites": 0,
+    "stages": [
+      {
+        "name": "init",
+        "ms": 0.8374159999999975,
+        "ok": true
+      },
+      {
+        "name": "decay",
+        "ms": 2.5457500000000053,
+        "ok": true
+      },
+      {
+        "name": "prune",
+        "ms": 0.5932500000000047,
+        "ok": true
+      },
+      {
+        "name": "reinforce",
+        "ms": 0.26624999999999943,
+        "ok": true
+      },
+      {
+        "name": "clusters",
+        "ms": 0.1509580000000028,
+        "ok": true
+      },
+      {
+        "name": "session-notes",
+        "ms": 116.75354200000001,
+        "ok": true
+      },
+      {
+        "name": "decision-notes",
+        "ms": 103.904,
+        "ok": true
+      },
+      {
+        "name": "theme-notes",
+        "ms": 45.264958999999976,
+        "ok": true
+      },
+      {
+        "name": "daily-digest",
+        "ms": 14.433667000000014,
+        "ok": true
+      },
+      {
+        "name": "summaries-local-only",
+        "ms": 104.56712500000003,
+        "ok": true
+      },
+      {
+        "name": "contradictions",
+        "ms": 0.5592919999999708,
+        "ok": true
+      },
+      {
+        "name": "promotion",
+        "ms": 0.46266599999995606,
+        "ok": true
+      }
+    ],
+    "counts": {
+      "entities": 14,
+      "mentions": 289,
+      "decisions": 20,
+      "themes": 724
+    },
+    "completedAt": "2026-09-29T09:05:28.365Z"
+  },
+  "profileSourceUnchanged": true,
+  "exactCI": "pending",
+  "independentSourceReview": "pending",
+  "planState": "3.2[A]/v3.2-mid",
+  "productionInstalled": false,
+  "limits": [
+    "Local invocation only; no remote inference completion",
+    "No production timer installation or preservation acceptance",
+    "No global handler/delegated extraction drain",
+    "Synchronous/uncooperative work has no guaranteed wall termination"
+  ]
+}

@@ -1,0 +1,373 @@
+{
+  "startedAtUTC": "2026-09-29T09:10:47.545417+00:00",
+  "actualMacOS": true,
+  "actualNode": "v24.13.0",
+  "productionMutations": 0,
+  "primitiveSourceSha": "26e9278585537bc1b57820368b8cec2fea6fd804bd5f1a252dddbdfcec92e0ac",
+  "harnessSha": "b462289fb06579d4fe5c2f36f55b4f86f4d920f23b6370b3c7bea01d303e194d",
+  "deployedSource": {
+    "atUTC": "2026-09-29T09:08:55.540835+00:00",
+    "stage": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/consolidation-foreground-pre/candidate-v2",
+    "source": "/Users/moltymac/.codex/worktrees/bus-lifecycle/openclaw-nodedev",
+    "sourceHashes": {
+      "bin/consolidation-scheduler.mjs": "57af6dc929916dd13e81f4f1db4e48e98de9c03e815d0919734af994d6d6961e",
+      "bin/consolidate.mjs": "dc627767d7ec2b13da603873ded7140ca6481cade24bf54849231afde0f300d0",
+      "bin/openclaw-notify.mjs": "afec358dc35a46740348b0e6958c783f16d4db2a0ea136bdc4f2dcbef2f769d5",
+      "workspace-bin/memory-daemon.mjs": "bd8a76394ffe34c2fb299c95bc1addc666e97ab463cda853e404ada8e9719467",
+      "lib/ollama-queue.mjs": "19e7f83e0a1ba5f6309a3ae0bae067156deb6931f2e87fff9207f5f6d5aac0d6",
+      "lib/llm-client.mjs": "a56c022700997b871c70d0242f2b4c18163b3be909f946fac263934edf6104ed",
+      "lib/obsidian-summarizer.mjs": "6a984c559fb2a05e1d4ada41bf35e2d4ea0c91e49dae65d6c7788fee5d1161d3"
+    },
+    "sameSource": true,
+    "sharedDependencyMutation": false,
+    "productionWrites": 0
+  },
+  "proofStatus": "passed",
+  "cyclePid": 85436,
+  "abortObservedNs": 211397750,
+  "heldDuringAbortCleanup": true,
+  "cycleReleasedNs": 328796041,
+  "heldDuringDefaultNotificationChild": true,
+  "notificationReleasedNs": 505529625,
+  "notificationChildExitedBeforeCompletion": true,
+  "drain": {
+    "closeCalledNs": 212137500,
+    "returnedNs": 521781208
+  },
+  "guard": {
+    "hold_present": true,
+    "freshly_drained": true,
+    "method": "application-execution-gate",
+    "marker": {
+      "reason": "foreground completion",
+      "window": "owned-consolidation"
+    },
+    "identity": {
+      "lock": {
+        "birthtime": 1790673047.5345428,
+        "ctime_ns": 1790673047534612236,
+        "device": 16777233,
+        "inode": 58968398,
+        "mode": 384,
+        "uid": 501
+      },
+      "nonce": "9c7f3d826791ced3287bb427eb8175ce0e5c9d502a1fa78a886780aa0cff5c1e",
+      "root": {
+        "birthtime": 1790673047.5343764,
+        "device": 16777233,
+        "inode": 58968397,
+        "mode": 448,
+        "uid": 501
+      }
+    },
+    "kernel_file_watch": true,
+    "events": [],
+    "path_watch": {
+      "kernel_path_watch": true,
+      "paths": [
+        {
+          "path": "/",
+          "identity": {
+            "device": 16777233,
+            "inode": 2,
+            "uid": 0,
+            "mode": 493,
+            "birthtime": 1763819368.0
+          }
+        },
+        {
+          "path": "/Users",
+          "identity": {
+            "device": 16777233,
+            "inode": 18332,
+            "uid": 0,
+            "mode": 493,
+            "birthtime": 1763822035.6269023
+          }
+        },
+        {
+          "path": "/Users/moltymac",
+          "identity": {
+            "device": 16777233,
+            "inode": 37698,
+            "uid": 501,
+            "mode": 488,
+            "birthtime": 1770421505.7637162
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw",
+          "identity": {
+            "device": 16777233,
+            "inode": 129082,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1770492815.0
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups",
+          "identity": {
+            "device": 16777233,
+            "inode": 13011246,
+            "uid": 501,
+            "mode": 493,
+            "birthtime": 1780003588.0757966
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness",
+          "identity": {
+            "device": 16777233,
+            "inode": 58312720,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790564721.1533928
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1",
+          "identity": {
+            "device": 16777233,
+            "inode": 58946394,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790664884.3026137
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/consolidation-foreground-pre",
+          "identity": {
+            "device": 16777233,
+            "inode": 58962690,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790670713.0749137
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/consolidation-foreground-pre/owned-foreground-548ac116c1f5198e",
+          "identity": {
+            "device": 16777233,
+            "inode": 58968396,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790673047.5186887
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/consolidation-foreground-pre/owned-foreground-548ac116c1f5198e/gate",
+          "identity": {
+            "device": 16777233,
+            "inode": 58968397,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790673047.5343764
+          }
+        }
+      ],
+      "events": [],
+      "refusal": null
+    },
+    "marker_identity": {
+      "device": 16777233,
+      "inode": 58968408,
+      "ctime_ns": 1790673047768254550,
+      "uid": 501,
+      "mode": 384,
+      "birthtime": 1790673047.7589982
+    },
+    "metadata_sha256": "04cde142d772906f239dae7055b707f5a214f6c006a77ce9893192baebcd35b4",
+    "receipt": {
+      "marker": {
+        "reason": "foreground completion",
+        "window": "owned-consolidation"
+      },
+      "marker_identity": {
+        "device": 16777233,
+        "inode": 58968408,
+        "ctime_ns": 1790673047768254550,
+        "uid": 501,
+        "mode": 384,
+        "birthtime": 1790673047.7589982
+      },
+      "marker_sha256": "e234084b21e391e70340ba51f3cdda071f5cd98357121a4f84f75b3b17c39bcc",
+      "metadata_sha256": "04cde142d772906f239dae7055b707f5a214f6c006a77ce9893192baebcd35b4",
+      "gate_identity": {
+        "lock": {
+          "birthtime": 1790673047.5345428,
+          "ctime_ns": 1790673047534612236,
+          "device": 16777233,
+          "inode": 58968398,
+          "mode": 384,
+          "uid": 501
+        },
+        "nonce": "9c7f3d826791ced3287bb427eb8175ce0e5c9d502a1fa78a886780aa0cff5c1e",
+        "root": {
+          "birthtime": 1790673047.5343764,
+          "device": 16777233,
+          "inode": 58968397,
+          "mode": 448,
+          "uid": 501
+        }
+      },
+      "object_identities": {
+        "root": {
+          "device": 16777233,
+          "inode": 58968397,
+          "ctime_ns": 1790673047768252925,
+          "uid": 501,
+          "mode": 448,
+          "birthtime": 1790673047.5343764,
+          "mtime_ns": 1790673047768252925
+        },
+        "lock": {
+          "device": 16777233,
+          "inode": 58968398,
+          "ctime_ns": 1790673047534612236,
+          "uid": 501,
+          "mode": 384,
+          "birthtime": 1790673047.5345428
+        },
+        "metadata": {
+          "device": 16777233,
+          "inode": 58968399,
+          "ctime_ns": 1790673047539551299,
+          "uid": 501,
+          "mode": 384,
+          "birthtime": 1790673047.5392253
+        },
+        "marker": {
+          "device": 16777233,
+          "inode": 58968408,
+          "ctime_ns": 1790673047768254550,
+          "uid": 501,
+          "mode": 384,
+          "birthtime": 1790673047.7589982
+        }
+      },
+      "lock_pin": "16777233:58968398:1790673047534612236",
+      "root_pin": "16777233:58968397",
+      "path_identities": [
+        {
+          "path": "/",
+          "identity": {
+            "device": 16777233,
+            "inode": 2,
+            "uid": 0,
+            "mode": 493,
+            "birthtime": 1763819368.0
+          }
+        },
+        {
+          "path": "/Users",
+          "identity": {
+            "device": 16777233,
+            "inode": 18332,
+            "uid": 0,
+            "mode": 493,
+            "birthtime": 1763822035.6269023
+          }
+        },
+        {
+          "path": "/Users/moltymac",
+          "identity": {
+            "device": 16777233,
+            "inode": 37698,
+            "uid": 501,
+            "mode": 488,
+            "birthtime": 1770421505.7637162
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw",
+          "identity": {
+            "device": 16777233,
+            "inode": 129082,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1770492815.0
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups",
+          "identity": {
+            "device": 16777233,
+            "inode": 13011246,
+            "uid": 501,
+            "mode": 493,
+            "birthtime": 1780003588.0757966
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness",
+          "identity": {
+            "device": 16777233,
+            "inode": 58312720,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790564721.1533928
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1",
+          "identity": {
+            "device": 16777233,
+            "inode": 58946394,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790664884.3026137
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/consolidation-foreground-pre",
+          "identity": {
+            "device": 16777233,
+            "inode": 58962690,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790670713.0749137
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/consolidation-foreground-pre/owned-foreground-548ac116c1f5198e",
+          "identity": {
+            "device": 16777233,
+            "inode": 58968396,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790673047.5186887
+          }
+        },
+        {
+          "path": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/consolidation-foreground-pre/owned-foreground-548ac116c1f5198e/gate",
+          "identity": {
+            "device": 16777233,
+            "inode": 58968397,
+            "uid": 501,
+            "mode": 448,
+            "birthtime": 1790673047.5343764
+          }
+        }
+      ]
+    },
+    "tolerated_event_count": 0,
+    "last_tolerated_event": null,
+    "requires_foreground_contract": true,
+    "os_spawn_coverage": false,
+    "verified": true,
+    "restoration_only": false,
+    "watch_session_id": "04a87474d5f34e77a5e353c53cd22e353c866f59785412aec6a21f8c81e6eb3e"
+  },
+  "invocation": {
+    "pid": 85436,
+    "atMs": 1790673048059,
+    "ok": false,
+    "error": "consolidation cycle exceeded hard cap (30ms)"
+  },
+  "sourceUnchanged": true,
+  "stderrBytes": 0,
+  "cleanPrivateReopen": true,
+  "ownedProcessExited": true,
+  "completedAtUTC": "2026-09-29T09:10:48.077331+00:00"
+}

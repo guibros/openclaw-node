@@ -5,7 +5,7 @@
  *
  * Launchd fires this script every 30 minutes (StartInterval 1800).
  * The script checks whether the system is idle (no active LLM inference),
- * then runs one consolidation cycle with a 5-minute hard cap.
+ * then requests cancellation after 5 minutes and waits for local completion.
  *
  * Idle detection has two paths:
  *   - In-process: reads ollama-queue.getState() directly (when imported by daemon)
@@ -20,7 +20,6 @@ import path from 'path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { createConcurrencyGuard } from '../lib/concurrency-guard.mjs';
 import { QUEUE_STATE_PATH, readStateSnapshot } from '../lib/ollama-queue.mjs';
 import { cycleRemovals, formatRemoval, summarizeRemovals } from '../lib/consolidation.mjs';
 
@@ -31,13 +30,13 @@ const _require = createRequire(import.meta.url);
 const NOTIFY_CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'openclaw-notify.mjs');
 const MC_MEMORY_URL = `${process.env.OPENCLAW_MC_URL || 'http://127.0.0.1:3000'}/memory`;
 function notifyCycleFailure(message) {
-  try {
+  return new Promise(resolve => {
     execFile(process.execPath, [
       NOTIFY_CLI, '--source', 'consolidation', '--kind', 'error',
       '--title', 'Consolidation cycle FAILED', '--message', message,
-      '--url', MC_MEMORY_URL,
-    ], { timeout: 10_000 }, () => {});
-  } catch { /* best-effort */ }
+      '--url', MC_MEMORY_URL, '--foreground',
+    ], () => resolve());
+  });
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -45,7 +44,7 @@ function notifyCycleFailure(message) {
 /** Minimum idle time before triggering a cycle (no extraction for this long). */
 export const IDLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
-/** Maximum wall time for a single consolidation cycle. */
+/** Cancellation deadline; local cleanup still owns the invocation. */
 export const HARD_CAP_MS = 5 * 60 * 1000; // 5 minutes
 
 /** No analysis activity within this window to qualify as idle. */
@@ -128,7 +127,7 @@ export async function isSystemIdle(opts = {}) {
 // ─── Run With Timeout ───────────────────────────────────────────────────────
 
 /**
- * Run a consolidation cycle with a hard time cap.
+ * Request cancellation at the deadline and wait for cycle settlement.
  *
  * @param {object} [opts]
  * @param {string} [opts.dbPath] — extraction store DB path
@@ -158,12 +157,7 @@ export async function runScheduledCycle(opts = {}) {
   const timer = setTimeout(() => ac.abort(new Error('hard cap')), hardCap);
 
   try {
-    // F-H19 fix: pass ac.signal into runCycle so the work can actually be
-    // cancelled when the hard cap fires. Previously the timeout fired,
-    // Promise.race rejected, the function returned — but runCycle kept
-    // running in the background. Repeated 30-min ticks then stacked
-    // overlapping cycles racing on the same DB.
-    const cyclePromise = runCycle({
+    const result = await runCycle({
       dbPath: opts.dbPath,
       vaultPath: opts.vaultPath,
       db: opts.db,
@@ -173,22 +167,18 @@ export async function runScheduledCycle(opts = {}) {
       nodeId: opts.nodeId,
     });
 
-    const result = await Promise.race([
-      cyclePromise.then(r => ({ ok: true, result: r })),
-      new Promise((_, reject) => {
-        ac.signal.addEventListener('abort', () =>
-          reject(new Error(`consolidation cycle exceeded hard cap (${hardCap}ms)`))
-        );
-      }),
-    ]);
-
-    clearTimeout(timer);
-    return { ...result, durationMs: Date.now() - startMs };
+    if (ac.signal.aborted || Date.now() - startMs >= hardCap) {
+      throw new Error(`consolidation cycle exceeded hard cap (${hardCap}ms)`);
+    }
+    return { ok: true, result, durationMs: Date.now() - startMs };
   } catch (err) {
+    return {
+      ok: false,
+      error: ac.signal.aborted ? `consolidation cycle exceeded hard cap (${hardCap}ms)` : err.message,
+      durationMs: Date.now() - startMs,
+    };
+  } finally {
     clearTimeout(timer);
-    // F-H19: ensure abort fires so the runCycle promise sees cancellation
-    if (!ac.signal.aborted) ac.abort(err);
-    return { ok: false, error: err.message, durationMs: Date.now() - startMs };
   }
 }
 
@@ -207,33 +197,16 @@ export async function runScheduledCycle(opts = {}) {
  * @param {number} [opts.hardCapMs]
  * @param {(msg: string) => void} [opts.log] — logger
  * @param {(opts: object) => Promise<object>} [opts.runCycle] — injectable cycle function (for testing)
- * @returns {{ start: () => void, stop: () => void, runOnce: () => Promise<object> }}
+ * @returns {{ start: () => void, stop: () => Promise<void>, runOnce: () => Promise<object> }}
  */
 export function createConsolidationScheduler(opts = {}) {
   const intervalMs = opts.intervalMs ?? DEFAULT_INTERVAL_MS;
   const log = opts.log || console.log;
   let timer = null;
-  // F-P215 fix: shared createConcurrencyGuard helper. Replaces inline tracking.
-  // F-Q306 addition: maxAgeMs caps how long a wedged cycle can lock out the
-  // scheduler. After hardCapMs + 60s, force-clear so the next interval can
-  // try again. The orphan resolves into the void.
-  const hardCapMs = opts.hardCapMs ?? HARD_CAP_MS;
-  const guardedCycle = createConcurrencyGuard(
-    () => runScheduledCycle({
-      dbPath: opts.dbPath,
-      vaultPath: opts.vaultPath,
-      hardCapMs: opts.hardCapMs,
-      eventLog: opts.eventLog,
-      nodeId: opts.nodeId,
-      runCycle: opts.runCycle,
-    }),
-    {
-      maxAgeMs: hardCapMs + 60_000,
-      log: (m) => log(`[consolidation-scheduler] ${m}`),
-    }
-  );
+  let activeRun = null;
+  let stopped = false;
 
-  async function runOnce() {
+  async function performRun() {
     const idleCheck = await isSystemIdle({
       getStateFn: opts.getStateFn,
       readStateSnapshotFn: opts.readStateSnapshotFn,
@@ -246,11 +219,14 @@ export function createConsolidationScheduler(opts = {}) {
     }
 
     log('[consolidation-scheduler] system idle — starting consolidation cycle');
-    const result = await guardedCycle();
-    if (result?.skipped) {
-      log(`[consolidation-scheduler] skipping: ${result.reason}`);
-      return result;
-    }
+    const result = await runScheduledCycle({
+      dbPath: opts.dbPath,
+      vaultPath: opts.vaultPath,
+      hardCapMs: opts.hardCapMs,
+      eventLog: opts.eventLog,
+      nodeId: opts.nodeId,
+      runCycle: opts.runCycle,
+    });
 
     if (result.ok) {
       // The audit trail: every row this cycle took out of the live tables,
@@ -260,14 +236,25 @@ export function createConsolidationScheduler(opts = {}) {
       log(`[consolidation-scheduler] cycle complete (${result.durationMs}ms)${summary ? `: ${summary}` : ''}`);
     } else {
       log(`[consolidation-scheduler] cycle failed: ${result.error} (${result.durationMs}ms)`);
-      notifyCycleFailure(`${result.error} (${result.durationMs}ms)`);
+      await (opts.notifyFailure || notifyCycleFailure)(`${result.error} (${result.durationMs}ms)`);
     }
 
     return result;
   }
 
+  async function runOnce() {
+    if (stopped) return { skipped: true, reason: 'scheduler stopped' };
+    if (activeRun) return { skipped: true, reason: 'consolidation already running' };
+    activeRun = Promise.resolve().then(performRun);
+    try {
+      return await activeRun;
+    } finally {
+      activeRun = null;
+    }
+  }
+
   function start() {
-    if (timer) return;
+    if (timer || stopped) return;
     log(`[consolidation-scheduler] started (interval: ${intervalMs / 1000}s)`);
     timer = setInterval(() => {
       runOnce().catch(err => log(`[consolidation-scheduler] error: ${err.message}`));
@@ -276,12 +263,14 @@ export function createConsolidationScheduler(opts = {}) {
     if (timer.unref) timer.unref();
   }
 
-  function stop() {
+  async function stop() {
+    stopped = true;
     if (timer) {
       clearInterval(timer);
       timer = null;
-      log('[consolidation-scheduler] stopped');
     }
+    await activeRun;
+    log('[consolidation-scheduler] stopped');
   }
 
   return { start, stop, runOnce };
@@ -331,7 +320,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     scheduler.start();
 
     const shutdown = async () => {
-      scheduler.stop();
+      await scheduler.stop();
       await cleanup();
       process.exit(0);
     };

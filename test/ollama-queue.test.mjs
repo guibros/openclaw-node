@@ -161,6 +161,75 @@ describe('isTransient classification (verified via retry behavior)', () => {
 });
 
 describe('requestAnalysis fallback paths', () => {
+  it('holds its running slot and result through delayed abort cleanup', async () => {
+    let release;
+    let sawAbort;
+    let returned = false;
+    let bRan = false;
+    const cleanup = new Promise(r => { release = r; });
+    const aborted = new Promise(r => { sawAbort = r; });
+    const a = requestAnalysis(async signal => {
+      signal.addEventListener('abort', sawAbort, { once: true });
+      await cleanup;
+      return 'late';
+    }, { waitTimeoutMs: 20 }).then(r => { returned = true; return r; });
+    let b;
+    try {
+      await aborted;
+      assert.equal(returned, false);
+      assert.ok(getState().current_job);
+      b = requestAnalysis(async () => { bRan = true; return 'B'; }, { waitTimeoutMs: 5000 });
+      await new Promise(r => setTimeout(r, 20));
+      assert.equal(bRan, false);
+      release();
+      assert.equal((await a).reason, 'analysis-wait-timeout');
+      assert.equal((await b).value, 'B');
+    } finally {
+      release();
+      await a;
+      if (b) await b;
+    }
+  });
+
+  it('caller cancellation removes pending work without abandoning its owner', async () => {
+    let release;
+    const held = new Promise(r => { release = r; });
+    const a = requestAnalysis(async () => { await held; return 'A'; }, { waitTimeoutMs: 5000 });
+    const ac = new AbortController();
+    let bRan = false;
+    const b = requestAnalysis(async () => { bRan = true; }, { signal: ac.signal, waitTimeoutMs: 5000 });
+    const rejection = assert.rejects(b, /owned cancellation/);
+    try {
+      ac.abort(new Error('owned cancellation'));
+      await rejection;
+      assert.equal(bRan, false);
+      assert.ok(getState().current_job);
+      assert.equal(getState().queue_depth, 0);
+    } finally {
+      release();
+      await a;
+    }
+  });
+
+  it('caller cancellation interrupts retry backoff without another attempt', async () => {
+    const ac = new AbortController();
+    let attempts = 0;
+    const active = requestAnalysis(async () => {
+      attempts++;
+      const err = new Error('owned retry');
+      err.code = 'ECONNRESET';
+      throw err;
+    }, { signal: ac.signal, waitTimeoutMs: 5000 });
+    const rejection = assert.rejects(active, /cancel backoff/);
+    for (let i = 0; getState().totals.retries === 0 && i < 100; i++) await new Promise(r => setTimeout(r, 5));
+    assert.equal(getState().totals.retries, 1);
+    ac.abort(new Error('cancel backoff'));
+    await rejection;
+    assert.equal(attempts, 1);
+    assert.equal(getState().current_job, null);
+    assert.equal(getState().queue_depth, 0);
+  });
+
   it('returns mode:llm with value on success', async () => {
     const result = await requestAnalysis(async () => 'analysis-result', { waitTimeoutMs: 500 });
     assert.equal(result.mode, 'llm');

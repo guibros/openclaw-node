@@ -1,5 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtempSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   IDLE_THRESHOLD_MS,
@@ -159,6 +163,19 @@ describe('isSystemIdle', () => {
 // ─── runScheduledCycle ──────────────────────────────────────────────────────
 
 describe('runScheduledCycle', () => {
+  it('reports a synchronous overrun even when the deadline timer could not run', async () => {
+    const result = await runScheduledCycle({
+      hardCapMs: 1,
+      runCycle: async () => {
+        const start = performance.now();
+        while (performance.now() - start < 20) {}
+        return {};
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /hard cap/);
+  });
+
   it('runs a mock cycle successfully and returns ok + durationMs', async () => {
     const mockResult = { decayed: { decayedEntities: 3 }, durationMs: 100 };
     const result = await runScheduledCycle({
@@ -170,20 +187,20 @@ describe('runScheduledCycle', () => {
     assert.ok(result.durationMs >= 0);
   });
 
-  it('returns error when cycle exceeds hard cap', async () => {
+  it('does not report timeout completion before an uncooperative cycle settles', async () => {
+    let terminated = false;
     const result = await runScheduledCycle({
       hardCapMs: 50, // very short cap
       runCycle: async () => {
         await new Promise(r => setTimeout(r, 200)); // exceed cap
+        terminated = true;
         return {};
       },
     });
     assert.equal(result.ok, false);
     assert.ok(result.error.includes('hard cap'));
-    // The cap timer and Date.now() are different clocks: the abort can land
-    // at 49ms (Node 22 CI, 2026-09-08). What matters is that the cycle was
-    // cut at the cap, not allowed to run its 200ms.
-    assert.ok(result.durationMs >= 40 && result.durationMs < 200, `durationMs=${result.durationMs}`);
+    assert.equal(terminated, true);
+    assert.ok(result.durationMs >= 180, `durationMs=${result.durationMs}`);
   });
 
   it('returns error when cycle throws', async () => {
@@ -217,6 +234,139 @@ describe('runScheduledCycle', () => {
 // ─── createConsolidationScheduler ───────────────────────────────────────────
 
 describe('createConsolidationScheduler', () => {
+  it('awaits its default notification CLI and platform child before reporting or stopping', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'consolidation-notify-'));
+    const ready = join(dir, 'sender-started');
+    const release = join(dir, 'sender-release');
+    const config = join(dir, 'notify.json');
+    const sender = join(dir, process.platform === 'darwin' ? 'terminal-notifier' : 'notify-send');
+    writeFileSync(config, JSON.stringify({ enabled: true }));
+    writeFileSync(sender, `#!${process.execPath}
+const fs = require('node:fs');
+if (process.argv.includes('--help')) { console.log(' -A, --action'); process.exit(0); }
+fs.writeFileSync(process.env.OWNED_NOTIFY_READY, String(process.pid));
+const timer = setInterval(() => { if (fs.existsSync(process.env.OWNED_NOTIFY_RELEASE)) { clearInterval(timer); } }, 10);
+setTimeout(() => process.exit(2), 10000).unref();
+`, { mode: 0o700 });
+    const source = new URL('../bin/consolidation-scheduler.mjs', import.meta.url).href;
+    const code = `import { createConsolidationScheduler } from ${JSON.stringify(source)};
+const scheduler = createConsolidationScheduler({
+ getStateFn: () => ({current_job:null,queue_depth:0,history:{extraction:{count:0}},recent_fallbacks:[]}),
+ log: () => {}, runCycle: async () => {throw new Error('owned notification failure');}
+});
+const active=scheduler.runOnce();
+await scheduler.stop();
+const result=await active;
+console.log('LOCAL_COMPLETION '+result.ok);`;
+    const child = spawn(process.execPath, ['--input-type=module', '-e', code], {
+      env: {
+        ...process.env, HOME: dir, OPENCLAW_NOTIFY_CONFIG: config,
+        OPENCLAW_NOTIFY_LEDGER: join(dir, 'ledger.jsonl'),
+        OPENCLAW_NOTIFIER_APP: sender, OPENCLAW_NOTIFY_ICONS: join(dir, 'icons'),
+        PATH: dir + ':' + process.env.PATH, OWNED_NOTIFY_READY: ready, OWNED_NOTIFY_RELEASE: release,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    let errors = '';
+    child.stdout.on('data', b => { output += b; });
+    child.stderr.on('data', b => { errors += b; });
+    const exited = new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', code => resolve(code));
+    });
+    try {
+      for (let i = 0; !existsSync(ready) && i < 1000 && child.exitCode === null; i++) await new Promise(r => setTimeout(r, 10));
+      assert.equal(existsSync(ready), true, errors);
+      await new Promise(r => setTimeout(r, 30));
+      assert.equal(output.includes('LOCAL_COMPLETION'), false);
+      writeFileSync(release, '');
+      assert.equal(await exited, 0, errors);
+      assert.match(output, /LOCAL_COMPLETION false/);
+    } finally {
+      writeFileSync(release, '');
+      await exited;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('retains single-flight through delayed abort cleanup, and stop fences admission', async () => {
+    let release;
+    let sawAbort;
+    const cleanup = new Promise(r => { release = r; });
+    const aborted = new Promise(r => { sawAbort = r; });
+    let runs = 0;
+    let returned = false;
+    let stopped = false;
+    const scheduler = createConsolidationScheduler({
+      getStateFn: () => ({ current_job: null, queue_depth: 0, history: { extraction: { count: 0 } }, recent_fallbacks: [] }),
+      log: () => {},
+      hardCapMs: 20,
+      notifyFailure: async () => {},
+      runCycle: async ({ signal }) => {
+        runs++;
+        signal.addEventListener('abort', sawAbort, { once: true });
+        await cleanup;
+        return {};
+      },
+    });
+    const active = scheduler.runOnce().then(r => { returned = true; return r; });
+    try {
+      await aborted;
+      assert.equal(returned, false);
+      assert.equal((await scheduler.runOnce()).skipped, true);
+      assert.equal(runs, 1);
+      const stop = scheduler.stop().then(() => { stopped = true; });
+      assert.equal((await scheduler.runOnce()).reason, 'scheduler stopped');
+      await new Promise(r => setTimeout(r, 20));
+      assert.equal(stopped, false);
+      release();
+      assert.equal((await active).ok, false);
+      await stop;
+      assert.equal(stopped, true);
+    } finally {
+      release();
+      await active;
+      await scheduler.stop();
+    }
+  });
+
+  it('owns an actual notification child until exit, including stop', async () => {
+    let child;
+    let childStarted;
+    let returned = false;
+    let stopped = false;
+    const started = new Promise(r => { childStarted = r; });
+    const scheduler = createConsolidationScheduler({
+      getStateFn: () => ({ current_job: null, queue_depth: 0, history: { extraction: { count: 0 } }, recent_fallbacks: [] }),
+      log: () => {},
+      runCycle: async () => { throw new Error('owned failure'); },
+      notifyFailure: () => new Promise((resolve, reject) => {
+        child = spawn(process.execPath, ['-e', "process.send('ready'); process.on('message', () => process.exit(0))"], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+        child.once('message', childStarted);
+        child.once('error', reject);
+        child.once('exit', code => code === 0 ? resolve() : reject(new Error('child failed')));
+      }),
+    });
+    const active = scheduler.runOnce().then(r => { returned = true; return r; });
+    try {
+      await started;
+      assert.equal(returned, false);
+      assert.equal((await scheduler.runOnce()).skipped, true);
+      const stop = scheduler.stop().then(() => { stopped = true; });
+      await new Promise(r => setTimeout(r, 20));
+      assert.equal(stopped, false);
+      child.send('release');
+      assert.equal((await active).ok, false);
+      await stop;
+      assert.equal(child.exitCode, 0);
+    } finally {
+      if (child?.exitCode === null) child.kill();
+      await active;
+      await scheduler.stop();
+    }
+  });
+
   it('returns object with start, stop, runOnce', () => {
     const scheduler = createConsolidationScheduler({ log: () => {} });
     assert.equal(typeof scheduler.start, 'function');

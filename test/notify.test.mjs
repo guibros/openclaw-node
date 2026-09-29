@@ -172,6 +172,21 @@ describe('dispatch', () => {
     assert.equal(calls[0][0], 'notify-send');
     assert.ok(!calls[0][1].includes('-A'));
   });
+
+  it('foreground Linux delivery awaits notify-send and has no click waiter', async () => {
+    let release;
+    let done = false;
+    let args;
+    const evt = { kind: 'error', title: 'owned', message: 'fixture', url: 'http://127.0.0.1/owned' };
+    const active = dispatch(evt, DEFAULT_CONFIG, {
+      platform: 'linux', hasActions: true,
+      exec: (cmd, argv, opts, cb) => { args = argv; release = cb; },
+    }).then(r => { done = true; return r; });
+    assert.equal(done, false);
+    assert.equal(args.includes('-A'), false);
+    release(null);
+    assert.equal((await active).clickable, false);
+  });
   it('delivery failure is reported, not thrown', async () => {
     const d = await dispatch(evt, DEFAULT_CONFIG, { platform: 'darwin', terminalNotifier: '/tn', exec: failExec });
     assert.equal(d.ok, false);

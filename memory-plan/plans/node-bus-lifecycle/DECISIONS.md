@@ -219,3 +219,23 @@ notification child; Linux's CLI can also detach a click waiter. Those local
 invocation lifetimes are one3.2 outcome. Remote inference, other invokers and
 general memory-daemon shutdown remain separate unresolved boundaries. The
 primary live tree, shared dependencies and loaded units stay preserved.
+
+## D18 — Cancellation requests do not certify local completion (2026-09-29 05:00 EDT)
+
+3.2 owns the complete existing consolidation invocation: cycle cleanup, its
+analysis request, event publications and foreground notification. Retain its
+single-flight guard and the analysis queue slot until actual local settlement,
+even if cancellation is ignored. Remove age-orphaning only for this scheduler;
+propagate cancellation through the real summary/client/queue path and curtail
+new writes/stages after abort. Stop fences new invocations and awaits existing
+work before the two callers' teardown. Scheduled maintenance must let active
+fires drain naturally; await does not defeat launchd's forced-stop budget.
+
+The five-minute value is a cancellation deadline, not guaranteed wall-clock
+termination for arbitrary synchronous/uncooperative work. Real HTTP controls
+prove local client completion only, not remote inference cancellation. Await
+existing best-effort event publication without changing reliability semantics.
+Foreground failure notifications exclude detached Linux click waiters and
+complete before invocation release. Other invokers and general daemon-drain
+remain3.5/parent work.3.2 uses private deployed consumers; production timer
+installation remains the separate3.5 acceptance contract.
