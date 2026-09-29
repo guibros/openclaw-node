@@ -96,10 +96,22 @@ delegates to a `node-acceptance` probe · **applic.** = applicability gate (OFF 
 | NATS + JetStream | `:8222/jsz` stats | reuse (`NET-L2-JSZ`) |
 | Per-node event stream | `local-events-<node>` exists | reuse |
 | Pub/sub round-trip | published msg echoed < 1.5s | reuse |
-| Mesh services | `ai.openclaw.mesh-*` units loaded | live (OFF if none) |
+| Mesh services | observed running PIDs; explicitly disabled Discord loaded/not-running/exit0 is optional OFF | live (OFF if none active) |
 | Federation (cross-node) | identity-registry + shared stream | applic. (OFF if not deployed) |
 
+The mesh aggregate reads Discord's effective `HOME/.openclaw/openclaw.json`
+from the HOME observed in its loaded launchd environment. Strict
+`channels.discord.enabled=false`, loaded/not-running state and observed exit0
+are all required to report its optional OFF detail; healthy running peers can
+then make the aggregate WORKING. A disabled running tool, failure exit or another
+loaded stopped peer remains BROKEN. Missing state/normal-exit/config evidence
+cannot authorize the exception; unreadable/malformed policy is UNKNOWN. Missing
+enabled retains the legacy expectation. This does not enable Discord, assert
+its API works, or turn other node failures into healthy results. An observed
+service failure keeps BROKEN even when another service or policy is unobservable.
+
 ### Storage
+
 | Element | Watch signal | Probe |
 |---|---|---|
 | state.db / knowledge.db / graph-cache.db | opens, `integrity_check` ok | live |

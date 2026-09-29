@@ -150,3 +150,13 @@ Old entry/plist remain available; primarye57/shared dependencies preserved.
 3.3[x]/v3.3; monitoring's false BROKEN is the next separately bounded repair,
 before journal/timer integration/new preservation baseline. Source and Mac
 measurement attribution remain distinct; qualified Claude84 challenge passes.
+
+
+Disabled-inactivity monitor candidate2026-09-29 06:37 EDT: private Node24
+source consumer passes56 focused controls/no skips; seven selected old-source
+controls fail. Ten real owned Mac launchd target controls pass, loaded HOME
+selects the effective config despite unrelated watcher override, known failure
+priority survives missing/malformed policy; all owned units bootout0/absent.
+No production change yet; actual watcher747 still reports false-BROKEN.
+3.4[A]/v3.4-mid awaits exact CI/read-only challenge, separate auth-preserving
+release and two actual managed reports. Journal3.5/timer3.6 remain open.

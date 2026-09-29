@@ -48,8 +48,9 @@
 | 3 | 3.1 | v3.1 | [x] | Establish the durable foreground execution-hold primitive — 2026-09-29: approved source0f0dcc2/CI3of3;40 Mac controls, actual timer drain/159 inert exit0 fires/real reopen and verified cleanup |
 | 3 | 3.2 | v3.2 | [x] | Complete local consolidation invocations before reporting completion or releasing their foreground guard — 2026-09-29: approved159b8dd/CI3of3;158 Mac/Linux controls, seven old-source failures, owned gate/notification and pending atomic-write completion |
 | 3 | 3.3 | v3.3 | [x] | Stop the explicitly disabled Discord tool from crash-looping before a new preservation baseline — 2026-09-29: approved f21c6df/CI3of3; owned10 controls/Mac policy; live one normal inactive run/65s84 samples/13 other owners unchanged; qualified Claude84 review |
-| 3 | 3.4 | v3.4 | [ ] | Restore interrupted execution holds through the sole durable preservation journal |
-| 3 | 3.5 | v3.5 | [ ] | Install the reviewed execution hold on the five actual Mac timers |
+| 3 | 3.4 | v3.4 | [A] | Report confirmed disabled Discord inactivity without hiding real mesh failures |
+| 3 | 3.5 | v3.5 | [ ] | Restore interrupted execution holds through the sole durable preservation journal |
+| 3 | 3.6 | v3.6 | [ ] | Install the reviewed execution hold on the five actual Mac timers |
 
 > **3.1 — Goal:** a durable closed marker plus foreground lock excludes scheduled application execution after drain, even after controller exit.
 > **Needs:** Python3/fcntl, installed Node/shell/launchd, Claude50/52 contract, D15.
@@ -66,12 +67,17 @@
 > **Feeds:**recovery1.2's complete inventory and parent1.5/2.2.
 > **Verify:**code:disabled exits0 with no bus/writes; real enabled-path failure restarts; runtime:reviewed exact source/unit policy, one normal disabled run then loaded/not-running stable, no Discord client, original integration remains disabled.
 
-> **3.4 — Goal:** the sole durable preservation journal restores an interrupted hold without certifying the lost interval.
+> **3.4 — Goal:** mesh monitoring distinguishes confirmed optional Discord inactivity from a service failure.
+> **Needs:**3.3 closed/merged; actual false-BROKEN report; loaded Discord HOME/normal-exit state; immutable existing node-watch viewer-auth release; D20.
+> **Feeds:**the actual node-watch/MC status surface;3.5/3.6 and recovery1.2's new complete baseline.
+> **Verify:**code:strict false plus loaded/not-running/exit0 is explicitly OFF within the mesh aggregate, with observed running peers retaining WORKING; enabled/legacy absence, failure exits, disabled-running contradictions and other failed/unobservable units cannot earn false health; missing/malformed/unobserved effective config cannot authorize inactivity. runtime:owned native controls, exact staged/live watcher retaining viewer-auth changes, managed normal stop/restart then two actual reports show the qualified inactive detail, other owners/config/source preserved. Full node health/preservation is not claimed.
+
+> **3.5 — Goal:** the sole durable preservation journal restores an interrupted hold without certifying the lost interval.
 > **Needs:**3.1 and accepted PR144 journal primitives; baselined external root/lock pins; durable intent/receipt schema; explicit original-session and restoration-only boundaries.
-> **Feeds:**3.5 and recovery1.2/1.3.
+> **Feeds:**3.6 and recovery1.2/1.3.
 > **Verify:**code/runtime:owned interruption before/after publication, before receipt and after drain; mismatch/missing/broken markers and straggler refusal; broken open holds re-closed/drained and window failed before restoration; before/after same-session brackets around every stop/copy; explicit dependency readiness before reopen; no autonomous pin recapture or false certification. Full production preservation remains recovery1.2.
 
-> **3.5 — Goal:** the five actual Mac scheduled jobs remain application-inert throughout an accepted coordinated interval and reopen to their prior scheduling state.
-> **Needs:**3.2/3.3/3.4; complete actual source/loaded-argument/env/schedule/import-graph and other-invoker inventory; real interpreter-I-S; code/pin protection outside deploy copy/chmod/prune or explicitly coordinated deployment; persistent baseline.
+> **3.6 — Goal:** the five actual Mac scheduled jobs remain application-inert throughout an accepted coordinated interval and reopen to their prior scheduling state.
+> **Needs:**3.2/3.3/3.4/3.5; complete actual source/loaded-argument/env/schedule/import-graph and other-invoker inventory; real interpreter-I-S; code/pin protection outside deploy copy/chmod/prune or explicitly coordinated deployment; persistent baseline.
 > **Feeds:**recovery1.2/1.3 and parent node-readiness1.5/2.2.
 > **Verify:**code: installer/templates and gate/code-change negatives; runtime:exact staged/installed entries preserve existing schedules/env/argv, closed scheduled starts do no application/log work, delegated memory drains separately, journaled reopen only after dependency readiness with original baseline restored. No Linux continuous-watch or global OS-spawn claim.

@@ -1,0 +1,101 @@
+{
+  "at": "2026-09-29T10:35:18.492378+00:00",
+  "sourceBase": "f21c350b83c924a317a325b60b091109e1b5ff6f",
+  "sourceSha256": "bc035b3f54ad9d2f429474b2b0e299401a65899a3d6d4c9ca3010acac4b1fd27",
+  "testSha256": "d1a01bc4876da3c3e0e15568c6882da82f0ee3cecaafd11e6daaf39874239cf1",
+  "privateConsumer": {
+    "node": "v24.13.0",
+    "focused": {
+      "tests": 56,
+      "pass": 56,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "oldSourceSelected": {
+      "tests": 8,
+      "pass": 1,
+      "fail": 7,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "nativeControls": {
+      "tests": 10,
+      "pass": 10,
+      "rolesMappedToOwnedJobs": true,
+      "allOwnedJobsBootoutAndAbsent": true,
+      "resultNames": [
+        {
+          "name": "false",
+          "expected": "WORKING",
+          "observed": "WORKING",
+          "pass": true
+        },
+        {
+          "name": "true",
+          "expected": "BROKEN",
+          "observed": "BROKEN",
+          "pass": true
+        },
+        {
+          "name": "legacy",
+          "expected": "BROKEN",
+          "observed": "BROKEN",
+          "pass": true
+        },
+        {
+          "name": "stringfalse",
+          "expected": "BROKEN",
+          "observed": "BROKEN",
+          "pass": true
+        },
+        {
+          "name": "null",
+          "expected": "BROKEN",
+          "observed": "BROKEN",
+          "pass": true
+        },
+        {
+          "name": "malformed",
+          "expected": "UNKNOWN",
+          "observed": "UNKNOWN",
+          "pass": true
+        },
+        {
+          "name": "missing-config",
+          "expected": "UNKNOWN",
+          "observed": "UNKNOWN",
+          "pass": true
+        },
+        {
+          "name": "known-peer-failure-with-malformed-policy",
+          "expected": "BROKEN",
+          "observed": "BROKEN",
+          "pass": true
+        },
+        {
+          "name": "known-peer-failure-with-disabled-Discord",
+          "expected": "BROKEN",
+          "observed": "BROKEN",
+          "pass": true
+        },
+        {
+          "name": "disabled-running-contradiction",
+          "expected": "BROKEN",
+          "observed": "BROKEN",
+          "pass": true
+        }
+      ],
+      "rawPath": "/Users/moltymac/.openclaw/backups/node-readiness/discord-inactive-monitor-20260929-1/native-8728cf529eef/EVIDENCE.json",
+      "rawSha256": "13b55a33f7057e9fedb93a76a07faeca512e7118c0b25fd8a26f997073915fe9",
+      "harnessSha256": "a920e9ab3205e69b9a5c60edd3bec73e969b427fd6efce0889d81599464ec684"
+    }
+  },
+  "qualifications": [
+    "Native controls use real owned launchd observations with six semantic role labels mapped to owned jobs; they do not run the actual Discord integration.",
+    "Production watcher/source/config/dependencies untouched.",
+    "Darwin target case is an explicit platform skip in Linux CI; pure policy/lifecycle controls run on both platforms.",
+    "Exact CI and independent source review still required before managed runtime deployment.",
+    "No global node health, active watcher drain, full preservation or VM durability claim."
+  ]
+}
