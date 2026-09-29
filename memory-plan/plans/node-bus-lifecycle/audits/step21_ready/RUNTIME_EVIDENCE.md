@@ -89,7 +89,7 @@ are retained. Attempt3 uses explicit descriptor closing, checked on this
 host, with the same owner/state gate. No success is claimed for either
 refused attempt. Private directories are task-ready-20260928-{1,2,3}.
 
-## Installed runtime and read-only continuation — 2026-09-29 00:31 EDT
+## Run3 installation and run4 read-only continuation — 2026-09-29 00:31 EDT
 
 At00:24:35.616672 EDT actual launchd ownerPID748 exited normally: Darwin
 rawWaitStatus0, one completion, oldCID30 Client Closed, zero service holders.
@@ -138,3 +138,28 @@ installed unit BYTES. Fresh observer processes both exit0; no forced production
 termination. Attempt3 remains unaccepted; its separate continuation is retained
 as CONTINUATION_EVIDENCE.json. Latest MANAGED_EVIDENCE.json is this complete run.
 Runtime closure is narrow local-server readiness; recovery1.2 remains open.
+
+## Evidence ledger correction — 2026-09-29 00:56 EDT
+
+PR149 merged as55131b823e7773560fe49dd10b9562b18ad4d7b5 after exact
+3cb5d12 CI36522889739 passed. Claude Message36 subsequently confirms the
+complete run5 satisfies Message34's conditions and has no runtime blocker;
+Message34 alone did not confirm a restart that had not yet happened.
+
+RUN_LEDGER.json maps every operation to its retained private directory. Run1
+reused the benchmark/staging directory for a read-only preflight and two
+pre-stop refusals; those are distinct files in the same root, not distinct
+roots. Run2 refused before bootout. Run3 installed the readiness layer but
+failed observer-process cleanup and remains unaccepted. Run4 is the separate
+read-only continuation. Run5 is the authoritative complete same-source restart.
+RAW_RECORDS.json's basename/hash map is rooted exclusively in run5's directory.
+
+The guard subscribes to mesh.tasks.claim and _INBOX.> on member4222. It sees
+the actual worker's request, retains its reply subject, then requires that
+reply to contain ok:true/data:null. It never publishes a claim. Its claim and
+inbox subscriptions do retain bus interest during the gap. managed-gap.json
+is intentionally filtered to mesh.tasks.submit, the task-service owner marker;
+it is not an inventory of all guard subscriptions or a zero-client claim.
+The one matching guard submit subscription is excluded only by serverID+CID.
+The observed zero worker requests applies throughout the419ms RPC pause,
+including the gap; it does not mean the passive subscriptions were removed.
