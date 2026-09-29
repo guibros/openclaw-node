@@ -29,7 +29,7 @@ class GateTests(unittest.TestCase):
         self.directory = pathlib.Path(self.temp.name).resolve()
         self.directory.chmod(0o700)
         self.root = self.directory / 'gate'
-        initialize(self.root)
+        self.pin = initialize(self.root)
         self.children = []
         self.ready = self.directory / 'ready'
         self.stop = self.directory / 'stop'
@@ -44,7 +44,7 @@ class GateTests(unittest.TestCase):
         self.temp.cleanup()
 
     def launch(self, argv):
-        child = subprocess.Popen([sys.executable, str(SOURCE), 'run', str(self.root), '--', *argv],
+        child = subprocess.Popen([sys.executable, '-I', '-S', str(SOURCE), 'run', str(self.root), '--lock', self.pin, '--', *argv],
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.children.append(child)
         return child
@@ -77,7 +77,7 @@ class GateTests(unittest.TestCase):
     def test_shell_exec_holds_actual_lock_until_normal_exit(self):
         child = self.launch(self.shell())
         self.wait_ready(child)
-        with Gate(self.root) as probe:
+        with Gate(self.root, self.pin) as probe:
             with self.assertRaises(BlockingIOError):
                 fcntl.flock(probe.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.stop.touch(mode=0o600)
@@ -90,7 +90,7 @@ class GateTests(unittest.TestCase):
         script = "const fs=require('fs');fs.writeFileSync(process.argv[1],'ready');const timer=setInterval(()=>{if(fs.existsSync(process.argv[2]))clearInterval(timer)},20)"
         child = self.launch([shutil.which('node'), '-e', script, str(self.ready), str(self.stop)])
         self.wait_ready(child)
-        with Gate(self.root) as probe:
+        with Gate(self.root, self.pin) as probe:
             with self.assertRaises(BlockingIOError):
                 fcntl.flock(probe.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.stop.touch(mode=0o600)
@@ -101,7 +101,7 @@ class GateTests(unittest.TestCase):
     def test_durable_marker_precedes_drain_and_blocks_later_work(self):
         child = self.launch(self.shell())
         self.wait_ready(child)
-        with Gate(self.root) as gate, concurrent.futures.ThreadPoolExecutor() as pool:
+        with Gate(self.root, self.pin) as gate, concurrent.futures.ThreadPoolExecutor() as pool:
             closing = pool.submit(gate.close_and_drain, 'owned', 'preservation', 5)
             end = time.monotonic() + 2
             while not (self.root / 'closed.json').exists() and time.monotonic() < end:
@@ -122,40 +122,46 @@ class GateTests(unittest.TestCase):
     def test_drain_deadline_leaves_durable_hold_for_recovery(self):
         child = self.launch(self.shell())
         self.wait_ready(child)
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             with self.assertRaisesRegex(Refused, 'did not drain'):
                 gate.close_and_drain('owned', 'preservation', .05)
             self.assertEqual(gate.marker()['window'], 'owned')
         self.assert_no_work(0)
 
     def test_controller_close_does_not_remove_durable_hold(self):
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             with gate.close_and_drain('owned', 'preservation', 1):
                 pass
-        with Gate(self.root) as reopened:
+        with Gate(self.root, self.pin) as reopened:
             self.assertEqual(reopened.marker()['window'], 'owned')
         self.assert_no_work(0)
 
     def crashed_controller(self, phase):
         ready = self.directory / 'controller-ready'
-        script = '''import importlib.util,pathlib,sys
+        script = '''import importlib.util,json,pathlib,sys
 spec=importlib.util.spec_from_file_location('gate',sys.argv[1])
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 ready=pathlib.Path(sys.argv[3])
-with module.Gate(sys.argv[2]) as gate:
+receipt=ready.with_name('controller-receipt')
+def save_receipt(value):
+ receipt.write_text(json.dumps(value));receipt.chmod(0o600)
+with module.Gate(sys.argv[2], sys.argv[5]) as gate:
  if sys.argv[4]=='draining':
   original=gate.exclusive
   def exclusive(seconds):
+   save_receipt(gate.closed_receipt)
    ready.write_text('durable marker published')
    original(seconds)
   gate.exclusive=exclusive
  with gate.close_and_drain('owned','preservation',10) as guard:
   guard.check()
-  if sys.argv[4]=='closed':ready.write_text('drain verified')
+  if sys.argv[4]=='closed':
+   save_receipt(guard.check()['receipt'])
+   ready.write_text('drain verified')
   sys.stdin.read()
 '''
         child = subprocess.Popen([sys.executable, '-c', script, str(SOURCE), str(self.root),
-                                  str(ready), phase], stdin=subprocess.PIPE,
+                                  str(ready), phase, self.pin], stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.children.append(child)
         try:
@@ -168,6 +174,7 @@ with module.Gate(sys.argv[2]) as gate:
             child.kill()
             self.assertEqual(child.wait(timeout=5), -9)
             self.assert_no_work(0)
+            return json.loads((self.directory / 'controller-receipt').read_text())
         finally:
             if child.poll() is None:
                 child.kill()
@@ -177,28 +184,32 @@ with module.Gate(sys.argv[2]) as gate:
     def test_controller_crash_after_publication_preserves_hold_until_foreground_drains(self):
         child = self.launch(self.shell())
         self.wait_ready(child)
-        self.crashed_controller('draining')
-        with Gate(self.root) as gate:
+        receipt = self.crashed_controller('draining')
+        with Gate(self.root, self.pin) as gate:
             with self.assertRaises(BlockingIOError):
                 fcntl.flock(gate.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.stop.touch(mode=0o600)
             self.assertEqual(child.wait(timeout=5), 0)
-            gate.reopen({'window': 'owned', 'reason': 'preservation'})
+            with gate.reattach(receipt) as guard:
+                self.assertTrue(guard.check()['restoration_only'])
+            gate.reopen(receipt)
         child = self.launch(self.no_work())
         self.assertEqual(child.wait(timeout=5), 0)
         self.assertTrue((self.directory / 'bypass').exists())
 
     def test_controller_crash_after_verified_drain_preserves_closed_execution(self):
-        self.crashed_controller('closed')
-        with Gate(self.root) as gate:
+        receipt = self.crashed_controller('closed')
+        with Gate(self.root, self.pin) as gate:
             self.assertEqual(gate.marker(), {'window': 'owned', 'reason': 'preservation'})
-            gate.reopen({'window': 'owned', 'reason': 'preservation'})
+            with gate.reattach(receipt) as guard:
+                self.assertTrue(guard.check()['restoration_only'])
+            gate.reopen(receipt)
         child = self.launch(self.no_work())
         self.assertEqual(child.wait(timeout=5), 0)
         self.assertTrue((self.directory / 'bypass').exists())
 
     def test_marker_sync_failure_cannot_publish_partial_closed_metadata(self):
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             with patch.object(module, 'sync', side_effect=OSError('owned sync fault')):
                 with self.assertRaises(OSError):
                     gate.close_and_drain('owned', 'preservation', 1)
@@ -209,7 +220,7 @@ with module.Gate(sys.argv[2]) as gate:
 
     def test_directory_sync_failure_after_publish_retains_valid_closed_marker(self):
         original_sync = module.sync
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             def failing_sync(fd):
                 if fd == gate.directory:
                     raise OSError('owned directory sync fault')
@@ -219,15 +230,16 @@ with module.Gate(sys.argv[2]) as gate:
                     gate.close_and_drain('owned', 'preservation', 1)
             expected = {'window': 'owned', 'reason': 'preservation'}
             self.assertEqual(gate.marker(), expected)
+            receipt = gate.closed_receipt
         self.assert_no_work(0)
-        with Gate(self.root) as reopened:
-            reopened.reopen(expected)
+        with Gate(self.root, self.pin) as reopened:
+            reopened.reopen(receipt)
             self.assertIsNone(reopened.marker())
 
     def test_reopen_requires_exact_window_then_restores_execution(self):
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             with gate.close_and_drain('owned', 'preservation', 1) as guard:
-                expected = dict(guard.marker)
+                expected = json.loads(json.dumps(guard.check()['receipt']))
             with self.assertRaisesRegex(Refused, 'does not match'):
                 gate.reopen({'window': 'wrong', 'reason': 'preservation'})
             gate.reopen(expected)
@@ -235,8 +247,212 @@ with module.Gate(sys.argv[2]) as gate:
         self.assertEqual(child.wait(timeout=5), 0)
         self.assertTrue((self.directory / 'bypass').exists())
 
+    def test_recreated_marker_refuses_original_receipt_after_controller_loss(self):
+        with Gate(self.root, self.pin) as gate:
+            with gate.close_and_drain('owned', 'preservation', 1) as guard:
+                receipt = json.loads(json.dumps(guard.check()['receipt']))
+                self.assertFalse(guard.check()['restoration_only'])
+        marker = self.root / 'closed.json'
+        original = marker.read_bytes()
+        marker.unlink()
+        marker.write_bytes(original)
+        marker.chmod(0o600)
+        with Gate(self.root, self.pin) as gate:
+            self.assertNotEqual(gate._hold_receipt()['marker_identity'], receipt['marker_identity'])
+            with self.assertRaisesRegex(Refused, 'receipt does not match'):
+                gate.reattach(receipt)
+            with self.assertRaisesRegex(Refused, 'receipt does not match'):
+                gate.reopen(receipt)
+        self.assert_no_work(0)
+
+    def test_wrong_metadata_hash_refuses_receipt_recovery(self):
+        with Gate(self.root, self.pin) as gate:
+            with gate.close_and_drain('owned', 'preservation', 1) as guard:
+                receipt = json.loads(json.dumps(guard.check()['receipt']))
+            receipt['metadata_sha256'] = '0' * 64
+            with self.assertRaisesRegex(Refused, 'receipt does not match'):
+                gate.reattach(receipt)
+            with self.assertRaisesRegex(Refused, 'receipt does not match'):
+                gate.reopen(receipt)
+
+    def test_timeout_continuation_requires_a_fresh_drain_and_remains_restoration_only(self):
+        child = self.launch(self.shell())
+        self.wait_ready(child)
+        with Gate(self.root, self.pin) as gate:
+            with self.assertRaisesRegex(Refused, 'did not drain'):
+                gate.close_and_drain('owned', 'preservation', .05)
+            receipt = json.loads(json.dumps(gate.closed_receipt))
+        with Gate(self.root, self.pin) as gate:
+            with self.assertRaisesRegex(Refused, 'fresh exclusive drain'):
+                module.ClosedGate(gate)
+            with self.assertRaisesRegex(Refused, 'did not drain'):
+                gate.reattach(receipt, .05)
+            self.assert_no_work(0)
+            self.stop.touch(mode=0o600)
+            self.assertEqual(child.wait(timeout=5), 0)
+            with gate.reattach(receipt) as guard:
+                evidence = guard.check()
+                self.assertTrue(evidence['restoration_only'])
+                self.assertEqual(evidence['receipt'], receipt)
+            gate.reopen(receipt)
+        child = self.launch(self.no_work())
+        self.assertEqual(child.wait(timeout=5), 0)
+        self.assertTrue((self.directory / 'bypass').exists())
+
+    def test_fifo_marker_refuses_without_blocking_or_logs(self):
+        os.mkfifo(self.root / 'closed.json', mode=0o600)
+        self.assert_no_work(78)
+
+    def test_fifo_identity_refuses_without_blocking_or_logs(self):
+        (self.root / 'identity.json').unlink()
+        os.mkfifo(self.root / 'identity.json', mode=0o600)
+        self.assert_no_work(78)
+
+    def test_deep_json_marker_refuses_without_a_traceback(self):
+        marker = self.root / 'closed.json'
+        marker.write_text('[' * 1200 + '0' + ']' * 1200)
+        marker.chmod(0o600)
+        self.assert_no_work(78)
+
+    def test_deep_json_identity_refuses_without_a_traceback(self):
+        (self.root / 'identity.json').write_text('[' * 1200 + '0' + ']' * 1200)
+        self.assert_no_work(78)
+
+    def test_runner_requires_the_installed_lock_pin(self):
+        result = subprocess.run([sys.executable, '-I', '-S', str(SOURCE), 'run', str(self.root),
+                                 '--', *self.no_work()], capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 78)
+        self.assertEqual(result.stdout, b'')
+        self.assertEqual(result.stderr, b'')
+        self.assertFalse((self.directory / 'bypass').exists())
+
+    def test_substitute_gate_refuses_the_original_job_and_controller_without_a_watcher(self):
+        self.root.rename(self.directory / 'original')
+        initialize(self.root)
+        self.assert_no_work(78)
+        with self.assertRaisesRegex(Refused, 'lock pin differs'):
+            Gate(self.root, self.pin)
+
+    def test_non_normalized_path_refuses_before_execution(self):
+        path = str(self.root.parent) + '/other/../gate'
+        result = subprocess.run([sys.executable, '-I', '-S', str(SOURCE), 'run', path,
+                                 '--lock', self.pin, '--', *self.no_work()],
+                                capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 78)
+        self.assertEqual(result.stdout, b'')
+        self.assertEqual(result.stderr, b'')
+        self.assertFalse((self.directory / 'bypass').exists())
+
+    def test_interpreter_isolation_refuses_neighbor_module_shadowing(self):
+        wrapper = self.directory / 'service_gate.py'
+        shutil.copyfile(SOURCE, wrapper)
+        shadow = self.directory / 'secrets.py'
+        shadow.write_text("import pathlib;pathlib.Path(__file__).with_name('shadow-ran').touch();raise RuntimeError('owned shadow')")
+        result = subprocess.run([sys.executable, '-I', '-S', str(wrapper), 'run', str(self.root),
+                                 '--lock', self.pin, '--', *self.no_work()],
+                                capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'')
+        self.assertEqual(result.stderr, b'')
+        self.assertTrue((self.directory / 'bypass').exists())
+        self.assertFalse((self.directory / 'shadow-ran').exists())
+
+    def test_restoration_type_cannot_emit_certification_fields(self):
+        with Gate(self.root, self.pin) as gate:
+            with gate.close_and_drain('owned', 'preservation', 1) as guard:
+                evidence = guard.check()
+                receipt = evidence['receipt']
+                session = evidence['watch_session_id']
+                self.assertEqual(guard.check()['watch_session_id'], session)
+        with Gate(self.root, self.pin) as gate:
+            with gate.reattach(receipt) as guard:
+                evidence = guard.check()
+                self.assertIsInstance(guard, module.RestorationGate)
+                self.assertNotIsInstance(guard, module.ClosedGate)
+                self.assertTrue(evidence['restoration_only'])
+                self.assertNotIn('verified', evidence)
+                self.assertNotIn('watch_session_id', evidence)
+            gate.reopen(receipt)
+
+    def test_stray_gate_entry_invalidates_saved_receipt_after_observer_loss(self):
+        with Gate(self.root, self.pin) as gate:
+            with gate.close_and_drain('owned', 'preservation', 1) as guard:
+                receipt = guard.check()['receipt']
+        stray = self.root / 'stray'
+        stray.touch(mode=0o600)
+        stray.unlink()
+        with Gate(self.root, self.pin) as gate:
+            with self.assertRaisesRegex(Refused, 'receipt does not match'):
+                gate.reattach(receipt)
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'requires actual Mac vnode notifications')
+    def test_closed_watch_descriptor_cannot_be_silently_lost(self):
+        with Gate(self.root, self.pin) as gate:
+            with gate.close_and_drain('owned', 'preservation', 1) as guard:
+                record = gate.paths.records[-2]
+                os.close(record['fd'])
+                gate.paths.handles.remove(record['fd'])
+                with self.assertRaises(OSError):
+                    guard.check()
+
+    def test_symlink_ancestor_refuses_before_execution(self):
+        alias = self.directory / 'alias'
+        alias.symlink_to(self.directory, target_is_directory=True)
+        result = subprocess.run([sys.executable, str(SOURCE), 'run', str(alias / 'gate'), '--lock', self.pin, '--',
+                                 *self.no_work()], capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 78)
+        self.assertEqual(result.stdout, b'')
+        self.assertEqual(result.stderr, b'')
+        self.assertFalse((self.directory / 'bypass').exists())
+
+    def test_unrelated_ancestor_entry_write_does_not_refuse_a_live_hold(self):
+        with Gate(self.root, self.pin) as gate:
+            with gate.close_and_drain('owned', 'preservation', 1) as guard:
+                (self.directory / 'unrelated').write_text('owned')
+                self.assertTrue(guard.check()['verified'])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'requires actual Mac pathname watches')
+    def test_transient_ancestor_replacement_cannot_pass_live_hold_verification(self):
+        parent = self.directory / 'stable-parent'
+        parent.mkdir(mode=0o700)
+        root = parent / 'gate'
+        pin = initialize(root)
+        with Gate(root, pin) as gate:
+            with gate.close_and_drain('owned', 'preservation', 1) as guard:
+                parent.rename(self.directory / 'original-parent')
+                parent.mkdir(mode=0o700)
+                initialize(root)
+                result = subprocess.run([sys.executable, str(SOURCE), 'run', str(root), '--lock', pin, '--',
+                                         *self.no_work()], capture_output=True, timeout=5)
+                self.assertEqual(result.returncode, 78)
+                self.assertFalse((self.directory / 'bypass').exists())
+                self.assertEqual(result.stdout, b'')
+                self.assertEqual(result.stderr, b'')
+                parent.rename(self.directory / 'replacement-parent')
+                (self.directory / 'original-parent').rename(parent)
+                with self.assertRaisesRegex(Refused, 'path mapping mutated'):
+                    guard.check()
+                self.assertTrue(gate.paths.events)
+                with self.assertRaisesRegex(Refused, 'session was already refused'):
+                    guard.check()
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'requires actual Mac pathname watches')
+    def test_path_witness_starts_before_marker_publication_and_drain(self):
+        with Gate(self.root, self.pin) as gate:
+            original = gate.exclusive
+            def exclusive(seconds):
+                alternate = self.directory / 'alternate'
+                self.root.rename(alternate)
+                alternate.rename(self.root)
+                original(seconds)
+            gate.exclusive = exclusive
+            with self.assertRaisesRegex(Refused, 'path mapping mutated'):
+                gate.close_and_drain('owned', 'preservation', 1)
+            self.assertTrue(gate.paths.events)
+            self.assertEqual(gate.marker(), {'window': 'owned', 'reason': 'preservation'})
+
     def test_existing_hold_cannot_be_overwritten_by_a_new_window(self):
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             with gate.close_and_drain('owned', 'preservation', 1):
                 pass
             original = (self.root / 'closed.json').read_bytes()
@@ -259,7 +475,7 @@ with module.Gate(sys.argv[2]) as gate:
         self.assert_no_work(78)
 
     def test_gate_file_replacement_refuses_even_with_identical_bytes(self):
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             lock = self.root / 'gate.lock'
             data = lock.read_bytes()
             lock.rename(self.root / 'original.lock')
@@ -270,18 +486,18 @@ with module.Gate(sys.argv[2]) as gate:
         self.assert_no_work(78)
 
     def test_directory_replacement_cannot_reuse_the_original_identity(self):
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             original = self.directory / 'original-gate'
             self.root.rename(original)
             shutil.copytree(original, self.root)
             self.root.chmod(0o700)
-            with self.assertRaisesRegex(Refused, 'directory mapping changed'):
+            with self.assertRaisesRegex(Refused, 'path mapping (mutated|or watched descriptor changed)'):
                 gate.validate()
         self.assert_no_work(78)
 
     @unittest.skipUnless(sys.platform == 'darwin', 'requires actual Mac vnode notifications')
     def test_marker_rewrite_and_restore_is_detected_by_kernel_watch(self):
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             with gate.close_and_drain('owned', 'preservation', 1) as guard:
                 marker = self.root / 'closed.json'
                 original = marker.read_bytes()
@@ -292,7 +508,7 @@ with module.Gate(sys.argv[2]) as gate:
         self.assert_no_work(0)
 
     def test_installer_cannot_reopen_a_closed_gate(self):
-        with Gate(self.root) as gate:
+        with Gate(self.root, self.pin) as gate:
             with gate.close_and_drain('owned', 'preservation', 1):
                 pass
         result = subprocess.run([sys.executable, str(SOURCE), 'init', str(self.root)], capture_output=True)
@@ -310,7 +526,7 @@ with module.Gate(sys.argv[2]) as gate:
         script.write_text("require('fs').appendFileSync(process.argv[2],'application\\n')")
         unit = self.directory / 'owned.plist'
         unit.write_bytes(plistlib.dumps({'Label': label,
-            'ProgramArguments': [sys.executable, str(SOURCE), 'run', str(self.root), '--',
+            'ProgramArguments': [sys.executable, '-I', '-S', str(SOURCE), 'run', str(self.root), '--lock', self.pin, '--',
                                  shutil.which('node'), str(script), str(counter)],
             'RunAtLoad': True, 'StartInterval': 2, 'ThrottleInterval': 1,
             'StandardOutPath': str(log), 'StandardErrorPath': str(err)}))
@@ -333,7 +549,7 @@ with module.Gate(sys.argv[2]) as gate:
         try:
             wait_for(lambda row: row['runs'] > 0 and not row['running'] and row['exit']
                      and row['exit'][1] == '0' and counter.exists())
-            with Gate(self.root) as gate:
+            with Gate(self.root, self.pin) as gate:
                 with gate.close_and_drain('owned', 'preservation', 2) as guard:
                     guard.check()
             baseline = counter.read_bytes()

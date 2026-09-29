@@ -1,14 +1,41 @@
 {
-  "at": "2026-09-29T07:30:52.420518+00:00",
+  "at": "2026-09-29T07:57:53.251293+00:00",
   "returncode": 0,
-  "elapsedSeconds": 7.146703417,
+  "elapsedSeconds": 12.084494166999999,
   "sourcePins": {
-    "workspace-bin/service_gate.py": "9822ba60edcb9e86c860868147c52aa24147040107cc1099350e523574d1e102",
-    "test/service_gate_test.py": "fc321fa8a89aa56f0413e57318c59a81d67e2b5ad51b0c172844a43dc77ae5f9",
-    "test/service-gate.test.mjs": "94fa39d47074d7aae5ef0701ba594a8c9d38889a519588b4135f5f3e31145731"
+    "workspace-bin/service_gate.py": "4570d92e79914076c3abaab5e41f66eb41254d4d1b58f5ebc3e1cf65b3e03c2a",
+    "test/service_gate_test.py": "4496f3fea9277984040b716ccb13caff7d279c2235b5d3c2b4de6eb3f5afa757",
+    "test/service-gate.test.mjs": "94fa39d47074d7aae5ef0701ba594a8c9d38889a519588b4135f5f3e31145731",
+    "test/task-daemon-lifecycle.test.mjs": "b3b11abf522c1fff48dd2d90af0ce7b0c7aa5a32487378c8bc0de27f40de3c0a"
   },
   "actualMacOS": true,
   "productionMutations": 0,
+  "passed": 38,
+  "ownedTimer": {
+    "ownedTimer": "ai.openclaw.gate-owned.c4b56ca3b2181eed",
+    "configuredIntervalSeconds": 2,
+    "runsBeforeClosedWait": 1,
+    "runsAfterClosedWait": 3,
+    "applicationRunsBefore": 1,
+    "applicationRunsAfter": 1,
+    "lastExit": 0,
+    "jobLogBytes": 0,
+    "jobErrorBytes": 0,
+    "markerSurvivesControllerExit": true,
+    "osSpawnCoverage": false,
+    "productionMutations": 0
+  },
+  "logSha256": "a7daa3663c38de9c11b749a56a9038fc611f2d7a8de93d3a796b05a03a460b8f",
+  "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v4",
+  "productionInstalled": false,
+  "stepClosed": false,
+  "currentIntegrationCI": "pending corrected exact commit",
+  "priorIntegrationCI": {
+    "sha": "7b388a8c9de84ed2feed1c93bc91abc46e917c7b",
+    "run": 36537184712,
+    "conclusion": "3/3 success",
+    "sourceSuperseded": true
+  },
   "execProof": {
     "at": "2026-09-29T06:54:44.570875+00:00",
     "actualMacOS": true,
@@ -46,32 +73,80 @@
     "productionMutations": 0,
     "limits": "Only exec lifetime. No descendant inheritance or completed preservation claim."
   },
-  "productionInstalled": false,
+  "supersededPrototype": {
+    "at": "2026-09-29T07:30:52.420518+00:00",
+    "sourcePins": {
+      "workspace-bin/service_gate.py": "9822ba60edcb9e86c860868147c52aa24147040107cc1099350e523574d1e102",
+      "test/service_gate_test.py": "fc321fa8a89aa56f0413e57318c59a81d67e2b5ad51b0c172844a43dc77ae5f9",
+      "test/service-gate.test.mjs": "94fa39d47074d7aae5ef0701ba594a8c9d38889a519588b4135f5f3e31145731"
+    },
+    "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v3",
+    "passed": 20
+  },
+  "atimeMeasurement": {
+    "at": "2026-09-29T08:01:04.733010+00:00",
+    "filesystem": "apfs",
+    "checks": 6000,
+    "elapsedSeconds": 3.904261375,
+    "counts": [
+      {
+        "checks": 1,
+        "toleratedEvents": 0,
+        "refusalEvents": 0,
+        "pathEvents": 0
+      },
+      {
+        "checks": 1000,
+        "toleratedEvents": 0,
+        "refusalEvents": 0,
+        "pathEvents": 0
+      },
+      {
+        "checks": 2000,
+        "toleratedEvents": 0,
+        "refusalEvents": 0,
+        "pathEvents": 0
+      },
+      {
+        "checks": 4000,
+        "toleratedEvents": 0,
+        "refusalEvents": 0,
+        "pathEvents": 0
+      },
+      {
+        "checks": 6000,
+        "toleratedEvents": 0,
+        "refusalEvents": 0,
+        "pathEvents": 0
+      }
+    ],
+    "kernelFileWatch": true,
+    "kernelPathWatch": true,
+    "actualMacOS": true,
+    "productionMutations": 0,
+    "limits": "Rapid checks on this owned APFS path, not a 23-minute time-based soak or other mount policy proof."
+  },
+  "apfsRenameMeasurement": {
+    "at": "2026-09-29T08:01:04.768755+00:00",
+    "filesystem": "apfs",
+    "markerCtimeChanged": true,
+    "rootCtimeChanged": true,
+    "rootMtimeChanged": true,
+    "receiptMismatchRefused": true,
+    "productionMutations": 0
+  },
   "remaining": [
-    "Independent source review and exact CI",
-    "Foreground audit and awaited consolidation notification",
-    "Installer/template and five actual loaded entrypoint integration",
-    "Persistent hold journal/restoration integration",
-    "Linux continuous inode-watch acceptance"
+    "Corrected exact CI and independent source review",
+    "Actual five timer foreground completion and other invoker inventory",
+    "Absolute interpreter -I -S, wrapper/import graph and loaded external pins",
+    "Sole journal intent/receipt, no-receipt/mismatch interrupted recovery and broken hold repair",
+    "Dependency-first restoration and explicit installed open/closed baseline",
+    "Linux continuous observer acceptance remains unproved"
   ],
-  "stepClosed": false,
-  "atomicMarkerControls": [
-    "Prepared marker sync failure publishes no marker and no accepted close.",
-    "Directory sync failure after atomic hard-link publication retains valid closed state for explicit recovery."
-  ],
-  "atMontreal": "2026-09-29 03:30:52 EDT",
-  "passed": 20,
-  "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v3",
-  "predecessorPrimitive": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v2",
-  "priorPassed": 18,
-  "controllerCrashControls": [
-    "SIGKILL after durable publication before foreground drain completes",
-    "SIGKILL after verified drain; exact explicit reopen remains required"
-  ],
-  "currentIntegrationCI": "pending after added crash controls",
-  "priorIntegrationCI": {
-    "sha": "b87da1a4dbd7a85f6ee6c912538c96fbe4f8695f",
-    "run": 36536584523,
-    "conclusion": "3/3 success"
-  }
+  "limits": [
+    "Only private owned consumers; no production timer installation",
+    "Process SIGKILL controls, not VM or power-loss durability proof",
+    "No certification across observer loss",
+    "No global OS-spawn/descendant/mount/interpreter-code coverage"
+  ]
 }

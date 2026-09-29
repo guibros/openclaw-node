@@ -45,17 +45,17 @@
 
 | Block | Step | Version | Status | Description |
 |---|---|---|---|---|
-| 3 | 3.1 | v3.1 | [A] | Establish the durable foreground execution-hold primitive — 2026-09-29 03:11:58 EDT:18 owned controls pass; exact CI/review pending |
+| 3 | 3.1 | v3.1 | [A] | Establish the durable foreground execution-hold primitive — 2026-09-29 03:57 EDT:38 owned Mac controls pass; corrected exact CI/review pending |
 | 3 | 3.2 | v3.2 | [ ] | Finish foreground contracts and integrate the five installed timers, installer/templates and durable journal restoration |
 | 3 | 3.3 | v3.3 | [ ] | Stop the explicitly disabled Discord tool from crash-looping before a new preservation baseline |
 
 > **3.1 — Goal:** a durable closed marker plus foreground lock excludes scheduled application execution after drain, even after controller exit.
 > **Needs:** Python3/fcntl, installed Node/shell/launchd, Claude50/52 contract, D15.
 > **Feeds:**3.2 and recovery1.2.
-> **Verify:** code:20 real owned controls, isolated CI; runtime:private deployed source pins, actual inherited-lock positive/negative controls and a scheduled Mac job that starts twice while closed with unchanged application count and no job log bytes. Independent source review. No live installation claim.
+> **Verify:** code:38 real owned Mac controls, mandatory external lock pins, separate restoration type, permanently refused watch sessions, isolated exact CI; runtime:private deployed source pins, actual inherited-lock positive/negative controls and a scheduled Mac job that starts twice while closed with unchanged application count and no job log bytes. Independent source review. No live installation claim.
 
 > **3.2 — Goal:** the actual five scheduled jobs cannot execute application work during the coordinated preservation interval, and verified recovery reopens their prior state.
-> **Needs:**3.1 closed; all call paths inventoried; no detached/unawaited work; consolidation notification fully awaited; exact source/loaded-entry/metadata identity; explicit persistent hold integration in the sole journal.
+> **Needs:**3.1 closed; all call paths inventoried, including the in-process memory scheduler; no detached/unawaited work; consolidation notification and abort/termination paths fully completed; exact source/loaded-entry/metadata identity; explicit persistent hold integration in the sole journal, including no-receipt/mismatched/broken hold interruption and dependency-first restoration.
 > **Feeds:**recovery1.2/1.3 and parent node-readiness1.5/2.2.
 > **Verify:** code:foreground/source/child controls, installer rendering, stale/changed gate negatives, crash/reopen journal controls. runtime:reviewed installed entrypoints preserve existing arguments/env/schedules, closed scheduled runs remain inert, delegated memory work drains separately, restoration reopens only after dependent services are ready with no false done/Ready state.
 

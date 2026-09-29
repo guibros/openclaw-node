@@ -76,3 +76,12 @@ zero job/error log bytes after controller exit. Four exec inheritance controls
 pass including negative variants. No production gate, changed live entrypoint,
 installer behavior or preservation window. Exact CI/review and3.2 integration
 remain open. See audits/step31_service_gate/PRIMITIVE_EVIDENCE.json.
+
+Scheduled hold correction2026-09-29 04:01 EDT:38 real Mac controls pass
+against private primitive-v4, mandatory external lock pins, full receipts,
+original watch-session certification and separate restoration-only type.
+Actual owned timer c4b56ca3b2181eed goes runs1→3/app1→1/exit0/log0/err0
+and bootout verifies absence.6000 rapid APFS checks have zero observed events;
+marker rename changes ctime and saved receipt recovery refuses. No production
+hold or controller. Corrected exact CI/review remain pending;3.1 stays active.
+Primary e57 remains untouched and task owner82096/runs1 remains running.

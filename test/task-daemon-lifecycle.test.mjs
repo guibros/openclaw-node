@@ -30,6 +30,28 @@ async function exited(daemon, timeoutMs = 10_000) {
   return daemon.result;
 }
 
+async function frozen(proc) {
+  await until(async () => {
+    assert.equal(proc.exitCode, null);
+    assert.equal(proc.signalCode, null);
+    if (process.platform !== 'linux') {
+      return execFileSync('/bin/ps', ['-o', 'stat=', '-p', String(proc.pid)],
+        { encoding: 'utf8', timeout: 5_000 }).trim().startsWith('T');
+    }
+    const tasks = await fs.readdir(`/proc/${proc.pid}/task`);
+    const states = await Promise.all(tasks.map(async tid => {
+      try {
+        const stat = await fs.readFile(`/proc/${proc.pid}/task/${tid}/stat`, 'utf8');
+        return stat[stat.lastIndexOf(')') + 2];
+      } catch (err) {
+        if (err.code === 'ENOENT') return '';
+        throw err;
+      }
+    }));
+    return tasks.length > 0 && states.every(state => state === 'T');
+  });
+}
+
 async function stop(proc) {
   if (proc.exitCode !== null || proc.signalCode !== null) return;
   proc.kill('SIGCONT');
@@ -113,8 +135,7 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
 test('task daemon handles repeated signals during a pending real drain once', { skip, timeout: 20_000 }, async (t) => {
   const { daemon, server } = await fixture(t);
   server.proc.kill('SIGSTOP');
-  await until(() => execFileSync('/bin/ps', ['-o', 'stat=', '-p', String(server.proc.pid)],
-    { encoding: 'utf8', timeout: 5_000 }).trim().startsWith('T'));
+  await frozen(server.proc);
   daemon.proc.kill('SIGTERM');
   await until(() => daemon.output.includes('Draining NATS...'));
   daemon.proc.kill('SIGINT');

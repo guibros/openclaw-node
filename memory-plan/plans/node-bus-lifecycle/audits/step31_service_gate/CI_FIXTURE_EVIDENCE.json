@@ -106,5 +106,15 @@
     "productionMutations": 0,
     "premise": "actual owned server ps state T before requested daemon shutdown",
     "acceptanceAssertionsUnchanged": true
+  },
+  "allThreadsCorrection": {
+    "at": "2026-09-29T08:01:56.991550+00:00",
+    "sourceSha256": "b3b11abf522c1fff48dd2d90af0ce7b0c7aa5a32487378c8bc0de27f40de3c0a",
+    "privateEvidence": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/suspend-fixture-v2/EVIDENCE.json",
+    "focusedMacControl": "1/1 pass on Node22.22.0",
+    "linuxControl": "Wait every /proc/<pid>/task/<tid>/stat stateT; exact isolated CI pending",
+    "applicationSourceUnchanged": true,
+    "assertionsUnchanged": true,
+    "failedFirstLocalInvocation": "Worktree had no nats dependency; no fixture ran. Corrected NODE_PATH reads primary modules without modifying them."
   }
 }

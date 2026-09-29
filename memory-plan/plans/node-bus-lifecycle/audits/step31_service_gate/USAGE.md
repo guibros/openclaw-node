@@ -1,41 +1,71 @@
 # Scheduled application execution hold primitive
 
-This prototype is deployed only to owned test consumers. It is not installed
-on the live node. It applies to known foreground-only job entrypoints.
+This prototype ships only to owned test consumers. Production installation
+and the sole preservation controller/journal are still pending. It covers
+scheduled timer jobs with audited foreground completion; never put a general
+KeepAlive daemon behind a wrapper that exits0 when closed.
 
-Initialize a new owner-private directory with service_gate.py init <absolute
-gate-root>. Repeated init validates an open root; it never reopens a closed
-one. Partial/invalid setup fails closed and is retained for explicit recovery.
-A runner uses service_gate.py run <gate-root> -- <absolute executable> <args>.
-Missing, invalid or symlink metadata refuses with exit78 and no output. Closed
+Use an absolute real Python interpreter with -I -S, then service_gate.py run
+<normalized-absolute-root> --lock <device>:<inode>:<ctime_ns> -- <absolute
+executable> <args>. The installed arguments supply the independent lock pin;
+metadata inside a substitute directory cannot authorize that substitute.
+Gate(root, pin) requires the same pin for the controller. initialize(root)
+returns the freshly created pin. CLI init creates or validates an open root,
+never reopens a closed one and is not a source of replacement installed pins.
+
+The wrapper walks every path component through O_NOFOLLOW directory descriptors,
+registers native Mac rename/delete/revoke watches, and walks again to bind the
+same mapping before reading the gate files. Symlink ancestors and non-normalized
+paths refuse. Shared locking precedes final validation, marker inspection and
+exec. Missing/invalid/special/symlink metadata refuses78 without output. Closed
 or exclusively locked runs exit0 silently before application execution.
+The inherited lock descriptor is read-only. Its lifetime covers the exec'd
+process; Node child_process may close it in descendants. Detached/unawaited
+work, other invokers and delegated daemon work require separate inventory
+and completion proof before installation.
 
-The controller imports Gate and calls close_and_drain(window, reason, seconds)
-only after its durable intent. The marker is durable before the exclusive
-lock waits for existing foreground runs. A deadline refusal retains the
-marker: it never silently reopens after controller loss. The returned ClosedGate
-checks owner, inode, metadata and marker identity, with actual continuous vnode
-watches on Mac. watch evidence has a4096-event refusal bound. Repeated access
-attributes are accepted only with unchanged identity. Linux reports
-kernel_file_watch:false; continuous-watch acceptance there remains unproved.
+After durable intent, close_and_drain(window, reason, seconds) prepares/fsyncs
+an owner-private marker, publishes it by exclusive hard link, fsyncs the directory,
+then waits for an exclusive drain. Gate.closed_receipt is available after
+publication, including on a drain timeout. Post-publication faults retain the
+marker/staging bytes and expose a receipt if its published inode remains valid.
+Nothing automatically reopens. Before publication a fault means no accepted
+hold; no dependent service may be stopped or store copied.
 
-ClosedGate.close() stops observation and retains the hold. Recovery calls
-Gate.reopen(exact_marker) under its own durable intent, only after all dependent
-services are ready. Exclusive locking covers unlink/fsync. A different window
-refuses. Source, actual loaded entrypoints, gate metadata/lock/directory identity
-and original open state must join the production baseline. The journal must
-restore that explicit hold as well as service state; this integration is3.2.
+The saved receipt binds all four objects' complete identities, root ctime and
+mtime, marker/metadata hashes, external lock pin, window and ancestor chain.
+A ClosedGate is created only after a fresh exclusive drain in the original
+watch session, registered before publication. Its checks emit verified and
+watch_session_id only while that session has never refused. Native file/root
+watches reject changes after publication; all watched descriptors are checked
+against their registered identities. Pure ATTRIB events are tolerated only
+with unchanged identity and counted separately, with a last-event sample.
+Raw refusal evidence is bounded at4096; a refusal is permanent for the session.
 
-The inherited lock covers the exec'd process. Node child_process can close it
-in descendants. Detached/unawaited work is therefore not covered. Consolidation
-currently has an unawaited notification path that must be finished before
-installation. Remote work already delegated to the memory daemon must drain
-through its separate fresh idle proof. Other callers of these scripts belong
-in the writer inventory. Do not infer application quiescence from zero OS
-process starts: gated scheduled starts are explicitly permitted.
+ClosedGate.close() ends observation while retaining the hold. Reattach(receipt,
+seconds) requires an exact receipt and fresh bounded drain, and returns the
+separate RestorationGate type. It emits restoration_only, never verified or
+watch_session_id. Matching bytes never certify an observer-loss interval.
+Reopen(receipt, seconds), under durable restoration intent and only after
+all dependencies are ready, requires exact identities and an exclusive drain
+before unlink/fsync. A straggler timeout retains the hold. This is explicit
+restoration, not acceptance of interrupted preservation.
 
-Marker publication is an exclusive atomic hard link to a fully prepared/fsynced
-private file. A failure before publication means no close/drain acceptance;
-no service may be stopped or store copied. A failure after publication retains
-a valid closed marker for explicit recovery. Leftover prepared bytes are
-retained for the journal's forensic resolution procedure in3.2.
+Step3.2 must implement the no-receipt publication/crash gap, mismatched-receipt
+interrupted recovery and broken/missing-marker repair in the sole durable
+controller/journal. In those cases dependencies cannot be stopped on the basis
+of this prototype. The future controller must close/drain a broken open hold,
+record the interrupted window and restore dependency readiness before reopening;
+it must never certify across the gap. Pin actual loaded arguments, interpreter,
+wrapper/import graph and their path mappings before any production baseline.
+-I -S prevents adjacent Python modules and site .pth loading; it does not protect
+replaceable interpreter/wrapper code. Protect or continuously watch that code
+and its ancestors separately. No same-user code or mount protection is claimed.
+
+Mac checks report native file/path watches. Linux has pinned wrapper, lock and
+current component identities, but continuous watcher certification remains
+unproved there. A gate receipt is not global OS-spawn evidence. Scheduled starts
+that do no application work are deliberately allowed during a hold. Consolidation
+foreground/cancellation paths, the five installed entrypoints and durable
+restoration remain required integration work; the prototype is not a completed
+preservation controller.

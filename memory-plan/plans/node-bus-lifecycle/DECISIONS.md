@@ -163,3 +163,25 @@ marker for explicit recovery. Kernel events have a4096-event refusal bound.
 Linux continuous-watch acceptance is separate and unproved. Consolidation's
 unawaited notification must finish before installation, and delegated memory
 work still needs its own idle proof. Unknown callers are inventoried writers.
+
+## D16 — Independently pin timers and certify only the original observer interval (2026-09-29 03:57 EDT)
+
+**Decision.** Require an external lock device/inode/ctime pin in every runner
+and controller. Capture full root/marker/object identities and a pre-publication
+watch-session id. Reattach is the separate restoration-only type and can never
+certify across controller loss. Native mapping/file failures permanently refuse
+the original session. Tolerated identity-stable ATTRIB counts are separate from
+the refusal-event budget.
+
+**Why.** Owned parent substitution can run a fresh self-described gate; ancestor
+watches alone detect it only with the old observer alive. Receipt bytes can
+still match after mapping restoration. Interpreter/module-path substitution
+remains outside gate-file coverage. SIGKILL is not VM/power-loss proof.
+
+**Consequences.** Correct only primitive3.1 now. Keep3.2 locked on external
+loaded pins, real interpreter -I -S, protected/watched code path, foreground
+completion, sole journal intent/receipt, explicit interrupted recovery and
+re-closing a broken/missing hold before dependency restoration. Never install
+this primitive as a standalone production safety mechanism.3.1 remains active
+until corrected exact CI and independent source challenge pass. Original
+D15's4096 bound now applies to refusal evidence; tolerated events use counts.
