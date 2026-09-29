@@ -123,3 +123,12 @@ Claude review of35e56ff exposed management-only Raft observation and uncaught
 HTTP protocol errors. Account-filtered observations and an actual stream-leader
 regression correct the same quiet-window mechanism. Recovered stability covers
 management/routes only; it is not all-group or preservation acceptance.
+
+Claude Message24 found additional b38933a journal faults. D10 narrows the same
+recovery mechanism: full explicit inventory, one persistent parent, redundant
+baseline restoration, terminal-gap reconciliation and busy timer/serialization
+controls. No operational healthy-stop claim follows. The owned launchd probe
+provides actual kernel exit-status evidence only; real child/CID negative cases
+and the managed driver remain required. CI's first mesh.tasks.list503 at fixture
+line113 feeds a separate lifecycle readiness step, leaving this suite red until
+that prerequisite is fixed and verified.

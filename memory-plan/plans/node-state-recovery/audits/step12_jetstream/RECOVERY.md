@@ -153,65 +153,78 @@ original loaded/running/disabled state, with member1 held.
 
 ## Durable journal primitive
 
-`preservation_journal.py` is the single restoration implementation. Before any
-forward mutation it records a validated desired-state inventory with immutable
-service descriptors, reads the synced baseline back, and stores a second
-validated copy beside the node lock. Daemons must be loaded/running; timers
-must be loaded/idle at baseline. Known-broken services retain loaded/disabled
-state with running unconstrained; their verified callback proves preservation,
-not health. Member1 is held, disabled/unloaded and cannot be mutated.
+`preservation_journal.py` is the single restoration implementation, not an
+operational service command. The fixed persistent parent is
+`~/.openclaw/preservation/`, containing `node.lock`, its owner-private state
+receipt and `journals/<window>/`. Roots outside that journals directory refuse.
+Owned fixtures substitute a complete isolated parent. Missing/corrupt receipt
+plus existing roots blocks a new window. An intact primary can restore its
+recorded node after rebuilding/read-checking the receipt; corrupt bytes are
+retained. Hash-linked predecessor records identify the unique current root, including after finalization; a sealed tip repairs only its receipt and remains closed. Multiple unfinished roots are ambiguous and refuse. Neither valid
+baseline means no automatic state inference.
 
-The fixed node-wide lock is `~/.openclaw/run/preservation.lock`; test fixtures
-supply an isolated node lock. Its owner-private state file retains the baseline,
-holder PID/boot UUID and restoration head. Different roots cannot act at once.
-An unresolved recovery blocks a new window, and a restored head must match its
-complete record chain before another window starts. The operational driver
-must check this inventory against every actual installed unit and its approved
-desired state. A caller-provided subset is not a complete node inventory.
+The baseline must contain exactly RESUME_ORDER plus nats-1. Each uninstalled
+unit has explicit class absent, false loaded/running/disabled and identity
+{installed:false}; it is observed, never installed or mutated. An installed
+member1 alone may be held, disabled/unloaded. Daemons are loaded/running;
+timers loaded/idle; known-broken loops preserve loaded/disabled with running
+unconstrained. Classes come from approved desired state, never from observing
+a stopped daemon. Actual installed-unit completeness and extra writers still
+require driver inspection; the fixed names alone do not prove that inventory.
 
-Every journal reopen means restore-only, even on the same boot. A chain cannot
-prove an absent tail was never written; no reopened window may continue copies
-or gain acceptance. Recovery visits every baseline unit in derived dependency
-order, re-observes owners before any action, skips matching ready owners, and
-never resumes applications after an unverified bus. Identity must match before
-and after restoration. The final physical listener/member1 check runs even
-when another unit fails. Unknown units are reported without preventing known
-units from being restored.
+`static_identity` hashes the plist bytes, binary, declared entry/config/files
+and actual dependency targets, and reads ProgramArguments/WorkingDirectory
+from that plist. It needs no loaded job or PID. Its schema is enforced for
+installed baseline units. Identical byte rewrites preserve identity; changed
+content or dependency targets do not. The driver must enumerate all required
+entry/config/build/dependency files and separately bind the running PID argv,
+loaded ProgramArguments, cwd and physical listeners. A static descriptor alone
+is not proof that the running process uses it.
 
-Forward writes remain strict. A failed durable write during recovery permits
-only verified baseline restoration under the node lock, with sanitized
-undurable diagnostics. `services_verified` is separate from `restored` and
-`evidence_durable`; degraded mode never reports durable success. A corrupt or
-missing primary record chain can use the validated secondary baseline only in
-this degraded mode. The unresolved node still blocks new windows until its
-forensic journal is explicitly repaired/resolved and a strict recovery records
-fresh observations. If neither baseline is valid, refuse automatic mutation;
-do not infer the operator's prior service choices from unit defaults.
+Each baseline is synced/read back and copied beside the global lock, also
+read back exactly. All reopened windows are restore-only. Recovery visits the
+entire baseline in dependency order, checks static identity before any action,
+skips matching ready owners and blocks applications after unverified buses.
+A loaded running timer is reported busy without calling restore; the driver
+must re-observe beyond its declared run deadline (heartbeat30s,
+consolidation300s) and verify exit0, never restart an active timer to force idle.
+The final physical listener/member1 check runs even after other failures.
 
-Records and the journal directory use fsync plus Darwin F_FULLFSYNC. The owned
-APFS probe confirms return codes for a file and directory, not power-loss
-survival. Existing Node/CLI snapshot and cold-copy helpers currently provide
-OS-level fsync only. The future managed copy driver must add the declared Mac
-flush boundary or explicitly retain that limit. Neither primitive promises
-host/hypervisor cache durability, independent failure domains or disk-loss
-protection.
+Forward writes use a strict deterministic JSON encoder. Disk or serialization
+failure during recovery preserves baseline restoration under the lock with
+sanitized undurable diagnostics. A set, bytes, NaN or Path in observations does
+not bypass actual state checks or prevent subsequent service restoration.
+`services_verified`, `evidence_durable` and `restored` are separate. The journal
+records verified service state, not a premature restored:true before the state
+receipt is saved. Receipt-write failure is explicitly diagnosed and cannot
+seal a window. Missing/corrupt primary records with a valid secondary allow
+only degraded restoration. Damaged history still requires explicit forensic
+resolution before new windows; that operational procedure remains pending.
 
-Normal resume uses the same recovery path in the uninterrupted forward
-process. Only a successful durable restoration receipt permits sealing. The
-acceptance manifest must pin the returned sealed head; a sealed journal cannot
-be changed or reopened for writing. This primitive publishes no manifest and
-runs no services itself. Actual launchd/PID argv, loaded ProgramArguments,
-WorkingDirectory, plist/binary/entry hashes, dependency realpaths, NATS config
-digest and MC BUILD_ID bindings remain the driver's responsibility.
+A strict fresh restoration receipt permits explicit terminal finalization.
+`seal()` belongs only to the uninterrupted successful forward window and pins
+its immutable hash for a future acceptance manifest. `resolve()` retires an
+interrupted/restored window without accepting its copies. New windows require
+a terminal predecessor. If interruption follows the terminal append but
+precedes receipt update, a verified final terminal record whose previous hash
+matches the restored receipt repairs that receipt; the terminal chain is never
+appended to. Before the append, reopen/recover/resolve remains available. No
+terminal journal reopens for writing, and no reopened window becomes accepted.
+This primitive publishes no acceptance manifest.
 
-D8 requires bootout-only holds for ordinary clients and serving buses. Member1
-remains the sole persistent disable. Timer readiness waits for its load-triggered
-run to finish with last exit0 before comparing idle state. The deploy listener
-resumes last after current-marker/HEAD checks; an unconnected instance has no
-SIGTERM handler, so its stop requires default signal15, no bus client and no
-child/socket rather than a fabricated completion line. Real owned launchd
-negative cases, descendant exit order, CID-close timestamps, detached driver
-lifetime and the three healthy cold masters remain pending.
+Records/directories use fsync plus Darwin F_FULLFSYNC. Return codes do not
+prove host/hypervisor power-loss survival. Existing Node/CLI copy helpers have
+OS-level fsync; the future managed driver must add its declared Mac flush
+boundary or preserve this limit. Same-disk copies provide no disk-loss safety.
+
+D8 requires temporary bootout-only holds for ordinary clients/serving buses;
+member1 is the sole persistent disable. The deploy listener resumes last after
+marker/HEAD verification. A never-connected instance stops by default signal15
+with no CID/children/socket, not a fabricated Ready/completion line. One real
+owned macOS launchd probe verified NOTE_EXITSTATUS normal exit0 and its marker,
+using a uniquely named test service; it did not test child exit ordering or
+production services. Real negative controls, CID closure, detached driver,
+three healthy cold masters and isolated restores remain step1.2 work.
 
 Expiry classification uses each stream's unchanged originalmax_age rather than
 a bucket-name allowlist. Positive max_age permits only monotone expiration

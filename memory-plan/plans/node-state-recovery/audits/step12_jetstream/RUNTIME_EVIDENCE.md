@@ -408,3 +408,53 @@ Tools-v25 final deployed mechanism checks pass:30 journal,15 preservation,1
 actual three-member cluster election regression, with no forced cleanup. Source
 application code and production service state remain unchanged. Exact commit
 CI and Claude's revised-journal review remain pending at this checkpoint.
+
+## Secondary receipt and terminal interruption checkpoint — 2026-09-28 23:23 EDT
+
+Claude Message24 reproduced eight faults on exact b38933a; Message26 agreed the
+bounded correction design and retained independent read-only review. New source
+has48 journal fault checks: complete explicit inventory/absent units, fixed
+persistent parent, intact-primary restoration after missing/corrupt receipt,
+secondary retention failure/full disk degraded restoration, ambiguous roots,
+content-based unloaded identities, busy timer no-restart, serialization
+failure continuation, strict receipt readback, no premature restored claim,
+terminal append/receipt gaps, and receipt loss after multiple terminal windows.
+Hash-linked predecessors allow only the unique current journal to rebuild a
+lost receipt. resolve retires an interrupted verified restoration without
+accepting its copies. No new driver/window acceptance follows.
+
+Private deployed tools-v28 has48 fresh journal checks passing. Its15 admission
+checks and real three-member account-election control inherit tools-v27 only
+after exact source-hash equality for all three files. tools-v27 ran all three
+fresh with normal owned cleanup. Direct checkout48 passed too. Initial changed
+fixture failures were retained in tool outputs: incomplete adapted fixtures,
+one missing test import, and a macOS /var versus /private/var expected-path
+assertion; the actual identity correctly used resolved paths. No claim that
+those initial test runs passed. tools-v26 private fixtures passed45, v27 passed46;
+these are older mechanism checkpoints, not latest full-suite CI or live owners.
+
+Actual macOS owned launchd probe (private postcrash-audit/
+owned-launchd-exit-probe-1/result.json,22:55:47 EDT): one uniquely named test
+service, non-child ownerPID40835, registered EVFILT_PROC NOTE_EXITSTATUS before
+managed bootout, raw wait status0 / normal exit0, one completion marker,0.006598s.
+Unit unloaded afterwards. Entry SHA256
+9c46006c43394e9ada9257d9502d1062012739e487ecedbd2da550b8669d1ac2.
+This proves kernel exit-status access for that fixture only. Child/CID/order
+negative controls and actual production identity bindings remain pending.
+
+Fresh post-crash checkpoint23:06:32 EDT:537 selected task rows match the worker
+baseline; eight core owners retain their PIDs and runs1; member1 remains disabled
+and unloaded. The initial checkpoint23:06:02 comparison was a probe error (list
+rows versus dictionary baseline; true versus macOS disabled output); retain it
+and its corrected private companion rather than erase it. No healthy NATS stop.
+Primary e57 checkout and its untracked plan/tick files remain untouched.
+
+CI36514681814 on b38933a is red: Node20 root2510pass/1fail/5skip, Node22cancelled,
+MCsuccess; Node22 recovery fixtures passed before cancellation. Failure is the
+main-merge fixture's first mesh.tasks.list at line113, not a preservation test.
+The daemon logs ready without a flush after subscribing. Claude's owned startup
+stand-in observed8/100503 without flush and0/100 with it. Real-daemon reproduction
+and a separate lifecycle readiness outcome are required; a green rerun would
+not repair this race. PR144 comment5882998808 records that boundary. This
+checkpoint keeps VERSIONv1.2-pre and1.2[A]; no claim of a green latest full suite,
+complete cold masters, coordinated recovery, or full project readiness.

@@ -96,3 +96,21 @@ localized boottime text. Fullfsync is requested for journal records/directories,
 with host/hypervisor power-loss survival explicitly unproved. The old duplicate
 restore_prior path is removed. Managed owner controls and cold-copy completion
 remain step1.2 work; this checkpoint does not close it.
+
+## D10 — Recoverable receipts and complete explicit inventory (2026-09-28 23:22 EDT)
+Claude's second-round b38933a review reproduced missing/corrupt secondary,
+sealing-gap, partial-inventory, busy-timer and serialization faults. Move the
+node fence and all journal roots under one persistent parent. Enforce the full
+named inventory with explicit absent units and held member1; static descriptors
+come from plist/file contents independently of loaded state. Rebuild a lost
+secondary from an intact primary after readback, while retaining corrupt bytes;
+ambiguous unfinished roots or both invalid baselines refuse. Disk/serialization
+faults allow degraded verified restoration without durable success. Busy loaded
+timers never call restore. A terminal append/receipt gap reconciles its hashes
+without writing the sealed chain; explicit resolve retires interrupted windows
+without accepting copies. New roots require a terminal predecessor; hash-linked predecessor records identify the unique lineage tip when the receipt is lost after finalization. These
+mechanisms remain separate from the managed driver and its physical owner,
+writer-inventory, timer deadline and cold-copy proof. CI36514681814's main-merge
+worker fixture got503 at its first task-list RPC: daemon readiness-before-flush
+is a separate lifecycle outcome, not a preservation-test failure or permission
+to ignore the red suite.

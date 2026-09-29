@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import pathlib
+import plistlib
 import re
 import stat
 import subprocess
@@ -11,6 +12,10 @@ import sys
 import uuid
 
 from preservation_checks import RESUME_ORDER, Refused, require
+
+
+UNITS = frozenset((*RESUME_ORDER, 'nats-1'))
+TERMINAL = ('sealed', 'resolved')
 
 
 def boot_identity():
@@ -58,14 +63,65 @@ def write_private(path, value):
 
 
 def valid_record(record):
+    require(isinstance(record, dict) and isinstance(record.get('sha256'), str), 'journal record is incomplete')
     body = {k: v for k, v in record.items() if k != 'sha256'}
     require(hashlib.sha256(encoded(body)).hexdigest() == record['sha256'], 'journal record content changed')
     return record
 
 
+def static_identity(plist_path, files=(), dependencies=None):
+    raw = pathlib.Path(plist_path).read_bytes()
+    plist = plistlib.loads(raw)
+    argv = plist['ProgramArguments']
+    dependencies = {name: str(pathlib.Path(path).resolve(strict=True))
+                    for name, path in (dependencies or {}).items()}
+    paths = {pathlib.Path(path).resolve(strict=True) for path in (argv[0], *files, *dependencies.values())}
+    return {'plist_sha256': hashlib.sha256(raw).hexdigest(), 'argv': argv,
+            'working_directory': plist.get('WorkingDirectory', '/'),
+            'files': {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths},
+            'dependencies': dependencies}
+
+
 def matches(actual, prior):
     keys = ('loaded', 'disabled') if prior['class'] == 'known-broken' else ('loaded', 'running', 'disabled')
     return all(actual.get(k) == prior[k] for k in keys)
+
+
+def valid_prior(prior):
+    require(isinstance(prior, dict) and set(prior) == UNITS, 'prior service inventory is incomplete or unknown')
+    for unit, state in prior.items():
+        require(isinstance(state, dict), 'prior service state is incomplete')
+        require(all(isinstance(state.get(k), bool) for k in ('loaded', 'running', 'disabled')),
+                'prior service state is incomplete')
+        kind = state.get('class')
+        require(kind in ('daemon', 'timer', 'known-broken', 'held', 'absent'), 'service class is absent')
+        identity = state.get('identity')
+        if kind == 'absent':
+            require(identity == {'installed': False}
+                    and not any(state[k] for k in ('loaded', 'running', 'disabled')),
+                    'absent service state is inconsistent')
+            continue
+        require(isinstance(identity, dict) and set(identity) ==
+                {'plist_sha256', 'argv', 'files', 'dependencies', 'working_directory'},
+                'prior static identity schema is incomplete')
+        require(re.fullmatch(r'[0-9a-f]{64}', str(identity['plist_sha256']))
+                and isinstance(identity['argv'], list) and identity['argv']
+                and all(isinstance(arg, str) for arg in identity['argv'])
+                and pathlib.Path(identity['argv'][0]).is_absolute()
+                and isinstance(identity['working_directory'], str)
+                and pathlib.Path(identity['working_directory']).is_absolute()
+                and isinstance(identity['files'], dict) and identity['files']
+                and all(pathlib.Path(path).is_absolute() and re.fullmatch(r'[0-9a-f]{64}', str(digest))
+                        for path, digest in identity['files'].items())
+                and isinstance(identity['dependencies'], dict)
+                and all(isinstance(path, str) and pathlib.Path(path).is_absolute()
+                        for path in identity['dependencies'].values()), 'prior static identity schema is incomplete')
+        require((unit == 'nats-1') == (kind == 'held'), 'only member-1 may be declared held')
+        require((kind != 'daemon' or state['loaded'] and state['running'] and not state['disabled'])
+                and (kind != 'timer' or state['loaded'] and not state['running'] and not state['disabled'])
+                and (kind != 'known-broken' or state['loaded'] and not state['disabled'])
+                and (kind != 'held' or not state['loaded'] and not state['running'] and state['disabled']),
+                'baseline does not match the declared desired service state')
 
 
 class Journal:
@@ -75,10 +131,11 @@ class Journal:
         self.lock = None
         self.node_lock = None
         self.write_failed = False
+        self.receipt_writable = True
         self.sealed = False
         created = not self.root.exists()
         self.reopened = not created
-        node_lock = pathlib.Path(node_lock) if node_lock is not None else pathlib.Path.home() / '.openclaw/run/preservation.lock'
+        node_lock = pathlib.Path(node_lock) if node_lock is not None else pathlib.Path.home() / '.openclaw/preservation/node.lock'
         node_lock.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         info = node_lock.parent.lstat()
         require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
@@ -86,16 +143,54 @@ class Journal:
         self.node_lock = self._lock(node_lock)
         self.node_state = node_lock.with_name(node_lock.name + '.state.json')
         try:
-            self.active = read_private(self.node_state) if os.path.lexists(self.node_state) else None
+            self.journals = node_lock.parent / 'journals'
+            self.journals.mkdir(mode=0o700, exist_ok=True)
+            info = self.journals.lstat()
+            require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
+                    and stat.S_IMODE(info.st_mode) == 0o700, 'journal parent is not owner-private')
+            require(self.root.parent.resolve() == self.journals.resolve() and not self.root.is_symlink(),
+                    'journal must be a direct child of the fixed persistent parent')
+            self.active = None
+            try:
+                if os.path.lexists(self.node_state):
+                    active = read_private(self.node_state)
+                    valid_record(active['baseline'])
+                    valid_prior(active['baseline']['prior'])
+                    require(active['status'] in ('unresolved', 'restored'), 'node receipt status is invalid')
+                    require(pathlib.Path(active['journal_root']).parent.resolve() == self.journals.resolve(),
+                            'node receipt root escaped the persistent parent')
+                    self.active = active
+            except (ValueError, KeyError, TypeError, Refused, OSError):
+                require(not created, 'node receipt is corrupt; restore the existing journal only')
+                info = self.node_state.lstat()
+                require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+                        and stat.S_IMODE(info.st_mode) == 0o600, 'corrupt receipt is not owner-private')
+                saved = self.node_state.with_name('.corrupt-receipt-' + uuid.uuid4().hex)
+                try:
+                    os.rename(self.node_state, saved)
+                    sync_dir(self.node_state.parent)
+                except OSError:
+                    self.write_failed = True
+                    self.receipt_writable = False
+            if self.active is None:
+                require(not created or not any(self.journals.iterdir()),
+                        'node receipt is missing; existing journals need restoration')
+                if not created:
+                    require(self._lineage_tip() == self.root.resolve(),
+                            'only the current journal may rebuild a lost receipt')
             if self.active is not None:
-                valid_record(self.active['baseline'])
                 require(not created or self.active['status'] == 'restored', 'prior node recovery is unresolved')
                 require(created or self.active['journal_root'] == str(self.root.resolve()),
                         'another journal owns the node recovery inventory')
-                if created:
-                    records = self._read(pathlib.Path(self.active['journal_root']))
-                    require(records and records[-1]['sha256'] == self.active.get('head'),
-                            'prior node restoration head differs')
+                records = self._read(pathlib.Path(self.active['journal_root'])) if created else None
+                if records is not None:
+                    self._receipt_head(records)
+                    require(records[-1]['event'] in TERMINAL, 'prior journal needs explicit finalization')
+                    for other in self.journals.iterdir():
+                        if str(other.resolve()) != self.active['journal_root']:
+                            rows = self._read(other)
+                            require(rows and rows[-1]['event'] in TERMINAL,
+                                    'unindexed journal requires manual resolution')
             self._open(created, prior)
         except BaseException:
             self.close()
@@ -120,6 +215,7 @@ class Journal:
     def _open(self, created, prior):
         if created:
             require(prior is not None, 'new journal requires the complete prior state')
+            valid_prior(prior)
             self.root.mkdir(mode=0o700)
             sync_dir(self.root.parent)
         info = self.root.lstat()
@@ -129,37 +225,77 @@ class Journal:
         try:
             self.records = self._read()
             require(created or self.records and self.records[0]['event'] == 'baseline', 'journal baseline is absent')
-        except Refused:
+        except (Refused, OSError):
             require(not created and self.active is not None, 'validated baseline copy is absent')
             self.records = [self.active['baseline']]
             self.write_failed = True
         if created:
-            require(prior and all(isinstance(s.get(k), bool) for s in prior.values()
-                                  for k in ('loaded', 'running', 'disabled')), 'prior service state is incomplete')
-            require(all(isinstance(s.get('identity'), dict) and s['identity'] for s in prior.values()),
-                    'prior immutable service identity is absent')
-            for state in prior.values():
-                require(state.get('class') in ('daemon', 'timer', 'known-broken', 'held'), 'service class is absent')
-                require((state['class'] != 'daemon' or state['loaded'] and state['running'] and not state['disabled'])
-                        and (state['class'] != 'timer' or state['loaded'] and not state['running'] and not state['disabled'])
-                        and (state['class'] != 'known-broken' or state['loaded'] and not state['disabled'])
-                        and (state['class'] != 'held' or not state['loaded'] and not state['running'] and state['disabled']),
-                        'baseline does not match the declared desired service state')
-            self.append('baseline', prior=prior)
+            predecessor = ({'root': self.active['journal_root'], 'head': self.active['head']}
+                           if self.active is not None else None)
+            self.append('baseline', prior=prior, predecessor=predecessor)
             require(read_private(self.root / '000000.json') == self.records[0], 'baseline readback differs')
-            write_private(self.node_state, {'journal_root': str(self.root.resolve()), 'baseline': self.records[0],
-                          'status': 'unresolved', 'holder': {'pid': os.getpid(), 'boot': self.boot}})
-            self.active = read_private(self.node_state)
+            self._state({'journal_root': str(self.root.resolve()), 'baseline': self.records[0],
+                         'status': 'unresolved', 'holder': {'pid': os.getpid(), 'boot': self.boot}})
         else:
             require(prior is None, 'cannot replace a journal baseline')
             require(self.records and self.records[0]['event'] == 'baseline', 'journal baseline is absent')
-            require(self.active is not None and self.active['baseline'] == self.records[0], 'baseline copy differs')
-            require(not any(r['event'] == 'sealed' for r in self.records), 'sealed journal cannot be reopened for writing')
+            valid_prior(self.records[0]['prior'])
+            if self.active is None:
+                self.active = {'journal_root': str(self.root.resolve()), 'baseline': self.records[0],
+                               'status': 'restored' if self.records[-1]['event'] in TERMINAL else 'unresolved',
+                               'holder': {'pid': os.getpid(), 'boot': self.boot}}
+                if self.records[-1]['event'] in TERMINAL:
+                    self.active['head'] = self.records[-1]['sha256']
+                try:
+                    self._state(self.active)
+                except (OSError, Refused, TypeError, ValueError):
+                    self.write_failed = True
+            require(self.active['baseline'] == self.records[0], 'baseline copy differs')
+            if self.records[-1]['event'] in TERMINAL:
+                self._receipt_head(self.records)
+                raise Refused('sealed or resolved journal cannot be reopened for writing')
         self.prior = json.loads(encoded(self.records[0]['prior']))
+
+    def _state(self, value):
+        require(self.receipt_writable, 'corrupt receipt could not be durably retained')
+        write_private(self.node_state, value)
+        require(read_private(self.node_state) == value, 'node receipt readback differs')
+        self.active = value
+
+    def _receipt_head(self, records):
+        require(records, 'prior node restoration head differs')
+        require(records[0] == self.active['baseline'], 'baseline copy differs')
+        last = records[-1]
+        if (last['event'] in TERMINAL and last['previous'] == self.active.get('head')
+                and self.active['status'] == 'restored'):
+            self._state({**self.active, 'head': last['sha256']})
+        require(last['sha256'] == self.active.get('head'), 'prior node restoration head differs')
+
+    def _lineage_tip(self):
+        histories = {root.resolve(): self._read(root) for root in self.journals.iterdir()}
+        referenced = set()
+        for root, records in histories.items():
+            require(records and records[0]['event'] == 'baseline', 'ambiguous journal baseline is absent')
+            parent = records[0].get('predecessor')
+            if parent is not None:
+                prior = pathlib.Path(parent['root'])
+                require(prior in histories and histories[prior][-1]['event'] in TERMINAL
+                        and histories[prior][-1]['sha256'] == parent['head'], 'ambiguous journal lineage differs')
+                referenced.add(prior)
+        tips = set(histories) - referenced
+        require(len(tips) == 1, 'ambiguous prior journal requires manual resolution')
+        tip = tips.pop()
+        require(all(root == tip or records[-1]['event'] in TERMINAL for root, records in histories.items()),
+                'ambiguous unfinished journals require manual resolution')
+        return tip
 
     def _read(self, root=None):
         records = []
-        files = sorted(p for p in (root or self.root).iterdir() if re.fullmatch(r'\d{6}\.json', p.name))
+        root = root or self.root
+        info = root.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
+                and stat.S_IMODE(info.st_mode) == 0o700, 'journal directory is not owner-private')
+        files = sorted(p for p in root.iterdir() if re.fullmatch(r'\d{6}\.json', p.name))
         previous = None
         for index, path in enumerate(files):
             require(path.name == f'{index:06d}.json', 'journal sequence has a gap')
@@ -185,8 +321,8 @@ class Journal:
         record = {'sequence': len(self.records), 'previous': self.records[-1]['sha256'] if self.records else None,
                   'event': event, 'boot': self.boot,
                   'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), **data}
-        record['sha256'] = hashlib.sha256(encoded(record)).hexdigest()
         self.write_failed = True
+        record['sha256'] = hashlib.sha256(encoded(record)).hexdigest()
         pending = self.root / ('.pending-' + uuid.uuid4().hex)
         fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'wb') as handle:
@@ -216,6 +352,7 @@ class Journal:
         require(unit in self.prior, 'unit was not in the prior-state inventory')
         require(unit in RESUME_ORDER, 'held or unknown unit cannot be mutated')
         require(self.prior[unit]['class'] != 'held', 'held unit cannot be mutated')
+        require(self.prior[unit]['class'] != 'absent', 'absent unit cannot be mutated')
         self.require_forward()
         intent = self.append('intent', unit=unit, action=action)
         try:
@@ -240,19 +377,20 @@ class Journal:
         def record(event, **data):
             try:
                 self.append(event, **data)
-            except (OSError, Refused) as error:
+            except (OSError, Refused, TypeError, ValueError, OverflowError) as error:
+                self.write_failed = True
                 if not any(e['unit'] == 'journal' for e in errors):
                     errors.append({'unit': 'journal', 'reason': type(error).__name__})
                 try:
                     diagnostics({'event': event, 'unit': data.get('unit'), 'evidence_durable': False,
                                  'error_type': type(error).__name__})
-                except OSError:
+                except Exception:
                     if not any(e['unit'] == 'diagnostics' for e in errors):
                         errors.append({'unit': 'diagnostics', 'reason': 'undurable diagnostics unavailable'})
         try:
-            write_private(self.node_state, {**self.active, 'status': 'unresolved',
-                          'holder': {'pid': os.getpid(), 'boot': self.boot}})
-        except OSError as error:
+            self._state({**self.active, 'status': 'unresolved',
+                         'holder': {'pid': os.getpid(), 'boot': self.boot}})
+        except (OSError, Refused, TypeError, ValueError) as error:
             self.write_failed = True
             errors.append({'unit': 'journal', 'reason': type(error).__name__})
         record('recovery-started', original_boot=self.records[0]['boot'])
@@ -278,7 +416,9 @@ class Journal:
                     require(actual.get('verified') is True, 'existing service readiness was not verified')
                     record('already-restored', unit=unit, evidence=actual)
                     continue
-                require(prior['class'] != 'held', 'held unit needs manual restoration')
+                require(prior['class'] not in ('held', 'absent'), 'held or absent unit needs manual restoration')
+                require(not (prior['class'] == 'timer' and actual['loaded'] and actual['running']),
+                        'timer is busy; re-observe after its current run')
                 record('restoration-intent', unit=unit, action='restore-prior')
                 restore(unit, prior)
                 evidence = verify()
@@ -291,8 +431,7 @@ class Journal:
             try:
                 require(unit == 'nats-1', 'unknown unit needs manual restoration')
                 actual = observe(unit, self.prior[unit])
-                require(actual.get('disabled') is True and actual.get('loaded') is False
-                        and actual.get('running') is False and actual.get('verified') is True
+                require(matches(actual, self.prior[unit]) and actual.get('verified') is True
                         and actual.get('identity') == self.prior[unit]['identity'], 'member-1 hold changed')
                 record('held-unit-verified', unit=unit, evidence=actual)
             except Exception as error:
@@ -304,13 +443,18 @@ class Journal:
             record('final-state-verified', evidence=evidence)
         except Exception as error:
             errors.append({'unit': 'final-state', 'reason': type(error).__name__})
-        record('recovery-finished', restored=not errors, errors=errors)
+        record('recovery-finished', services_verified=not any(e['unit'] not in ('journal', 'diagnostics')
+                                                           for e in errors), errors=list(errors))
         if not errors:
             try:
-                write_private(self.node_state, {**self.active, 'status': 'restored',
-                              'head': self.records[-1]['sha256']})
-            except OSError as error:
+                self._state({**self.active, 'status': 'restored', 'head': self.records[-1]['sha256']})
+            except (OSError, Refused, TypeError, ValueError) as error:
                 errors.append({'unit': 'journal', 'reason': type(error).__name__})
+                try:
+                    diagnostics({'event': 'restoration-receipt-failed', 'evidence_durable': False,
+                                 'error_type': type(error).__name__})
+                except Exception:
+                    errors.append({'unit': 'diagnostics', 'reason': 'undurable diagnostics unavailable'})
         return {'restored': not errors, 'services_verified': not any(e['unit'] not in ('journal', 'diagnostics') for e in errors),
                 'evidence_durable': not any(e['unit'] == 'journal' for e in errors), 'errors': errors}
 
@@ -318,14 +462,22 @@ class Journal:
         require(not self.reopened and not self.write_failed, 'interrupted window cannot be sealed')
         require(not self.pending_intents() and not any(r['event'] == 'failed' for r in self.records),
                 'failed forward window cannot be sealed')
-        require(self.records[-1]['event'] == 'recovery-finished' and self.records[-1]['restored'] is True,
+        return self._finalize('sealed')
+
+    def resolve(self):
+        require(not self.write_failed, 'undurable history needs manual resolution')
+        return self._finalize('resolved')
+
+    def _finalize(self, event):
+        require(self.records[-1]['event'] == 'recovery-finished'
+                and self.records[-1]['services_verified'] is True and not self.records[-1]['errors'],
                 'unrestored node cannot be sealed')
         state = read_private(self.node_state)
         require(state['status'] == 'restored' and state.get('head') == self.records[-1]['sha256'],
                 'node restoration receipt is not durable')
-        record = self.append('sealed')
+        record = self.append(event)
         self.sealed = True
-        write_private(self.node_state, {**self.active, 'status': 'restored', 'head': record['sha256']})
+        self._state({**self.active, 'status': 'restored', 'head': record['sha256']})
         return record['sha256']
 
     def close(self):
