@@ -141,3 +141,81 @@ selected task/KV/other-owner state, both observers exit0. Its local4222-only
 scope is explicit. Earlier failed runs stay unaccepted. Close2.1; merge149
 before recovery144's new main-integration CI. Block2 is complete; re-orient to
 recovery1.2, with no production baseline yet and managed cold-copy proof open.
+
+## D15 — Use a durable scheduled-application hold (2026-09-29 03:11:58 EDT)
+
+**Decision.** Follow Claude50/52's foreground-only execution gate: shared lock
+before marker inspection, durable closed marker before exclusive drain, keep
+timers loaded and inert, reopen only through verified recovery. This specific
+application-execution hold is the new documented exception to recoveryD8's
+bootout-only ordinary holds. No repository write/scope approval gate returns.
+
+**Why.** Idle logs/PID sampling cannot prove a scheduled job did not start.
+A measured spawn minimum is not a hard scheduling bound. Four real exec
+controls show Node/shell preserve the lock only with explicit inheritable FD.
+Node child processes can close it, so arbitrary descendant coverage is false.
+
+**Consequences.** Separate primitive3.1, full foreground/deployment/journal
+integration3.2 and disabled Discord3.3. No production hold exists yet. Invalid
+metadata/symlinks fail closed; owner-private lock and directory inode identity
+are pinned and watched. A controller crash or deadline refusal retains the
+marker for explicit recovery. Kernel events have a4096-event refusal bound.
+Linux continuous-watch acceptance is separate and unproved. Consolidation's
+unawaited notification must finish before installation, and delegated memory
+work still needs its own idle proof. Unknown callers are inventoried writers.
+
+## D16 — Independently pin timers and certify only the original observer interval (2026-09-29 03:57 EDT)
+
+**Decision.** Require an external lock device/inode/ctime pin in every runner
+and controller. Capture full root/marker/object identities and a pre-publication
+watch-session id. Reattach is the separate restoration-only type and can never
+certify across controller loss. Native mapping/file failures permanently refuse
+the original session. Tolerated identity-stable ATTRIB counts are separate from
+the refusal-event budget.
+
+**Why.** Owned parent substitution can run a fresh self-described gate; ancestor
+watches alone detect it only with the old observer alive. Receipt bytes can
+still match after mapping restoration. Interpreter/module-path substitution
+remains outside gate-file coverage. SIGKILL is not VM/power-loss proof.
+
+**Consequences.** Correct only primitive3.1 now. Keep3.2 locked on external
+loaded pins, real interpreter -I -S, protected/watched code path, foreground
+completion, sole journal intent/receipt, explicit interrupted recovery and
+re-closing a broken/missing hold before dependency restoration. Never install
+this primitive as a standalone production safety mechanism.3.1 remains active
+until corrected exact CI and independent source challenge pass. Original
+D15's4096 bound now applies to refusal evidence; tolerated events use counts.
+
+D16 clarification2026-09-29 04:09:49 EDT: both lock device/inode/ctime and root
+device/inode are independent mandatory installed pins, checked by controller
+and runner. Root ctime stays in the post-publication receipt, not the stable
+installed pin because our own publication changes it. Claude60 accepts the
+primitive shape; interval-bracketed same-session checks and deploy target
+exclusion/pin recapture remain3.2 requirements. Timeout recovery must record
+its straggler/refusal and retain the hold until owned completion is established;
+it does not create a new certifying window. No production integration yet.
+
+## D17 — Close the owned primitive and atomize integration (2026-09-29 04:38 EDT)
+
+Close only3.1's written private-consumer contract. Exact source0f0dcc2 has
+Claude62 source approval, Claude64 artifact-hash linkage and3/3 exact CI.
+New actual Mac proof drains a genuinely active fire before return, keeps159
+individually normal fires inert for365s and resumes application work on real
+reopen. Kernel process-exit ordering and raw evidence are retained; this is
+Codex's Mac observation, not a remote reviewer's independent runtime run.
+No production gate or dependency stop is authorized by this prototype alone.
+
+Protocol5.3/11 requires splitting the broad3.2 before implementation:
+3.2 owns complete local consolidation invocation lifetime, including event
+publication and non-detached foreground notification;3.3 remains disabled
+Discord;3.4 owns sole-journal interrupted holds;3.5 owns actual Mac timer
+installation.3.4 precedes3.5, and code/deploy pin protection is a3.5 prerequisite.
+Optional `_drained_guard` hardening is recorded for3.4. Linux continuous-watch
+acceptance feeds the agnostic parent installer, not this Mac evidence.
+
+The current scheduler returns at cancellation before its cycle settles, and
+max-age guarding can orphan it. Both event emissions are unawaited, as is the
+notification child; Linux's CLI can also detach a click waiter. Those local
+invocation lifetimes are one3.2 outcome. Remote inference, other invokers and
+general memory-daemon shutdown remain separate unresolved boundaries. The
+primary live tree, shared dependencies and loaded units stay preserved.

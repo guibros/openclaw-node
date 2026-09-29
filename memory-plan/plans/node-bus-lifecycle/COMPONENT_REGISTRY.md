@@ -66,3 +66,42 @@ Source barrier and qualified cross-member controls pass. Review conditions and
 raw record hashes are in step21_ready. Recovery1.2 resumes after149 merge and
 fresh integration CI. General preservation-driver and source/deployment
 reconciliation remain parent work; no new chain is enabled.
+
+### Scheduled execution hold prototype
+
+2026-09-29 03:11:58 EDT: workspace-bin/service_gate.py deployed only to private
+owned consumers under timer-gate-20260929-1/primitive-v2.18 actual Mac controls
+pass; a real scheduled job goes runs1→3 while application runs remain1, with
+zero job/error log bytes after controller exit. Four exec inheritance controls
+pass including negative variants. No production gate, changed live entrypoint,
+installer behavior or preservation window. Exact CI/review and3.2 integration
+remain open. See audits/step31_service_gate/PRIMITIVE_EVIDENCE.json.
+
+Scheduled hold correction2026-09-29 04:01 EDT:38 real Mac controls pass
+against private primitive-v4, mandatory external lock pins, full receipts,
+original watch-session certification and separate restoration-only type.
+Actual owned timer c4b56ca3b2181eed goes runs1→3/app1→1/exit0/log0/err0
+and bootout verifies absence.6000 rapid APFS checks have zero observed events;
+marker rename changes ctime and saved receipt recovery refuses. No production
+hold or controller. Corrected exact CI/review remain pending;3.1 stays active.
+Primary e57 remains untouched and task owner82096/runs1 remains running.
+
+Root+lock-pin correction 2026-09-29 04:09:49 EDT:40 actual Mac controls on source26e9278
+pass in private primitive-v5; all40 include a verified unloaded owned timer.
+CI36540391512 passes3/3 at preceding e788e1c. Corrected exact CI/review
+still required.3.1[A]/v3.1-mid;3.2 and production preservation remain open.
+Fresh08:05:29UTC read confirms13 exact live targets all loaded, same PID/runs
+as the earlier accepted snapshot, and primarye57 unchanged. An initial read
+with duplicated target prefixes is separately retained as invalid.
+
+
+Owned primitive closure2026-09-29 04:38 EDT:source0f0dcc2/26e9278 approved by
+Claude62, exact CI36541071531 green3/3;Claude64 hashes source/test identity.
+Actual copied runtime run08:30:00–08:36:07UTC waits for kernel normal exit of
+owned Node68265 before drain return, observes159 individually exit0 closed
+fires over365s/app1/log0/err0,3202 native checks and19269 independent reads
+with zero events, then receipt reopen yields actual app2/exit0. Owned bootout0
+and absence verified.3.1[x]/v3.1;3.2/3.3/3.4/3.5 queued. No production
+installation, preservation, Linux continuous-watch or VM durability claim.
+Fresh resume snapshot08:23UTC confirms13 exact ownerPID/runs unchanged and
+primarye57 preserved; this is continuity, not all-service health.

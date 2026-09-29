@@ -7,9 +7,9 @@
 
 ## Bindings (fill these before the first tick — search for `<FILL`)
 
-- **Test command:** `NODE_PATH=/Users/moltymac/openclaw-nodedev/node_modules node --test test/task-daemon-lifecycle.test.mjs`; full root suite only in isolated CI until node-readiness 2.1 closes
-- **Runtime deploy target:** `~/.openclaw/releases/task-drain-<source>-e57f89b`, selected by the existing task-daemon unit; preserve the primary repo
-- **Plan-specific required reading:** `audits/step12_bridge/AUDIT_POST.md`, DECISIONS D7 and the node-state-recovery 1.2 preservation carry-forward
+- **Test command:** `node --test test/service-gate.test.mjs`; full root suite only in isolated CI until node-readiness 2.1 closes
+- **Runtime deploy target:** `~/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v1` for3.1 owned consumers; production integration is3.2
+- **Plan-specific required reading:** `audits/step31_service_gate/AUDIT_PRE.md`, DECISIONS D15 and node-state-recovery1.2/D8/D19
 
 ---
 
