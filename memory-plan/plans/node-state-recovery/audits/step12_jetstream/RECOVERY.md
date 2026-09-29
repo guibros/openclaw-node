@@ -257,7 +257,10 @@ Journal stop intent, then pass its apply/verify callbacks to `Journal.mutate`.
 Verification requires separately supplied physical listener and former-CID
 checks; the callback's true result must come from the actual managed driver.
 Do not substitute a generic lambda:true in production. Approved executable/
-argv/cwd and generation must come from the pinned service inventory. npm
+argv/cwd and generation must come from the pinned service inventory. Binding
+also checks loaded arguments, the executable text inode, start time versus
+file ctime, hashes of explicitly declared code files and hashes of the declared
+exec-time environment. No environment values enter its returned evidence. npm
 changes its process title; bind its approved title, Node executable/cwd and
 actual Next server child/build rather than inferring argv-file identity.
 
@@ -265,8 +268,23 @@ Owned tests use explicit RECOVERY_NODE/NATS_SERVER/RECOVERY_NATS_MODULE and a
 private OPENCLAW_OWNED_TEST_ROOT. All jobs are uniquely named and all sockets
 use an isolated authenticated server. These are actual Mac controls; Linux
 collects them as visible skips. They do not complete the production driver.
-A child forked after preparation is not in that watch set; the future driver
-must retain physical process/file/listener checks and cumulative bus admission
-checks through the entire quiet window. No healthy bus stop is authorized by
-these callbacks alone. Detached orchestration, full static identities, memory
-queue and scheduler/worker readiness remain1.2 work.
+The initial watch includes descendants and the owner's entire process group.
+Fork/exec flags remain enabled through stop; any such event refuses complete
+verification. Darwin's NOTE_FORK does not supply a new PID and NOTE_TRACK is
+unsupported, so this is a refusal mechanism rather than automatic child adoption.
+Normal bound children observed dead while the owner is still live can disappear
+before signal without aborting. Coalesced exit observations conservatively refuse
+children; delivery order is not claimed as kernel exit chronology. Each PID has
+its own role/signal contract, and SIGKILL always refuses. Bootout return/stderr and
+all captured exits are retained, including beyond the loaded exit timeout. The
+adapter waits that timeout plus a margin instead of fixed10/15second deadlines.
+
+Bootstrap refuses an existing label in either gui or user domain. The owned
+cross-domain negative is an explicit unavailable test on this Mac, not a pass.
+Timer callbacks require independent complete spawn evidence covering unload;
+idle status and unchanged logs alone refuse verification. A generic true callback
+or the absence of retained unified logs is not such evidence. The detached driver
+must still retain physical process/file/listener and cumulative admission checks
+through the entire quiet window. No healthy bus stop is authorized by these
+callbacks alone. Full static identities, memory queue, timer spawn witness,
+scheduler/worker readiness and healthy cold masters remain1.2 work.

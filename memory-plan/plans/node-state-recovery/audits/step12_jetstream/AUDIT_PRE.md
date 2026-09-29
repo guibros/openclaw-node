@@ -86,6 +86,18 @@ failed verification, in dependency order, with explicit readiness evidence.
 The operational driver and real service-stop checks remain in step1.2.
 
 ## Mid-Implementation Findings
+Claude Message40 accepts the adapter only within its limited scope and identifies
+timeout, orphaned process-group, child/fork, identity/environment and idle-timer
+race gaps. This next adapter checkpoint handles those stop-evidence gaps with
+owned controls, without a production window. The current installed task unit
+reports exit timeout5; timeouts come from actual loaded job output, not an assumed
+template default. Darwin's header says NOTE_FORK does not expose the child PID
+and NOTE_TRACK is unsupported; any observed fork/exec therefore refuses the
+window rather than claiming complete automatic child tracking. Delivery order
+is observational, not a kernel exit timestamp. Timer status/log checks cannot
+prove an atomic unload; missing independent spawn evidence must refuse complete
+verification. No production quiet window is authorized by this checkpoint.
+
 Installed CLI 0.3.1 ignores `stream restore --config`: its restoreAction shadows
 `cfg` inside the input-file branch (upstream cli/stream_command.go:1272), leaving
 the outer override unset. The owned R3 fixture confirmed a config declaring R1

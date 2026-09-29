@@ -93,8 +93,51 @@ async function assertRoutes(items) {
   }
 }
 
+function placementState(observations, names) {
+  const expected = [...names].sort();
+  const ids = new Set(observations.map(row => row.js.server_id));
+  const leaders = new Set(observations.map(row => row.js.meta_cluster?.leader));
+  const leader = observations.find(row => row.name === row.js.meta_cluster?.leader)?.js.meta_cluster;
+  const checks = {
+    cohort: observations.length === names.length
+      && JSON.stringify(observations.map(row => row.name).sort()) === JSON.stringify(expected),
+    identities: ids.size === names.length && observations.every(({ name, js, routes, varz }) =>
+      varz.server_name === name && varz.server_id === js.server_id && routes.server_id === js.server_id),
+    leaderAgreement: leaders.size === 1 && typeof [...leaders][0] === 'string',
+    membership: Array.isArray(leader?.replicas)
+      && JSON.stringify([leader.leader, ...leader.replicas.map(peer => peer.name)].sort()) === JSON.stringify(expected),
+    currentPeers: Array.isArray(leader?.replicas) && leader.replicas.length === names.length - 1
+      && leader.replicas.every(peer => peer.current && !peer.offline),
+    clusterSizes: observations.every(row => row.js.meta_cluster?.cluster_size === names.length),
+    routePeers: observations.every(row => new Set(row.routes.routes.map(peer => peer.remote_id)).size === names.length - 1),
+    confinedRoutes: observations.every(row => row.routes.routes.every(peer =>
+      peer.ip === '127.0.0.1' && peer.remote_id !== row.js.server_id && ids.has(peer.remote_id)))
+  };
+  return { ready: Object.values(checks).every(Boolean), checks };
+}
+
+function placementCounterexamples(observations, names) {
+  assert(placementState(observations, names).ready);
+  const variants = {
+    currentPeers: rows => { rows.find(row => row.name === row.js.meta_cluster.leader).js.meta_cluster.replicas[0].current = false; },
+    routePeers: rows => { const id = rows[0].routes.routes[0].remote_id; rows[0].routes.routes = rows[0].routes.routes.filter(peer => peer.remote_id !== id); },
+    leaderAgreement: rows => { rows.find(row => row.name !== row.js.meta_cluster.leader).js.meta_cluster.leader = 'disagreeing-leader'; },
+    clusterSizes: rows => { for (const row of rows) row.js.meta_cluster.cluster_size = 2; }
+  };
+  const results = {};
+  for (const [predicate, mutate] of Object.entries(variants)) {
+    const rows = structuredClone(observations);
+    mutate(rows);
+    const state = placementState(rows, names);
+    assert.equal(state.ready, false);
+    assert.deepEqual(Object.keys(state.checks).filter(key => !state.checks[key]), [predicate]);
+    results[predicate] = state;
+  }
+  return results;
+}
+
 async function waitCluster(items, names, milliseconds = 15000) {
-  const expected = [...names].sort(), end = Date.now() + milliseconds;
+  const end = Date.now() + milliseconds;
   let observations;
   while (Date.now() < end) {
     const read = async (item, endpoint) => {
@@ -112,21 +155,7 @@ async function waitCluster(items, names, milliseconds = 15000) {
       if (error.name === 'TimeoutError' && Date.now() >= end) break;
       throw error;
     }
-    const ids = new Set(observations.map(row => row.js.server_id));
-    const leaders = new Set(observations.map(row => row.js.meta_cluster?.leader));
-    const leader = observations.find(row => row.name === [...leaders][0])?.js.meta_cluster;
-    if (items.length === names.length && ids.size === names.length && leaders.size === 1
-        && Array.isArray(leader?.replicas)
-        && JSON.stringify([leader.leader, ...leader.replicas.map(peer => peer.name)].sort()) === JSON.stringify(expected)
-        && leader.replicas.every(peer => peer.current && !peer.offline)
-        && observations.every(({ name, js, routes, varz }) => {
-          const meta = js.meta_cluster;
-          return meta.cluster_size === names.length
-            && names.includes(name) && varz.server_name === name && varz.server_id === js.server_id
-            && routes.server_id === js.server_id
-            && new Set(routes.routes.map(peer => peer.remote_id)).size === names.length - 1
-            && routes.routes.every(peer => peer.ip === '127.0.0.1' && ids.has(peer.remote_id));
-        })) return observations;
+    if (placementState(observations, names).ready) return observations;
     await delay(Math.min(50, Math.max(0, end - Date.now())));
   }
   throw new Error('owned placement cluster not ready');
@@ -254,10 +283,17 @@ try {
   phase = 'cluster-placement-readiness';
   const memberNames = ['member-1', 'member-2', 'member-3'];
   for (let i = 0; i < 2; i++) members.push(await start(memberNames[i], path.join(root, 'cluster-' + (i + 1)), routes, triples[i]));
+  const partial = await waitCluster(members, memberNames.slice(0, 2));
+  const missing = placementState(partial, memberNames);
+  assert.equal(missing.ready, false);
+  for (const predicate of ['currentPeers', 'clusterSizes', 'routePeers']) assert.equal(missing.checks[predicate], false);
+  jsonPrivate(path.join(root, 'cluster-placement-incomplete.json'), { observations: partial, evaluation: missing });
   await assert.rejects(waitCluster(members, memberNames, 500), /owned placement cluster not ready/);
   results.incompletePlacementClusterRejected = true;
   members.push(await start(memberNames[2], path.join(root, 'cluster-3'), routes, triples[2]));
-  jsonPrivate(path.join(root, 'cluster-placement-ready.json'), await waitCluster(members, memberNames));
+  const ready = await waitCluster(members, memberNames);
+  jsonPrivate(path.join(root, 'cluster-placement-ready.json'), ready);
+  results.placementPredicateNegatives = placementCounterexamples(ready, memberNames);
   const memberNC = await bus(members[0]);
   const manager = await memberNC.jetstreamManager();
   phase = 'cluster-offline-r1-create';

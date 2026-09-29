@@ -168,3 +168,25 @@ Private tools-v36 passes the complete owned recovery fixture after two retained
 refused drafts with normal cleanup. Exact prior request phase was not captured;
 this is a tightened fixture gate, not a confirmed production cause or repair.
 Keep1.2 active until the detached orchestration and healthy cold-copy proof.
+
+## D15 — Refuse incomplete managed-stop evidence (2026-09-29 01:44 EDT)
+Claude Messages40/42 separate current adapter scope from a production driver.
+Read the loaded exit timeout and retain bootout return/stderr plus every kernel
+exit, including a forced kill. Watch the union of descendants and process-group
+members. Explicit per-PID role contracts do not allow SIGKILL; children must
+be observed dead while the owner is still live. Delivery order itself proves
+no chronology, so coalesced observations may conservatively refuse. A captured
+normal child exit before the stop is allowed. Watch fork/exec without ONESHOT;
+any such event refuses because Darwin supplies no forked PID and NOTE_TRACK
+is unsupported. Rebind code entry/plist/executable bytes, ctime/start boundary,
+text inode and hash-only declared environment before signalling. Bootstrap
+checks both gui and user domains, while its actual user-domain negative remains
+unproved because this Mac rejected the isolated job. Idle timer/log checks alone
+refuse full verification; an independent complete spawn witness is required.
+Actual runtime NATS configs use inline authorization and no includes; pin those
+full configs. Follow any actual include in future configurations rather than
+requiring a nonexistent nats-auth.conf from a template assumption. Private
+tools-v40 passes13 actual Mac controls/1 skip, v39 passes recovery plus the
+actual two-of-three and four individual-predicate negatives. Refused v37/v38
+drafts are retained. Complete orchestration, identities, timer witness and
+healthy cold masters remain1.2 work; new exact CI/review is still required.

@@ -36,3 +36,11 @@ collection in old stream placement. Full owned readiness/missing-peer control
 and existing recovery checks pass from tools-v36; two refused drafts retained
 with normal cleanup. New exact CI/review pending. Production source and service
 owners remain unchanged; healthy cold masters and the driver are still open.
+
+Managed-controls checkpoint 2026-09-29 01:44 EDT: private tools-v40 passes13
+actual Mac controls/1 explicit cross-domain skip, tools-v39 passes recovery
+with actual peer/route negatives. Thirteen owners have read-only entry/code/
+environment bindings; Discord has no current root PID and deploy listener
+remains unready. Timer idle/log observations alone refuse complete unload
+verification. New exact CI/review pending; no production quiet window or
+healthy cold-copy acceptance. See D15 and MANAGED_CONTROL_REVIEW.json.

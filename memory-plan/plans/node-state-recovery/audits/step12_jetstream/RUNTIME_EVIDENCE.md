@@ -545,3 +545,22 @@ PLACEMENT_EVIDENCE.json pins sources, readiness summaries and full owned
 recovery outcomes. Runtime CLI/server/library sources remain unchanged. This
 is isolated fixture readiness, not production placement or cold-copy proof.
 Fresh exact integration CI and independent challenge remain required.
+
+## Managed controls checkpoint — 2026-09-29 01:44 EDT
+
+Claude Message40 found six adapter limitations. Private tools-v40 passes13
+actual Mac controls with1 explicitly unavailable cross-domain test; tools-v39
+passes the complete owned recovery fixture and four single-predicate negatives.
+A real two-of-three metadata cohort fails peer, cluster-size and route checks.
+All owned servers exit normally; no production stop/cold copy was attempted.
+Running entry/executable/plist files, text inode/start time and declared
+environment hashes now bind13 owners in read-only probes. Discord was skipped
+because its known-broken loop had no root PID; the deploy listener is bound
+but remains unready. Actual NATS configs contain inline authorization, not
+the previously assumed auth include; those refused probe attempts are retained.
+Full dependency/build inventory remains open. All loaded units probed reported
+exit timeout5; the adapter reads that value instead of imposing10/15second
+action/verification deadlines. Forced-kill status is captured and refused.
+Idle timer observations without complete independent spawn evidence refuse
+full verification. Prior17680fa CI36525847542 is green3/3; this new source
+requires fresh CI/review. See MANAGED_CONTROL_REVIEW.json and D15.1.2 stays active.

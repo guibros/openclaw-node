@@ -1,6 +1,8 @@
 import ctypes
+import hashlib
 import os
 import pathlib
+import plistlib
 import re
 import select
 import struct
@@ -11,6 +13,7 @@ from preservation_checks import require, verify_completion, verify_timer_idle
 
 
 EXIT_FLAGS = 0x84000000
+CHANGE_FLAGS = 0x60000000
 
 
 def command(argv, timeout=10):
@@ -27,7 +30,7 @@ def process_exists(pid):
         return False
 
 
-def process_argv(pid):
+def process_arguments(pid):
     library = ctypes.CDLL('/usr/lib/libSystem.B.dylib', use_errno=True)
     mib = (ctypes.c_int * 3)(1, 49, pid)
     size = ctypes.c_size_t()
@@ -39,7 +42,75 @@ def process_argv(pid):
     offset = data.index(b'\0', 4) + 1
     while offset < len(data) and data[offset] == 0:
         offset += 1
-    return [value.decode() for value in data[offset:].split(b'\0')[:argc]]
+    argv = []
+    for _ in range(argc):
+        end = data.index(b'\0', offset)
+        argv.append(data[offset:end].decode())
+        offset = end + 1
+    environment = {}
+    for item in data[offset:].split(b'\0'):
+        if b'=' in item:
+            name, value = item.split(b'=', 1)
+            environment[name.decode()] = hashlib.sha256(value).hexdigest()
+    return argv, environment
+
+
+def process_argv(pid):
+    return process_arguments(pid)[0]
+
+
+class BSDInfo(ctypes.Structure):
+    _fields_ = [('values', ctypes.c_uint32 * 12), ('comm', ctypes.c_char * 16),
+                ('name', ctypes.c_char * 32), ('fields', ctypes.c_uint32 * 6),
+                ('start_seconds', ctypes.c_uint64), ('start_microseconds', ctypes.c_uint64)]
+
+
+def process_info(pid):
+    library = ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True)
+    info = BSDInfo()
+    require(library.proc_pidinfo(pid, 3, 0, ctypes.byref(info), ctypes.sizeof(info)) == ctypes.sizeof(info),
+            'process start identity unavailable')
+    return {'pid': info.values[3], 'state': info.values[1],
+            'start_ns': info.start_seconds * 1000000000 + info.start_microseconds * 1000}
+
+
+def running_identity(pid, executable, files, declared_environment):
+    started = process_info(pid)
+    require(started['state'] != 5, 'service owner is a zombie')
+    argv, environment = process_arguments(pid)
+    expected = {key: hashlib.sha256(value.encode()).hexdigest()
+                for key, value in declared_environment.items()}
+    require(all(environment.get(key) == digest for key, digest in expected.items()),
+            'running environment differs from approved declaration')
+    pins = {}
+    for path, expected_hash in files.items():
+        info = pathlib.Path(path).stat()
+        require(info.st_ctime_ns <= started['start_ns'], 'identity file changed after process startup')
+        digest = hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+        require(digest == expected_hash, 'identity file differs from approved bytes')
+        pins[path] = {'sha256': digest, 'device': info.st_dev, 'inode': info.st_ino,
+                      'ctime_ns': info.st_ctime_ns}
+    text = command(['/usr/sbin/lsof', '-a', '-p', str(pid), '-d', 'txt', '-FDin'])
+    entries, current = [], {}
+    for line in text.splitlines():
+        if line.startswith('f'):
+            current = {}
+            entries.append(current)
+        elif line.startswith('D'):
+            current['device'] = int(line[1:], 16)
+        elif line.startswith('i'):
+            current['inode'] = int(line[1:])
+        elif line.startswith('n'):
+            current['name'] = line[1:]
+    binary = pins[executable]
+    require(any(row.get('name') == executable and row.get('device') == binary['device']
+                and row.get('inode') == binary['inode'] for row in entries),
+            'running executable text inode differs from approved file')
+    current = process_info(pid)
+    require(current['pid'] == started['pid'] and current['start_ns'] == started['start_ns']
+            and current['state'] != 5, 'process generation changed during identity inspection')
+    return {'process': {key: started[key] for key in ('pid', 'start_ns')},
+            'files': pins, 'environment_sha256': expected, 'argv': argv}
 
 
 def process_executable(pid):
@@ -56,18 +127,20 @@ def process_cwd(pid):
     return str(pathlib.Path(names[0]).resolve(strict=True))
 
 
-def process_tree(owner):
+def process_tree(owner, group=None):
     rows = {}
     for line in command(['/bin/ps', '-axo', 'pid=,ppid=,pgid=']).splitlines():
-        pid, parent, group = map(int, line.split())
-        rows[pid] = {'parent': parent, 'group': group}
-    require(owner in rows, 'service owner disappeared')
-    descendants = {owner}
+        pid, parent, process_group = map(int, line.split())
+        rows[pid] = {'parent': parent, 'group': process_group}
+    require(owner in rows or group is not None, 'service owner disappeared')
+    group = rows[owner]['group'] if group is None else group
+    descendants = {owner} if owner in rows else set()
     while True:
         found = {pid for pid, row in rows.items() if row['parent'] in descendants}
         if found <= descendants:
             break
         descendants |= found
+    descendants |= {pid for pid, row in rows.items() if row['group'] == group}
     return {pid: rows[pid] for pid in descendants}
 
 
@@ -100,22 +173,24 @@ class Launchd:
         self.target = 'gui/' + str(os.getuid()) + '/' + label
         self.plist = pathlib.Path(plist)
 
-    def status(self):
-        result = subprocess.run(['/bin/launchctl', 'print', self.target], capture_output=True, text=True)
+    def status(self, domain='gui'):
+        target = domain + '/' + str(os.getuid()) + '/' + self.label
+        result = subprocess.run(['/bin/launchctl', 'print', target], capture_output=True, text=True)
         if result.returncode:
             require(result.returncode == 113 and 'Could not find service' in result.stderr,
                     'managed unit inspection failed')
             return {'loaded': False, 'running': False, 'pid': None}
         result = result.stdout
         values = {'loaded': True, 'running': False, 'pid': None}
-        for key, field in (('pid', 'pid'), ('runs', 'runs'), ('last exit code', 'last_exit_code')):
+        for key, field in (('pid', 'pid'), ('runs', 'runs'), ('last exit code', 'last_exit_code'),
+                           ('exit timeout', 'exit_timeout')):
             match = re.search(r'^\s*' + re.escape(key) + r' = (\d+)$', result, re.M)
             if match:
                 values[field] = int(match[1])
         values['running'] = values['pid'] is not None
         return values
 
-    def bind(self, expected_argv, executable, cwd):
+    def bind(self, expected_argv, executable, cwd, identity_files=None):
         before = self.status()
         require(before['loaded'] and before['running'], 'service is not running')
         pid = before['pid']
@@ -123,13 +198,26 @@ class Launchd:
         require(process_executable(pid) == str(pathlib.Path(executable).resolve(strict=True)),
                 'running executable differs from approved binary')
         require(process_cwd(pid) == str(pathlib.Path(cwd).resolve(strict=True)), 'running cwd differs')
+        plist = plistlib.loads(self.plist.read_bytes())
+        loaded = command(['/bin/launchctl', 'print', self.target])
+        arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', loaded, re.M | re.S)
+        require(arguments is not None and [line.strip() for line in arguments[1].splitlines()]
+                == plist['ProgramArguments'], 'loaded arguments differ from approved plist')
+        executable = str(pathlib.Path(executable).resolve(strict=True))
+        paths = {self.plist.resolve(strict=True), pathlib.Path(executable)}
+        paths.update(pathlib.Path(arg).resolve(strict=True) for arg in expected_argv
+                     if arg and pathlib.Path(arg).is_absolute() and pathlib.Path(arg).is_file())
+        files = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+        files.update(identity_files or {})
+        identity = running_identity(pid, executable, files, plist.get('EnvironmentVariables', {}))
         tree = process_tree(pid)
         require(self.status() == before, 'service generation changed during binding')
         return {'status': before, 'tree': tree, 'argv': expected_argv,
-                'executable': process_executable(pid), 'cwd': process_cwd(pid)}
+                'executable': executable, 'cwd': process_cwd(pid), 'identity': identity}
 
     def bootstrap(self):
         require(not self.status()['loaded'], 'refusing to bootstrap an existing owner')
+        require(not self.status('user')['loaded'], 'refusing to bootstrap an owner in another domain')
         command(['/bin/launchctl', 'bootstrap', 'gui/' + str(os.getuid()), str(self.plist)])
 
     def kickstart(self):
@@ -139,20 +227,32 @@ class Launchd:
 
 class StopWatch:
     def __init__(self, service, binding, paths, completion_service, allowed_signals=(),
-                 startup_segment=None, bus_client_names=None):
+                 startup_segment=None, bus_client_names=None, process_contracts=None):
         self.service = service
         self.binding = binding
         self.offsets = log_offsets(paths)
         self.completion_service = completion_service
-        self.allowed_signals = set(allowed_signals)
+        owner = binding['status']['pid']
+        self.contracts = process_contracts or {
+            pid: {'role': 'owner' if pid == owner else 'descendant-or-group-member',
+                  'allowed_signals': list(allowed_signals) if pid == owner else []}
+            for pid in binding['tree']}
+        require(set(self.contracts) == set(binding['tree']), 'process termination contracts are incomplete')
+        require(all(set(item) == {'role', 'allowed_signals'} and isinstance(item['role'], str)
+                    and 9 not in item['allowed_signals'] for item in self.contracts.values()),
+                'invalid process termination contract')
         self.startup_segment = startup_segment
         self.bus_client_names = bus_client_names
         self.events = {}
+        self.lifecycle = []
+        self.bootout = None
+        self.group = binding['tree'][owner]['group']
+        require(isinstance(binding['status'].get('exit_timeout'), int), 'loaded exit timeout unavailable')
         self.queue = select.kqueue()
         try:
             events = [select.kevent(pid, filter=select.KQ_FILTER_PROC,
-                       flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_ONESHOT,
-                       fflags=EXIT_FLAGS) for pid in binding['tree']]
+                       flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_CLEAR,
+                       fflags=EXIT_FLAGS | CHANGE_FLAGS) for pid in binding['tree']]
             returned = self.queue.control(events, len(events), 0)
             require(not returned, 'owner exited before durable stop intent')
             require(service.status() == binding['status'], 'service generation changed before stop')
@@ -160,28 +260,84 @@ class StopWatch:
             self.queue.close()
             raise
 
-    def apply(self):
-        require(self.service.status() == self.binding['status'], 'service generation changed before signal')
-        require(process_tree(self.binding['status']['pid']) == self.binding['tree'],
-                'process descendants changed before signal')
-        command(['/bin/launchctl', 'bootout', self.service.target])
+    def drain(self, timeout=0):
+        owner = self.binding['status']['pid']
+        returned = self.queue.control(None, max(1, len(self.binding['tree'])), timeout)
+        owner_exits = any(item.ident == owner and item.fflags & 0x80000000 for item in returned)
+        for event in returned:
+            require(event.ident in self.binding['tree'], 'unknown process lifecycle event')
+            item = {'pid': event.ident, 'flags': event.fflags,
+                    'observed_order': len(self.lifecycle), 'observed_monotonic_ns': time.monotonic_ns()}
+            self.lifecycle.append(item)
+            if event.fflags & 0x80000000:
+                require(event.ident not in self.events, 'repeated process exit')
+                require(event.fflags & EXIT_FLAGS == EXIT_FLAGS, 'exit status was not returned')
+                owner_alive = False
+                if event.ident != owner and not owner_exits and owner not in self.events:
+                    try:
+                        info = process_info(owner)
+                        owner_alive = info['state'] != 5 and all(info[key] == value
+                                      for key, value in self.binding['identity']['process'].items())
+                    except Exception:
+                        owner_alive = False
+                self.events[event.ident] = {**item, 'wait_status': event.data,
+                                           'owner_alive_at_observation': owner_alive}
 
-    def verify(self, connection_check, listener_check, deadline=15):
+    def unchanged_lifecycle(self):
+        require(not any(item['flags'] & CHANGE_FLAGS for item in self.lifecycle),
+                'process fork or exec prevents complete stop evidence')
+
+    def normal_exit(self, pid):
+        event = self.events[pid]
+        status = event['wait_status']
+        require((os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0)
+                or (os.WIFSIGNALED(status) and os.WTERMSIG(status) in self.contracts[pid]['allowed_signals']),
+                'process termination violates declared normal-exit contract')
+        if pid != self.binding['status']['pid']:
+            require(event['owner_alive_at_observation'], 'group member exit was not observed before live owner')
+
+    def apply(self):
+        self.drain()
+        self.unchanged_lifecycle()
+        require(self.service.status() == self.binding['status'], 'service generation changed before signal')
+        for pid in self.events:
+            self.normal_exit(pid)
+        current = self.service.bind(self.binding['argv'], self.binding['executable'], self.binding['cwd'],
+                                    {path: pin['sha256'] for path, pin in self.binding['identity']['files'].items()})
+        require(current['identity'] == self.binding['identity'], 'running code or environment identity changed')
+        require(set(current['tree']) == set(self.binding['tree']) - set(self.events),
+                'process descendants or group changed before signal')
+        self.drain()
+        self.unchanged_lifecycle()
+        started = time.monotonic()
+        result = subprocess.Popen(['/bin/launchctl', 'bootout', self.service.target],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        end = started + self.binding['status']['exit_timeout'] + 5
+        while result.poll() is None and time.monotonic() < end:
+            self.drain(.02)
+        timed_out = result.poll() is None
+        if timed_out:
+            result.terminate()
+        stdout, stderr = result.communicate(timeout=5)
+        self.bootout = {'returncode': result.returncode, 'timed_out': timed_out,
+                        'stdout': stdout, 'stderr': stderr,
+                        'elapsed_seconds': time.monotonic() - started}
+
+    def verify(self, connection_check, listener_check, deadline=None):
+        deadline = self.binding['status']['exit_timeout'] + 5 if deadline is None else deadline
         end = time.monotonic() + deadline
         while len(self.events) < len(self.binding['tree']) and time.monotonic() < end:
-            for event in self.queue.control(None, len(self.binding['tree']), max(0, min(.1, end - time.monotonic()))):
-                require(event.ident in self.binding['tree'] and event.ident not in self.events,
-                        'unexpected or repeated process exit')
-                require(event.fflags & EXIT_FLAGS == EXIT_FLAGS, 'exit status was not returned')
-                self.events[event.ident] = {'flags': event.fflags, 'wait_status': event.data}
+            self.drain(max(0, min(.02, end - time.monotonic())))
+        self.drain()
         require(set(self.events) == set(self.binding['tree']), 'service or descendant exit was not observed')
         require(not self.service.status()['loaded'], 'managed service remains loaded')
+        require(self.bootout is not None and not self.bootout['timed_out'] and self.bootout['returncode'] == 0,
+                'bootout did not complete successfully; exit evidence retained')
+        self.unchanged_lifecycle()
         for pid, event in self.events.items():
             require(not process_exists(pid), 'service or descendant survives')
-            status = event['wait_status']
-            require((os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0)
-                    or (os.WIFSIGNALED(status) and os.WTERMSIG(status) in self.allowed_signals),
-                    'process termination violates declared normal-exit contract')
+            self.normal_exit(pid)
+        require(not process_tree(self.binding['status']['pid'], self.group), 'former process group survives')
         require(connection_check() is True, 'former bus connection is not normally closed')
         require(listener_check() is True, 'former process listener survives')
         owner_status = self.events[self.binding['status']['pid']]['wait_status']
@@ -192,6 +348,7 @@ class StopWatch:
                           bus_client_names=self.bus_client_names)
         return {'verified': True, 'owner': self.binding['status']['pid'],
                 'exit_flags_requested': EXIT_FLAGS, 'exits': self.events,
+                'lifecycle': self.lifecycle, 'bootout': self.bootout, 'process_contracts': self.contracts,
                 'unit_unloaded': True, 'descendants_absent': True,
                 'connections_closed': True, 'listeners_absent': True,
                 'log_offsets': self.offsets, 'termination': termination}
@@ -206,7 +363,7 @@ class StopWatch:
         self.close()
 
 
-def unload_idle_timer(service, paths):
+def unload_idle_timer(service, paths, spawn_evidence=None):
     before = service.status()
     require(before['loaded'] and not before['running'], 'timer is not idle')
     offsets = log_offsets(paths)
@@ -218,5 +375,10 @@ def unload_idle_timer(service, paths):
     def verify():
         after = service.status()
         verify_timer_idle(before, after['loaded'], offsets, log_offsets(paths))
-        return {'verified': True, 'prior': before, 'unloaded': True, 'logs_unchanged': True}
+        require(spawn_evidence is not None, 'timer spawn-race evidence is absent; idle observations alone are insufficient')
+        evidence = spawn_evidence()
+        require(evidence['label'] == service.label and evidence['coverage_complete'] is True
+                and evidence['spawns'] == [], 'timer spawned during unload or spawn evidence is incomplete')
+        return {'verified': True, 'prior': before, 'unloaded': True, 'logs_unchanged': True,
+                'spawn_evidence': evidence}
     return apply, verify
