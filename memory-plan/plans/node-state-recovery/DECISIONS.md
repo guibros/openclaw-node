@@ -114,3 +114,19 @@ writer-inventory, timer deadline and cold-copy proof. CI36514681814's main-merge
 worker fixture got503 at its first task-list RPC: daemon readiness-before-flush
 is a separate lifecycle outcome, not a preservation-test failure or permission
 to ignore the red suite.
+
+## D11 — Prepare the complete baseline before directory creation (2026-09-28 23:49 EDT)
+Claude's third round accepted bbbc883's eight fixes and lineage, then reproduced
+crashes during creation that stranded an unindexed root. Write/read-check the
+initializing receipt with the complete baseline before mkdir. Reopen that exact
+root for restoration only, completing its baseline if possible or restoring in
+degraded mode if setup cannot write. No unindexed-directory heuristic or automatic
+retirement is introduced. Ignore only owned regular Finder metadata in the
+journal parent; other unexpected entries refuse clearly. Static identity now
+hashes existing argv files automatically, resolves cwd targets, and defines
+dependencies as resolved entry files with explicitly declared package metadata.
+The sealed-receipt messages name the recovery action. Fifty-three owned tests
+pass both from source and private deployed tools-v30; unchanged admission/election
+tests inherit only identical hashes. Exact new CI and independent review are
+still required. This remains a restoration primitive, with the driver and actual
+healthy cold-copy acceptance open.

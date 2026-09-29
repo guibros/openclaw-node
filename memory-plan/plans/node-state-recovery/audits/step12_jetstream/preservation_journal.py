@@ -75,9 +75,14 @@ def static_identity(plist_path, files=(), dependencies=None):
     argv = plist['ProgramArguments']
     dependencies = {name: str(pathlib.Path(path).resolve(strict=True))
                     for name, path in (dependencies or {}).items()}
+    require(all(pathlib.Path(path).is_file() for path in dependencies.values()),
+            'dependencies must be resolved entry files; include package.json in files')
+    cwd = pathlib.Path(plist.get('WorkingDirectory', '/'))
+    arguments = [pathlib.Path(arg) if pathlib.Path(arg).is_absolute() else cwd / arg for arg in argv]
     paths = {pathlib.Path(path).resolve(strict=True) for path in (argv[0], *files, *dependencies.values())}
+    paths.update(path.resolve(strict=True) for path in arguments if path.is_file())
     return {'plist_sha256': hashlib.sha256(raw).hexdigest(), 'argv': argv,
-            'working_directory': plist.get('WorkingDirectory', '/'),
+            'working_directory': str(cwd.resolve(strict=True)),
             'files': {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths},
             'dependencies': dependencies}
 
@@ -161,7 +166,7 @@ class Journal:
                             'node receipt root escaped the persistent parent')
                     self.active = active
             except (ValueError, KeyError, TypeError, Refused, OSError):
-                require(not created, 'node receipt is corrupt; restore the existing journal only')
+                require(not created, 'node receipt is corrupt; reopen the current journal to rebuild it, then create a new window')
                 info = self.node_state.lstat()
                 require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
                         and stat.S_IMODE(info.st_mode) == 0o600, 'corrupt receipt is not owner-private')
@@ -173,11 +178,24 @@ class Journal:
                     self.write_failed = True
                     self.receipt_writable = False
             if self.active is None:
-                require(not created or not any(self.journals.iterdir()),
+                require(not created or not self._roots(),
                         'node receipt is missing; existing journals need restoration')
                 if not created:
                     require(self._lineage_tip() == self.root.resolve(),
                             'only the current journal may rebuild a lost receipt')
+            if (self.active is not None and self.active.get('phase') == 'initializing'
+                    and self.active['journal_root'] == str(self.root.resolve())):
+                require(prior is None, 'interrupted creation must reopen for restoration only')
+                try:
+                    self._finish_initialization()
+                except OSError:
+                    self.write_failed = True
+                    self.reopened = True
+                    self.records = [self.active['baseline']]
+                    self.prior = json.loads(encoded(self.records[0]['prior']))
+                    return
+                created = False
+                self.reopened = True
             if self.active is not None:
                 require(not created or self.active['status'] == 'restored', 'prior node recovery is unresolved')
                 require(created or self.active['journal_root'] == str(self.root.resolve()),
@@ -186,7 +204,7 @@ class Journal:
                 if records is not None:
                     self._receipt_head(records)
                     require(records[-1]['event'] in TERMINAL, 'prior journal needs explicit finalization')
-                    for other in self.journals.iterdir():
+                    for other in self._roots():
                         if str(other.resolve()) != self.active['journal_root']:
                             rows = self._read(other)
                             require(rows and rows[-1]['event'] in TERMINAL,
@@ -216,6 +234,13 @@ class Journal:
         if created:
             require(prior is not None, 'new journal requires the complete prior state')
             valid_prior(prior)
+            predecessor = ({'root': self.active['journal_root'], 'head': self.active['head']}
+                           if self.active is not None else None)
+            self.records = []
+            initial = self._record('baseline', prior=prior, predecessor=predecessor)
+            self._state({'journal_root': str(self.root.resolve()), 'baseline': initial,
+                         'status': 'unresolved', 'phase': 'initializing',
+                         'holder': {'pid': os.getpid(), 'boot': self.boot}})
             self.root.mkdir(mode=0o700)
             sync_dir(self.root.parent)
         info = self.root.lstat()
@@ -230,12 +255,10 @@ class Journal:
             self.records = [self.active['baseline']]
             self.write_failed = True
         if created:
-            predecessor = ({'root': self.active['journal_root'], 'head': self.active['head']}
-                           if self.active is not None else None)
-            self.append('baseline', prior=prior, predecessor=predecessor)
+            write_private(self.root / '000000.json', initial)
+            self.records = [initial]
             require(read_private(self.root / '000000.json') == self.records[0], 'baseline readback differs')
-            self._state({'journal_root': str(self.root.resolve()), 'baseline': self.records[0],
-                         'status': 'unresolved', 'holder': {'pid': os.getpid(), 'boot': self.boot}})
+            self._state({**self.active, 'phase': 'initialized'})
         else:
             require(prior is None, 'cannot replace a journal baseline')
             require(self.records and self.records[0]['event'] == 'baseline', 'journal baseline is absent')
@@ -253,7 +276,7 @@ class Journal:
             require(self.active['baseline'] == self.records[0], 'baseline copy differs')
             if self.records[-1]['event'] in TERMINAL:
                 self._receipt_head(self.records)
-                raise Refused('sealed or resolved journal cannot be reopened for writing')
+                raise Refused('sealed or resolved journal receipt repaired; create a new window, no writing to this chain')
         self.prior = json.loads(encoded(self.records[0]['prior']))
 
     def _state(self, value):
@@ -272,7 +295,7 @@ class Journal:
         require(last['sha256'] == self.active.get('head'), 'prior node restoration head differs')
 
     def _lineage_tip(self):
-        histories = {root.resolve(): self._read(root) for root in self.journals.iterdir()}
+        histories = {root.resolve(): self._read(root) for root in self._roots()}
         referenced = set()
         for root, records in histories.items():
             require(records and records[0]['event'] == 'baseline', 'ambiguous journal baseline is absent')
@@ -288,6 +311,36 @@ class Journal:
         require(all(root == tip or records[-1]['event'] in TERMINAL for root, records in histories.items()),
                 'ambiguous unfinished journals require manual resolution')
         return tip
+
+    def _roots(self):
+        roots = []
+        for path in self.journals.iterdir():
+            info = path.lstat()
+            if path.name == '.DS_Store':
+                require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid(), 'unexpected Finder metadata owner or link')
+                continue
+            require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', path.name)
+                    and stat.S_ISDIR(info.st_mode), 'unexpected entry in the journal parent')
+            roots.append(path)
+        return roots
+
+    def _finish_initialization(self):
+        self.root.mkdir(mode=0o700, exist_ok=True)
+        info = self.root.lstat()
+        require(stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700
+                and info.st_uid == os.getuid(), 'journal directory is not owner-private')
+        with self._lock(self.root / '.lock'):
+            require(all(path.name == '.lock' or path.name.startswith('.pending-')
+                        or re.fullmatch(r'\d{6}\.json', path.name) for path in self.root.iterdir()),
+                    'initializing journal contains unknown files')
+            records = self._read()
+            require(not records or records == [self.active['baseline']],
+                    'initializing journal contains post-baseline operations')
+            if not records:
+                write_private(self.root / '000000.json', self.active['baseline'])
+            require(read_private(self.root / '000000.json') == self.active['baseline'], 'baseline readback differs')
+            sync_dir(self.root.parent)
+            self._state({**self.active, 'phase': 'initialized'})
 
     def _read(self, root=None):
         records = []
@@ -312,17 +365,21 @@ class Journal:
             previous = digest
         return records
 
-    def append(self, event, **data):
-        require(self.lock is not None, 'journal is closed')
-        require(not self.sealed, 'sealed journal cannot be changed')
-        require(not self.write_failed, 'failed durable write requires reopening the journal')
+    def _record(self, event, **data):
         require(not set(data) & {'sequence', 'previous', 'sha256', 'event', 'boot', 'at'},
                 'journal metadata cannot be replaced')
         record = {'sequence': len(self.records), 'previous': self.records[-1]['sha256'] if self.records else None,
                   'event': event, 'boot': self.boot,
                   'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), **data}
-        self.write_failed = True
         record['sha256'] = hashlib.sha256(encoded(record)).hexdigest()
+        return record
+
+    def append(self, event, **data):
+        require(self.lock is not None, 'journal is closed')
+        require(not self.sealed, 'sealed journal cannot be changed')
+        require(not self.write_failed, 'failed durable write requires reopening the journal')
+        self.write_failed = True
+        record = self._record(event, **data)
         pending = self.root / ('.pending-' + uuid.uuid4().hex)
         fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'wb') as handle:
@@ -369,7 +426,8 @@ class Journal:
             raise
 
     def recover(self, restore, observe, final_check, diagnostics=None):
-        require(self.lock is not None and self.node_lock is not None, 'recovery requires the node lock')
+        require(self.node_lock is not None and (self.lock is not None or self.write_failed),
+                'recovery requires the node lock')
         require(not self.sealed, 'sealed journal cannot restore services')
         require(callable(final_check), 'recovery requires final physical ownership checks')
         errors = []

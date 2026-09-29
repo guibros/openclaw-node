@@ -458,3 +458,27 @@ and a separate lifecycle readiness outcome are required; a green rerun would
 not repair this race. PR144 comment5882998808 records that boundary. This
 checkpoint keeps VERSIONv1.2-pre and1.2[A]; no claim of a green latest full suite,
 complete cold masters, coordinated recovery, or full project readiness.
+
+## Creation-interruption checkpoint — 2026-09-28 23:49 EDT
+
+Claude Message28 verified all eight second-round fixes and multi-window lineage
+on bbbc883; exact CI36516935187 passed Node20/22 and Mission Control. These
+finite green observations do not repair the separately reproduced startup race.
+
+The next patch durably writes and reads the initializing baseline receipt before
+mkdir. Owned interruption tests stop after that receipt, after mkdir and after
+the primary baseline; reopening completes setup for restoration only, restores
+the prior state, resolves and permits a new window. An ENOSPC setup repair still
+restores from the prepared secondary under the global lock with no durable
+success. Finder's regular owned .DS_Store is ignored; other unknown entries
+refuse explicitly. Existing argv script/config files and the resolved cwd now
+automatically bind static identity. Directory dependency arguments refuse
+cleanly; the driver supplies resolved entry files plus package metadata.
+
+Source53 journal tests pass in20.591s after binding each creation interruption to an earlier sealed predecessor. Exact private deployed tools-v30 passes53
+in20.467s. Its15 admission tests and1 real account-election control inherit
+tools-v27's fresh runs only after all three relevant source hashes match v28
+and v29. The checkpoint changes no production service. Exact new CI/Claude
+review, real child/CID controls, driver and healthy cold masters remain pending.
+
+Fresh physical checkpoint23:47:53 EDT: all537 selected task rows still match the post-crash worker baseline; eight checked owners retain the same PIDs/runs1; member1 remains disabled/unloaded. Primary e57 and its untracked files remain unchanged. Initial attempt to save this read-only checkpoint used the wrong audit parent and raised FileNotFoundError before evidence publication; the corrected private report retains the actual probe timestamp.

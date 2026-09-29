@@ -163,6 +163,16 @@ recorded node after rebuilding/read-checking the receipt; corrupt bytes are
 retained. Hash-linked predecessor records identify the unique current root, including after finalization; a sealed tip repairs only its receipt and remains closed. Multiple unfinished roots are ambiguous and refuse. Neither valid
 baseline means no automatic state inference.
 
+Creation durably prepares and reads back the complete baseline in the node
+receipt before creating its journal directory. The receipt's initializing
+phase identifies that root even if creation stopped before mkdir or before
+the primary baseline record. Reopening that exact root completes setup for
+restoration only; it never resumes the interrupted copy window. A setup write
+failure permits degraded restoration from the prepared baseline under the
+global node lock, without durable success or acceptance. A different root
+remains fenced. Finder's owned regular .DS_Store is ignored in the journals
+parent; unexpected entries and metadata links refuse explicitly.
+
 The baseline must contain exactly RESUME_ORDER plus nats-1. Each uninstalled
 unit has explicit class absent, false loaded/running/disabled and identity
 {installed:false}; it is observed, never installed or mutated. An installed
@@ -172,8 +182,12 @@ unconstrained. Classes come from approved desired state, never from observing
 a stopped daemon. Actual installed-unit completeness and extra writers still
 require driver inspection; the fixed names alone do not prove that inventory.
 
-`static_identity` hashes the plist bytes, binary, declared entry/config/files
-and actual dependency targets, and reads ProgramArguments/WorkingDirectory
+`static_identity` hashes the plist bytes, binary, every argv element resolving
+to an existing file, declared additional files and actual dependency targets.
+Relative argv files resolve against the plist's working directory; that
+directory is resolved too, so replacing its symlink target changes identity.
+Dependencies are resolved entry-file paths, not package directories. The driver
+includes their package.json files as additional files. The helper reads ProgramArguments/WorkingDirectory
 from that plist. It needs no loaded job or PID. Its schema is enforced for
 installed baseline units. Identical byte rewrites preserve identity; changed
 content or dependency targets do not. The driver must enumerate all required

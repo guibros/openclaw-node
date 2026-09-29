@@ -579,7 +579,7 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
         with patch('preservation_journal.read_private', side_effect=read):
             with self.assertRaisesRegex(Refused, 'readback differs'):
                 self.journal(PRIOR)
-        self.assertEqual(len(list(self.root.glob('[0-9]*.json'))), 1)
+        self.assertFalse(self.root.exists())
 
     def test_receipt_write_failure_has_no_false_restored_claim_in_the_chain(self):
         from preservation_journal import read_private, write_private
@@ -694,6 +694,107 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
         with self.journal(PRIOR, root=self.parent / 'next'):
             pass
         self.assertEqual(max(self.root.glob('[0-9]*.json')).read_bytes(), head)
+
+    def test_creation_interruptions_before_mkdir_and_after_baseline_are_restore_only(self):
+        from preservation_journal import write_private
+        for index, boundary in enumerate(('receipt', 'mkdir', 'baseline')):
+            parent = pathlib.Path(self.temp.name) / ('creation-' + str(index))
+            parent.mkdir(mode=0o700)
+            root, lock = parent / 'journals/window', parent / 'node.lock'
+            with Journal(parent / 'journals/previous', PRIOR, boot='a', node_lock=lock) as previous:
+                previous.recover(lambda *_: self.fail('previous ready owner restarted'),
+                    lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})
+                previous.seal()
+            real_mkdir = pathlib.Path.mkdir
+            def mkdir(path, *args, **kwargs):
+                value = real_mkdir(path, *args, **kwargs)
+                if path == root and boundary == 'mkdir':
+                    raise OSError(errno.EIO, 'interrupted after mkdir')
+                return value
+            def write(path, value):
+                write_private(path, value)
+                if ((boundary == 'receipt' and value.get('phase') == 'initializing')
+                        or (boundary == 'baseline' and path.name == '000000.json')):
+                    raise OSError(errno.EIO, 'interrupted after durable setup write')
+            with patch('preservation_journal.write_private', side_effect=write), \
+                 patch('preservation_journal.pathlib.Path.mkdir', autospec=True, side_effect=mkdir):
+                with self.assertRaises(OSError):
+                    Journal(root, PRIOR, boot='a', node_lock=lock)
+            with Journal(root, boot='b', node_lock=lock) as journal:
+                with self.assertRaisesRegex(Refused, 'reboot|reopened'):
+                    journal.require_forward()
+                result = journal.recover(lambda *_: self.fail('unchanged setup owner restarted'),
+                    lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})
+                self.assertTrue(result['restored'])
+                journal.resolve()
+            with Journal(parent / 'journals/next', PRIOR, boot='b', node_lock=lock):
+                pass
+
+    def test_setup_repair_full_disk_restores_from_the_prepared_receipt(self):
+        from preservation_journal import write_private
+        def write(path, value):
+            write_private(path, value)
+            if value.get('phase') == 'initializing':
+                raise OSError(errno.EIO, 'crash before mkdir')
+        with patch('preservation_journal.write_private', side_effect=write):
+            with self.assertRaises(OSError):
+                self.journal(PRIOR)
+        current = copy.deepcopy(PRIOR)
+        current['mesh-agent'].update(loaded=False, running=False)
+        with patch('preservation_journal.write_private', side_effect=OSError(errno.ENOSPC, 'setup disk full')):
+            with self.journal() as journal:
+                result = journal.recover(lambda unit, wanted: current[unit].update(wanted),
+                    lambda unit, wanted: {**current[unit], 'verified': True}, lambda: {'verified': True}, lambda _: None)
+                self.assertTrue(result['services_verified'])
+                self.assertFalse(result['evidence_durable'])
+                self.assertFalse(result['restored'])
+
+    def test_finder_metadata_is_ignored_but_unknown_entries_refuse_cleanly(self):
+        (self.parent / '.DS_Store').write_bytes(b'owned Finder metadata')
+        with self.journal(PRIOR) as journal:
+            journal.recover(lambda *_: self.fail('ready owner restarted'),
+                lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})
+            journal.seal()
+        with self.journal(PRIOR, root=self.parent / 'second') as journal:
+            journal.recover(lambda *_: self.fail('ready owner restarted'),
+                lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})
+            journal.resolve()
+        (self.parent / 'unknown-file').write_bytes(b'unknown')
+        with self.assertRaisesRegex(Refused, 'unexpected entry'):
+            self.journal(PRIOR, root=self.parent / 'third')
+
+    def test_static_identity_hashes_entry_and_config_arguments_without_extra_files(self):
+        import plistlib
+        from preservation_journal import static_identity
+        parent = pathlib.Path(self.temp.name)
+        binary, entry, config = (parent / name for name in ('node', 'entry.js', 'nats.conf'))
+        for path in (binary, entry, config):
+            path.write_bytes(b'owned original')
+        unit = parent / 'owned.plist'
+        unit.write_bytes(plistlib.dumps({'ProgramArguments': [str(binary), 'entry.js', '--config', str(config)],
+                                        'WorkingDirectory': str(parent)}))
+        before = static_identity(unit)
+        entry.write_bytes(b'changed entry')
+        after_entry = static_identity(unit)
+        self.assertNotEqual(after_entry, before)
+        config.write_bytes(b'changed config')
+        self.assertNotEqual(static_identity(unit), after_entry)
+        with self.assertRaisesRegex(Refused, 'resolved entry files'):
+            static_identity(unit, dependencies={'package': parent})
+
+    def test_static_identity_binds_the_resolved_working_directory(self):
+        import plistlib
+        from preservation_journal import static_identity
+        parent = pathlib.Path(self.temp.name)
+        binary = parent / 'node'
+        binary.write_bytes(b'owned binary')
+        first, second, alias = (parent / name for name in ('first-cwd', 'second-cwd', 'cwd'))
+        first.mkdir(); second.mkdir(); alias.symlink_to(first, target_is_directory=True)
+        unit = parent / 'owned.plist'
+        unit.write_bytes(plistlib.dumps({'ProgramArguments': [str(binary)], 'WorkingDirectory': str(alias)}))
+        before = static_identity(unit)
+        alias.unlink(); alias.symlink_to(second, target_is_directory=True)
+        self.assertNotEqual(static_identity(unit), before)
 
     def test_mac_boot_identity_uses_uuid_and_fullsync_flushes_file_and_directory(self):
         from preservation_journal import boot_identity, sync_dir, sync_fd
