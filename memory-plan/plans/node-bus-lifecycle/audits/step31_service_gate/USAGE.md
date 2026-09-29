@@ -51,7 +51,7 @@ all dependencies are ready, requires exact identities and an exclusive drain
 before unlink/fsync. A straggler timeout retains the hold. This is explicit
 restoration, not acceptance of interrupted preservation.
 
-Step3.2 must implement the no-receipt publication/crash gap, mismatched-receipt
+Step3.4 must implement the no-receipt publication/crash gap, mismatched-receipt
 interrupted recovery and broken/missing-marker repair in the sole durable
 controller/journal. In those cases dependencies cannot be stopped on the basis
 of this prototype. The future controller must close/drain a broken open hold,
@@ -71,5 +71,5 @@ current component identities, but continuous watcher certification remains
 unproved there. A gate receipt is not global OS-spawn evidence. Scheduled starts
 that do no application work are deliberately allowed during a hold. Consolidation
 foreground/cancellation paths, the five installed entrypoints and durable
-restoration remain required integration work; the prototype is not a completed
+restoration remain required integration work in3.2/3.4/3.5; the prototype is not a completed
 preservation controller.

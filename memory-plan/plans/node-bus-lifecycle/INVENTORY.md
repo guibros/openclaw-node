@@ -45,21 +45,33 @@
 
 | Block | Step | Version | Status | Description |
 |---|---|---|---|---|
-| 3 | 3.1 | v3.1 | [A] | Establish the durable foreground execution-hold primitive — 2026-09-29 04:09:49 EDT:40 owned Mac controls pass; corrected exact CI/review pending |
-| 3 | 3.2 | v3.2 | [ ] | Finish foreground contracts and integrate the five installed timers, installer/templates and durable journal restoration |
+| 3 | 3.1 | v3.1 | [x] | Establish the durable foreground execution-hold primitive — 2026-09-29: approved source0f0dcc2/CI3of3;40 Mac controls, actual timer drain/159 inert exit0 fires/real reopen and verified cleanup |
+| 3 | 3.2 | v3.2 | [ ] | Complete local consolidation invocations before reporting completion or releasing their foreground guard |
 | 3 | 3.3 | v3.3 | [ ] | Stop the explicitly disabled Discord tool from crash-looping before a new preservation baseline |
+| 3 | 3.4 | v3.4 | [ ] | Restore interrupted execution holds through the sole durable preservation journal |
+| 3 | 3.5 | v3.5 | [ ] | Install the reviewed execution hold on the five actual Mac timers |
 
 > **3.1 — Goal:** a durable closed marker plus foreground lock excludes scheduled application execution after drain, even after controller exit.
 > **Needs:** Python3/fcntl, installed Node/shell/launchd, Claude50/52 contract, D15.
-> **Feeds:**3.2 and recovery1.2.
-> **Verify:** code:40 real owned Mac controls, mandatory external lock/root pins, separate restoration type, permanently refused watch sessions, isolated exact CI; runtime:private deployed source pins, actual inherited-lock positive/negative controls and a scheduled Mac job that starts twice while closed with unchanged application count and no job log bytes. Independent source review. No live installation claim.
+> **Feeds:**3.2/3.4/3.5 and recovery1.2.
+> **Verify:** code:40 real owned Mac controls, mandatory external lock/root pins, separate restoration type, permanently refused watch sessions, isolated exact CI; runtime:private deployed source pins, actual inherited-lock positive/negative controls and a scheduled Mac job that starts twice while closed with unchanged application count and no job log bytes. Independent source review. Additional actual timer proof closes in-flight drain,159 individually normal closed fires during365s and real reopen. No live installation claim.
 
-> **3.2 — Goal:** the actual five scheduled jobs cannot execute application work during the coordinated preservation interval, and verified recovery reopens their prior state.
-> **Needs:**3.1 closed; all call paths inventoried, including the in-process memory scheduler; no detached/unawaited work; consolidation notification and abort/termination paths fully completed; exact source/loaded-entry/metadata identity; explicit persistent hold integration in the sole journal, including no-receipt/mismatched/broken hold interruption and dependency-first restoration.
-> **Feeds:**recovery1.2/1.3 and parent node-readiness1.5/2.2.
-> **Verify:** code:foreground/source/child controls, installer rendering, stale/changed gate negatives, crash/reopen journal controls. runtime:reviewed installed entrypoints preserve existing arguments/env/schedules, closed scheduled runs remain inert, delegated memory work drains separately, restoration reopens only after dependent services are ready with no false done/Ready state.
+> **3.2 — Goal:** a consolidation invocation remains active until its local cycle, event publications and foreground notification have completed.
+> **Needs:**3.1 closed; fresh CLI/in-process call inventory; no early return after cancellation or max-age orphaning; explicit foreground Linux notification contract; owned source/dependency isolation.
+> **Feeds:**3.5 foreground entrypoint contract and recovery1.2's delegated-work idle gate.
+> **Verify:** code: delayed abort cleanup cannot return early; a signal-ignoring cycle cannot overlap a second invocation; delayed/rejected event ACK and actual owned notification child remain inside completion; stop fences new invocations and waits for active work, both real callers await it; isolated CI. runtime: exact private deployed source, actual owned cycle/notification process and controlled stop/guard observation, with no live source or shared dependency change. Remote inference and general memory-daemon drain are separate.
 
 > **3.3 — Goal:** explicit channels.discord.enabled=false ends the optional tool normally before bus connections/writes, without enabling the integration.
 > **Needs:**fresh disabled/no-token config observation, real owned tool controls, conditional KeepAlive contract, explicit inactive baseline state.
 > **Feeds:**recovery1.2's complete inventory and parent1.5/2.2.
 > **Verify:**code:disabled exits0 with no bus/writes; real enabled-path failure restarts; runtime:reviewed exact source/unit policy, one normal disabled run then loaded/not-running stable, no Discord client, original integration remains disabled.
+
+> **3.4 — Goal:** the sole durable preservation journal restores an interrupted hold without certifying the lost interval.
+> **Needs:**3.1 and accepted PR144 journal primitives; baselined external root/lock pins; durable intent/receipt schema; explicit original-session and restoration-only boundaries.
+> **Feeds:**3.5 and recovery1.2/1.3.
+> **Verify:**code/runtime:owned interruption before/after publication, before receipt and after drain; mismatch/missing/broken markers and straggler refusal; broken open holds re-closed/drained and window failed before restoration; before/after same-session brackets around every stop/copy; explicit dependency readiness before reopen; no autonomous pin recapture or false certification. Full production preservation remains recovery1.2.
+
+> **3.5 — Goal:** the five actual Mac scheduled jobs remain application-inert throughout an accepted coordinated interval and reopen to their prior scheduling state.
+> **Needs:**3.2/3.3/3.4; complete actual source/loaded-argument/env/schedule/import-graph and other-invoker inventory; real interpreter-I-S; code/pin protection outside deploy copy/chmod/prune or explicitly coordinated deployment; persistent baseline.
+> **Feeds:**recovery1.2/1.3 and parent node-readiness1.5/2.2.
+> **Verify:**code: installer/templates and gate/code-change negatives; runtime:exact staged/installed entries preserve existing schedules/env/argv, closed scheduled starts do no application/log work, delegated memory drains separately, journaled reopen only after dependency readiness with original baseline restored. No Linux continuous-watch or global OS-spawn claim.

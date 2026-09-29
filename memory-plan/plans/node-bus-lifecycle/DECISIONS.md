@@ -194,3 +194,28 @@ primitive shape; interval-bracketed same-session checks and deploy target
 exclusion/pin recapture remain3.2 requirements. Timeout recovery must record
 its straggler/refusal and retain the hold until owned completion is established;
 it does not create a new certifying window. No production integration yet.
+
+## D17 — Close the owned primitive and atomize integration (2026-09-29 04:38 EDT)
+
+Close only3.1's written private-consumer contract. Exact source0f0dcc2 has
+Claude62 source approval, Claude64 artifact-hash linkage and3/3 exact CI.
+New actual Mac proof drains a genuinely active fire before return, keeps159
+individually normal fires inert for365s and resumes application work on real
+reopen. Kernel process-exit ordering and raw evidence are retained; this is
+Codex's Mac observation, not a remote reviewer's independent runtime run.
+No production gate or dependency stop is authorized by this prototype alone.
+
+Protocol5.3/11 requires splitting the broad3.2 before implementation:
+3.2 owns complete local consolidation invocation lifetime, including event
+publication and non-detached foreground notification;3.3 remains disabled
+Discord;3.4 owns sole-journal interrupted holds;3.5 owns actual Mac timer
+installation.3.4 precedes3.5, and code/deploy pin protection is a3.5 prerequisite.
+Optional `_drained_guard` hardening is recorded for3.4. Linux continuous-watch
+acceptance feeds the agnostic parent installer, not this Mac evidence.
+
+The current scheduler returns at cancellation before its cycle settles, and
+max-age guarding can orphan it. Both event emissions are unawaited, as is the
+notification child; Linux's CLI can also detach a click waiter. Those local
+invocation lifetimes are one3.2 outcome. Remote inference, other invokers and
+general memory-daemon shutdown remain separate unresolved boundaries. The
+primary live tree, shared dependencies and loaded units stay preserved.

@@ -27,9 +27,8 @@
   },
   "logSha256": "ade1bba6283345e7135604526f94d6ae1155c793eb9534a8a27c4efd677fea7b",
   "productionInstalled": false,
-  "stepClosed": false,
+  "stepClosed": true,
   "remaining": [
-    "Corrected exact CI and independent source review",
     "Actual five timer foreground completion and other invoker inventory",
     "Absolute interpreter -I -S, wrapper/import graph and loaded external pins",
     "Sole journal intent/receipt, no-receipt/mismatch interrupted recovery and broken hold repair",
@@ -80,7 +79,11 @@
     "limits": "Only exec lifetime. No descendant inheritance or completed preservation claim."
   },
   "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v5",
-  "currentIntegrationCI": "pending root+lock pinned exact commit",
+  "currentIntegrationCI": {
+    "sha": "0f0dcc26f0ed63cbe3441e7839ee6be470441fa9",
+    "run": 36541071531,
+    "conclusion": "3/3 success"
+  },
   "priorIntegrationCI": {
     "sha": "e788e1c523039f7ee621a29f2214ab4eab6a4489",
     "run": 36540391512,
@@ -149,5 +152,22 @@
     "rootMtimeChanged": true,
     "receiptMismatchRefused": true,
     "productionMutations": 0
+  },
+  "sourceReview": "Claude62 approves the primitive at0f0dcc2;Claude64 independently matches runtime source/test hashes",
+  "runtimeAcceptance": "Actual Mac observation by Codex; independent source linkage and evidence-design review, not a second Mac observation",
+  "ownedTimerContinuation": {
+    "record": "OWNED_TIMER_EVIDENCE.json",
+    "sha256": "243f0fb552266ef4c334beebaa827ee42aff5e9fe5ece0fb5452a50e7da07d87",
+    "realInFlightDrain": true,
+    "realReopen": true,
+    "closedFires": 159,
+    "allClosedFireExits": 0,
+    "minimumHoldSeconds": 365,
+    "nativeChecks": 3202,
+    "independentFileReads": 19269,
+    "toleratedEvents": 0,
+    "refusalEvents": 0,
+    "pathEvents": 0,
+    "ownedCleanupVerified": true
   }
 }

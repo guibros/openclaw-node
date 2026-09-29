@@ -93,3 +93,15 @@ still required.3.1[A]/v3.1-mid;3.2 and production preservation remain open.
 Fresh08:05:29UTC read confirms13 exact live targets all loaded, same PID/runs
 as the earlier accepted snapshot, and primarye57 unchanged. An initial read
 with duplicated target prefixes is separately retained as invalid.
+
+
+Owned primitive closure2026-09-29 04:38 EDT:source0f0dcc2/26e9278 approved by
+Claude62, exact CI36541071531 green3/3;Claude64 hashes source/test identity.
+Actual copied runtime run08:30:00–08:36:07UTC waits for kernel normal exit of
+owned Node68265 before drain return, observes159 individually exit0 closed
+fires over365s/app1/log0/err0,3202 native checks and19269 independent reads
+with zero events, then receipt reopen yields actual app2/exit0. Owned bootout0
+and absence verified.3.1[x]/v3.1;3.2/3.3/3.4/3.5 queued. No production
+installation, preservation, Linux continuous-watch or VM durability claim.
+Fresh resume snapshot08:23UTC confirms13 exact ownerPID/runs unchanged and
+primarye57 preserved; this is continuity, not all-service health.
