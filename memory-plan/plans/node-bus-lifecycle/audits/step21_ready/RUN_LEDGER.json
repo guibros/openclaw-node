@@ -1,0 +1,88 @@
+{
+  "at": "2026-09-29T04:56:00Z",
+  "reviewMessage": 36,
+  "rawRecordManifest": {
+    "file": "RAW_RECORDS.json",
+    "privateRoot": "/Users/moltymac/.openclaw/backups/node-readiness/task-ready-20260928-5"
+  },
+  "runs": [
+    {
+      "run": 1,
+      "privateRoot": "/Users/moltymac/.openclaw/backups/node-readiness/task-ready-20260928-1",
+      "operations": [
+        {
+          "kind": "owned-200-start-benchmark",
+          "record": "real-daemon-race.json"
+        },
+        {
+          "kind": "staging-and-read-only-preflight",
+          "record": "managed-preflight.json"
+        },
+        {
+          "kind": "PATH-pre-stop-refusal",
+          "record": "managed-path-refusal.json"
+        },
+        {
+          "kind": "guard-holder-pre-stop-refusal",
+          "record": "managed-failure.json"
+        }
+      ],
+      "productionMutation": false
+    },
+    {
+      "run": 2,
+      "privateRoot": "/Users/moltymac/.openclaw/backups/node-readiness/task-ready-20260928-2",
+      "operations": [
+        {
+          "kind": "kqueue-pre-stop-refusal",
+          "record": "managed-failure.json"
+        }
+      ],
+      "productionMutation": false
+    },
+    {
+      "run": 3,
+      "privateRoot": "/Users/moltymac/.openclaw/backups/node-readiness/task-ready-20260928-3",
+      "operations": [
+        {
+          "kind": "installation-observer-cleanup-failure",
+          "record": "managed-failure.json"
+        }
+      ],
+      "productionMutation": true,
+      "accepted": false
+    },
+    {
+      "run": 4,
+      "privateRoot": "/Users/moltymac/.openclaw/backups/node-readiness/task-ready-20260928-4",
+      "operations": [
+        {
+          "kind": "owned-probe-cleanup-control",
+          "record": "PROBE_CLEANUP_CONTROL.json"
+        },
+        {
+          "kind": "read-only-installed-runtime-continuation",
+          "record": "READONLY_ACCEPTANCE.json"
+        }
+      ],
+      "productionMutation": false,
+      "accepted": "supporting continuation only"
+    },
+    {
+      "run": 5,
+      "privateRoot": "/Users/moltymac/.openclaw/backups/node-readiness/task-ready-20260928-5",
+      "operations": [
+        {
+          "kind": "complete-same-source-managed-restart",
+          "record": "managed-acceptance.json"
+        }
+      ],
+      "productionMutation": true,
+      "accepted": true
+    }
+  ],
+  "limits": [
+    "Run numbers identify retained directories, not every individual invocation within a directory.",
+    "The gap marker inventory covers mesh.tasks.submit on member4222 only; passive claim/inbox subscriptions remain."
+  ]
+}
