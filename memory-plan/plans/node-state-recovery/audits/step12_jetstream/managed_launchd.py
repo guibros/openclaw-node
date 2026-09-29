@@ -199,10 +199,10 @@ class Launchd:
                 'running executable differs from approved binary')
         require(process_cwd(pid) == str(pathlib.Path(cwd).resolve(strict=True)), 'running cwd differs')
         plist = plistlib.loads(self.plist.read_bytes())
-        loaded = command(['/bin/launchctl', 'print', self.target])
-        arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', loaded, re.M | re.S)
-        require(arguments is not None and [line.strip() for line in arguments[1].splitlines()]
-                == plist['ProgramArguments'], 'loaded arguments differ from approved plist')
+        loaded = self.configuration()
+        require(loaded['path'] == str(self.plist.resolve(strict=True)),
+                'loaded plist provenance differs from approved file')
+        require(loaded['arguments'] == plist['ProgramArguments'], 'loaded arguments differ from approved plist')
         executable = str(pathlib.Path(executable).resolve(strict=True))
         paths = {self.plist.resolve(strict=True), pathlib.Path(executable)}
         paths.update(pathlib.Path(arg).resolve(strict=True) for arg in expected_argv
@@ -213,7 +213,21 @@ class Launchd:
         tree = process_tree(pid)
         require(self.status() == before, 'service generation changed during binding')
         return {'status': before, 'tree': tree, 'argv': expected_argv,
-                'executable': executable, 'cwd': process_cwd(pid), 'identity': identity}
+                'executable': executable, 'cwd': process_cwd(pid), 'identity': identity,
+                'logs': loaded['logs']}
+
+    def configuration(self):
+        text = command(['/bin/launchctl', 'print', self.target])
+        def field(name):
+            match = re.search(r'^\s*' + re.escape(name) + r' = (.+)$', text, re.M)
+            require(match is not None, 'loaded job lacks ' + name)
+            return match[1]
+        arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', text, re.M | re.S)
+        require(arguments is not None, 'loaded job lacks arguments')
+        return {'path': str(pathlib.Path(field('path')).resolve(strict=True)),
+                'arguments': [line.strip() for line in arguments[1].splitlines()],
+                'logs': sorted({str(pathlib.Path(field(name)).resolve(strict=True))
+                                for name in ('stdout path', 'stderr path')})}
 
     def bootstrap(self):
         require(not self.status()['loaded'], 'refusing to bootstrap an existing owner')
@@ -230,6 +244,8 @@ class StopWatch:
                  startup_segment=None, bus_client_names=None, process_contracts=None):
         self.service = service
         self.binding = binding
+        require(sorted({str(pathlib.Path(path).resolve(strict=True)) for path in paths}) == binding['logs'],
+                'stop log paths differ from actual loaded job')
         self.offsets = log_offsets(paths)
         self.completion_service = completion_service
         owner = binding['status']['pid']
@@ -246,8 +262,11 @@ class StopWatch:
         self.events = {}
         self.lifecycle = []
         self.bootout = None
+        self.file_handles = {}
+        self.prepared = False
         self.group = binding['tree'][owner]['group']
-        require(isinstance(binding['status'].get('exit_timeout'), int), 'loaded exit timeout unavailable')
+        require(isinstance(binding['status'].get('exit_timeout'), int) and binding['status']['exit_timeout'] > 0,
+                'loaded finite exit timeout unavailable')
         self.queue = select.kqueue()
         try:
             events = [select.kevent(pid, filter=select.KQ_FILTER_PROC,
@@ -256,15 +275,47 @@ class StopWatch:
             returned = self.queue.control(events, len(events), 0)
             require(not returned, 'owner exited before durable stop intent')
             require(service.status() == binding['status'], 'service generation changed before stop')
+            for path in binding['identity']['files']:
+                fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+                self.file_handles[fd] = path
+            returned = self.queue.control([select.kevent(fd, filter=select.KQ_FILTER_VNODE,
+                flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_CLEAR,
+                fflags=0x7f) for fd in self.file_handles], len(self.file_handles), 0)
+            require(not returned, 'identity file changed while preparing watch')
+            current = self.service.bind(binding['argv'], binding['executable'], binding['cwd'],
+                        {path: pin['sha256'] for path, pin in binding['identity']['files'].items()})
+            require(current['identity'] == binding['identity'] and current['logs'] == binding['logs'],
+                    'running code, environment or log identity changed')
+            self.prepared = True
+            self.ready_for_intent()
         except BaseException:
-            self.queue.close()
+            self.close()
             raise
 
     def drain(self, timeout=0):
         owner = self.binding['status']['pid']
-        returned = self.queue.control(None, max(1, len(self.binding['tree'])), timeout)
-        owner_exits = any(item.ident == owner and item.fflags & 0x80000000 for item in returned)
+        returned = self.queue.control(None, max(1, len(self.binding['tree']) + len(self.file_handles)), timeout)
+        owner_exits = any(item.filter == select.KQ_FILTER_PROC and item.ident == owner
+                          and item.fflags & 0x80000000 for item in returned)
         for event in returned:
+            if event.filter == select.KQ_FILTER_VNODE:
+                require(event.ident in self.file_handles, 'unknown identity-file event')
+                path = self.file_handles[event.ident]
+                if event.fflags == 0x08:
+                    before = self.binding['identity']['files'][path]
+                    try:
+                        current, opened = pathlib.Path(path).stat(), os.fstat(event.ident)
+                        # Reading code can update atime without changing its approved identity.
+                        if all((info.st_dev, info.st_ino, info.st_ctime_ns)
+                               == (before['device'], before['inode'], before['ctime_ns'])
+                               for info in (current, opened)):
+                            continue
+                    except OSError:
+                        pass
+                self.lifecycle.append({'kind': 'identity-file', 'path': self.file_handles[event.ident],
+                    'flags': event.fflags, 'observed_order': len(self.lifecycle),
+                    'observed_monotonic_ns': time.monotonic_ns()})
+                continue
             require(event.ident in self.binding['tree'], 'unknown process lifecycle event')
             item = {'pid': event.ident, 'flags': event.fflags,
                     'observed_order': len(self.lifecycle), 'observed_monotonic_ns': time.monotonic_ns()}
@@ -284,8 +335,21 @@ class StopWatch:
                                            'owner_alive_at_observation': owner_alive}
 
     def unchanged_lifecycle(self):
+        require(not any(item.get('kind') == 'identity-file' for item in self.lifecycle),
+                'identity file mutated after watch preparation')
         require(not any(item['flags'] & CHANGE_FLAGS for item in self.lifecycle),
                 'process fork or exec prevents complete stop evidence')
+
+    def ready_for_intent(self):
+        require(self.prepared, 'stop watch is not prepared')
+        self.drain()
+        self.unchanged_lifecycle()
+        require(self.service.status() == self.binding['status'], 'service generation changed before signal')
+        for pid in self.events:
+            self.normal_exit(pid)
+        require(set(process_tree(self.binding['status']['pid']))
+                == set(self.binding['tree']) - set(self.events),
+                'process descendants or group changed before signal')
 
     def normal_exit(self, pid):
         event = self.events[pid]
@@ -297,16 +361,7 @@ class StopWatch:
             require(event['owner_alive_at_observation'], 'group member exit was not observed before live owner')
 
     def apply(self):
-        self.drain()
-        self.unchanged_lifecycle()
-        require(self.service.status() == self.binding['status'], 'service generation changed before signal')
-        for pid in self.events:
-            self.normal_exit(pid)
-        current = self.service.bind(self.binding['argv'], self.binding['executable'], self.binding['cwd'],
-                                    {path: pin['sha256'] for path, pin in self.binding['identity']['files'].items()})
-        require(current['identity'] == self.binding['identity'], 'running code or environment identity changed')
-        require(set(current['tree']) == set(self.binding['tree']) - set(self.events),
-                'process descendants or group changed before signal')
+        self.ready_for_intent()
         self.drain()
         self.unchanged_lifecycle()
         started = time.monotonic()
@@ -355,6 +410,9 @@ class StopWatch:
 
     def close(self):
         self.queue.close()
+        for fd in self.file_handles:
+            os.close(fd)
+        self.file_handles.clear()
 
     def __enter__(self):
         return self
@@ -366,6 +424,10 @@ class StopWatch:
 def unload_idle_timer(service, paths, spawn_evidence=None):
     before = service.status()
     require(before['loaded'] and not before['running'], 'timer is not idle')
+    loaded = service.configuration()
+    require(loaded['path'] == str(service.plist.resolve(strict=True))
+            and sorted({str(pathlib.Path(path).resolve(strict=True)) for path in paths}) == loaded['logs'],
+            'timer plist or log provenance differs from loaded job')
     offsets = log_offsets(paths)
     require(service.status() == before, 'timer started before durable stop intent')
     def apply():

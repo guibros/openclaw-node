@@ -1,0 +1,74 @@
+{
+  "at": "2026-09-29T06:09:17.731513+00:00",
+  "predecessorHead": "8286c9687cd193e67d9beaf5cae7a12784d4c259",
+  "predecessorCI": {
+    "run": 36527770223,
+    "status": "green3/3"
+  },
+  "predecessorReview": "Claude Message44 accepts the six earlier controls and independently passes recovery twice; identifies future driver prerequisites and loaded-job provenance.",
+  "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v44",
+  "privateOwnedRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v44/openclaw-owned-launchd-40w5agr1",
+  "sourcePins": {
+    "managed_launchd.py": "6f8bd861044a003e040e947981be6c103d0582b115dc5d91fda891a6125d2ce1",
+    "test_managed_launchd.py": "db21dab336eff3d4b70e75d79d08371281fc7b2b7d3e657c8a57761d5a20340e",
+    "preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c"
+  },
+  "ownedControls": {
+    "passed": 17,
+    "skipped": 1,
+    "actualMacOS": true,
+    "ownedServerExit": 0,
+    "skip": "User-domain bootstrap unavailable; cross-domain negative remains unproved.",
+    "all18JobsUnloadedInBothDomains": true,
+    "productionMutations": 0
+  },
+  "liveReadOnly": {
+    "privateEvidence": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v44/LIVE_PROVENANCE_BINDINGS.json",
+    "owners": 13,
+    "samePids": true,
+    "actualLoadedPathAndLogs": true,
+    "productionMutations": 0
+  },
+  "placement": {
+    "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v42",
+    "privateOwnedRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v42/openclaw-jetstream-fixture-O6jcvi",
+    "sourcePins": {
+      "test_recovery.mjs": "290ea65c8066cfaa588e68aadfd6b56a20e93bcf700513b7f7ae385da00b6068",
+      "recovery.mjs": "c961932fa31914b145e80bd391094a0cf5506d93160607a75e862559bb7812a4",
+      "take_snapshots.mjs": "067c538f2bc0ca3a8971bc84db270b00c2de31c8a796d93a762674afeaa36e8a"
+    },
+    "singlePredicateNegatives": [
+      "cohort",
+      "identities",
+      "membership",
+      "currentPeers",
+      "routePeers",
+      "leaderAgreement",
+      "clusterSizes",
+      "confinedRoutes"
+    ],
+    "allOwnedServersStopped": true
+  },
+  "refusedDrafts": [
+    {
+      "tools": "v41",
+      "reason": "Owned ready.json existed before its write completed; fixed with atomic private publication.",
+      "ownedServerExit": 0
+    },
+    {
+      "tools": "v43",
+      "reason": "Unexpected vnode identity event during preparation; event detail not retained, so exact cause unproved. Only pure ATTRIB with unchanged opened/current device/inode/ctime is now ignored; chmod negative still refuses.",
+      "ownedServerExit": 0
+    }
+  ],
+  "pendingDriver": [
+    "Complete immutable dependency/build identities and explicit exclusion of three additional installed jobs.",
+    "Fresh completed-tick/child-free gaps for publisher/lane-watch/node-watch and ready_for_intent immediately before Journal.mutate.",
+    "Production-sized owned NATS/memory stop-time measurements before the first baseline; explicit ExitTimeOut changes if necessary require their own verified prerequisite.",
+    "Verified mesh-tool-discord stop path or independently witnessed idle unload; current crash loop is not stable enough for binding.",
+    "Complete independent timer spawn witness.",
+    "Detached controller, memory/scheduler/worker readiness, three healthy cold masters and their isolated restoration."
+  ],
+  "stepClosed": false,
+  "freshCIAndReviewRequired": true
+}

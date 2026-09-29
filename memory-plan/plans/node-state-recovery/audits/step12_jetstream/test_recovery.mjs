@@ -119,10 +119,14 @@ function placementState(observations, names) {
 function placementCounterexamples(observations, names) {
   assert(placementState(observations, names).ready);
   const variants = {
+    cohort: rows => { const row = rows.find(row => row.name !== row.js.meta_cluster.leader); row.name = row.varz.server_name = 'member-foreign'; },
+    identities: rows => { rows[0].varz.server_id = 'foreign-server-id'; },
+    membership: rows => { rows.find(row => row.name === row.js.meta_cluster.leader).js.meta_cluster.replicas[0].name = 'member-foreign'; },
     currentPeers: rows => { rows.find(row => row.name === row.js.meta_cluster.leader).js.meta_cluster.replicas[0].current = false; },
     routePeers: rows => { const id = rows[0].routes.routes[0].remote_id; rows[0].routes.routes = rows[0].routes.routes.filter(peer => peer.remote_id !== id); },
     leaderAgreement: rows => { rows.find(row => row.name !== row.js.meta_cluster.leader).js.meta_cluster.leader = 'disagreeing-leader'; },
-    clusterSizes: rows => { for (const row of rows) row.js.meta_cluster.cluster_size = 2; }
+    clusterSizes: rows => { for (const row of rows) row.js.meta_cluster.cluster_size = 2; },
+    confinedRoutes: rows => { rows[0].routes.routes[0].ip = '198.51.100.2'; }
   };
   const results = {};
   for (const [predicate, mutate] of Object.entries(variants)) {

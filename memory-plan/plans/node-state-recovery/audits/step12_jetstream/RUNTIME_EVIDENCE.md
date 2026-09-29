@@ -564,3 +564,23 @@ action/verification deadlines. Forced-kill status is captured and refused.
 Idle timer observations without complete independent spawn evidence refuse
 full verification. Prior17680fa CI36525847542 is green3/3; this new source
 requires fresh CI/review. See MANAGED_CONTROL_REVIEW.json and D15.1.2 stays active.
+
+## Loaded provenance checkpoint — 2026-09-29 02:09 EDT
+
+Private tools-v44 passes17 actual Mac controls/1 explicit unavailable
+cross-domain control; all18 owned jobs are unloaded in both domains and
+the owned server exited0. Copied loaded plists, fake completion logs,
+rewritten/replaced/chmod identity files refuse before stop. Expensive
+re-binding now precedes intent and vnode watches continue through exit.
+A pure ATTRIB event is ignored only with unchanged current/opened inode,
+device and ctime; real chmod remains a negative. Prior v43 event details
+were not retained, so its exact cause is unproved. v41 readiness publication
+race is fixed by atomic private Ready files. Both refused drafts are retained.
+Thirteen live owners pass new loaded-path/log provenance read-only with
+unchanged PIDs. tools-v42 passes recovery plus all eight independent
+placement negatives and normal owned server cleanup.8286c96 exactCI
+36527770223 is green3/3; Claude Message44 accepts its six controls and
+independently passes recovery twice. This newer source requires fresh CI/review.
+Producer tick gaps, stop-time measurements and Discord/timer gates remain
+open with the driver and healthy cold masters. See D16 and
+LOADED_PROVENANCE_EVIDENCE.json. No production service was changed.

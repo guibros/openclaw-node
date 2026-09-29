@@ -54,3 +54,10 @@ environment bindings; Discord has no current root PID and deploy listener
 remains unready. Timer idle/log observations alone refuse complete unload
 verification. New exact CI/review pending; no production quiet window or
 healthy cold-copy acceptance. See D15 and MANAGED_CONTROL_REVIEW.json.
+
+Loaded-provenance checkpoint 2026-09-29 02:09 EDT: tools-v44 passes17
+actual Mac controls/1 skip, v42 passes full recovery/all8 placement negatives.
+Thirteen live owners retain the same PIDs and pass actual loaded plist/log
+provenance. New exact CI/review pending. Producer tick gaps, stop margins,
+Discord/timer proof, detached orchestration and healthy cold masters remain
+open at1.2-pre. See D16 and LOADED_PROVENANCE_EVIDENCE.json.

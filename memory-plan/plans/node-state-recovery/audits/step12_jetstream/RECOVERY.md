@@ -194,8 +194,8 @@ includes their package.json files as additional files. The helper reads ProgramA
 from that plist. It needs no loaded job or PID. Its schema is enforced for
 installed baseline units. Identical byte rewrites preserve identity; changed
 content or dependency targets do not. The driver must enumerate all required
-entry/config/build/dependency files (including the NATS nats-auth.conf include
-and Mission Control actual npm-start build entry) and separately bind the running PID argv,
+entry/config/build/dependency files (the actual NATS configs and any includes
+they declare, plus Mission Control's actual npm-start build entry) and separately bind the running PID argv,
 loaded ProgramArguments, cwd and physical listeners. A static descriptor alone
 is not proof that the running process uses it.
 
@@ -252,17 +252,36 @@ new publications or policy changes still refuse the quiet window.
 ## Managed macOS stop adapter
 
 `managed_launchd.py` supplies process binding, managed bootstrap/kickstart,
-exit watches and timer unload callbacks. Prepare `StopWatch` before writing
-Journal stop intent, then pass its apply/verify callbacks to `Journal.mutate`.
+exit watches and timer unload callbacks. Construct `StopWatch` before writing
+Journal stop intent: expensive process/code/environment rebinding happens
+during construction, with process and identity-file watches already active.
+The driver must then call `ready_for_intent()` immediately before
+`Journal.mutate`, outside its durable mutation intent. The apply callback
+rechecks generation, tree and queued events, without repeating file hashing
+or executable/cwd inspection after intent. This does not establish a completed
+producer tick: the driver must separately select a fresh child-free gap after
+the producer's tick completes. Pass the prepared apply/verify callbacks to
+`Journal.mutate` only after those gates.
 Verification requires separately supplied physical listener and former-CID
 checks; the callback's true result must come from the actual managed driver.
 Do not substitute a generic lambda:true in production. Approved executable/
 argv/cwd and generation must come from the pinned service inventory. Binding
-also checks loaded arguments, the executable text inode, start time versus
+also checks the actual loaded plist path, arguments, stdout/stderr paths,
+the executable text inode, start time versus
 file ctime, hashes of explicitly declared code files and hashes of the declared
 exec-time environment. No environment values enter its returned evidence. npm
 changes its process title; bind its approved title, Node executable/cwd and
 actual Next server child/build rather than inferring argv-file identity.
+Caller-supplied completion logs must match the loaded job's resolved paths;
+an identical copied plist or a different log cannot substitute for provenance.
+
+Every declared identity file has an open vnode watch through stop. Write,
+replacement, deletion and permission changes refuse. Only a pure ATTRIB
+notification with unchanged opened and current path device/inode/ctime is
+ignored, since inspecting files can update atime. This is a watch on the
+declared files, not a complete dependency inventory or a global filesystem
+lock. The v43 refused draft did not retain its exact event detail; its cause
+is unproved. v44 passes the real replacement and chmod negatives.
 
 Owned tests use explicit RECOVERY_NODE/NATS_SERVER/RECOVERY_NATS_MODULE and a
 private OPENCLAW_OWNED_TEST_ROOT. All jobs are uniquely named and all sockets
@@ -282,9 +301,15 @@ adapter waits that timeout plus a margin instead of fixed10/15second deadlines.
 Bootstrap refuses an existing label in either gui or user domain. The owned
 cross-domain negative is an explicit unavailable test on this Mac, not a pass.
 Timer callbacks require independent complete spawn evidence covering unload;
-idle status and unchanged logs alone refuse verification. A generic true callback
+the actual loaded plist/log provenance, while idle status and unchanged logs
+alone refuse verification. A generic true callback
 or the absence of retained unified logs is not such evidence. The detached driver
 must still retain physical process/file/listener and cumulative admission checks
 through the entire quiet window. No healthy bus stop is authorized by these
 callbacks alone. Full static identities, memory queue, timer spawn witness,
-scheduler/worker readiness and healthy cold masters remain1.2 work.
+scheduler/worker readiness and healthy cold masters remain1.2 work. Before
+any production baseline, measure normal stop time on production-sized owned
+NATS and memory copies against each loaded exit timeout. A needed timeout
+change is a separately verified prerequisite. The Discord crash loop requires
+a verified stop path or independently witnessed idle unload; no stable PID
+or an empty unified-log query is not proof of safe quiescence.

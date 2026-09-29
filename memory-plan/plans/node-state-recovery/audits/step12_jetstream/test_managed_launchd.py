@@ -60,6 +60,7 @@ class OwnedLaunchd(unittest.TestCase):
         cls.script.write_text('''
 const fs=require('node:fs'),net=require('node:net'),cp=require('node:child_process');
 const {connect}=require(process.env.OWNED_NATS_PACKAGE);
+process.umask(0o077);
 (async()=>{
  const nc=await connect({servers:process.env.OWNED_NATS_URL,token:process.env.OWNED_TOKEN,name:process.env.OWNED_NAME,maxReconnectAttempts:0});
  const listener=net.createServer();await new Promise(r=>listener.listen(0,'127.0.0.1',r));
@@ -76,7 +77,7 @@ const {connect}=require(process.env.OWNED_NATS_PACKAGE);
   while(!fs.existsSync(process.env.OWNED_CHILD_READY))await new Promise(r=>setTimeout(r,10));
   if(!child)child={pid:JSON.parse(fs.readFileSync(process.env.OWNED_CHILD_READY)).pid};
  }
- fs.writeFileSync(process.env.OWNED_READY,JSON.stringify({pid:process.pid,cid:nc.info.client_id,serverId:nc.info.server_id,port:listener.address().port,child:child?.pid}));
+ fs.writeFileSync(process.env.OWNED_READY+'.pending',JSON.stringify({pid:process.pid,cid:nc.info.client_id,serverId:nc.info.server_id,port:listener.address().port,child:child?.pid}));fs.renameSync(process.env.OWNED_READY+'.pending',process.env.OWNED_READY);
  console.log('owned fixture ready');
  setInterval(()=>{if(fs.existsSync(process.env.OWNED_FORK)){fs.unlinkSync(process.env.OWNED_FORK);cp.spawn(process.execPath,['-e','setTimeout(()=>process.exit(0),100)'],{stdio:'ignore'});}},10);
  process.on('SIGTERM',async()=>{if(process.env.OWNED_MODE==='hang')return;await nc.close();await new Promise(r=>listener.close(r));console.log('Shutdown complete.');process.exit(process.env.OWNED_MODE==='crash'?2:0);});
@@ -85,14 +86,19 @@ const {connect}=require(process.env.OWNED_NATS_PACKAGE);
         cls.child = cls.root / 'child.cjs'
         cls.child.write_text('''
 const fs=require('node:fs'),net=require('node:net');
-const server=net.createServer();server.listen(0,'127.0.0.1',()=>fs.writeFileSync(process.env.OWNED_CHILD_READY,JSON.stringify({pid:process.pid,port:server.address().port})));
+process.umask(0o077);
+const server=net.createServer();server.listen(0,'127.0.0.1',()=>{fs.writeFileSync(process.env.OWNED_CHILD_READY+'.pending',JSON.stringify({pid:process.pid,port:server.address().port}));fs.renameSync(process.env.OWNED_CHILD_READY+'.pending',process.env.OWNED_CHILD_READY);});
 process.on('SIGTERM',()=>{});
 setInterval(()=>{if(fs.existsSync(process.env.OWNED_CHILD_STOP))server.close(()=>process.exit(0));},20);
 ''')
         cls.exec_child = cls.root / 'exec-child.py'
         cls.exec_child.write_text('''
 import json,os,pathlib,time
-pathlib.Path(os.environ['OWNED_CHILD_READY']).write_text(json.dumps({'pid':os.getpid()}))
+os.umask(0o077)
+ready=pathlib.Path(os.environ['OWNED_CHILD_READY'])
+pending=ready.with_suffix('.pending')
+pending.write_text(json.dumps({'pid':os.getpid()}))
+pending.replace(ready)
 while not pathlib.Path(os.environ['OWNED_EXEC_TRIGGER']).exists():time.sleep(.02)
 os.execv('/bin/sleep',['sleep','30'])
 ''')
@@ -118,7 +124,7 @@ os.execv('/bin/sleep',['sleep','30'])
         self.plist = self.directory / 'unit.plist'
         self.service = Launchd(self.name, self.plist)
 
-    def launch(self, mode='good', run_at_load=True, exit_timeout=5, identity_files=None):
+    def launch(self, mode='good', run_at_load=True, exit_timeout=5, identity_files=None, load_elsewhere=False):
         env = {'HOME': str(self.directory), 'OWNED_NATS_PACKAGE': str(self.package),
                'OWNED_NATS_URL': 'nats://127.0.0.1:' + str(self.port), 'OWNED_TOKEN': self.token,
                'OWNED_NAME': self.name, 'OWNED_MODE': mode, 'OWNED_READY': str(self.ready),
@@ -131,7 +137,12 @@ os.execv('/bin/sleep',['sleep','30'])
             'WorkingDirectory': str(self.directory), 'EnvironmentVariables': env,
             'RunAtLoad': run_at_load, 'KeepAlive': False, 'ExitTimeOut': exit_timeout,
             'StandardOutPath': str(self.log), 'StandardErrorPath': str(self.err)}))
-        self.service.bootstrap()
+        if load_elsewhere:
+            alternate = self.directory / 'alternate.plist'
+            alternate.write_bytes(self.plist.read_bytes())
+            Launchd(self.name, alternate).bootstrap()
+        else:
+            self.service.bootstrap()
         if not run_at_load:
             return
         wait_for(self.ready.exists)
@@ -261,11 +272,44 @@ os.execv('/bin/sleep',['sleep','30'])
         identity.write_text('{}')
         pins = {str(identity): hashlib.sha256(identity.read_bytes()).hexdigest()}
         binding = self.launch(identity_files=pins)
-        time.sleep(.01)
-        identity.write_text('{}')
         with StopWatch(self.service, binding, [self.log, self.err], 'mesh-task-daemon') as watch:
-            with self.assertRaisesRegex(Refused, 'identity file changed after process startup'):
+            identity.write_text('{}')
+            with self.assertRaisesRegex(Refused, 'identity file mutated after watch preparation'):
                 watch.apply()
+        self.assertTrue(self.service.status()['running'])
+
+    def test_identity_file_replacement_after_preparation_refuses_before_intent(self):
+        identity = self.directory / 'declared-config.json'
+        identity.write_text('{}')
+        binding = self.launch(identity_files={str(identity): hashlib.sha256(identity.read_bytes()).hexdigest()})
+        with StopWatch(self.service, binding, [self.log, self.err], 'mesh-task-daemon') as watch:
+            identity.rename(self.directory / 'retained-original.json')
+            identity.write_text('{}')
+            with self.assertRaisesRegex(Refused, 'identity file mutated'):
+                watch.ready_for_intent()
+        self.assertTrue(self.service.status()['running'])
+
+    def test_loaded_plist_path_cannot_be_inferred_from_identical_arguments(self):
+        with self.assertRaisesRegex(Refused, 'loaded plist provenance differs'):
+            self.launch(load_elsewhere=True)
+        self.assertTrue(self.service.status()['running'])
+
+    def test_identity_permission_change_after_preparation_refuses_before_intent(self):
+        identity = self.directory / 'declared-config.json'
+        identity.write_text('{}')
+        binding = self.launch(identity_files={str(identity): hashlib.sha256(identity.read_bytes()).hexdigest()})
+        with StopWatch(self.service, binding, [self.log, self.err], 'mesh-task-daemon') as watch:
+            identity.chmod(0o400)
+            with self.assertRaisesRegex(Refused, 'identity file mutated'):
+                watch.ready_for_intent()
+        self.assertTrue(self.service.status()['running'])
+
+    def test_completion_log_must_be_the_loaded_jobs_log(self):
+        binding = self.launch()
+        fake = self.directory / 'fake-shutdown.log'
+        fake.write_text('Shutdown complete.')
+        with self.assertRaisesRegex(Refused, 'log paths differ from actual loaded job'):
+            StopWatch(self.service, binding, [fake, self.err], 'mesh-task-daemon')
         self.assertTrue(self.service.status()['running'])
 
     def test_exec_after_watch_preparation_refuses_before_stop(self):

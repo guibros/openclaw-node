@@ -190,3 +190,25 @@ tools-v40 passes13 actual Mac controls/1 skip, v39 passes recovery plus the
 actual two-of-three and four individual-predicate negatives. Refused v37/v38
 drafts are retained. Complete orchestration, identities, timer witness and
 healthy cold masters remain1.2 work; new exact CI/review is still required.
+
+## D16 — Loaded provenance and prepared stop intent (2026-09-29 02:09 EDT)
+Claude Message44 accepts8286c96, then distinguishes remaining driver needs.
+Bind the actual loaded plist path and stdout/stderr paths from launchd,
+rather than inferring them from equal arguments or caller-selected logs.
+Register process/file watches and finish expensive byte/provenance re-binding
+before Journal intent. The driver calls ready_for_intent again outside mutate;
+the apply callback retains short state/process/lifecycle checks. Vnode mutation
+refuses; pure ATTRIB with identical opened/current device/inode/ctime alone
+is ignored, including read-atime notifications. No delivery chronology or
+automatic forked-child adoption is claimed. Actual completed-tick/child-free
+gaps for periodic-fork producers, production-sized NATS/memory stop margins
+and Discord crash-loop unload proof remain separate driver prerequisites.
+An explicit timeout change must precede the first baseline and be verified
+as its own lifecycle prerequisite; this checkpoint changes no production unit.
+Private tools-v44 passes17 controls/1 skip, v42 passes full recovery and all
+eight single-predicate negatives. The source is deployed only to owned/read-only
+consumers; complete production orchestration and healthy cold masters remain
+open. The earlier20-unit preparation misparsed enabled/disabled as booleans;
+its rejected bytes/correction are retained privately and neither is an approved
+preservation baseline. Member1 is still disabled/unloaded. Exact new CI/review
+remains required.

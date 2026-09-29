@@ -165,3 +165,10 @@ fixture's stream placement. Its leader-only startup gate did not prove all
 three placement peers/current routes. Add explicit full readiness plus an
 actual missing-peer refusal; preserve the failed attempts. This remains owned
 recovery-fixture verification, with no production source/configuration change.
+
+Claude Message44 accepts8286c96 controls/exact green CI, then identifies
+producer tick gaps,5second stop-margin measurements and Discord stop-path
+prerequisites for the future driver. Those remain open; no production hold
+starts. The present delta binds loaded plist/log provenance and moves expensive
+re-binding before intent with kernel file watches. It also completes all eight
+placement predicate negatives. Source/library controls remain in active1.2.
