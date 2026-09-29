@@ -1,0 +1,4414 @@
+{
+  "startedAtUTC": "2026-09-29T10:05:28.843530+00:00",
+  "finishedAtUTC": "2026-09-29T10:06:34.420108+00:00",
+  "status": "passed",
+  "durationSeconds": 65.40218537499999,
+  "sampleCount": 84,
+  "sourceCommit": "f21c6df28819a1e0a0941c689a1932ae4397a058",
+  "entrySha256": "d1341cfa04a3289c2338cc0e4a76e77dbf28d4c50f08ce5b18371c468b321d17",
+  "newPlistSha256": "6f53257453c9e8351d6c361840d474fc2be38f5548ce51bc635d446de430f67c",
+  "newPlistIdentity": {
+    "mode": "0o644",
+    "uid": 501,
+    "gid": 20,
+    "dev": 16777233,
+    "ino": 58975700,
+    "ctimeNs": 1790676107702822590,
+    "mtimeNs": 1790676107702233421,
+    "sha256": "6f53257453c9e8351d6c361840d474fc2be38f5548ce51bc635d446de430f67c"
+  },
+  "beforeConfig": {
+    "sha256": "3ee9c29283f0c20668dbad00d83e4be6d35eeebacc75e6751ba8eb36f317711e",
+    "enabled": false,
+    "hasToken": false,
+    "accounts": 0
+  },
+  "afterConfig": {
+    "sha256": "3ee9c29283f0c20668dbad00d83e4be6d35eeebacc75e6751ba8eb36f317711e",
+    "enabled": false,
+    "hasToken": false,
+    "accounts": 0
+  },
+  "beforeOwners": [
+    {
+      "unit": "gui/501/ai.openclaw.mesh-task-daemon",
+      "loaded": true,
+      "state": "running",
+      "pid": 82096,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mesh-agent",
+      "loaded": true,
+      "state": "running",
+      "pid": 5086,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mesh-bridge",
+      "loaded": true,
+      "state": "running",
+      "pid": 754,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.memory-daemon",
+      "loaded": true,
+      "state": "running",
+      "pid": 759,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.node-watch",
+      "loaded": true,
+      "state": "running",
+      "pid": 747,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.health-watch",
+      "loaded": true,
+      "state": "running",
+      "pid": 752,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mesh-health-publisher",
+      "loaded": true,
+      "state": "running",
+      "pid": 1048,
+      "runs": 2,
+      "lastExitCode": "1",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.lane-watchdog",
+      "loaded": true,
+      "state": "running",
+      "pid": 753,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mesh-deploy-listener",
+      "loaded": true,
+      "state": "running",
+      "pid": 755,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mission-control",
+      "loaded": true,
+      "state": "running",
+      "pid": 764,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.nats",
+      "loaded": true,
+      "state": "running",
+      "pid": 756,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.nats-2",
+      "loaded": true,
+      "state": "running",
+      "pid": 767,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.nats-3",
+      "loaded": true,
+      "state": "running",
+      "pid": 740,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    }
+  ],
+  "afterOwners": [
+    {
+      "unit": "gui/501/ai.openclaw.mesh-task-daemon",
+      "loaded": true,
+      "state": "running",
+      "pid": 82096,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mesh-agent",
+      "loaded": true,
+      "state": "running",
+      "pid": 5086,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mesh-bridge",
+      "loaded": true,
+      "state": "running",
+      "pid": 754,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.memory-daemon",
+      "loaded": true,
+      "state": "running",
+      "pid": 759,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.node-watch",
+      "loaded": true,
+      "state": "running",
+      "pid": 747,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.health-watch",
+      "loaded": true,
+      "state": "running",
+      "pid": 752,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mesh-health-publisher",
+      "loaded": true,
+      "state": "running",
+      "pid": 1048,
+      "runs": 2,
+      "lastExitCode": "1",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.lane-watchdog",
+      "loaded": true,
+      "state": "running",
+      "pid": 753,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mesh-deploy-listener",
+      "loaded": true,
+      "state": "running",
+      "pid": 755,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.mission-control",
+      "loaded": true,
+      "state": "running",
+      "pid": 764,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.nats",
+      "loaded": true,
+      "state": "running",
+      "pid": 756,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.nats-2",
+      "loaded": true,
+      "state": "running",
+      "pid": 767,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    },
+    {
+      "unit": "gui/501/ai.openclaw.nats-3",
+      "loaded": true,
+      "state": "running",
+      "pid": 740,
+      "runs": 1,
+      "lastExitCode": "(never exited)",
+      "samePid": true,
+      "sameRuns": true
+    }
+  ],
+  "beforeBus": [
+    {
+      "port": 8222,
+      "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+      "totalAdmissions": 1876,
+      "numConnections": 6,
+      "cids": [
+        28,
+        29,
+        34,
+        45,
+        644,
+        21565
+      ],
+      "discordCids": []
+    },
+    {
+      "port": 8223,
+      "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+      "totalAdmissions": 1,
+      "numConnections": 0,
+      "cids": [],
+      "discordCids": []
+    },
+    {
+      "port": 8224,
+      "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+      "totalAdmissions": 0,
+      "numConnections": 0,
+      "cids": [],
+      "discordCids": []
+    }
+  ],
+  "afterBus": [
+    {
+      "port": 8222,
+      "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+      "totalAdmissions": 1880,
+      "numConnections": 6,
+      "cids": [
+        28,
+        29,
+        34,
+        45,
+        644,
+        21565
+      ],
+      "discordCids": []
+    },
+    {
+      "port": 8223,
+      "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+      "totalAdmissions": 1,
+      "numConnections": 0,
+      "cids": [],
+      "discordCids": []
+    },
+    {
+      "port": 8224,
+      "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+      "totalAdmissions": 0,
+      "numConnections": 0,
+      "cids": [],
+      "discordCids": []
+    }
+  ],
+  "stdoutAppendBytes": 0,
+  "stderrAppendBytes": 0,
+  "primaryHead": "e57f89b264a30892389cabe573786fb516a6a208",
+  "acceptanceScope": "Fresh same-unit stability continuation; no full-node zero-admission or unseen-gap certification",
+  "limits": [
+    "Discord-only deployment; no healthy-store cold preservation",
+    "No VM crash-cause/data-integrity proof",
+    "No Discord API call/integration enablement",
+    "No general active-handler drain; Linux supervisor source-only"
+  ],
+  "rawRecord": "/Users/moltymac/.openclaw/backups/node-readiness/discord-disabled-20260929-1/live-continuation-ce7f58eaf41149ce/EVIDENCE.json",
+  "rawSha256": "31e53566b14239d531b34e8a8b220320dad9917d0c4fd549f08382da4ffdf729",
+  "originalInstallRefusal": {
+    "record": "/Users/moltymac/.openclaw/backups/node-readiness/discord-disabled-20260929-1/live-inactive-0431652d5d4d42f2/EVIDENCE.json",
+    "rawSha256": "3a40bb63e38f254dca07d167063a65fc6f9538684e3856997cefbfb0cec2003b",
+    "status": "retained unaccepted for full65s; actual one normal startup separately observed",
+    "cause": "health-watch admission after Discord exit; too broad all-node admission predicate"
+  },
+  "samples": [
+    {
+      "elapsedSeconds": 0.07421929099999999,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 0.850175791,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 1.625903,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 2.413431,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 3.191666083,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 3.9631450000000004,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 4.741561333,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 5.51943925,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 6.29465425,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 7.068039916,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 7.842647333,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 8.623470041,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 9.430098333,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 10.204885208,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 10.976066333,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 11.75114825,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 12.529134541,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 13.304414625,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 14.085389082999999,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 14.866710874999999,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 15.640883833,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 16.414032125000002,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 17.204349958,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 17.980169458000002,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 18.759801041000003,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 19.532156708000002,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 20.326292458,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 21.106625458,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 21.883429291000002,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 22.663123458,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 23.442151625,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 24.218236958000002,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 25.002653666,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 25.777379041,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 26.549582375,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 27.326165291000002,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 28.099125791000002,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 28.878980375,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 29.651585333,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 30.426950791000003,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 31.257275625000002,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 32.047019666000004,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 32.829985708,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 33.610716041,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 34.388857625,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 35.170525083,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 35.949924708000005,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 36.726150625,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 37.511957458000005,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 38.298530666000005,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 39.074759583,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 39.852451541,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 40.627985541,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 41.403419583,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 42.175619041000004,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 42.954346875,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 43.734487541,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 44.509132833,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 45.286927125,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 46.063026166,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 46.83853575,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 47.613119458,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 48.396925291,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 49.178813166000005,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 49.959422916,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 50.816808625,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 51.640213666,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 52.448686125,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 53.263679208,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 54.072330375,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 54.879704708,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 55.70702325,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 56.547082583,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 57.405636916,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1876,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 58.36182825,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1878,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 59.14201425,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1878,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 59.921009083,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1880,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 60.703192208000004,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1880,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 61.481257583,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1880,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 62.263024875,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1880,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 63.04973725,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1880,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 63.830586708000006,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1880,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 64.609547333,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1880,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    },
+    {
+      "elapsedSeconds": 65.39300079099999,
+      "discord": {
+        "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+        "loaded": true,
+        "state": "not running",
+        "pid": null,
+        "runs": 1,
+        "lastExitCode": "0"
+      },
+      "all13OwnersSamePidAndRuns": true,
+      "bus": [
+        {
+          "port": 8222,
+          "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+          "totalAdmissions": 1880,
+          "numConnections": 6,
+          "cids": [
+            28,
+            29,
+            34,
+            45,
+            644,
+            21565
+          ],
+          "discordCids": []
+        },
+        {
+          "port": 8223,
+          "serverId": "NAIEIMDUVZZ5V4DBQSUY4BMDLFR5U7GGAVUQV6KBYQ36IUQ37S6TCMSN",
+          "totalAdmissions": 1,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        },
+        {
+          "port": 8224,
+          "serverId": "NC7JIE7WK6PYGNFFTTK6UANEXY2MSNBKVJWCTECE333SPPIIOID436I5",
+          "totalAdmissions": 0,
+          "numConnections": 0,
+          "cids": [],
+          "discordCids": []
+        }
+      ],
+      "configUnchanged": true,
+      "unitHashUnchanged": true
+    }
+  ],
+  "auxiliary": {
+    "atUTC": "2026-09-29T10:07:10.853528+00:00",
+    "stdoutInactiveLineCount": 1,
+    "stdoutLastLineIsInactive": true,
+    "stdoutMtimeNs": 1790676107795132177,
+    "stderrMtimeNs": 1790676106631528864,
+    "observability": {
+      "discordToolEventCount": 0
+    },
+    "unitChangedKeys": [
+      "KeepAlive",
+      "ProgramArguments"
+    ],
+    "environmentUnchanged": true,
+    "workingDirectoryUnchanged": true,
+    "otherArgumentsUnchanged": true,
+    "plannedPolicy": {
+      "SuccessfulExit": false
+    },
+    "entrySha256": "d1341cfa04a3289c2338cc0e4a76e77dbf28d4c50f08ce5b18371c468b321d17",
+    "registryHttpMetadataRecord": "LIVE_REGISTRY_METADATA.json",
+    "outboundBoundary": "actual inactive diagnostic/exit0 plus strict pre-runtime guard and private import tests; not global live OS socket tracing"
+  },
+  "auxiliaryRawSha256": "6c91f716468c03400f449fc4956ad3577c0e66db7f2e1a713a1c6060b2ecba33",
+  "registryMetadata": {
+    "atUTC": "2026-09-29T10:06:25.889119+00:00",
+    "httpOnly": true,
+    "streams": [
+      {
+        "port": 8222,
+        "streamCount": 7,
+        "streamSchema": {
+          "name": "str",
+          "created": "str",
+          "cluster": "dict",
+          "state": "dict"
+        },
+        "meshToolsStreamPresent": false,
+        "streamNames": [
+          "KV_MESH_COLLAB",
+          "local-events-daedalus",
+          "KV_MESH_TASKS",
+          "KV_MESH_NODE_HEALTH",
+          "KV_GRAPPE_REGISTRY_TEST",
+          "KV_GRAPPE_REGISTRY",
+          "KV_MESH_PLANS"
+        ]
+      },
+      {
+        "port": 8223,
+        "streamCount": 1,
+        "streamSchema": {
+          "name": "str",
+          "created": "str",
+          "cluster": "dict",
+          "state": "dict"
+        },
+        "meshToolsStreamPresent": false,
+        "streamNames": [
+          "OPENCLAW_SHARED"
+        ]
+      },
+      {
+        "port": 8224,
+        "streamCount": 4,
+        "streamSchema": {
+          "name": "str",
+          "created": "str",
+          "cluster": "dict",
+          "state": "dict"
+        },
+        "meshToolsStreamPresent": false,
+        "streamNames": [
+          "local-events-moltymacs-virtual-machine",
+          "OPENCLAW_SHARED",
+          "KV_MESH_NODE_HEALTH",
+          "KV_MESH_TASKS"
+        ]
+      }
+    ]
+  },
+  "registryMetadataRawSha256": "438cea60c0aad54a1cbe8497dd84ea9137526436a013a657828b65af570bce22",
+  "deployHarnessSha256": "4b14dba7ed2f2d36972a33ef80bbebca1f5c799317aee4851f31698711adcd46",
+  "continuationHarnessSha256": "b388460f8b580961b4e9139bf807848117ce50513867b842c809ff2c3d92e8af"
+}

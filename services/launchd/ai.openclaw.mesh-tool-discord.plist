@@ -12,7 +12,10 @@
       <string>${HOME}/openclaw/bin/mesh-tool-discord.js</string>
     </array>
     <key>KeepAlive</key>
-    <true/>
+    <dict>
+      <key>SuccessfulExit</key>
+      <false/>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>

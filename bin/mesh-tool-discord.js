@@ -21,9 +21,6 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { createRegistry } = require('../lib/mesh-registry');
-const { createTracer, setNatsConnection } = require('../lib/tracer');
-const tracer = createTracer('mesh-tool-discord');
 
 // ── Config ──────────────────────────────────────────
 
@@ -31,8 +28,7 @@ const CONFIG_PATH = path.join(process.env.HOME, '.openclaw', 'openclaw.json');
 const DISCORD_API = 'discord.com';
 const API_VERSION = '10';
 
-function loadBotToken() {
-  const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+function loadBotToken(config) {
   const token = config.channels?.discord?.token;
   if (!token) {
     console.error('[discord-tool] No Discord bot token found in openclaw.json');
@@ -252,11 +248,20 @@ const TOOL_MANIFEST = {
 // ── Main ────────────────────────────────────────────
 
 async function main() {
+  const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+  if (config.channels?.discord?.enabled === false) {
+    console.log('[discord-tool] Discord integration is disabled; inactive.');
+    return;
+  }
+
   console.log('[discord-tool] Starting Discord history mesh tool...');
 
-  const token = loadBotToken();
+  const token = loadBotToken(config);
   console.log('[discord-tool] Bot token loaded.');
 
+  const { createRegistry } = require('../lib/mesh-registry');
+  const { createTracer, setNatsConnection } = require('../lib/tracer');
+  const tracer = createTracer('mesh-tool-discord');
   const handlers = createHandlers(token);
   tracer.wrapClass(handlers, ['readMessages', 'searchMessages', 'listChannels', 'channelInfo'], { tier: 3 });
   discordRequest = tracer.wrapAsync('discordRequest', discordRequest, { tier: 3 });
@@ -294,7 +299,8 @@ async function main() {
   process.on('SIGTERM', shutdown);
 
   // Keep alive
-  await nc.closed();
+  const closeError = await nc.closed();
+  if (closeError) throw closeError;
 }
 
 main().catch(err => {

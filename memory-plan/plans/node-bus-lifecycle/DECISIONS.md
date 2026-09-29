@@ -250,3 +250,31 @@ Outer notify timeout withdrawn: direct-child kill can orphan the platform
 grandchild, a race can return early. Partial-result audit/duration visibility
 carry forward as separate parent observability work.3.3 next; production timer
 installation/general daemon/preservation proof remain open.
+
+## D19 — Explicitly disabled Discord is successful inactivity (2026-09-29 05:34 EDT)
+
+Strict channels.discord.enabled=false returns0 before runtime imports/token
+lookup and bus/state admission. Missing-enabled legacy token behavior remains;
+malformed config or enabled failures remain exit1. Conditional unsuccessful
+exit restart replaces unconditional restart, preserving RunAtLoad/Throttle.
+Permanent NATS close's resolved error must propagate as failure so this policy
+does not silently suppress enabled recovery. No general handler-drain repair.
+
+The actual disabled/no-token/zero-account config remains unchanged. Only the
+tool entry and KeepAlive change in a narrow e57 runtime release. Acceptance
+requires real private Mac supervisor controls and stable loaded/not-running
+live exit0/no Discord admission. Linux Restart=on-failure is source policy,
+not independently observed systemd runtime.3.3 does not enable Discord or
+install production timer holds/preserve the complete node.
+
+D19 closure2026-09-29 06:12 EDT:exact f21c6df source approved by Claude80,
+Linux10/10 reproduced and CI36551411822 green3/3. Actual new-path e57 release
+d1341cfa and rendered6f532574 plist ran once normally after bootout/bootstrap.
+Fresh same-unit65.402s/84 samples are loaded/not-running/run1/exit0, with
+configfalse/no-token unchanged and13 other owners stable. First too-broad
+all-node-admission window remains refused on a later health-watch connection;
+no preservation or unseen-gap certification. Claude84 accepts qualified
+reasoning/source facts;85 clarifies unchanged old entry and plist rollback.
+Close only3.3 disabled-inactivity. Prioritize the separately tracked false
+BROKEN monitoring correction next, before journal/timer integration and any
+new preservation baseline. No original source/config/dependencies overwritten.
