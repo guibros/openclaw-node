@@ -34,7 +34,7 @@
 
 | Block | Step | Version | Status | Description |
 |-------|------|---------|--------|-------------|
-| 2 | 2.1 | v2.1 | [A] | Publish task-daemon readiness after its subscriptions reach the bus |
+| 2 | 2.1 | v2.1 | [x] | Publish task-daemon readiness after its subscriptions reach the bus — 2026-09-29: sourceb190671/tests8ab8350 green; Claude30/32/34 challenge; exact staged barrier; fully recorded managed exit0/restart82096 and scoped state preservation |
 
 > **2.1 — Goal:** a task-list request made at the task daemon's ready declaration must reach its registered handler.
 > **Needs:** merged main dad1e7b; exact CI failure at worker fixture113; owned authenticated NATS2.12.6; real-daemon startup controls; accepted live e57 task-outage release preserved; independent Claude challenge.

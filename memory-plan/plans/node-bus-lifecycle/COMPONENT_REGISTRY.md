@@ -6,10 +6,10 @@
 
 | | |
 |---|---|
-| **Status** | LIVE, connected idle planned drain VERIFIED; owned outage failure semantics VERIFIED |
-| **Verified** | 2026-09-28 13:26 EDT: PID79423/runs2/last0, one completion on managed SIGTERM, same-server CID304246→0→304431/list readiness,65s continuous guard after each ready replacement. Task rows/Kanban/KV counters/core owners unchanged. Claude141 accepts1.4. |
-| **Source** | a2f5293fa0111e614682f431598c54c1757d6ad9, tests6cc27c3; both isolated full CI green. Runtime preserves live e57 base with cumulative1.1+1.4 lifecycle patch. |
-| **Runtime** | /usr/local/bin/node ~/.openclaw/releases/task-outage-a2f5293-e57f89b/bin/mesh-task-daemon.js; entry SHA17a70c25c0d0fcbd99ad83578c39923bed2cb7550026149314b69cc46289e787; unit values/cwd/dependencies preserved. |
+| **Status** | LIVE, local-server startup registration and connected idle planned drain VERIFIED; owned outage failure semantics VERIFIED |
+| **Verified** | 2026-09-29 00:41 EDT: currentPID82096/runs1/CID21565 on actual member4222 socket; prior72174 has requested/echoed NOTE_EXITSTATUS and exit0. Fully recorded restart,65s pre/post guards/31checks/zero worker requests in419ms pause, unchanged537 selected task rows/threeKV counters/9other owners. Both observer processes exit0. Claude34 closure conditions met. Prior1.4 outage evidence remains accepted. |
+| **Source** | a2f5293fa0111e614682f431598c54c1757d6ad9, tests6cc27c3; both isolated full CI green. Readiness adds b190671 with tests8ab8350/CI36519414185 green. Runtime preserves live e57 base with cumulative1.1+1.4+2.1 patches. |
+| **Runtime** | /usr/local/bin/node ~/.openclaw/releases/task-ready-b190671-e57f89b/bin/mesh-task-daemon.js; entry SHA22c2784052ec9dde8f8dc1ac582ecd58b2db02aaf60d05cfe3524adfbcb3bb51; unit values/cwd/dependencies preserved. |
 | **Constraint** | Live connected proof introduces no bus outage; owned controls prove outage behavior. Current-main terminal-task guards and general async-handler drain remain absent/unproved. Original1.1 release remains intact; four refused attempts retained. |
 
 ### Managed NATS preservation prerequisite
@@ -46,3 +46,23 @@
 | **Dependencies** | All three lifecycle releases intentionally link primary node_modules. npm install/ci/rebuild there changes their runtime dependencies. |
 | **Gate** | Before preservation, assert repaired clients' unit entry/runtime SHA, then createRequire real paths and package versions under their exact unit environment. Bridge packages are in step12_bridge/RUNTIME_EVIDENCE.json. |
 | **Feeds** | node-readiness 1.5 deployment reconciliation and 2.2 installation. Task outage1.4 is accepted; connected idle and owned outage evidence remain distinct. Worker task-time ESM graph was statically checked in its release; idle acceptance is not task execution. |
+
+### Task startup registration checkpoint
+
+2026-09-29 00:31 EDT: readiness sourceb190671, tests8ab8350/isolatedCI36519414185
+and independent Claude source review pass. Managed owner748 exited0; current
+72174/runs1/CID19903 on member4222 answers list. Attempt3 remains unaccepted
+because its read-only observer process hung after normal bus close. Separately
+accepted read-only continuation65s/14checks uses the same replacement, unchanged
+537 selected task rows/threeKV counters/9other ownerPIDs and normal fresh observer
+process closure. The staged entry differs from live cumulative1.1/1.4 by only
+await nc.flush before ready. Closure review remains pending;2.1[A]/v2.1-mid.
+Local server registration is the barrier contract; cross-member routing remains
+asynchronous. Primary e57 and shared dependencies stay preserved.
+
+Current closure2026-09-29 00:41 EDT: step2.1[x]/v2.1. Fully recorded same-source
+restart supersedes the provisional checkpoint above; current owner82096/runs1.
+Source barrier and qualified cross-member controls pass. Review conditions and
+raw record hashes are in step21_ready. Recovery1.2 resumes after149 merge and
+fresh integration CI. General preservation-driver and source/deployment
+reconciliation remain parent work; no new chain is enabled.

@@ -116,3 +116,28 @@ stand-in, got66/100 immediate503 and34/100 success. The one-line candidate got
 failures. New regression holds the return of a real flush and injects its
 rejection. It proves awaiting/failure behavior, not delayed wire propagation
 or actual server loss. Existing1.4 controls retain real outage coverage.
+
+## D14 — Separate installed-runtime continuation from a refused verifier (2026-09-29 00:31 EDT)
+
+Attempt3 installed the narrow readiness layer and passed real exit/RPC plus
+65s state checks, then failed only owned observer-process cleanup. Preserve
+that attempt as unaccepted. An isolated cleanup control confirms stdin's open
+handle; a corrected read-only continuation, without another production restart,
+binds the same process/CID, compares the original selected task rows and KV
+sequence counters across the gap, and closes both fresh observers normally.
+The continuation is distinct evidence of the installed runtime. It does not
+turn the failed orchestration into success or prove a general preservation
+driver. Real staged controls prove awaiting the final flush; log-tail RPC is
+health only. Registration acknowledgment belongs to the connected server;
+remote route interest is asynchronous. Independent closure challenge is still
+required, with main-merge integration CI before the recovery baseline.
+
+D14 closure(2026-09-29 00:41 EDT): Claude34 accepts the narrow outcome with
+raw transition hashes, explicit EXITSTATUS request/echo and local-gap/worker
+counts. A final SAME-source restart saves all transition checkpoints before
+observer cleanup and meets those conditions: owner72174 exit0, current82096,
+65s pre/post guards,31checks,zero worker requests during419ms pause, unchanged
+selected task/KV/other-owner state, both observers exit0. Its local4222-only
+scope is explicit. Earlier failed runs stay unaccepted. Close2.1; merge149
+before recovery144's new main-integration CI. Block2 is complete; re-orient to
+recovery1.2, with no production baseline yet and managed cold-copy proof open.

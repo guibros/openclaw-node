@@ -1,0 +1,156 @@
+{
+  "at": "2026-09-29T04:30:57.335784+00:00",
+  "accepted": true,
+  "readOnlyContinuation": true,
+  "noAdditionalServiceRestart": true,
+  "previousAttemptAccepted": false,
+  "previousFailure": "read-only observer process stayed alive after normal bus closure",
+  "oldOwner": {
+    "loaded": true,
+    "pid": "748",
+    "runs": "1",
+    "last exit code": "(never exited)",
+    "state": "running"
+  },
+  "newOwner": {
+    "loaded": true,
+    "pid": "72174",
+    "runs": "1",
+    "last exit code": "(never exited)",
+    "state": "running"
+  },
+  "oldExit": {
+    "at": "2026-09-29T04:24:35.616672+00:00",
+    "pid": 748,
+    "rawWaitStatus": 0,
+    "flags": 2214592512
+  },
+  "oldCid": 30,
+  "newConnection": {
+    "cid": 19903,
+    "localPort": 63659,
+    "memberPort": 4222,
+    "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5",
+    "pid": 72174
+  },
+  "originalPreconnectedReadyReply": {
+    "ready": true,
+    "observedAt": "2026-09-29T04:24:35.788Z",
+    "answeredAt": "2026-09-29T04:24:35.799Z",
+    "queued": 0,
+    "cid": 19858,
+    "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5"
+  },
+  "currentHealthReply": {
+    "ready": true,
+    "observedAt": "2026-09-29T04:29:51.573Z",
+    "answeredAt": "2026-09-29T04:29:51.597Z",
+    "queued": 0,
+    "cid": 20459,
+    "serverId": "NAG7QWYOLZMW4C7K53CVSPHB2YSVVF3S2CBPUDLRK766P3WEUQG3LRZ5"
+  },
+  "taskCount": 537,
+  "selectedTaskRowsUnchangedFromBeforeRestart": true,
+  "kvStateUnchangedAcrossVerificationGap": true,
+  "otherOwnerPidsUnchanged": true,
+  "memberIdentityAndStartUnchanged": true,
+  "unitOnlyEntryChanged": true,
+  "normalObserverProcesses": true,
+  "allNamedBusConnectionsClosedNormally": [
+    30,
+    19858,
+    19695,
+    20459,
+    20452
+  ],
+  "dependencies": {
+    "nats": {
+      "file": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+      "package": "/Users/moltymac/openclaw-nodedev/node_modules/nats/package.json",
+      "version": "2.29.3",
+      "entrySha256": "f8b9f4620ccb1364c4da6a3ab55cda881888b314adb66bf64db37405a1a74fbc",
+      "packageSha256": "7b9c4639b12ef9e5a76f970fdacf30998b0f23b90d5fca3ad315cfce47257807"
+    },
+    "js-yaml": {
+      "file": "/Users/moltymac/openclaw-nodedev/node_modules/js-yaml/index.js",
+      "package": "/Users/moltymac/openclaw-nodedev/node_modules/js-yaml/package.json",
+      "version": "4.3.2",
+      "entrySha256": "e85d524fcd45466669dfc37618284e0c53ccaaf3f4bef1e23cd25ec6c43120bc",
+      "packageSha256": "3eeb05aa0ceb4c3686e44c9b5d9b88f914b099ba9a7426b36947e65c6373d9a5"
+    },
+    "better-sqlite3": {
+      "file": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+      "package": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/package.json",
+      "version": "11.10.0",
+      "entrySha256": "82db11c4ee43a41d859988c5db42c3771dff565371f94bacbd1e4d8d6ceb47cd",
+      "packageSha256": "58e81504576abccfacbfd08dc9432dc3a00d0fc0454685cb7a76aaf976cf25a9"
+    }
+  },
+  "binarySha256": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287",
+  "installedEntrySha256": "22c2784052ec9dde8f8dc1ac582ecd58b2db02aaf60d05cfe3524adfbcb3bb51",
+  "taskComparison": "id,status,owner,needs_approval,execution,trigger_kind,trigger_at,trigger_cron,updated_at; ordered by id",
+  "finalGuard": {
+    "accepted": true,
+    "checks": 14,
+    "queueRPCPauseMilliseconds": [],
+    "streamsUnchanged": true,
+    "streamBaseline": {
+      "KV_MESH_TASKS": {
+        "messages": 397,
+        "firstSequence": 406,
+        "lastSequence": 2184
+      },
+      "KV_MESH_COLLAB": {
+        "messages": 227,
+        "firstSequence": 12,
+        "lastSequence": 3818
+      },
+      "KV_MESH_PLANS": {
+        "messages": 7,
+        "firstSequence": 29,
+        "lastSequence": 35
+      }
+    },
+    "preconditions": {
+      "limits": {
+        "KV_MESH_TASKS": {
+          "maxAge": 0,
+          "maxMessages": -1,
+          "maxBytes": -1,
+          "maxMessagesPerSubject": 1,
+          "messages": 397,
+          "bytes": 45997
+        },
+        "KV_MESH_COLLAB": {
+          "maxAge": 0,
+          "maxMessages": -1,
+          "maxBytes": -1,
+          "maxMessagesPerSubject": 1,
+          "messages": 227,
+          "bytes": 294101
+        },
+        "KV_MESH_PLANS": {
+          "maxAge": 0,
+          "maxMessages": -1,
+          "maxBytes": -1,
+          "maxMessagesPerSubject": 1,
+          "messages": 7,
+          "bytes": 882
+        }
+      },
+      "unreferencedTerminalTasksWithTimestamp": 2,
+      "oldestAgeMilliseconds": 134349204,
+      "pruneMarginAtLeastMilliseconds": 600000
+    },
+    "fullRPCPeriodMilliseconds": 5000,
+    "fullRPCDeadlineMilliseconds": 5000,
+    "streamPeriodMilliseconds": 250
+  },
+  "privateReportSha256": "d390b28d6118cef7e5d4c6d64a596a5927758ffa5e50c925301814b41f33e3e5",
+  "limits": [
+    "The prior state-changing attempt remains unaccepted because of observer-process cleanup failure. This read-only continuation verifies current runtime and continuity of selected task/KV state without a second restart.",
+    "The log-watcher RPC is health evidence. Real staged-entry held-return controls prove awaiting the barrier.",
+    "Flush acknowledges local server registration; remote route propagation is asynchronous. Finite cross-member success is qualified evidence.",
+    "No global admission fence, whole-bus preservation, cold backup, active-handler completion or complete node readiness is claimed."
+  ]
+}
