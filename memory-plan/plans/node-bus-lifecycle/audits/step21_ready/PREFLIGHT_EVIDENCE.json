@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-29T04:03:03.029010+00:00",
+  "noServiceMutation": true,
+  "guardSeconds": 65,
+  "checks": 14,
+  "nullClaims": 5,
+  "streamsUnchanged": true,
+  "taskCount": 537,
+  "tasksUnchanged": true,
+  "normalObserverClose": true,
+  "scope": "finite live preflight, not managed deployment or a global writer fence"
+}

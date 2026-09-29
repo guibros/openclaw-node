@@ -2815,6 +2815,7 @@ async function main() {
   log(`Circling step timeout sweep: every 60s (threshold: ${CIRCLING_STEP_TIMEOUT_MS / 60000}m)`);
 
 
+  await nc.flush();
   log('Task daemon ready.');
 
   // Shutdown handler

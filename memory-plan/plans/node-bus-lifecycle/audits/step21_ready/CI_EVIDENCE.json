@@ -1,0 +1,23 @@
+{
+  "run": 36519414185,
+  "headSha": "8ab8350a4aefa974a1813db6e5700514e6e28538",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "mission-control-tests",
+      "conclusion": "success",
+      "completedAt": "2026-09-29T03:58:18Z"
+    },
+    {
+      "name": "unit-tests (22)",
+      "conclusion": "success",
+      "completedAt": "2026-09-29T04:00:37Z"
+    },
+    {
+      "name": "unit-tests (20)",
+      "conclusion": "success",
+      "completedAt": "2026-09-29T04:00:39Z"
+    }
+  ],
+  "scope": "isolated CI; production unchanged"
+}
