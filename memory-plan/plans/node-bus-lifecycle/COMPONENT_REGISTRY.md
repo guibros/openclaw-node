@@ -150,3 +150,29 @@ Old entry/plist remain available; primarye57/shared dependencies preserved.
 3.3[x]/v3.3; monitoring's false BROKEN is the next separately bounded repair,
 before journal/timer integration/new preservation baseline. Source and Mac
 measurement attribution remain distinct; qualified Claude84 challenge passes.
+
+
+Disabled-inactivity monitor candidate2026-09-29 06:37 EDT: private Node24
+source consumer passes56 focused controls/no skips; seven selected old-source
+controls fail. Ten real owned Mac launchd target controls pass, loaded HOME
+selects the effective config despite unrelated watcher override, known failure
+priority survives missing/malformed policy; all owned units bootout0/absent.
+No production change yet; actual watcher747 still reports false-BROKEN.
+3.4[A]/v3.4-mid awaits exact CI/read-only challenge, separate auth-preserving
+release and two actual managed reports. Journal3.5/timer3.6 remain open.
+
+
+Disabled-inactivity monitor closure2026-09-29 06:57 EDT: sourcea4291c4
+approved by Claude90/92, exactCI36556656732 green3/3; deployed new separate
+monitor-a4291c4-viewer-b4bbac2-e57 release/lib8a372106 retains prior viewer
+auth. Old747 kernel normal0; current19976/runs1. Actual two light reports
+during81.816s/122 checks show net.meshWORKING5/5 with explicit DiscordOFF
+and authenticated viewer9plans. Twelve other running owners and Discord
+loaded/noPID/run1/exit0, config/primary/source/dependencies preserved.
+Paired current36-target comparison has only net.meshBROKEN→WORKING, other35
+match; it is not a historical full pre-swap matrix. Counts21W/6B/3OFF/6U
+retain six failures. First recorder refusal before mutation stays unaccepted.
+Claude96 accepts qualified closure reasoning; all Mac measurements remain
+locally observed. New unitba411081/dev16777233/ino58989175/ctime1790678850314936186
+mode0600 is a new baseline input; old release/plist retained for rollback.
+3.4[x]/v3.4; journal3.5/timers3.6/full preservation remain open.

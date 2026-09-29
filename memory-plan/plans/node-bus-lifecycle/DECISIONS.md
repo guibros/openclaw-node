@@ -278,3 +278,37 @@ reasoning/source facts;85 clarifies unchanged old entry and plist rollback.
 Close only3.3 disabled-inactivity. Prioritize the separately tracked false
 BROKEN monitoring correction next, before journal/timer integration and any
 new preservation baseline. No original source/config/dependencies overwritten.
+
+## D20 — Surface confirmed inactivity before further preservation integration (2026-09-29 06:22 EDT)
+
+Claude84/86 identifies the standing false-BROKEN left by3.3. Make its monitoring
+correction the next independent atomic3.4, before any new production baseline.
+The previously queued journal3.4 becomes3.5; timer installation3.5 becomes3.6.
+Historical references in existing decisions/audits/PRs remain unchanged and
+refer to that original numbering; this entry is the explicit mapping.
+
+Read Discord's effective config from the HOME observed in its loaded launchd
+environment, matching the actual tool's HOME/.openclaw/openclaw.json. Do not
+use a different watcher's override to manufacture explicit-false evidence.
+Only strictfalse/loaded/not-running/lastExit0 qualifies as optional OFF within
+the existing mesh aggregate. Required stopped units, failed exits or a disabled
+running Discord remain BROKEN; missing lifecycle/policy/observation evidence
+cannot earn health. Existing unloaded role behavior remains. No new target,
+daemon, integration enablement or other failure repair.
+
+Stage only the monitor diff on its actual separate viewer-b4bbac2-e57 release,
+retaining authenticated viewer discovery. Change only its managed entry path,
+preserving schedules/arguments/env/cwd; prove normal managed stop/restart and
+two actual reports. Record other remaining failures honestly. Full quiet-window
+and healthy-store preservation still require3.5/3.6 and recovery1.2.
+
+
+D20 closure clarification (2026-09-29 06:57 EDT): net.mesh is the single
+graded aggregate; DiscordOFF lives in its detail/evidence, not a new cell.
+The actual source change moves20W/7B/3OFF/6U→21W/6B/3OFF/6U. Additional
+paired current full36-target observations show only net.meshBROKEN→WORKING;
+a historical full pre-swap matrix was not captured and is not asserted.
+The qualified current OFF neither reads loaded KeepAlive policy nor certifies
+arbitrary source identity/perpetual terminal state. Disabled-running remains
+BROKEN when observed; polling need not catch every short restart. Those
+stronger preservation/static-identity contracts remain3.5/3.6/recovery1.2.

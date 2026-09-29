@@ -1,0 +1,332 @@
+{
+  "at": "2026-09-29T10:54:35.552Z",
+  "old": {
+    "meta": {
+      "nodeId": "moltymacs-virtual-machine",
+      "mode": "watch",
+      "includeHeavy": false,
+      "timestamp": "2026-09-29T10:54:26.053Z"
+    },
+    "counts": {
+      "WORKING": 20,
+      "BROKEN": 7,
+      "OFF": 3,
+      "UNKNOWN": 6
+    },
+    "verdicts": [
+      {
+        "id": "mem.daemon",
+        "status": "WORKING"
+      },
+      {
+        "id": "mem.ingest",
+        "status": "BROKEN"
+      },
+      {
+        "id": "mem.extraction",
+        "status": "WORKING"
+      },
+      {
+        "id": "mem.knowledge_index",
+        "status": "WORKING"
+      },
+      {
+        "id": "mem.inject",
+        "status": "WORKING"
+      },
+      {
+        "id": "mem.watcher",
+        "status": "WORKING"
+      },
+      {
+        "id": "obs.sync",
+        "status": "BROKEN"
+      },
+      {
+        "id": "obs.graph_cache",
+        "status": "BROKEN"
+      },
+      {
+        "id": "obs.links",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "llm.local_model",
+        "status": "WORKING"
+      },
+      {
+        "id": "llm.local_gen",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "llm.embedder",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "llm.extraction_task",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "llm.cloud",
+        "status": "OFF"
+      },
+      {
+        "id": "net.nats",
+        "status": "WORKING"
+      },
+      {
+        "id": "net.stream",
+        "status": "BROKEN"
+      },
+      {
+        "id": "net.pubsub",
+        "status": "WORKING"
+      },
+      {
+        "id": "net.mesh",
+        "status": "BROKEN"
+      },
+      {
+        "id": "net.federation",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "store.state_db",
+        "status": "WORKING"
+      },
+      {
+        "id": "store.knowledge_db",
+        "status": "WORKING"
+      },
+      {
+        "id": "store.graph_cache_db",
+        "status": "WORKING"
+      },
+      {
+        "id": "runtime.gateway",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "runtime.bridge",
+        "status": "OFF"
+      },
+      {
+        "id": "ops.taskboard",
+        "status": "WORKING"
+      },
+      {
+        "id": "ops.hyperagent",
+        "status": "WORKING"
+      },
+      {
+        "id": "ops.calendar",
+        "status": "WORKING"
+      },
+      {
+        "id": "ops.roadmap",
+        "status": "WORKING"
+      },
+      {
+        "id": "ops.diagnostics",
+        "status": "WORKING"
+      },
+      {
+        "id": "fabric.services",
+        "status": "BROKEN"
+      },
+      {
+        "id": "fabric.deploy_drift",
+        "status": "WORKING"
+      },
+      {
+        "id": "fabric.identity_config",
+        "status": "WORKING"
+      },
+      {
+        "id": "fed.coordinator",
+        "status": "WORKING"
+      },
+      {
+        "id": "fed.cluster.quorum",
+        "status": "WORKING"
+      },
+      {
+        "id": "fed.grappe.members",
+        "status": "BROKEN"
+      },
+      {
+        "id": "fed.session.liveness",
+        "status": "OFF"
+      }
+    ]
+  },
+  "next": {
+    "meta": {
+      "nodeId": "moltymacs-virtual-machine",
+      "mode": "watch",
+      "includeHeavy": false,
+      "timestamp": "2026-09-29T10:54:35.551Z"
+    },
+    "counts": {
+      "WORKING": 21,
+      "BROKEN": 6,
+      "OFF": 3,
+      "UNKNOWN": 6
+    },
+    "verdicts": [
+      {
+        "id": "mem.daemon",
+        "status": "WORKING"
+      },
+      {
+        "id": "mem.ingest",
+        "status": "BROKEN"
+      },
+      {
+        "id": "mem.extraction",
+        "status": "WORKING"
+      },
+      {
+        "id": "mem.knowledge_index",
+        "status": "WORKING"
+      },
+      {
+        "id": "mem.inject",
+        "status": "WORKING"
+      },
+      {
+        "id": "mem.watcher",
+        "status": "WORKING"
+      },
+      {
+        "id": "obs.sync",
+        "status": "BROKEN"
+      },
+      {
+        "id": "obs.graph_cache",
+        "status": "BROKEN"
+      },
+      {
+        "id": "obs.links",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "llm.local_model",
+        "status": "WORKING"
+      },
+      {
+        "id": "llm.local_gen",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "llm.embedder",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "llm.extraction_task",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "llm.cloud",
+        "status": "OFF"
+      },
+      {
+        "id": "net.nats",
+        "status": "WORKING"
+      },
+      {
+        "id": "net.stream",
+        "status": "BROKEN"
+      },
+      {
+        "id": "net.pubsub",
+        "status": "WORKING"
+      },
+      {
+        "id": "net.mesh",
+        "status": "WORKING"
+      },
+      {
+        "id": "net.federation",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "store.state_db",
+        "status": "WORKING"
+      },
+      {
+        "id": "store.knowledge_db",
+        "status": "WORKING"
+      },
+      {
+        "id": "store.graph_cache_db",
+        "status": "WORKING"
+      },
+      {
+        "id": "runtime.gateway",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "runtime.bridge",
+        "status": "OFF"
+      },
+      {
+        "id": "ops.taskboard",
+        "status": "WORKING"
+      },
+      {
+        "id": "ops.hyperagent",
+        "status": "WORKING"
+      },
+      {
+        "id": "ops.calendar",
+        "status": "WORKING"
+      },
+      {
+        "id": "ops.roadmap",
+        "status": "WORKING"
+      },
+      {
+        "id": "ops.diagnostics",
+        "status": "WORKING"
+      },
+      {
+        "id": "fabric.services",
+        "status": "BROKEN"
+      },
+      {
+        "id": "fabric.deploy_drift",
+        "status": "WORKING"
+      },
+      {
+        "id": "fabric.identity_config",
+        "status": "WORKING"
+      },
+      {
+        "id": "fed.coordinator",
+        "status": "WORKING"
+      },
+      {
+        "id": "fed.cluster.quorum",
+        "status": "WORKING"
+      },
+      {
+        "id": "fed.grappe.members",
+        "status": "BROKEN"
+      },
+      {
+        "id": "fed.session.liveness",
+        "status": "OFF"
+      }
+    ]
+  },
+  "delta": [
+    {
+      "id": "net.mesh",
+      "old": "BROKEN",
+      "new": "WORKING"
+    }
+  ],
+  "boundary": "Paired current full target observations under the actual unit environment with one shared actual health-check capture; existing temporary workspace writable probe occurs once. This is not a historical full-verdict capture across the deployment.",
+  "sourceCommit": "a4291c4c7b71964251884f1a9e1c5bc09b72cf56"
+}
