@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=${NODE_BIN} ${OPENCLAW_REPO_DIR}/bin/mesh-tool-discord.js
-Restart=always
+Restart=on-failure
 RestartSec=5
 Environment=HOME=${HOME}
 Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr/bin:/bin

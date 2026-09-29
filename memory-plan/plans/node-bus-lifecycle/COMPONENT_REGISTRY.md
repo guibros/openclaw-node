@@ -126,3 +126,14 @@ delegated-memory/general-daemon/preservation acceptance remain open. Seven
 old-source controls fail as expected. Partial-result audit and long-wait
 visibility are separate parent follow-ups. Fresh09:20UTC13 ownerPID/runs same;
 primarye57/shared modules/live units preserved.3.3 disabled Discord is next.
+
+Disabled Discord candidate2026-09-29 05:44 EDT:actual explicit-false/no-token
+config still preserved; old loaded unit was runs3015/exit1/crash-looping.
+Private e57-based entryd1341cfa passes10 real process controls: false±token
+normal0/no runtime libraries/bus/state; missing/malformed config failure;
+enabled/legacy real registration+planned0; permanent loss1. Actual private
+Mac conditional unit remains loaded/not-running/runs1/exit0 for65s/245samples;
+enabled missing-token failures restart; both owned units bootout0/absence.
+No production change yet;3.3[A]/v3.3-mid awaits immutable CI/source review
+and its separate narrow live deployment. Linux policy has no systemd runtime
+acceptance. First fixture-key failure remains retained/unaccepted.

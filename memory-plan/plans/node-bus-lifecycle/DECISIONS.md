@@ -250,3 +250,19 @@ Outer notify timeout withdrawn: direct-child kill can orphan the platform
 grandchild, a race can return early. Partial-result audit/duration visibility
 carry forward as separate parent observability work.3.3 next; production timer
 installation/general daemon/preservation proof remain open.
+
+## D19 — Explicitly disabled Discord is successful inactivity (2026-09-29 05:34 EDT)
+
+Strict channels.discord.enabled=false returns0 before runtime imports/token
+lookup and bus/state admission. Missing-enabled legacy token behavior remains;
+malformed config or enabled failures remain exit1. Conditional unsuccessful
+exit restart replaces unconditional restart, preserving RunAtLoad/Throttle.
+Permanent NATS close's resolved error must propagate as failure so this policy
+does not silently suppress enabled recovery. No general handler-drain repair.
+
+The actual disabled/no-token/zero-account config remains unchanged. Only the
+tool entry and KeepAlive change in a narrow e57 runtime release. Acceptance
+requires real private Mac supervisor controls and stable loaded/not-running
+live exit0/no Discord admission. Linux Restart=on-failure is source policy,
+not independently observed systemd runtime.3.3 does not enable Discord or
+install production timer holds/preserve the complete node.
