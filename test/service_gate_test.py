@@ -44,7 +44,7 @@ class GateTests(unittest.TestCase):
         self.temp.cleanup()
 
     def launch(self, argv):
-        child = subprocess.Popen([sys.executable, '-I', '-S', str(SOURCE), 'run', str(self.root), '--lock', self.pin, '--', *argv],
+        child = subprocess.Popen([sys.executable, '-I', '-S', str(SOURCE), 'run', str(self.root), '--lock', self.pin['lock'], '--root-pin', self.pin['root'], '--', *argv],
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.children.append(child)
         return child
@@ -145,7 +145,7 @@ ready=pathlib.Path(sys.argv[3])
 receipt=ready.with_name('controller-receipt')
 def save_receipt(value):
  receipt.write_text(json.dumps(value));receipt.chmod(0o600)
-with module.Gate(sys.argv[2], sys.argv[5]) as gate:
+with module.Gate(sys.argv[2], json.loads(sys.argv[5])) as gate:
  if sys.argv[4]=='draining':
   original=gate.exclusive
   def exclusive(seconds):
@@ -161,7 +161,7 @@ with module.Gate(sys.argv[2], sys.argv[5]) as gate:
   sys.stdin.read()
 '''
         child = subprocess.Popen([sys.executable, '-c', script, str(SOURCE), str(self.root),
-                                  str(ready), phase, self.pin], stdin=subprocess.PIPE,
+                                  str(ready), phase, json.dumps(self.pin)], stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.children.append(child)
         try:
@@ -326,17 +326,34 @@ with module.Gate(sys.argv[2], sys.argv[5]) as gate:
         self.assertEqual(result.stderr, b'')
         self.assertFalse((self.directory / 'bypass').exists())
 
+    def test_runner_requires_both_independent_pins(self):
+        for options in (['--lock', self.pin['lock']], ['--root-pin', self.pin['root']]):
+            result = subprocess.run([sys.executable, '-I', '-S', str(SOURCE), 'run', str(self.root),
+                                     *options, '--', *self.no_work()],
+                                    capture_output=True, timeout=5)
+            self.assertEqual(result.returncode, 78)
+            self.assertEqual(result.stdout, b'')
+            self.assertEqual(result.stderr, b'')
+            self.assertFalse((self.directory / 'bypass').exists())
+
     def test_substitute_gate_refuses_the_original_job_and_controller_without_a_watcher(self):
         self.root.rename(self.directory / 'original')
         initialize(self.root)
         self.assert_no_work(78)
-        with self.assertRaisesRegex(Refused, 'lock pin differs'):
+        with self.assertRaisesRegex(Refused, 'root pin differs'):
             Gate(self.root, self.pin)
+
+    def test_controller_refuses_mismatched_root_and_lock_pins(self):
+        for field in ('root', 'lock'):
+            pin = dict(self.pin)
+            pin[field] = '0:0:0' if field == 'lock' else '0:0'
+            with self.assertRaisesRegex(Refused, 'pin differs'):
+                Gate(self.root, pin)
 
     def test_non_normalized_path_refuses_before_execution(self):
         path = str(self.root.parent) + '/other/../gate'
         result = subprocess.run([sys.executable, '-I', '-S', str(SOURCE), 'run', path,
-                                 '--lock', self.pin, '--', *self.no_work()],
+                                 '--lock', self.pin['lock'], '--root-pin', self.pin['root'], '--', *self.no_work()],
                                 capture_output=True, timeout=5)
         self.assertEqual(result.returncode, 78)
         self.assertEqual(result.stdout, b'')
@@ -349,7 +366,7 @@ with module.Gate(sys.argv[2], sys.argv[5]) as gate:
         shadow = self.directory / 'secrets.py'
         shadow.write_text("import pathlib;pathlib.Path(__file__).with_name('shadow-ran').touch();raise RuntimeError('owned shadow')")
         result = subprocess.run([sys.executable, '-I', '-S', str(wrapper), 'run', str(self.root),
-                                 '--lock', self.pin, '--', *self.no_work()],
+                                 '--lock', self.pin['lock'], '--root-pin', self.pin['root'], '--', *self.no_work()],
                                 capture_output=True, timeout=5)
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'')
@@ -398,7 +415,7 @@ with module.Gate(sys.argv[2], sys.argv[5]) as gate:
     def test_symlink_ancestor_refuses_before_execution(self):
         alias = self.directory / 'alias'
         alias.symlink_to(self.directory, target_is_directory=True)
-        result = subprocess.run([sys.executable, str(SOURCE), 'run', str(alias / 'gate'), '--lock', self.pin, '--',
+        result = subprocess.run([sys.executable, str(SOURCE), 'run', str(alias / 'gate'), '--lock', self.pin['lock'], '--root-pin', self.pin['root'], '--',
                                  *self.no_work()], capture_output=True, timeout=5)
         self.assertEqual(result.returncode, 78)
         self.assertEqual(result.stdout, b'')
@@ -422,7 +439,7 @@ with module.Gate(sys.argv[2], sys.argv[5]) as gate:
                 parent.rename(self.directory / 'original-parent')
                 parent.mkdir(mode=0o700)
                 initialize(root)
-                result = subprocess.run([sys.executable, str(SOURCE), 'run', str(root), '--lock', pin, '--',
+                result = subprocess.run([sys.executable, str(SOURCE), 'run', str(root), '--lock', pin['lock'], '--root-pin', pin['root'], '--',
                                          *self.no_work()], capture_output=True, timeout=5)
                 self.assertEqual(result.returncode, 78)
                 self.assertFalse((self.directory / 'bypass').exists())
@@ -526,7 +543,7 @@ with module.Gate(sys.argv[2], sys.argv[5]) as gate:
         script.write_text("require('fs').appendFileSync(process.argv[2],'application\\n')")
         unit = self.directory / 'owned.plist'
         unit.write_bytes(plistlib.dumps({'Label': label,
-            'ProgramArguments': [sys.executable, '-I', '-S', str(SOURCE), 'run', str(self.root), '--lock', self.pin, '--',
+            'ProgramArguments': [sys.executable, '-I', '-S', str(SOURCE), 'run', str(self.root), '--lock', self.pin['lock'], '--root-pin', self.pin['root'], '--',
                                  shutil.which('node'), str(script), str(counter)],
             'RunAtLoad': True, 'StartInterval': 2, 'ThrottleInterval': 1,
             'StandardOutPath': str(log), 'StandardErrorPath': str(err)}))

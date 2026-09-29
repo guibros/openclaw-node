@@ -72,6 +72,10 @@ def lock_pin(info):
     return ':'.join(str(info[key]) for key in ('device', 'inode', 'ctime_ns'))
 
 
+def root_pin(info):
+    return ':'.join(str(info[key]) for key in ('device', 'inode'))
+
+
 class PathWatch:
     def __init__(self, root):
         self.handles = []
@@ -199,24 +203,28 @@ def initialize(root):
             os.close(parent)
     finally:
         os.close(directory)
-    return lock_pin(lock)
+    return {'lock': lock_pin(lock), 'root': root_pin(root_identity)}
 
 
 class Gate:
-    def __init__(self, root, expected_lock):
+    def __init__(self, root, expected_pin):
         self.root = normalized_root(root)
         self.handles = []
         self.paths = None
         self.closed_receipt = None
         self._drain_verified = False
         try:
+            require(isinstance(expected_pin, dict) and set(expected_pin) == {'root', 'lock'},
+                    'gate requires its installed root and lock pins')
             self.paths = PathWatch(self.root)
             self.directory = os.dup(self.paths.handles[-1])
             self.handles.append(self.directory)
-            private(self.directory, directory=True)
+            self.expected_root = expected_pin['root']
+            require(root_pin(private(self.directory, directory=True)) == self.expected_root,
+                    'gate root pin differs')
             self.lock = self.open_private('gate.lock')
             self.handles.append(self.lock)
-            self.expected_lock = expected_lock
+            self.expected_lock = expected_pin['lock']
             require(lock_pin(private(self.lock)) == self.expected_lock, 'gate lock pin differs')
             self.metadata_fd = self.open_private('identity.json')
             self.handles.append(self.metadata_fd)
@@ -247,6 +255,7 @@ class Gate:
             self.paths.check()
         root = private(self.directory, directory=True)
         root.pop('ctime_ns')
+        require(root_pin(root) == self.expected_root, 'gate root pin differs')
         require(root == self.metadata['root'], 'gate directory identity changed')
         path_info = self.root.lstat()
         require(stat.S_ISDIR(path_info.st_mode)
@@ -290,6 +299,7 @@ class Gate:
                     'object_identities': {'root': root_info, 'lock': private(self.lock),
                                           'metadata': private(self.metadata_fd), 'marker': info},
                     'lock_pin': self.expected_lock,
+                    'root_pin': self.expected_root,
                     'path_identities': self.paths.evidence()['paths']}
         finally:
             os.close(fd)
@@ -505,19 +515,23 @@ def main():
     parser.add_argument('action', choices=('init', 'run'))
     parser.add_argument('root')
     parser.add_argument('--lock')
+    parser.add_argument('--root-pin')
     args, argv = parser.parse_known_args()
     argv = argv[1:] if argv[:1] == ['--'] else argv
     try:
         if args.action == 'init':
-            require(not argv and args.lock is None, 'init accepts no runner arguments')
+            require(not argv and args.lock is None and args.root_pin is None,
+                    'init accepts no runner arguments')
             if not os.path.lexists(args.root):
                 expected = initialize(args.root)
             else:
                 root = normalized_root(args.root)
-                expected = lock_pin(identity(os.stat(root / 'gate.lock', follow_symlinks=False)))
+                expected = {'lock': lock_pin(identity(os.stat(root / 'gate.lock', follow_symlinks=False))),
+                            'root': root_pin(identity(os.stat(root, follow_symlinks=False)))}
         else:
-            require(args.lock is not None, 'runner requires its installed gate pin')
-            expected = args.lock
+            require(args.lock is not None and args.root_pin is not None,
+                    'runner requires its installed gate pins')
+            expected = {'lock': args.lock, 'root': args.root_pin}
         with Gate(args.root, expected) as gate:
             if args.action == 'init':
                 require(gate.marker() is None, 'installation cannot reopen a closed gate')

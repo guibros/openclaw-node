@@ -134,3 +134,21 @@ ctime/mtime on this APFS path; original receipt recovery refuses. A first
 measurement completed its checks but failed filesystem lookup, so its result
 was not accepted; the corrected device-derived lookup and new owned root
 produce the retained measurement. No production operation occurred.
+
+## Explicit root pin follow-up — 2026-09-29 04:09:49 EDT
+
+Claude60 asks for the independent root device/inode pin as well as the
+lock device/inode/ctime. Both are mandatory in installed runner arguments
+and controller API, while mutable root ctime/mtime remain receipt fields.
+Forty actual Mac controls pass against private primitive-v5 source26e9278,
+with real timer e4b16f63f04556b8 runs1→3/app1→1/exit0/log0/err0 and
+verified bootout. The new actual root/lock mismatch and missing-either-pin
+controls refuse before application work. The rapid APFS/rename measurements
+are repeated against this exact source. CI36540391512 passed3/3 for the
+preceding e788e1c; this source needs new exact CI and Claude review.
+
+Preserve the source/controller boundary:3.2 must bracket stops/copies with
+clean before/after checks from the same original session, exclude gate/code
+paths from deploy or explicitly hold deploy and recapture changed pins, and
+record straggler/no-receipt/mismatch recovery as interrupted restoration.
+No production gate, timer edit or preservation operation occurred.

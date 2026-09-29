@@ -185,3 +185,12 @@ re-closing a broken/missing hold before dependency restoration. Never install
 this primitive as a standalone production safety mechanism.3.1 remains active
 until corrected exact CI and independent source challenge pass. Original
 D15's4096 bound now applies to refusal evidence; tolerated events use counts.
+
+D16 clarification2026-09-29 04:09:49 EDT: both lock device/inode/ctime and root
+device/inode are independent mandatory installed pins, checked by controller
+and runner. Root ctime stays in the post-publication receipt, not the stable
+installed pin because our own publication changes it. Claude60 accepts the
+primitive shape; interval-bracketed same-session checks and deploy target
+exclusion/pin recapture remain3.2 requirements. Timeout recovery must record
+its straggler/refusal and retain the hold until owned completion is established;
+it does not create a new certifying window. No production integration yet.

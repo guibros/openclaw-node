@@ -85,3 +85,11 @@ and bootout verifies absence.6000 rapid APFS checks have zero observed events;
 marker rename changes ctime and saved receipt recovery refuses. No production
 hold or controller. Corrected exact CI/review remain pending;3.1 stays active.
 Primary e57 remains untouched and task owner82096/runs1 remains running.
+
+Root+lock-pin correction 2026-09-29 04:09:49 EDT:40 actual Mac controls on source26e9278
+pass in private primitive-v5; all40 include a verified unloaded owned timer.
+CI36540391512 passes3/3 at preceding e788e1c. Corrected exact CI/review
+still required.3.1[A]/v3.1-mid;3.2 and production preservation remain open.
+Fresh08:05:29UTC read confirms13 exact live targets all loaded, same PID/runs
+as the earlier accepted snapshot, and primarye57 unchanged. An initial read
+with duplicated target prefixes is separately retained as invalid.
