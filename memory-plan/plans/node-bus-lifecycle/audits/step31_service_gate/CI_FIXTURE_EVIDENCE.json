@@ -1,0 +1,120 @@
+{
+  "run": 36535769998,
+  "status": "failed",
+  "soleFailure": "task-daemon repeated-signal fixture did not observe server suspended before requesting drain",
+  "rootTests": 2520,
+  "pass": 2514,
+  "fail": 1,
+  "gateSubtestPassed": true,
+  "log": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/ci36535769998-failed.log",
+  "logSHA256": "62a6347f458219a58c808469e6f640b681d063d9c57bbc092a597fddfc1e78c8",
+  "focusedEvidence": {
+    "at": "2026-09-29T07:24:54.347456+00:00",
+    "runs": [
+      {
+        "run": 1,
+        "returncode": 0,
+        "elapsedSeconds": 0.583,
+        "log": "run-01.log",
+        "sha256": "509383574d9b7f530494d69df1bd9291b7bf4cf3e8ddc8784f73a6373a583711"
+      },
+      {
+        "run": 2,
+        "returncode": 0,
+        "elapsedSeconds": 0.486,
+        "log": "run-02.log",
+        "sha256": "4f0a7846695669ffb61551fd5153ee081b83c87a460e58774aa86adaa984e429"
+      },
+      {
+        "run": 3,
+        "returncode": 0,
+        "elapsedSeconds": 0.483,
+        "log": "run-03.log",
+        "sha256": "94fb69a71a1998fdcae32b6ee673cad5acbd977d38c70cccfd8cc231adf5652a"
+      },
+      {
+        "run": 4,
+        "returncode": 0,
+        "elapsedSeconds": 0.499,
+        "log": "run-04.log",
+        "sha256": "f104364ba8c0855063cb2a284a0cfdc52b9791cc2db19d27fc0623f97739d480"
+      },
+      {
+        "run": 5,
+        "returncode": 0,
+        "elapsedSeconds": 0.477,
+        "log": "run-05.log",
+        "sha256": "7efffc6f907aae4548ab919a5608ad09fcfddcd97792e5aeb29f32686932c05c"
+      },
+      {
+        "run": 6,
+        "returncode": 0,
+        "elapsedSeconds": 0.471,
+        "log": "run-06.log",
+        "sha256": "815d6386424a01fd962061b5c38ba1abc48ae5696c1a2f5952ca08d48f8c10ae"
+      },
+      {
+        "run": 7,
+        "returncode": 0,
+        "elapsedSeconds": 0.475,
+        "log": "run-07.log",
+        "sha256": "1692b15e17537bb9f80d0bead43e27c95459b969eacc7ea4f418fa049e611416"
+      },
+      {
+        "run": 8,
+        "returncode": 0,
+        "elapsedSeconds": 0.474,
+        "log": "run-08.log",
+        "sha256": "16738ac9372f272d2178c2e184d4cb3e8f9d5cd1a915b9c6cb79db92d3d868d6"
+      },
+      {
+        "run": 9,
+        "returncode": 0,
+        "elapsedSeconds": 0.471,
+        "log": "run-09.log",
+        "sha256": "6f7e778637417d418e254165583194521d699d49fb9ce4382ae3957f3d5711c0"
+      },
+      {
+        "run": 10,
+        "returncode": 0,
+        "elapsedSeconds": 0.474,
+        "log": "run-10.log",
+        "sha256": "8a7d65ef2be46d4316c1a5152dead696fd33c0e96ee45666ec635055685ded7d"
+      },
+      {
+        "run": 11,
+        "returncode": 0,
+        "elapsedSeconds": 0.48,
+        "log": "run-11.log",
+        "sha256": "b2a1f17589f4accef1d54aae6cde15268301ce16a174bdb340b0f77b262b5f75"
+      },
+      {
+        "run": 12,
+        "returncode": 0,
+        "elapsedSeconds": 0.505,
+        "log": "run-12.log",
+        "sha256": "0d8a553da298ecb2b7ee33e8177c7dc529322e5496a84374f7e9892899ed95fc"
+      }
+    ],
+    "sourcePins": {
+      "test/task-daemon-lifecycle.test.mjs": "3150e8878c259b965f4d1a4c77807d503b68bee36b64f3ccb920bc8a465a15a8",
+      "bin/mesh-task-daemon.js": "efc43bf9edb7735cfb68130c87b2ae2a10f5e474f9aae9e9538103b98868de0d",
+      "workspace-bin/service_gate.py": "9822ba60edcb9e86c860868147c52aa24147040107cc1099350e523574d1e102"
+    },
+    "node": "/opt/homebrew/Cellar/node@22/22.22.0/bin/node",
+    "nodeVersion": "v22.22.0",
+    "productionMutations": 0,
+    "premise": "actual owned server ps state T before requested daemon shutdown",
+    "acceptanceAssertionsUnchanged": true
+  },
+  "allThreadsCorrection": {
+    "at": "2026-09-29T08:01:56.991550+00:00",
+    "sourceSha256": "b3b11abf522c1fff48dd2d90af0ce7b0c7aa5a32487378c8bc0de27f40de3c0a",
+    "privateEvidence": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/suspend-fixture-v2/EVIDENCE.json",
+    "focusedMacControl": "1/1 pass on Node22.22.0",
+    "linuxControl": "Wait every /proc/<pid>/task/<tid>/stat stateT; exact isolated CI pending",
+    "applicationSourceUnchanged": true,
+    "assertionsUnchanged": true,
+    "failedFirstLocalInvocation": "Worktree had no nats dependency; no fixture ran. Corrected NODE_PATH reads primary modules without modifying them."
+  }
+}

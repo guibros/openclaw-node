@@ -141,3 +141,174 @@ selected task/KV/other-owner state, both observers exit0. Its local4222-only
 scope is explicit. Earlier failed runs stay unaccepted. Close2.1; merge149
 before recovery144's new main-integration CI. Block2 is complete; re-orient to
 recovery1.2, with no production baseline yet and managed cold-copy proof open.
+
+## D15 — Use a durable scheduled-application hold (2026-09-29 03:11:58 EDT)
+
+**Decision.** Follow Claude50/52's foreground-only execution gate: shared lock
+before marker inspection, durable closed marker before exclusive drain, keep
+timers loaded and inert, reopen only through verified recovery. This specific
+application-execution hold is the new documented exception to recoveryD8's
+bootout-only ordinary holds. No repository write/scope approval gate returns.
+
+**Why.** Idle logs/PID sampling cannot prove a scheduled job did not start.
+A measured spawn minimum is not a hard scheduling bound. Four real exec
+controls show Node/shell preserve the lock only with explicit inheritable FD.
+Node child processes can close it, so arbitrary descendant coverage is false.
+
+**Consequences.** Separate primitive3.1, full foreground/deployment/journal
+integration3.2 and disabled Discord3.3. No production hold exists yet. Invalid
+metadata/symlinks fail closed; owner-private lock and directory inode identity
+are pinned and watched. A controller crash or deadline refusal retains the
+marker for explicit recovery. Kernel events have a4096-event refusal bound.
+Linux continuous-watch acceptance is separate and unproved. Consolidation's
+unawaited notification must finish before installation, and delegated memory
+work still needs its own idle proof. Unknown callers are inventoried writers.
+
+## D16 — Independently pin timers and certify only the original observer interval (2026-09-29 03:57 EDT)
+
+**Decision.** Require an external lock device/inode/ctime pin in every runner
+and controller. Capture full root/marker/object identities and a pre-publication
+watch-session id. Reattach is the separate restoration-only type and can never
+certify across controller loss. Native mapping/file failures permanently refuse
+the original session. Tolerated identity-stable ATTRIB counts are separate from
+the refusal-event budget.
+
+**Why.** Owned parent substitution can run a fresh self-described gate; ancestor
+watches alone detect it only with the old observer alive. Receipt bytes can
+still match after mapping restoration. Interpreter/module-path substitution
+remains outside gate-file coverage. SIGKILL is not VM/power-loss proof.
+
+**Consequences.** Correct only primitive3.1 now. Keep3.2 locked on external
+loaded pins, real interpreter -I -S, protected/watched code path, foreground
+completion, sole journal intent/receipt, explicit interrupted recovery and
+re-closing a broken/missing hold before dependency restoration. Never install
+this primitive as a standalone production safety mechanism.3.1 remains active
+until corrected exact CI and independent source challenge pass. Original
+D15's4096 bound now applies to refusal evidence; tolerated events use counts.
+
+D16 clarification2026-09-29 04:09:49 EDT: both lock device/inode/ctime and root
+device/inode are independent mandatory installed pins, checked by controller
+and runner. Root ctime stays in the post-publication receipt, not the stable
+installed pin because our own publication changes it. Claude60 accepts the
+primitive shape; interval-bracketed same-session checks and deploy target
+exclusion/pin recapture remain3.2 requirements. Timeout recovery must record
+its straggler/refusal and retain the hold until owned completion is established;
+it does not create a new certifying window. No production integration yet.
+
+## D17 — Close the owned primitive and atomize integration (2026-09-29 04:38 EDT)
+
+Close only3.1's written private-consumer contract. Exact source0f0dcc2 has
+Claude62 source approval, Claude64 artifact-hash linkage and3/3 exact CI.
+New actual Mac proof drains a genuinely active fire before return, keeps159
+individually normal fires inert for365s and resumes application work on real
+reopen. Kernel process-exit ordering and raw evidence are retained; this is
+Codex's Mac observation, not a remote reviewer's independent runtime run.
+No production gate or dependency stop is authorized by this prototype alone.
+
+Protocol5.3/11 requires splitting the broad3.2 before implementation:
+3.2 owns complete local consolidation invocation lifetime, including event
+publication and non-detached foreground notification;3.3 remains disabled
+Discord;3.4 owns sole-journal interrupted holds;3.5 owns actual Mac timer
+installation.3.4 precedes3.5, and code/deploy pin protection is a3.5 prerequisite.
+Optional `_drained_guard` hardening is recorded for3.4. Linux continuous-watch
+acceptance feeds the agnostic parent installer, not this Mac evidence.
+
+The current scheduler returns at cancellation before its cycle settles, and
+max-age guarding can orphan it. Both event emissions are unawaited, as is the
+notification child; Linux's CLI can also detach a click waiter. Those local
+invocation lifetimes are one3.2 outcome. Remote inference, other invokers and
+general memory-daemon shutdown remain separate unresolved boundaries. The
+primary live tree, shared dependencies and loaded units stay preserved.
+
+## D18 — Cancellation requests do not certify local completion (2026-09-29 05:00 EDT)
+
+3.2 owns the complete existing consolidation invocation: cycle cleanup, its
+analysis request, event publications and foreground notification. Retain its
+single-flight guard and the analysis queue slot until actual local settlement,
+even if cancellation is ignored. Remove age-orphaning only for this scheduler;
+propagate cancellation through the real summary/client/queue path and curtail
+new writes/stages after abort. Stop fences new invocations and awaits existing
+work before the two callers' teardown. Scheduled maintenance must let active
+fires drain naturally; await does not defeat launchd's forced-stop budget.
+
+The five-minute value is a cancellation deadline, not guaranteed wall-clock
+termination for arbitrary synchronous/uncooperative work. Real HTTP controls
+prove local client completion only, not remote inference cancellation. Await
+existing best-effort event publication without changing reliability semantics.
+Foreground failure notifications exclude detached Linux click waiters and
+complete before invocation release. Other invokers and general daemon-drain
+remain3.5/parent work.3.2 uses private deployed consumers; production timer
+installation remains the separate3.5 acceptance contract.
+
+D18 closure2026-09-29 05:26 EDT:source159b8dd approved as-is by Claude72/74;
+Linux158 reproduced, exactCI36547696359 green3/3. Actual private Mac gate
+retains ownership through cleanup and notification CLI/platform child, then
+normal exit0/drain/reopen. Real staged atomic-write control stays owned through
+abort, finishes sync/rename before return; accepted snapshot unchanged. Seven
+old-source controls fail. Close only3.2's written private-consumer contract.
+Outer notify timeout withdrawn: direct-child kill can orphan the platform
+grandchild, a race can return early. Partial-result audit/duration visibility
+carry forward as separate parent observability work.3.3 next; production timer
+installation/general daemon/preservation proof remain open.
+
+## D19 — Explicitly disabled Discord is successful inactivity (2026-09-29 05:34 EDT)
+
+Strict channels.discord.enabled=false returns0 before runtime imports/token
+lookup and bus/state admission. Missing-enabled legacy token behavior remains;
+malformed config or enabled failures remain exit1. Conditional unsuccessful
+exit restart replaces unconditional restart, preserving RunAtLoad/Throttle.
+Permanent NATS close's resolved error must propagate as failure so this policy
+does not silently suppress enabled recovery. No general handler-drain repair.
+
+The actual disabled/no-token/zero-account config remains unchanged. Only the
+tool entry and KeepAlive change in a narrow e57 runtime release. Acceptance
+requires real private Mac supervisor controls and stable loaded/not-running
+live exit0/no Discord admission. Linux Restart=on-failure is source policy,
+not independently observed systemd runtime.3.3 does not enable Discord or
+install production timer holds/preserve the complete node.
+
+D19 closure2026-09-29 06:12 EDT:exact f21c6df source approved by Claude80,
+Linux10/10 reproduced and CI36551411822 green3/3. Actual new-path e57 release
+d1341cfa and rendered6f532574 plist ran once normally after bootout/bootstrap.
+Fresh same-unit65.402s/84 samples are loaded/not-running/run1/exit0, with
+configfalse/no-token unchanged and13 other owners stable. First too-broad
+all-node-admission window remains refused on a later health-watch connection;
+no preservation or unseen-gap certification. Claude84 accepts qualified
+reasoning/source facts;85 clarifies unchanged old entry and plist rollback.
+Close only3.3 disabled-inactivity. Prioritize the separately tracked false
+BROKEN monitoring correction next, before journal/timer integration and any
+new preservation baseline. No original source/config/dependencies overwritten.
+
+## D20 — Surface confirmed inactivity before further preservation integration (2026-09-29 06:22 EDT)
+
+Claude84/86 identifies the standing false-BROKEN left by3.3. Make its monitoring
+correction the next independent atomic3.4, before any new production baseline.
+The previously queued journal3.4 becomes3.5; timer installation3.5 becomes3.6.
+Historical references in existing decisions/audits/PRs remain unchanged and
+refer to that original numbering; this entry is the explicit mapping.
+
+Read Discord's effective config from the HOME observed in its loaded launchd
+environment, matching the actual tool's HOME/.openclaw/openclaw.json. Do not
+use a different watcher's override to manufacture explicit-false evidence.
+Only strictfalse/loaded/not-running/lastExit0 qualifies as optional OFF within
+the existing mesh aggregate. Required stopped units, failed exits or a disabled
+running Discord remain BROKEN; missing lifecycle/policy/observation evidence
+cannot earn health. Existing unloaded role behavior remains. No new target,
+daemon, integration enablement or other failure repair.
+
+Stage only the monitor diff on its actual separate viewer-b4bbac2-e57 release,
+retaining authenticated viewer discovery. Change only its managed entry path,
+preserving schedules/arguments/env/cwd; prove normal managed stop/restart and
+two actual reports. Record other remaining failures honestly. Full quiet-window
+and healthy-store preservation still require3.5/3.6 and recovery1.2.
+
+
+D20 closure clarification (2026-09-29 06:57 EDT): net.mesh is the single
+graded aggregate; DiscordOFF lives in its detail/evidence, not a new cell.
+The actual source change moves20W/7B/3OFF/6U→21W/6B/3OFF/6U. Additional
+paired current full36-target observations show only net.meshBROKEN→WORKING;
+a historical full pre-swap matrix was not captured and is not asserted.
+The qualified current OFF neither reads loaded KeepAlive policy nor certifies
+arbitrary source identity/perpetual terminal state. Disabled-running remains
+BROKEN when observed; polling need not catch every short restart. Those
+stronger preservation/static-identity contracts remain3.5/3.6/recovery1.2.

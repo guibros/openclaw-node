@@ -1,0 +1,145 @@
+{
+  "recordedAtUTC": "2026-09-29T10:09:52.444721+00:00",
+  "planState": "3.3[x]/v3.3",
+  "source": {
+    "atUTC": "2026-09-29T09:40:13.405298+00:00",
+    "liveBase": "e57f89b264a30892389cabe573786fb516a6a208",
+    "mainBase": "6ce3639e24857a7c2f3094f8e4c2a0e696121161",
+    "stage": "/Users/moltymac/.openclaw/backups/node-readiness/discord-disabled-20260929-1/candidate-v2",
+    "entrySha256": "d1341cfa04a3289c2338cc0e4a76e77dbf28d4c50f08ce5b18371c468b321d17",
+    "sameEntry": true,
+    "testsSha256": "277d1ee530efc367608103060dae1eb0759c63cb9abb71f82f2d1aed852f606f",
+    "dependencies": "primary node_modules symlink used without install/rebuild; symlink itself is not access enforcement",
+    "liveMutations": 0,
+    "plan": "3.3[A]/v3.3-pre",
+    "priorCandidate": "/Users/moltymac/.openclaw/backups/node-readiness/discord-disabled-20260929-1/candidate-v1",
+    "priorTestRun": "six pass, three fixture registration-key failures; unaccepted and retained"
+  },
+  "focused": {
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "logSha256": "e7cca68c599a5907d2f47506693660c3ddbbff2170d82b231f0534462633aeaf",
+    "node": "24.13.0"
+  },
+  "oldSourceNegative": {
+    "tests": 3,
+    "pass": 0,
+    "fail": 3,
+    "cancelled": 0,
+    "skipped": 0,
+    "expectedFailure": 3,
+    "unexpectedPass": 0,
+    "source": "e57f89b264a30892389cabe573786fb516a6a208",
+    "logSha256": "0b763c98fb9b24145bc042321eabcd500959fc3b55471546a42b1284f8a3e34e",
+    "limits": "three selected old-source tests fail as expected; seven remaining cases are not selected and supply no acceptance"
+  },
+  "ownedMacPolicy": {
+    "record": "OWNED_POLICY_EVIDENCE.json",
+    "rawSha256": "32fa5dc642e84895fd6aec08bc3593223d2780a49cc64a77797646eb047bd4d8",
+    "proofStatus": "passed",
+    "durationSeconds": 65.222226959,
+    "samples": 245,
+    "disabledExit": 0,
+    "disabledRuns": 1,
+    "failureExit": 1,
+    "failureRuns": 7,
+    "busAttempts": 0,
+    "newApplicationStatePaths": 0,
+    "bothUnitsBootout0Absent": true
+  },
+  "preflight": {
+    "atUTC": "2026-09-29T09:28:32.442544+00:00",
+    "discord": {
+      "enabled": false,
+      "hasToken": false,
+      "accounts": 0
+    },
+    "configSha256": "3ee9c29283f0c20668dbad00d83e4be6d35eeebacc75e6751ba8eb36f317711e",
+    "unit": {
+      "label": "ai.openclaw.mesh-tool-discord",
+      "loaded": true,
+      "state": "spawn scheduled",
+      "pid": null,
+      "runs": "3015",
+      "lastExitCode": "1",
+      "programArguments": [
+        "/usr/local/bin/node",
+        "/Users/moltymac/openclaw/bin/mesh-tool-discord.js"
+      ],
+      "keepAlive": true,
+      "runAtLoad": true,
+      "exitTimeOut": null,
+      "throttleInterval": 10,
+      "workingDirectory": null,
+      "environmentNames": [
+        "HOME",
+        "PATH",
+        "NODE_PATH",
+        "OPENCLAW_NATS"
+      ],
+      "home": "/Users/moltymac",
+      "nodePath": "/Users/moltymac/openclaw/node_modules:/Users/moltymac/openclaw/lib",
+      "stdout": "/Users/moltymac/.openclaw/workspace/.tmp/mesh-tool-discord.log",
+      "stderr": "/Users/moltymac/.openclaw/workspace/.tmp/mesh-tool-discord.err",
+      "plistSha256": "aac55ff934c14a254db0a57da9fee1576fdf5191a5bd6f560bb31eec6873bb73",
+      "entrySha256": "2e0b4376b99cc36ebcd8d3bb6d21ff4708b16a5d40715bc950248ca8ac79e6ef"
+    },
+    "productionMutations": 0
+  },
+  "priorFixtureFailure": "Retained candidate-v1/FOCUSED_TESTS.log; incorrect fixture key, unaccepted",
+  "productionMutations": "only Discord unit entry and KeepAlive; config/primary/shared dependencies/13 other owners unchanged",
+  "sourceReview": {
+    "claudeMessage": 80,
+    "exactHead": "f21c6df28819a1e0a0941c689a1932ae4397a058",
+    "sourceApproved": true,
+    "linuxFocusedPass": 10,
+    "linuxFocusedSkips": 0,
+    "macEvidence": "Codex observation, not independently reproduced by Claude"
+  },
+  "exactCI": {
+    "run": 36551411822,
+    "head": "f21c6df28819a1e0a0941c689a1932ae4397a058",
+    "conclusion": "SUCCESS",
+    "jobs": 3,
+    "rootEach": {
+      "tests": 2542,
+      "pass": 2537,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 5
+    },
+    "missionControlPass": 129
+  },
+  "liveDeployment": {
+    "release": "/Users/moltymac/.openclaw/releases/discord-inactive-f21c6df-e57",
+    "sourceCommit": "f21c6df28819a1e0a0941c689a1932ae4397a058",
+    "entrySha256": "d1341cfa04a3289c2338cc0e4a76e77dbf28d4c50f08ce5b18371c468b321d17",
+    "newRenderedPlistSha256": "6f53257453c9e8351d6c361840d474fc2be38f5548ce51bc635d446de430f67c",
+    "changedKeys": [
+      "KeepAlive",
+      "ProgramArguments"
+    ],
+    "renderedEnvironmentCwdOtherArgvPreserved": true,
+    "oneNormalRun": true,
+    "loadedNotRunning": true,
+    "exitCode": 0,
+    "runs": 1,
+    "stabilitySeconds": 65.40218537499999,
+    "samples": 84,
+    "record": "LIVE_CONTINUATION_EVIDENCE.json",
+    "rawSha256": "31e53566b14239d531b34e8a8b220320dad9917d0c4fd549f08382da4ffdf729",
+    "originalFailedWindowRetained": true,
+    "integrationEnabled": false,
+    "fullNodeZeroAdmissionClaim": false,
+    "sourceRuntimeReview": "Claude84 no blocker on qualified reasoning/source facts;85 clarifies new-path rollback and immediate separate monitoring follow-up"
+  },
+  "limits": [
+    "Disabled Discord live outcome plus private failure/supervisor controls; no full-node preservation",
+    "No Discord API request or production integration enablement",
+    "No general active-handler drain",
+    "Linux restart policy source-only; no systemd runtime"
+  ]
+}

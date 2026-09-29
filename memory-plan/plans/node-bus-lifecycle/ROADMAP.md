@@ -14,3 +14,14 @@
 - **Intent:** each readiness declaration must follow the operation that makes the service available to clients.
 - **Exit criterion:** the real task daemon registers its request subscriptions before publishing ready, with owned timing controls and a narrow managed deployment.
 - **Unblocks:** preservation restoration checks and root lifecycle CI. This does not establish active-handler draining or repair worker boot policy.
+
+## Block 3 — Scheduled application quiescence
+
+- **Intent:** keep scheduled jobs loaded but inert under a durable execution
+  hold, avoiding transient-idle unload races. Fix explicitly disabled optional
+  services before the preservation baseline.
+- **Exit criterion:** owned primitive controls, reviewed exact CI, complete
+  foreground contracts, installed timer entrypoint/hold/restoration proof and
+  a disabled Discord job that does not crash-loop or touch the bus.
+- **Unblocks:** node-state-recovery1.2's real quiet window. This covers scheduled
+  application execution, not global OS-spawn tracing or general worker drain.

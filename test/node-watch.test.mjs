@@ -156,6 +156,109 @@ describe('node-watch OFF semantics (intentionally not active ≠ broken)', () =>
   });
 });
 
+describe('node-watch disabled Discord lifecycle', () => {
+  const discord = {
+    label: 'ai.openclaw.mesh-tool-discord', observable: true, loaded: true,
+    running: false, pid: null, state: 'not running', lastExitCode: 0,
+  };
+  const peer = {
+    label: 'ai.openclaw.mesh-agent', observable: true, loaded: true,
+    running: true, pid: 42, state: 'running', lastExitCode: null,
+  };
+
+  it('confirmed inactive Discord is explicit OFF alongside observed working peers', () => {
+    const r = gradeMeshServices([peer, discord], { discordEnabled: false });
+    assert.equal(r.status, STATUS.WORKING);
+    assert.match(r.detail, /1\/1.*mesh-tool-discord OFF/);
+    assert.match(r.evidence, /mesh-agent:42.*mesh-tool-discord:OFF\(exit0\)/);
+  });
+
+  it('an inactive-only node is OFF rather than a working cluster', () => {
+    const r = gradeMeshServices([discord], { discordEnabled: false });
+    assert.equal(r.status, STATUS.OFF);
+    assert.match(r.detail, /explicitly disabled.*exit0/);
+  });
+
+  for (const [name, enabled] of [['enabled', true], ['legacy', undefined], ['string false', 'false'], ['null', null], ['zero', 0]]) {
+    it(`${name} policy cannot waive a stopped Discord service`, () => {
+      assert.equal(gradeMeshServices([peer, discord], { discordEnabled: enabled }).status, STATUS.BROKEN);
+    });
+  }
+
+  for (const [name, change, expected] of [
+    ['failed exit', { lastExitCode: 1 }, STATUS.BROKEN],
+    ['signal exit', { lastExitCode: -15 }, STATUS.BROKEN],
+    ['no exit observed', { lastExitCode: null }, STATUS.UNKNOWN],
+    ['no state observed', { state: null }, STATUS.UNKNOWN],
+    ['waiting state', { state: 'waiting' }, STATUS.UNKNOWN],
+    ['unobservable state', { observable: false }, STATUS.UNKNOWN],
+    ['running contradiction', { running: true, pid: 43, state: 'running' }, STATUS.BROKEN],
+  ]) {
+    it(`${name} cannot earn healthy disabled inactivity`, () => {
+      assert.equal(gradeMeshServices([peer, { ...discord, ...change }], { discordEnabled: false }).status, expected);
+    });
+  }
+
+  it('confirmed inactive Discord cannot hide another stopped peer', () => {
+    assert.equal(gradeMeshServices([{ ...peer, running: false, pid: null }, discord], { discordEnabled: false }).status, STATUS.BROKEN);
+  });
+
+  it('an unobservable peer cannot earn WORKING beside an inactive Discord', () => {
+    assert.equal(gradeMeshServices([{ ...peer, observable: false }, discord], { discordEnabled: false }).status, STATUS.UNKNOWN);
+    assert.equal(gradeMeshServices([peer, { ...peer, label: 'ai.openclaw.mesh-bridge', observable: false }]).status, STATUS.UNKNOWN);
+  });
+
+  it('known failures remain BROKEN when policy or another service is unobservable', () => {
+    const stoppedPeer = { ...peer, running: false, pid: null };
+    assert.equal(gradeMeshServices([stoppedPeer, discord], { discordPolicyError: 'config unreadable' }).status, STATUS.BROKEN);
+    assert.equal(gradeMeshServices([peer, { ...discord, lastExitCode: 1 }], { discordPolicyError: 'config unreadable' }).status, STATUS.BROKEN);
+    assert.equal(gradeMeshServices([stoppedPeer, { ...discord, observable: false }]).status, STATUS.BROKEN);
+    assert.equal(gradeMeshServices([peer, discord], { discordPolicyError: 'config unreadable' }).status, STATUS.UNKNOWN);
+  });
+
+  it('an unloaded role remains OFF without inventing inactive exit evidence', () => {
+    assert.equal(gradeMeshServices([{ ...discord, loaded: false }], { discordEnabled: false }).status, STATUS.OFF);
+  });
+
+  it('Darwin target reads the loaded Discord HOME and preserves failure priority', { skip: process.platform !== 'darwin' }, async () => {
+    const observedHome = '/tmp/discord-loaded-home';
+    const samples = [
+      { name: 'false', body: '{"channels":{"discord":{"enabled":false}}}', status: STATUS.WORKING },
+      { name: 'true', body: '{"channels":{"discord":{"enabled":true}}}', status: STATUS.BROKEN },
+      { name: 'legacy', body: '{}', status: STATUS.BROKEN },
+      { name: 'string', body: '{"channels":{"discord":{"enabled":"false"}}}', status: STATUS.BROKEN },
+      { name: 'null', body: '{"channels":{"discord":{"enabled":null}}}', status: STATUS.BROKEN },
+      { name: 'malformed', body: '{', status: STATUS.UNKNOWN },
+      { name: 'missing config', missing: true, status: STATUS.UNKNOWN },
+      { name: 'missing HOME', noHome: true, status: STATUS.UNKNOWN },
+      { name: 'failed peer plus malformed policy', body: '{', peerFailed: true, status: STATUS.BROKEN },
+      { name: 'failed peer plus missing HOME', noHome: true, peerFailed: true, status: STATUS.BROKEN },
+      { name: 'failed Discord plus malformed policy', body: '{', exit: 1, status: STATUS.BROKEN },
+      { name: 'exit unobserved', body: '{"channels":{"discord":{"enabled":false}}}', exit: '(never exited)', status: STATUS.UNKNOWN },
+      { name: 'running disabled', body: '{"channels":{"discord":{"enabled":false}}}', discordRunning: true, status: STATUS.BROKEN },
+    ];
+    for (const s of samples) {
+      const reads = [];
+      const ctx = makeCtx({
+        fsp: { ...makeCtx().fsp, readFile: async (p) => {
+          reads.push(p);
+          assert.equal(p, path.join(observedHome, '.openclaw', 'openclaw.json'));
+          if (s.missing) throw new Error('ENOENT');
+          return s.body;
+        } },
+        exec: async (_command, args) => {
+          const isDiscord = args[1].endsWith('/ai.openclaw.mesh-tool-discord');
+          const stopped = isDiscord ? !s.discordRunning : s.peerFailed;
+          return { code: 0, stderr: '', stdout: `state = ${stopped ? 'not running' : 'running'}\n${stopped ? '' : 'pid = 42\n'}last exit code = ${isDiscord ? s.exit ?? 0 : 1}\n${isDiscord && s.noHome ? '' : `HOME => ${observedHome}\n`}` };
+        },
+      });
+      const r = await target('net.mesh').run(envFor(ctx));
+      assert.equal(r.status, s.status, s.name);
+      assert.equal(reads.length, s.noHome ? 0 : 1, s.name);
+    }
+  });
+});
+
 describe('node-watch observed verdicts', () => {
   it('HyperAgent is WORKING only with a successful deploy probe and fresh scheduler tick', async () => {
     const probes = { 'L0-HYPERAGENT': { run: async () => ({ status: 'PASS', detail: 'imports' }) } };

@@ -66,3 +66,113 @@ Source barrier and qualified cross-member controls pass. Review conditions and
 raw record hashes are in step21_ready. Recovery1.2 resumes after149 merge and
 fresh integration CI. General preservation-driver and source/deployment
 reconciliation remain parent work; no new chain is enabled.
+
+### Scheduled execution hold prototype
+
+2026-09-29 03:11:58 EDT: workspace-bin/service_gate.py deployed only to private
+owned consumers under timer-gate-20260929-1/primitive-v2.18 actual Mac controls
+pass; a real scheduled job goes runs1→3 while application runs remain1, with
+zero job/error log bytes after controller exit. Four exec inheritance controls
+pass including negative variants. No production gate, changed live entrypoint,
+installer behavior or preservation window. Exact CI/review and3.2 integration
+remain open. See audits/step31_service_gate/PRIMITIVE_EVIDENCE.json.
+
+Scheduled hold correction2026-09-29 04:01 EDT:38 real Mac controls pass
+against private primitive-v4, mandatory external lock pins, full receipts,
+original watch-session certification and separate restoration-only type.
+Actual owned timer c4b56ca3b2181eed goes runs1→3/app1→1/exit0/log0/err0
+and bootout verifies absence.6000 rapid APFS checks have zero observed events;
+marker rename changes ctime and saved receipt recovery refuses. No production
+hold or controller. Corrected exact CI/review remain pending;3.1 stays active.
+Primary e57 remains untouched and task owner82096/runs1 remains running.
+
+Root+lock-pin correction 2026-09-29 04:09:49 EDT:40 actual Mac controls on source26e9278
+pass in private primitive-v5; all40 include a verified unloaded owned timer.
+CI36540391512 passes3/3 at preceding e788e1c. Corrected exact CI/review
+still required.3.1[A]/v3.1-mid;3.2 and production preservation remain open.
+Fresh08:05:29UTC read confirms13 exact live targets all loaded, same PID/runs
+as the earlier accepted snapshot, and primarye57 unchanged. An initial read
+with duplicated target prefixes is separately retained as invalid.
+
+
+Owned primitive closure2026-09-29 04:38 EDT:source0f0dcc2/26e9278 approved by
+Claude62, exact CI36541071531 green3/3;Claude64 hashes source/test identity.
+Actual copied runtime run08:30:00–08:36:07UTC waits for kernel normal exit of
+owned Node68265 before drain return, observes159 individually exit0 closed
+fires over365s/app1/log0/err0,3202 native checks and19269 independent reads
+with zero events, then receipt reopen yields actual app2/exit0. Owned bootout0
+and absence verified.3.1[x]/v3.1;3.2/3.3/3.4/3.5 queued. No production
+installation, preservation, Linux continuous-watch or VM durability claim.
+Fresh resume snapshot08:23UTC confirms13 exact ownerPID/runs unchanged and
+primarye57 preserved; this is continuity, not all-service health.
+
+
+Local consolidation completion candidate2026-09-29 05:13 EDT:private
+source-equivalent Node24 consumer passes158 focused controls/no skips;five
+new regressions fail old0f source. Actual owned gate retains its foreground
+Node through delayed abort cleanup, then the real default notification CLI
+and private platform child, exits0 only after both finish; drain and clean
+reopen pass. No production unit/source/dependency change. Profile on a copy
+of accepted51.9MB snapshot completes12 local stages; source snapshot hash
+unchanged. Remote LLM time and live-vault scale excluded.3.2[A]/v3.2-mid:
+exact CI and independent source challenge pending, no production gate claim.
+
+Local consolidation closure2026-09-29 05:26 EDT:source159b8dd approved as-is
+by Claude72/74, Linux158 independently reproduced, exactCI36547696359 green
+3/3. Private Mac owned gate+default notification and admitted atomic-write
+controls pass with normal exit0, source/snapshot unchanged.3.2[x]/v3.2 only
+closes the written private-consumer contract; production installation3.5 and
+delegated-memory/general-daemon/preservation acceptance remain open. Seven
+old-source controls fail as expected. Partial-result audit and long-wait
+visibility are separate parent follow-ups. Fresh09:20UTC13 ownerPID/runs same;
+primarye57/shared modules/live units preserved.3.3 disabled Discord is next.
+
+Disabled Discord candidate2026-09-29 05:44 EDT:actual explicit-false/no-token
+config still preserved; old loaded unit was runs3015/exit1/crash-looping.
+Private e57-based entryd1341cfa passes10 real process controls: false±token
+normal0/no runtime libraries/bus/state; missing/malformed config failure;
+enabled/legacy real registration+planned0; permanent loss1. Actual private
+Mac conditional unit remains loaded/not-running/runs1/exit0 for65s/245samples;
+enabled missing-token failures restart; both owned units bootout0/absence.
+No production change yet;3.3[A]/v3.3-mid awaits immutable CI/source review
+and its separate narrow live deployment. Linux policy has no systemd runtime
+acceptance. First fixture-key failure remains retained/unaccepted.
+
+Disabled Discord closure2026-09-29 06:12 EDT: sourcef21c6df approved/CI3of3;
+actual new-path release d1341cfa + rendered plist6f532574 ran once normally.
+Fresh same-unit65.402s/84 samples remain loaded/not-running/run1/exit0;
+configfalse/no-token/zeroaccounts and13 other ownerPID/runs unchanged.
+First whole-node zero-admission window remains unaccepted; health-watch
+connected after the Discord exit. Other work continues, not preservation.
+HTTP registry bucket absent/actual read-only MC module count0; no global OS
+network claim. New plist dev16777233/ino58975700/mode0644 feeds a new baseline.
+Old entry/plist remain available; primarye57/shared dependencies preserved.
+3.3[x]/v3.3; monitoring's false BROKEN is the next separately bounded repair,
+before journal/timer integration/new preservation baseline. Source and Mac
+measurement attribution remain distinct; qualified Claude84 challenge passes.
+
+
+Disabled-inactivity monitor candidate2026-09-29 06:37 EDT: private Node24
+source consumer passes56 focused controls/no skips; seven selected old-source
+controls fail. Ten real owned Mac launchd target controls pass, loaded HOME
+selects the effective config despite unrelated watcher override, known failure
+priority survives missing/malformed policy; all owned units bootout0/absent.
+No production change yet; actual watcher747 still reports false-BROKEN.
+3.4[A]/v3.4-mid awaits exact CI/read-only challenge, separate auth-preserving
+release and two actual managed reports. Journal3.5/timer3.6 remain open.
+
+
+Disabled-inactivity monitor closure2026-09-29 06:57 EDT: sourcea4291c4
+approved by Claude90/92, exactCI36556656732 green3/3; deployed new separate
+monitor-a4291c4-viewer-b4bbac2-e57 release/lib8a372106 retains prior viewer
+auth. Old747 kernel normal0; current19976/runs1. Actual two light reports
+during81.816s/122 checks show net.meshWORKING5/5 with explicit DiscordOFF
+and authenticated viewer9plans. Twelve other running owners and Discord
+loaded/noPID/run1/exit0, config/primary/source/dependencies preserved.
+Paired current36-target comparison has only net.meshBROKEN→WORKING, other35
+match; it is not a historical full pre-swap matrix. Counts21W/6B/3OFF/6U
+retain six failures. First recorder refusal before mutation stays unaccepted.
+Claude96 accepts qualified closure reasoning; all Mac measurements remain
+locally observed. New unitba411081/dev16777233/ino58989175/ctime1790678850314936186
+mode0600 is a new baseline input; old release/plist retained for rollback.
+3.4[x]/v3.4; journal3.5/timers3.6/full preservation remain open.

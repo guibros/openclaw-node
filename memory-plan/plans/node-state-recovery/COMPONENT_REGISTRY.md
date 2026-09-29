@@ -70,3 +70,14 @@ quiet window or cold-master acceptance. See DURABLE_KERNEL_EVIDENCE.json.
 round-trip poisoning before production use.58 journal tests and21 real Mac
 controls/1 explicit domain skip pass. No production window, stores or service
 state changed. Exact new CI/review required; PID_KEY_EVIDENCE.json.
+
+### Recovery source foundation — 2026-09-29 07:12:37 EDT
+
+Main51a817f integrates without changing the reviewed5fabf6e Journal/stop/checks
+tools. A new private copied Journal consumer passes58 controls; prior actual
+managed controls are inherited by unchanged hashes, not called new runs.
+PR144 is recast as this bounded tools checkpoint pending exact-head CI/review.
+No production importer or controller/hold exists. Existing evidence JSONs and
+RUNTIME_EVIDENCE.md remain scoped development history. Recovery1.2[A]/v1.2-pre,
+its controller/static baseline, three healthy cold masters and full restoration
+acceptance remain unfinished. Bus3.5/3.6 are the next explicit dependencies.

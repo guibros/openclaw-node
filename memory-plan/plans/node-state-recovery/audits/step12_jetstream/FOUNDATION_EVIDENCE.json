@@ -1,0 +1,37 @@
+{
+  "at": "2026-09-29 07:12:37 EDT",
+  "sourceCheckpoint": "5fabf6efaaac036897cbe81155fb27fd77d73bfb",
+  "integratedMain": "51a817f23785da25072b6aa577cf1dbd37b87771",
+  "toolHashes": {
+    "preservation_journal.py": "5c89d1fb26d7d3085fa5a9081a8e22b722c92994fa09883d0ee1e1b063aa8f8f",
+    "managed_launchd.py": "b254efd07a9e8453b8c2ad2d05ddcc18da29804ab4f9583edf5052baf89fd043",
+    "preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c"
+  },
+  "toolsUnchangedFromReviewedCheckpoint": true,
+  "productionImportsFound": [],
+  "freshOwnedJournalControls": {
+    "passed": 58,
+    "failed": 0,
+    "seconds": 25.552,
+    "runtimeSource": "/Users/moltymac/.openclaw/backups/node-readiness/recovery-foundation-20260929-1/tools",
+    "rawOutputSha256": "f35d542d017618d92e8deae2c643293e5d5d5ba6e5bee33814daa3fddbf7b1a2",
+    "scope": "private copied consumer only; fault controls intentionally print an undurable-receipt diagnostic"
+  },
+  "inheritedManagedControls": {
+    "passed": 21,
+    "explicitSkip": 1,
+    "scope": "historical actual Mac owned controls, source/test hashes unchanged; not rerun here"
+  },
+  "exactIntegrationCI": "pending on resulting immutable head",
+  "independentIntegrationReview": "Claude98 accepts bounded sequence; exact-head re-review pending",
+  "remaining": [
+    "bus3.5 restore-only hold integration",
+    "bus3.6 actual five timer installation",
+    "complete production preservation driver and static baseline",
+    "three healthy cold masters and isolated restores",
+    "full step1.2 runtime acceptance"
+  ],
+  "productionHold": false,
+  "healthyColdCopyAcceptance": false,
+  "boundary": "Source foundation checkpoint and private-tool deployment only. Preserved forensic JSONs/runtime notes are development history; no lost interval or full production preservation is certified."
+}

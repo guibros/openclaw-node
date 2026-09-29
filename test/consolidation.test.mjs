@@ -24,6 +24,57 @@ import { join } from 'node:path';
 // were landing in production ~/.openclaw/obsidian-local (memory review 2026-07-04).
 const TEST_VAULT = mkdtempSync(join(tmpdir(), 'consolidation-vault-'));
 
+describe('consolidation event publication lifetime', () => {
+  it('awaits both actual cycle publications before returning, retaining best-effort rejection', async () => {
+    const db = createTestDb();
+    const pending = [];
+    let done = false;
+    const cycle = runConsolidationCycle({
+      db, vaultPath: TEST_VAULT, backupDir: join(TEST_VAULT, 'backups'), dryRun: true,
+      eventLog: { publishLocal: evt => new Promise((resolve, reject) => pending.push({ evt, resolve, reject })) },
+    }).then(r => { done = true; return r; });
+    try {
+      assert.equal(pending[0].evt.event_type, 'memory.decayed');
+      await new Promise(r => setTimeout(r, 20));
+      assert.equal(done, false);
+      pending[0].resolve();
+      for (let i = 0; pending.length < 2 && i < 100; i++) await new Promise(r => setTimeout(r, 5));
+      assert.equal(pending[1].evt.event_type, 'memory.promoted');
+      assert.equal(done, false);
+      pending[1].reject(new Error('owned ACK failure'));
+      assert.equal((await cycle).aborted, false);
+    } finally {
+      for (const p of pending) p.resolve();
+      await cycle;
+      db.close();
+    }
+  });
+
+  it('does not finish an aborted cycle while its existing publication is unsettled', async () => {
+    const db = createTestDb();
+    const ac = new AbortController();
+    let release;
+    let done = false;
+    let publications = 0;
+    const cycle = runConsolidationCycle({
+      db, vaultPath: TEST_VAULT, backupDir: join(TEST_VAULT, 'backups'), dryRun: true, signal: ac.signal,
+      eventLog: { publishLocal: () => { publications++; return new Promise(r => { release = r; }); } },
+    }).then(r => { done = true; return r; });
+    try {
+      ac.abort(new Error('owned abort during publication'));
+      await new Promise(r => setTimeout(r, 20));
+      assert.equal(done, false);
+      release();
+      assert.equal((await cycle).aborted, true);
+      assert.equal(publications, 1);
+    } finally {
+      release();
+      await cycle;
+      db.close();
+    }
+  });
+});
+
 /**
  * Helper: create a temp in-memory DB with the extraction store schema.
  */

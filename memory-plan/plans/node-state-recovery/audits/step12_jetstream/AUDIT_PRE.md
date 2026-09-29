@@ -195,3 +195,12 @@ keys. Successful and failed evidence both need mixed-width reopen/resolve
 controls. Do not alter old forensic bytes or claim the new tests prove a
 complete production controller. Raw kernel trace growth still needs a finite
 driver budget before operational use.
+
+### Foundation dependency checkpoint — 2026-09-29 07:12:37 EDT
+
+Consume accepted bus3.1–3.4 by integrating main51a817f. Recast this still-open
+PR as the bounded recovery-tool foundation specified in D20 and
+FOUNDATION_CHECKPOINT.md. Code/test bytes remain5fabf6e; only plan/evidence
+clarifications accompany integration. Fresh private Journal58/58 passes;
+exact integration CI/read-only re-review remain required before merge. Do
+not close1.2 or introduce production imports, controller, holds or timer wiring.

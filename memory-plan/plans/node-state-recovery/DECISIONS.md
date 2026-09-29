@@ -261,3 +261,22 @@ paths verify every hash, restore and resolve.58 journal controls and21 actual
 Mac controls/1 domain skip pass. No production journal exists, so no production
 repair or source-state migration occurred. Full driver/kernel-trace resource
 bounds, timer foreground holds and healthy cold masters remain open at1.2.
+
+## D20 — Land the reviewed tools before execution-hold integration (2026-09-29 07:12:37 EDT)
+
+Integrate current main51a817f into the existing5fabf6e recovery branch and land
+PR144 as a bounded code-foundation checkpoint after exact CI and independent
+review. The Journal, stop adapter and admission tools stay byte-identical;
+the diff against main stays confined to this plan plus its recovery CI step.
+No production importer, driver, service/timer wiring or healthy cold-copy
+claim accompanies the merge. The private copied Journal is the deployed
+consumer at this checkpoint; bus3.5 is the next source consumer.
+
+Claude98 checks inertness, disjoint integration and the explicit remaining
+outcome; its exact-head re-review is still required. Retain all prior forensic
+records as scoped tool-development history. Recovery1.2 stays[A]/v1.2-pre;
+the complete production driver/baseline, three healthy cold masters, isolated
+restores and restoration evidence remain open. Bus3.5 imports the single
+journal from main without copying it or reaching into an absolute worktree.
+Bus3.6 then integrates actual timers. This breaks the source dependency cycle
+without declaring the unfinished preservation outcome done.

@@ -81,3 +81,20 @@ source before any production journal. String PID exports plus strict
 recursive string-key encoding pass58 journal tests and21 actual Mac controls/1
 domain skip; verified/failed mixed-width chains reopen, restore and resolve.
 New exact CI/review pending.1.2 remains[A]; see PID_KEY_EVIDENCE.json.
+
+### Source foundation checkpoint — 2026-09-29 07:12:37 EDT
+
+PR144 now targets the reviewed recovery tools, not completion of1.2. The
+1.2 row remains[A] and VERSION remainsv1.2-pre. Exact integration CI and
+Claude review are pending at this checkpoint. All existing forensic evidence
+is retained as tool-development history; merging source enables no live hold.
+
+| Component / remaining outcome | Status | Evidence / consumer |
+|---|---|---|
+| Sole Journal and failure/lineage primitives | Verified private tools | Unchanged5fabf6e hashes; fresh copied58/58 controls; FOUNDATION_EVIDENCE.json |
+| Managed stop and admission/restore primitives | Verified bounded private controls | Prior21 actual Mac controls/1 explicit cross-domain skip, unchanged source; historical evidence |
+| Restore-only interrupted execution-hold integration | Open | bus3.5; original-session continuity must not be reconstructed |
+| Five actual Mac scheduled-job holds | Open | bus3.6; no production gate installation yet |
+| Complete production preservation controller and new static baseline | Open | recovery1.2; all owners/invokers/dependencies and hold restoration readiness |
+| Three healthy cold masters and isolated restores | Open | recovery1.2; no accepted common healthy cold-copy window |
+| Complete live restoration / step1.2 closure | Open | Runtime evidence required after all prerequisites; source merge does not close it |
