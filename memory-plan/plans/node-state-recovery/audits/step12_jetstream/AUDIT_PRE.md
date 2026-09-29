@@ -76,6 +76,15 @@ Private tools and immutable/working backup sets under
 - .github/workflows/test.yml: run isolated recovery fixtures with pinned tools.
 - No production application source or NATS configuration change.
 
+D7 implementation adds `preservation_journal.py` and its owned fault tests in
+this audit directory. It is a journal primitive for the replacement driver,
+not a managed shutdown command. Directory/file fsync precedes each mutation;
+single-writer locking, chained records and boot identity preserve interrupted
+intent. A failed durable write poisons the open handle so it cannot overwrite
+uncertain intent. Recovery alone may restore prior states after a reboot or
+failed verification, in dependency order, with explicit readiness evidence.
+The operational driver and real service-stop checks remain in step1.2.
+
 ## Mid-Implementation Findings
 Installed CLI 0.3.1 ignores `stream restore --config`: its restoreAction shadows
 `cfg` inside the input-file branch (upstream cli/stream_command.go:1272), leaving
@@ -109,3 +118,8 @@ exercise Ollama while the memory queue says idle; the runner was consuming
 about900% CPU. This is a carry-forward resource/monitoring finding, not proven
 causality or an extra repair in this step. Preserve the healthy-stop refusal
 until fresh stability and safe operational sequencing are independently proved.
+
+Claude review of35e56ff exposed management-only Raft observation and uncaught
+HTTP protocol errors. Account-filtered observations and an actual stream-leader
+regression correct the same quiet-window mechanism. Recovered stability covers
+management/routes only; it is not all-group or preservation acceptance.

@@ -150,3 +150,24 @@ marker versus its actual repository HEAD before allowing listener catch-up;
 never treat bootstrap returning0 as readiness or write a false restoration
 record. Any failure retains a private journal and restores only verified
 original loaded/running/disabled state, with member1 held.
+
+## Durable journal primitive
+
+`preservation_journal.py` records the original loaded/running/disabled inventory
+and boot identity, then fsyncs each intent before its caller changes a service.
+Records are atomic, chained, owner-private and protected by a single-writer
+lock. An uncertain disk write poisons the current handle; reopen and recover
+rather than risk overwriting intent. Incomplete intent, failed verification or
+a different boot permits restoration only. Recovery records its own intent,
+restores in dependency order and requires readiness plus all three original
+state fields. Failed bus restoration prevents application resumption. A crash
+test kills an owned helper after its simulated unit mutation and verifies replay;
+it does not restart macOS or touch launchd.
+
+This primitive publishes no acceptance manifest and runs no services by itself.
+The managed driver still has to supply physical owner, child/socket, unit/config,
+log, queue, timer, bus, task and readiness checks. Connect it to D7's persistent
+holds and recovery sequence before using it on production. The unconnected
+deploy listener has no registered SIGTERM handler: its contract is normal default
+SIGTERM with no bus client or deploy descendant, not a fabricated completion
+line. Its catch-up path must be separately checked before resumption.

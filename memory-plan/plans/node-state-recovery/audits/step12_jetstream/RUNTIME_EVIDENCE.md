@@ -273,3 +273,46 @@ managed stop/resume controls and the durable preservation journal remain pending
 All12 tools-v15 focused checks passed in3.443seconds on three owned servers,
 including one real restart. Cleanup reports no failures; each owned server
 exited normally. Private root: openclaw-preservation-owned-smav2tcz.
+
+## Account Raft scope and durable intent checkpoint — 2026-09-28 22:08 EDT
+
+Claude's independent review of35e56ff found that plain `/raftz` returns only
+the management group. The replacement also requests `/raftz?acc=<id>` for
+every JetStream account and includes stream/consumer groups in the same
+two-second observation deadline. Truncated/non-HTTP responses now become an
+explicit refusal. A retained owned three-member cluster test observes both
+stream and durable consumer groups, changes an actual stream leader and
+refuses its changed Raft state while the management group remains unchanged.
+The unpatched35e56ff control fails because the account group is absent; all
+owned children still exit normally. A first fixture attempt refused because
+its readiness test expected replica fields omitted from default jsz; it is
+retained separately, not accepted. Actual peer identities and known metadata
+leader plus acknowledged R3 creation establish the owned fixture readiness.
+
+Deployed tools-v18 pass14 preservation checks, one actual cluster election
+regression and ten durable-journal checks. Journal fault tests include failed
+file/directory fsync, a killed owned helper after a simulated unit change,
+boot-identity change, concurrent writer, corrupt/missing record and false
+readiness. No macOS reboot or production service change occurs in these tests.
+The first intermittent Linux helper failure seen by Claude remains unexplained;
+the helper now retains sanitized errors and closes its own connection, and an
+intentional failure checks that diagnostic path. It is not hidden with retries.
+
+A10-minute passive production monitor recorded121 samples, maximum0.215s
+for its HTTP batch, unchanged server/start/config identity, routes and management
+leader/term. There were two route-connect errors per surviving cluster member,
+each targeting the intentionally disabled member1 on6222; no new slow-read or
+quorum warning. This older sampler did not include account Raft groups and is
+not a quiet-window acceptance. A later full capture finds management plus one
+account group on each survivor, within0.014s per server. All healthy owners
+remain running. Model load has subsided between deep probes; crash cause remains
+unknown. The replacement managed driver, persistent service holds, real stop
+negatives, three healthy cold masters, clone checks and verified resumption
+remain pending. Step1.2 staysv1.2-pre; child1.3 needs post-crash SQLite integrity
+and a common application/bus/file-source recovery point.
+
+Final protocol-error fixture extension: tools-v19 passes the14-check suite with
+both a truncated HTTP body and an actual non-HTTP response. Journal/cluster
+source hashes remain those already passed in tools-v18; unchanged complete
+recovery source retains tools-v11's full fixture evidence. No extra production
+LLM probe or service operation was introduced.

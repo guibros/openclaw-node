@@ -1,6 +1,8 @@
 import copy
+import http.client
 import json
 import time
+import urllib.parse
 import urllib.request
 
 
@@ -34,7 +36,7 @@ def http_json(port, path, timeout=2):
     try:
         with urllib.request.urlopen(f'http://127.0.0.1:{port}{path}', timeout=timeout) as response:
             return json.load(response)
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, http.client.HTTPException) as error:
         raise Refused('monitoring request failed or exceeded its deadline: ' + path) from error
 
 
@@ -80,6 +82,11 @@ def capture(port):
     leaves = get('/leafz')
     gateways = get('/gatewayz')
     raft = get('/raftz') if before.get('cluster') else {}
+    if before.get('cluster'):
+        for account in js.get('account_details', []):
+            groups = get('/raftz?acc=' + urllib.parse.quote(account['id'], safe=''))
+            require(set(groups) <= {account['id']}, 'unexpected Raft account')
+            raft.update(groups)
     after = get('/varz')
     require(before['server_id'] == after['server_id'], 'server changed during observation')
     require(before['start'] == after['start'], 'server restarted during observation')

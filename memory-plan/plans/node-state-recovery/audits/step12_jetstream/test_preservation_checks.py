@@ -1,4 +1,5 @@
 import copy
+import http.server
 import json
 import os
 import pathlib
@@ -8,6 +9,7 @@ import signal
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 
@@ -27,6 +29,31 @@ class Gates(unittest.TestCase):
         self.refused(lambda: verify_timer_idle({'loaded': True, 'pid': 123}, False, [20], [20]))
         self.refused(lambda: verify_timer_idle({'loaded': True}, True, [20], [20]))
         self.refused(lambda: verify_timer_idle({'loaded': True}, False, [20], [21]))
+
+    def test_truncated_monitor_response_is_an_explicit_refusal(self):
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path == '/owned-non-http':
+                    self.wfile.write(b'not-http\r\n\r\n')
+                    self.close_connection = True
+                    return
+                self.send_response(200)
+                self.send_header('Content-Length', '999')
+                self.end_headers()
+                self.wfile.write(b'{}')
+                self.close_connection = True
+            def log_message(self, *args):
+                pass
+        server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        self.assertNotIn(server.server_port, (8222, 8223, 8224))
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            self.refused(lambda: http_json(server.server_port, '/owned-truncated'))
+            self.refused(lambda: http_json(server.server_port, '/owned-non-http'))
+        finally:
+            server.shutdown(); server.server_close(); thread.join(timeout=2)
+            self.assertFalse(thread.is_alive())
 
     def test_new_memory_anchor_and_external_flush(self):
         idle = {'pid': 123, 'current_job': None, 'queue_depth': 0, 'external_jobs': []}
@@ -99,14 +126,15 @@ class OwnedServers(unittest.TestCase):
         cls.nats = os.environ.get('RECOVERY_NATS_MODULE', '/Users/moltymac/openclaw-nodedev/node_modules/nats')
         cls.scripts = cls.root/'client.cjs'
         cls.scripts.write_text("""const {connect,StringCodec}=require(process.env.OWNED_NATS_MODULE);
-const sc=StringCodec();
-(async()=>{const nc=await connect({servers:process.env.OWNED_URL,token:process.env.OWNED_TOKEN,reconnect:false,name:process.env.OWNED_NAME});
+const sc=StringCodec();let nc;
+(async()=>{nc=await connect({servers:process.env.OWNED_URL,token:process.env.OWNED_TOKEN,reconnect:false,name:process.env.OWNED_NAME});
 const jm=await nc.jetstreamManager();
 if(process.env.OWNED_ACTION==='setup'){
  await jm.streams.add({name:'HISTORY',subjects:['history'],storage:'file'});
  await nc.jetstream().publish('history',sc.encode('one'));
  await jm.consumers.add('HISTORY',{durable_name:'stable',ack_policy:'explicit',deliver_policy:'all'});
-}else if(process.env.OWNED_ACTION==='write')await nc.jetstream().publish('history',sc.encode('two'));
+}else if(process.env.OWNED_ACTION==='fail')throw Error('owned client negative control');
+else if(process.env.OWNED_ACTION==='write')await nc.jetstream().publish('history',sc.encode('two'));
 else if(process.env.OWNED_ACTION==='consumer')await jm.consumers.update('HISTORY','stable',{description:'unexpected change'});
 else if(process.env.OWNED_ACTION==='bulk'){
  for(let i=0;i<16;i++){
@@ -128,7 +156,9 @@ else if(process.env.OWNED_ACTION==='hold'){
  }
  lines.close();
 }
-await nc.drain();})().catch(()=>process.exitCode=1);
+await nc.drain();})().catch(async error=>{
+ console.error(JSON.stringify({name:error.name,code:error.code,message:error.message}));await nc?.close();process.exitCode=1;
+});
 """)
         try:
             for i in range(3):
@@ -161,7 +191,13 @@ await nc.drain();})().catch(()=>process.exitCode=1);
     def client(cls, port, action):
         env = {**os.environ, 'OWNED_NATS_MODULE': cls.nats, 'OWNED_URL': f'nats://127.0.0.1:{port}',
                'OWNED_TOKEN': cls.token, 'OWNED_NAME': 'owned-preservation-'+secrets.token_hex(8), 'OWNED_ACTION': action}
-        subprocess.run([cls.node, str(cls.scripts)], env=env, check=True, capture_output=True, timeout=10)
+        result = subprocess.run([cls.node, str(cls.scripts)], env=env, capture_output=True, timeout=10)
+        if result.returncode:
+            message = result.stderr.decode('utf8', 'replace').replace(cls.token, '[owned token omitted]')
+            (cls.root/('client-failure-'+secrets.token_hex(8)+'.json')).write_text(json.dumps({
+                'action': action, 'returncode': result.returncode, 'stderr': message,
+            }, indent=2))
+            raise RuntimeError('owned client failed: '+message)
 
     @classmethod
     def tearDownClass(cls):
@@ -194,6 +230,15 @@ await nc.drain();})().catch(()=>process.exitCode=1);
                 quiet.check({'owned': capture(monitor)}, {'owned': set()})
             self.assertEqual(before['total_connections'], capture(monitor)['total_connections'])
             json.dumps(before)
+
+    def test_failed_owned_client_retains_diagnostics_and_closes_connection(self):
+        proc, client, monitor, log = self.servers[0]
+        with self.assertRaisesRegex(RuntimeError, 'owned client negative control'):
+            self.client(client, 'fail')
+        failures = list(self.root.glob('client-failure-*.json'))
+        self.assertTrue(failures)
+        self.assertIn('owned client negative control', failures[-1].read_text())
+        self.assertFalse(capture(monitor)['open'])
 
     def test_identity_and_route_recovery_cannot_hide_a_stall(self):
         before = capture(self.servers[0][2])
