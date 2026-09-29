@@ -81,6 +81,7 @@ jobs:
           echo "f48374be6fc903b954b90b729321772bdd5bc745234edf3d31cd17ab79e85629  /tmp/nats-cli.zip" | sha256sum -c -
           unzip -q /tmp/nats-cli.zip -d /tmp/nats-cli
           node memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_recovery.mjs /tmp/nats-cli/nats-0.3.1-linux-amd64/nats /usr/local/bin/nats-server
+          NATS_SERVER=/usr/local/bin/nats-server RECOVERY_NODE=node RECOVERY_NATS_MODULE="$PWD/node_modules/nats" python3 memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_preservation_checks.py
       - name: Root unit tests
         # npm test (not bare node --test): the pretest hook builds the
         # event-schemas workspace dist that the broadcast libs fail loud on.

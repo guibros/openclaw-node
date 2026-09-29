@@ -13,7 +13,7 @@ const { headers } = createRequire(import.meta.url)('nats');
 process.umask(0o077);
 const cli = process.argv[2] || '/opt/homebrew/bin/nats';
 const binary = process.argv[3] || '/opt/homebrew/bin/nats-server';
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-jetstream-fixture-'));
+const root = fs.mkdtempSync(path.join(process.env.RECOVERY_EVIDENCE_DIR || os.tmpdir(), 'openclaw-jetstream-fixture-'));
 privateDir(root);
 const token = randomBytes(32).toString('hex');
 const routeToken = randomBytes(32).toString('hex');
@@ -55,9 +55,10 @@ async function stop(item) {
   if (item.proc.exitCode === null && item.proc.signalCode === null) {
     const ended = once(item.proc, 'exit'); item.proc.kill('SIGTERM');
     let deadline;
-    try { await Promise.race([ended, new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('owned server failed graceful stop')), 10000); })]); }
+    try { await Promise.race([ended, new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error(`owned server failed graceful stop: ${path.basename(item.config)}`)), 10000); })]); }
     finally { clearTimeout(deadline); }
   }
+  assert.equal(item.proc.exitCode, 0, 'owned server did not exit normally');
   assert.match(fs.readFileSync(item.config + '.log', 'utf8'), /Server Exiting/);
 }
 
@@ -301,11 +302,26 @@ try {
   results.deletedAssignmentRefusesRejoin = true;
   passed = true;
 } catch (err) {
+  jsonPrivate(path.join(root, 'FAILED.json'), { at: new Date().toISOString(), error: err.message });
   console.error('Fixture evidence retained at', root);
   throw err;
 } finally {
-  for (const nc of connections) await nc.close();
-  for (const item of processes) if (item.proc.exitCode === null && item.proc.signalCode === null) await stop(item);
+  const failures = [];
+  for (const nc of connections) {
+    try { await nc.close(); }
+    catch (err) { failures.push({ connection: 'owned fixture', error: err.message }); }
+  }
+  for (const item of processes) {
+    try { await stop(item); }
+    catch (err) {
+      failures.push({ config: path.basename(item.config), error: err.message });
+      if (item.proc.exitCode === null && item.proc.signalCode === null) {
+        const ended = once(item.proc, 'exit'); item.proc.kill('SIGKILL'); await ended;
+      }
+    }
+  }
+  jsonPrivate(path.join(root, 'cleanup.json'), { allOwnedProcessesExited: processes.every(i => i.proc.exitCode !== null || i.proc.signalCode !== null), failures });
+  assert.equal(failures.length, 0, 'owned cleanup failed; no clean acceptance');
 }
 
 assert(passed);

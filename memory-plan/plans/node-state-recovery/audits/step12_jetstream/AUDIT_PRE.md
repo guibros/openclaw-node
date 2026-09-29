@@ -92,3 +92,13 @@ case, deleted-list cross-check, empty-directory hashing and path decoding refine
 the same preservation outcome. Production snapshot restore exposed the explicitly
 listed serializer differences in RECOVERY.md; compare equivalent API queries,
 never weaken policy or content checks to get a pass.
+
+The 20:55 EDT VM reboot invalidated old owner/CID/counter baselines. Explicit
+worker restoration passed a separate 65-second idle guard; selected task state
+and nine non-expiring bus states match preserved older evidence. D7 binds fresh
+server identity, admission counters, durable state and a reboot-resumable
+journal. Owned admission checks and revised recovery fixtures pass; the real
+managed orchestration and three healthy cold stores remain unaccepted. Memory
+shutdown still swallows drain errors and does not itself await external worker
+threads; a fresh empty external-job anchor plus conservative post-anchor log
+refusal is required. Further lifecycle changes require their own bounded step.

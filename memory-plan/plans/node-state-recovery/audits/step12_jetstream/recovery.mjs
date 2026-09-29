@@ -31,7 +31,7 @@ export function localURL(server) {
 }
 
 export async function openBus(server, token) {
-  return connect({ servers: localURL(server), token, reconnect: false, ignoreClusterUpdates: true, timeout: 3000, name: 'recovery-readonly' });
+  return connect({ servers: localURL(server), token, reconnect: false, ignoreClusterUpdates: true, timeout: 3000, name: 'recovery-readonly-' + randomBytes(12).toString('hex') });
 }
 
 export async function api(nc, subject, data = {}, timeout = 10000) {
@@ -110,10 +110,12 @@ export async function cliBackup(cli, server, token, stream, target) {
   const fd = fs.openSync(log, 'wx', 0o600);
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('NATS_')));
   env.NATS_TOKEN = token;
-  const argv = ['--no-context', '--server', localURL(server), '--timeout=30s', 'stream', 'backup', '--check', '--consumers', '--no-progress', stream, target];
+  const connectionName = 'recovery-backup-' + randomBytes(12).toString('hex');
+  const argv = ['--no-context', '--server', localURL(server), '--connection-name', connectionName, '--timeout=30s', 'stream', 'backup', '--check', '--consumers', '--no-progress', stream, target];
   try { await run(cli, argv, { env, stdio: ['ignore', fd, fd] }); } finally { fs.closeSync(fd); }
   secureTree(target); durableTree(target);
   const metadata = JSON.parse(fs.readFileSync(path.join(target, 'backup.json')));
+  metadata.harnessConnectionName = connectionName;
   assert(fs.statSync(path.join(target, 'stream.tar.s2')).size > 0);
   return metadata;
 }
@@ -123,7 +125,7 @@ export async function cliRestore(cli, server, token, target, replicas) {
   env.NATS_TOKEN = token;
   const log = target + '.restore-' + randomBytes(6).toString('hex') + '.log';
   const fd = fs.openSync(log, 'wx', 0o600);
-  const args = ['--no-context', '--server', localURL(server), '--timeout=30s', 'stream', 'restore', '--no-progress'];
+  const args = ['--no-context', '--server', localURL(server), '--connection-name', 'recovery-restore-' + randomBytes(12).toString('hex'), '--timeout=30s', 'stream', 'restore', '--no-progress'];
   if (replicas !== undefined) { assert(Number.isInteger(replicas) && replicas > 0); args.push('--replicas=' + replicas); }
   args.push(target);
   try { await run(cli, args, { env, stdio: ['ignore', fd, fd] }); } finally { fs.closeSync(fd); }

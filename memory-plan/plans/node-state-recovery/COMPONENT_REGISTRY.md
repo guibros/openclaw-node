@@ -11,5 +11,5 @@
 ### JetStream histories
 | | |
 |---|---|
-| **Status** | SPLIT: standalone 4222, cluster 4223/4224, member 1 fails on contested 4222; offline R=1 data |
-| **Verified** | 2026-09-28 01:06 EDT inventory, config paths reverified 07:20 EDT. Four stores retained; no union, migration or service stop. Restore acceptance open. |
+| **Status** | SPLIT, preservation in flight: standalone 4222 and cluster 4223/4224 serve; failed member 1 persistently held; three healthy cold masters pending |
+| **Verified** | 2026-09-28 21:33 EDT: member-1 protected master and its isolated R1 restoration accepted; eleven individual online archives restored with 80,156 non-expiring messages. After the VM crash, nine reachable non-expiring stream states/configs and durable positions match the older archive points; no immediate pre-crash acknowledgement guarantee. Worker explicitly restored under a 65-second idle guard. All three serving bus identities/routes remain unchanged through revised owned recovery tests; member 2 is metadata leader. Eight focused preservation checks and complete owned recovery fixtures pass. New managed-window acceptance, three healthy cold copies and coordinated recovery remain open. |

@@ -109,3 +109,132 @@ empty-directory detection, paths with spaces, KV revision/delete/purge/TTL round
 trip, empty R3 restore, exact non-default stream/consumer config, offline driver
 and assignment-deletion refusal. All owned servers stopped. Bounded source TTL
 polling removed an immediate-expiry test assumption without changing TTL.
+
+
+## Member 1 hold and isolated offline recovery
+
+2026-09-28 09:42 EDT: member 1 was persistently disabled and unloaded. No assignment
+was deleted. Standalone alone owns 4222/8222; 6222 has no listener. Its stopped
+jetstream-1 store was copied into private cold-member1: 82 files, 6,346,296 bytes;
+source-before/source-after/copy hashes agree. Original config/unit preserved.
+Files are 0400, directories 0500, all 133 entries have uchg. Master hashes remain
+unchanged after isolated restoration.
+
+An owned nonclustered working copy restored member 1's offline R1 histories:
+COLLAB 40 messages, first 7, last 1740, raw digest
+`d3f510de4498c396e729a7776a520d72fdb302cd34642bb01bfd1d05cfe3039e`;
+PLANS empty, first/last 0. Config/deleted-state evidence is private. Its physical
+R3 OPENCLAW_SHARED replica remains preserved (4 files, 734 bytes); the nonclustered
+server rejects replicas>1, so this is not proof of that replica's clustered restore.
+All owned servers stopped. Claude Message 80 accepted the offline/master proof.
+
+## Guarded managed window refused; all services restored
+
+2026-09-28 09:54 EDT: after fresh idle/scheduler preflight, the managed-client stop
+was refused when the task daemon failed its clean-completion log gate. It emitted
+`Draining NATS...` then `NATS connection permanently closed — exiting for launchd
+restart`, without `Shutdown complete.`. Its unconditional startup closed callback
+races its own requested drain. No healthy NATS server stopped and none of the three
+healthy stores was copied. The guard was not weakened.
+
+The finally path restored all 16 previously managed jobs with zero resumption
+errors. At 10:03 EDT memory and Mission Control are healthy; healthy NATS PIDs
+874/887/858 and viewer PID 35823 remain unchanged. At 10:07 EDT all 537 task rows
+and scheduler dispatch/recur/trigger counts and highwaters exactly match the
+private pre-stop snapshot (13/160, 2/161, 2/159). No task row was changed.
+
+A separate bounded node-bus-lifecycle step 1.1 / draft PR #145 repairs planned
+idle shutdown semantics. Recovery 1.2 remains in flight until that deployed fix,
+a fresh quiet window, the remaining protected cold masters, isolated production
+restores and resumption acceptance have all passed. This evidence does not close
+child 1.3 or establish a common recovery point.
+
+## VM crash recovery — 2026-09-28 21:06 EDT
+
+The VM rebooted around 20:55 EDT before the next healthy-store preservation
+window. No healthy NATS unit had been intentionally stopped for that window.
+PR #148 is confirmed merged at dad1e7b, not inferred from an interrupted tool
+call. Task/bridge/worker deployed entry hashes remain 17a70c25 / f894fc18 /
+1304cb31. All three serving buses pass JetStream health on new boot owners;
+member1 remains persistently disabled and unloaded. Memory and Mission Control
+authenticated health return200. Temporary /tmp helpers were cleared; durable
+private journals and helper copies survive.
+
+The worker remained loaded but stopped under preserved RunAtLoad=false and
+KeepAlive=false. Explicit restoration completed at 21:06:07 EDT: PID5086, run1,
+CID644; actual null claims and alive=false/task_id=null, followed by65seconds
+of continuous application-idle guard observation (15 full checks,5 null claims).
+All537 selected task-row fields match the accepted1.4 pre-crash baseline;
+task/collaboration/plan message counts and sequence bounds match too. Across
+worker start, these rows, Kanban bytes, units, primary/worker Git state and
+other service PIDs/runs remain unchanged; new worker stderr0. This checks
+selected task state and stream counters, not all application-store content
+through the crash. Private evidence: postcrash-20260928-worker/acceptance.json.
+
+Claude's preservation challenge requires cumulative admissions and producer-first
+stops. The old preserve-managed.py is superseded and must not run. Healthy
+cold masters remain pending. On installed2.12.6 varz has start but no pid field;
+resumption must bind actual listener owners with lsof and managed process state.
+
+## Post-crash comparison and revised owned checks — 2026-09-28 21:33 EDT
+
+At 21:22 EDT, all thirteen known stream assignments were compared to the
+individual 09:24 EDT online manifests. Nine reachable non-expiring streams
+have matching state/config and durable positions; the two unavailable cluster
+assignments still return 500/10118. Expiring health streams are separate.
+Cluster local-events-node has 55,173 messages and durable delivered/ack 55,137,
+with 36 pending and zero ack-pending, unchanged from that older snapshot.
+The stopped member-1 master content hashes and all private/immutable flags
+match. This does not prove every acknowledgement immediately before the crash.
+
+Installed varz provides start/config_digest but not pid. All servers report
+sync_interval=120 seconds; no recent Server Exiting or definitive OS shutdown
+cause was found. Classify this as crash-recovered history with an unknown
+shutdown cause, not a clean shutdown. Server listener ownership remains a
+separate physical check. Scheduler activity counts/highwaters exactly match
+the pre-crash snapshot: dispatch 13/160, recur 2/161, trigger 2/159.
+
+The first tools-v9 full fixture refused a shutdown exceeding its unchanged
+ten-second deadline. At the same time, production logs report API processing
+of 12–51 seconds, an 80-second route stall and a temporary missing cluster
+leader. The cause is unestablished. By 21:18:52 EDT the leader/routes recovered
+without PID changes. Private fixture-v9-refused retains the failed run; four
+owned logs lack normal exit evidence, so that run is not accepted as graceful.
+
+Tools-v10 was deployed under the private recovery directory. Eight focused
+checks passed on three actual owned 2.12.6 servers: brief writer and failed auth
+admissions between zero-client samples, HTTP-only observation, content/durable
+mutation refusal, plus synthetic queue/timer/descendant/order/rollback gates.
+The synthetic gates do not prove a production orchestration sequence. Every
+owned process is checked during teardown; forced cleanup records failure.
+
+At 21:31:56 EDT the complete revised snapshot/cold-clone/offline-R1/TTL fixture
+passed with all owned servers stopped normally and no cleanup failures.
+Private root: tools-v10/openclaw-jetstream-fixture-9EOgqi. Three admission-test
+servers also stopped normally, root openclaw-preservation-owned-cfr3e4vo.
+Production server IDs/start/config digests and route counts remain unchanged
+across these tests. Both surviving cluster members report member 2 as leader.
+
+The preserved KeepAlive=false/RunAtLoad=false worker policy required explicit
+post-reboot restoration. That is a parent readiness 1.5/2.2 boot-policy finding,
+not evidence that unattended node startup works. The deploy listener has not
+reached Ready on this boot; its connection-retry loop precedes signal-handler
+registration. Its historical MODULE_NOT_FOUND tail is not a current-process
+diagnosis. No healthy production message server has been stopped for this new
+window. A durable managed journal, realistic stop/resume negative controls,
+independent review and the three remaining cold-copy/restore proofs are pending.
+
+Final exhaustive-cleanup revision deployed as tools-v11; full owned recovery
+fixture passed at 2026-09-29T01:35:03.458Z, root openclaw-jetstream-fixture-UrLcfK.
+Already-exited children are checked for normal exit too; connection-close
+failures cannot skip remaining server cleanup. All owned exits are verified.
+
+Tools-v12 admission checks passed nine tests on three owned servers, with
+zero cleanup failures. Capture binds start/config digest, route rid/start and
+Raft leader/term/applied/committed identity; a recovered route count alone
+cannot hide a flap. A two-second observation deadline refuses monitoring
+stalls. Captures are JSON-serializable for a durable journal. Synthetic identity
+and Raft mutations are negative controls, not a real cluster-flap proof. Actual
+HTTP captures from all three live monitors succeed, preserve their identity
+and create no NATS client. The serving node still has connected clients, so
+these are preflight observations, not quiet-window acceptance.

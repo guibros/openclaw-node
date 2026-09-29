@@ -46,3 +46,19 @@ confirmed that deleting an offline stream assignment through survivors causes
 its owner to erase the R1 working history on rejoin. Never delete the offline
 COLLAB/PLANS assignments. The hold is reversible with enable only after topology
 1.4 has independently verified preservation and uncontested listeners.
+
+## D7 — Admission-fenced, reboot-resumable preservation (2026-09-28 21:33 EDT)
+Claude demonstrated that sampled zero clients misses millisecond writers and
+failed logins. Replace the old managed-window script; do not weaken it into
+acceptance. Bind each server by ID/start/config digest and physical listeners.
+After named observer closure use HTTP only, cumulative admissions, open/closed
+CIDs, JetStream API counters, stream policy/state and durable positions through
+every stop. Producer-first stops and actual owner/descendant/queue evidence are
+required. A private fsynced journal records intent before each mutation and
+retains incomplete copies without an acceptance manifest. Preserve persistent
+service holds across a reboot and restore their original loaded/running/disabled
+state only after truthful readiness checks; member 1 remains held under D6.
+A reboot invalidates the quiet window, not permission to restore the prior node.
+Crash recovery and independent older stream snapshots are not a common point.
+Worker reboot policy and the unready deploy listener feed parent readiness 1.5
+and 2.2; they are not silently repaired or called ready in this preservation step.

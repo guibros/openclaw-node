@@ -104,11 +104,49 @@ not disaster recovery after loss of the machine or disk.
 ## Installed serializer differences
 
 Actual 2.12.6 source configs include compression:none, allow_msg_ttl:false and
-_nats.level:3/_nats.ver:2.12.6 metadata that CLI 0.3.1 backup.json omits. Compare
-restored configs to the complete matching source before/after configs. Accept
-only those exact observed omitted defaults plus an explicitly recorded isolated
-replica override; refuse arbitrary metadata or policy differences. The snapshot
+_nats.level:3/_nats.ver:2.12.6 metadata that CLI 0.3.1 backup.json omits. Primary check: compare restored server configs to the complete matching source
+before/after configs exactly, except an explicitly recorded isolated replica
+override. Secondary check: only the backup.json-to-source comparison may allow
+those exact omitted defaults and server metadata; refuse any missing non-default
+value or other policy difference. The snapshot
 state omits deleted_details: compare equivalent API options, and separately
 compare captured source deleted sequences to restored message-get holes. This
 server reports a sequence-zero deleted marker for a never-used empty stream;
 it is not a message hole. Keep it explicit, never turn it into a payload record.
+
+## Pre-cold-copy review correction — 2026-09-28 21:10 EDT
+
+The prior sampled-zero and stop-order harness is superseded. Before any healthy
+server stop, independently challenge the replacement and its owned negative
+controls. Stop health-watch, deploy listener and node-watch first; stop timers
+(including heartbeat before MC); then MC, bridge, worker, observer, task daemon,
+memory daemon and publisher. The worker must exit before its task service.
+Only uniquely named harness clients may be used before observer close. From
+observer close through server stop, monitoring uses HTTP only and refuses any
+unexpected increase in total_connections, new open/closed CID, task-state
+change or durable-position change. After all clients stop, record65seconds
+with zero clients, unchanged cumulative admissions/API counters, non-expiring
+stream state and durable positions; keep checking through each bootout.
+Physical listener ownership and subsequent recovered-state equality close the
+limits of finite monitoring; do not claim an instantaneous HTTP reading itself
+locks out admissions. MESH_NODE_HEALTH and MESH_TOOLS, if present, may expire
+under their original120second policy; no new sequence is allowed.
+
+For each stop assert actual process ownership, documented normal completion
+where supplied by that program, absence of descendants/listeners and closed
+client identity. Client Closed is not proof of clean drain. Memory additionally
+requires a new owner-matching empty queue snapshot immediately before signal
+and no external/idle extraction or import start between anchor and completion.
+One-shot timers must be idle immediately before unload and have unchanged log
+length afterwards. A source-level completion line with surviving child/socket
+refuses acceptance.
+
+After buses resume, compare pre-stop stream and durable state before any
+application clients resume. Require managed PIDs actually own client/monitor
+listeners, authenticated MC scheduler status before heartbeat, unchanged
+scheduler trigger/dispatch/recur counters, and real worker null-claim/idle
+readiness after explicit kickstart. Watchers resume last. Check current deploy
+marker versus its actual repository HEAD before allowing listener catch-up;
+never treat bootstrap returning0 as readiness or write a false restoration
+record. Any failure retains a private journal and restores only verified
+original loaded/running/disabled state, with member1 held.
