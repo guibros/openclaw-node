@@ -1,0 +1,22 @@
+{
+  "preservedMainDrift": "current-main terminal-task handling is not included in this e57 lifecycle release",
+  "sourceSha": "a2f5293fa0111e614682f431598c54c1757d6ad9",
+  "followupPatchSha256": "ee4080cf840565216c0f2a2a3317eecd686467482e0e588e5bb61cae7ead7c4c",
+  "deployedEntryDelta": "exact reviewed1.4 hunk on preserved1.1 entry",
+  "liveBaseSha": "e57f89b264a30892389cabe573786fb516a6a208",
+  "changedFiles": [
+    "bin/mesh-task-daemon.js"
+  ],
+  "trackedFilesChecked": 1911,
+  "patchSha256": "9a36ced46baf83ccbc9b3901af7b48658434e5c2bbe4e13e6946d231694c186f",
+  "runtimeEntrySha256": "17a70c25c0d0fcbd99ad83578c39923bed2cb7550026149314b69cc46289e787",
+  "nodeModules": "/Users/moltymac/openclaw-nodedev/node_modules",
+  "runtimeEntry": "/Users/moltymac/.openclaw/releases/task-outage-a2f5293-e57f89b/bin/mesh-task-daemon.js",
+  "stageNode": "24.13.0",
+  "ownedControlsPassed": 7,
+  "skipped": 0,
+  "strongEarlyControls": 2,
+  "durationMs": 76606.527625,
+  "managedRuntime": "accepted attempt5; RUNTIME_EVIDENCE.json",
+  "testsSha": "6cc27c3"
+}

@@ -1,0 +1,386 @@
+{
+  "at": "2026-09-28T17:26:17.466430+00:00",
+  "accepted": true,
+  "release": {
+    "preservedMainDrift": "current-main terminal-task handling is not included in this e57 lifecycle release",
+    "sourceSha": "a2f5293fa0111e614682f431598c54c1757d6ad9",
+    "followupPatchSha256": "ee4080cf840565216c0f2a2a3317eecd686467482e0e588e5bb61cae7ead7c4c",
+    "deployedEntryDelta": "exact reviewed1.4 hunk on preserved1.1 entry",
+    "liveBaseSha": "e57f89b264a30892389cabe573786fb516a6a208",
+    "changedFiles": [
+      "bin/mesh-task-daemon.js"
+    ],
+    "trackedFilesChecked": 1911,
+    "patchSha256": "9a36ced46baf83ccbc9b3901af7b48658434e5c2bbe4e13e6946d231694c186f",
+    "runtimeEntrySha256": "17a70c25c0d0fcbd99ad83578c39923bed2cb7550026149314b69cc46289e787",
+    "nodeModules": "/Users/moltymac/openclaw-nodedev/node_modules",
+    "runtimeEntry": "/Users/moltymac/.openclaw/releases/task-outage-a2f5293-e57f89b/bin/mesh-task-daemon.js"
+  },
+  "initial": {
+    "loaded": true,
+    "pid": "77486",
+    "runs": "1",
+    "last exit code": "(never exited)",
+    "state": "running"
+  },
+  "deployed": {
+    "loaded": true,
+    "pid": "78967",
+    "runs": "1",
+    "last exit code": "(never exited)",
+    "state": "running"
+  },
+  "restarted": {
+    "loaded": true,
+    "pid": "79423",
+    "runs": "2",
+    "last exit code": "0",
+    "state": "running"
+  },
+  "oldStop": {
+    "signalAt": "2026-09-28T17:23:55.670237+00:00",
+    "anchorRetries": [
+      {
+        "at": "2026-09-28T17:23:40.673300+00:00",
+        "queue": {
+          "ageSeconds": 7.340549945831299,
+          "empty": false,
+          "ownerMatches": true,
+          "shuttingDown": false
+        },
+        "claimAgeSeconds": 0.028355,
+        "signalWithheld": true
+      }
+    ],
+    "queueAtSignal": {
+      "ageSeconds": 7.164920330047607,
+      "empty": true,
+      "ownerMatches": true,
+      "shuttingDown": false
+    },
+    "actualNullClaim": {
+      "nullClaimAt": "2026-09-28T17:23:55.633Z"
+    },
+    "queueRPCPause": {
+      "paused": true,
+      "at": "2026-09-28T17:23:55.668Z"
+    },
+    "gap": {
+      "at": "2026-09-28T17:23:55.689441+00:00",
+      "oldCID": 303879,
+      "oldAbsent": true,
+      "holders": 0
+    },
+    "completionCount": 1,
+    "allowedStatuses": [],
+    "stderrByteDelta": 0,
+    "selectedLogLines": [
+      "[2026-09-28T17:23:55.680Z] [mesh-task-daemon:moltymacs-virtual-machine-local] Shutting down...",
+      "[2026-09-28T17:23:55.685Z] [mesh-task-daemon:moltymacs-virtual-machine-local] Draining NATS...",
+      "[2026-09-28T17:23:55.688Z] [mesh-task-daemon:moltymacs-virtual-machine-local] Shutdown complete."
+    ]
+  },
+  "patchedStop": {
+    "signalAt": "2026-09-28T17:25:10.998517+00:00",
+    "anchorRetries": [],
+    "queueAtSignal": {
+      "ageSeconds": 22.488949298858643,
+      "empty": true,
+      "ownerMatches": true,
+      "shuttingDown": false
+    },
+    "actualNullClaim": {
+      "nullClaimAt": "2026-09-28T17:25:10.983Z"
+    },
+    "queueRPCPause": {
+      "paused": true,
+      "at": "2026-09-28T17:25:10.998Z"
+    },
+    "gap": {
+      "at": "2026-09-28T17:25:11.047566+00:00",
+      "oldCID": 304246,
+      "oldAbsent": true,
+      "holders": 0
+    },
+    "completionCount": 1,
+    "allowedStatuses": [],
+    "stderrByteDelta": 0,
+    "selectedLogLines": [
+      "[2026-09-28T17:25:11.005Z] [mesh-task-daemon:moltymacs-virtual-machine-local] Shutting down...",
+      "[2026-09-28T17:25:11.036Z] [mesh-task-daemon:moltymacs-virtual-machine-local] Draining NATS...",
+      "[2026-09-28T17:25:11.039Z] [mesh-task-daemon:moltymacs-virtual-machine-local] Shutdown complete."
+    ]
+  },
+  "singleInstance": {
+    "before": {
+      "cid": 303879,
+      "subjects": [
+        "mesh.tasks.submit",
+        "mesh.tasks.list",
+        "mesh.tasks.claim",
+        "mesh.collab.create",
+        "mesh.plans.create"
+      ]
+    },
+    "deployed": {
+      "cid": 304246,
+      "subjects": [
+        "mesh.tasks.submit",
+        "mesh.tasks.list",
+        "mesh.tasks.claim",
+        "mesh.collab.create",
+        "mesh.plans.create"
+      ]
+    },
+    "restarted": {
+      "cid": 304431,
+      "subjects": [
+        "mesh.tasks.submit",
+        "mesh.tasks.list",
+        "mesh.tasks.claim",
+        "mesh.collab.create",
+        "mesh.plans.create"
+      ]
+    }
+  },
+  "guard": {
+    "observerCID": 304151,
+    "sameServerId": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+    "passiveAdmissionContinuous": true,
+    "noReconnect": true,
+    "checks": 39,
+    "streamsUnchanged": true,
+    "streamBaseline": {
+      "KV_MESH_TASKS": {
+        "messages": 397,
+        "firstSequence": 406,
+        "lastSequence": 2184
+      },
+      "KV_MESH_COLLAB": {
+        "messages": 227,
+        "firstSequence": 12,
+        "lastSequence": 3818
+      },
+      "KV_MESH_PLANS": {
+        "messages": 7,
+        "firstSequence": 29,
+        "lastSequence": 35
+      }
+    },
+    "boundedQueueRPCPauses": [
+      44,
+      361,
+      281
+    ],
+    "nullClaims": 11,
+    "preconditions": {
+      "limits": {
+        "KV_MESH_TASKS": {
+          "maxAge": 0,
+          "maxMessages": -1,
+          "maxBytes": -1,
+          "maxMessagesPerSubject": 1,
+          "messages": 397,
+          "bytes": 45997
+        },
+        "KV_MESH_COLLAB": {
+          "maxAge": 0,
+          "maxMessages": -1,
+          "maxBytes": -1,
+          "maxMessagesPerSubject": 1,
+          "messages": 227,
+          "bytes": 294101
+        },
+        "KV_MESH_PLANS": {
+          "maxAge": 0,
+          "maxMessages": -1,
+          "maxBytes": -1,
+          "maxMessagesPerSubject": 1,
+          "messages": 7,
+          "bytes": 882
+        }
+      },
+      "unreferencedTerminalTasksWithTimestamp": 2,
+      "oldestAgeMilliseconds": 94364717,
+      "pruneMarginAtLeastMilliseconds": 600000
+    },
+    "fullRPCPeriodMilliseconds": 5000,
+    "fullRPCDeadlineMilliseconds": 5000,
+    "streamPeriodMilliseconds": 250
+  },
+  "taskRowsUnchanged": true,
+  "kanbanBytesUnchanged": true,
+  "unrelatedOwnersUnchanged": true,
+  "primaryGitUnchanged": true,
+  "workerWorkspaceUnchanged": true,
+  "unitOnlyEntryChanged": true,
+  "firstClaimToReadySeconds": 0.396858,
+  "lastClaimToReadySeconds": 0.296217,
+  "entireWindowStderrByteDelta": 0,
+  "entireWindowAllowedStatuses": [],
+  "queueWaits": [
+    {
+      "initial": {
+        "ageSeconds": 7.393702983856201,
+        "queueEmpty": false,
+        "pidMatches": true
+      },
+      "seconds": 1.8681945829999993,
+      "freshEmptyRequired": true
+    }
+  ],
+  "cwdPreserved": "unset",
+  "ttlOverrideAbsent": true,
+  "guardedAfterEachReadinessSeconds": 65,
+  "dependencyResolution": {
+    "nats": {
+      "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+      "version": "2.29.3"
+    },
+    "js-yaml": {
+      "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/js-yaml/index.js",
+      "version": "4.3.2"
+    },
+    "better-sqlite3": {
+      "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+      "version": "11.10.0"
+    }
+  },
+  "coreBefore": {
+    "ai.openclaw.nats": {
+      "loaded": true,
+      "pid": "874",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.nats-2": {
+      "loaded": true,
+      "pid": "887",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.nats-3": {
+      "loaded": true,
+      "pid": "858",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.workplan-viewer": {
+      "loaded": true,
+      "pid": "35823",
+      "runs": "3",
+      "last exit code": null,
+      "state": "running"
+    },
+    "ai.openclaw.gateway": {
+      "loaded": true,
+      "pid": "2902",
+      "runs": "17074",
+      "last exit code": null,
+      "state": "running"
+    },
+    "ai.openclaw.memory-daemon": {
+      "loaded": true,
+      "pid": "93840",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.mesh-agent": {
+      "loaded": true,
+      "pid": "50887",
+      "runs": "3",
+      "last exit code": "0",
+      "state": "running"
+    },
+    "ai.openclaw.mesh-bridge": {
+      "loaded": true,
+      "pid": "26822",
+      "runs": "2",
+      "last exit code": "0",
+      "state": "running"
+    }
+  },
+  "coreAfter": {
+    "ai.openclaw.nats": {
+      "loaded": true,
+      "pid": "874",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.nats-2": {
+      "loaded": true,
+      "pid": "887",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.nats-3": {
+      "loaded": true,
+      "pid": "858",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.workplan-viewer": {
+      "loaded": true,
+      "pid": "35823",
+      "runs": "3",
+      "last exit code": null,
+      "state": "running"
+    },
+    "ai.openclaw.gateway": {
+      "loaded": true,
+      "pid": "2902",
+      "runs": "17074",
+      "last exit code": null,
+      "state": "running"
+    },
+    "ai.openclaw.memory-daemon": {
+      "loaded": true,
+      "pid": "93840",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "ai.openclaw.mesh-agent": {
+      "loaded": true,
+      "pid": "50887",
+      "runs": "3",
+      "last exit code": "0",
+      "state": "running"
+    },
+    "ai.openclaw.mesh-bridge": {
+      "loaded": true,
+      "pid": "26822",
+      "runs": "2",
+      "last exit code": "0",
+      "state": "running"
+    }
+  },
+  "quietAfter": {
+    "at": "2026-09-28T17:26:16.700Z",
+    "daemonQueuedTasks": 0,
+    "agentAlive": {
+      "alive": false,
+      "task_id": null
+    },
+    "states": {
+      "KV_MESH_TASKS": {
+        "failed": 1,
+        "completed": 1
+      },
+      "KV_MESH_COLLAB": {
+        "aborted": 4,
+        "completed": 2
+      }
+    },
+    "allConsumerAckPendingZero": true
+  },
+  "privateJournal": "/Users/moltymac/.openclaw/backups/node-readiness/task-outage-a2f5293-attempt5",
+  "runtimeNode": "24.13.0"
+}

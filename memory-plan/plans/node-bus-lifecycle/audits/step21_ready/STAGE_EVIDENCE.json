@@ -1,0 +1,22 @@
+{
+  "at": "2026-09-29T03:53:25.981935+00:00",
+  "sourceSha": "b190671aeabaeae6bfbe15be34944469607bd7b9",
+  "base": "/Users/moltymac/.openclaw/releases/task-outage-a2f5293-e57f89b",
+  "staged": "/Users/moltymac/.openclaw/releases/task-ready-b190671-e57f89b",
+  "baseEntrySha256": "17a70c25c0d0fcbd99ad83578c39923bed2cb7550026149314b69cc46289e787",
+  "stagedEntrySha256": "22c2784052ec9dde8f8dc1ac582ecd58b2db02aaf60d05cfe3524adfbcb3bb51",
+  "nodeModulesTarget": "/Users/moltymac/openclaw-nodedev/node_modules",
+  "unitCurrentlyUnchanged": true,
+  "scope": "staged private files only; no service action",
+  "metadataUpdated": "LIFECYCLE_PROVENANCE.json records the new layer and preserves baseLayer",
+  "changedApplicationFiles": [
+    "bin/mesh-task-daemon.js"
+  ],
+  "metadataSha256": "3e79eb53faeda510f2cba2662b967ac3c85f7b789d121868f97cde9b952ed6a2",
+  "ownedStageTests": {
+    "passed": 3,
+    "skipped": 0,
+    "durationSeconds": 3.363
+  },
+  "currentRuntimeChanged": false
+}

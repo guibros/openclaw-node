@@ -1,0 +1,322 @@
+{
+  "worker-drain-69b7f37-attempt3": {
+    "at": "2026-09-28T16:09:58.973303+00:00",
+    "accepted": true,
+    "initial": {
+      "loaded": true,
+      "pid": "48742",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "deployed": {
+      "loaded": true,
+      "pid": "49751",
+      "runs": "1",
+      "last exit code": "(never exited)",
+      "state": "running"
+    },
+    "restarted": {
+      "loaded": true,
+      "pid": "50148",
+      "runs": "2",
+      "last exit code": "0",
+      "state": "running"
+    },
+    "lastExit": "0",
+    "completionCount": 1,
+    "drainStartCount": 1,
+    "signalAt": "2026-09-28T16:09:42.959208+00:00",
+    "actualNullClaimBeforeSignal": {
+      "nullClaimAt": "2026-09-28T16:09:42.958Z"
+    },
+    "continuousIdleGuard": {
+      "observerCid": 291393,
+      "observerExcludedByExactCid": true,
+      "checks": 190,
+      "nullClaimCount": 4,
+      "continuousIdle": true
+    },
+    "workerWorkspaceRegisteredWorktrees": 1,
+    "keptLeases": 0,
+    "agentStateFile": "absent, expected for a worker that has not executed tasks",
+    "oldBaseDirectories": "nine preserved unchanged; not an idle prerequisite",
+    "noUnexpectedNatsStatusDuringStop": true,
+    "allowedNatsStatuses": [],
+    "stderrByteDelta": 0,
+    "patchedZeroGap": {
+      "at": "2026-09-28T16:09:58.013903+00:00",
+      "nodeSubscriptions": 0
+    },
+    "dependencyResolution": {
+      "nats": {
+        "entry": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+        "version": "2.29.3"
+      },
+      "better-sqlite3": {
+        "entry": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+        "version": "11.10.0"
+      },
+      "nkeys.js": {
+        "entry": "/Users/moltymac/openclaw-nodedev/node_modules/nkeys.js/lib/index.js",
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/nkeys.js/lib/index.js",
+        "version": "1.1.0"
+      }
+    },
+    "managedRestart": "explicit kickstart; original KeepAlive=false/RunAtLoad=false preserved",
+    "workerWorkspaceUnchanged": true,
+    "keptMeshBranches": 0,
+    "unrelatedOwnersUnchanged": true,
+    "unitOnlyEntryChanged": true,
+    "cwdPreserved": "unset",
+    "taskRowsUnchanged": true,
+    "kanbanBytesUnchanged": true,
+    "singleInstance": {
+      "before": {
+        "cid": 291172,
+        "subjects": [
+          "mesh.agent.moltymacs-virtual-machine.alive",
+          "mesh.agent.moltymacs-virtual-machine.approved",
+          "mesh.agent.moltymacs-virtual-machine.rejected",
+          "mesh.collab.*.recruit"
+        ]
+      },
+      "deployed": {
+        "cid": 291730,
+        "subjects": [
+          "mesh.agent.moltymacs-virtual-machine.alive",
+          "mesh.agent.moltymacs-virtual-machine.approved",
+          "mesh.agent.moltymacs-virtual-machine.rejected",
+          "mesh.collab.*.recruit"
+        ]
+      },
+      "restarted": {
+        "cid": 292231,
+        "subjects": [
+          "mesh.agent.moltymacs-virtual-machine.alive",
+          "mesh.agent.moltymacs-virtual-machine.approved",
+          "mesh.agent.moltymacs-virtual-machine.rejected",
+          "mesh.collab.*.recruit"
+        ]
+      },
+      "gapZeroObserved": true
+    },
+    "selectedLogLines": [
+      "[2026-09-28T16:09:42.967Z] [mesh-agent:moltymacs-virtual-machine] Received SIGTERM, finishing current task...",
+      "[2026-09-28T16:09:57.962Z] [mesh-agent:moltymacs-virtual-machine] Draining NATS...",
+      "[2026-09-28T16:09:57.968Z] [mesh-agent:moltymacs-virtual-machine] Agent worker stopped.",
+      "[2026-09-28T16:09:58.089Z] [mesh-agent:moltymacs-virtual-machine] Starting mesh agent worker",
+      "[2026-09-28T16:09:58.302Z] [mesh-agent:moltymacs-virtual-machine] ALIVE CHECK: responded false (asked about undefined, working on null)"
+    ]
+  },
+  "worker-drain-69b7f37-cid-proof": {
+    "at": "2026-09-28T16:12:02.750902+00:00",
+    "accepted": true,
+    "initial": {
+      "loaded": true,
+      "pid": "50148",
+      "runs": "2",
+      "last exit code": "0",
+      "state": "running"
+    },
+    "deployed": {
+      "loaded": true,
+      "pid": "50148",
+      "runs": "2",
+      "last exit code": "0",
+      "state": "running"
+    },
+    "restarted": {
+      "loaded": true,
+      "pid": "50887",
+      "runs": "3",
+      "last exit code": "0",
+      "state": "running"
+    },
+    "lastExit": "0",
+    "completionCount": 1,
+    "drainStartCount": 1,
+    "signalAt": "2026-09-28T16:11:45.361957+00:00",
+    "actualNullClaimBeforeSignal": {
+      "nullClaimAt": "2026-09-28T16:11:45.359Z"
+    },
+    "continuousIdleGuard": {
+      "observerCid": 292395,
+      "observerExcludedByExactCid": true,
+      "checks": 61,
+      "nullClaimCount": 2,
+      "continuousIdle": true
+    },
+    "workerWorkspaceRegisteredWorktrees": 1,
+    "keptLeases": 0,
+    "agentStateFile": "absent, expected for a worker that has not executed tasks",
+    "oldBaseDirectories": "nine preserved unchanged; not an idle prerequisite",
+    "noUnexpectedNatsStatusDuringStop": true,
+    "allowedNatsStatuses": [
+      "pingTimer"
+    ],
+    "stderrByteDelta": 0,
+    "patchedZeroGap": {
+      "at": "2026-09-28T16:12:00.463313+00:00",
+      "nodeSubscriptions": 0,
+      "oldCid": 292231,
+      "oldCidAbsent": true,
+      "foreignHolderFailsImmediately": true
+    },
+    "dependencyResolution": {
+      "nats": {
+        "entry": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+        "version": "2.29.3"
+      },
+      "better-sqlite3": {
+        "entry": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+        "version": "11.10.0"
+      },
+      "nkeys.js": {
+        "entry": "/Users/moltymac/openclaw-nodedev/node_modules/nkeys.js/lib/index.js",
+        "realPath": "/Users/moltymac/openclaw-nodedev/node_modules/nkeys.js/lib/index.js",
+        "version": "1.1.0"
+      }
+    },
+    "managedRestart": "explicit kickstart; original KeepAlive=false/RunAtLoad=false preserved",
+    "workerWorkspaceUnchanged": true,
+    "keptMeshBranches": 0,
+    "unrelatedOwnersUnchanged": true,
+    "unitOnlyEntryChanged": true,
+    "cwdPreserved": "unset",
+    "taskRowsUnchanged": true,
+    "kanbanBytesUnchanged": true,
+    "singleInstance": {
+      "before": {
+        "cid": 292231,
+        "subjects": [
+          "mesh.agent.moltymacs-virtual-machine.alive",
+          "mesh.agent.moltymacs-virtual-machine.approved",
+          "mesh.agent.moltymacs-virtual-machine.rejected",
+          "mesh.collab.*.recruit"
+        ]
+      },
+      "deployed": {
+        "cid": 292231,
+        "subjects": [
+          "mesh.agent.moltymacs-virtual-machine.alive",
+          "mesh.agent.moltymacs-virtual-machine.approved",
+          "mesh.agent.moltymacs-virtual-machine.rejected",
+          "mesh.collab.*.recruit"
+        ]
+      },
+      "restarted": {
+        "cid": 292648,
+        "subjects": [
+          "mesh.agent.moltymacs-virtual-machine.alive",
+          "mesh.agent.moltymacs-virtual-machine.approved",
+          "mesh.agent.moltymacs-virtual-machine.rejected",
+          "mesh.collab.*.recruit"
+        ]
+      },
+      "gapZeroObserved": true
+    },
+    "selectedLogLines": [
+      "[2026-09-28T16:11:45.407Z] [mesh-agent:moltymacs-virtual-machine] Received SIGTERM, finishing current task...",
+      "[2026-09-28T16:11:58.175Z] [mesh-agent:moltymacs-virtual-machine] NATS status: pingTimer",
+      "[2026-09-28T16:12:00.365Z] [mesh-agent:moltymacs-virtual-machine] Draining NATS...",
+      "[2026-09-28T16:12:00.383Z] [mesh-agent:moltymacs-virtual-machine] Agent worker stopped.",
+      "[2026-09-28T16:12:00.671Z] [mesh-agent:moltymacs-virtual-machine] Starting mesh agent worker",
+      "[2026-09-28T16:12:00.976Z] [mesh-agent:moltymacs-virtual-machine] ALIVE CHECK: responded false (asked about undefined, working on null)"
+    ]
+  },
+  "sourceSha": "69b7f377b53f7850e168af16512b2161b00ee7ac",
+  "liveBaseSha": "e57f89b264a30892389cabe573786fb516a6a208",
+  "refusedAttempts": "Attempts 1/2 counted the passive observer as a worker; both refused before changing the unit entry and restored the original service. They are not acceptance.",
+  "same-server-proof": {
+    "at": "2026-09-28T16:17:41.282Z",
+    "sameServer": true,
+    "serverID": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+    "observerCID": 293225,
+    "workerCID": 292648,
+    "noReconnect": true,
+    "observerClosed": true
+  },
+  "monitor-direct-cid": [
+    {
+      "at": "2026-09-28T16:17:11.475198+00:00",
+      "port": 8222,
+      "serverID": "NAKBB3VXAOKQS6EA4ZSD7EPI7IMDGOEVDCQ5Q2XFGNEHTDYXFBSG5L6W",
+      "version": "2.12.6",
+      "totalConnections": 13505,
+      "open": 6,
+      "closed": [
+        {
+          "cid": 292231,
+          "name": null,
+          "start": "2026-09-28T12:09:58.107164-04:00",
+          "stop": "2026-09-28T12:12:00.385071-04:00",
+          "reason": "Client Closed"
+        },
+        {
+          "cid": 292395,
+          "name": "owned-idle-preservation-guard",
+          "start": "2026-09-28T12:11:36.942186-04:00",
+          "stop": "2026-09-28T12:12:02.721475-04:00",
+          "reason": "Client Closed"
+        },
+        {
+          "cid": 291393,
+          "name": "owned-idle-preservation-guard",
+          "start": "2026-09-28T12:09:05.491968-04:00",
+          "stop": "2026-09-28T12:09:58.94178-04:00",
+          "reason": "Client Closed"
+        }
+      ]
+    },
+    {
+      "at": "2026-09-28T16:17:11.488177+00:00",
+      "port": 8223,
+      "serverID": "NB676732AMVZBPXYYCIGNS5GNUVAA6VSTRLWV4YOPQI45MIQ4OCQMZVT",
+      "version": "2.12.6",
+      "totalConnections": 10,
+      "open": 0,
+      "closed": []
+    },
+    {
+      "at": "2026-09-28T16:17:11.503894+00:00",
+      "port": 8224,
+      "serverID": "NCQUEU2NOTFPXPEKDNGCDVN65Q5UVY5VU26LGN626X4QPDOO3AJ4QWDN",
+      "version": "2.12.6",
+      "totalConnections": 2,
+      "open": 0,
+      "closed": []
+    }
+  ],
+  "monitor-counter-followup": [
+    {
+      "port": 8222,
+      "secondsElapsed": 134.011,
+      "sameServer": true,
+      "totalConnectionsBefore": 13505,
+      "totalConnectionsAfter": 13514,
+      "open": 6
+    },
+    {
+      "port": 8223,
+      "secondsElapsed": 134.261,
+      "sameServer": true,
+      "totalConnectionsBefore": 10,
+      "totalConnectionsAfter": 10,
+      "open": 0
+    },
+    {
+      "port": 8224,
+      "secondsElapsed": 134.247,
+      "sameServer": true,
+      "totalConnectionsBefore": 2,
+      "totalConnectionsAfter": 2,
+      "open": 0
+    }
+  ],
+  "scope": "Connected idle managed stop only; no active handler completion, old worktree deletion, dependency pinning or full node readiness claim."
+}

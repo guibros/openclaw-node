@@ -1,0 +1,27 @@
+{
+  "at": "2026-09-28T14:59:09.549002+00:00",
+  "provenance": {
+    "sourceSha": "9056e59add2c521f438cc85cf6f5abd81a187f23",
+    "liveBaseSha": "e57f89b264a30892389cabe573786fb516a6a208",
+    "changedFiles": [
+      "bin/mesh-bridge.js"
+    ],
+    "trackedFilesChecked": 1911,
+    "patchSha256": "5eb6f1a49924937e502bf8f40fdfbdba3fd140ff279f33c3331f9ddafdc88eb2",
+    "runtimeEntrySha256": "f894fc1813cdb0fa40d73f6ba81c97cb1c10b8b18ba76204c0f4aae5a74deaeb",
+    "nodeModules": "/Users/moltymac/openclaw-nodedev/node_modules",
+    "runtimeEntry": "/Users/moltymac/.openclaw/releases/bridge-drain-9056e59-e57f89b/bin/mesh-bridge.js"
+  },
+  "tests": {
+    "passed": 10,
+    "skipped": 0,
+    "runs": "7+2+1; exact release entry using runtime Node24.13.0"
+  },
+  "sameDependenciesUnderOriginalUnit": {
+    "nats": "/Users/moltymac/openclaw-nodedev/node_modules/nats/index.js",
+    "better-sqlite3": "/Users/moltymac/openclaw-nodedev/node_modules/better-sqlite3/lib/index.js",
+    "nkeys.js": "/Users/moltymac/openclaw-nodedev/node_modules/nkeys.js/lib/index.js"
+  },
+  "unitChange": "only ProgramArguments[1]; original unset cwd/environment/KeepAlive/paths/mode preserved",
+  "managedDeployment": "accepted 2026-09-28 11:11 EDT; Claude message 100 approves closure"
+}

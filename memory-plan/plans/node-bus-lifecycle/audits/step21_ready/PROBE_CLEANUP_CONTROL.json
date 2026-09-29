@@ -1,0 +1,21 @@
+{
+  "at": "2026-09-29T04:27:51.063679+00:00",
+  "ownedOnly": true,
+  "productionUntouched": true,
+  "results": [
+    {
+      "source": "original",
+      "connectionClosedNormally": true,
+      "processNormalExitWithInputKeptOpen": false,
+      "exitStatus": -15
+    },
+    {
+      "source": "fixed",
+      "connectionClosedNormally": true,
+      "processNormalExitWithInputKeptOpen": true,
+      "exitStatus": 0
+    }
+  ],
+  "ownedServerNormalExit": true,
+  "probeChange": "destroy stdin after normal bus close"
+}

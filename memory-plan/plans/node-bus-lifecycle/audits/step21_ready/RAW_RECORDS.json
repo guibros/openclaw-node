@@ -1,0 +1,67 @@
+{
+  "managed-tool-identity.json": {
+    "sha256": "33ee19a8d85f1d953ac6602b7d401a5fcf7996ccbfa017676bd13d287da36784",
+    "mtimeUtc": "2026-09-29T04:38:28.020773+00:00",
+    "bytes": 263
+  },
+  "managed-baseline.json": {
+    "sha256": "489c83ca34c3b907f1299c0ae6e270494c3d5f6430707322fb53ebd0e2c25fac",
+    "mtimeUtc": "2026-09-29T04:39:39.899670+00:00",
+    "bytes": 150781
+  },
+  "guard-before-stop.json": {
+    "sha256": "e699a0b93edb7665da71535ba5dc46f5da88c51d1700e54fe0fa0577e3fc4110",
+    "mtimeUtc": "2026-09-29T04:39:39.917484+00:00",
+    "bytes": 2140
+  },
+  "managed-stop-intent.json": {
+    "sha256": "c9898ce895d6ff20eecbd07c63c46b2255f3a74baa2c9d71ca56757d6921ec5f",
+    "mtimeUtc": "2026-09-29T04:39:39.921393+00:00",
+    "bytes": 218
+  },
+  "managed-exit.json": {
+    "sha256": "f19b6b845f10967e9e5180f38115a11cfb952617a72598b24b99bbf657153bca",
+    "mtimeUtc": "2026-09-29T04:39:39.939901+00:00",
+    "bytes": 107
+  },
+  "managed-gap.json": {
+    "sha256": "3644575f9049091094588e96c4a99714f53ae6f3f0672b3011971bdff4729d39",
+    "mtimeUtc": "2026-09-29T04:39:39.955697+00:00",
+    "bytes": 491
+  },
+  "managed-stop-output.log": {
+    "sha256": "d15aed9da03c75f3cc1c9dd801ff00ca911d39e5ecb707ed92cb3777486b9793",
+    "mtimeUtc": "2026-09-29T04:39:39.971088+00:00",
+    "bytes": 604
+  },
+  "managed-old-connection.json": {
+    "sha256": "a2a10516641cb762419cd39e2d9610a42633d9c64a6585b0b4601be1fabcd813",
+    "mtimeUtc": "2026-09-29T04:39:39.975549+00:00",
+    "bytes": 507
+  },
+  "managed-replacement-ready.json": {
+    "sha256": "39ad297845486623ec8cdefb745e6d8cde3a4b701ad7be253dc9491842408898",
+    "mtimeUtc": "2026-09-29T04:39:40.189866+00:00",
+    "bytes": 3101
+  },
+  "managed-start-output.log": {
+    "sha256": "c6be67fba749a58cfab27122af1921dd91a5931ccdb278d1649e5d64794b5af7",
+    "mtimeUtc": "2026-09-29T04:39:40.195853+00:00",
+    "bytes": 4461
+  },
+  "managed-before-observer-close.json": {
+    "sha256": "235ee10b9fd9948d249228e6af1a522bcf8b9b6f45dbd7a768d811b91f4f3c54",
+    "mtimeUtc": "2026-09-29T04:40:45.677839+00:00",
+    "bytes": 3809
+  },
+  "managed-observers-closed.json": {
+    "sha256": "472ddf9846ded93b898d8b21798f6d2e7644bb8e208673df21c85dd2710387a5",
+    "mtimeUtc": "2026-09-29T04:40:45.737308+00:00",
+    "bytes": 5181
+  },
+  "managed-acceptance.json": {
+    "sha256": "e3e5afa9596634ad8eb449f4a28f9b24e723760f94ad386a8e2101a31c22ed98",
+    "mtimeUtc": "2026-09-29T04:40:45.743324+00:00",
+    "bytes": 7394
+  }
+}

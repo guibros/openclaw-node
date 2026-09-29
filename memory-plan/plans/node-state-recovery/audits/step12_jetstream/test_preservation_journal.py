@@ -763,6 +763,84 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
         with self.assertRaisesRegex(Refused, 'unexpected entry'):
             self.journal(PRIOR, root=self.parent / 'third')
 
+    def test_initializing_finder_metadata_preserves_restore_only_recovery(self):
+        from preservation_journal import write_private
+        for index, boundary in enumerate(('receipt', 'mkdir', 'baseline')):
+            parent = pathlib.Path(self.temp.name) / ('finder-setup-' + str(index))
+            parent.mkdir(mode=0o700)
+            root, lock = parent / 'journals/window', parent / 'node.lock'
+            with Journal(parent / 'journals/previous', PRIOR, boot='a', node_lock=lock) as previous:
+                previous.recover(lambda *_: self.fail('ready owner restarted'),
+                    lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})
+                previous.seal()
+            real_mkdir = pathlib.Path.mkdir
+            def mkdir(path, *args, **kwargs):
+                value = real_mkdir(path, *args, **kwargs)
+                if path == root and boundary == 'mkdir':
+                    raise OSError(errno.EIO, 'interrupted after mkdir')
+                return value
+            def write(path, value):
+                write_private(path, value)
+                if ((boundary == 'receipt' and value.get('phase') == 'initializing')
+                        or (boundary == 'baseline' and path.name == '000000.json')):
+                    raise OSError(errno.EIO, 'interrupted setup')
+            with patch('preservation_journal.write_private', side_effect=write), \
+                 patch('preservation_journal.pathlib.Path.mkdir', autospec=True, side_effect=mkdir):
+                with self.assertRaises(OSError):
+                    Journal(root, PRIOR, boot='a', node_lock=lock)
+            root.mkdir(mode=0o700, exist_ok=True)
+            metadata = root / '.DS_Store'
+            metadata.write_bytes(b'owned Finder metadata')
+            with Journal(root, boot='b', node_lock=lock) as journal:
+                with self.assertRaisesRegex(Refused, 'reboot|reopened'):
+                    journal.require_forward()
+                self.assertTrue(journal.recover(lambda *_: self.fail('unchanged owner restarted'),
+                    lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})['restored'])
+                journal.resolve()
+            self.assertEqual(metadata.read_bytes(), b'owned Finder metadata')
+            with Journal(parent / 'journals/next', PRIOR, boot='b', node_lock=lock):
+                pass
+
+    def test_initializing_metadata_links_owners_and_unknown_entries_remain_fenced(self):
+        from preservation_journal import write_private
+        for index, kind in enumerate(('link', 'directory', 'foreign-owner', 'unknown')):
+            parent = pathlib.Path(self.temp.name) / ('finder-refusal-' + str(index))
+            parent.mkdir(mode=0o700)
+            root, lock = parent / 'journals/window', parent / 'node.lock'
+            def write(path, value):
+                write_private(path, value)
+                if value.get('phase') == 'initializing':
+                    raise OSError(errno.EIO, 'interrupted setup')
+            with patch('preservation_journal.write_private', side_effect=write):
+                with self.assertRaises(OSError):
+                    Journal(root, PRIOR, boot='a', node_lock=lock)
+            root.mkdir(mode=0o700)
+            metadata = root / ('.DS_Store' if kind != 'unknown' else 'unknown-file')
+            if kind == 'link':
+                target = parent / 'outside'
+                target.write_bytes(b'owned target')
+                metadata.symlink_to(target)
+            elif kind == 'directory':
+                metadata.mkdir(mode=0o700)
+            else:
+                metadata.write_bytes(b'owned metadata')
+            real_lstat = pathlib.Path.lstat
+            def lstat(path):
+                info = real_lstat(path)
+                if path == metadata and kind == 'foreign-owner':
+                    fields = list(info)
+                    fields[4] = os.getuid() + 1
+                    return os.stat_result(fields)
+                return info
+            with patch('preservation_journal.pathlib.Path.lstat', autospec=True, side_effect=lstat):
+                with self.assertRaisesRegex(Refused, 'Finder metadata|unknown files'):
+                    Journal(root, boot='b', node_lock=lock)
+                next_root = parent / 'journals/next'
+                with self.assertRaisesRegex(Refused, 'prior node recovery is unresolved'):
+                    Journal(next_root, PRIOR, boot='b', node_lock=lock)
+                self.assertFalse(next_root.exists())
+            self.assertTrue(os.path.lexists(metadata))
+
     def test_static_identity_hashes_entry_and_config_arguments_without_extra_files(self):
         import plistlib
         from preservation_journal import static_identity

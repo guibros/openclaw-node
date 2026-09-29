@@ -1,0 +1,27 @@
+{
+  "scope": "real task daemon; owned authenticated server/isolated HOME only; no production ports or service actions",
+  "node": "v24.13.0",
+  "phases": [
+    {
+      "source": "baseline",
+      "trials": 100,
+      "noResponders": 66,
+      "successful": 34,
+      "otherErrors": [],
+      "normalStops": 100
+    },
+    {
+      "source": "candidate",
+      "trials": 100,
+      "noResponders": 0,
+      "successful": 100,
+      "otherErrors": [],
+      "normalStops": 100
+    }
+  ],
+  "cleanupFailures": [],
+  "at": "2026-09-29T03:28:42.896Z",
+  "completed": true,
+  "baseline_sha": "dad1e7b4e964433c805d6b31b59bcd9c05485c4c",
+  "candidate_delta": "await nc.flush() immediately before Task daemon ready."
+}

@@ -1,0 +1,49 @@
+# Step 1.3 — AUDIT_PRE
+
+## 0 — Micro Re-Orient
+
+Bridge 1.2 closes with Claude source/runtime approval and actual managed exit/restart evidence. Worker 1.3 is the next idle stop repair; recovery still requires all repaired clients before preservation. This is the existing worker, not a second worker or a provider redesign.
+
+## 1 — Intent and evidence
+
+2026-09-28 11:21 EDT owned Mac run: fresh authenticated NATS, actual empty task daemon, isolated HOME/workspace Git repo, unique identity and explicit provider. Empty actual claim reply and alive=false/task_id=null precede SIGTERM. Unmodified worker exits 1 through permanent-close callback, without Agent worker stopped. Live original unit PID 93953, Node /usr/local/bin/node, cwd unset; e57 has the same unconditional closed callback.
+
+## 2 — Needs pre-screen
+
+1.2 closed; actual main/source and live unit verified. Owned NATS 2.12.6/task daemon available. D2/D3/D4/D7/D8 and operator authorization apply. Idle worker does not require a Mission Control HTTP fixture; no task reaches the memory recall/provider execution path. Runtime e57 drift must remain separate from this patch.
+
+## 3 — Design
+
+Main-local draining flag immediately before existing await nc.drain, suppress only error-free intentional close, require nc.isClosed before logging completion. Preserve signal handlers/polling/current-task semantics and all subscriptions. Tests observe all four worker subscriptions on one connection, a real daemon claim yielding no task, and an actual idle alive reply. Every child gets minimal private HOME/TMPDIR/Git/worktree paths and an owned authenticated random-port bus. No live ports or inherited credentials/configuration.
+
+## 4 — Risks
+
+| Risk | Mitigation |
+|---|---|
+| Stop request masks loss before drain | Long-poll negative control; ownership starts at drain boundary only. |
+| Request-subscription false drain completion | Default/late outage controls and both weakened mutants. |
+| Worker claims work while being stopped | Real empty owned daemon; fresh live queued/claim/child/kanban proof and actual alive reply. No task/provider execution in fixture. |
+| Natural stop exceeds supervisor grace | Observe process exit; default 15s poll control; bounded supervisor, any forced kill fails acceptance. In-flight 60s claim/task remains outside idle contract. |
+| Staged release erases drift | e57 archive plus worker-only lifecycle diff; compare other tracked bytes; preserve original unit values/dependencies/cwd. |
+
+## 5 — Acceptance
+
+Execute INVENTORY 1.3 with nine real controls locally and full isolated CI. Reject unmodified connected stop and both weakened error/actual-close conditions. Claude independently challenges immutable source and staged bytes. Live managed SIGTERM must emit exactly one completion and exit 0, then replacement answers idle alive without a claim; task-state and unrelated-owner comparisons hold. Record entry/dependency versions for preservation revalidation.
+
+## 6 — File deltas
+
+bin/mesh-agent.js lifecycle conditions; test/mesh-agent-lifecycle.test.mjs owned controls; silo audit/evidence/carriers. Private e57 worker-only release and existing unit entry are the only intended runtime changes.
+
+## Runtime pre-screen correction
+
+Actual unit KeepAlive=false/RunAtLoad=false, ThrottleInterval=30; D9 requires explicit kickstart after observing natural stop status. Its actual MESH_WORKSPACE is ~/.openclaw/mesh-workspace, with zero kept mesh branches on the fresh read-only check. Preserve that workspace HEAD/status as well as the primary code checkout. No automatic-restart claim.
+
+## Mid-Implementation Findings
+
+Claude found that a fixed late-loss timing can pass without reaching the error-bearing-close boundary on a different machine. Measure the no-signal reconnect budget from actual worker log timestamps, anchor on an actual null claim, kill only the owned fixture server instantly, and assert the drain precedes permanent close with no earlier Fatal. Retry timing misses at most three times; an exit 0 or completion fails immediately. Held-drain repeated signals must follow the actual drain-start marker. The 60s pre-drain loss control requires permanent close before any drain marker.
+
+Fresh live idle pre-screen finds nine retained WORKTREE_BASE directories: seven have dangling March test Git pointers; two clean August benchmark worktrees remain registered to the primary repo, with no ignored files/submodules. No open files were observed. Claude message 106 verifies the worker never lists the base, so these old directories cannot affect an idle stop/restart and are left unchanged in 1.3. Their reversible preservation and the force-delete fallback on a future task-ID collision feed parent 4.1. The actual worker workspace has only its main registered worktree and no kept branches; its lease directory is empty and unit environment overrides neither path. The agent-state file is absent because startup/empty claims do not write it; use actual null claim/alive RPC, no executor children and live queue/recruit checks for idle proof. No state file is invented to pass a gate.
+
+The exact-head CI run 36447265256 attempt 1 passed all nine worker controls but failed federation-resilience setup because port 15800 was already held; six child tests were canceled by that failed hook and matrix fail-fast canceled Node 20. No worker assertion failed. Fresh source inspection shows federation-resilience picks 15222 + a random offset in a 1000-port range without reserving it; this run collided on 15800. The conflicting owner is not established by the log. Retry failed/canceled jobs once on the same immutable SHA; retain this evidence and carry fixture-port allocation/isolation to node-readiness 2.1. Do not hide a red suite or repair an unrelated test inside the worker patch.
+
+Live deployment attempts 1 and 2 refused before changing the worker entry and restored the original service. The passive observer subscribed to approved/rejected subjects, so a probe that counted every matching subscription mistook it for a worker. Attempt 3 excludes only the observer's exact NATS INFO client_id, checks that it is the named owned observer, and retains all actual-worker holder, readiness, natural-exit and state gates. A read-only guard self-check confirms one actual holder of all three node subjects and closes the observer. This corrects verification tooling, not service code. The failed attempts are retained privately; no runtime acceptance is inferred from them.

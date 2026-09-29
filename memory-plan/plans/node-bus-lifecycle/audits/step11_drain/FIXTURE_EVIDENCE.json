@@ -1,0 +1,37 @@
+{
+  "observed_at": "2026-09-28T14:07:37Z",
+  "base": "5e088cc85af46391efab5286970525ebd5f3a0f4",
+  "source_delta": "main-local shutdown flag; closed/repeated-signal guards",
+  "old_source_SIGTERM": {
+    "exit": 1,
+    "completion_line": false,
+    "restart_line": true
+  },
+  "Node22.22.0": {
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0,
+    "elapsed_ms": 21726,
+    "dependency_paths": [
+      "/Users/moltymac/.openclaw/workspace/projects/mission-control/node_modules",
+      "/Users/moltymac/openclaw-nodedev/node_modules"
+    ]
+  },
+  "Node24.13.0": {
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0,
+    "elapsed_ms": 22098,
+    "dependency_paths": [
+      "/Users/moltymac/openclaw-nodedev/node_modules"
+    ]
+  },
+  "controls": [
+    "SIGTERM clean drain",
+    "SIGINT clean drain",
+    "held server + repeated signals, one shutdown",
+    "unexpected server loss -> exit 1 after real reconnect policy"
+  ],
+  "production_deployed": false,
+  "cleanup": "owned daemon and server children stopped; temporary HOME and store removed"
+}

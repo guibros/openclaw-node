@@ -51,6 +51,14 @@ def read_private(path):
     return json.loads(path.read_bytes())
 
 
+def finder_metadata(path):
+    if path.name != '.DS_Store':
+        return False
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid(), 'unexpected Finder metadata owner or link')
+    return True
+
+
 def write_private(path, value):
     pending = path.parent / ('.pending-' + uuid.uuid4().hex)
     fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -315,10 +323,9 @@ class Journal:
     def _roots(self):
         roots = []
         for path in self.journals.iterdir():
-            info = path.lstat()
-            if path.name == '.DS_Store':
-                require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid(), 'unexpected Finder metadata owner or link')
+            if finder_metadata(path):
                 continue
+            info = path.lstat()
             require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', path.name)
                     and stat.S_ISDIR(info.st_mode), 'unexpected entry in the journal parent')
             roots.append(path)
@@ -330,7 +337,7 @@ class Journal:
         require(stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700
                 and info.st_uid == os.getuid(), 'journal directory is not owner-private')
         with self._lock(self.root / '.lock'):
-            require(all(path.name == '.lock' or path.name.startswith('.pending-')
+            require(all(finder_metadata(path) or path.name == '.lock' or path.name.startswith('.pending-')
                         or re.fullmatch(r'\d{6}\.json', path.name) for path in self.root.iterdir()),
                     'initializing journal contains unknown files')
             records = self._read()
