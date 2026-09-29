@@ -102,3 +102,10 @@ managed orchestration and three healthy cold stores remain unaccepted. Memory
 shutdown still swallows drain errors and does not itself await external worker
 threads; a fresh empty external-job anchor plus conservative post-anchor log
 refusal is required. Further lifecycle changes require their own bounded step.
+
+Post-stall recheck found one worker claim-loop timeout at21:18:53 EDT, followed
+by an idle reply and unchanged owners/task fields. Existing node-watch requests
+exercise Ollama while the memory queue says idle; the runner was consuming
+about900% CPU. This is a carry-forward resource/monitoring finding, not proven
+causality or an extra repair in this step. Preserve the healthy-stop refusal
+until fresh stability and safe operational sequencing are independently proved.

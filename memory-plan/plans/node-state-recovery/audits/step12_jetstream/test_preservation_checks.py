@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import secrets
+import select
 import signal
 import socket
 import subprocess
@@ -12,7 +13,7 @@ import unittest
 
 from preservation_checks import (
     QuietWindow, Refused, STOP_ORDER, capture, restore_prior, verify_admissions,
-    verify_completion, verify_queue, verify_streams, verify_timer_idle,
+    http_json, verify_completion, verify_queue, verify_streams, verify_timer_idle,
 )
 
 
@@ -107,6 +108,26 @@ if(process.env.OWNED_ACTION==='setup'){
  await jm.consumers.add('HISTORY',{durable_name:'stable',ack_policy:'explicit',deliver_policy:'all'});
 }else if(process.env.OWNED_ACTION==='write')await nc.jetstream().publish('history',sc.encode('two'));
 else if(process.env.OWNED_ACTION==='consumer')await jm.consumers.update('HISTORY','stable',{description:'unexpected change'});
+else if(process.env.OWNED_ACTION==='bulk'){
+ for(let i=0;i<16;i++){
+  const extra=await connect({servers:process.env.OWNED_URL,token:process.env.OWNED_TOKEN,reconnect:false,name:'owned-bulk-'+i});
+  await extra.flush();await extra.close();
+ }
+}
+else if(process.env.OWNED_ACTION==='hold'){
+ const lines=require('node:readline').createInterface({input:process.stdin});
+ console.log(JSON.stringify({ready:true,cid:nc.info.client_id}));
+ for await(const line of lines){
+  if(line==='quit')break;
+  if(line==='write')await nc.jetstream().publish('history',sc.encode('existing-client-write'));
+  else if(line==='ack'){
+   const consumer=await nc.jetstream().consumers.get('HISTORY','stable');
+   const message=await consumer.next({expires:1000});if(!message||!await message.ackAck())throw Error('owned ack failed');
+  }else throw Error('unknown owned action');
+  console.log(JSON.stringify({completed:line}));
+ }
+ lines.close();
+}
 await nc.drain();})().catch(()=>process.exitCode=1);
 """)
         try:
@@ -191,6 +212,53 @@ await nc.drain();})().catch(()=>process.exitCode=1);
         with self.assertRaises(Refused):
             QuietWindow({'owned': before}).check({'owned': changed}, {'owned': set()})
 
+    def test_frozen_owned_server_refuses_by_deadline(self):
+        proc, client, monitor, log = self.servers[0]
+        proc.send_signal(signal.SIGSTOP)
+        started = time.monotonic()
+        try:
+            with self.assertRaises(Refused):
+                capture(monitor)
+            self.assertLess(time.monotonic()-started, 3)
+        finally:
+            proc.send_signal(signal.SIGCONT)
+
+    def test_closed_connections_beyond_first_page_are_not_missed(self):
+        for proc, client, monitor, log in self.servers:
+            before = capture(monitor)
+            self.client(client, 'bulk')
+            page = http_json(monitor, '/connz?state=closed&limit=10')
+            self.assertGreater(page['total'], len(page['connections']))
+            after = capture(monitor)
+            self.assertEqual(len(after['closed']), page['total'])
+            with self.assertRaises(Refused):
+                verify_admissions(before, after)
+
+    def test_server_restart_invalidates_admission_baseline(self):
+        proc, client, monitor, log = self.servers[0]
+        before = capture(monitor)
+        proc.send_signal(signal.SIGTERM)
+        self.assertEqual(proc.wait(timeout=10), 0)
+        log.close()
+        log = open(self.root/'server-0.log', 'ab', buffering=0)
+        proc = subprocess.Popen([self.binary, '--config', str(self.root/'server-0.conf')], stdout=log, stderr=log)
+        self.servers[0] = (proc, client, monitor, log)
+        for _ in range(100):
+            try:
+                after = capture(monitor)
+                if after['server_id'] != before['server_id']:
+                    break
+            except Refused:
+                pass
+            self.assertIsNone(proc.poll())
+            time.sleep(.02)
+        else:
+            self.fail('owned restart failed readiness')
+        self.assertNotEqual(after['server_id'], before['server_id'])
+        self.assertLess(after['total_connections'], before['total_connections'])
+        with self.assertRaises(Refused):
+            verify_admissions(before, after)
+
     def test_fast_writer_and_failed_auth_between_samples_each_bus(self):
         for proc, client, monitor, log in self.servers:
             with self.subTest(port=client):
@@ -217,14 +285,32 @@ await nc.drain();})().catch(()=>process.exitCode=1);
 
     def test_existing_client_write_and_durable_change_are_not_admission_proof(self):
         for proc, client, monitor, log in self.servers:
-            before = capture(monitor)
-            self.client(client, 'write')
-            after = capture(monitor)
-            after['total_connections'] = before['total_connections']
-            after['open'] = copy.deepcopy(before['open'])
-            after['closed'] = copy.deepcopy(before['closed'])
-            with self.assertRaises(Refused):
-                verify_streams(before, after)
+            env = {**os.environ, 'OWNED_NATS_MODULE': self.nats, 'OWNED_URL': f'nats://127.0.0.1:{client}',
+                   'OWNED_TOKEN': self.token, 'OWNED_NAME': 'owned-persistent-'+secrets.token_hex(8), 'OWNED_ACTION': 'hold'}
+            writer = subprocess.Popen([self.node, str(self.scripts)], env=env,
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE, text=True)
+            try:
+                self.assertTrue(select.select([writer.stdout], [], [], 5)[0], 'owned writer did not start')
+                cid = json.loads(writer.stdout.readline())['cid']
+                for action in ('write', 'ack'):
+                    before = capture(monitor)
+                    self.assertIn(cid, before['open'])
+                    writer.stdin.write(action+'\n'); writer.stdin.flush()
+                    self.assertTrue(select.select([writer.stdout], [], [], 5)[0], 'owned write or ack timed out')
+                    self.assertEqual(json.loads(writer.stdout.readline())['completed'], action)
+                    after = capture(monitor)
+                    verify_admissions(before, after)
+                    self.assertEqual(after['open'], before['open'])
+                    with self.assertRaises(Refused):
+                        verify_streams(before, after)
+                writer.stdin.write('quit\n'); writer.stdin.flush()
+                _, stderr = writer.communicate(timeout=10)
+                self.assertEqual(writer.returncode, 0)
+                self.assertEqual(stderr, '')
+            finally:
+                if writer.poll() is None:
+                    writer.terminate(); writer.communicate(timeout=5)
             before = capture(monitor)
             self.client(client, 'consumer')
             with self.assertRaises(Refused):

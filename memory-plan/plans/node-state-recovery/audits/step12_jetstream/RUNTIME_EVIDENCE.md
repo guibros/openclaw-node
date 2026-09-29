@@ -238,3 +238,38 @@ and Raft mutations are negative controls, not a real cluster-flap proof. Actual
 HTTP captures from all three live monitors succeed, preserve their identity
 and create no NATS client. The serving node still has connected clients, so
 these are preflight observations, not quiet-window acceptance.
+
+## Post-stall owner checks — 2026-09-28 21:45:15 EDT
+
+Worker PID 5086/runs 1 still holds its exact CID644 alive/approve/reject
+subscriptions and answers alive=false/task_id=null. Task, bridge, memory,
+Mission Control and the three NATS PIDs/runs remain unchanged. All537 selected
+task fields still match the pre-crash acceptance. One worker ERROR: TIMEOUT
+was logged at 21:18:53 EDT during the long stall; no task was claimed. A fresh
+read-only idle request succeeded at21:45:15 EDT. This is recovery from a timeout,
+not a claim that the stall had no client impact. Both cluster members report
+meta leader sNVEpm4n (member2), term7042, applied/committed1742174.
+
+No kernel shutdown-cause event or panic/watchdog diagnostic was found. The
+hypervisor's host logs are unavailable from the guest; the operator was asked
+which layer crashed. At21:41 EDT the guest reported 2.1GiB swap in use and59GiB
+free disk space. Five iostat samples showed busy CPU and13–92MB/s disk traffic;
+these measurements were taken without a recovery fixture running. The model
+runner later used about900–1034% CPU and4.9GB RSS. The observed local Ollama
+caller PID747 is the existing node-watch unit; recent chat/generate requests
+returned500 after8/30seconds. Its inference is not registered in the memory
+daemon's empty queue. These are current resource/monitoring findings, not a
+causal explanation of the earlier crash or stalls. No healthy stop is accepted
+on that basis. Deeper monitoring/boot-policy repair feeds parent1.5/2.2.
+
+Tools-v15 adds real owned-server restart, more closed connections than a first
+page, a frozen monitor, and writes/durable acknowledgements through a persistent
+existing CID. Capture checks the entire non-truncated connection inventory;
+cumulative total must be exactly unchanged. Every HTTP request shares the
+two-second observation deadline. Route/term identity controls remain synthetic
+locally; Claude independently exercised actual route flaps/elections. Real
+managed stop/resume controls and the durable preservation journal remain pending.
+
+All12 tools-v15 focused checks passed in3.443seconds on three owned servers,
+including one real restart. Cleanup reports no failures; each owned server
+exited normally. Private root: openclaw-preservation-owned-smav2tcz.

@@ -30,9 +30,12 @@ def require(condition, reason):
         raise Refused(reason)
 
 
-def http_json(port, path):
-    with urllib.request.urlopen(f'http://127.0.0.1:{port}{path}', timeout=5) as response:
-        return json.load(response)
+def http_json(port, path, timeout=2):
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}{path}', timeout=timeout) as response:
+            return json.load(response)
+    except (OSError, ValueError) as error:
+        raise Refused('monitoring request failed or exceeded its deadline: ' + path) from error
 
 
 def stream_state(details):
@@ -65,15 +68,19 @@ def stream_state(details):
 
 def capture(port):
     started = time.monotonic()
-    before = http_json(port, '/varz')
-    js = http_json(port, '/jsz?accounts=true&streams=true&consumers=true&config=true')
-    opened = http_json(port, '/connz?limit=10000')
-    closed = http_json(port, '/connz?state=closed&limit=10000')
-    routes = http_json(port, '/routez')
-    leaves = http_json(port, '/leafz')
-    gateways = http_json(port, '/gatewayz')
-    raft = http_json(port, '/raftz') if before.get('cluster') else {}
-    after = http_json(port, '/varz')
+    def get(path):
+        remaining = 2 - (time.monotonic() - started)
+        require(remaining > 0, 'monitoring observation stalled')
+        return http_json(port, path, remaining)
+    before = get('/varz')
+    js = get('/jsz?accounts=true&streams=true&consumers=true&config=true')
+    opened = get('/connz?limit=10000')
+    closed = get('/connz?state=closed&limit=10000')
+    routes = get('/routez')
+    leaves = get('/leafz')
+    gateways = get('/gatewayz')
+    raft = get('/raftz') if before.get('cluster') else {}
+    after = get('/varz')
     require(before['server_id'] == after['server_id'], 'server changed during observation')
     require(before['start'] == after['start'], 'server restarted during observation')
     require(before['config_digest'] == after['config_digest'], 'server configuration changed during observation')
