@@ -137,3 +137,16 @@ enabled missing-token failures restart; both owned units bootout0/absence.
 No production change yet;3.3[A]/v3.3-mid awaits immutable CI/source review
 and its separate narrow live deployment. Linux policy has no systemd runtime
 acceptance. First fixture-key failure remains retained/unaccepted.
+
+Disabled Discord closure2026-09-29 06:12 EDT: sourcef21c6df approved/CI3of3;
+actual new-path release d1341cfa + rendered plist6f532574 ran once normally.
+Fresh same-unit65.402s/84 samples remain loaded/not-running/run1/exit0;
+configfalse/no-token/zeroaccounts and13 other ownerPID/runs unchanged.
+First whole-node zero-admission window remains unaccepted; health-watch
+connected after the Discord exit. Other work continues, not preservation.
+HTTP registry bucket absent/actual read-only MC module count0; no global OS
+network claim. New plist dev16777233/ino58975700/mode0644 feeds a new baseline.
+Old entry/plist remain available; primarye57/shared dependencies preserved.
+3.3[x]/v3.3; monitoring's false BROKEN is the next separately bounded repair,
+before journal/timer integration/new preservation baseline. Source and Mac
+measurement attribution remain distinct; qualified Claude84 challenge passes.

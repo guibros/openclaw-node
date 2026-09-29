@@ -88,3 +88,12 @@ that the existing registry does not consume; its default is hostname. Retain
 that failed run as unaccepted. The corrected fixture queries the actual ready
 line's node ID, leaving registry behavior unchanged. Operator-neutral registry
 identity configuration is a separate parent cluster/installation observation.
+
+Live verification correction2026-09-29 06:08 EDT: the deployment produced
+the expected normal inactive run. Its first stability harness over-constrained
+all node bus admissions and refused on a health-watch connection after the
+Discord exit. Retain that window as unaccepted. The written3.3 contract excludes
+Discord admission, not all ongoing node work; a fresh same-unit65s continuation
+captures unchanged inactive run count/13 other owners and the actual continuing
+bus admission counts. No production source or unrelated writer was changed to
+make the evidence pass. No certification across the observation gap.

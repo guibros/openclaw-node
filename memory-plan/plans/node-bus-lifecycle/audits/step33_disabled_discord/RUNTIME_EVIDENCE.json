@@ -1,6 +1,6 @@
 {
-  "recordedAtUTC": "2026-09-29T09:46:30.490861+00:00",
-  "planState": "3.3[A]/v3.3-mid",
+  "recordedAtUTC": "2026-09-29T10:09:52.444721+00:00",
+  "planState": "3.3[x]/v3.3",
   "source": {
     "atUTC": "2026-09-29T09:40:13.405298+00:00",
     "liveBase": "e57f89b264a30892389cabe573786fb516a6a208",
@@ -9,7 +9,7 @@
     "entrySha256": "d1341cfa04a3289c2338cc0e4a76e77dbf28d4c50f08ce5b18371c468b321d17",
     "sameEntry": true,
     "testsSha256": "277d1ee530efc367608103060dae1eb0759c63cb9abb71f82f2d1aed852f606f",
-    "dependencies": "primary node_modules read-only symlink; no install/rebuild",
+    "dependencies": "primary node_modules symlink used without install/rebuild; symlink itself is not access enforcement",
     "liveMutations": 0,
     "plan": "3.3[A]/v3.3-pre",
     "priorCandidate": "/Users/moltymac/.openclaw/backups/node-readiness/discord-disabled-20260929-1/candidate-v1",
@@ -34,7 +34,7 @@
     "unexpectedPass": 0,
     "source": "e57f89b264a30892389cabe573786fb516a6a208",
     "logSha256": "0b763c98fb9b24145bc042321eabcd500959fc3b55471546a42b1284f8a3e34e",
-    "limits": "seven unselected tests; no acceptance from skipping them"
+    "limits": "three selected old-source tests fail as expected; seven remaining cases are not selected and supply no acceptance"
   },
   "ownedMacPolicy": {
     "record": "OWNED_POLICY_EVIDENCE.json",
@@ -90,12 +90,54 @@
     "productionMutations": 0
   },
   "priorFixtureFailure": "Retained candidate-v1/FOCUSED_TESTS.log; incorrect fixture key, unaccepted",
-  "productionMutations": 0,
-  "sourceReview": "pending",
-  "exactCI": "pending",
-  "liveDeployment": "not performed",
+  "productionMutations": "only Discord unit entry and KeepAlive; config/primary/shared dependencies/13 other owners unchanged",
+  "sourceReview": {
+    "claudeMessage": 80,
+    "exactHead": "f21c6df28819a1e0a0941c689a1932ae4397a058",
+    "sourceApproved": true,
+    "linuxFocusedPass": 10,
+    "linuxFocusedSkips": 0,
+    "macEvidence": "Codex observation, not independently reproduced by Claude"
+  },
+  "exactCI": {
+    "run": 36551411822,
+    "head": "f21c6df28819a1e0a0941c689a1932ae4397a058",
+    "conclusion": "SUCCESS",
+    "jobs": 3,
+    "rootEach": {
+      "tests": 2542,
+      "pass": 2537,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 5
+    },
+    "missionControlPass": 129
+  },
+  "liveDeployment": {
+    "release": "/Users/moltymac/.openclaw/releases/discord-inactive-f21c6df-e57",
+    "sourceCommit": "f21c6df28819a1e0a0941c689a1932ae4397a058",
+    "entrySha256": "d1341cfa04a3289c2338cc0e4a76e77dbf28d4c50f08ce5b18371c468b321d17",
+    "newRenderedPlistSha256": "6f53257453c9e8351d6c361840d474fc2be38f5548ce51bc635d446de430f67c",
+    "changedKeys": [
+      "KeepAlive",
+      "ProgramArguments"
+    ],
+    "renderedEnvironmentCwdOtherArgvPreserved": true,
+    "oneNormalRun": true,
+    "loadedNotRunning": true,
+    "exitCode": 0,
+    "runs": 1,
+    "stabilitySeconds": 65.40218537499999,
+    "samples": 84,
+    "record": "LIVE_CONTINUATION_EVIDENCE.json",
+    "rawSha256": "31e53566b14239d531b34e8a8b220320dad9917d0c4fd549f08382da4ffdf729",
+    "originalFailedWindowRetained": true,
+    "integrationEnabled": false,
+    "fullNodeZeroAdmissionClaim": false,
+    "sourceRuntimeReview": "Claude84 no blocker on qualified reasoning/source facts;85 clarifies new-path rollback and immediate separate monitoring follow-up"
+  },
   "limits": [
-    "Private owned tool/supervisor contract only",
+    "Disabled Discord live outcome plus private failure/supervisor controls; no full-node preservation",
     "No Discord API request or production integration enablement",
     "No general active-handler drain",
     "Linux restart policy source-only; no systemd runtime"
