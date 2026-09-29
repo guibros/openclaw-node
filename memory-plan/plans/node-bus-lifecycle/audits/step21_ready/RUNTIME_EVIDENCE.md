@@ -33,3 +33,20 @@ ready and stays alive until the test deadline. Both owned controls clean up
 without force. Private unpatched-barrier-control.json/log retain that run.
 Latest isolated full CI, independent exact-source review and managed
 cumulative-release deployment remain pending. Step2.1[A]/v2.1-pre.
+
+## CI fixture resolution correction — 2026-09-28 23:57 EDT
+
+Exact source b190671 CI36518998603: Node20 root failed only the two preloader
+controls with Cannot find module nats/package.json; the immediate request
+control passed. Node22 was cancelled, Mission Control passed. The temporary
+preloader could not discover repository dependencies from its own /tmp path
+without NODE_PATH. It now pins NATS's implementation from createRequire of
+the actual daemon entry before generating the preloader. Production source
+remains the exact one-line b190671 barrier. A private archived candidate with
+node_modules linked but NODE_PATH unset passes all3 controls. New exact CI
+and independent review remain pending.
+
+Staged private task-ready-b190671-e57f89b has only one changed file compared
+with the accepted task-outage release: bin/mesh-task-daemon.js, entry hash
+22c2784052ec9dde8f8dc1ac582ecd58b2db02aaf60d05cfe3524adfbcb3bb51. The original
+unit and runtime remain unchanged. All3 staged owned controls passed,3.363s.

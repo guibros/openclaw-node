@@ -14,6 +14,8 @@ const require = createRequire(import.meta.url);
 const { connect, StringCodec } = require('nats');
 const codec = StringCodec();
 const entry = process.env.MESH_TASK_DAEMON_TEST_ENTRY || fileURLToPath(new URL('../bin/mesh-task-daemon.js', import.meta.url));
+const daemonRequire = createRequire(entry);
+const natsImplementation = path.join(path.dirname(daemonRequire.resolve('nats/package.json')), 'lib/nats-base-client/nats.js');
 const skip = natsServerBin() ? false : 'nats-server not found on PATH';
 const livePorts = new Set([4222, 4223, 4224, 6222, 6223, 6224, 8222, 8223, 8224]);
 
@@ -68,9 +70,8 @@ async function fixture(t) {
   const preloader = path.join(root, 'hold-flush.cjs');
   await fs.writeFile(preloader, `
 const fs = require('node:fs');
-const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
-const { NatsConnectionImpl } = require(path.join(path.dirname(require.resolve('nats/package.json')), 'lib/nats-base-client/nats.js'));
+const { NatsConnectionImpl } = require(${JSON.stringify(natsImplementation)});
 const connect = NatsConnectionImpl.connect;
 NatsConnectionImpl.connect = async function (...args) {
   const nc = await connect.apply(this, args);
