@@ -50,7 +50,12 @@
 | 3 | 3.3 | v3.3 | [x] | Stop the explicitly disabled Discord tool from crash-looping before a new preservation baseline — 2026-09-29: approved f21c6df/CI3of3; owned10 controls/Mac policy; live one normal inactive run/65s84 samples/13 other owners unchanged; qualified Claude84 review |
 | 3 | 3.4 | v3.4 | [x] | Report confirmed disabled Discord inactivity without hiding real mesh failures — 2026-09-29: approveda4291c4/CI3of3; auth-preserving managed19976, old747 exit0;81.816s/122 checks/two reports; paired36 cells only net.mesh changes; qualified Claude96 |
 | 3 | 3.5 | v3.5 | [x] | Restore interrupted execution holds through the sole durable preservation journal — 2026-09-29: source dbffa1a approved by Claude106/exact CI3of3; private Mac33 hold+47 gate+58 Journal controls; restore-only recovery, no production hold |
-| 3 | 3.6 | v3.6 | [ ] | Install the reviewed execution hold on the five actual Mac timers |
+| 3 | 3.6 | v3.6 | [x] | Capture the existing transcript archive in the tracked timer contract — 2026-09-29: approved61d2d78/CI3of3; exact old bytes/unit, real filter/update/retention controls, owned Mac run1/exit0/two archives/verified teardown |
+| 3 | 3.7 | v3.7 | [ ] | Expose bounded restore-only recovery through the sole Journal |
+| 3 | 3.8 | v3.8 | [ ] | Stage the complete reachable consolidation execution graph |
+| 3 | 3.9 | v3.9 | [ ] | Pin the five timer launch environments and protected entry contract |
+| 3 | 3.10 | v3.10 | [ ] | Prove a safe first transition from the actual ungated timer entries |
+| 3 | 3.11 | v3.11 | [ ] | Install the reviewed execution hold on the five actual Mac timers |
 
 > **3.1 — Goal:** a durable closed marker plus foreground lock excludes scheduled application execution after drain, even after controller exit.
 > **Needs:** Python3/fcntl, installed Node/shell/launchd, Claude50/52 contract, D15.
@@ -77,7 +82,32 @@
 > **Feeds:**3.6 and recovery1.2/1.3.
 > **Verify:**code/runtime:owned interruption before/after publication, before receipt and after drain; mismatch/missing/broken markers and straggler refusal; broken open holds re-closed/drained and window failed before restoration; before/after same-session brackets around every stop/copy; explicit dependency readiness before reopen; no autonomous pin recapture or false certification. Full production preservation remains recovery1.2.
 
-> **3.6 — Goal:** the five actual Mac scheduled jobs remain application-inert throughout an accepted coordinated interval and reopen to their prior scheduling state.
-> **Needs:**3.2/3.3/3.4/3.5; complete actual source/loaded-argument/env/schedule/import-graph and other-invoker inventory; real interpreter-I-S; code/pin protection outside deploy copy/chmod/prune or explicitly coordinated deployment; persistent baseline.
+> **3.6 — Goal:** the runtime-only archive script and hourly Mac unit become immutable tracked inputs for timer commissioning, preserving their current behavior.
+> **Needs:**3.5 closed; exact live archive bytes/plist and source hashes; existing installer workspace copy path; owned private HOME and Mac launchd fixture; D22.
+> **Feeds:**3.9/3.11's five-entry contract; the existing workspace installer copies the new script. Service activation remains3.11.
+> **Verify:**code: exact script byte identity, parameterized plist renders to the original unit without scheduling/argv/log changes, meaningful transcript-filter/update/retention controls and isolated CI/source review. runtime: copied source in an owned private HOME actually archives fixture transcripts through /bin/sh and foreground rsync; an owned Mac unit runs the exact copied body normally and is verified unloaded. No production source/unit update, archive repair or Linux service acceptance.
+
+> **3.7 — Goal:** an interrupted declared hold has one usable restore-only command, using the existing Journal/node_lock and saved immutable baseline.
+> **Needs:**3.5/3.6 closed; merged sole Journal and hold facade; reviewed bounded CLI design and exact saved-baseline/check contract.
+> **Feeds:**3.11's recovery handoff and recovery1.2.
+> **Verify:**code/runtime: owned real interrupted holds recover and resolve, never seal or certify; a live Journal owner refuses; missing/substituted pins or unreadable durable state refuse without mutation; all-service/physical readiness and write failures retain their existing boundaries. No new journal/controller or production stop/copy.
+
+> **3.8 — Goal:** a private release carries the complete reachable consolidation foreground graph, including generated schemas and chosen native/subprocess resolution, without changing shared dependencies.
+> **Needs:**3.7 closed; accepted3.2 source; fresh actual graph/drift/delegation inventory; isolated runtime/store/bus consumers and compatible installed dependencies.
+> **Feeds:**3.9/3.11's source identity and foreground contract.
+> **Verify:**code/runtime: static literal and computed resolution, native binding and subprocess inventories agree with the staged graph; meaningful private real-entry/event/notification/cleanup controls pass with source/dependency identity retained. No hidden memory-daemon deployment or remote-inference cancellation claim.
+
+> **3.9 — Goal:** the five rendered timer entries have exact reviewed launch environment content and protected admission/source pins, preserving application argv/cwd/schedules.
+> **Needs:**3.6/3.7/3.8 closed; actual loaded plist/environment/command resolution; existing Python-I-S runner; protected location outside ordinary deploy copy/chmod/prune.
+> **Feeds:**3.10/3.11's installation baseline.
+> **Verify:**code/runtime: owned launch-boundary/preload/delegation mismatch and code/pin substitution negatives refuse before application work; exact application settings and new supervisor prefix are explicitly baselined. An in-Python check cannot retroactively protect Python's dynamic loader. No production units installed.
+
+> **3.10 — Goal:** the first ungated-to-gated transition cannot interrupt unaccounted old application or child writes.
+> **Needs:**3.9 closed; actual old source/child lifetime and unit stop behavior; an owned demonstrable admission-fence or actual drain-safe transition. Root-only debug is unavailable until specifically handed off.
+> **Feeds:**3.11's first-install mutation gate.
+> **Verify:**runtime: owned replicas stress admission/active child/durable-write boundaries, preserve completed output, and unload cleanly. Polled idle and launchctl disable on an already-loaded unit are not admission proof. No forced old production stop to manufacture evidence; an unavailable safe route blocks actual installation.
+
+> **3.11 — Goal:** the five actual Mac scheduled jobs remain application-inert throughout an accepted coordinated interval and reopen to their prior scheduling state.
+> **Needs:**3.2/3.3/3.4/3.5 and3.6–3.10; complete actual source/loaded-argument/env/schedule/import-graph and other-invoker inventory; real interpreter-I-S; code/pin protection outside deploy copy/chmod/prune or explicitly coordinated deployment; persistent baseline and sole restore-only recovery handoff.
 > **Feeds:**recovery1.2/1.3 and parent node-readiness1.5/2.2.
 > **Verify:**code: installer/templates and gate/code-change negatives; runtime:exact staged/installed entries preserve existing schedules/env/argv, closed scheduled starts do no application/log work, delegated memory drains separately, journaled reopen only after dependency readiness with original baseline restored. No Linux continuous-watch or global OS-spawn claim.

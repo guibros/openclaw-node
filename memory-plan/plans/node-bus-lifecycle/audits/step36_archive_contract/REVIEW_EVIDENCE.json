@@ -1,0 +1,50 @@
+{
+  "source_commit": "61d2d78e6ec3d7e2ac3ddccc8fe572071eb43568",
+  "base_main": "fa180586eac874b07d142f2b7e7da3264a596eb0",
+  "manifest": {
+    "workspace-bin/archive-transcripts.sh": "3f8e3d4ec9ad97e90d52ecbb3b057a2c2f6b38e56ad85c97cc8407adbeb7ee60",
+    "services/launchd/ai.openclaw.transcript-archive.plist": "cd0c718459bc261bb033f608dd33ba2d27fa3d833d428193041019eeb4ea4d79",
+    "test/transcript-archive.test.mjs": "402fdbfbc633cf266635f50b6f964d74ac6e99ce58863639d90d44a056515b56"
+  },
+  "ci": {
+    "run_id": 36570534434,
+    "attempt": 2,
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "unit-tests (20)",
+        "conclusion": "success",
+        "url": "https://github.com/moltyguibros-design/openclaw-node/actions/runs/36570534434/job/109413767488"
+      },
+      {
+        "name": "unit-tests (22)",
+        "conclusion": "success",
+        "url": "https://github.com/moltyguibros-design/openclaw-node/actions/runs/36570534434/job/109413767833"
+      },
+      {
+        "name": "mission-control-tests",
+        "conclusion": "success",
+        "url": "https://github.com/moltyguibros-design/openclaw-node/actions/runs/36570534434/job/109413770099"
+      }
+    ]
+  },
+  "root_each": {
+    "tests": 2563,
+    "pass": 2557,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 6
+  },
+  "ci_log_sha256": "9a5785c2883d90065e5585ec1573ac0c129d0b842eaeb6140d9e0dcbc2a79b9b",
+  "first_attempt": "Root setup failed downloading Microsoft ONNX GPU binary with HTTP500 before root tests; same immutable commit retried without code/workflow/dependency changes.",
+  "review": {
+    "collaborator": "Claude OpenClaw code and architecture review",
+    "message": 116,
+    "source_approved": true,
+    "scope": "Archive source capture only; exact committed hashes, template structure, behavior control and absent manifest activation. Mac measurements remain local observations."
+  },
+  "source_equals_tested": true,
+  "closure_head_ci_required_before_merge": true,
+  "production_changed": false
+}

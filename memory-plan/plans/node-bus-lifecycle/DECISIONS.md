@@ -376,3 +376,65 @@ Node22 CI also runs all four Python preservation suites with explicit runtime
 overrides; platform skips do not establish actual Linux launchd behavior.
 Actual timer3.6 and full recovery1.2 remain open. Closure ledger contains no
 source changes; require exact closure-head CI before merge.
+
+## D22 — Split first timer installation into observable prerequisites (2026-09-29 08:42 EDT)
+
+The original broad3.6 has multiple missing Needs, so it does not enter production
+implementation. Map that unchanged commissioning outcome to3.11. New3.6 captures
+the exact existing archive body/hourly Mac unit;3.7 exposes bounded restore-only
+recovery through the existing Journal/node_lock;3.8 stages the complete reachable
+consolidation graph;3.9 pins launch environment content and protected entries;
+3.10 proves the actual ungated first transition;3.11 commissions all five.
+Historical3.6 references identify the original installation outcome, now3.11.
+This splits the already-authorized work; it introduces no parallel journal,
+daemon, production preservation controller or source/dependency rewrite.
+
+The owned Mac disable probe disproves an admission fence: an already-loaded
+timer runs1→2 after disable with normal application exits. Root-only next-start
+debug refused and sudo-n requires authentication; neither changed a production
+unit. Polled idle minimizes a race but cannot prove no subsequent fire. Do not
+force an old production run to stop. Any alternative involving bootout must prove
+the actual old application/child/durable-write behavior, not infer sampler safety
+or a narrow consolidation tear window. Log rotation's gzip output is written to
+the eventual .gz name before truncation/pruning, so abrupt stopping cannot be
+assumed harmless. Its fresh live hash equals tracked bin/log-rotate exactly.
+
+Controller ownership is the existing Journal node_lock, held exclusively for its
+lifetime and non-blockingly acquired on reattachment. Gate LOCK_EX releases
+after drain and cannot identify a dead controller. Ordinary installation refuses
+an unresolved hold and hands off exact saved journal/pins; it does not recover
+an active owner's hold or re-pin. The bounded command recovers/restores/resolves
+only, never seals. Fresh certification requires a separate fresh session.
+
+Python-I-S is an explicit new supervisor prefix around unchanged application
+argv/env/cwd/schedule. It does not sanitize application environment or protect
+Python's own loader retrospectively. Baseline content and startup vectors must
+be established at the launcher boundary; unsupported preload/delegation refuses.
+Actual graph preflight inventories483 files/260 parsed modules/9 packages with
+0 unresolved literal requests and9 subprocess edges, but computed/native/child
+resolution remains unaccepted. Against the accepted3.2 private profile,53 local
+files are20 equal/9 different/24 generated schema files absent. A fixed-file
+overlay or a closed-fire test cannot replace complete graph/foreground proof
+before installing and reopening a changed consolidation entry. Keep shared
+dependencies and primarye57 unchanged; the daemon's awaited-stop delta remains
+separate. Five holds do not exclude daemon/remote/delegated writers.
+
+3.6 preserves existing archive bytes, including swallowed rsync errors; it only
+adds tracked commissioning inputs and owned consumers. No new autostart manifest
+entry until commissioning. Linux service support and archive integrity/error
+reporting are parent follow-ups. Source review and Mac runtime observation remain
+separate; no process-kill evidence proves VM/power-loss durability.
+
+D22 clarification/3.6 closure (2026-09-29 08:55 EDT): Claude116 approves exact
+61d2d78 source capture and the split; CI36570534434 attempt2 green3/3 after
+one retained upstream HTTP500 setup failure. Copied private Mac RunAtLoad and
+real transcript-content controls close3.6 only.3.8 creates its own copied entry,
+lib and generated-schema tree with unchanged third-party dependencies; it does
+not overlay live shared application modules or change the daemon's imports.
+3.10 needs durable exact original rollback artifacts and interruption controls
+before a baseline exists, distinct from post-baseline sole-Journal recovery.
+Actual received environment is verified privately, not printed/shared.3.11 is
+the explicit actual commissioning step after3.6–3.10; bounded restore-only
+recovery is its sole handoff, not an unlisted full1.2 controller. Archive update
+semantics and misleading success on rsync failure remain recorded follow-ups.
+Require exact closure-head CI/source identity before merging ledger-only closure.

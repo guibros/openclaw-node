@@ -25,3 +25,10 @@
   a disabled Discord job that does not crash-loop or touch the bus.
 - **Unblocks:** node-state-recovery1.2's real quiet window. This covers scheduled
   application execution, not global OS-spawn tracing or general worker drain.
+
+After journal3.5, the original broad timer-installation3.6 is decomposed by D22:
+tracked archive input3.6, bounded sole-journal recovery3.7, complete staged
+consolidation graph3.8, protected launch/environment contract3.9, actual old-entry
+transition proof3.10, and the original five-timer commissioning outcome3.11.
+Each prerequisite has its own independently observable owned outcome; none
+silently closes actual production installation or the parent preservation driver.
