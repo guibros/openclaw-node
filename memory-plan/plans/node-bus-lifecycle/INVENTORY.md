@@ -40,3 +40,26 @@
 > **Needs:** merged main dad1e7b; exact CI failure at worker fixture113; owned authenticated NATS2.12.6; real-daemon startup controls; accepted live e57 task-outage release preserved; independent Claude challenge.
 > **Feeds:** node-state-recovery1.2 readiness gates and root lifecycle CI; node-readiness1.5 restart semantics.
 > **Verify:** `code:` a preconnected owned client requests immediately at the real daemon ready line; retain unpatched failure/control counts and reject readiness while the final real flush return is held; its injected failure must exit1 without ready. Patched source answers without retry. Full isolated CI passes. `runtime:` stage only the readiness barrier on the live cumulative lifecycle release, verify exact entry/dependencies, and after a fresh idle guard perform one managed stop/start with real RPC readiness and unchanged task/bus/other-owner state. Do not call source-only evidence deployment.
+
+## Block 3 — Scheduled application quiescence
+
+| Block | Step | Version | Status | Description |
+|---|---|---|---|---|
+| 3 | 3.1 | v3.1 | [A] | Establish the durable foreground execution-hold primitive — 2026-09-29 03:11:58 EDT:18 owned controls pass; exact CI/review pending |
+| 3 | 3.2 | v3.2 | [ ] | Finish foreground contracts and integrate the five installed timers, installer/templates and durable journal restoration |
+| 3 | 3.3 | v3.3 | [ ] | Stop the explicitly disabled Discord tool from crash-looping before a new preservation baseline |
+
+> **3.1 — Goal:** a durable closed marker plus foreground lock excludes scheduled application execution after drain, even after controller exit.
+> **Needs:** Python3/fcntl, installed Node/shell/launchd, Claude50/52 contract, D15.
+> **Feeds:**3.2 and recovery1.2.
+> **Verify:** code:18 real owned controls, isolated CI; runtime:private deployed source pins, actual inherited-lock positive/negative controls and a scheduled Mac job that starts twice while closed with unchanged application count and no job log bytes. Independent source review. No live installation claim.
+
+> **3.2 — Goal:** the actual five scheduled jobs cannot execute application work during the coordinated preservation interval, and verified recovery reopens their prior state.
+> **Needs:**3.1 closed; all call paths inventoried; no detached/unawaited work; consolidation notification fully awaited; exact source/loaded-entry/metadata identity; explicit persistent hold integration in the sole journal.
+> **Feeds:**recovery1.2/1.3 and parent node-readiness1.5/2.2.
+> **Verify:** code:foreground/source/child controls, installer rendering, stale/changed gate negatives, crash/reopen journal controls. runtime:reviewed installed entrypoints preserve existing arguments/env/schedules, closed scheduled runs remain inert, delegated memory work drains separately, restoration reopens only after dependent services are ready with no false done/Ready state.
+
+> **3.3 — Goal:** explicit channels.discord.enabled=false ends the optional tool normally before bus connections/writes, without enabling the integration.
+> **Needs:**fresh disabled/no-token config observation, real owned tool controls, conditional KeepAlive contract, explicit inactive baseline state.
+> **Feeds:**recovery1.2's complete inventory and parent1.5/2.2.
+> **Verify:**code:disabled exits0 with no bus/writes; real enabled-path failure restarts; runtime:reviewed exact source/unit policy, one normal disabled run then loaded/not-running stable, no Discord client, original integration remains disabled.

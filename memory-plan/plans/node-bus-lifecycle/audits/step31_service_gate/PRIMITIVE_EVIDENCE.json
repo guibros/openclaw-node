@@ -1,0 +1,66 @@
+{
+  "at": "2026-09-29T07:14:50.547042+00:00",
+  "returncode": 0,
+  "elapsedSeconds": 6.505024584,
+  "sourcePins": {
+    "workspace-bin/service_gate.py": "9822ba60edcb9e86c860868147c52aa24147040107cc1099350e523574d1e102",
+    "test/service_gate_test.py": "0ec6a73100c2776540fd331174855fc1b2a7933b818da72aecdc5db705828715",
+    "test/service-gate.test.mjs": "94fa39d47074d7aae5ef0701ba594a8c9d38889a519588b4135f5f3e31145731"
+  },
+  "actualMacOS": true,
+  "productionMutations": 0,
+  "atMontreal": "2026-09-29 03:11:58 EDT",
+  "passed": 18,
+  "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v2",
+  "execProof": {
+    "at": "2026-09-29T06:54:44.570875+00:00",
+    "actualMacOS": true,
+    "cases": [
+      {
+        "target": "node",
+        "inheritable": true,
+        "exclusiveBlockedDuringActualExec": true,
+        "exclusiveAvailableAfterNormalExit": true,
+        "exit": 0
+      },
+      {
+        "target": "node",
+        "inheritable": false,
+        "exclusiveBlockedDuringActualExec": false,
+        "exclusiveAvailableAfterNormalExit": true,
+        "exit": 0
+      },
+      {
+        "target": "shell",
+        "inheritable": true,
+        "exclusiveBlockedDuringActualExec": true,
+        "exclusiveAvailableAfterNormalExit": true,
+        "exit": 0
+      },
+      {
+        "target": "shell",
+        "inheritable": false,
+        "exclusiveBlockedDuringActualExec": false,
+        "exclusiveAvailableAfterNormalExit": true,
+        "exit": 0
+      }
+    ],
+    "wrapperSha256": "ed7d4fdc072c7d3e3365ac82b283cb4d1ef3f4a5d346a842bde79500d51c9c47",
+    "productionMutations": 0,
+    "limits": "Only exec lifetime. No descendant inheritance or completed preservation claim."
+  },
+  "productionInstalled": false,
+  "remaining": [
+    "Independent source review and exact CI",
+    "Foreground audit and awaited consolidation notification",
+    "Installer/template and five actual loaded entrypoint integration",
+    "Persistent hold journal/restoration integration",
+    "Linux continuous inode-watch acceptance"
+  ],
+  "stepClosed": false,
+  "predecessorPrimitive": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v1",
+  "atomicMarkerControls": [
+    "Prepared marker sync failure publishes no marker and no accepted close.",
+    "Directory sync failure after atomic hard-link publication retains valid closed state for explicit recovery."
+  ]
+}

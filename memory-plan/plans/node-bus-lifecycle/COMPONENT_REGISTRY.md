@@ -66,3 +66,13 @@ Source barrier and qualified cross-member controls pass. Review conditions and
 raw record hashes are in step21_ready. Recovery1.2 resumes after149 merge and
 fresh integration CI. General preservation-driver and source/deployment
 reconciliation remain parent work; no new chain is enabled.
+
+### Scheduled execution hold prototype
+
+2026-09-29 03:11:58 EDT: workspace-bin/service_gate.py deployed only to private
+owned consumers under timer-gate-20260929-1/primitive-v2.18 actual Mac controls
+pass; a real scheduled job goes runs1→3 while application runs remain1, with
+zero job/error log bytes after controller exit. Four exec inheritance controls
+pass including negative variants. No production gate, changed live entrypoint,
+installer behavior or preservation window. Exact CI/review and3.2 integration
+remain open. See audits/step31_service_gate/PRIMITIVE_EVIDENCE.json.

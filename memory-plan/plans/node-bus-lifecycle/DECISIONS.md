@@ -141,3 +141,25 @@ selected task/KV/other-owner state, both observers exit0. Its local4222-only
 scope is explicit. Earlier failed runs stay unaccepted. Close2.1; merge149
 before recovery144's new main-integration CI. Block2 is complete; re-orient to
 recovery1.2, with no production baseline yet and managed cold-copy proof open.
+
+## D15 — Use a durable scheduled-application hold (2026-09-29 03:11:58 EDT)
+
+**Decision.** Follow Claude50/52's foreground-only execution gate: shared lock
+before marker inspection, durable closed marker before exclusive drain, keep
+timers loaded and inert, reopen only through verified recovery. This specific
+application-execution hold is the new documented exception to recoveryD8's
+bootout-only ordinary holds. No repository write/scope approval gate returns.
+
+**Why.** Idle logs/PID sampling cannot prove a scheduled job did not start.
+A measured spawn minimum is not a hard scheduling bound. Four real exec
+controls show Node/shell preserve the lock only with explicit inheritable FD.
+Node child processes can close it, so arbitrary descendant coverage is false.
+
+**Consequences.** Separate primitive3.1, full foreground/deployment/journal
+integration3.2 and disabled Discord3.3. No production hold exists yet. Invalid
+metadata/symlinks fail closed; owner-private lock and directory inode identity
+are pinned and watched. A controller crash or deadline refusal retains the
+marker for explicit recovery. Kernel events have a4096-event refusal bound.
+Linux continuous-watch acceptance is separate and unproved. Consolidation's
+unawaited notification must finish before installation, and delegated memory
+work still needs its own idle proof. Unknown callers are inventoried writers.
