@@ -37,6 +37,11 @@ has green exact CI and Claude Message38 acceptance. Stop-adapter CI/review
 and the complete detached production orchestration remain pending;1.2 stays[A].
 See D13 and MANAGED_STOP_EVIDENCE.json.
 
+Fixture checkpoint 2026-09-29 01:21 EDT: tools-v36 passes the complete owned
+recovery suite after tightening its placement cohort gate; an actual missing
+member refuses. Prior f3bb44f CI failed before the Mac adapter ran; exact new
+CI/review required.1.2 remains[A]; no production cold-copy acceptance.
+
 > **1.3 — Goal:** Establish a coordinated application and bus recovery point.
 > **Needs:** 1.1 and 1.2 recovery mechanisms verified; all writers and their service ownership identified; inventory ENOENT robustness addressed; primary/derived file sources, configs and browser-profile policy enumerated; quiescence/restart sequence independently challenged.
 > **Feeds:** Node-readiness 1.3, then topology repair 1.4.

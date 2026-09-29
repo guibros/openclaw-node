@@ -31,15 +31,18 @@
     "Production log-watcher RPC proves health; staged held-return controls prove await ordering.",
     "Production acceptance must bind CID/PID socket to local member4222, one replacement generation, prune margin and unchanged state."
   ],
-  "claimBoundary": "Guard observes real worker claims and replies; it never publishes mesh.tasks.claim. The only acceptance request is read-only mesh.tasks.list.",
+  "claimBoundary": "Guard passively subscribes to mesh.tasks.claim and _INBOX.> on the same local member, correlates the actual worker request reply subject, and requires ok:true/data:null. It never publishes a claim. The gap holder filter selects only mesh.tasks.submit; it does not report all subscriptions or zero clients.",
   "runtime": "Installed and verified; previous unaccepted attempts retained separately.",
   "runtimeClosureMessages": [
-    34
+    34,
+    36
   ],
-  "runtimeVerdict": "No blocker for narrow2.1 closure; three conditions met by a fresh fully recorded restart of the same installed source.",
+  "runtimeVerdict": "Claude Message36 independently confirms the complete same-source restart meets the three conditions set in Message34; no runtime blocker. It flags four documentation corrections recorded in RUN_LEDGER.json and RUNTIME_EVIDENCE.md.",
   "conditionsMet": [
     "Hashed raw exit/gap/start/connection/RPC records written before observer cleanup; RAW_RECORDS.json.",
     "NOTE_EXITSTATUS explicitly requested and echoed:2214592512=0x84000000; wait status0.",
     "Member4222-only gap; exclusion is serverID+CID; zero worker requests during the419ms paused period including gap."
-  ]
+  ],
+  "runtimeVerdictRecordedAt": "2026-09-29T05:07:10.985622+00:00",
+  "replyConfidentiality": "The _INBOX.> callback discards uncorrelated subjects before decoding. Correlated non-null claim replies are refused with category/errorCode only; neither body nor assertion message is emitted. The managed preservation driver must apply the same rule."
 }

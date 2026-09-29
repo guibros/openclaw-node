@@ -10,7 +10,7 @@
 | Install cumulative lifecycle layer | yes | entrySHA22c27840; same unit bytes/dependencies; currentPID82096/CID21565 |
 | Normal managed stop and real RPC | yes | actual non-child72174 EXITSTATUS requested/echoed, wait0/completion; preconnected13ms list reply |
 | State-preserving installed runtime | yes | complete same-source restart65s pre/post,31checks,419ms pause/zero worker requests; unchanged selected537 rows/KV/9owners |
-| Independent runtime closure challenge | yes | Claude34 no blocker; its three conditions met by complete attempt5/raw record hashes |
+| Independent runtime closure challenge | yes | Claude36 confirms complete run5 meets the conditions set in Message34 |
 
 ## 2 — Greppable deltas
 `rg -n 'await nc.flush|Task daemon ready' bin/mesh-task-daemon.js` places the
@@ -26,7 +26,8 @@ provenance. Both chains stay unloaded. No production preservation baseline exist
 [POSITIVE] Installed replacement keeps one owner generation and prior selected state.
 [NEGATIVE] Three pre-stop verification defects and one observer-cleanup failure
 are retained. The failed state-changing attempt stays unaccepted; current runtime
-acceptance is a separate read-only continuation. General orchestration is unproved.
+acceptance is the fresh fully recorded same-source restart, run5. The separate
+read-only continuation is run4 and remains supporting history. General orchestration is unproved.
 
 ## 5 — Phase8 patches
 None to the reviewed production source. Verifier corrections are private;

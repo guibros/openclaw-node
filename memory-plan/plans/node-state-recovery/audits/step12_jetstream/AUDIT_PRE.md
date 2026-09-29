@@ -147,3 +147,9 @@ sampled-window driver is retired, retaining forensic bytes. This is a driver
 component, not permission to run an incomplete preservation sequence. Exact
 static identity, later-child/physical ownership, admitted-client and restoration
 checks remain tracked at1.2. N3 exact0b96e93 CI and Claude Message38 pass.
+
+Exact f3bb44f CI failed before Mac test collection in the prior recovery
+fixture's stream placement. Its leader-only startup gate did not prove all
+three placement peers/current routes. Add explicit full readiness plus an
+actual missing-peer refusal; preserve the failed attempts. This remains owned
+recovery-fixture verification, with no production source/configuration change.

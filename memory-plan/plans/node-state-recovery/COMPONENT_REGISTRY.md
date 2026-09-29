@@ -30,3 +30,9 @@ argv negatives refuse. Eleven current healthy owners pass read-only binding.
 No healthy production stop or preservation window. N3 exact CI36523987643
 green3/3 and Claude Message38 accepts it. Adapter exact CI/review pending;
 detached orchestrator/static inventory/restoration/cold masters remain open.
+
+Fixture-readiness checkpoint 2026-09-29 01:21 EDT: f3bb44f CI failed before Mac test
+collection in old stream placement. Full owned readiness/missing-peer control
+and existing recovery checks pass from tools-v36; two refused drafts retained
+with normal cleanup. New exact CI/review pending. Production source and service
+owners remain unchanged; healthy cold masters and the driver are still open.

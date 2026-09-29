@@ -524,3 +524,24 @@ implementation. No production preservation window has been created.
 Previous N3 head0b96e93 exact CI36523987643 is green3/3. Claude Message38
 accepts the narrow fix with its independent55-test and real-filesystem evidence.
 The new adapter checkpoint requires its own CI and independent challenge.
+
+## Complete owned placement readiness — 2026-09-29 01:21 EDT
+
+f3bb44f exact CI36525034891 failed in the existing Node recovery fixture before
+the Mac adapter collection: NATS400/10005 no suitable peers for placement. The
+old fixture captured no exact failing request phase and only waited for a
+metadata leader. The replacement requires all three server identities, one
+leader, its two current/non-offline peers and all confined reciprocal routes
+before placing any stream. An actual two-member cohort refuses at its deadline
+before member3 starts; after all three become ready, the full existing recovery
+fixture passes from private tools-v36. No stream-create retries mask failure.
+
+The first owned draft incorrectly expected replica details on followers; the
+second exposed a raw HTTP timeout at the deliberate500ms negative boundary.
+Both failed runs are retained with normal cleanup/no cleanup failures. The
+final gate reads follower progress from the leader and normalizes only a
+deadline timeout to its own refusal. Unexpected earlier errors still fail.
+PLACEMENT_EVIDENCE.json pins sources, readiness summaries and full owned
+recovery outcomes. Runtime CLI/server/library sources remain unchanged. This
+is isolated fixture readiness, not production placement or cold-copy proof.
+Fresh exact integration CI and independent challenge remain required.

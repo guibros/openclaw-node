@@ -1,0 +1,122 @@
+{
+  "at": "2026-09-29T05:20:19.922925+00:00",
+  "sourcePins": {
+    "recovery.mjs": "c961932fa31914b145e80bd391094a0cf5506d93160607a75e862559bb7812a4",
+    "take_snapshots.mjs": "067c538f2bc0ca3a8971bc84db270b00c2de31c8a796d93a762674afeaa36e8a",
+    "test_recovery.mjs": "549fe76f99de933d3dc3c16278d8fdf43b550c7e40eecd57fdab2b1337a2f5c2"
+  },
+  "priorCIFailure": {
+    "head": "f3bb44f1c73aa36744fb43da24b58f982f48dbc0",
+    "run": 36525034891,
+    "step": "JetStream recovery fixtures before the Mac adapter collection",
+    "error": "NATS400/10005 no suitable peers for placement",
+    "exactRequestPhase": "not recorded by the prior fixture",
+    "diagnosis": "Old startup gate required only a metadata leader. Full peer-current/routes readiness was not verified; tightening it addresses that observed gap, not a proved production fault."
+  },
+  "privateToolsRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v36",
+  "privateOwnedRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v36/openclaw-jetstream-fixture-vUUZHa",
+  "priorOwnedFailures": [
+    {
+      "root": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v34",
+      "returncode": 1,
+      "reason": "first gate assumed follower replica detail",
+      "allOwnedProcessesExited": true,
+      "cleanupFailures": 0
+    },
+    {
+      "root": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v35",
+      "returncode": 1,
+      "reason": "bounded missing-peer gate returned raw deadline timeout",
+      "allOwnedProcessesExited": true,
+      "cleanupFailures": 0
+    }
+  ],
+  "clusterReadiness": [
+    {
+      "name": "member-1",
+      "leader": "member-1",
+      "clusterSize": 3,
+      "routesToDistinctPeerCount": 2,
+      "currentFollowerCount": 2
+    },
+    {
+      "name": "member-2",
+      "leader": "member-1",
+      "clusterSize": 3,
+      "routesToDistinctPeerCount": 2,
+      "currentFollowerCount": "leader report only"
+    },
+    {
+      "name": "member-3",
+      "leader": "member-1",
+      "clusterSize": 3,
+      "routesToDistinctPeerCount": 2,
+      "currentFollowerCount": "leader report only"
+    }
+  ],
+  "results": {
+    "emptyDirectories": true,
+    "digestSensitivity": {
+      "subject": true,
+      "nanosecondTimestamp": true,
+      "rawHeaders": true,
+      "binaryPayload": true,
+      "deletedHole": true
+    },
+    "deletedListMismatchRejected": true,
+    "snapshot": {
+      "messages": 10,
+      "holes": [
+        3,
+        8
+      ],
+      "sha256": "8e17ba640ed6899c8cc075bad7a0d899e1490f006c6bfca438b62985ce9cd3a7",
+      "exactHeadersAndTimestamps": true,
+      "consumerPositions": true,
+      "pendingRedelivery": true
+    },
+    "nondefaultConfig": {
+      "archiveValuesRetained": true,
+      "streamConfigExact": true,
+      "consumerConfigExact": true
+    },
+    "keyValue": {
+      "revisions": true,
+      "deleteMarker": true,
+      "purgeMarker": true,
+      "originalTTL": true,
+      "exactContent": true
+    },
+    "expiry": {
+      "messages": 0,
+      "last": 1,
+      "policy": "original TTL applies on restore; no revived liveness"
+    },
+    "deployedSnapshotDriver": true,
+    "coldStandalone": {
+      "immutableMaster": true,
+      "contentMatches": true
+    },
+    "incompletePlacementClusterRejected": true,
+    "emptyStream": true,
+    "replicaOverride": {
+      "source": 3,
+      "isolatedRestore": 1,
+      "contentMatches": true,
+      "unexpectedPeerDetected": true
+    },
+    "offlineSnapshotDriver": true,
+    "offlineR1": {
+      "messages": 7,
+      "remappedThreeMemberCluster": true,
+      "immutableMasters": true,
+      "routesConfined": true,
+      "nonClusteredLoad": true
+    },
+    "deletedAssignmentRefusesRejoin": true
+  },
+  "allOwnedServersStopped": true,
+  "productionMutations": 0,
+  "completeProductionPreservation": false,
+  "newExactCI": "pending"
+}

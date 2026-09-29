@@ -42,7 +42,7 @@ async function start(name, store, clusterPorts, selected) {
   writePrivate(config, text);
   const fd = fs.openSync(config + '.log', 'wx', 0o600);
   const proc = spawn(binary, ['--config', config], { stdio: ['ignore', fd, fd] }); fs.closeSync(fd);
-  const item = { proc, client, monitor, route, store, config }; processes.push(item);
+  const item = { proc, name, client, monitor, route, store, config }; processes.push(item);
   for (let attempt = 0; attempt < 100; attempt++) {
     if (proc.exitCode !== null) throw new Error(`owned server exited: ${name}`);
     try { const response = await fetch(`http://127.0.0.1:${monitor}/healthz?js-enabled-only=true`); if (response.ok) return item; } catch {}
@@ -93,6 +93,45 @@ async function assertRoutes(items) {
   }
 }
 
+async function waitCluster(items, names, milliseconds = 15000) {
+  const expected = [...names].sort(), end = Date.now() + milliseconds;
+  let observations;
+  while (Date.now() < end) {
+    const read = async (item, endpoint) => {
+      const response = await fetch(`http://127.0.0.1:${item.monitor}/${endpoint}`, {
+        signal: AbortSignal.timeout(Math.max(1, Math.min(2000, end - Date.now())))
+      });
+      assert(response.ok);
+      return response.json();
+    };
+    try {
+      observations = await Promise.all(items.map(async item => ({
+        name: item.name, js: await read(item, 'jsz'), routes: await read(item, 'routez'), varz: await read(item, 'varz')
+      })));
+    } catch (error) {
+      if (error.name === 'TimeoutError' && Date.now() >= end) break;
+      throw error;
+    }
+    const ids = new Set(observations.map(row => row.js.server_id));
+    const leaders = new Set(observations.map(row => row.js.meta_cluster?.leader));
+    const leader = observations.find(row => row.name === [...leaders][0])?.js.meta_cluster;
+    if (items.length === names.length && ids.size === names.length && leaders.size === 1
+        && Array.isArray(leader?.replicas)
+        && JSON.stringify([leader.leader, ...leader.replicas.map(peer => peer.name)].sort()) === JSON.stringify(expected)
+        && leader.replicas.every(peer => peer.current && !peer.offline)
+        && observations.every(({ name, js, routes, varz }) => {
+          const meta = js.meta_cluster;
+          return meta.cluster_size === names.length
+            && names.includes(name) && varz.server_name === name && varz.server_id === js.server_id
+            && routes.server_id === js.server_id
+            && new Set(routes.routes.map(peer => peer.remote_id)).size === names.length - 1
+            && routes.routes.every(peer => peer.ip === '127.0.0.1' && ids.has(peer.remote_id));
+        })) return observations;
+    await delay(Math.min(50, Math.max(0, end - Date.now())));
+  }
+  throw new Error('owned placement cluster not ready');
+}
+
 const provenance = [cli, binary].map(file => ({ path: fs.realpathSync(file), version: execFileSync(file, ['--version'], { encoding: 'utf8' }).trim(), sha256: createHash('sha256').update(fs.readFileSync(file)).digest('hex') }));
 const results = {};
 const emptySource = path.join(root, 'empty-directory-source'); privateDir(path.join(emptySource, 'nested-empty'));
@@ -102,6 +141,7 @@ fs.rmdirSync(path.join(emptyCopy, 'nested-empty'));
 assert.notDeepEqual(hashTree(emptyCopy), hashTree(emptySource));
 results.emptyDirectories = true;
 let passed = false;
+let phase = 'snapshot-history';
 const originalRecord = { seq: 1, subject: 'history.x', time: '2026-09-28T00:00:00.123456789Z', hdrs: Buffer.from('NATS/1.0\r\nX-Key: a\r\n\r\n').toString('base64'), data: Buffer.from([0, 255, 1]).toString('base64') };
 const fakeBus = record => ({ request: async () => ({ data: Buffer.from(JSON.stringify({ message: record })) }) });
 const baseDigest = await digest(fakeBus(originalRecord), 'fixture', 1, 1);
@@ -211,14 +251,16 @@ try {
   const selected = await ports(9), triples = [selected.slice(0, 3), selected.slice(3, 6), selected.slice(6, 9)];
   const routes = triples.map(p => p[2]);
   const members = [];
-  for (let i = 0; i < 3; i++) members.push(await start('member-' + (i + 1), path.join(root, 'cluster-' + (i + 1)), routes, triples[i]));
+  phase = 'cluster-placement-readiness';
+  const memberNames = ['member-1', 'member-2', 'member-3'];
+  for (let i = 0; i < 2; i++) members.push(await start(memberNames[i], path.join(root, 'cluster-' + (i + 1)), routes, triples[i]));
+  await assert.rejects(waitCluster(members, memberNames, 500), /owned placement cluster not ready/);
+  results.incompletePlacementClusterRejected = true;
+  members.push(await start(memberNames[2], path.join(root, 'cluster-3'), routes, triples[2]));
+  jsonPrivate(path.join(root, 'cluster-placement-ready.json'), await waitCluster(members, memberNames));
   const memberNC = await bus(members[0]);
-  for (let i = 0; i < 100; i++) {
-    const state = await (await fetch(`http://127.0.0.1:${members[0].monitor}/jsz`)).json();
-    if (['member-1', 'member-2', 'member-3'].includes(state.meta_cluster?.leader)) break;
-    await delay(100);
-  }
   const manager = await memberNC.jetstreamManager();
+  phase = 'cluster-offline-r1-create';
   await manager.streams.add({ name: 'OFFLINE_R1', subjects: ['offline'], storage: 'file', num_replicas: 1, placement: { cluster: 'recovery-fixture', tags: [] } });
   const located = await waitInfo(memberNC, 'OFFLINE_R1');
   const ownerName = located.cluster.leader, owner = members.find(i => fs.readFileSync(i.config, 'utf8').includes(`server_name: ${ownerName}\n`)); assert(owner);
@@ -229,7 +271,9 @@ try {
   const offlineOriginal = await capture(memberNC, 'OFFLINE_R1');
   await assertRoutes(members);
   await assert.rejects(assertRoutes(members.slice(0, 2)), /route escaped fixture peers/);
+  phase = 'cluster-replicated-r3-create';
   await manager.streams.add({ name: 'REPLICATED', subjects: ['replicated'], storage: 'file', num_replicas: 3 });
+  phase = 'cluster-empty-r3-create';
   await manager.streams.add({ name: 'EMPTY_R3', subjects: ['empty'], storage: 'file', num_replicas: 3 });
   const emptyOriginal = await capture(memberNC, 'EMPTY_R3');
   const emptyBackup = path.join(root, 'snapshot-EMPTY-R3');
@@ -302,7 +346,8 @@ try {
   results.deletedAssignmentRefusesRejoin = true;
   passed = true;
 } catch (err) {
-  jsonPrivate(path.join(root, 'FAILED.json'), { at: new Date().toISOString(), error: err.message });
+  jsonPrivate(path.join(root, 'FAILED.json'), { at: new Date().toISOString(), phase, error: err.message });
+  console.error('Owned fixture failure phase:', phase);
   console.error('Fixture evidence retained at', root);
   throw err;
 } finally {

@@ -157,3 +157,14 @@ production bindings pass from tools-v33. The old private sampled-window driver
 is retired with original forensic bytes preserved. This adapter supplies stop
 evidence; it does not supply a complete production orchestrator, later-child
 inventory, immutable/static identities or restoration readiness. Keep1.2 active.
+
+## D14 — Require the complete owned placement cohort (2026-09-29 01:21 EDT)
+The old fixture's CI placement error exposed a leader-only readiness gap.
+Require all three named server identities, a common leader, two current
+followers and reciprocal confined routes before any stream placement. A
+missing member refuses by a bounded deadline; no placement retry is added.
+Followers omit replica detail, so only the leader supplies those fields.
+Private tools-v36 passes the complete owned recovery fixture after two retained
+refused drafts with normal cleanup. Exact prior request phase was not captured;
+this is a tightened fixture gate, not a confirmed production cause or repair.
+Keep1.2 active until the detached orchestration and healthy cold-copy proof.
