@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -113,6 +113,8 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
 test('task daemon handles repeated signals during a pending real drain once', { skip, timeout: 20_000 }, async (t) => {
   const { daemon, server } = await fixture(t);
   server.proc.kill('SIGSTOP');
+  await until(() => execFileSync('/bin/ps', ['-o', 'stat=', '-p', String(server.proc.pid)],
+    { encoding: 'utf8', timeout: 5_000 }).trim().startsWith('T'));
   daemon.proc.kill('SIGTERM');
   await until(() => daemon.output.includes('Draining NATS...'));
   daemon.proc.kill('SIGINT');

@@ -49,3 +49,14 @@ exclusive atomic hard link before draining. A pre-publication sync fault has
 no accepted close; a post-publication directory sync fault retains a valid
 closed marker. Both faults preserve forensic staging bytes.18 fresh owned
 controls pass against private primitive-v2. No production operation occurred.
+
+## Isolated CI fixture correction
+
+CI36535769998 fails the existing task-daemon repeated-signal fixture: its
+owned server receives SIGSTOP, but the test requests daemon shutdown before
+observing that server suspended. The daemon drains and exits0 in3ms, so the
+test's pending-drain premise is false. Keep its assertion and signal checks;
+wait for the owned server's actual ps state T before requesting the drain.
+This changes only fixture ordering, with no daemon or gate implementation
+change. Preserve the failed CI log; rerun the focused owned control and exact
+integration CI before accepting3.1.
