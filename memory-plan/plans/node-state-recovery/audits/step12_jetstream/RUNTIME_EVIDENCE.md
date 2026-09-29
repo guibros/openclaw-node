@@ -345,3 +345,66 @@ cluster survivors is now in progress. The managed driver and real launchd
 negative cases remain unimplemented; no healthy bus stop or cold master is
 accepted. D8's ordinary bootout-only holds replace D7's persistent holds for
 those services; member1 is still the sole persistent disable.
+
+## Journal adversarial corrections — 2026-09-28 22:43 EDT
+
+CI36512084210 is green on6659ef13f1546fcc40ca1e392c131fa2feddf6a2:
+Node20/22 root tests, Mission Control and owned recovery fixtures. Claude's
+independent Linux run reproduced the predecessor checkpoint results
+(12 journal,16 preservation,1 cluster) and the old35e56ff account-scope failure.
+His six additional journal probes found baseline omissions, skipped final
+checks, tail-loss continuation, held-member mutation, disk-failure restoration
+blocking and separate-root concurrency. These are corrected in the new source;
+independent review and exact-head CI for that new source are still pending.
+
+Deployed tools-v22 passes27 journal tests,15 preservation checks and one real
+three-member election test. The restoration-stage control moved out of the
+removed duplicate helper into the journal suite. New controls cover a reboot
+before any worker intent, final hold checks after bus failure, deleted tail
+records, ENOSPC, two roots sharing a node lock, immutable identity drift,
+secondary-baseline restoration, unresolved-window fencing, busy timer/stopped
+daemon baselines, known-broken running-state variation and sealed immutability.
+One intermediate test failed because its fixture marked the healthy bus stopped
+as well as the known-broken worker; the corrected fixture changes only that
+worker. No production service operation occurred in these tests.
+
+The owned APFS file/directory probe returns success for fsync and F_FULLFSYNC.
+This proves syscall acceptance only, not survival of host/cache power loss.
+At22:43:54 EDT all537 selected task records remain unchanged and the worker,
+task, bridge, memory, three serving NATS and node-watch PIDs/runs remain the same.
+The all-account passive sample finished at22:27:54 EDT:121 readings, no refusal,
+maximum0.127057seconds per server observation, $SYS and $G groups on both
+survivors, unchanged identity/admissions/API/state/durables/routes/Raft. It is
+preflight only; standalone applications stayed live. Coverage of an entire
+node-watch deep sweep was not established from the overwritten watch report,
+so this sample does not explain or exclude the earlier stalls.
+
+The managed driver, real launchd ownership/exit controls, pending degraded-
+history resolution procedure and the three healthy cold masters remain open.
+No new managed-window acceptance is published. Step1.2 remains v1.2-pre.
+
+Prior source deployed as tools-v23:29 journal tests pass, and source hashes for
+the15 preservation checks and real cluster regression exactly match their
+passing tools-v22 versions. The two added controls reject a later window when
+its previous restoration chain has a missing record and refuse sealing when
+the node-wide restoration receipt cannot be made durable. These remain owned
+mechanism checks, with no healthy production stop. The new checkpoint is not
+independently accepted or green in CI until its exact commit is reviewed/run.
+
+The retained tools-v24 run refused at owned fixture publication with503,
+0.6seconds after startup, with normal cleanup. The server logs show the stream
+leader was a different member from the fixture's publisher. Creation/API
+replica readiness did not prove that publisher's route interest had propagated.
+The fixture now separates creation from seeding, observes the actual leader's
+local history subscription, and sends its single seed publication there after
+a fresh local-leader check. No mutation is retried. The corrected owned run
+passes in3.259seconds, root openclaw-preservation-cluster-03ackhxi. This is a
+fixture setup correction; production servers, policies and histories are not
+changed. The final journal also refuses sealing a forward-failed window even
+when later baseline restoration succeeds. Exact final tools-v25 evidence is
+recorded separately; no managed production stop is accepted here.
+
+Tools-v25 final deployed mechanism checks pass:30 journal,15 preservation,1
+actual three-member cluster election regression, with no forced cleanup. Source
+application code and production service state remain unchanged. Exact commit
+CI and Claude's revised-journal review remain pending at this checkpoint.

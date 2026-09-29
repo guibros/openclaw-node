@@ -14,7 +14,7 @@ import time
 import unittest
 
 from preservation_checks import (
-    QuietWindow, Refused, STOP_ORDER, capture, restore_prior, verify_admissions,
+    QuietWindow, Refused, STOP_ORDER, capture, verify_admissions,
     http_json, verify_completion, verify_queue, verify_streams, verify_timer_idle,
 )
 
@@ -116,32 +116,6 @@ class Gates(unittest.TestCase):
         self.assertLess(STOP_ORDER.index('mesh-bridge'), STOP_ORDER.index('mesh-agent'))
         self.assertLess(STOP_ORDER.index('mesh-agent'), STOP_ORDER.index('mesh-task-daemon'))
 
-    def test_rollback_each_stage_and_no_false_readiness(self):
-        names = ('nats', 'nats-2', 'nats-3', 'mesh-task-daemon', 'mesh-agent')
-        prior = {n: {'loaded': True, 'pid': i + 100, 'disabled': False} for i, n in enumerate(names)}
-        stages = (
-            ('mesh-agent',), ('mesh-agent', 'nats-2'),
-            ('mesh-agent', 'nats-2', 'nats-3'), names,
-        )
-        for changed in stages:
-            with self.subTest(stage=changed):
-                current = copy.deepcopy(prior)
-                for name in changed:
-                    current[name] = {'loaded': False}
-                def start(name, wanted):
-                    current[name] = copy.deepcopy(wanted)
-                result = restore_prior(prior, changed, start, lambda *_: None, current.__getitem__,
-                                       lambda: {'verified': True})
-                self.assertTrue(result['restored'])
-                self.assertEqual(current, prior)
-        current = {n: {'loaded': False} for n in names}
-        def partial(name, wanted):
-            current[name] = {'loaded': True}
-        result = restore_prior(prior, names, partial, lambda *_: None, current.__getitem__,
-                               lambda: {'verified': True})
-        self.assertFalse(result['restored'])
-        self.assertFalse(result['verified'])
-        self.assertTrue(result['errors'])
 
 
 class OwnedServers(unittest.TestCase):

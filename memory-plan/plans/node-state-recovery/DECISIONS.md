@@ -76,3 +76,23 @@ current deploy-marker/HEAD checks, because it can restart other owners. Timers
 loaded with RunAtLoad must finish their initial run successfully before the
 ready callback compares their originally idle state. These remain operational
 gates, not proof supplied by a journal or generic callback alone.
+
+## D9 — Full-baseline restoration after any interruption (2026-09-28 22:43 EDT)
+Claude reproduced six journal faults on6659ef1. Recovery now observes every
+baseline unit, including a RunAtLoad=false worker with no stop intent. Any
+reopen is restore-only; a truncated forensic tail never authorizes continuing
+its window. One fixed node lock and an unresolved-state fence cover different
+journal roots. Baselines are read back and copied beside that lock. Classes
+separate daemons, idle timers, preserved known-broken loops and held member1.
+Immutable service identities must match before and after restoration; physical
+running-process binding still belongs to the managed driver. The final hold/
+listener check always runs, including after unit failures. Disk write failure
+allows verified baseline restoration with explicit undurable diagnostics and
+no success/acceptance claim. Missing/corrupt primary history may use the valid
+secondary baseline in that degraded mode; if neither copy is valid, no static
+unit-default inference is authorized. Sealing pins one uninterrupted window's
+final hash and prohibits later writing. Darwin boot-session UUID replaces
+localized boottime text. Fullfsync is requested for journal records/directories,
+with host/hypervisor power-loss survival explicitly unproved. The old duplicate
+restore_prior path is removed. Managed owner controls and cold-copy completion
+remain step1.2 work; this checkpoint does not close it.

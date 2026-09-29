@@ -221,35 +221,3 @@ def verify_completion(service, segment, descendants, listeners, killed=False,
             'phase 2:', 'pre-compression flush', 'end-of-session flush',
             'nats-triggered flush', 'session-store: imported')),
             'memory work started after idle anchor')
-
-
-def restore_prior(prior, changed, start, ready, actual, final_check):
-    require(callable(final_check), 'restoration requires final physical ownership checks')
-    records, errors = [], []
-    bus_ready = True
-    for name in RESUME_ORDER:
-        if name not in changed:
-            continue
-        if not name.startswith('nats') and not bus_ready:
-            errors.append({'unit': name, 'reason': 'bus restoration incomplete'})
-            continue
-        try:
-            start(name, prior[name])
-            ready(name, prior[name])
-            state = actual(name)
-            require(state['loaded'] == prior[name]['loaded'], 'loaded state was not restored')
-            require(bool(state.get('pid')) == bool(prior[name].get('pid')), 'running state was not restored')
-            require(state['disabled'] == prior[name]['disabled'], 'disabled state was not restored')
-            records.append({'unit': name, 'verified': True, 'state': state})
-        except Exception as error:
-            errors.append({'unit': name, 'reason': str(error)})
-            if name.startswith('nats'):
-                bus_ready = False
-    if not errors:
-        try:
-            evidence = final_check()
-            require(isinstance(evidence, dict) and evidence.get('verified') is True,
-                    'final physical ownership or member-1 hold was not verified')
-        except Exception as error:
-            errors.append({'unit': 'final-state', 'reason': str(error)})
-    return {'restored': not errors, 'verified': records, 'errors': errors}

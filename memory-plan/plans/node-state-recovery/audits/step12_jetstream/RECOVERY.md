@@ -153,36 +153,65 @@ original loaded/running/disabled state, with member1 held.
 
 ## Durable journal primitive
 
-`preservation_journal.py` records the original loaded/running/disabled inventory
-and boot identity, then fsyncs each intent before its caller changes a service.
-Records are atomic, chained, owner-private and protected by a single-writer
-lock. An uncertain disk write poisons the current handle; reopen and recover
-rather than risk overwriting intent. Incomplete intent, failed verification or
-a different boot permits restoration only. Recovery records its own intent,
-restores in dependency order and requires readiness plus all three original
-state fields. Failed bus restoration prevents application resumption. A crash
-test kills an owned helper after its simulated unit mutation and verifies replay;
-it does not restart macOS or touch launchd.
+`preservation_journal.py` is the single restoration implementation. Before any
+forward mutation it records a validated desired-state inventory with immutable
+service descriptors, reads the synced baseline back, and stores a second
+validated copy beside the node lock. Daemons must be loaded/running; timers
+must be loaded/idle at baseline. Known-broken services retain loaded/disabled
+state with running unconstrained; their verified callback proves preservation,
+not health. Member1 is held, disabled/unloaded and cannot be mutated.
 
-This primitive publishes no acceptance manifest and runs no services by itself.
-The managed driver still has to supply physical owner, child/socket, unit/config,
-log, queue, timer, bus, task and readiness checks. Connect it to D7's persistent
-holds and recovery sequence before using it on production. The unconnected
-deploy listener has no registered SIGTERM handler: its contract is normal default
-SIGTERM with no bus client or deploy descendant, not a fabricated completion
-line. Its catch-up path must be separately checked before resumption.
+The fixed node-wide lock is `~/.openclaw/run/preservation.lock`; test fixtures
+supply an isolated node lock. Its owner-private state file retains the baseline,
+holder PID/boot UUID and restoration head. Different roots cannot act at once.
+An unresolved recovery blocks a new window, and a restored head must match its
+complete record chain before another window starts. The operational driver
+must check this inventory against every actual installed unit and its approved
+desired state. A caller-provided subset is not a complete node inventory.
 
-D8 refines D7's reboot policy: bootout-only for ordinary clients and serving
-buses, with member1 still persistently disabled. Recovery re-observes intent
-without replaying the original stop; already-restored units are recorded without
-restart. A readiness failure does not authorize a blind restart. The final
-callback must prove member1 still disabled/unloaded and the standalone PID
-owning both4222/8222. Timer observation/readiness waits for the load-triggered
-run to finish with last exit0 before comparing idle state; it must not unload
-a timer merely because bootstrap ran it. The deploy listener resumes last,
-after all other owners and current-marker/HEAD checks. Actual launchd negative
-cases, descendant termination order and CID-close timestamps remain unproved
-until the replacement managed driver exercises them.
+Every journal reopen means restore-only, even on the same boot. A chain cannot
+prove an absent tail was never written; no reopened window may continue copies
+or gain acceptance. Recovery visits every baseline unit in derived dependency
+order, re-observes owners before any action, skips matching ready owners, and
+never resumes applications after an unverified bus. Identity must match before
+and after restoration. The final physical listener/member1 check runs even
+when another unit fails. Unknown units are reported without preventing known
+units from being restored.
+
+Forward writes remain strict. A failed durable write during recovery permits
+only verified baseline restoration under the node lock, with sanitized
+undurable diagnostics. `services_verified` is separate from `restored` and
+`evidence_durable`; degraded mode never reports durable success. A corrupt or
+missing primary record chain can use the validated secondary baseline only in
+this degraded mode. The unresolved node still blocks new windows until its
+forensic journal is explicitly repaired/resolved and a strict recovery records
+fresh observations. If neither baseline is valid, refuse automatic mutation;
+do not infer the operator's prior service choices from unit defaults.
+
+Records and the journal directory use fsync plus Darwin F_FULLFSYNC. The owned
+APFS probe confirms return codes for a file and directory, not power-loss
+survival. Existing Node/CLI snapshot and cold-copy helpers currently provide
+OS-level fsync only. The future managed copy driver must add the declared Mac
+flush boundary or explicitly retain that limit. Neither primitive promises
+host/hypervisor cache durability, independent failure domains or disk-loss
+protection.
+
+Normal resume uses the same recovery path in the uninterrupted forward
+process. Only a successful durable restoration receipt permits sealing. The
+acceptance manifest must pin the returned sealed head; a sealed journal cannot
+be changed or reopened for writing. This primitive publishes no manifest and
+runs no services itself. Actual launchd/PID argv, loaded ProgramArguments,
+WorkingDirectory, plist/binary/entry hashes, dependency realpaths, NATS config
+digest and MC BUILD_ID bindings remain the driver's responsibility.
+
+D8 requires bootout-only holds for ordinary clients and serving buses. Member1
+remains the sole persistent disable. Timer readiness waits for its load-triggered
+run to finish with last exit0 before comparing idle state. The deploy listener
+resumes last after current-marker/HEAD checks; an unconnected instance has no
+SIGTERM handler, so its stop requires default signal15, no bus client and no
+child/socket rather than a fabricated completion line. Real owned launchd
+negative cases, descendant exit order, CID-close timestamps, detached driver
+lifetime and the three healthy cold masters remain pending.
 
 Expiry classification uses each stream's unchanged originalmax_age rather than
 a bucket-name allowlist. Positive max_age permits only monotone expiration

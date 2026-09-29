@@ -53,17 +53,22 @@ let nc,stage='connect';
  nc=await connect({servers:process.env.OWNED_URL,token:process.env.OWNED_TOKEN,reconnect:false,name:'owned-raft-control'});
  stage='account-info';const jm=await nc.jetstreamManager();
  if(process.env.OWNED_ACTION==='ready')await jm.getAccountInfo();
- else if(process.env.OWNED_ACTION==='setup'){
+ else if(process.env.OWNED_ACTION==='create'){
   stage='stream-add';
   await jm.streams.add({name:'HISTORY',subjects:['history'],storage:'file',num_replicas:3});
   stage='stream-readiness';
   const deadline=Date.now()+5000;
   while(true){
    const info=await jm.streams.info('HISTORY');
-   if(info.cluster?.leader&&info.cluster.replicas?.length===2&&info.cluster.replicas.every(r=>r.current))break;
+   if(info.cluster?.leader&&info.cluster.replicas?.length===2&&info.cluster.replicas.every(r=>r.current)){
+    console.log(JSON.stringify({leader:info.cluster.leader}));break;
+   }
    if(Date.now()>=deadline)throw Error('owned stream failed readiness');
    await new Promise(resolve=>setTimeout(resolve,20));
   }
+ }else if(process.env.OWNED_ACTION==='seed'){
+  stage='local-leader-check';const info=await jm.streams.info('HISTORY');
+  if(info.cluster?.leader!==nc.info.server_name)throw Error('owned seed is not on the stream leader');
   stage='publish';await nc.jetstream().publish('history',StringCodec().encode('preserved'));
   stage='consumer-add';
   await jm.consumers.add('HISTORY',{durable_name:'stable',ack_policy:'explicit',num_replicas:3});
@@ -80,9 +85,9 @@ let nc,stage='connect';
         succeeded = False
         for sock in held:
             sock.close()
-        def client(action, startup=False):
+        def client(action, startup=False, port=None):
             result = subprocess.run([node, str(script)], env={**os.environ, 'OWNED_NATS_MODULE': module,
-                'OWNED_URL': f'nats://127.0.0.1:{ports[0]}', 'OWNED_TOKEN': token, 'OWNED_ACTION': action},
+                'OWNED_URL': f'nats://127.0.0.1:{port or ports[0]}', 'OWNED_TOKEN': token, 'OWNED_ACTION': action},
                 capture_output=True, text=True, timeout=15)
             if result.returncode and startup:
                 error = json.loads(result.stderr)
@@ -91,7 +96,7 @@ let nc,stage='connect';
                         handle.write(json.dumps(error)+'\n')
                     return False
             self.assertEqual(result.returncode, 0, result.stderr.replace(token, '[owned token omitted]'))
-            return True
+            return json.loads(result.stdout) if action == 'create' else True
         try:
             for i, config in enumerate(configs):
                 log = open(root/f'server-{i}.log', 'ab', buffering=0)
@@ -113,7 +118,19 @@ let nc,stage='connect';
             else:
                 (root/'readiness-refused.json').write_text(json.dumps({'jsz': js, 'routes': routes}, indent=2))
                 self.fail('owned cluster failed readiness')
-            client('setup')
+            creation = client('create')
+            leader = int(creation['leader'].removeprefix('owned-raft-'))
+            self.assertIn(leader, range(3))
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                subscriptions = http_json(ports[leader*3+1], '/subsz?subs=1&limit=10000')
+                if any(row.get('subject') == 'history' for row in subscriptions.get('subscriptions_list', [])):
+                    break
+                time.sleep(.02)
+            else:
+                (root/'publish-readiness-refused.json').write_text(json.dumps(subscriptions, indent=2))
+                self.fail('owned stream leader has no local history subscription')
+            client('seed', port=ports[leader*3])
             previous = None
             stable_since = None
             deadline = time.monotonic() + 10
