@@ -176,3 +176,24 @@ Claude96 accepts qualified closure reasoning; all Mac measurements remain
 locally observed. New unitba411081/dev16777233/ino58989175/ctime1790678850314936186
 mode0600 is a new baseline input; old release/plist retained for rollback.
 3.4[x]/v3.4; journal3.5/timers3.6/full preservation remain open.
+
+## Journal-owned execution hold candidate — 2026-09-29 07:56 EDT
+
+3.5[A]/v3.5-pre: D21 locked with Claude104; sole Journal requires its hold
+facade for baselines declaring execution_hold. Private copied candidate runs
+33 combined controls,47 gate controls and58 existing Journal controls, all
+passing on the Mac. Real killed controllers/foreground lifetime and an owned
+launchd timer are exercised. Complete dependency readiness is a logical owned
+fixture inventory; no production20-service restart or healthy cold master is
+claimed. Exact candidate CI/source review remain pending. No production
+entrypoint/unit/config/hold installed; actual five timers remain3.6 and full
+preservation/controller remain recovery1.2. See audits/step35_journal_hold/.
+
+Journal-owned hold closure — 2026-09-29 08:14 EDT:3.5[x]/v3.5. Claude106 accepts exact
+source dbffa1a, CI36564796549 green3/3. Private copied Mac runtime33/47/58
+controls all pass; independent Linux restoration controls31/2skip and legacy
+Journal58 pass. Sole facade is reachable by its copied consumer and root test
+wrapper; timer3.6/recovery1.2 consume the same integration next. No production
+gate/controller/timer installation or healthy cold master is claimed.
+Reattachment/adoption/reclose always restores only and never certifies lost
+history; no VM/power-loss durability inference. Exact evidence in step35.

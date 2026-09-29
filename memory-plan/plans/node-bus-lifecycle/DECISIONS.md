@@ -312,3 +312,67 @@ The qualified current OFF neither reads loaded KeepAlive policy nor certifies
 arbitrary source identity/perpetual terminal state. Disabled-running remains
 BROKEN when observed; polling need not catch every short restart. Those
 stronger preservation/static-identity contracts remain3.5/3.6/recovery1.2.
+
+## D21 — Journal-owned interrupted holds restore without certifying lost history (2026-09-29 07:51 EDT)
+
+Claude101–104 and the controller implementer agree: one existing Journal,
+with a complete immutable baseline carrying the hold descriptor inside the
+heartbeat state. Its declared timer cohort, external root/lock pins, metadata
+identity/hash and path mappings are saved before any mutation. New recovery
+observers validate those saved pins; there is no autonomous installation or
+pin recapture. Each durable close intent has a unique random nonce window.
+Publication records the full receipt before exclusive foreground drain. Only
+the original native closed observer may bracket every forward stop/copy.
+The guard constructors live inside actual exclusive drain blocks, not an
+un-drained reusable factory. Restoration guards carry neither verified nor
+watch-session certification fields.
+
+An intent without marker or receipt is ambiguous: absence cannot prove the
+hold was never published. Full baseline service plus physical readiness may
+leave that already-open gate open and resolve only. Any incomplete readiness
+or later need to mutate a dependency requires a durably journaled protective
+restoration-only close/drain first. An owned matching marker with a receipt
+gap is adopted only against one unique durable live intent and all unchanged
+immutable pins; a persisted receipt whose marker vanished always forces a
+new protective close. Any interrupted/adopted/reclosed window can only
+restore/resolve, never seal copies.
+
+A durable failed-window record and protective/reopen intents precede their
+actions. Write failure aborts hold-coupled recovery before further dependency
+mutation, unlike the existing generic journal's deliberately degraded recovery
+for baselines without a hold. Supersede the prior live hold intent durably
+before creating a protective nonce: repeated controller deaths retain at most
+one live intent, with historical records preserved. Before every dependency
+restoration, validate its drained hold; this also covers readiness loss after
+the ambiguous-open classification.
+
+Full baseline readiness (including unmutated services and held member1), final
+physical readiness and durable recording must pass before the mandatory hold
+completion hook, recovery-finished and restored receipt. Heavy checks occur
+outside the exclusive lock. A required fast full-baseline recheck runs inside
+Gate.reopen before unlink, followed by receipt revalidation. This excludes
+gated application execution during that final check; it cannot freeze unrelated
+services after an observation. A failure before unlink retains the hold; a
+crash or record failure after unlink remains unresolved and re-closes on retry,
+without pretending that the marker stayed physically present.
+
+3.5 is confined to real owned private Gate/Journal/controller/foreground
+controls plus exact CI and independent source review. It does not deploy a
+production hold, complete the preservation controller, prove VM power-loss
+durability, or supply native continuous-watch certification on Linux. The
+actual five Mac timers/install/import graph remain3.6; healthy cold masters
+and complete preservation remain recovery1.2.
+
+D21 closure (2026-09-29 08:14 EDT): source dbffa1a8e0021731003bdd50ea3e75eeac18ad5d
+approved without blocker by Claude106; exactCI36564796549 green3/3. Private
+Mac copied runtime passes33 hold+47 gate+58 Journal controls, including
+real killed controllers, foreground lifetime and actual owned launchd timer.
+Independent Linux31pass/2native skips, Journal58pass and gate42pass/5Mac skips
+confirm only the portable controls. Positive native certification remains
+locally observed; process interruption/fsync faults do not prove power loss.
+Close3.5's owned contract only. Changed merged Gate/Journal deltas were directly
+reviewed, so prior foundation hash approval is not substituted for this review.
+Node22 CI also runs all four Python preservation suites with explicit runtime
+overrides; platform skips do not establish actual Linux launchd behavior.
+Actual timer3.6 and full recovery1.2 remain open. Closure ledger contains no
+source changes; require exact closure-head CI before merge.

@@ -1,0 +1,43 @@
+{
+  "at": "2026-09-29T12:13:45.818613+00:00",
+  "source": "dbffa1a8e0021731003bdd50ea3e75eeac18ad5d",
+  "base": "23e1a023260e9b76f39d91e8c4d3e180af43d107",
+  "PR": 155,
+  "reviewer": "Claude desktop: OpenClaw code and architecture review",
+  "session": "https://claude.ai/epitaxy/session_016kJLv6PaP2ZRRDwocBGweu",
+  "message": 106,
+  "verdict": "No blocker against the primitive + facade design; source design and controls approved.",
+  "independentLinux": {
+    "facade": {
+      "pass": 31,
+      "skip": 2
+    },
+    "journal": {
+      "pass": 58,
+      "skip": 0
+    },
+    "gate": {
+      "pass": 42,
+      "skip": 5
+    }
+  },
+  "reviewed": [
+    "ambiguous readiness and later protective close",
+    "durable-write aborts and sticky failure",
+    "supersession before new protective intent",
+    "all-baseline and physical readiness before reopen",
+    "restore-only certification forfeiture"
+  ],
+  "limits": [
+    "Mac positive native certification is locally observed, not independently reproduced by Claude",
+    "process interruption and fsync fault controls do not prove VM or power-loss durability",
+    "source approval does not certify a production hold or full preservation"
+  ],
+  "CI": {
+    "run": 36564796549,
+    "sha": "dbffa1a8e0021731003bdd50ea3e75eeac18ad5d",
+    "conclusion": "success",
+    "jobs": 3
+  },
+  "coverageCorrection": "Node22 JetStream fixtures run all four Python preservation suites with environment overrides; platform-specific skips remain explicit."
+}

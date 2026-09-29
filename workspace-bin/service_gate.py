@@ -304,13 +304,6 @@ class Gate:
         finally:
             os.close(fd)
 
-    def _drained_guard(self, restoration_only):
-        self._drain_verified = True
-        try:
-            return RestorationGate(self) if restoration_only else ClosedGate(self)
-        finally:
-            self._drain_verified = False
-
     def run(self, argv):
         require(argv and pathlib.Path(argv[0]).is_absolute(), 'gated executable must be absolute')
         try:
@@ -334,9 +327,16 @@ class Gate:
                     raise Refused('foreground run did not drain before deadline')
                 time.sleep(.01)
 
-    def close_and_drain(self, window, reason, seconds):
+    def close_and_drain(self, window, reason, seconds, on_publication=None):
+        return self._publish_and_drain(window, reason, seconds, on_publication, False)
+
+    def close_for_restoration(self, window, reason, seconds, on_publication=None):
+        return self._publish_and_drain(window, reason, seconds, on_publication, True)
+
+    def _publish_and_drain(self, window, reason, seconds, on_publication, restoration_only):
         self.validate()
         require(self.marker() is None, 'existing closed gate requires restoration')
+        require(on_publication is None or callable(on_publication), 'publication callback is not callable')
         require(all(isinstance(item, str) and 0 < len(item) <= 256 for item in (window, reason)),
                 'closed gate needs a window and reason')
         pending = '.closed-' + secrets.token_hex(16)
@@ -356,6 +356,8 @@ class Gate:
             os.unlink(pending, dir_fd=self.directory)
             sync(self.directory)
             self.closed_receipt = self._hold_receipt(fd)
+            if on_publication is not None:
+                on_publication(self.closed_receipt)
         except BaseException as error:
             if published:
                 try:
@@ -370,7 +372,11 @@ class Gate:
         try:
             self.validate()
             require(self._hold_receipt() == self.closed_receipt, 'closed hold receipt changed')
-            return self._drained_guard(False)
+            self._drain_verified = True
+            try:
+                return RestorationGate(self) if restoration_only else ClosedGate(self)
+            finally:
+                self._drain_verified = False
         finally:
             fcntl.flock(self.lock, fcntl.LOCK_UN)
 
@@ -382,17 +388,28 @@ class Gate:
             self.validate()
             require(self._hold_receipt() == receipt, 'hold receipt changed while draining')
             self.closed_receipt = receipt
-            return self._drained_guard(True)
+            self._drain_verified = True
+            try:
+                return RestorationGate(self)
+            finally:
+                self._drain_verified = False
         finally:
             fcntl.flock(self.lock, fcntl.LOCK_UN)
 
-    def reopen(self, receipt, seconds=5):
+    def reopen(self, receipt, seconds=5, before_open=None):
         self.validate()
+        require(before_open is None or callable(before_open), 'reopen readiness callback is not callable')
         require(self._hold_receipt() == receipt, 'reopen receipt does not match the closed window')
         self.exclusive(seconds)
         try:
             self.validate()
             require(self._hold_receipt() == receipt, 'reopen receipt changed while draining')
+            if before_open is not None:
+                evidence = before_open()
+                require(isinstance(evidence, dict) and evidence.get('verified') is True,
+                        'reopen readiness was not verified')
+                self.validate()
+                require(self._hold_receipt() == receipt, 'reopen receipt changed during readiness')
             os.unlink('closed.json', dir_fd=self.directory)
             sync(self.directory)
             require(self.marker() is None, 'gate did not reopen')
