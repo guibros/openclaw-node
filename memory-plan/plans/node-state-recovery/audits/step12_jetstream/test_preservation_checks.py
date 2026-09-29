@@ -80,6 +80,34 @@ class Gates(unittest.TestCase):
         self.refused(lambda: verify_completion('mesh-agent',
                                               'permanently closed\nAgent worker stopped.', [], []))
 
+    def test_never_ready_listener_has_default_signal_contract(self):
+        args = {'startup_segment': 'Connecting to NATS... retrying',
+                'termination': {'signal': 15}, 'bus_client_names': []}
+        verify_completion('mesh-deploy-listener', '', [], [], **args)
+        self.refused(lambda: verify_completion('mesh-deploy-listener', '', [123], [], **args))
+        self.refused(lambda: verify_completion('mesh-deploy-listener', '', [], [],
+                                              **{**args, 'termination': {'signal': 9}}))
+        self.refused(lambda: verify_completion('mesh-deploy-listener', '', [], [],
+                                              **{**args, 'bus_client_names': ['deploy-listener-owned']}))
+        self.refused(lambda: verify_completion('mesh-deploy-listener', '', [], [],
+                                              **{**args, 'startup_segment': '═══ Ready ═══'}))
+
+    def test_expiry_uses_original_policy_instead_of_bucket_name(self):
+        before = {'streams': {'$G/MESH_DEPLOY_RESULTS': {
+            'config': {'max_age': 7*24*60*60*1_000_000_000}, 'consumers': {},
+            'state': {'messages': 1, 'bytes': 10, 'first_seq': 5, 'last_seq': 5,
+                      'num_subjects': 1, 'num_deleted': 0}}}}
+        after = copy.deepcopy(before)
+        after['streams']['$G/MESH_DEPLOY_RESULTS']['state'].update(
+            messages=0, bytes=0, first_seq=6, num_subjects=0)
+        verify_streams(before, after)
+        written = copy.deepcopy(after)
+        written['streams']['$G/MESH_DEPLOY_RESULTS']['state']['last_seq'] = 6
+        self.refused(lambda: verify_streams(before, written))
+        before['streams']['$G/MESH_DEPLOY_RESULTS']['config']['max_age'] = 0
+        after['streams']['$G/MESH_DEPLOY_RESULTS']['config']['max_age'] = 0
+        self.refused(lambda: verify_streams(before, after))
+
     def test_producers_stop_before_worker(self):
         for producer in ('health-watch', 'mesh-deploy-listener', 'node-watch'):
             self.assertLess(STOP_ORDER.index(producer), STOP_ORDER.index('mission-control'))
@@ -90,7 +118,7 @@ class Gates(unittest.TestCase):
 
     def test_rollback_each_stage_and_no_false_readiness(self):
         names = ('nats', 'nats-2', 'nats-3', 'mesh-task-daemon', 'mesh-agent')
-        prior = {n: {'loaded': True, 'pid': i + 100} for i, n in enumerate(names)}
+        prior = {n: {'loaded': True, 'pid': i + 100, 'disabled': False} for i, n in enumerate(names)}
         stages = (
             ('mesh-agent',), ('mesh-agent', 'nats-2'),
             ('mesh-agent', 'nats-2', 'nats-3'), names,
@@ -102,13 +130,15 @@ class Gates(unittest.TestCase):
                     current[name] = {'loaded': False}
                 def start(name, wanted):
                     current[name] = copy.deepcopy(wanted)
-                result = restore_prior(prior, changed, start, lambda *_: None, current.__getitem__)
+                result = restore_prior(prior, changed, start, lambda *_: None, current.__getitem__,
+                                       lambda: {'verified': True})
                 self.assertTrue(result['restored'])
                 self.assertEqual(current, prior)
         current = {n: {'loaded': False} for n in names}
         def partial(name, wanted):
             current[name] = {'loaded': True}
-        result = restore_prior(prior, names, partial, lambda *_: None, current.__getitem__)
+        result = restore_prior(prior, names, partial, lambda *_: None, current.__getitem__,
+                               lambda: {'verified': True})
         self.assertFalse(result['restored'])
         self.assertFalse(result['verified'])
         self.assertTrue(result['errors'])

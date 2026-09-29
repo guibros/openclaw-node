@@ -62,3 +62,17 @@ A reboot invalidates the quiet window, not permission to restore the prior node.
 Crash recovery and independent older stream snapshots are not a common point.
 Worker reboot policy and the unready deploy listener feed parent readiness 1.5
 and 2.2; they are not silently repaired or called ready in this preservation step.
+
+## D8 — Reboot restoration and deploy-listener ordering (2026-09-28 22:16 EDT)
+Claude's35e56ff review refines D7: normal serving/client units use temporary
+bootout-only holds. Member1 remains the sole persistent disable. A reboot can
+then restore ordinary jobs; it invalidates the copy window and any partial
+master, which must never receive acceptance. Durable recovery first observes
+each affected unit and records already-restored owners without restarting them.
+Only a known mismatched state permits an idempotent restoration; unverified
+readiness refuses. The final check requires physical4222/8222 ownership and
+the member1 disabled/unloaded hold. The deploy listener resumes last after
+current deploy-marker/HEAD checks, because it can restart other owners. Timers
+loaded with RunAtLoad must finish their initial run successfully before the
+ready callback compares their originally idle state. These remain operational
+gates, not proof supplied by a journal or generic callback alone.

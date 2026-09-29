@@ -20,11 +20,10 @@ STOP_ORDER = (
 RESUME_ORDER = (
     'nats', 'nats-2', 'nats-3', 'mesh-task-daemon', 'memory-daemon',
     'mesh-health-publisher', 'mission-control', 'mesh-bridge', 'mesh-agent',
-    'mesh-deploy-listener', 'mesh-tool-discord', 'transcript-archive',
+    'mesh-tool-discord', 'transcript-archive',
     'observer', 'log-rotate', 'lane-watchdog', 'consolidation-scheduler',
-    'scheduler-heartbeat', 'node-watch', 'health-watch',
+    'scheduler-heartbeat', 'node-watch', 'health-watch', 'mesh-deploy-listener',
 )
-TTL_STREAMS = {'KV_MESH_NODE_HEALTH': 120_000_000_000, 'KV_MESH_TOOLS': 120_000_000_000}
 
 
 def require(condition, reason):
@@ -140,11 +139,9 @@ def verify_streams(anchor, report):
         after = report['streams'][key]
         require(after['config'] == before['config'], 'stream policy changed')
         require(after['consumers'] == before['consumers'], 'durable positions or policy changed')
-        name = key.split('/', 1)[1]
-        if name not in TTL_STREAMS:
+        if before['config'].get('max_age', 0) <= 0:
             require(after['state'] == before['state'], 'non-expiring stream changed')
             continue
-        require(before['config']['max_age'] == TTL_STREAMS[name], 'undeclared health TTL policy')
         old, new = before['state'], after['state']
         require(new['last_seq'] == old['last_seq'], 'health stream received a new message')
         require(new['messages'] <= old['messages'] and new['bytes'] <= old['bytes'],
@@ -190,7 +187,8 @@ def verify_queue(snapshot, owner, modified_at, anchor_after, now):
             and snapshot['external_jobs'] == [], 'memory queue is busy')
 
 
-def verify_completion(service, segment, descendants, listeners, killed=False):
+def verify_completion(service, segment, descendants, listeners, killed=False,
+                      startup_segment=None, termination=None, bus_client_names=None):
     require(not killed, 'forced termination is not clean completion')
     require(not descendants and not listeners, 'service child or listener survived completion')
     markers = {
@@ -202,7 +200,17 @@ def verify_completion(service, segment, descendants, listeners, killed=False):
         'nats-2': 'Server Exiting', 'nats-3': 'Server Exiting',
     }
     if service in markers:
-        require(segment.count(markers[service]) == 1, 'normal completion marker missing or repeated')
+        if service == 'mesh-deploy-listener':
+            require(isinstance(startup_segment, str), 'current listener startup log is absent')
+            if '═══ Ready ═══' not in startup_segment:
+                require(termination == {'signal': 15}, 'unready listener did not receive default SIGTERM')
+                require(markers[service] not in segment, 'unready listener unexpectedly registered a handler')
+                require(bus_client_names is not None and not any(name.startswith('deploy-listener-')
+                        for name in bus_client_names), 'unready listener has a bus connection or lacks inventory')
+            else:
+                require(segment.count(markers[service]) == 1, 'normal completion marker missing or repeated')
+        else:
+            require(segment.count(markers[service]) == 1, 'normal completion marker missing or repeated')
     require('permanently closed' not in segment and 'closing anyway' not in segment,
             'stop reported a failure or abandoned work')
     if service == 'memory-daemon':
@@ -215,7 +223,8 @@ def verify_completion(service, segment, descendants, listeners, killed=False):
             'memory work started after idle anchor')
 
 
-def restore_prior(prior, changed, start, ready, actual):
+def restore_prior(prior, changed, start, ready, actual, final_check):
+    require(callable(final_check), 'restoration requires final physical ownership checks')
     records, errors = [], []
     bus_ready = True
     for name in RESUME_ORDER:
@@ -230,9 +239,17 @@ def restore_prior(prior, changed, start, ready, actual):
             state = actual(name)
             require(state['loaded'] == prior[name]['loaded'], 'loaded state was not restored')
             require(bool(state.get('pid')) == bool(prior[name].get('pid')), 'running state was not restored')
+            require(state['disabled'] == prior[name]['disabled'], 'disabled state was not restored')
             records.append({'unit': name, 'verified': True, 'state': state})
         except Exception as error:
             errors.append({'unit': name, 'reason': str(error)})
             if name.startswith('nats'):
                 bus_ready = False
+    if not errors:
+        try:
+            evidence = final_check()
+            require(isinstance(evidence, dict) and evidence.get('verified') is True,
+                    'final physical ownership or member-1 hold was not verified')
+        except Exception as error:
+            errors.append({'unit': 'final-state', 'reason': str(error)})
     return {'restored': not errors, 'verified': records, 'errors': errors}

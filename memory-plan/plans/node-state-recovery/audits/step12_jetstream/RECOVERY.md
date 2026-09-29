@@ -171,3 +171,20 @@ holds and recovery sequence before using it on production. The unconnected
 deploy listener has no registered SIGTERM handler: its contract is normal default
 SIGTERM with no bus client or deploy descendant, not a fabricated completion
 line. Its catch-up path must be separately checked before resumption.
+
+D8 refines D7's reboot policy: bootout-only for ordinary clients and serving
+buses, with member1 still persistently disabled. Recovery re-observes intent
+without replaying the original stop; already-restored units are recorded without
+restart. A readiness failure does not authorize a blind restart. The final
+callback must prove member1 still disabled/unloaded and the standalone PID
+owning both4222/8222. Timer observation/readiness waits for the load-triggered
+run to finish with last exit0 before comparing idle state; it must not unload
+a timer merely because bootstrap ran it. The deploy listener resumes last,
+after all other owners and current-marker/HEAD checks. Actual launchd negative
+cases, descendant termination order and CID-close timestamps remain unproved
+until the replacement managed driver exercises them.
+
+Expiry classification uses each stream's unchanged originalmax_age rather than
+a bucket-name allowlist. Positive max_age permits only monotone expiration
+with unchanged last sequence and durable positions. Other retention changes,
+new publications or policy changes still refuse the quiet window.

@@ -77,11 +77,14 @@ class JournalTests(unittest.TestCase):
         with Journal(self.root, PRIOR, boot='boot-a') as journal:
             journal.mutate('mesh-agent', 'disable', lambda: None, lambda: {'verified': True})
         restored = []
+        actual = {'loaded': False, 'running': False, 'disabled': True}
         with Journal(self.root, boot='boot-b') as journal:
             with self.assertRaisesRegex(Refused, 'reboot'):
                 journal.require_forward()
-            result = journal.recover(['mesh-agent'], lambda unit, prior: restored.append((unit, prior)),
-                                     lambda unit, prior: {**prior, 'verified': True})
+            def restore(unit, prior):
+                restored.append((unit, prior)); actual.update(prior)
+            result = journal.recover(['mesh-agent'], restore,
+                                     lambda unit, prior: {**actual, 'verified': True}, lambda: {'verified': True})
             self.assertTrue(result['restored'])
             self.assertEqual(restored, [('mesh-agent', PRIOR['mesh-agent'])])
             with self.assertRaises(Refused):
@@ -118,11 +121,12 @@ with Journal(root,prior,boot='boot-a') as journal:
             with Journal(self.root, boot='boot-b') as journal:
                 self.assertEqual(len(journal.pending_intents()), 1)
                 def restore(unit, prior):
-                    intent = json.loads((self.root / '000003.json').read_text())
+                    intent = json.loads(max(self.root.glob('[0-9]*.json')).read_text())
                     self.assertEqual(intent['action'], 'restore-prior')
                     state.write_text(json.dumps(prior))
                 result = journal.recover(['mesh-agent'], restore,
-                                         lambda unit, prior: {**json.loads(state.read_text()), 'verified': True})
+                                         lambda unit, prior: {**json.loads(state.read_text()), 'verified': True},
+                                         lambda: {'verified': True})
                 self.assertTrue(result['restored'])
             self.assertEqual(json.loads(state.read_text()), PRIOR['mesh-agent'])
         finally:
@@ -167,15 +171,33 @@ with Journal(root,prior,boot='boot-a') as journal:
             journal.mutate('mesh-agent', 'unload', lambda: None, lambda: {'verified': True})
             journal.mutate('nats', 'unload', lambda: None, lambda: {'verified': True})
             with self.assertRaisesRegex(Refused, 'omits'):
-                journal.recover(['mesh-agent'], lambda *args: None, lambda *args: {})
+                journal.recover(['mesh-agent'], lambda *args: None, lambda *args: {}, lambda: {'verified': True})
             with self.assertRaisesRegex(Refused, 'dependencies'):
-                journal.recover(['mesh-agent', 'nats'], lambda *args: None, lambda *args: {})
+                journal.recover(['mesh-agent', 'nats'], lambda *args: None, lambda *args: {}, lambda: {'verified': True})
             resumed = []
             result = journal.recover(['nats', 'mesh-agent'], lambda unit, prior: resumed.append(unit),
-                                     lambda unit, prior: {**prior, 'running': False, 'verified': True})
+                                     lambda unit, prior: {**prior, 'running': False, 'verified': True},
+                                     lambda: {'verified': True})
             self.assertFalse(result['restored'])
             self.assertEqual(resumed, ['nats'])
             self.assertEqual(result['errors'][-1]['reason'], 'bus recovery was not verified')
+
+    def test_recovery_observes_reboot_restored_units_without_restarting_them(self):
+        with Journal(self.root, PRIOR, boot='boot-a') as journal:
+            journal.mutate('mesh-agent', 'unload', lambda: None, lambda: {'verified': True})
+        with Journal(self.root, boot='boot-b') as journal:
+            result = journal.recover(['mesh-agent'], lambda *args: self.fail('already restored unit was restarted'),
+                                     lambda unit, prior: {**prior, 'verified': True}, lambda: {'verified': True})
+            self.assertTrue(result['restored'])
+            self.assertTrue(any(r['event'] == 'already-restored' for r in journal.records))
+
+    def test_final_physical_hold_and_readiness_failure_is_not_restoration(self):
+        with Journal(self.root, PRIOR, boot='boot-a') as journal:
+            journal.mutate('nats', 'unload', lambda: None, lambda: {'verified': True})
+            result = journal.recover(['nats'], lambda *args: self.fail('ready bus was restarted'),
+                                     lambda unit, prior: {**prior, 'verified': True}, lambda: {'verified': False})
+            self.assertFalse(result['restored'])
+            self.assertEqual(result['errors'][0]['unit'], 'final-state')
 
 
 if __name__ == '__main__':

@@ -48,31 +48,50 @@ cluster {{ name: owned-preservation
             configs.append(config)
         script = root/'client.cjs'
         script.write_text('''const {connect,StringCodec}=require(process.env.OWNED_NATS_MODULE);
-let nc;
+let nc,stage='connect';
 (async()=>{
  nc=await connect({servers:process.env.OWNED_URL,token:process.env.OWNED_TOKEN,reconnect:false,name:'owned-raft-control'});
- if(process.env.OWNED_ACTION==='setup'){
-  const jm=await nc.jetstreamManager();
+ stage='account-info';const jm=await nc.jetstreamManager();
+ if(process.env.OWNED_ACTION==='ready')await jm.getAccountInfo();
+ else if(process.env.OWNED_ACTION==='setup'){
+  stage='stream-add';
   await jm.streams.add({name:'HISTORY',subjects:['history'],storage:'file',num_replicas:3});
-  await nc.jetstream().publish('history',StringCodec().encode('preserved'));
+  stage='stream-readiness';
+  const deadline=Date.now()+5000;
+  while(true){
+   const info=await jm.streams.info('HISTORY');
+   if(info.cluster?.leader&&info.cluster.replicas?.length===2&&info.cluster.replicas.every(r=>r.current))break;
+   if(Date.now()>=deadline)throw Error('owned stream failed readiness');
+   await new Promise(resolve=>setTimeout(resolve,20));
+  }
+  stage='publish';await nc.jetstream().publish('history',StringCodec().encode('preserved'));
+  stage='consumer-add';
   await jm.consumers.add('HISTORY',{durable_name:'stable',ack_policy:'explicit',num_replicas:3});
  }else{
+  stage='stepdown';
   const reply=await nc.request('$JS.API.STREAM.LEADER.STEPDOWN.HISTORY',Buffer.from('{}'),{timeout:5000});
   const data=JSON.parse(new TextDecoder().decode(reply.data));if(data.error||!data.success)throw Error('owned stepdown failed');
  }
  await nc.drain();
-})().catch(async error=>{console.error(JSON.stringify({name:error.name,code:error.code,message:error.message}));await nc?.close();process.exitCode=1;});
+})().catch(async error=>{console.error(JSON.stringify({stage,name:error.name,code:error.code,message:error.message}));await nc?.close();process.exitCode=1;});
 ''')
         owners = []
         cleanup = []
         succeeded = False
         for sock in held:
             sock.close()
-        def client(action):
+        def client(action, startup=False):
             result = subprocess.run([node, str(script)], env={**os.environ, 'OWNED_NATS_MODULE': module,
                 'OWNED_URL': f'nats://127.0.0.1:{ports[0]}', 'OWNED_TOKEN': token, 'OWNED_ACTION': action},
                 capture_output=True, text=True, timeout=15)
+            if result.returncode and startup:
+                error = json.loads(result.stderr)
+                if error.get('stage') == 'account-info' and error.get('code') == '503':
+                    with (root/'startup-api-refusals.jsonl').open('a') as handle:
+                        handle.write(json.dumps(error)+'\n')
+                    return False
             self.assertEqual(result.returncode, 0, result.stderr.replace(token, '[owned token omitted]'))
+            return True
         try:
             for i, config in enumerate(configs):
                 log = open(root/f'server-{i}.log', 'ab', buffering=0)
@@ -86,7 +105,7 @@ let nc;
                     routes = [http_json(ports[i*3+1], '/routez') for i in range(3)]
                     if all(report.get('meta_cluster', {}).get('leader', '').startswith('owned-raft-')
                            for report in js) and all(len({route['remote_id'] for route in report['routes']}) == 2
-                                                    for report in routes):
+                                                    for report in routes) and client('ready', startup=True):
                         break
                 except Refused:
                     pass
@@ -95,7 +114,24 @@ let nc;
                 (root/'readiness-refused.json').write_text(json.dumps({'jsz': js, 'routes': routes}, indent=2))
                 self.fail('owned cluster failed readiness')
             client('setup')
-            before = [capture(ports[i*3+1]) for i in range(3)]
+            previous = None
+            stable_since = None
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                before = [capture(ports[i*3+1]) for i in range(3)]
+                groups = [report['raft'] for report in before]
+                if groups == previous:
+                    if stable_since is None:
+                        stable_since = time.monotonic()
+                    if time.monotonic() - stable_since >= 1:
+                        break
+                else:
+                    stable_since = None
+                previous = groups
+                time.sleep(.05)
+            else:
+                (root/'raft-readiness-refused.json').write_text(json.dumps(before, indent=2))
+                self.fail('owned replication groups did not settle after creation')
             for report in before:
                 self.assertIn('$SYS', report['raft'])
                 self.assertIn('$G', report['raft'])
@@ -104,7 +140,12 @@ let nc;
             peers = {str(i): {r['server_id'] for j, r in enumerate(before) if i != j} for i in range(3)}
             window = QuietWindow({str(i): report for i, report in enumerate(before)})
             for _ in range(5):
-                window.check({str(i): capture(ports[i*3+1]) for i in range(3)}, peers)
+                readings = {str(i): capture(ports[i*3+1]) for i in range(3)}
+                try:
+                    window.check(readings, peers)
+                except Refused:
+                    (root/'quiet-refused.json').write_text(json.dumps({'before': before, 'after': readings}, indent=2))
+                    raise
             client('stepdown')
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:

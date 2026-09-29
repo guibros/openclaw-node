@@ -316,3 +316,32 @@ both a truncated HTTP body and an actual non-HTTP response. Journal/cluster
 source hashes remain those already passed in tools-v18; unchanged complete
 recovery source retains tools-v11's full fixture evidence. No extra production
 LLM probe or service operation was introduced.
+
+## Reviewed stop/restoration contracts — 2026-09-28 22:21 EDT
+
+Deployed tools-v21 pass16 preservation checks, twelve journal checks and one
+real cluster election test. The never-Ready deploy listener explicitly requires
+default signal15, absent bus clients and no surviving child/socket; a Ready
+listener still requires its completion marker. Recovery re-observes service
+state, skips already-restored owners without restarting them, and requires a
+final physical ownership/member1 hold callback. The deploy listener resumes
+last. TTL expiry follows each unchanged originalmax_age, including other
+expiring buckets; it never permits a new last sequence.
+
+CI onae5701f refused the cluster fixture with an owned startup503. All earlier
+recovery/admission/journal tests passed, and owned cleanup was normal. The test
+now labels error stages, requires authenticated account readiness before any
+setup, waits for the stream's actual leader/current replicas before publication,
+and establishes a settled Raft baseline before asserting quiet. Only a503 at
+account-info is treated as bounded startup-unready evidence, retained in the
+fixture; mutation errors are not retried. A subsequent local attempt correctly
+refused while newly created groups were still applying creation. Both refusals
+are retained; neither is a healthy-server operation or accepted recovery.
+
+At22:16 EDT all537 selected task rows still match the worker restoration
+baseline and worker/task/bridge/memory/three NATS owners retain their PIDs and
+runs1. All-group, HTTP-only ten-minute measurement on the two client-free
+cluster survivors is now in progress. The managed driver and real launchd
+negative cases remain unimplemented; no healthy bus stop or cold master is
+accepted. D8's ordinary bootout-only holds replace D7's persistent holds for
+those services; member1 is still the sole persistent disable.

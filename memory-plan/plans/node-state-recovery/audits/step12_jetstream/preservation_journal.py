@@ -145,10 +145,11 @@ class Journal:
                         error_type=type(error).__name__)
             raise
 
-    def recover(self, order, restore, observe):
+    def recover(self, order, restore, observe, final_check):
         changed = {r['unit'] for r in self.records if r['event'] == 'intent'}
         require(len(order) == len(set(order)) and changed <= set(order), 'recovery order omits an affected unit')
         require(list(order) == [unit for unit in RESUME_ORDER if unit in order], 'recovery order violates service dependencies')
+        require(callable(final_check), 'recovery requires final physical ownership checks')
         self.append('recovery-started', original_boot=self.records[0]['boot'])
         errors = []
         buses_ready = True
@@ -166,11 +167,27 @@ class Journal:
                 require(actual.get('verified') is True, 'service readiness was not verified')
                 return actual
             try:
+                actual = observe(unit, prior)
+                require(all(isinstance(actual.get(k), bool) for k in ('loaded', 'running', 'disabled')),
+                        'actual service state is incomplete')
+                self.append('recovery-observed', unit=unit, evidence=actual)
+                if all(actual[k] == prior[k] for k in ('loaded', 'running', 'disabled')):
+                    require(actual.get('verified') is True, 'existing service readiness was not verified')
+                    self.append('already-restored', unit=unit, evidence=actual)
+                    continue
                 self.mutate(unit, 'restore-prior', lambda: restore(unit, prior), verify, recovery=True)
             except Exception as error:
                 errors.append({'unit': unit, 'reason': type(error).__name__})
                 if unit.startswith('nats'):
                     buses_ready = False
+        if not errors:
+            try:
+                evidence = final_check()
+                require(isinstance(evidence, dict) and evidence.get('verified') is True,
+                        'final physical ownership or member-1 hold was not verified')
+                self.append('final-state-verified', evidence=evidence)
+            except Exception as error:
+                errors.append({'unit': 'final-state', 'reason': type(error).__name__})
         self.append('recovery-finished', restored=not errors, errors=errors)
         return {'restored': not errors, 'errors': errors}
 
