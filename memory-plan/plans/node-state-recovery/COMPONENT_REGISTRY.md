@@ -65,3 +65,8 @@ Mac controls/1 explicit domain skip and56 journal controls pass. Kernel
 failure details now persist in post-intent failed journal records; foreign
 filters refuse even for a bound PID. No healthy production service operation,
 quiet window or cold-master acceptance. See DURABLE_KERNEL_EVIDENCE.json.
+
+2026-09-29 03:09:24 EDT — Recovery journal/tools only: fixed mixed-width PID key
+round-trip poisoning before production use.58 journal tests and21 real Mac
+controls/1 explicit domain skip pass. No production window, stores or service
+state changed. Exact new CI/review required; PID_KEY_EVIDENCE.json.

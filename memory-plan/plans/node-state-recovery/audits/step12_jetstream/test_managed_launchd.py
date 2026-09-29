@@ -180,7 +180,7 @@ os.execv('/bin/sleep',['sleep','30'])
             watch.apply()
             proof = watch.verify(self.connection_closed, self.listener_absent)
         self.assertTrue(proof['verified'])
-        self.assertEqual(proof['exits'][self.details['pid']]['wait_status'], 0)
+        self.assertEqual(proof['exits'][str(self.details['pid'])]['wait_status'], 0)
         self.assertEqual(proof['exit_flags_requested'], 0x84000000)
         self.proofs.append({'test': self._testMethodName, 'proof': proof})
 

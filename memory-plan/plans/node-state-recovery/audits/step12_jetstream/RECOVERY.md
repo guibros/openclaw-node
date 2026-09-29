@@ -340,3 +340,14 @@ stops with all eleven archive restores and original replica policies measured
 active extraction, worker or subprocess shutdown. Production's five-second
 timeout remains unchanged. All three pinned serving NATS configs omit log_file,
 so their completion marker uses the loaded stdout/stderr paths.
+
+## Stable journal serialization
+
+Every dictionary key in a journal record must be a string, including nested
+stop evidence. The encoder refuses non-string keys before hashing or writing.
+StopWatch exports exits and process_contracts with str(pid) keys; numeric PID
+values inside individual records remain integers. Numeric-key ordering before
+JSON serialization can differ from lexicographic ordering after reload, which
+invalidates hashes. Both verified and failed mixed-width PID records must
+reopen with every hash verified before restoration/resolve. Existing forensic
+records are never silently rewritten. This node has no production journal yet.

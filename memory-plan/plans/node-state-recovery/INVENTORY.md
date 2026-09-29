@@ -75,3 +75,9 @@ raw evidence after reopen.56 journal controls pass.19243eb exact CI runs
 36531518336/36531517977 green3/3; Claude Message48 has no blocker. Two
 fixture layout refusals are retained; no production preservation started.
 New exact CI/review pending;1.2 remains[A]. See DURABLE_KERNEL_EVIDENCE.json.
+
+Checkpoint 2026-09-29 03:09:24 EDT: integer-PID ordering bug reproduced on owned old
+source before any production journal. String PID exports plus strict
+recursive string-key encoding pass58 journal tests and21 actual Mac controls/1
+domain skip; verified/failed mixed-width chains reopen, restore and resolve.
+New exact CI/review pending.1.2 remains[A]; see PID_KEY_EVIDENCE.json.

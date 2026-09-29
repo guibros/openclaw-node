@@ -26,7 +26,19 @@ def boot_identity():
     return hashlib.sha256(value.strip().encode()).hexdigest()
 
 
+def string_keys(value):
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) for key in value):
+            raise TypeError('journal dictionary keys must be strings')
+        for item in value.values():
+            string_keys(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            string_keys(item)
+
+
 def encoded(value):
+    string_keys(value)
     return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
 
 

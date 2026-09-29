@@ -298,7 +298,8 @@ class StopWatch:
 
     def failure_evidence(self, error):
         evidence = {'kernel_events': list(self.kernel_events),
-                    'lifecycle': list(self.lifecycle), 'exits': dict(self.events),
+                    'lifecycle': list(self.lifecycle),
+                    'exits': {str(pid): event for pid, event in self.events.items()},
                     'bootout': self.bootout}
         error.stop_evidence = evidence
         return evidence
@@ -429,9 +430,11 @@ class StopWatch:
                           startup_segment=self.startup_segment, termination=termination,
                           bus_client_names=self.bus_client_names)
         return {'verified': True, 'owner': self.binding['status']['pid'],
-                'exit_flags_requested': EXIT_FLAGS, 'exits': self.events,
+                'exit_flags_requested': EXIT_FLAGS,
+                'exits': {str(pid): event for pid, event in self.events.items()},
                 'lifecycle': self.lifecycle, 'kernel_events': self.kernel_events,
-                'bootout': self.bootout, 'process_contracts': self.contracts,
+                'bootout': self.bootout,
+                'process_contracts': {str(pid): contract for pid, contract in self.contracts.items()},
                 'unit_unloaded': True, 'descendants_absent': True,
                 'connections_closed': True, 'listeners_absent': True,
                 'log_offsets': self.offsets, 'termination': termination}

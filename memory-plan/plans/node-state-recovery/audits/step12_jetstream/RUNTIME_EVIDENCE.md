@@ -628,3 +628,14 @@ after journal reopen.56 journal controls pass, including failure-evidence
 reopen. v47/v48 fixture-layout mistakes are retained as refused, not accepted.
 Both predecessor19243eb CI runs green3/3 and Claude Message48 finds no blocker.
 New exact CI/review required. No production quiet window or cold copy occurred.
+
+### Stable process-evidence keys — 2026-09-29 03:09:24 EDT
+
+Private pid-key-regression-v1 reproduces old2c0b7b6 verified/failed mixed-width
+PID hashes failing after reopen, while same-width control retains three
+records. New strict encoding rejects nested non-string keys before writes;
+string-PID verified/failed chains re-open all records, restore and resolve.
+58 journal tests pass; private tools-v50 passes21 real Mac controls/1 explicit
+domain skip, owned NATS exits0 and all22 owned labels are unloaded in both
+domains. Public sanitized pins/limits are in PID_KEY_EVIDENCE.json.
+No production journal exists or was repaired. No cold-copy acceptance.

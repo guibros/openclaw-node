@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from preservation_journal import Journal, Refused, UNITS
+from preservation_journal import Journal, Refused, UNITS, encoded, valid_record
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -109,6 +109,49 @@ class JournalTests(unittest.TestCase):
             self.assertEqual(reopened.records[-1]['error_type'], 'Refused')
             with self.assertRaisesRegex(Refused, 'reopened'):
                 reopened.require_forward()
+
+    def test_non_string_dictionary_keys_refuse_before_writing_a_poisoned_record(self):
+        with self.journal(PRIOR) as journal:
+            with self.assertRaisesRegex(TypeError, 'keys must be strings'):
+                journal.append('owned-negative', evidence={'exits': {9998: {}, 10001: {}}})
+            self.assertEqual(len(journal.records), 1)
+            self.assertFalse((self.root / '000001.json').exists())
+        with self.journal() as reopened:
+            self.assertFalse(reopened.write_failed)
+            self.assertEqual(len(reopened.records), 1)
+        with self.assertRaisesRegex(TypeError, 'keys must be strings'):
+            encoded({'nested': ([{'exits': {9998: {}, 10001: {}}}],)})
+
+    def test_mixed_width_process_keys_survive_verified_and_failed_record_reopen(self):
+        for action in ('verified', 'failed'):
+            with self.subTest(action=action):
+                root = self.parent / action
+                evidence = {'verified': True, 'exits': {'9998': {'wait_status': 0},
+                            '10001': {'wait_status': 0}},
+                            'process_contracts': {'9998': {'allowed_signals': []},
+                                                  '10001': {'allowed_signals': []}}}
+                with self.journal(PRIOR, root=root) as journal:
+                    def apply():
+                        if action == 'failed':
+                            raise Refused('owned stop failed')
+                    if action == 'verified':
+                        journal.mutate('mesh-agent', 'stop', apply, lambda: evidence)
+                    else:
+                        with self.assertRaisesRegex(Refused, 'owned stop failed'):
+                            journal.mutate('mesh-agent', 'stop', apply, lambda: self.fail('must not verify'),
+                                           failure_evidence=lambda error: evidence)
+                with self.journal(root=root) as reopened:
+                    self.assertFalse(reopened.write_failed)
+                    self.assertEqual(len(reopened.records), 3)
+                    self.assertEqual(reopened.records[-1]['event'], action)
+                    self.assertEqual(reopened.records[-1]['evidence'], evidence)
+                    for row in reopened.records:
+                        valid_record(row)
+                    result = reopened.recover(lambda *_: self.fail('ready owner must not restart'),
+                        lambda unit, prior: {**prior, 'verified': True}, lambda: {'verified': True})
+                    self.assertTrue(result['restored'])
+                    reopened.resolve()
+
 
     def test_reboot_refuses_preservation_but_restores_original_state(self):
         with self.journal(PRIOR, boot='boot-a') as journal:

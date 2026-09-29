@@ -187,3 +187,11 @@ StopWatch snapshot into post-intent failed journal records and explicitly
 requires KQ_FILTER_PROC. Pre-intent preparation still needs private durable
 driver refusal records. Owned real-filter/durable-reopen controls cover this
 correction; no production preservation or controller completeness is claimed.
+
+Claude Message54's fresh owned reproduction exposes journal hash poisoning
+when numeric PID sorting differs from string sorting after reload. D19 rejects
+non-string dictionary keys before hashing and makes StopWatch exports string
+keys. Successful and failed evidence both need mixed-width reopen/resolve
+controls. Do not alter old forensic bytes or claim the new tests prove a
+complete production controller. Raw kernel trace growth still needs a finite
+driver budget before operational use.

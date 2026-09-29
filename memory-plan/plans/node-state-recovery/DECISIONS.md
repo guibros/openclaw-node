@@ -246,3 +246,18 @@ Mac controls pass/one domain skip;56 journal controls pass. Two refused fixture
 layouts are retained. Pre-intent preparation failures still require a separate
 private durable refusal record in the future driver. No production operations
 or step close follow; exact new CI and independent review remain required.
+
+## D19 — Require round-trip-stable journal keys (2026-09-29 03:09:24 EDT)
+Claude Message54 accepts2c0b7b6's explicit filter and durable callback, then
+reproduces integer-PID key sorting that poisons journal hashes after JSON
+reload. Numeric and lexicographic order differ for9998/10001; same-width
+20001/20002 is the control. This affects successful evidence too. Export
+StopWatch exits/process_contracts with string PID keys, and reject every
+non-string dictionary key recursively before encoding/hashing any record.
+Do not silently normalize ambiguous keys or retrofit old forensic records.
+Owned old-source verified/failed mixed-width records reproduce degraded
+baseline-only reopen; the control reopens three records. New records on both
+paths verify every hash, restore and resolve.58 journal controls and21 actual
+Mac controls/1 domain skip pass. No production journal exists, so no production
+repair or source-state migration occurred. Full driver/kernel-trace resource
+bounds, timer foreground holds and healthy cold masters remain open at1.2.
