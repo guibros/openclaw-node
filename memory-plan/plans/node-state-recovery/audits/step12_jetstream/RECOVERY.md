@@ -172,7 +172,9 @@ failure permits degraded restoration from the prepared baseline under the
 global node lock, without durable success or acceptance. A different root
 remains fenced. Finder's owned regular .DS_Store is ignored in the journals
 parent and initializing root; unexpected entries, foreign owners, directories
-and metadata links refuse explicitly. Ignored metadata is retained.
+and metadata links refuse explicitly on a new-window parent scan or an
+initializing-root reopen. Invalid parent entries do not block restoring the
+known prior root; they prevent a later new window. Ignored metadata is retained.
 
 The baseline must contain exactly RESUME_ORDER plus nats-1. Each uninstalled
 unit has explicit class absent, false loaded/running/disabled and identity
@@ -246,3 +248,25 @@ Expiry classification uses each stream's unchanged originalmax_age rather than
 a bucket-name allowlist. Positive max_age permits only monotone expiration
 with unchanged last sequence and durable positions. Other retention changes,
 new publications or policy changes still refuse the quiet window.
+
+## Managed macOS stop adapter
+
+`managed_launchd.py` supplies process binding, managed bootstrap/kickstart,
+exit watches and timer unload callbacks. Prepare `StopWatch` before writing
+Journal stop intent, then pass its apply/verify callbacks to `Journal.mutate`.
+Verification requires separately supplied physical listener and former-CID
+checks; the callback's true result must come from the actual managed driver.
+Do not substitute a generic lambda:true in production. Approved executable/
+argv/cwd and generation must come from the pinned service inventory. npm
+changes its process title; bind its approved title, Node executable/cwd and
+actual Next server child/build rather than inferring argv-file identity.
+
+Owned tests use explicit RECOVERY_NODE/NATS_SERVER/RECOVERY_NATS_MODULE and a
+private OPENCLAW_OWNED_TEST_ROOT. All jobs are uniquely named and all sockets
+use an isolated authenticated server. These are actual Mac controls; Linux
+collects them as visible skips. They do not complete the production driver.
+A child forked after preparation is not in that watch set; the future driver
+must retain physical process/file/listener checks and cumulative bus admission
+checks through the entire quiet window. No healthy bus stop is authorized by
+these callbacks alone. Detached orchestration, full static identities, memory
+queue and scheduler/worker readiness remain1.2 work.

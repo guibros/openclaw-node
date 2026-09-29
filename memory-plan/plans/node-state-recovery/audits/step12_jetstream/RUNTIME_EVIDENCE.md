@@ -483,7 +483,7 @@ review, real child/CID controls, driver and healthy cold masters remain pending.
 
 Fresh physical checkpoint23:47:53 EDT: all537 selected task rows still match the post-crash worker baseline; eight checked owners retain the same PIDs/runs1; member1 remains disabled/unloaded. Primary e57 and its untracked files remain unchanged. Initial attempt to save this read-only checkpoint used the wrong audit parent and raised FileNotFoundError before evidence publication; the corrected private report retains the actual probe timestamp.
 
-## Initializing Finder recovery — 2026-09-29 01:00 EDT
+## Initializing Finder recovery — 2026-09-29 00:58 EDT
 
 At00:46:29 EDT the new owned metadata recovery test rejects the unpatched
 ab7097c source (return1, initializing journal contains unknown files). At
@@ -499,3 +499,28 @@ after current source/test hashes match tools-v30; those are not fresh runs.
 No production window or healthy service stop occurred. Previous ab7097c exact
 CI36518928261 is green; main55131b8 with PR149 is integrated before this patch's
 fresh isolated CI and independent review.1.2 remains[A]/v1.2-pre.
+
+## Actual macOS stop adapter — 2026-09-29 01:11 EDT
+
+The private tools-v33 six-test suite passed in1.373s with actual uniquely named
+launchd jobs and one authenticated owned loopback NATS server, which exited0.
+Normal stop binds actual kernel argv/executable/cwd/PID and NATS CID, requests
+NOTE_EXIT|NOTE_EXITSTATUS before signal, requires owner/known-descendant exit
+status, closed connection, absent listener, unloaded unit and exactly one
+completion. A crash after that marker and a surviving detached child each
+refuse. An idle timer unload leaves log bytes unchanged; starting it between
+preparation and unload refuses before stopping it. Wrong argv refuses before
+any stop. Private owned files/proofs remain; no production connection or stop.
+Eleven actual healthy production owners also pass read-only process binding.
+
+MANAGED_STOP_EVIDENCE.json pins this adapter and proof. It is not the detached
+production orchestrator: full inventory/static identities (notably npm/Next),
+late-child/physical ownership/admission checks, idle memory anchor, per-service
+restoration readiness and timer deadlines remain requirements. The obsolete
+private sampled-window driver now refuses immediately; its original bytes are
+retained under retired/ with a hash receipt. Journal is the single restoration
+implementation. No production preservation window has been created.
+
+Previous N3 head0b96e93 exact CI36523987643 is green3/3. Claude Message38
+accepts the narrow fix with its independent55-test and real-filesystem evidence.
+The new adapter checkpoint requires its own CI and independent challenge.

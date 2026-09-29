@@ -16,10 +16,17 @@
 
 Current mechanism checkpoint 2026-09-28 23:49 EDT: tools-v30 passes53 fresh journal tests; unchanged15 admission/1 election tests inherit identical source hashes. Creation prepares the receipt before mkdir; interrupted setup is restoration-only. bbbc883 CI36516935187 is green, while this newer patch awaits exact CI/review. No new healthy production stop or cold-copy acceptance.
 
-Current mechanism checkpoint 2026-09-29 01:00 EDT: tools-v31 passes55 fresh
+Current mechanism checkpoint 2026-09-29 00:58 EDT: tools-v31 passes55 fresh
 journal tests, including initializing-root Finder recovery and fenced invalid
 metadata. The unpatched ab7097c control fails as expected. Its exact CI
 36518928261 is green and Claude accepted the previous creation fixes; this
 new checkpoint requires fresh integration CI/review. PR149 merged55131b8;
 installed task-daemon PID82096/runs1 still uses the accepted readiness release.
 No production preservation window or healthy cold-copy acceptance exists.
+
+Managed-stop checkpoint 2026-09-29 01:11 EDT: tools-v33 passes six actual owned
+macOS launchd/authenticated-NATS controls; crash/surviving-child/timer-race/wrong
+argv negatives refuse. Eleven current healthy owners pass read-only binding.
+No healthy production stop or preservation window. N3 exact CI36523987643
+green3/3 and Claude Message38 accepts it. Adapter exact CI/review pending;
+detached orchestrator/static inventory/restoration/cold masters remain open.

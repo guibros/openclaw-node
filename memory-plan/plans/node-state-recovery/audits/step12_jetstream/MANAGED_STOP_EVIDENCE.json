@@ -1,0 +1,107 @@
+{
+  "at": "2026-09-29T05:11:12.732291+00:00",
+  "privateToolsRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v33",
+  "privateOwnedRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v33/openclaw-owned-launchd-2pfu3dpy",
+  "sourcePins": {
+    "managed_launchd.py": "f6559b043b33e5dd8d39ab1e03f626f95344a274de782779491eeb00ce61771b",
+    "test_managed_launchd.py": "2d0b69b41b0fd4ea5fbe9f499f0bc97055604e2f866fcc6bf7b00d85e3f7da83",
+    "preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c",
+    "preservation_journal.py": "b0dc24e3c31eaefabd394f1b84999c77dd1489ed26bd72cbba8bceb5f236f124"
+  },
+  "ownedTests": {
+    "passed": 6,
+    "elapsedSeconds": 1.373,
+    "actualMacOSLaunchd": true,
+    "actualAuthenticatedOwnedNATS": true,
+    "ownedServerExit": 0,
+    "productionConnections": false,
+    "ownedNegativeControls": [
+      "completion despite nonzero exit",
+      "completion despite surviving detached child",
+      "timer starts between preparation and unload",
+      "wrong argv before stop"
+    ]
+  },
+  "proofs": [
+    {
+      "test": "test_completion_marker_does_not_hide_nonzero_exit",
+      "exits": {
+        "92402": {
+          "flags": 2214592512,
+          "wait_status": 512
+        }
+      },
+      "refused": true
+    },
+    {
+      "test": "test_completion_marker_does_not_hide_surviving_detached_child",
+      "exits": {
+        "92418": {
+          "flags": 2214592512,
+          "wait_status": 0
+        }
+      },
+      "survivingChild": 92419,
+      "refused": true
+    },
+    {
+      "test": "test_normal_managed_stop_binds_pid_cid_and_kernel_exit",
+      "proof": {
+        "verified": true,
+        "owner": 92442,
+        "exit_flags_requested": 2214592512,
+        "exits": {
+          "92442": {
+            "flags": 2214592512,
+            "wait_status": 0
+          }
+        },
+        "unit_unloaded": true,
+        "descendants_absent": true,
+        "connections_closed": true,
+        "listeners_absent": true,
+        "log_offsets": {
+          "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v33/openclaw-owned-launchd-2pfu3dpy/ai.openclaw.preservation-owned.aa71899901893436/owner.err": {
+            "device": 16777233,
+            "inode": 58927038,
+            "size": 0
+          },
+          "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v33/openclaw-owned-launchd-2pfu3dpy/ai.openclaw.preservation-owned.aa71899901893436/owner.log": {
+            "device": 16777233,
+            "inode": 58927037,
+            "size": 20
+          }
+        },
+        "termination": {
+          "exit": 0
+        }
+      }
+    }
+  ],
+  "liveReadOnlyBindings": {
+    "at": "2026-09-29T05:08:33.525235+00:00",
+    "count": 11,
+    "units": [
+      "mesh-task-daemon",
+      "mesh-agent",
+      "mesh-bridge",
+      "memory-daemon",
+      "nats",
+      "nats-2",
+      "nats-3",
+      "node-watch",
+      "health-watch",
+      "mesh-health-publisher",
+      "lane-watchdog"
+    ],
+    "productionMutations": 0
+  },
+  "oldPrivateDriverRetired": true,
+  "stepClosed": false,
+  "limits": [
+    "Stop adapter only; no detached production orchestrator or healthy cold-copy acceptance.",
+    "Exit watches cover the owner and descendants present at preparation; a later-forked process must be excluded by the future driver physical ownership, listener and admission gates.",
+    "Mission Control npm/Next child/build identity, complete producer inventory, recovery readiness and timer deadlines remain driver requirements.",
+    "Linux CI explicitly skips the Mac launchd controls; actual Mac evidence is this retained owned run."
+  ]
+}

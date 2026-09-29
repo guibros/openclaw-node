@@ -22,13 +22,20 @@ In flight 2026-09-28 21:33 EDT: offline member-1 master/restore and eleven onlin
 
 Third-round checkpoint 2026-09-28 23:49 EDT: Claude accepted bbbc883's eight fixes and lineage; exact CI36516935187 is green. Its new creation-interruption and static-identity findings have source/deployed53-test evidence. Setup now prepares the full receipt before mkdir and reopens restore-only; Finder metadata is explicit. Exact new CI/review and the managed driver/healthy cold masters remain pending. See D11.
 
-Fourth-round checkpoint 2026-09-29 01:00 EDT: ab7097c exact CI36518928261
+Fourth-round checkpoint 2026-09-29 00:58 EDT: ab7097c exact CI36518928261
 is green; Claude accepted N1/N2 and identified owned regular Finder metadata
 inside an initializing root. tools-v31 passes55 fresh tests, old source fails
 the added recovery regression, and invalid metadata remains fenced. Main
 55131b8's verified readiness prerequisite is integrated before fresh CI. This
 checkpoint remains1.2[A]/v1.2-pre; managed driver/cold masters still pending.
 See D12 and FINDER_SETUP_EVIDENCE.json.
+
+Managed-stop checkpoint 2026-09-29 01:11 EDT: tools-v33 passes six actual
+owned Mac controls and eleven read-only owner bindings. The obsolete private
+driver is retired without service operations. Source N3 checkpoint0b96e93
+has green exact CI and Claude Message38 acceptance. Stop-adapter CI/review
+and the complete detached production orchestration remain pending;1.2 stays[A].
+See D13 and MANAGED_STOP_EVIDENCE.json.
 
 > **1.3 — Goal:** Establish a coordinated application and bus recovery point.
 > **Needs:** 1.1 and 1.2 recovery mechanisms verified; all writers and their service ownership identified; inventory ENOENT robustness addressed; primary/derived file sources, configs and browser-profile policy enumerated; quiescence/restart sequence independently challenged.

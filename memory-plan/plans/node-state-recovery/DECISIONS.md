@@ -131,7 +131,7 @@ tests inherit only identical hashes. Exact new CI and independent review are
 still required. This remains a restoration primitive, with the driver and actual
 healthy cold-copy acceptance open.
 
-## D12 — Finder metadata during initializing recovery (2026-09-29 01:00 EDT)
+## D12 — Finder metadata during initializing recovery (2026-09-29 00:58 EDT)
 Claude Message30 accepted ab7097c's creation/crash-boundary fixes but reproduced
 owned regular Finder metadata stranding an initializing root. Apply the same
 owned-regular-file rule inside that root as in the parent; preserve its bytes.
@@ -145,3 +145,15 @@ before fresh integration CI. The future driver must explicitly include
 nats-auth.conf and Mission Control's actual npm-start build entry in identity;
 its tools/dependencies stay pinned throughout an unresolved window. General
 managed orchestration and three healthy cold masters remain open at1.2-pre.
+
+## D13 — Bind managed stop to kernel owner evidence (2026-09-29 01:11 EDT)
+Use one launchd adapter for the future Journal driver: bind actual kernel argv,
+executable, cwd and generation; register owner/known-descendant exit status
+notifications before durable stop intent; unload through launchd; then require
+normal exit, absence of descendants/listeners, normal former CID closure and
+the declared completion marker. Timer callbacks recheck idle state/log sizes
+at unload and refuse a race. Six real owned macOS controls and eleven read-only
+production bindings pass from tools-v33. The old private sampled-window driver
+is retired with original forensic bytes preserved. This adapter supplies stop
+evidence; it does not supply a complete production orchestrator, later-child
+inventory, immutable/static identities or restoration readiness. Keep1.2 active.

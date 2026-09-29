@@ -140,3 +140,10 @@ applies the existing metadata rule at that exact boundary; negative metadata
 controls retain fencing. No healthy production bus stops or copy acceptance
 follow. The installed PR149 readiness repair is now merged before integration
 CI. Its broader managed driver remains to be implemented and verified.
+
+D13 introduces the single managed stop adapter, with actual Mac ownership,
+exit/CID/listener, crash, descendant and timer-race controls. The private old
+sampled-window driver is retired, retaining forensic bytes. This is a driver
+component, not permission to run an incomplete preservation sequence. Exact
+static identity, later-child/physical ownership, admitted-client and restoration
+checks remain tracked at1.2. N3 exact0b96e93 CI and Claude Message38 pass.

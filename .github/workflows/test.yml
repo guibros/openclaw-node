@@ -83,6 +83,7 @@ jobs:
           node memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_recovery.mjs /tmp/nats-cli/nats-0.3.1-linux-amd64/nats /usr/local/bin/nats-server
           NATS_SERVER=/usr/local/bin/nats-server RECOVERY_NODE=node RECOVERY_NATS_MODULE="$PWD/node_modules/nats" python3 memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_preservation_checks.py
           python3 memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_preservation_journal.py
+          python3 memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_managed_launchd.py
           NATS_SERVER=/usr/local/bin/nats-server RECOVERY_NODE=node RECOVERY_NATS_MODULE="$PWD/node_modules/nats" python3 memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_preservation_cluster.py
       - name: Root unit tests
         # npm test (not bare node --test): the pretest hook builds the

@@ -1,0 +1,14 @@
+{
+  "head": "0b96e93a4f7358a0c934267b054272c8d6be0983",
+  "run": 36523987643,
+  "conclusion": "success",
+  "jobs": [
+    "unit-tests (20)",
+    "unit-tests (22)",
+    "mission-control-tests"
+  ],
+  "reviewer": "Claude / OpenClaw code and architecture review",
+  "reviewMessage": 38,
+  "verdict": "N3 fix correct and narrow;55 tests and own real-filesystem variants pass; unpatched positive control fails",
+  "latestAdapterCI": "pending"
+}
