@@ -301,3 +301,14 @@ retaining authenticated viewer discovery. Change only its managed entry path,
 preserving schedules/arguments/env/cwd; prove normal managed stop/restart and
 two actual reports. Record other remaining failures honestly. Full quiet-window
 and healthy-store preservation still require3.5/3.6 and recovery1.2.
+
+
+D20 closure clarification (2026-09-29 06:57 EDT): net.mesh is the single
+graded aggregate; DiscordOFF lives in its detail/evidence, not a new cell.
+The actual source change moves20W/7B/3OFF/6U→21W/6B/3OFF/6U. Additional
+paired current full36-target observations show only net.meshBROKEN→WORKING;
+a historical full pre-swap matrix was not captured and is not asserted.
+The qualified current OFF neither reads loaded KeepAlive policy nor certifies
+arbitrary source identity/perpetual terminal state. Disabled-running remains
+BROKEN when observed; polling need not catch every short restart. Those
+stronger preservation/static-identity contracts remain3.5/3.6/recovery1.2.

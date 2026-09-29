@@ -48,7 +48,7 @@
 | 3 | 3.1 | v3.1 | [x] | Establish the durable foreground execution-hold primitive — 2026-09-29: approved source0f0dcc2/CI3of3;40 Mac controls, actual timer drain/159 inert exit0 fires/real reopen and verified cleanup |
 | 3 | 3.2 | v3.2 | [x] | Complete local consolidation invocations before reporting completion or releasing their foreground guard — 2026-09-29: approved159b8dd/CI3of3;158 Mac/Linux controls, seven old-source failures, owned gate/notification and pending atomic-write completion |
 | 3 | 3.3 | v3.3 | [x] | Stop the explicitly disabled Discord tool from crash-looping before a new preservation baseline — 2026-09-29: approved f21c6df/CI3of3; owned10 controls/Mac policy; live one normal inactive run/65s84 samples/13 other owners unchanged; qualified Claude84 review |
-| 3 | 3.4 | v3.4 | [A] | Report confirmed disabled Discord inactivity without hiding real mesh failures |
+| 3 | 3.4 | v3.4 | [x] | Report confirmed disabled Discord inactivity without hiding real mesh failures — 2026-09-29: approveda4291c4/CI3of3; auth-preserving managed19976, old747 exit0;81.816s/122 checks/two reports; paired36 cells only net.mesh changes; qualified Claude96 |
 | 3 | 3.5 | v3.5 | [ ] | Restore interrupted execution holds through the sole durable preservation journal |
 | 3 | 3.6 | v3.6 | [ ] | Install the reviewed execution hold on the five actual Mac timers |
 

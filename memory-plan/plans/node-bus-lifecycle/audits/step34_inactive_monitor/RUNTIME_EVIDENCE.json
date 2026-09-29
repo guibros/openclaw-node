@@ -93,9 +93,243 @@
   },
   "qualifications": [
     "Native controls use real owned launchd observations with six semantic role labels mapped to owned jobs; they do not run the actual Discord integration.",
-    "Production watcher/source/config/dependencies untouched.",
     "Darwin target case is an explicit platform skip in Linux CI; pure policy/lifecycle controls run on both platforms.",
-    "Exact CI and independent source review still required before managed runtime deployment.",
-    "No global node health, active watcher drain, full preservation or VM durability claim."
-  ]
+    "No global node health, active watcher drain, full preservation or VM durability claim.",
+    "Source/live source reviewed by Claude90/92; Mac measurements remain locally observed attestation, with qualified closure reasoning accepted by Claude96.",
+    "Primary source/config/shared dependencies unchanged. Only actual watcher unit entry is repointed to a new auth-preserving release.",
+    "Qualified current observation only; no perpetual terminal state or detection of every between-tick restart."
+  ],
+  "candidateQualification": "Private candidate controls preceded the managed deployment; current deployed state is recorded separately below.",
+  "sourceCI": {
+    "at": "2026-09-29T10:42:50.920305+00:00",
+    "run": 36556656732,
+    "headSha": "a4291c4c7b71964251884f1a9e1c5bc09b72cf56",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "mission-control-tests",
+        "conclusion": "success",
+        "counts": [
+          "2026-09-29T10:37:43.1720289Z \u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m11 passed\u001b[39m\u001b[22m\u001b[90m (11)\u001b[39m"
+        ]
+      },
+      {
+        "name": "unit-tests (20)",
+        "conclusion": "success",
+        "counts": [
+          "2026-09-29T10:41:22.5989587Z # tests 2561",
+          "2026-09-29T10:41:22.5989962Z # pass 2555",
+          "2026-09-29T10:41:22.5990144Z # fail 0",
+          "2026-09-29T10:41:22.5990324Z # cancelled 0",
+          "2026-09-29T10:41:22.5990515Z # skipped 6"
+        ]
+      },
+      {
+        "name": "unit-tests (22)",
+        "conclusion": "success",
+        "counts": [
+          "2026-09-29T10:40:40.1705006Z # tests 2561",
+          "2026-09-29T10:40:40.1705383Z # pass 2555",
+          "2026-09-29T10:40:40.1705563Z # fail 0",
+          "2026-09-29T10:40:40.1705746Z # cancelled 0",
+          "2026-09-29T10:40:40.1705937Z # skipped 6"
+        ]
+      }
+    ]
+  },
+  "stagedRelease": {
+    "at": "2026-09-29T10:37:33.348528+00:00",
+    "sourceCommit": "a4291c4c7b71964251884f1a9e1c5bc09b72cf56",
+    "source": "/Users/moltymac/.openclaw/releases/viewer-b4bbac2-e57f89b",
+    "destination": "/Users/moltymac/.openclaw/releases/monitor-a4291c4-viewer-b4bbac2-e57",
+    "files": 1916,
+    "changed": [
+      "lib/node-watch.mjs"
+    ],
+    "oldLib": {
+      "sha": "9aae0cd8fde43eaf15ffa86dd4634171c2e2c5e158dd7df04954c54270dca701",
+      "mode": "0o600"
+    },
+    "newLib": {
+      "sha": "8a3721067b1b62491981f485c406aa23b7e0a3c076935fedd38cc2da9ad09445",
+      "mode": "0o600"
+    },
+    "patchSha256": "060f26494843fadff18345a80509df50dbe779376da3303a5026b4705c93a206",
+    "authPreserved": true,
+    "dependencies": {
+      "link": "/Users/moltymac/openclaw-nodedev/node_modules"
+    },
+    "entrySha256": "367acda5a2e245c5b564d472d7f97b5886defe3f84cd0a189e678cad67d9a71b",
+    "productionUnitUntouched": true,
+    "fileModePreserved": true,
+    "reviewedSourceSha256": "bc035b3f54ad9d2f429474b2b0e299401a65899a3d6d4c9ca3010acac4b1fd27",
+    "preexistingAuthOverlaySha256": "df0bfe5212b25aa4cded439570cf912bf18113d7cd99f5ebde5e47285fece4dc",
+    "exactByteRelation": "deployed lib = reviewed a4291c4 lib plus unchanged preexisting main-to-installed viewer-auth patch; reconstruction byte-identical",
+    "reconstructionSha256": "8a3721067b1b62491981f485c406aa23b7e0a3c076935fedd38cc2da9ad09445",
+    "reviewedRegions": [
+      {
+        "region": "launchdService",
+        "byteIdentical": true,
+        "sha256": "18b2ea6b9e2c76e1da24aa77f51b11a45a74c8b06ea0330e879bdbfa44bffbfb"
+      },
+      {
+        "region": "gradeMeshServices",
+        "byteIdentical": true,
+        "sha256": "456acaf23c7927d16f4c2c4af3feaf873ca175f3618ace05edc97efead6f2464"
+      },
+      {
+        "region": "net.mesh",
+        "byteIdentical": true,
+        "sha256": "6d3206a3318da292e2d74036e2a2cb095e7d704c02a31a9bacad846972601e53"
+      }
+    ],
+    "differenceBoundary": "Only added viewerAuthHeaders import and existing ops.roadmap authenticated API probe; launchdService, gradeMeshServices and net.mesh byte-identical"
+  },
+  "managedSummary": {
+    "path": "/Users/moltymac/.openclaw/backups/node-readiness/discord-inactive-monitor-20260929-1/managed-b89ec62b8384/EVIDENCE.json",
+    "rawSha256": "8516fba5786195083893b66757ba50a8355ceb9c4231fe9a4123e6bc791f4585",
+    "elapsedSeconds": 81.816390125,
+    "samples": 122,
+    "oldExit": {
+      "ident": 747,
+      "fflags": 2214592512,
+      "data": 0,
+      "normal": true,
+      "code": 0
+    },
+    "newPid": "19976",
+    "reports": [
+      {
+        "meta": {
+          "nodeId": "moltymacs-virtual-machine",
+          "mode": "watch",
+          "includeHeavy": false,
+          "timestamp": "2026-09-29T10:47:41.710Z"
+        },
+        "counts": {
+          "WORKING": 21,
+          "BROKEN": 6,
+          "OFF": 3,
+          "UNKNOWN": 6
+        },
+        "brokenIds": [
+          "mem.ingest",
+          "obs.sync",
+          "obs.graph_cache",
+          "net.stream",
+          "fabric.services",
+          "fed.grappe.members"
+        ],
+        "results": [
+          {
+            "id": "net.mesh",
+            "status": "WORKING",
+            "detail": "5/5 loaded mesh service(s) running with PID evidence; mesh-tool-discord OFF (explicitly disabled; loaded/not-running; exit0)",
+            "evidence": "ai.openclaw.mesh-agent:5086,ai.openclaw.mesh-bridge:754,ai.openclaw.mesh-deploy-listener:755,ai.openclaw.mesh-health-publisher:1048,ai.openclaw.mesh-task-daemon:82096,ai.openclaw.mesh-tool-discord:OFF(exit0)"
+          },
+          {
+            "id": "ops.roadmap",
+            "status": "WORKING",
+            "detail": "viewer authenticated; 9 plans discovered",
+            "evidence": ""
+          }
+        ]
+      },
+      {
+        "meta": {
+          "nodeId": "moltymacs-virtual-machine",
+          "mode": "watch",
+          "includeHeavy": false,
+          "timestamp": "2026-09-29T10:48:51.464Z"
+        },
+        "counts": {
+          "WORKING": 21,
+          "BROKEN": 6,
+          "OFF": 3,
+          "UNKNOWN": 6
+        },
+        "brokenIds": [
+          "mem.ingest",
+          "obs.sync",
+          "obs.graph_cache",
+          "net.stream",
+          "fabric.services",
+          "fed.grappe.members"
+        ],
+        "results": [
+          {
+            "id": "net.mesh",
+            "status": "WORKING",
+            "detail": "5/5 loaded mesh service(s) running with PID evidence; mesh-tool-discord OFF (explicitly disabled; loaded/not-running; exit0)",
+            "evidence": "ai.openclaw.mesh-agent:5086,ai.openclaw.mesh-bridge:754,ai.openclaw.mesh-deploy-listener:755,ai.openclaw.mesh-health-publisher:1048,ai.openclaw.mesh-task-daemon:82096,ai.openclaw.mesh-tool-discord:OFF(exit0)"
+          },
+          {
+            "id": "ops.roadmap",
+            "status": "WORKING",
+            "detail": "viewer authenticated; 9 plans discovered",
+            "evidence": ""
+          }
+        ]
+      }
+    ],
+    "newUnitSha256": "ba4110819242da55a1e6d4f4b7b874f0b8a208ac5a57161e02aa4f5507b0591b",
+    "newUnitStat": {
+      "st_dev": 16777233,
+      "st_ino": 58989175,
+      "st_ctime_ns": 1790678850314936186,
+      "st_mode": 33152,
+      "st_uid": 501,
+      "st_gid": 20
+    },
+    "stdoutStopLines": 1,
+    "stderrNewBytes": 0,
+    "beforeOwners": 12,
+    "afterOwners": 12,
+    "Discord": {
+      "unit": "gui/501/ai.openclaw.mesh-tool-discord",
+      "loaded": true,
+      "pid": null,
+      "runs": "1",
+      "state": "not running",
+      "last exit code": "0"
+    },
+    "allOwnerSamplesRetained": 122,
+    "boundary": "Current observed inactivity only; other failures retained; no full preservation/global quiet/perpetual terminal or general watcher drain claim."
+  },
+  "failedAttempt": {
+    "rawPath": "/Users/moltymac/.openclaw/backups/node-readiness/discord-inactive-monitor-20260929-1/managed-91d49d0f4ee5/EVIDENCE.json",
+    "rawSha256": "5e11342e45e2d227837f9992de4822fd9ac93e4a7f83b0fccddce18e9db6fd96",
+    "accepted": false,
+    "beforeAnyMutation": true,
+    "reason": "Installed Python kqueue lacks context manager API; recorder corrected to contextlib.closing."
+  },
+  "managedHarnessSha256": "bb94c58dcc259b0bc6b80e9640ca88b21a8fe8440720694e65aa2a6d42742129",
+  "closureReview": "Claude96: single aggregate-cell condition resolved; no remaining blocker on reasoning/scope/source-checkable facts. All Mac measurements remain local attestation.",
+  "pairedCurrentVerdicts": {
+    "rawPath": "/Users/moltymac/.openclaw/backups/node-readiness/discord-inactive-monitor-20260929-1/PAIRED_VERDICT_EVIDENCE.json",
+    "rawSha256": "84ef03f375b2ac333eed5b44c8bcc4c433074efe8e45d06b328badd4cfcdce98",
+    "targets": 36,
+    "delta": [
+      {
+        "id": "net.mesh",
+        "old": "BROKEN",
+        "new": "WORKING"
+      }
+    ],
+    "other35StatusesMatch": true,
+    "oldCounts": {
+      "WORKING": 20,
+      "BROKEN": 7,
+      "OFF": 3,
+      "UNKNOWN": 6
+    },
+    "newCounts": {
+      "WORKING": 21,
+      "BROKEN": 6,
+      "OFF": 3,
+      "UNKNOWN": 6
+    },
+    "boundary": "Additional paired current full probes with one shared actual health capture; existing temporary workspace writable check once. Historical full pre-swap36 matrix was not captured; no second managed restart."
+  }
 }
