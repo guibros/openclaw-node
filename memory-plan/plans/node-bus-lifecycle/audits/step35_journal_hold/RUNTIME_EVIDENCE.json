@@ -1,0 +1,48 @@
+{
+  "at": "2026-09-29T11:52:51.341644+00:00",
+  "suites": [
+    {
+      "suite": "hold-controls",
+      "controls": 33,
+      "seconds": 24.548,
+      "exit": 0,
+      "raw_sha256": "f95623edb9717a74167ab7905437563a2b12f2c59b0382f94b50b0cc0aacaf9f"
+    },
+    {
+      "suite": "gate-controls",
+      "controls": 47,
+      "seconds": 17.52,
+      "exit": 0,
+      "raw_sha256": "a5803ef5472daaeb4942adbd4121504ab61a6267d4b2de2cfacb5e8573f63545"
+    },
+    {
+      "suite": "journal-controls",
+      "controls": 58,
+      "seconds": 36.66,
+      "exit": 0,
+      "raw_sha256": "e8ee32fd1334ac246a13f3a5006e59e7eb9a403bd2445adf2ca17fe42a9e9e96"
+    }
+  ],
+  "sourceManifest": {
+    "at": "2026-09-29T11:51:02.030989+00:00",
+    "sourceBase": "23e1a023260e9b76f39d91e8c4d3e180af43d107",
+    "files": {
+      "workspace-bin/service_gate.py": "71443594568f2bd24917273f748a9761274c614efc9ff69828bb6acb3c32bbc7",
+      "test/service_gate_test.py": "fe4cbeeb2eea0f6744638ede0639e7c08f1b052d680935e1f8f85864146ced41",
+      "memory-plan/plans/node-state-recovery/audits/step12_jetstream/preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c",
+      "memory-plan/plans/node-state-recovery/audits/step12_jetstream/preservation_journal.py": "8f3dbd3cd643be3c1bd782d598cec5c2b4f809e9405204c003c1dad423155f11",
+      "memory-plan/plans/node-state-recovery/audits/step12_jetstream/journal_hold.py": "f0cf33b5b0e6f61ee367534bd4f86693d076909da0c7bfde9645fb205d36116b",
+      "memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_journal_hold.py": "a9fecb2f55fa12f649549738a61d74749cb7f83a938bc86b6e81ad8eb6e9e2d8",
+      "memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_preservation_journal.py": "8d9ff60d57c1ad82bcbd0824db08907479fc13de7b23669d21c065254c4bf340"
+    },
+    "scope": "owned private copied consumers only; no production hold"
+  },
+  "boundary": {
+    "privateCopiedRuntime": true,
+    "productionHold": false,
+    "fullPreservation": false,
+    "powerLossProof": false,
+    "dependencyReadyFixtures": "complete logical service inventory; real gate/controller/foreground/Mac timer controls",
+    "nativeForwardCertification": "Mac only; two controls explicitly skipped on Linux"
+  }
+}

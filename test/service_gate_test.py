@@ -136,6 +136,99 @@ class GateTests(unittest.TestCase):
             self.assertEqual(reopened.marker()['window'], 'owned')
         self.assert_no_work(0)
 
+    def test_no_reusable_factory_can_manufacture_an_undrained_guard(self):
+        with Gate(self.root, self.pin) as gate:
+            self.assertFalse(hasattr(gate, '_drained_guard'))
+            with self.assertRaisesRegex(Refused, 'fresh exclusive drain'):
+                module.ClosedGate(gate)
+            with gate.close_and_drain('owned', 'preservation', 1) as guard:
+                self.assertTrue(guard.check()['verified'])
+                self.assertFalse(gate._drain_verified)
+                with self.assertRaisesRegex(Refused, 'fresh exclusive drain'):
+                    module.ClosedGate(gate)
+
+    def test_publication_receipt_is_available_before_the_actual_drain(self):
+        child = self.launch(self.shell())
+        self.wait_ready(child)
+        receipts = []
+        with Gate(self.root, self.pin) as gate, concurrent.futures.ThreadPoolExecutor() as pool:
+            def published(receipt):
+                self.assertEqual(receipt['marker'], {'window': 'owned', 'reason': 'preservation'})
+                self.assertIsNone(child.poll())
+                self.assertEqual(receipt, gate._hold_receipt())
+                receipts.append(receipt)
+            closing = pool.submit(gate.close_and_drain, 'owned', 'preservation', 5, published)
+            end = time.monotonic() + 2
+            while not receipts and time.monotonic() < end:
+                time.sleep(.01)
+            self.assertEqual(len(receipts), 1)
+            self.assertFalse(closing.done())
+            self.assert_no_work(0)
+            self.stop.touch(mode=0o600)
+            self.assertEqual(child.wait(timeout=5), 0)
+            with closing.result(timeout=5) as guard:
+                self.assertEqual(guard.check()['receipt'], receipts[0])
+
+    def test_failed_publication_record_retains_the_closed_marker_and_receipt(self):
+        child = self.launch(self.shell())
+        self.wait_ready(child)
+        with Gate(self.root, self.pin) as gate:
+            def failed(receipt):
+                raise OSError('owned receipt write failure')
+            with self.assertRaisesRegex(OSError, 'receipt write failure') as raised:
+                gate.close_and_drain('owned', 'preservation', 1, failed)
+            self.assertIsNone(child.poll())
+            self.assertEqual(raised.exception.closed_receipt, gate._hold_receipt())
+            self.assertEqual(gate.marker()['window'], 'owned')
+            self.assertFalse(gate._drain_verified)
+        self.assert_no_work(0)
+
+    def test_restoration_close_does_not_create_a_certifying_guard(self):
+        with Gate(self.root, self.pin) as gate:
+            with gate.close_for_restoration('owned', 'restoration', 1) as guard:
+                evidence = guard.check()
+                self.assertTrue(evidence['restoration_only'])
+                self.assertNotIn('verified', evidence)
+                self.assertNotIn('watch_session_id', evidence)
+                self.assert_no_work(0)
+
+    def test_reopen_readiness_is_checked_under_the_exclusive_lock(self):
+        with Gate(self.root, self.pin) as gate, gate.close_and_drain('owned', 'preservation', 1) as guard:
+            receipt = guard.check()['receipt']
+            observations = []
+            def ready():
+                fd = os.open(self.root / 'gate.lock', os.O_RDWR)
+                try:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                finally:
+                    os.close(fd)
+                observations.append(gate.marker())
+                return {'verified': True}
+            gate.reopen(receipt, before_open=ready)
+            self.assertEqual(observations, [{'window': 'owned', 'reason': 'preservation'}])
+            self.assertIsNone(gate.marker())
+
+    def test_failed_reopen_readiness_keeps_the_hold_closed(self):
+        with Gate(self.root, self.pin) as gate, gate.close_and_drain('owned', 'preservation', 1) as guard:
+            receipt = guard.check()['receipt']
+            with self.assertRaisesRegex(Refused, 'readiness was not verified'):
+                gate.reopen(receipt, before_open=lambda: {'verified': False})
+            guard.check()
+            self.assert_no_work(0)
+
+    def test_reopen_revalidates_the_receipt_after_the_readiness_callback(self):
+        with Gate(self.root, self.pin) as gate, gate.close_and_drain('owned', 'preservation', 1) as guard:
+            receipt = guard.check()['receipt']
+            def changed():
+                marker = self.root / 'closed.json'
+                marker.write_text(json.dumps({'window': 'different', 'reason': 'preservation'}))
+                return {'verified': True}
+            with self.assertRaisesRegex(Refused, 'receipt changed during readiness'):
+                gate.reopen(receipt, before_open=changed)
+            self.assertTrue((self.root / 'closed.json').exists())
+            self.assert_no_work(0)
+
     def crashed_controller(self, phase):
         ready = self.directory / 'controller-ready'
         script = '''import importlib.util,json,pathlib,sys

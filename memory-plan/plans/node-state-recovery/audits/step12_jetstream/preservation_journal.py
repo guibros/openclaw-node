@@ -424,15 +424,25 @@ class Journal:
         require(not self.pending_intents() and not list(self.root.glob('.pending-*')),
                 'incomplete durable intent may only restore prior services')
 
-    def mutate(self, unit, action, apply, verify, failure_evidence=None):
+    def mutate(self, unit, action, apply, verify, failure_evidence=None, intent_fields=None, hold=None):
         require(unit in self.prior, 'unit was not in the prior-state inventory')
         require(unit in RESUME_ORDER, 'held or unknown unit cannot be mutated')
         require(self.prior[unit]['class'] != 'held', 'held unit cannot be mutated')
         require(self.prior[unit]['class'] != 'absent', 'absent unit cannot be mutated')
         self.require_forward()
-        intent = self.append('intent', unit=unit, action=action)
+        held = 'execution_hold' in self.prior['scheduler-heartbeat']
+        require((hold is not None) == held and (not held or hold.journal is self),
+                'baselined execution hold requires its forward facade')
+        if held:
+            hold.check_forward()
+        fields = intent_fields or {}
+        require(isinstance(fields, dict) and not set(fields) & {'unit', 'action'},
+                'intent fields cannot replace the mutation owner')
+        intent = self.append('intent', unit=unit, action=action, **fields)
         try:
             apply()
+            if held:
+                hold.check_forward()
             evidence = verify()
             require(isinstance(evidence, dict) and evidence.get('verified') is True,
                     'mutation lacks verified evidence')
@@ -445,11 +455,16 @@ class Journal:
                             error_type=type(error).__name__, **detail)
             raise
 
-    def recover(self, restore, observe, final_check, diagnostics=None):
+    def recover(self, restore, observe, final_check, diagnostics=None, hold=None):
         require(self.node_lock is not None and (self.lock is not None or self.write_failed),
                 'recovery requires the node lock')
         require(not self.sealed, 'sealed journal cannot restore services')
         require(callable(final_check), 'recovery requires final physical ownership checks')
+        held = 'execution_hold' in self.prior['scheduler-heartbeat']
+        require((hold is not None) == held and (not held or hold.journal is self),
+                'baselined execution hold requires its journal recovery facade')
+        if held:
+            hold.prepare(observe, final_check)
         errors = []
         diagnostics = diagnostics or (lambda row: print(json.dumps(row), file=sys.stderr, flush=True))
         def record(event, **data):
@@ -457,6 +472,8 @@ class Journal:
                 self.append(event, **data)
             except (OSError, Refused, TypeError, ValueError, OverflowError) as error:
                 self.write_failed = True
+                if held:
+                    raise
                 if not any(e['unit'] == 'journal' for e in errors):
                     errors.append({'unit': 'journal', 'reason': type(error).__name__})
                 try:
@@ -470,6 +487,8 @@ class Journal:
                          'holder': {'pid': os.getpid(), 'boot': self.boot}})
         except (OSError, Refused, TypeError, ValueError) as error:
             self.write_failed = True
+            if held:
+                raise
             errors.append({'unit': 'journal', 'reason': type(error).__name__})
         record('recovery-started', original_boot=self.records[0]['boot'])
         buses_ready = True
@@ -497,15 +516,21 @@ class Journal:
                 require(prior['class'] not in ('held', 'absent'), 'held or absent unit needs manual restoration')
                 require(not (prior['class'] == 'timer' and actual['loaded'] and actual['running']),
                         'timer is busy; re-observe after its current run')
+                if held:
+                    hold.before_restore()
                 record('restoration-intent', unit=unit, action='restore-prior')
                 restore(unit, prior)
+                if held:
+                    hold.check_closed()
                 evidence = verify()
                 record('recovery-verified', unit=unit, evidence=evidence)
             except Exception as error:
                 errors.append({'unit': unit, 'reason': type(error).__name__})
+                if held and self.write_failed:
+                    break
                 if unit.startswith('nats'):
                     buses_ready = False
-        for unit in (u for u in self.prior if u not in RESUME_ORDER):
+        for unit in (u for u in self.prior if u not in RESUME_ORDER and not (held and self.write_failed)):
             try:
                 require(unit == 'nats-1', 'unknown unit needs manual restoration')
                 actual = observe(unit, self.prior[unit])
@@ -521,6 +546,14 @@ class Journal:
             record('final-state-verified', evidence=evidence)
         except Exception as error:
             errors.append({'unit': 'final-state', 'reason': type(error).__name__})
+        if held and not errors and not self.write_failed:
+            try:
+                evidence = hold.complete(observe, final_check)
+                require(isinstance(evidence, dict) and evidence.get('verified') is True,
+                        'execution hold restoration was not verified')
+                record('execution-hold-restored', evidence=evidence)
+            except Exception as error:
+                errors.append({'unit': 'execution-hold', 'reason': type(error).__name__})
         record('recovery-finished', services_verified=not any(e['unit'] not in ('journal', 'diagnostics')
                                                            for e in errors), errors=list(errors))
         if not errors:
