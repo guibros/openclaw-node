@@ -1,0 +1,297 @@
+{
+  "at": "2026-09-29T05:45:12.412962+00:00",
+  "predecessorHead": "17680fac20f52adb7facee96f32286d24aa5ce2f",
+  "predecessorCI": {
+    "run": 36525847542,
+    "status": "green3/3"
+  },
+  "review": "Claude Messages40/42; new patch requires exact CI/review",
+  "privateOwnedTools": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v40",
+  "privateOwnedRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v40/openclaw-owned-launchd-8jvsvcdx",
+  "sourcePins": {
+    "managed_launchd.py": "ba9f2973c60535328c9359c2db1540d080aed477315690937d25465580c5e40d",
+    "test_managed_launchd.py": "dbcafc15a168b88db6a72f40ac771d266d5e3b948e38b9df05fedc7ec82b2026",
+    "preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c"
+  },
+  "ownedControls": {
+    "passed": 13,
+    "skipped": 1,
+    "actualMacOS": true,
+    "ownedServerExit": 0,
+    "productionMutations": 0,
+    "skip": "Owned user/501 bootstrap returned5; privileged retry unavailable. Cross-domain negative is not runtime-proved."
+  },
+  "ownedProofs": [
+    {
+      "test": "test_bound_child_normal_exit_while_owner_lives_does_not_abort_stop",
+      "proof": {
+        "verified": true,
+        "owner": 4471,
+        "exit_flags_requested": 2214592512,
+        "exits": {
+          "4472": {
+            "pid": 4472,
+            "flags": 2214592512,
+            "observed_order": 0,
+            "observed_monotonic_ns": 580465541,
+            "wait_status": 0,
+            "owner_alive_at_observation": true
+          },
+          "4471": {
+            "pid": 4471,
+            "flags": 2214592512,
+            "observed_order": 1,
+            "observed_monotonic_ns": 897938291,
+            "wait_status": 0,
+            "owner_alive_at_observation": false
+          }
+        },
+        "lifecycle": [
+          {
+            "pid": 4472,
+            "flags": 2214592512,
+            "observed_order": 0,
+            "observed_monotonic_ns": 580465541
+          },
+          {
+            "pid": 4471,
+            "flags": 2214592512,
+            "observed_order": 1,
+            "observed_monotonic_ns": 897938291
+          }
+        ],
+        "bootout": {
+          "returncode": 0,
+          "timed_out": false,
+          "stdout": "",
+          "stderr": "",
+          "elapsed_seconds": 0.008079624999999924
+        },
+        "process_contracts": {
+          "4472": {
+            "role": "descendant-or-group-member",
+            "allowed_signals": []
+          },
+          "4471": {
+            "role": "owner",
+            "allowed_signals": []
+          }
+        },
+        "unit_unloaded": true,
+        "descendants_absent": true,
+        "connections_closed": true,
+        "listeners_absent": true,
+        "log_offsets": {
+          "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v40/openclaw-owned-launchd-8jvsvcdx/ai.openclaw.preservation-owned.ab082c39bd2b99fb/owner.log": {
+            "device": 16777233,
+            "inode": 58933013,
+            "size": 20
+          },
+          "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v40/openclaw-owned-launchd-8jvsvcdx/ai.openclaw.preservation-owned.ab082c39bd2b99fb/owner.err": {
+            "device": 16777233,
+            "inode": 58933014,
+            "size": 0
+          }
+        },
+        "termination": {
+          "exit": 0
+        }
+      }
+    },
+    {
+      "test": "test_completion_marker_does_not_hide_nonzero_exit",
+      "exits": {
+        "4502": {
+          "pid": 4502,
+          "flags": 2214592512,
+          "observed_order": 0,
+          "observed_monotonic_ns": 1617847708,
+          "wait_status": 512,
+          "owner_alive_at_observation": false
+        }
+      },
+      "refused": true
+    },
+    {
+      "test": "test_completion_marker_does_not_hide_surviving_detached_child",
+      "exits": {
+        "4531": {
+          "pid": 4531,
+          "flags": 2214592512,
+          "observed_order": 0,
+          "observed_monotonic_ns": 2346299625,
+          "wait_status": 0,
+          "owner_alive_at_observation": false
+        }
+      },
+      "survivingChild": 4532,
+      "refused": true
+    },
+    {
+      "test": "test_exec_after_watch_preparation_refuses_before_stop",
+      "lifecycle": [
+        {
+          "pid": 4582,
+          "flags": 536870912,
+          "observed_order": 0,
+          "observed_monotonic_ns": 3922445750
+        }
+      ],
+      "refused": true
+    },
+    {
+      "test": "test_forced_kill_is_observed_past_loaded_exit_timeout_and_refused",
+      "bootout": {
+        "returncode": 0,
+        "timed_out": false,
+        "stdout": "",
+        "stderr": "",
+        "elapsed_seconds": 0.023050333999999673
+      },
+      "exits": {
+        "4605": {
+          "pid": 4605,
+          "flags": 2214592512,
+          "observed_order": 0,
+          "observed_monotonic_ns": 5630907875,
+          "wait_status": 9,
+          "owner_alive_at_observation": false
+        }
+      },
+      "refused": true
+    },
+    {
+      "test": "test_fork_after_watch_preparation_refuses_before_stop",
+      "lifecycle": [
+        {
+          "pid": 4672,
+          "flags": 1073741824,
+          "observed_order": 0,
+          "observed_monotonic_ns": 6024232750
+        }
+      ],
+      "refused": true
+    },
+    {
+      "test": "test_normal_managed_stop_binds_pid_cid_and_kernel_exit",
+      "proof": {
+        "verified": true,
+        "owner": 4725,
+        "exit_flags_requested": 2214592512,
+        "exits": {
+          "4725": {
+            "pid": 4725,
+            "flags": 2214592512,
+            "observed_order": 0,
+            "observed_monotonic_ns": 7436140416,
+            "wait_status": 0,
+            "owner_alive_at_observation": false
+          }
+        },
+        "lifecycle": [
+          {
+            "pid": 4725,
+            "flags": 2214592512,
+            "observed_order": 0,
+            "observed_monotonic_ns": 7436140416
+          }
+        ],
+        "bootout": {
+          "returncode": 0,
+          "timed_out": false,
+          "stdout": "",
+          "stderr": "",
+          "elapsed_seconds": 0.0059405409999993
+        },
+        "process_contracts": {
+          "4725": {
+            "role": "owner",
+            "allowed_signals": []
+          }
+        },
+        "unit_unloaded": true,
+        "descendants_absent": true,
+        "connections_closed": true,
+        "listeners_absent": true,
+        "log_offsets": {
+          "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v40/openclaw-owned-launchd-8jvsvcdx/ai.openclaw.preservation-owned.a106fae483c55e54/owner.err": {
+            "device": 16777233,
+            "inode": 58933139,
+            "size": 0
+          },
+          "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v40/openclaw-owned-launchd-8jvsvcdx/ai.openclaw.preservation-owned.a106fae483c55e54/owner.log": {
+            "device": 16777233,
+            "inode": 58933138,
+            "size": 20
+          }
+        },
+        "termination": {
+          "exit": 0
+        }
+      }
+    },
+    {
+      "test": "test_orphaned_same_group_helper_is_watched_and_refused_after_owner_exit",
+      "exits": {
+        "4755": {
+          "pid": 4755,
+          "flags": 2214592512,
+          "observed_order": 0,
+          "observed_monotonic_ns": 8172335125,
+          "wait_status": 0,
+          "owner_alive_at_observation": false
+        }
+      },
+      "contracts": {
+        "4755": {
+          "role": "owner",
+          "allowed_signals": []
+        },
+        "4757": {
+          "role": "descendant-or-group-member",
+          "allowed_signals": []
+        }
+      },
+      "helperSurvives": true,
+      "refused": true
+    }
+  ],
+  "liveBindings": {
+    "privateRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v40",
+    "bound": 13,
+    "discord": "Attempt recorded: skipped, no current running PID in known-broken crash loop",
+    "deployListener": "Bound actual entry/environment; remains known-unready, no readiness acceptance",
+    "missionControl": "Bound npm owner and seven explicit npm/Next entry files; full child/build/dependency contract remains open",
+    "nats": "First caller assumed nonexistent auth include and refused; retained. Corrected probe pins actual configs with inline authorization and no include.",
+    "exitTimeout": 5,
+    "userDomainLoaded": false,
+    "productionMutations": 0
+  },
+  "placement": {
+    "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v39",
+    "privateOwnedRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v39/openclaw-jetstream-fixture-GbLqt4",
+    "sourcePins": {
+      "test_recovery.mjs": "933c86fd4c249b214b375ebcb61800acac9a5af1d155213c6ff928ce57601f08",
+      "recovery.mjs": "c961932fa31914b145e80bd391094a0cf5506d93160607a75e862559bb7812a4",
+      "take_snapshots.mjs": "067c538f2bc0ca3a8971bc84db270b00c2de31c8a796d93a762674afeaa36e8a"
+    },
+    "allOwnedServersStopped": true,
+    "twoOfThreePeerRoutePredicatesRejected": true,
+    "onePredicateNegatives": [
+      "currentPeers",
+      "routePeers",
+      "leaderAgreement",
+      "clusterSizes"
+    ]
+  },
+  "limits": [
+    "Stop adapter only; detached production controller and healthy cold masters still pending.",
+    "Fork/exec refuses; Darwin NOTE_FORK supplies no child PID and NOTE_TRACK is unsupported, so no automatic complete child tracking is claimed.",
+    "Exit delivery order is observational. A child must have been observed exited while the owner is still alive; coalesced exits conservatively refuse.",
+    "Idle timer unload requires separate complete spawn evidence. Idle/log observations alone now refuse full verification; unified log lookup returned no retained owned-job records and supplies no witness.",
+    "Cross-domain prevention exists in source; its actual negative remains unproved on this Mac.",
+    "Identity covers only explicitly declared files/entry/executable/plist/environment; complete compiled builds, dependency manifest and unknown writer inventory remain driver obligations.",
+    "Original refused drafts v37/v38 remain privately retained; their owned jobs were cleaned up and owned NATS exited0."
+  ],
+  "stepClosed": false
+}

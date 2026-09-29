@@ -1,0 +1,60 @@
+{
+  "at": "2026-09-29T04:57:54.133409+00:00",
+  "ownedOnly": true,
+  "privateToolsRoot": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v31",
+  "freshJournal": {
+    "at": "2026-09-29T04:47:44.451276+00:00",
+    "ownedOnly": true,
+    "returncode": 0,
+    "tests": 55,
+    "newCoverage": "Owned regular Finder metadata at receipt/mkdir/baseline interruptions after an earlier sealed window; links, directories, foreign owners and unknown entries refuse and remain fenced.",
+    "files": {
+      "preservation_journal.py": "b0dc24e3c31eaefabd394f1b84999c77dd1489ed26bd72cbba8bceb5f236f124",
+      "preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c",
+      "test_preservation_journal.py": "b4ef7a53f1441bae0d6cca5f30c795a3a18c0f847f0b3ef97047f32736ffcfc3"
+    },
+    "summary": [
+      "----------------------------------------------------------------------",
+      "Ran 55 tests in 25.831s",
+      "",
+      "OK"
+    ]
+  },
+  "unpatchedControl": {
+    "at": "2026-09-29T04:46:29.075205+00:00",
+    "source": "ab7097c1a6dcf53f842efd7303d3ec1e51640624",
+    "ownedOnly": true,
+    "expectedFailure": true,
+    "returncode": 1,
+    "failure": "owned Finder metadata prevents restoration-only setup reopen",
+    "log": "UNPATCHED_FINDER.log"
+  },
+  "unchangedChecks": {
+    "inherited": true,
+    "sourceEvidence": "tools-v30/mechanism-checks.json",
+    "files": {
+      "preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c",
+      "test_preservation_checks.py": "ac2ef0bb4d7ba5b2deaf1b22d397ddd33927c3080f87b5867d2db92bbe551114",
+      "test_preservation_cluster.py": "dd5a5e5d0ce74aa398e83f170150a405d603d64c7741ed70d9a4a427f5eb7ba4"
+    },
+    "reports": [
+      {
+        "test": "test_preservation_checks.py",
+        "exit": 0,
+        "stdout": "{\"ownedEvidence\": \"/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v27/openclaw-preservation-owned-vdnqpse7\", \"ownedServers\": 3, \"noProductionConnections\": true, \"cleanupFailures\": []}\n",
+        "stderr": "test_completion_does_not_hide_descendants_or_crash (__main__.Gates) ... ok\ntest_expiry_uses_original_policy_instead_of_bucket_name (__main__.Gates) ... ok\ntest_never_ready_listener_has_default_signal_contract (__main__.Gates) ... ok\ntest_new_memory_anchor_and_external_flush (__main__.Gates) ... ok\ntest_producers_stop_before_worker (__main__.Gates) ... ok\ntest_timer_signal_race (__main__.Gates) ... ok\ntest_truncated_monitor_response_is_an_explicit_refusal (__main__.Gates) ... ok\ntest_closed_connections_beyond_first_page_are_not_missed (__main__.OwnedServers) ... ok\ntest_existing_client_write_and_durable_change_are_not_admission_proof (__main__.OwnedServers) ... ok\ntest_failed_owned_client_retains_diagnostics_and_closes_connection (__main__.OwnedServers) ... ok\ntest_fast_writer_and_failed_auth_between_samples_each_bus (__main__.OwnedServers) ... ok\ntest_frozen_owned_server_refuses_by_deadline (__main__.OwnedServers) ... ok\ntest_http_observation_creates_no_clients (__main__.OwnedServers) ... ok\ntest_identity_and_route_recovery_cannot_hide_a_stall (__main__.OwnedServers) ... ok\ntest_server_restart_invalidates_admission_baseline (__main__.OwnedServers) ... ok\n\n----------------------------------------------------------------------\nRan 15 tests in 3.625s\n\nOK\n",
+        "inherited_from": "tools-v27 fresh execution; unchanged source through tools-v30"
+      },
+      {
+        "test": "test_preservation_cluster.py",
+        "exit": 0,
+        "stdout": "{\"root\": \"/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v27/openclaw-preservation-cluster-007m8luo\", \"passed\": true, \"cleanupFailures\": [], \"scope\": \"owned three-member cluster only; no production ports or routes\"}\n",
+        "stderr": ".\n----------------------------------------------------------------------\nRan 1 test in 1.910s\n\nOK\n",
+        "inherited_from": "tools-v27 fresh execution; unchanged source through tools-v30"
+      }
+    ]
+  },
+  "productionHealthyBusStops": 0,
+  "preservationWindowCreated": false,
+  "stepClosed": false
+}

@@ -1,0 +1,573 @@
+import datetime
+import fcntl
+import hashlib
+import json
+import os
+import pathlib
+import plistlib
+import re
+import stat
+import subprocess
+import sys
+import uuid
+
+from preservation_checks import RESUME_ORDER, Refused, require
+
+
+UNITS = frozenset((*RESUME_ORDER, 'nats-1'))
+TERMINAL = ('sealed', 'resolved')
+
+
+def boot_identity():
+    if sys.platform == 'darwin':
+        value = subprocess.check_output(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], text=True)
+    else:
+        value = pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
+    return hashlib.sha256(value.strip().encode()).hexdigest()
+
+
+def string_keys(value):
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) for key in value):
+            raise TypeError('journal dictionary keys must be strings')
+        for item in value.values():
+            string_keys(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            string_keys(item)
+
+
+def encoded(value):
+    string_keys(value)
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+
+
+def sync_fd(fd):
+    os.fsync(fd)
+    if sys.platform == 'darwin':
+        fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
+
+
+def sync_dir(root):
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        sync_fd(fd)
+    finally:
+        os.close(fd)
+
+
+def read_private(path):
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+            and stat.S_IMODE(info.st_mode) == 0o600, 'journal record is not owner-private')
+    return json.loads(path.read_bytes())
+
+
+def finder_metadata(path):
+    if path.name != '.DS_Store':
+        return False
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid(), 'unexpected Finder metadata owner or link')
+    return True
+
+
+def write_private(path, value):
+    pending = path.parent / ('.pending-' + uuid.uuid4().hex)
+    fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'wb') as handle:
+        handle.write(encoded(value))
+        handle.flush()
+        sync_fd(handle.fileno())
+    os.rename(pending, path)
+    sync_dir(path.parent)
+
+
+def valid_record(record):
+    require(isinstance(record, dict) and isinstance(record.get('sha256'), str), 'journal record is incomplete')
+    body = {k: v for k, v in record.items() if k != 'sha256'}
+    require(hashlib.sha256(encoded(body)).hexdigest() == record['sha256'], 'journal record content changed')
+    return record
+
+
+def static_identity(plist_path, files=(), dependencies=None):
+    raw = pathlib.Path(plist_path).read_bytes()
+    plist = plistlib.loads(raw)
+    argv = plist['ProgramArguments']
+    dependencies = {name: str(pathlib.Path(path).resolve(strict=True))
+                    for name, path in (dependencies or {}).items()}
+    require(all(pathlib.Path(path).is_file() for path in dependencies.values()),
+            'dependencies must be resolved entry files; include package.json in files')
+    cwd = pathlib.Path(plist.get('WorkingDirectory', '/'))
+    arguments = [pathlib.Path(arg) if pathlib.Path(arg).is_absolute() else cwd / arg for arg in argv]
+    paths = {pathlib.Path(path).resolve(strict=True) for path in (argv[0], *files, *dependencies.values())}
+    paths.update(path.resolve(strict=True) for path in arguments if path.is_file())
+    return {'plist_sha256': hashlib.sha256(raw).hexdigest(), 'argv': argv,
+            'working_directory': str(cwd.resolve(strict=True)),
+            'files': {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths},
+            'dependencies': dependencies}
+
+
+def matches(actual, prior):
+    keys = ('loaded', 'disabled') if prior['class'] == 'known-broken' else ('loaded', 'running', 'disabled')
+    return all(actual.get(k) == prior[k] for k in keys)
+
+
+def valid_prior(prior):
+    require(isinstance(prior, dict) and set(prior) == UNITS, 'prior service inventory is incomplete or unknown')
+    for unit, state in prior.items():
+        require(isinstance(state, dict), 'prior service state is incomplete')
+        require(all(isinstance(state.get(k), bool) for k in ('loaded', 'running', 'disabled')),
+                'prior service state is incomplete')
+        kind = state.get('class')
+        require(kind in ('daemon', 'timer', 'known-broken', 'held', 'absent'), 'service class is absent')
+        identity = state.get('identity')
+        if kind == 'absent':
+            require(identity == {'installed': False}
+                    and not any(state[k] for k in ('loaded', 'running', 'disabled')),
+                    'absent service state is inconsistent')
+            continue
+        require(isinstance(identity, dict) and set(identity) ==
+                {'plist_sha256', 'argv', 'files', 'dependencies', 'working_directory'},
+                'prior static identity schema is incomplete')
+        require(re.fullmatch(r'[0-9a-f]{64}', str(identity['plist_sha256']))
+                and isinstance(identity['argv'], list) and identity['argv']
+                and all(isinstance(arg, str) for arg in identity['argv'])
+                and pathlib.Path(identity['argv'][0]).is_absolute()
+                and isinstance(identity['working_directory'], str)
+                and pathlib.Path(identity['working_directory']).is_absolute()
+                and isinstance(identity['files'], dict) and identity['files']
+                and all(pathlib.Path(path).is_absolute() and re.fullmatch(r'[0-9a-f]{64}', str(digest))
+                        for path, digest in identity['files'].items())
+                and isinstance(identity['dependencies'], dict)
+                and all(isinstance(path, str) and pathlib.Path(path).is_absolute()
+                        for path in identity['dependencies'].values()), 'prior static identity schema is incomplete')
+        require((unit == 'nats-1') == (kind == 'held'), 'only member-1 may be declared held')
+        require((kind != 'daemon' or state['loaded'] and state['running'] and not state['disabled'])
+                and (kind != 'timer' or state['loaded'] and not state['running'] and not state['disabled'])
+                and (kind != 'known-broken' or state['loaded'] and not state['disabled'])
+                and (kind != 'held' or not state['loaded'] and not state['running'] and state['disabled']),
+                'baseline does not match the declared desired service state')
+
+
+class Journal:
+    def __init__(self, root, prior=None, boot=None, node_lock=None):
+        self.root = pathlib.Path(root)
+        self.boot = boot if boot is not None else boot_identity()
+        self.lock = None
+        self.node_lock = None
+        self.write_failed = False
+        self.receipt_writable = True
+        self.sealed = False
+        created = not self.root.exists()
+        self.reopened = not created
+        node_lock = pathlib.Path(node_lock) if node_lock is not None else pathlib.Path.home() / '.openclaw/preservation/node.lock'
+        node_lock.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        info = node_lock.parent.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
+                and stat.S_IMODE(info.st_mode) == 0o700, 'node lock directory is not owner-private')
+        self.node_lock = self._lock(node_lock)
+        self.node_state = node_lock.with_name(node_lock.name + '.state.json')
+        try:
+            self.journals = node_lock.parent / 'journals'
+            self.journals.mkdir(mode=0o700, exist_ok=True)
+            info = self.journals.lstat()
+            require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
+                    and stat.S_IMODE(info.st_mode) == 0o700, 'journal parent is not owner-private')
+            require(self.root.parent.resolve() == self.journals.resolve() and not self.root.is_symlink(),
+                    'journal must be a direct child of the fixed persistent parent')
+            self.active = None
+            try:
+                if os.path.lexists(self.node_state):
+                    active = read_private(self.node_state)
+                    valid_record(active['baseline'])
+                    valid_prior(active['baseline']['prior'])
+                    require(active['status'] in ('unresolved', 'restored'), 'node receipt status is invalid')
+                    require(pathlib.Path(active['journal_root']).parent.resolve() == self.journals.resolve(),
+                            'node receipt root escaped the persistent parent')
+                    self.active = active
+            except (ValueError, KeyError, TypeError, Refused, OSError):
+                require(not created, 'node receipt is corrupt; reopen the current journal to rebuild it, then create a new window')
+                info = self.node_state.lstat()
+                require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+                        and stat.S_IMODE(info.st_mode) == 0o600, 'corrupt receipt is not owner-private')
+                saved = self.node_state.with_name('.corrupt-receipt-' + uuid.uuid4().hex)
+                try:
+                    os.rename(self.node_state, saved)
+                    sync_dir(self.node_state.parent)
+                except OSError:
+                    self.write_failed = True
+                    self.receipt_writable = False
+            if self.active is None:
+                require(not created or not self._roots(),
+                        'node receipt is missing; existing journals need restoration')
+                if not created:
+                    require(self._lineage_tip() == self.root.resolve(),
+                            'only the current journal may rebuild a lost receipt')
+            if (self.active is not None and self.active.get('phase') == 'initializing'
+                    and self.active['journal_root'] == str(self.root.resolve())):
+                require(prior is None, 'interrupted creation must reopen for restoration only')
+                try:
+                    self._finish_initialization()
+                except OSError:
+                    self.write_failed = True
+                    self.reopened = True
+                    self.records = [self.active['baseline']]
+                    self.prior = json.loads(encoded(self.records[0]['prior']))
+                    return
+                created = False
+                self.reopened = True
+            if self.active is not None:
+                require(not created or self.active['status'] == 'restored', 'prior node recovery is unresolved')
+                require(created or self.active['journal_root'] == str(self.root.resolve()),
+                        'another journal owns the node recovery inventory')
+                records = self._read(pathlib.Path(self.active['journal_root'])) if created else None
+                if records is not None:
+                    self._receipt_head(records)
+                    require(records[-1]['event'] in TERMINAL, 'prior journal needs explicit finalization')
+                    for other in self._roots():
+                        if str(other.resolve()) != self.active['journal_root']:
+                            rows = self._read(other)
+                            require(rows and rows[-1]['event'] in TERMINAL,
+                                    'unindexed journal requires manual resolution')
+            self._open(created, prior)
+        except BaseException:
+            self.close()
+            raise
+
+    def _lock(self, path):
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        handle = os.fdopen(fd, 'r+')
+        try:
+            info = os.fstat(fd)
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+                    and stat.S_IMODE(info.st_mode) == 0o600, 'journal lock is not owner-private')
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise Refused('another process owns the node preservation lock') from error
+            return handle
+        except BaseException:
+            handle.close()
+            raise
+
+    def _open(self, created, prior):
+        if created:
+            require(prior is not None, 'new journal requires the complete prior state')
+            valid_prior(prior)
+            predecessor = ({'root': self.active['journal_root'], 'head': self.active['head']}
+                           if self.active is not None else None)
+            self.records = []
+            initial = self._record('baseline', prior=prior, predecessor=predecessor)
+            self._state({'journal_root': str(self.root.resolve()), 'baseline': initial,
+                         'status': 'unresolved', 'phase': 'initializing',
+                         'holder': {'pid': os.getpid(), 'boot': self.boot}})
+            self.root.mkdir(mode=0o700)
+            sync_dir(self.root.parent)
+        info = self.root.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
+                and stat.S_IMODE(info.st_mode) == 0o700, 'journal directory is not owner-private')
+        self.lock = self._lock(self.root / '.lock')
+        try:
+            self.records = self._read()
+            require(created or self.records and self.records[0]['event'] == 'baseline', 'journal baseline is absent')
+        except (Refused, OSError):
+            require(not created and self.active is not None, 'validated baseline copy is absent')
+            self.records = [self.active['baseline']]
+            self.write_failed = True
+        if created:
+            write_private(self.root / '000000.json', initial)
+            self.records = [initial]
+            require(read_private(self.root / '000000.json') == self.records[0], 'baseline readback differs')
+            self._state({**self.active, 'phase': 'initialized'})
+        else:
+            require(prior is None, 'cannot replace a journal baseline')
+            require(self.records and self.records[0]['event'] == 'baseline', 'journal baseline is absent')
+            valid_prior(self.records[0]['prior'])
+            if self.active is None:
+                self.active = {'journal_root': str(self.root.resolve()), 'baseline': self.records[0],
+                               'status': 'restored' if self.records[-1]['event'] in TERMINAL else 'unresolved',
+                               'holder': {'pid': os.getpid(), 'boot': self.boot}}
+                if self.records[-1]['event'] in TERMINAL:
+                    self.active['head'] = self.records[-1]['sha256']
+                try:
+                    self._state(self.active)
+                except (OSError, Refused, TypeError, ValueError):
+                    self.write_failed = True
+            require(self.active['baseline'] == self.records[0], 'baseline copy differs')
+            if self.records[-1]['event'] in TERMINAL:
+                self._receipt_head(self.records)
+                raise Refused('sealed or resolved journal receipt repaired; create a new window, no writing to this chain')
+        self.prior = json.loads(encoded(self.records[0]['prior']))
+
+    def _state(self, value):
+        require(self.receipt_writable, 'corrupt receipt could not be durably retained')
+        write_private(self.node_state, value)
+        require(read_private(self.node_state) == value, 'node receipt readback differs')
+        self.active = value
+
+    def _receipt_head(self, records):
+        require(records, 'prior node restoration head differs')
+        require(records[0] == self.active['baseline'], 'baseline copy differs')
+        last = records[-1]
+        if (last['event'] in TERMINAL and last['previous'] == self.active.get('head')
+                and self.active['status'] == 'restored'):
+            self._state({**self.active, 'head': last['sha256']})
+        require(last['sha256'] == self.active.get('head'), 'prior node restoration head differs')
+
+    def _lineage_tip(self):
+        histories = {root.resolve(): self._read(root) for root in self._roots()}
+        referenced = set()
+        for root, records in histories.items():
+            require(records and records[0]['event'] == 'baseline', 'ambiguous journal baseline is absent')
+            parent = records[0].get('predecessor')
+            if parent is not None:
+                prior = pathlib.Path(parent['root'])
+                require(prior in histories and histories[prior][-1]['event'] in TERMINAL
+                        and histories[prior][-1]['sha256'] == parent['head'], 'ambiguous journal lineage differs')
+                referenced.add(prior)
+        tips = set(histories) - referenced
+        require(len(tips) == 1, 'ambiguous prior journal requires manual resolution')
+        tip = tips.pop()
+        require(all(root == tip or records[-1]['event'] in TERMINAL for root, records in histories.items()),
+                'ambiguous unfinished journals require manual resolution')
+        return tip
+
+    def _roots(self):
+        roots = []
+        for path in self.journals.iterdir():
+            if finder_metadata(path):
+                continue
+            info = path.lstat()
+            require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', path.name)
+                    and stat.S_ISDIR(info.st_mode), 'unexpected entry in the journal parent')
+            roots.append(path)
+        return roots
+
+    def _finish_initialization(self):
+        self.root.mkdir(mode=0o700, exist_ok=True)
+        info = self.root.lstat()
+        require(stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700
+                and info.st_uid == os.getuid(), 'journal directory is not owner-private')
+        with self._lock(self.root / '.lock'):
+            require(all(finder_metadata(path) or path.name == '.lock' or path.name.startswith('.pending-')
+                        or re.fullmatch(r'\d{6}\.json', path.name) for path in self.root.iterdir()),
+                    'initializing journal contains unknown files')
+            records = self._read()
+            require(not records or records == [self.active['baseline']],
+                    'initializing journal contains post-baseline operations')
+            if not records:
+                write_private(self.root / '000000.json', self.active['baseline'])
+            require(read_private(self.root / '000000.json') == self.active['baseline'], 'baseline readback differs')
+            sync_dir(self.root.parent)
+            self._state({**self.active, 'phase': 'initialized'})
+
+    def _read(self, root=None):
+        records = []
+        root = root or self.root
+        info = root.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
+                and stat.S_IMODE(info.st_mode) == 0o700, 'journal directory is not owner-private')
+        files = sorted(p for p in root.iterdir() if re.fullmatch(r'\d{6}\.json', p.name))
+        previous = None
+        for index, path in enumerate(files):
+            require(path.name == f'{index:06d}.json', 'journal sequence has a gap')
+            try:
+                record = read_private(path)
+                digest = record.pop('sha256')
+                require(record['sequence'] == index and record['previous'] == previous,
+                        'journal chain is inconsistent')
+                require(hashlib.sha256(encoded(record)).hexdigest() == digest, 'journal record content changed')
+            except (ValueError, KeyError, TypeError) as error:
+                raise Refused('journal record is incomplete') from error
+            record['sha256'] = digest
+            records.append(record)
+            previous = digest
+        return records
+
+    def _record(self, event, **data):
+        require(not set(data) & {'sequence', 'previous', 'sha256', 'event', 'boot', 'at'},
+                'journal metadata cannot be replaced')
+        record = {'sequence': len(self.records), 'previous': self.records[-1]['sha256'] if self.records else None,
+                  'event': event, 'boot': self.boot,
+                  'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), **data}
+        record['sha256'] = hashlib.sha256(encoded(record)).hexdigest()
+        return record
+
+    def append(self, event, **data):
+        require(self.lock is not None, 'journal is closed')
+        require(not self.sealed, 'sealed journal cannot be changed')
+        require(not self.write_failed, 'failed durable write requires reopening the journal')
+        self.write_failed = True
+        record = self._record(event, **data)
+        pending = self.root / ('.pending-' + uuid.uuid4().hex)
+        fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'wb') as handle:
+            handle.write(encoded(record))
+            handle.flush()
+            sync_fd(handle.fileno())
+        os.rename(pending, self.root / f'{len(self.records):06d}.json')
+        sync_dir(self.root)
+        self.records.append(record)
+        self.write_failed = False
+        return record
+
+    def pending_intents(self):
+        completed = {r['intent'] for r in self.records if r['event'] == 'verified'}
+        return [r for r in self.records if r['event'] == 'intent' and r['sequence'] not in completed]
+
+    def require_forward(self):
+        require(not self.write_failed, 'failed durable write requires reopening the journal')
+        require(self.boot == self.records[0]['boot'], 'reboot invalidated preservation; restore prior services only')
+        require(not self.reopened, 'reopened preservation may only restore prior services')
+        require(not any(r['event'] in ('failed', 'recovery-started') for r in self.records),
+                'interrupted preservation may only restore prior services')
+        require(not self.pending_intents() and not list(self.root.glob('.pending-*')),
+                'incomplete durable intent may only restore prior services')
+
+    def mutate(self, unit, action, apply, verify, failure_evidence=None):
+        require(unit in self.prior, 'unit was not in the prior-state inventory')
+        require(unit in RESUME_ORDER, 'held or unknown unit cannot be mutated')
+        require(self.prior[unit]['class'] != 'held', 'held unit cannot be mutated')
+        require(self.prior[unit]['class'] != 'absent', 'absent unit cannot be mutated')
+        self.require_forward()
+        intent = self.append('intent', unit=unit, action=action)
+        try:
+            apply()
+            evidence = verify()
+            require(isinstance(evidence, dict) and evidence.get('verified') is True,
+                    'mutation lacks verified evidence')
+            self.append('verified', intent=intent['sequence'], unit=unit, action=action, evidence=evidence)
+            return evidence
+        except Exception as error:
+            if not self.write_failed:
+                detail = {} if failure_evidence is None else {'evidence': failure_evidence(error)}
+                self.append('failed', intent=intent['sequence'], unit=unit, action=action,
+                            error_type=type(error).__name__, **detail)
+            raise
+
+    def recover(self, restore, observe, final_check, diagnostics=None):
+        require(self.node_lock is not None and (self.lock is not None or self.write_failed),
+                'recovery requires the node lock')
+        require(not self.sealed, 'sealed journal cannot restore services')
+        require(callable(final_check), 'recovery requires final physical ownership checks')
+        errors = []
+        diagnostics = diagnostics or (lambda row: print(json.dumps(row), file=sys.stderr, flush=True))
+        def record(event, **data):
+            try:
+                self.append(event, **data)
+            except (OSError, Refused, TypeError, ValueError, OverflowError) as error:
+                self.write_failed = True
+                if not any(e['unit'] == 'journal' for e in errors):
+                    errors.append({'unit': 'journal', 'reason': type(error).__name__})
+                try:
+                    diagnostics({'event': event, 'unit': data.get('unit'), 'evidence_durable': False,
+                                 'error_type': type(error).__name__})
+                except Exception:
+                    if not any(e['unit'] == 'diagnostics' for e in errors):
+                        errors.append({'unit': 'diagnostics', 'reason': 'undurable diagnostics unavailable'})
+        try:
+            self._state({**self.active, 'status': 'unresolved',
+                         'holder': {'pid': os.getpid(), 'boot': self.boot}})
+        except (OSError, Refused, TypeError, ValueError) as error:
+            self.write_failed = True
+            errors.append({'unit': 'journal', 'reason': type(error).__name__})
+        record('recovery-started', original_boot=self.records[0]['boot'])
+        buses_ready = True
+        for unit in (u for u in RESUME_ORDER if u in self.prior):
+            if not unit.startswith('nats') and not buses_ready:
+                errors.append({'unit': unit, 'reason': 'bus recovery was not verified'})
+                continue
+            prior = self.prior[unit]
+            def verify():
+                actual = observe(unit, prior)
+                require(actual.get('identity') == prior['identity'], 'immutable service identity changed')
+                require(matches(actual, prior), 'prior service state was not restored')
+                require(actual.get('verified') is True, 'service readiness was not verified')
+                return actual
+            try:
+                actual = observe(unit, prior)
+                require(all(isinstance(actual.get(k), bool) for k in ('loaded', 'running', 'disabled')),
+                        'actual service state is incomplete')
+                require(actual.get('identity') == prior['identity'], 'immutable service identity changed')
+                record('recovery-observed', unit=unit, evidence=actual)
+                if matches(actual, prior):
+                    require(actual.get('verified') is True, 'existing service readiness was not verified')
+                    record('already-restored', unit=unit, evidence=actual)
+                    continue
+                require(prior['class'] not in ('held', 'absent'), 'held or absent unit needs manual restoration')
+                require(not (prior['class'] == 'timer' and actual['loaded'] and actual['running']),
+                        'timer is busy; re-observe after its current run')
+                record('restoration-intent', unit=unit, action='restore-prior')
+                restore(unit, prior)
+                evidence = verify()
+                record('recovery-verified', unit=unit, evidence=evidence)
+            except Exception as error:
+                errors.append({'unit': unit, 'reason': type(error).__name__})
+                if unit.startswith('nats'):
+                    buses_ready = False
+        for unit in (u for u in self.prior if u not in RESUME_ORDER):
+            try:
+                require(unit == 'nats-1', 'unknown unit needs manual restoration')
+                actual = observe(unit, self.prior[unit])
+                require(matches(actual, self.prior[unit]) and actual.get('verified') is True
+                        and actual.get('identity') == self.prior[unit]['identity'], 'member-1 hold changed')
+                record('held-unit-verified', unit=unit, evidence=actual)
+            except Exception as error:
+                errors.append({'unit': unit, 'reason': type(error).__name__})
+        try:
+            evidence = final_check()
+            require(isinstance(evidence, dict) and evidence.get('verified') is True,
+                    'final physical ownership or member-1 hold was not verified')
+            record('final-state-verified', evidence=evidence)
+        except Exception as error:
+            errors.append({'unit': 'final-state', 'reason': type(error).__name__})
+        record('recovery-finished', services_verified=not any(e['unit'] not in ('journal', 'diagnostics')
+                                                           for e in errors), errors=list(errors))
+        if not errors:
+            try:
+                self._state({**self.active, 'status': 'restored', 'head': self.records[-1]['sha256']})
+            except (OSError, Refused, TypeError, ValueError) as error:
+                errors.append({'unit': 'journal', 'reason': type(error).__name__})
+                try:
+                    diagnostics({'event': 'restoration-receipt-failed', 'evidence_durable': False,
+                                 'error_type': type(error).__name__})
+                except Exception:
+                    errors.append({'unit': 'diagnostics', 'reason': 'undurable diagnostics unavailable'})
+        return {'restored': not errors, 'services_verified': not any(e['unit'] not in ('journal', 'diagnostics') for e in errors),
+                'evidence_durable': not any(e['unit'] == 'journal' for e in errors), 'errors': errors}
+
+    def seal(self):
+        require(not self.reopened and not self.write_failed, 'interrupted window cannot be sealed')
+        require(not self.pending_intents() and not any(r['event'] == 'failed' for r in self.records),
+                'failed forward window cannot be sealed')
+        return self._finalize('sealed')
+
+    def resolve(self):
+        require(not self.write_failed, 'undurable history needs manual resolution')
+        return self._finalize('resolved')
+
+    def _finalize(self, event):
+        require(self.records[-1]['event'] == 'recovery-finished'
+                and self.records[-1]['services_verified'] is True and not self.records[-1]['errors'],
+                'unrestored node cannot be sealed')
+        state = read_private(self.node_state)
+        require(state['status'] == 'restored' and state.get('head') == self.records[-1]['sha256'],
+                'node restoration receipt is not durable')
+        record = self.append(event)
+        self.sealed = True
+        self._state({**self.active, 'status': 'restored', 'head': record['sha256']})
+        return record['sha256']
+
+    def close(self):
+        if self.lock is not None:
+            self.lock.close()
+            self.lock = None
+        if self.node_lock is not None:
+            self.node_lock.close()
+            self.node_lock = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()

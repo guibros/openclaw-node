@@ -1,0 +1,54 @@
+{
+  "atMontreal": "2026-09-29 03:09:24 EDT",
+  "predecessor": "2c0b7b6ca766dd7418af21bd1ef2be82fd8e46f9",
+  "predecessorCI": {
+    "run": 36533132779,
+    "greenJobs": 3
+  },
+  "review": "Claude Message54 accepts filter/durable-callback corrections, then reproduces mixed-width integer-key journal corruption.",
+  "sourcePins": {
+    "managed_launchd.py": "b254efd07a9e8453b8c2ad2d05ddcc18da29804ab4f9583edf5052baf89fd043",
+    "test_managed_launchd.py": "19b7b5df4b80578d2d757d6df490e254d25874998c237806c9553cc9466f2947",
+    "preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c",
+    "preservation_journal.py": "5c89d1fb26d7d3085fa5a9081a8e22b722c92994fa09883d0ee1e1b063aa8f8f",
+    "test_preservation_journal.py": "8d9ff60d57c1ad82bcbd0824db08907479fc13de7b23669d21c065254c4bf340"
+  },
+  "oldNegative": {
+    "at": "2026-09-29T07:08:13.362699+00:00",
+    "oldSourcePin": "4ac13d0e8386e57f22432aa8e392e68b67b709a94009505191421307d9e62f44",
+    "ownedCases": [
+      {
+        "mode": "verified-mixed",
+        "write_failed": true,
+        "records": 1
+      },
+      {
+        "mode": "failed-mixed",
+        "write_failed": true,
+        "records": 1
+      },
+      {
+        "mode": "failed-same-width",
+        "write_failed": false,
+        "records": 3
+      }
+    ],
+    "productionMutations": 0
+  },
+  "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v50",
+  "ownedMacControls": {
+    "passed": 21,
+    "skipped": 1,
+    "all22JobsUnloaded": true,
+    "ownedNatsExit": 0
+  },
+  "journalControls": {
+    "passed": 58,
+    "mixedWidthVerifiedAndFailedReopenRestoreResolve": true,
+    "nonStringKeysRejectedBeforeAppend": true
+  },
+  "scope": "StopWatch exports string PID keys. The strict encoder recursively rejects every non-string dictionary key, including nested tuple/list contents. No production journal or preserved store was modified.",
+  "freshCIAndReviewRequired": true,
+  "productionMutations": 0,
+  "stepClosed": false
+}
