@@ -232,3 +232,17 @@ disabled with no token, yet its unconditional KeepAlive restarts the missing-
 token path; no credential or enabled integration is invented. Timer witness,
 that stop prerequisite, detached orchestration and healthy cold masters remain
 open. See KERNEL_EVENT_EVIDENCE.json; step1.2 stays active.
+
+## D18 — Make post-intent kernel failures durable (2026-09-29 02:50 EDT)
+Claude Message48 finds no blocker on19243eb; both exact CI runs are green3/3.
+Its remaining forensic correction is material: in-memory exception evidence
+alone does not survive controller loss. Journal.mutate now accepts an optional
+sanitized failure-evidence callback, and StopWatch.mutate supplies its complete
+raw-event/lifecycle/exit/bootout snapshot before the durable failed append.
+Explicit KQ_FILTER_PROC classification prevents any other filter with a bound
+PID from being mistaken for a process event. A real EVFILT_USER control uses
+that PID, refuses, and reopens its persisted failure detail. Twenty-one actual
+Mac controls pass/one domain skip;56 journal controls pass. Two refused fixture
+layouts are retained. Pre-intent preparation failures still require a separate
+private durable refusal record in the future driver. No production operations
+or step close follow; exact new CI and independent review remain required.

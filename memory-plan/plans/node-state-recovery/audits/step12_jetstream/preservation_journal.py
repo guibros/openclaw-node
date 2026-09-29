@@ -412,7 +412,7 @@ class Journal:
         require(not self.pending_intents() and not list(self.root.glob('.pending-*')),
                 'incomplete durable intent may only restore prior services')
 
-    def mutate(self, unit, action, apply, verify):
+    def mutate(self, unit, action, apply, verify, failure_evidence=None):
         require(unit in self.prior, 'unit was not in the prior-state inventory')
         require(unit in RESUME_ORDER, 'held or unknown unit cannot be mutated')
         require(self.prior[unit]['class'] != 'held', 'held unit cannot be mutated')
@@ -428,8 +428,9 @@ class Journal:
             return evidence
         except Exception as error:
             if not self.write_failed:
+                detail = {} if failure_evidence is None else {'evidence': failure_evidence(error)}
                 self.append('failed', intent=intent['sequence'], unit=unit, action=action,
-                            error_type=type(error).__name__)
+                            error_type=type(error).__name__, **detail)
             raise
 
     def recover(self, restore, observe, final_check, diagnostics=None):

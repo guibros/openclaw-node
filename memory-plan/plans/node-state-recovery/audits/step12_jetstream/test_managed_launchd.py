@@ -15,6 +15,8 @@ import unittest
 
 from managed_launchd import Launchd, StopWatch, process_exists, unload_idle_timer
 from preservation_checks import Refused, http_json
+from preservation_journal import Journal
+from test_preservation_journal import inventory
 
 
 def free_port():
@@ -306,7 +308,7 @@ os.execv('/bin/sleep',['sleep','30'])
     def test_unexpected_actual_kernel_event_is_retained_on_refusal(self):
         binding = self.launch()
         watch = StopWatch(self.service, binding, [self.log, self.err], 'mesh-task-daemon')
-        with self.assertRaisesRegex(Refused, 'unknown process lifecycle event') as caught:
+        with self.assertRaisesRegex(Refused, 'unexpected kernel event filter') as caught:
             with watch:
                 watch.queue.control([select.kevent(99999999, filter=-10,
                     flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR, fflags=0x01000000)], 0, 0)
@@ -316,6 +318,36 @@ os.execv('/bin/sleep',['sleep','30'])
         self.assertEqual(raw['filter'], -10)
         self.assertEqual(raw['phase'], 'drain')
         self.assertTrue(self.service.status()['running'])
+
+    def test_other_filter_with_bound_pid_refuses_and_is_durable(self):
+        binding = self.launch()
+        watch = StopWatch(self.service, binding, [self.log, self.err], 'mesh-task-daemon')
+        journal_parent = self.directory / 'journals'
+        journal_parent.mkdir(mode=0o700)
+        journal_root = journal_parent / 'window'
+        with Journal(journal_root, inventory({'nats': {}, 'mesh-task-daemon': {}}), boot='owned',
+                     node_lock=self.directory / 'node.lock') as journal:
+            with self.assertRaisesRegex(Refused, 'unexpected kernel event filter'):
+                with watch:
+                    def apply():
+                        watch.queue.control([select.kevent(self.details['pid'], filter=-10,
+                            flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR,
+                            fflags=0x01000000)], 0, 0)
+                        watch.drain()
+                    journal.mutate('mesh-task-daemon', 'stop', apply,
+                        lambda: self.fail('foreign filter must refuse'),
+                        failure_evidence=watch.failure_evidence)
+            row = json.loads((journal_root / '000002.json').read_text())
+            raw = row['evidence']['kernel_events'][-1]
+            self.assertEqual(row['event'], 'failed')
+            self.assertEqual(raw['ident'], self.details['pid'])
+            self.assertEqual(raw['filter'], -10)
+        with Journal(journal_root, boot='owned', node_lock=self.directory / 'node.lock') as reopened:
+            self.assertEqual(reopened.records[-1]['evidence']['kernel_events'][-1], raw)
+            with self.assertRaisesRegex(Refused, 'reopened'):
+                reopened.require_forward()
+        self.assertTrue(self.service.status()['running'])
+        self.proofs.append({'test': self._testMethodName, 'durableFailure': row, 'refused': True})
 
     def test_identity_file_replacement_after_preparation_refuses_before_intent(self):
         identity = self.directory / 'declared-config.json'

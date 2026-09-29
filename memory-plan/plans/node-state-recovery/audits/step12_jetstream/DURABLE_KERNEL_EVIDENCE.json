@@ -1,0 +1,46 @@
+{
+  "at": "2026-09-29T06:49:10.845469+00:00",
+  "predecessor": "19243eb27eafc6925ed5b65abccb9aff42ec9361",
+  "predecessorCI": {
+    "runs": [
+      36531518336,
+      36531517977
+    ],
+    "greenJobsEach": 3
+  },
+  "predecessorReview": "Claude Message48: no blocker; durable kernel detail and explicit process-filter classification requested.",
+  "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v49",
+  "sourcePins": {
+    "managed_launchd.py": "e1b15a39a14110b3aca61a723bb1b74d3a63b768bf1ec24b7617ae8b1f123ac3",
+    "test_managed_launchd.py": "09cff773d20c02e13051e73bfc2d0ce991142e54f676a075293c73b3d071fe6f",
+    "preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c",
+    "preservation_journal.py": "4ac13d0e8386e57f22432aa8e392e68b67b709a94009505191421307d9e62f44",
+    "test_preservation_journal.py": "012942add934ee285221b8ba9e3aeb116217603a24401da1cd1fba4fec1a4f58"
+  },
+  "actualMacControls": {
+    "passed": 21,
+    "skipped": 1,
+    "ownedServerExit": 0,
+    "jobsVerifiedUnloaded": 22,
+    "newControl": "Real EVFILT_USER uses a bound PID; explicit filter rejects it, and raw event survives durable journal reopen.",
+    "skip": "Owned cross-domain bootstrap remains unavailable; negative unproved."
+  },
+  "journalControls": {
+    "passed": 56,
+    "newControl": "Failed evidence survives close/reopen under restore-only fence."
+  },
+  "refusedFixtures": [
+    {
+      "version": 47,
+      "reason": "Wrong owned journal parent; structural gate refused."
+    },
+    {
+      "version": 48,
+      "reason": "Incomplete held-member identity from prior helper; schema gate refused."
+    }
+  ],
+  "productionMutations": 0,
+  "preparationFailuresBeforeIntent": "Driver must still durably retain attached stop_evidence in a separate private preflight refusal record.",
+  "freshCIAndReviewRequired": true,
+  "stepClosed": false
+}

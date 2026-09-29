@@ -59,3 +59,9 @@ in34–65ms. No production timeout change or healthy cold master. Discord's
 disabled/no-token integration is still restarted by its installed unit.
 9deef65 CI36530037917 green3/3, Claude Message46 accepts that source; new
 revision awaits exact CI/review. All driver gates remain open at1.2-pre.
+
+2026-09-29 02:50 EDT — Owned/read-only recovery adapter only:21 actual
+Mac controls/1 explicit domain skip and56 journal controls pass. Kernel
+failure details now persist in post-intent failed journal records; foreign
+filters refuse even for a bound PID. No healthy production service operation,
+quiet window or cold-master acceptance. See DURABLE_KERNEL_EVIDENCE.json.

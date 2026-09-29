@@ -68,3 +68,10 @@ retention plus the pre-watch startup rewrite. Owned historical-size NATS
 and idle memory stops measure34–65ms, with normal exits and cleanup; no
 worst-case or production preservation claim. 9deef65 CI36530037917 green3/3
 and Claude Message46 has no blocker. New exact CI/review pending;1.2 remains[A].
+
+Checkpoint2026-09-29 02:50 EDT: tools-v49 passes21 actual Mac controls/1
+explicit domain skip, including bound-PID foreign-filter refusal with durable
+raw evidence after reopen.56 journal controls pass.19243eb exact CI runs
+36531518336/36531517977 green3/3; Claude Message48 has no blocker. Two
+fixture layout refusals are retained; no production preservation started.
+New exact CI/review pending;1.2 remains[A]. See DURABLE_KERNEL_EVIDENCE.json.

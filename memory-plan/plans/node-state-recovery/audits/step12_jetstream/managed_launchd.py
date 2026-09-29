@@ -296,10 +296,15 @@ class StopWatch:
             self.close()
             raise
 
+    def failure_evidence(self, error):
+        evidence = {'kernel_events': list(self.kernel_events),
+                    'lifecycle': list(self.lifecycle), 'exits': dict(self.events),
+                    'bootout': self.bootout}
+        error.stop_evidence = evidence
+        return evidence
+
     def retain_error(self, error):
-        error.stop_evidence = {'kernel_events': list(self.kernel_events),
-                               'lifecycle': list(self.lifecycle), 'exits': dict(self.events),
-                               'bootout': self.bootout}
+        self.failure_evidence(error)
 
     def record_kernel(self, events, phase):
         for event in events:
@@ -337,6 +342,7 @@ class StopWatch:
                     'flags': event.fflags, 'observed_order': len(self.lifecycle),
                     'observed_monotonic_ns': time.monotonic_ns()})
                 continue
+            require(event.filter == select.KQ_FILTER_PROC, 'unexpected kernel event filter')
             require(event.ident in self.binding['tree'], 'unknown process lifecycle event')
             item = {'pid': event.ident, 'flags': event.fflags,
                     'observed_order': len(self.lifecycle), 'observed_monotonic_ns': time.monotonic_ns()}
@@ -433,7 +439,8 @@ class StopWatch:
     def mutate(self, journal, unit, connection_check, listener_check):
         self.ready_for_intent()
         return journal.mutate(unit, 'stop', self.apply,
-                              lambda: self.verify(connection_check, listener_check))
+                              lambda: self.verify(connection_check, listener_check),
+                              failure_evidence=self.failure_evidence)
 
     def close(self):
         self.queue.close()

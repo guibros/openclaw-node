@@ -180,3 +180,10 @@ prerequisites for the future driver. Those remain open; no production hold
 starts. The present delta binds loaded plist/log provenance and moves expensive
 re-binding before intent with kernel file watches. It also completes all eight
 placement predicate negatives. Source/library controls remain in active1.2.
+
+Claude Message48 accepts19243eb, but points out exception detail is still only
+in memory and non-vnode filters are classified by exclusion. D18 writes the
+StopWatch snapshot into post-intent failed journal records and explicitly
+requires KQ_FILTER_PROC. Pre-intent preparation still needs private durable
+driver refusal records. Owned real-filter/durable-reopen controls cover this
+correction; no production preservation or controller completeness is claimed.

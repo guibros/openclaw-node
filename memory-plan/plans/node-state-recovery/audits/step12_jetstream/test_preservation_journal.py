@@ -94,6 +94,22 @@ class JournalTests(unittest.TestCase):
             with self.assertRaisesRegex(Refused, 'only restore'):
                 journal.mutate('nats', 'unload', lambda: self.fail('must not run'), lambda: {'verified': True})
 
+    def test_failure_evidence_survives_reopen_before_service_restoration(self):
+        raw = {'kernel_events': [{'ident': 123, 'filter': -10, 'flags': 0,
+                                  'fflags': 0, 'data': 0}], 'bootout': None}
+        with self.journal(PRIOR, boot='boot-a') as journal:
+            def apply():
+                raise Refused('owned refusal')
+            with self.assertRaisesRegex(Refused, 'owned refusal'):
+                journal.mutate('mesh-agent', 'stop', apply, lambda: self.fail('must not verify'),
+                               failure_evidence=lambda error: raw)
+        with self.journal(boot='boot-a') as reopened:
+            self.assertEqual(reopened.records[-1]['event'], 'failed')
+            self.assertEqual(reopened.records[-1]['evidence'], raw)
+            self.assertEqual(reopened.records[-1]['error_type'], 'Refused')
+            with self.assertRaisesRegex(Refused, 'reopened'):
+                reopened.require_forward()
+
     def test_reboot_refuses_preservation_but_restores_original_state(self):
         with self.journal(PRIOR, boot='boot-a') as journal:
             journal.mutate('mesh-agent', 'disable', lambda: None, lambda: {'verified': True})

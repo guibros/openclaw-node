@@ -296,7 +296,13 @@ filter, ident, flags, fflags and data. EV_ERROR refuses immediately with its
 kernel errno. Constructor/context refusals attach `stop_evidence` to their
 exception; successful verification includes `kernel_events`. The driver must
 persist that private error evidence even when preparation fails before an
-intent. A plain generic error type is insufficient forensic retention.
+intent. StopWatch.mutate passes its sanitized failure snapshot to the journal
+for post-intent failures; these are durably appended before re-raising. The
+optional Journal failure_evidence callback must return serializable private
+detail. A failed durable append keeps the existing restore-only fence and
+makes no evidence-survival claim. Non-vnode events explicitly require the
+process filter; a bound PID alone cannot classify them. A plain generic
+error type is insufficient forensic retention.
 
 Owned tests use explicit RECOVERY_NODE/NATS_SERVER/RECOVERY_NATS_MODULE and a
 private OPENCLAW_OWNED_TEST_ROOT. All jobs are uniquely named and all sockets

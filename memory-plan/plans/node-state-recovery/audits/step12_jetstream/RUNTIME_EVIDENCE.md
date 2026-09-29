@@ -617,3 +617,14 @@ green3/3 and Claude Message46 finds no blocker in that revision. Current source
 still requires new CI/review. Timer/Discord proof, producer tick gaps, complete
 static inventory, detached controller/restoration and healthy cold masters
 remain open. KERNEL_EVENT_EVIDENCE.json records pins, paths and these limits.
+
+### Durable kernel correction — 2026-09-29 02:50 EDT
+
+Private tools-v49 passes21 real Mac controls/1 explicit domain skip; all22
+owned job labels are unloaded in both domains and the owned NATS server exits0.
+The new control injects actual EVFILT_USER with the bound owner PID, refuses
+without stopping it and reads its raw event back from a durable failed record
+after journal reopen.56 journal controls pass, including failure-evidence
+reopen. v47/v48 fixture-layout mistakes are retained as refused, not accepted.
+Both predecessor19243eb CI runs green3/3 and Claude Message48 finds no blocker.
+New exact CI/review required. No production quiet window or cold copy occurred.
