@@ -1,0 +1,28 @@
+{
+  "at": "2026-09-29T12:45:53Z",
+  "label": "ai.openclaw.archive-contract-e6a0572a5803568b",
+  "source_sha256": "3f8e3d4ec9ad97e90d52ecbb3b057a2c2f6b38e56ad85c97cc8407adbeb7ee60",
+  "template_sha256": "cd0c718459bc261bb033f608dd33ba2d27fa3d833d428193041019eeb4ea4d79",
+  "source_equals_live": true,
+  "template_semantically_equals_original": true,
+  "StartInterval": 3600,
+  "RunAtLoad": true,
+  "archives_verified": 2,
+  "filtered_nontranscript": true,
+  "job_output_bytes": 0,
+  "passed": true,
+  "absent": true,
+  "scope": "Owned HOME/job only; RunAtLoad fire, no natural hourly claim; no production mutation.",
+  "raw_evidence_sha256": "3ca5e6ffc6126cc586bd22c2357849dcf35a29741116603a34cdd4f0a2404690",
+  "bootstrap_exit": 0,
+  "bootout_exit": 0,
+  "unit_exit": 0,
+  "runs": 1,
+  "fixture_changes": [
+    "label nonce",
+    "private HOME/workspace/log paths",
+    "explicit private HOME/PATH environment"
+  ],
+  "behavior_control": "real archive filters transcripts, updates existing copies and retains removed sources: 1 pass / 0 fail / 0 skip on installed Node24.13.0",
+  "production_changed": false
+}

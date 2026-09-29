@@ -197,3 +197,15 @@ wrapper; timer3.6/recovery1.2 consume the same integration next. No production
 gate/controller/timer installation or healthy cold master is claimed.
 Reattachment/adoption/reclose always restores only and never certifies lost
 history; no VM/power-loss durability inference. Exact evidence in step35.
+
+## Archive contract candidate — 2026-09-29 08:45 EDT
+
+3.6[A]/v3.6-mid is the first D22 prerequisite; original timer installation is
+now3.11. New tracked archive body equals live3f8e3d4e byte-for-byte, and its
+parameterized Mac unit renders to the original hourly dictionary. Owned copied
+source executed under native launchd label archive-contract-e6a0572a5803568b:
+RunAtLoad run1/exit0, two fixture transcripts archived, unrelated file filtered,
+zero supervisor log bytes; bootout0 and absence verified. Installed Node24
+filter/update/retention control passes. Exact isolated CI and independent source
+review remain pending. No production archive/unit/source/env/dependency change,
+no gate or general controller. Sole-Journal recovery3.7 is next after closure.
