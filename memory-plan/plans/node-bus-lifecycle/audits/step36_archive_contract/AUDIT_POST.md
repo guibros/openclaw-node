@@ -9,7 +9,7 @@
 | Transcript filter/update/retention controls | yes | Installed Node24 behavior control,1 pass/0 fail/0 skip |
 | Real copied private runtime/job | yes | Native launchd RunAtLoad run1/exit0, two fixture transcripts, no unrelated file/log bytes |
 | Owned teardown | yes | bootout0 and target absence |
-| Exact CI and independent source review | pending | Candidate not closed before these pass |
+| Exact CI and independent source review | yes | Source61d2d78, Claude116 approval, CI36570534434 attempt2 green3/3 |
 
 ## 2 — Greppable deltas
 
@@ -39,7 +39,7 @@ production gate, stop-safe child drain or VM durability is inferred.
 
 ## 5 — Phase8 patches
 
-None currently. Candidate source review and exact isolated CI remain required.
+None. Exact source review and isolated CI pass; closure changes ledger/evidence only.
 
 ## 6 — Carry-forward
 

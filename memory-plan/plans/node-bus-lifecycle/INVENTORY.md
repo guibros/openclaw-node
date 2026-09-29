@@ -50,7 +50,7 @@
 | 3 | 3.3 | v3.3 | [x] | Stop the explicitly disabled Discord tool from crash-looping before a new preservation baseline — 2026-09-29: approved f21c6df/CI3of3; owned10 controls/Mac policy; live one normal inactive run/65s84 samples/13 other owners unchanged; qualified Claude84 review |
 | 3 | 3.4 | v3.4 | [x] | Report confirmed disabled Discord inactivity without hiding real mesh failures — 2026-09-29: approveda4291c4/CI3of3; auth-preserving managed19976, old747 exit0;81.816s/122 checks/two reports; paired36 cells only net.mesh changes; qualified Claude96 |
 | 3 | 3.5 | v3.5 | [x] | Restore interrupted execution holds through the sole durable preservation journal — 2026-09-29: source dbffa1a approved by Claude106/exact CI3of3; private Mac33 hold+47 gate+58 Journal controls; restore-only recovery, no production hold |
-| 3 | 3.6 | v3.6 | [A] | Capture the existing transcript archive in the tracked timer contract |
+| 3 | 3.6 | v3.6 | [x] | Capture the existing transcript archive in the tracked timer contract — 2026-09-29: approved61d2d78/CI3of3; exact old bytes/unit, real filter/update/retention controls, owned Mac run1/exit0/two archives/verified teardown |
 | 3 | 3.7 | v3.7 | [ ] | Expose bounded restore-only recovery through the sole Journal |
 | 3 | 3.8 | v3.8 | [ ] | Stage the complete reachable consolidation execution graph |
 | 3 | 3.9 | v3.9 | [ ] | Pin the five timer launch environments and protected entry contract |
