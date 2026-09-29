@@ -29,3 +29,14 @@
 > **Needs:** 1.3 closed; fresh owned reproduction of the independent task-daemon outage findings; accepted 1.1 source/runtime preserved as its narrow connected-idle contract.
 > **Feeds:** node-state-recovery 1.2 strict connected stop gate; node-readiness 4.1 failure semantics.
 > **Verify:** `code:` real owned-daemon early and late loss during shutdown fail with exit 1 and no completion; connected TERM/INT/repeated-signal controls retain exit 0; mutants removing either actual-closed or error-bearing-close checks fail. `runtime:` e57 lifecycle-only release, fresh idle proof, connected managed stop/restart and read-only readiness; no task-state/unrelated-owner changes. No general async-handler completion claim.
+
+## Block 2 — Verifiable service readiness
+
+| Block | Step | Version | Status | Description |
+|-------|------|---------|--------|-------------|
+| 2 | 2.1 | v2.1 | [A] | Publish task-daemon readiness after its subscriptions reach the bus |
+
+> **2.1 — Goal:** a task-list request made at the task daemon's ready declaration must reach its registered handler.
+> **Needs:** merged main dad1e7b; exact CI failure at worker fixture113; owned authenticated NATS2.12.6; real-daemon startup controls; accepted live e57 task-outage release preserved; independent Claude challenge.
+> **Feeds:** node-state-recovery1.2 readiness gates and root lifecycle CI; node-readiness1.5 restart semantics.
+> **Verify:** `code:` a preconnected owned client requests immediately at the real daemon ready line; retain unpatched failure/control counts and reject readiness while the final real flush return is held; its injected failure must exit1 without ready. Patched source answers without retry. Full isolated CI passes. `runtime:` stage only the readiness barrier on the live cumulative lifecycle release, verify exact entry/dependencies, and after a fresh idle guard perform one managed stop/start with real RPC readiness and unchanged task/bus/other-owner state. Do not call source-only evidence deployment.

@@ -97,3 +97,22 @@
 **Why.** Attempt5 meets the written contract and Claude141 accepts. Four previous refusals reveal verification risks, not license to relax state preservation. Attempt2/3 timeout/guard causes stay unresolved; no queue-overload explanation is adopted.
 
 **Consequences.** Preserve the primary e57 tree and prior releases. Carry10s observer deadlines plus latency/lag/holder diagnostics into the next preservation harness. Define normal stop evidence for each other client from code; worker must exit before task service stops. Parent coordinated recovery, source/dependency reconciliation, direct-KV authorization, active handlers and actual two-machine acceptance remain open. No new autonomous tick is enabled.
+
+## D13 — Task readiness includes server registration (2026-09-28 23:27 EDT)
+
+CI36514681814 failed the main-merge worker fixture at its first task-list RPC,
+line113, with503. The task daemon subscribes and logs ready without flushing;
+its prune invocation is deliberately unawaited. Claude's owned stand-in
+reproduced8/100 no-responders and0/100 with flush, not yet the real daemon.
+Open separate2.1, preserve drain1.1/1.4, and verify real startup before adding
+one flush barrier immediately before the ready declaration. The request test
+must not retry away this contract. Stage the same narrow diff onto the accepted
+e57 cumulative task-outage release. Full tests run only in isolated CI; managed
+deployment still needs its own idle guard and state-preserving evidence.
+
+D13 evidence update (2026-09-28 23:48 EDT): the real dad1e7b daemon, not a
+stand-in, got66/100 immediate503 and34/100 success. The one-line candidate got
+100/100 success;200 normal daemon stops, no retained connections or cleanup
+failures. New regression holds the return of a real flush and injects its
+rejection. It proves awaiting/failure behavior, not delayed wire propagation
+or actual server loss. Existing1.4 controls retain real outage coverage.
