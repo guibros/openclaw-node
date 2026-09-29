@@ -1,0 +1,22 @@
+{
+  "startedAtUTC": "2026-09-29T09:15:45.074700+00:00",
+  "harnessSha": "6d2514c2d06d0a0697678a5d5f765f4d9e0eb934f26766f91aca59e5be843b80",
+  "actualNode": "24.13.0",
+  "productionMutations": 0,
+  "acceptedSnapshotSha256": "da8cd26ced1c0c7bd496c6c8c21bb677d376515e317ca81edf4e174b7370e028",
+  "proofStatus": "passed",
+  "pendingWriteOwnedAfterAbort": true,
+  "invocation": {
+    "pid": 87075,
+    "atMs": 1790673346524,
+    "ok": false,
+    "error": "consolidation cycle exceeded hard cap (1000ms)",
+    "generated": 1,
+    "aborted": true,
+    "atomicSyncFinished": true
+  },
+  "acceptedSnapshotUnchanged": true,
+  "stderrBytes": 0,
+  "ownedProcessExited": true,
+  "completedAtUTC": "2026-09-29T09:15:46.578738+00:00"
+}

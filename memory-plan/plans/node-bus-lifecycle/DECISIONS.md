@@ -239,3 +239,14 @@ Foreground failure notifications exclude detached Linux click waiters and
 complete before invocation release. Other invokers and general daemon-drain
 remain3.5/parent work.3.2 uses private deployed consumers; production timer
 installation remains the separate3.5 acceptance contract.
+
+D18 closure2026-09-29 05:26 EDT:source159b8dd approved as-is by Claude72/74;
+Linux158 reproduced, exactCI36547696359 green3/3. Actual private Mac gate
+retains ownership through cleanup and notification CLI/platform child, then
+normal exit0/drain/reopen. Real staged atomic-write control stays owned through
+abort, finishes sync/rename before return; accepted snapshot unchanged. Seven
+old-source controls fail. Close only3.2's written private-consumer contract.
+Outer notify timeout withdrawn: direct-child kill can orphan the platform
+grandchild, a race can return early. Partial-result audit/duration visibility
+carry forward as separate parent observability work.3.3 next; production timer
+installation/general daemon/preservation proof remain open.

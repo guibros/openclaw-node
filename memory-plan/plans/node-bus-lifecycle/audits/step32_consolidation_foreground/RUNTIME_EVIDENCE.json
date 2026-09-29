@@ -1,5 +1,5 @@
 {
-  "recordedAtUTC": "2026-09-29T09:11:32.538163+00:00",
+  "recordedAtUTC": "2026-09-29T09:21:26.513637+00:00",
   "source": {
     "atUTC": "2026-09-29T09:08:55.540835+00:00",
     "stage": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/consolidation-foreground-pre/candidate-v2",
@@ -15,7 +15,8 @@
     },
     "sameSource": true,
     "sharedDependencyMutation": false,
-    "productionWrites": 0
+    "productionWrites": 0,
+    "immutableCommit": "159b8ddec1f947d94b855c38a1bc38d881e29799"
   },
   "focused": {
     "node": "24.13.0",
@@ -29,7 +30,10 @@
     "source": "0f0dcc26f0ed63cbe3441e7839ee6be470441fa9",
     "expectedFail": 5,
     "unexpectedPass": 0,
-    "logSha256": "381f4aa6f54cc463f429e57f0120e08dcdfd5a18fc12800384eebc5032eda276"
+    "logSha256": "381f4aa6f54cc463f429e57f0120e08dcdfd5a18fc12800384eebc5032eda276",
+    "additionalExpectedFail": 2,
+    "additionalLogSha256": "3008fe4bab9d82179f9bca45b66ad584459d014c837345899b3a2e4c1687e27d",
+    "totalExpectedFail": 7
   },
   "ownedForeground": {
     "record": "OWNED_FOREGROUND_EVIDENCE.json",
@@ -117,17 +121,66 @@
       "decisions": 20,
       "themes": 724
     },
-    "completedAt": "2026-09-29T09:05:28.365Z"
+    "completedAt": "2026-09-29T09:05:28.365Z",
+    "sumStageMs": 390.338875,
+    "maxStageMs": 116.75354200000001
   },
   "profileSourceUnchanged": true,
-  "exactCI": "pending",
-  "independentSourceReview": "pending",
-  "planState": "3.2[A]/v3.2-mid",
+  "exactCI": {
+    "run": 36547696359,
+    "head": "159b8ddec1f947d94b855c38a1bc38d881e29799",
+    "conclusion": "success",
+    "passedJobs": [
+      "unit-tests (20)",
+      "unit-tests (22)",
+      "mission-control-tests"
+    ],
+    "url": "https://github.com/moltyguibros-design/openclaw-node/actions/runs/36547696359",
+    "root": {
+      "tests": 2532,
+      "pass": 2527,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 5,
+      "versions": [
+        20,
+        22
+      ]
+    },
+    "missionControl": {
+      "tests": 129,
+      "pass": 129,
+      "files": 11
+    },
+    "logSha256": "5db5eb5b503a6a72f4ae6bfa51c7221927e2424cb117e0dd5f7bdd7c87b34b58"
+  },
+  "independentSourceReview": {
+    "source": "159b8ddec1f947d94b855c38a1bc38d881e29799",
+    "claudeMessage": 72,
+    "contractApproved": true,
+    "focusedLinuxPassed": 158,
+    "additionalTimeoutSuggestion": "Withdrawn in74; immutable159b8dd accepted as-is",
+    "runtime": "Mac evidence is Codex observation, not independently reproduced by Claude",
+    "finalClaudeMessage": 74,
+    "privateConsumerContractAccepted": true
+  },
+  "planState": "3.2[x]/v3.2",
   "productionInstalled": false,
   "limits": [
     "Local invocation only; no remote inference completion",
     "No production timer installation or preservation acceptance",
     "No global handler/delegated extraction drain",
     "Synchronous/uncooperative work has no guaranteed wall termination"
-  ]
+  ],
+  "ownedPendingWrite": {
+    "record": "OWNED_PENDING_WRITE_EVIDENCE.json",
+    "rawSha256": "c5aa536e71d1b1ec16d90aa315f4b62de6edcef0cf47da7daabc1da3bd79fea5",
+    "status": "passed",
+    "pendingWriteOwnedAfterAbort": true,
+    "generated": 1,
+    "atomicSyncFinished": true,
+    "normalExit": 0,
+    "acceptedSnapshotUnchanged": true,
+    "productionMutations": 0
+  }
 }
