@@ -212,3 +212,23 @@ open. The earlier20-unit preparation misparsed enabled/disabled as booleans;
 its rejected bytes/correction are retained privately and neither is an approved
 preservation baseline. Member1 is still disabled/unloaded. Exact new CI/review
 remains required.
+
+## D17 — Retain raw stop failures before classification (2026-09-29 02:33 EDT)
+Claude Message46 accepts9deef65 and its provenance/readiness delta, then
+identifies missing raw kernel events and the lost pre-watch startup negative.
+Record each raw filter/ident/flags/fflags/data before any classification;
+EV_ERROR refuses immediately with errno, and context/constructor errors retain
+private stop_evidence. Restore the identical-rewrite-after-start negative and
+provide one helper for ready-before-journal-intent ordering. Inode watches
+cannot pin parent-directory/symlink mappings; restoration must recheck static
+paths and dependencies. No dependency build/install during an unresolved window.
+Twenty real Mac controls pass/one explicit domain skip; v45's missing-import
+draft is retained as refused. Four owned NATS stops with eleven archive restores
+measure34–45ms; one idle installed-source memory stop with253,943,808 copied
+database bytes measures65ms. These are historical-size idle samples, not worst-
+case bounds or active-worker drain proof. Production five-second timeouts are
+unchanged. Actual serving NATS configs omit log_file. Discord is configured
+disabled with no token, yet its unconditional KeepAlive restarts the missing-
+token path; no credential or enabled integration is invented. Timer witness,
+that stop prerequisite, detached orchestration and healthy cold masters remain
+open. See KERNEL_EVENT_EVIDENCE.json; step1.2 stays active.

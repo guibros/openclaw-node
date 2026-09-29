@@ -86,6 +86,14 @@ failed verification, in dependency order, with explicit readiness evidence.
 The operational driver and real service-stop checks remain in step1.2.
 
 ## Mid-Implementation Findings
+Claude Message46 accepts9deef65, then identifies discarded raw kernel errors
+and the missing pre-watch startup-rewrite negative. Retain raw events before
+classification, refuse EV_ERROR, restore that negative and supply a structural
+ready-before-intent helper. Explicitly document inode/path limits. Twenty
+actual Mac controls pass with one cross-domain skip; v45's missing-import
+draft remains refused. Four owned NATS stops and one idle memory stop supply
+historical production-size samples only. Discord is disabled with no token;
+its unconditional restart loop cannot be treated as a working integration.
 Claude Message40 accepts the adapter only within its limited scope and identifies
 timeout, orphaned process-group, child/fork, identity/environment and idle-timer
 race gaps. This next adapter checkpoint handles those stop-evidence gaps with

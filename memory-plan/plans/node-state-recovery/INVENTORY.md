@@ -61,3 +61,10 @@ Thirteen live owners retain the same PIDs and pass actual loaded plist/log
 provenance. New exact CI/review pending. Producer tick gaps, stop margins,
 Discord/timer proof, detached orchestration and healthy cold masters remain
 open at1.2-pre. See D16 and LOADED_PROVENANCE_EVIDENCE.json.
+
+Checkpoint2026-09-29 02:33 EDT: tools-v46 passes20 actual Mac controls/1
+explicit domain skip, including real kernel errno and unexpected-event
+retention plus the pre-watch startup rewrite. Owned historical-size NATS
+and idle memory stops measure34–65ms, with normal exits and cleanup; no
+worst-case or production preservation claim. 9deef65 CI36530037917 green3/3
+and Claude Message46 has no blocker. New exact CI/review pending;1.2 remains[A].

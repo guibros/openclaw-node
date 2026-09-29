@@ -1,0 +1,87 @@
+{
+  "at": "2026-09-29T06:31:01.000752+00:00",
+  "predecessor": "9deef6529449c8e05a16332bcbaf5d8c249face4",
+  "predecessorCI": {
+    "run": 36530037917,
+    "greenJobs": 3
+  },
+  "predecessorReview": "Claude Message46: no blocker; raw error retention, startup negative and explicit inode/path limits requested.",
+  "sourcePins": {
+    "managed_launchd.py": "df70427fbd6733520d2504680a200e38338c540e021c23d2c10c94d4a65ad6a9",
+    "test_managed_launchd.py": "2a10196699d793591eb5c0890020fc7c9209dcf5181b9f679d03347be1a0bc07",
+    "preservation_checks.py": "bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c"
+  },
+  "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/tools-v46",
+  "ownedControls": {
+    "passed": 20,
+    "skipped": 1,
+    "ownedServerExit": 0,
+    "all21OwnedJobsVerifiedUnloaded": true,
+    "kernelErrorNegative": "Real EV_RECEIPT on invalid FD returns EV_ERROR with retained errno.",
+    "unexpectedEventNegative": "Real EVFILT_USER is retained before refusal.",
+    "startupRewriteNegative": "Identical bytes rewritten after launch, before watch preparation, refuse.",
+    "skip": "Owned user-domain bootstrap remains unavailable; cross-domain negative unproved."
+  },
+  "refusedDraft": {
+    "tools": "v45",
+    "reason": "Actual EV_ERROR test exposed missing Refused import, corrected in v46.",
+    "passed": 19,
+    "errors": 1,
+    "skipped": 1,
+    "ownedServerExit": 0
+  },
+  "ownedStopSamples": {
+    "nats": {
+      "privateEvidence": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/owned-stop-sizing-v2/STOP_MEASUREMENTS.json",
+      "adapterPin": "6f8bd861044a003e040e947981be6c103d0582b115dc5d91fda891a6125d2ce1",
+      "stops": 4,
+      "elapsedSeconds": [
+        0.04487366699999962,
+        0.04164499999999993,
+        0.04190729200000032,
+        0.03437670799999992
+      ],
+      "archives": 11,
+      "nonExpiringMessages": 80156,
+      "originalReplicaPolicies": true,
+      "allOwnedJobsUnloaded": true,
+      "refusedStartupDraft": "v1 retained, startup polling incorrectly propagated not-ready Refused; v2 corrects wait only."
+    },
+    "memory": {
+      "privateEvidence": "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/owned-memory-stop-sizing-v1/STOP_MEASUREMENT.json",
+      "adapterPin": "df70427fbd6733520d2504680a200e38338c540e021c23d2c10c94d4a65ad6a9",
+      "elapsedSeconds": 0.06548929100000045,
+      "copiedDatabaseBytes": 253943808,
+      "sourceEntrySha256": "c11809ee14fe19de4077fe9e9b3a7fc91d2a4aa59c71ff171635e00be2c2c5dc",
+      "sourceEntryMatchesInstalled": true,
+      "normalFormerCidClose": true,
+      "allOwnedJobsUnloaded": true,
+      "limits": "One idle stop with copied production-sized SQLite stores and actual installed source. Empty transcript sources, separate HOME/workspace/ports, disabled notifications and LLM URL unused; no active extraction, subprocess or worker shutdown claim."
+    },
+    "notWorstCaseBounds": true,
+    "productionExitTimeoutChanged": false,
+    "harnessPins": {
+      "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/owned-stop-sizing-v2/run.py": "3da1f12959ac196387a785a2baf58109a26b739655af160c4f191aa79fd18866",
+      "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/owned-stop-sizing-v2/prepare.mjs": "48b6c8fc5f8a5746ebae1abd5b6e2fc1617293bf65e8246b34650795d2b24c55",
+      "/Users/moltymac/.openclaw/backups/node-readiness/jetstream-20260928-1/owned-memory-stop-sizing-v1/run.py": "3a3726c286ed708817242c51e484a3b82c441b3f3d5d3125347f88cdacf7b848"
+    }
+  },
+  "actualServingNatsConfigsDeclareLogFile": false,
+  "discordObservation": {
+    "enabled": false,
+    "hasBotToken": false,
+    "unconditionalLaunchdKeepAlive": true,
+    "configChanged": false,
+    "integrationEnabled": false
+  },
+  "productionMutations": 0,
+  "stepClosed": false,
+  "freshCIAndReviewRequired": true,
+  "driverGatesRemain": [
+    "Completed producer tick gaps",
+    "Independent timer spawn witness and Discord stop path",
+    "Complete static build/dependency and extra-job inventory",
+    "Detached controller and verified restoration",
+    "Three healthy cold masters and isolated restores"
+  ]
+}

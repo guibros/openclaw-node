@@ -584,3 +584,36 @@ independently passes recovery twice. This newer source requires fresh CI/review.
 Producer tick gaps, stop-time measurements and Discord/timer gates remain
 open with the driver and healthy cold masters. See D16 and
 LOADED_PROVENANCE_EVIDENCE.json. No production service was changed.
+
+## Kernel refusal evidence and owned stop sizing —2026-09-29 02:33 EDT
+
+Private tools-v46 passes20 real Mac launchd controls with one explicit user-
+domain skip. A real invalid-fd EV_RECEIPT retains EV_ERROR/errno; a real user
+event is retained before unknown-event refusal. The restored startup test
+rejects an identical file rewrite between process launch and watch preparation.
+All21 owned jobs are unloaded in both queried domains; no cross-domain runtime
+pass is inferred. v45 exposed a missing Refused import in the new error path
+(19pass/1error/1skip); that draft and its normal owned-server exit remain private.
+
+Private owned-stop-sizing-v2 restores11 individual archives (80,156 non-expiring
+messages) to four owned NATS servers with original replica policies, closes its
+clients, then observes four normal managed exits in34–45ms. Its v1 startup
+wait refusal is retained; both runs unload their owned jobs. This uses the
+previously accepted v44 adapter and historical archive points, not new live
+archives or accepted healthy cold masters.
+
+Private owned-memory-stop-sizing-v1 uses identical installed entry bytes with
+a separate HOME/workspace/bus/injection port, empty transcript sources, disabled
+notifications and an unused isolated LLM URL. Three copied SQLite stores total
+253,943,808bytes. Actual process file inventory confirms all three open under
+the owned HOME; knowledge/extraction/graph initialization and first maintenance
+complete, queue is idle. Managed normal exit takes65ms, former CID closes
+normally and injection listener disappears. Both owned units unload. This is
+one idle stop; active extraction, subprocesses and workers are not covered.
+
+Serving NATS configs omit log_file. Discord is enabled:false with no token;
+no config/credential/integration change occurs. Exact9deef65 CI36530037917 is
+green3/3 and Claude Message46 finds no blocker in that revision. Current source
+still requires new CI/review. Timer/Discord proof, producer tick gaps, complete
+static inventory, detached controller/restoration and healthy cold masters
+remain open. KERNEL_EVENT_EVIDENCE.json records pins, paths and these limits.

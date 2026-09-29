@@ -255,13 +255,16 @@ new publications or policy changes still refuse the quiet window.
 exit watches and timer unload callbacks. Construct `StopWatch` before writing
 Journal stop intent: expensive process/code/environment rebinding happens
 during construction, with process and identity-file watches already active.
-The driver must then call `ready_for_intent()` immediately before
-`Journal.mutate`, outside its durable mutation intent. The apply callback
+Use `watch.mutate(journal, unit, connection_check, listener_check)` to call
+`ready_for_intent()` immediately before `Journal.mutate`, outside its durable
+mutation intent. The apply callback
 rechecks generation, tree and queued events, without repeating file hashing
 or executable/cwd inspection after intent. This does not establish a completed
 producer tick: the driver must separately select a fresh child-free gap after
 the producer's tick completes. Pass the prepared apply/verify callbacks to
-`Journal.mutate` only after those gates.
+that helper only after those gates. The journal still performs its own
+admission and durable-write checks; the helper is not an atomic filesystem
+or producer lock.
 Verification requires separately supplied physical listener and former-CID
 checks; the callback's true result must come from the actual managed driver.
 Do not substitute a generic lambda:true in production. Approved executable/
@@ -281,7 +284,19 @@ notification with unchanged opened and current path device/inode/ctime is
 ignored, since inspecting files can update atime. This is a watch on the
 declared files, not a complete dependency inventory or a global filesystem
 lock. The v43 refused draft did not retain its exact event detail; its cause
-is unproved. v44 passes the real replacement and chmod negatives.
+is unproved. v44 passes the real replacement and chmod negatives. Watches
+follow opened inodes, so changing a parent directory or symlink can change
+what a path resolves to without notifying those inodes. Callers use resolved
+identity paths and must recheck the full static path/dependency mapping before
+restoration. Dependency installation or rebuild in a linked checkout is
+forbidden through an unresolved window; no global path lock is claimed.
+
+Raw kernel events are retained before classification or refusal, including
+filter, ident, flags, fflags and data. EV_ERROR refuses immediately with its
+kernel errno. Constructor/context refusals attach `stop_evidence` to their
+exception; successful verification includes `kernel_events`. The driver must
+persist that private error evidence even when preparation fails before an
+intent. A plain generic error type is insufficient forensic retention.
 
 Owned tests use explicit RECOVERY_NODE/NATS_SERVER/RECOVERY_NATS_MODULE and a
 private OPENCLAW_OWNED_TEST_ROOT. All jobs are uniquely named and all sockets
@@ -312,4 +327,10 @@ any production baseline, measure normal stop time on production-sized owned
 NATS and memory copies against each loaded exit timeout. A needed timeout
 change is a separately verified prerequisite. The Discord crash loop requires
 a verified stop path or independently witnessed idle unload; no stable PID
-or an empty unified-log query is not proof of safe quiescence.
+or an empty unified-log query is not proof of safe quiescence. Four owned NATS
+stops with all eleven archive restores and original replica policies measured
+34–45ms; one idle memory stop with253,943,808 copied database bytes measured
+65ms. These historical-size samples are not worst-case bounds and do not cover
+active extraction, worker or subprocess shutdown. Production's five-second
+timeout remains unchanged. All three pinned serving NATS configs omit log_file,
+so their completion marker uses the loaded stdout/stderr paths.

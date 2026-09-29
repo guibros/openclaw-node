@@ -9,7 +9,7 @@ import struct
 import subprocess
 import time
 
-from preservation_checks import require, verify_completion, verify_timer_idle
+from preservation_checks import Refused, require, verify_completion, verify_timer_idle
 
 
 EXIT_FLAGS = 0x84000000
@@ -261,6 +261,7 @@ class StopWatch:
         self.bus_client_names = bus_client_names
         self.events = {}
         self.lifecycle = []
+        self.kernel_events = []
         self.bootout = None
         self.file_handles = {}
         self.prepared = False
@@ -273,6 +274,7 @@ class StopWatch:
                        flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_CLEAR,
                        fflags=EXIT_FLAGS | CHANGE_FLAGS) for pid in binding['tree']]
             returned = self.queue.control(events, len(events), 0)
+            self.record_kernel(returned, 'register-process')
             require(not returned, 'owner exited before durable stop intent')
             require(service.status() == binding['status'], 'service generation changed before stop')
             for path in binding['identity']['files']:
@@ -281,6 +283,7 @@ class StopWatch:
             returned = self.queue.control([select.kevent(fd, filter=select.KQ_FILTER_VNODE,
                 flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_CLEAR,
                 fflags=0x7f) for fd in self.file_handles], len(self.file_handles), 0)
+            self.record_kernel(returned, 'register-identity')
             require(not returned, 'identity file changed while preparing watch')
             current = self.service.bind(binding['argv'], binding['executable'], binding['cwd'],
                         {path: pin['sha256'] for path, pin in binding['identity']['files'].items()})
@@ -288,13 +291,31 @@ class StopWatch:
                     'running code, environment or log identity changed')
             self.prepared = True
             self.ready_for_intent()
-        except BaseException:
+        except BaseException as error:
+            self.retain_error(error)
             self.close()
             raise
+
+    def retain_error(self, error):
+        error.stop_evidence = {'kernel_events': list(self.kernel_events),
+                               'lifecycle': list(self.lifecycle), 'exits': dict(self.events),
+                               'bootout': self.bootout}
+
+    def record_kernel(self, events, phase):
+        for event in events:
+            self.kernel_events.append({'phase': phase, 'filter': event.filter,
+                'ident': event.ident, 'flags': event.flags, 'fflags': event.fflags,
+                'data': event.data, 'observed_monotonic_ns': time.monotonic_ns()})
+        errors = [event for event in events if event.flags & select.KQ_EV_ERROR]
+        if errors:
+            error = Refused('kernel watch error: ' + ','.join(str(event.data) for event in errors))
+            self.retain_error(error)
+            raise error
 
     def drain(self, timeout=0):
         owner = self.binding['status']['pid']
         returned = self.queue.control(None, max(1, len(self.binding['tree']) + len(self.file_handles)), timeout)
+        self.record_kernel(returned, 'drain')
         owner_exits = any(item.filter == select.KQ_FILTER_PROC and item.ident == owner
                           and item.fflags & 0x80000000 for item in returned)
         for event in returned:
@@ -403,10 +424,16 @@ class StopWatch:
                           bus_client_names=self.bus_client_names)
         return {'verified': True, 'owner': self.binding['status']['pid'],
                 'exit_flags_requested': EXIT_FLAGS, 'exits': self.events,
-                'lifecycle': self.lifecycle, 'bootout': self.bootout, 'process_contracts': self.contracts,
+                'lifecycle': self.lifecycle, 'kernel_events': self.kernel_events,
+                'bootout': self.bootout, 'process_contracts': self.contracts,
                 'unit_unloaded': True, 'descendants_absent': True,
                 'connections_closed': True, 'listeners_absent': True,
                 'log_offsets': self.offsets, 'termination': termination}
+
+    def mutate(self, journal, unit, connection_check, listener_check):
+        self.ready_for_intent()
+        return journal.mutate(unit, 'stop', self.apply,
+                              lambda: self.verify(connection_check, listener_check))
 
     def close(self):
         self.queue.close()
@@ -418,6 +445,8 @@ class StopWatch:
         return self
 
     def __exit__(self, *args):
+        if args[1] is not None:
+            self.retain_error(args[1])
         self.close()
 
 

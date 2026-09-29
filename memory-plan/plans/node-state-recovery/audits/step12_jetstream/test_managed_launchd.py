@@ -4,6 +4,7 @@ import os
 import pathlib
 import plistlib
 import secrets
+import select
 import shutil
 import socket
 import subprocess
@@ -267,7 +268,7 @@ os.execv('/bin/sleep',['sleep','30'])
         self.assertTrue(self.service.status()['running'])
         self.proofs.append({'test': self._testMethodName, 'lifecycle': watch.lifecycle, 'refused': True})
 
-    def test_identical_identity_rewrite_after_start_refuses_before_stop(self):
+    def test_identical_identity_rewrite_after_watch_preparation_refuses_before_stop(self):
         identity = self.directory / 'declared-config.json'
         identity.write_text('{}')
         pins = {str(identity): hashlib.sha256(identity.read_bytes()).hexdigest()}
@@ -276,6 +277,44 @@ os.execv('/bin/sleep',['sleep','30'])
             identity.write_text('{}')
             with self.assertRaisesRegex(Refused, 'identity file mutated after watch preparation'):
                 watch.apply()
+        self.assertTrue(self.service.status()['running'])
+
+    def test_identical_identity_rewrite_after_start_before_watch_refuses(self):
+        identity = self.directory / 'declared-config.json'
+        identity.write_text('{}')
+        binding = self.launch(identity_files={str(identity): hashlib.sha256(identity.read_bytes()).hexdigest()})
+        time.sleep(.01)
+        identity.write_text('{}')
+        with self.assertRaisesRegex(Refused, 'identity file changed after process startup'):
+            StopWatch(self.service, binding, [self.log, self.err], 'mesh-task-daemon')
+        self.assertTrue(self.service.status()['running'])
+
+    def test_actual_kernel_registration_error_retains_errno(self):
+        binding = self.launch()
+        with StopWatch(self.service, binding, [self.log, self.err], 'mesh-task-daemon') as watch:
+            returned = watch.queue.control([select.kevent(99999999, filter=select.KQ_FILTER_VNODE,
+                flags=select.KQ_EV_ADD | 0x40, fflags=0x7f)], 1, 0)
+            with self.assertRaisesRegex(Refused, 'kernel watch error') as caught:
+                watch.record_kernel(returned, 'owned-invalid-registration')
+            raw = caught.exception.stop_evidence['kernel_events'][-1]
+            self.assertEqual(raw['ident'], 99999999)
+            self.assertEqual(raw['filter'], select.KQ_FILTER_VNODE)
+            self.assertTrue(raw['flags'] & select.KQ_EV_ERROR)
+            self.assertGreater(raw['data'], 0)
+        self.assertTrue(self.service.status()['running'])
+
+    def test_unexpected_actual_kernel_event_is_retained_on_refusal(self):
+        binding = self.launch()
+        watch = StopWatch(self.service, binding, [self.log, self.err], 'mesh-task-daemon')
+        with self.assertRaisesRegex(Refused, 'unknown process lifecycle event') as caught:
+            with watch:
+                watch.queue.control([select.kevent(99999999, filter=-10,
+                    flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR, fflags=0x01000000)], 0, 0)
+                watch.drain()
+        raw = caught.exception.stop_evidence['kernel_events'][-1]
+        self.assertEqual(raw['ident'], 99999999)
+        self.assertEqual(raw['filter'], -10)
+        self.assertEqual(raw['phase'], 'drain')
         self.assertTrue(self.service.status()['running'])
 
     def test_identity_file_replacement_after_preparation_refuses_before_intent(self):
