@@ -209,3 +209,12 @@ zero supervisor log bytes; bootout0 and absence verified. Installed Node24
 filter/update/retention control passes. Exact isolated CI and independent source
 review remain pending. No production archive/unit/source/env/dependency change,
 no gate or general controller. Sole-Journal recovery3.7 is next after closure.
+
+Archive contract closure — 2026-09-29 08:55 EDT:3.6[x]/v3.6. Exact61d2d78
+approved by Claude116; CI36570534434 attempt2 green3/3. Node20/22 each2563
+total/2557 pass/6 skip/0 fail/0 cancel, including real archive content controls.
+Private Mac run/semantic equality remain locally observed; no production unit,
+script, graph/dependency or activation changed. Feeds3.9/3.11's tracked entry
+input and existing installer workspace copy.3.7 bounded recovery remains next;
+actual commissioning3.11 and full preservation1.2 stay open. Closure ledger has
+no source delta and still requires exact closure-head CI before merge.

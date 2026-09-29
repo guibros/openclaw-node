@@ -49,3 +49,24 @@ protected launch contract;3.10 proves the old-entry transition.3.11 owns actual
 five-timer deployment, persistent baseline, closed fires and readiness reopen.
 Never force an old live run to manufacture an idle proof. Existing archive
 source/unit, primarye57 and shared dependencies were not modified in this step.
+
+3.10 must record exact prior units/source/desired-state rollback artifacts before
+its first swap and exercise that pre-baseline failure path separately from
+post-baseline Journal/node_lock recovery.3.8 uses its own copied entry/lib/schema
+release rather than changing live shared application modules; the daemon remains
+a separate invoker. Received environment checks stay private, never raw secrets
+in a report.3.11 is actual commissioning after the prerequisites, not another
+unlisted staging gate or an implicit full preservation controller.
+
+## Closure — 2026-09-29 08:55 EDT
+
+3.6[x]/v3.6. Claude116 approves exact source61d2d78 and independently confirms
+committed script/template hashes, behavior-test shape and unchanged service
+manifest. Exact CI36570534434 attempt2 passes3/3: Node20 and22 each2563 tests,
+2557 pass/6 skip/0 fail/0 cancel; Mission Control lint/unit/audit/build pass.
+The first attempt failed before root tests on an upstream ONNX binary HTTP500;
+same commit retried without code/workflow/dependency change. The actual private
+Mac RunAtLoad evidence remains locally observed, not remotely reproduced.
+No production source/unit change, natural hourly proof, stopped-child safety,
+timer hold, whole-node preservation or VM durability claim. Closure is ledger
+only; require closure-head checks before merge.3.7 is the next atomic outcome.

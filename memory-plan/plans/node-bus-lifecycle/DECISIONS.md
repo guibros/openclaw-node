@@ -424,3 +424,17 @@ adds tracked commissioning inputs and owned consumers. No new autostart manifest
 entry until commissioning. Linux service support and archive integrity/error
 reporting are parent follow-ups. Source review and Mac runtime observation remain
 separate; no process-kill evidence proves VM/power-loss durability.
+
+D22 clarification/3.6 closure (2026-09-29 08:55 EDT): Claude116 approves exact
+61d2d78 source capture and the split; CI36570534434 attempt2 green3/3 after
+one retained upstream HTTP500 setup failure. Copied private Mac RunAtLoad and
+real transcript-content controls close3.6 only.3.8 creates its own copied entry,
+lib and generated-schema tree with unchanged third-party dependencies; it does
+not overlay live shared application modules or change the daemon's imports.
+3.10 needs durable exact original rollback artifacts and interruption controls
+before a baseline exists, distinct from post-baseline sole-Journal recovery.
+Actual received environment is verified privately, not printed/shared.3.11 is
+the explicit actual commissioning step after3.6–3.10; bounded restore-only
+recovery is its sole handoff, not an unlisted full1.2 controller. Archive update
+semantics and misleading success on rsync failure remain recorded follow-ups.
+Require exact closure-head CI/source identity before merging ledger-only closure.
