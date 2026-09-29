@@ -1,6 +1,5 @@
 {
   "at": "2026-09-29T04:30:57.335784+00:00",
-  "accepted": true,
   "readOnlyContinuation": true,
   "noAdditionalServiceRestart": true,
   "previousAttemptAccepted": false,
@@ -152,5 +151,7 @@
     "The log-watcher RPC is health evidence. Real staged-entry held-return controls prove awaiting the barrier.",
     "Flush acknowledges local server registration; remote route propagation is asynchronous. Finite cross-member success is qualified evidence.",
     "No global admission fence, whole-bus preservation, cold backup, active-handler completion or complete node readiness is claimed."
-  ]
+  ],
+  "readOnlyChecksPassed": true,
+  "acceptanceScope": "This flag and finalGuard.accepted mean read-only checks passed. Run3 remains unaccepted; complete run5 is the authoritative managed restart acceptance."
 }

@@ -42,5 +42,7 @@
     "Hashed raw exit/gap/start/connection/RPC records written before observer cleanup; RAW_RECORDS.json.",
     "NOTE_EXITSTATUS explicitly requested and echoed:2214592512=0x84000000; wait status0.",
     "Member4222-only gap; exclusion is serverID+CID; zero worker requests during the419ms paused period including gap."
-  ]
+  ],
+  "runtimeVerdictRecordedAt": "2026-09-29T05:07:10.985622+00:00",
+  "replyConfidentiality": "The _INBOX.> callback discards uncorrelated subjects before decoding. Correlated non-null claim replies are refused with category/errorCode only; neither body nor assertion message is emitted. The managed preservation driver must apply the same rule."
 }
