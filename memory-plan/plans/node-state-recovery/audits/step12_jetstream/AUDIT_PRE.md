@@ -132,3 +132,11 @@ provides actual kernel exit-status evidence only; real child/CID negative cases
 and the managed driver remain required. CI's first mesh.tasks.list503 at fixture
 line113 feeds a separate lifecycle readiness step, leaving this suite red until
 that prerequisite is fixed and verified.
+
+Claude Message30 independently passed the twenty cleanup-skipping creation
+crash-boundary cases and ENOSPC recovery on ab7097c, then found owned regular
+Finder metadata still fenced restoration inside an initializing root. D12
+applies the existing metadata rule at that exact boundary; negative metadata
+controls retain fencing. No healthy production bus stops or copy acceptance
+follow. The installed PR149 readiness repair is now merged before integration
+CI. Its broader managed driver remains to be implemented and verified.

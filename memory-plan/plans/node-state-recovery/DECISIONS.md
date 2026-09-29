@@ -130,3 +130,18 @@ pass both from source and private deployed tools-v30; unchanged admission/electi
 tests inherit only identical hashes. Exact new CI and independent review are
 still required. This remains a restoration primitive, with the driver and actual
 healthy cold-copy acceptance open.
+
+## D12 — Finder metadata during initializing recovery (2026-09-29 01:00 EDT)
+Claude Message30 accepted ab7097c's creation/crash-boundary fixes but reproduced
+owned regular Finder metadata stranding an initializing root. Apply the same
+owned-regular-file rule inside that root as in the parent; preserve its bytes.
+Links, directories, foreign owners and other entries still refuse and fence
+new windows. This changes no terminal or restore-only semantics. The new
+regression rejects ab7097c; all55 tests pass from private tools-v31. The unchanged
+15 admission/1 account-election tests are inherited by identical file hashes,
+not called fresh runs. ab7097c CI36518928261 is green; this checkpoint integrates
+main55131b8, including the installed/verified PR149 readiness prerequisite,
+before fresh integration CI. The future driver must explicitly include
+nats-auth.conf and Mission Control's actual npm-start build entry in identity;
+its tools/dependencies stay pinned throughout an unresolved window. General
+managed orchestration and three healthy cold masters remain open at1.2-pre.

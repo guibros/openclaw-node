@@ -482,3 +482,20 @@ and v29. The checkpoint changes no production service. Exact new CI/Claude
 review, real child/CID controls, driver and healthy cold masters remain pending.
 
 Fresh physical checkpoint23:47:53 EDT: all537 selected task rows still match the post-crash worker baseline; eight checked owners retain the same PIDs/runs1; member1 remains disabled/unloaded. Primary e57 and its untracked files remain unchanged. Initial attempt to save this read-only checkpoint used the wrong audit parent and raised FileNotFoundError before evidence publication; the corrected private report retains the actual probe timestamp.
+
+## Initializing Finder recovery — 2026-09-29 01:00 EDT
+
+At00:46:29 EDT the new owned metadata recovery test rejects the unpatched
+ab7097c source (return1, initializing journal contains unknown files). At
+00:47:44 EDT private tools-v31 passes all55 journal tests in25.831s. It covers
+receipt/mkdir/baseline interruption after a sealed predecessor, restoration-only
+reopen on a new boot identity, unchanged ready owners, retained metadata bytes,
+explicit resolve and a next window. Metadata links/directories/foreign owner
+(lstat-controlled fixture)/unknown entries refuse and leave new roots fenced.
+
+FINDER_SETUP_EVIDENCE.json pins module/test hashes and the private evidence root.
+The unchanged15 admission and1 actual account-election checks inherit only
+after current source/test hashes match tools-v30; those are not fresh runs.
+No production window or healthy service stop occurred. Previous ab7097c exact
+CI36518928261 is green; main55131b8 with PR149 is integrated before this patch's
+fresh isolated CI and independent review.1.2 remains[A]/v1.2-pre.

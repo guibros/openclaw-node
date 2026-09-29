@@ -15,3 +15,11 @@
 | **Verified** | 2026-09-28 21:33 EDT: member-1 protected master and its isolated R1 restoration accepted; eleven individual online archives restored with 80,156 non-expiring messages. After the VM crash, nine reachable non-expiring stream states/configs and durable positions match the older archive points; no immediate pre-crash acknowledgement guarantee. Worker explicitly restored under a 65-second idle guard. All three serving bus identities/routes remain unchanged through revised owned recovery tests; member 2 is metadata leader. Fifteen preservation checks, a real account-group election regression, fifty-three journal fault tests and complete owned recovery fixtures pass. Journal is a primitive; managed orchestration remains pending. New managed-window acceptance, three healthy cold copies and coordinated recovery remain open. |
 
 Current mechanism checkpoint 2026-09-28 23:49 EDT: tools-v30 passes53 fresh journal tests; unchanged15 admission/1 election tests inherit identical source hashes. Creation prepares the receipt before mkdir; interrupted setup is restoration-only. bbbc883 CI36516935187 is green, while this newer patch awaits exact CI/review. No new healthy production stop or cold-copy acceptance.
+
+Current mechanism checkpoint 2026-09-29 01:00 EDT: tools-v31 passes55 fresh
+journal tests, including initializing-root Finder recovery and fenced invalid
+metadata. The unpatched ab7097c control fails as expected. Its exact CI
+36518928261 is green and Claude accepted the previous creation fixes; this
+new checkpoint requires fresh integration CI/review. PR149 merged55131b8;
+installed task-daemon PID82096/runs1 still uses the accepted readiness release.
+No production preservation window or healthy cold-copy acceptance exists.

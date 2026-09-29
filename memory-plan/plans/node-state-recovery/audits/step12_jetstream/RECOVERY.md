@@ -171,7 +171,8 @@ restoration only; it never resumes the interrupted copy window. A setup write
 failure permits degraded restoration from the prepared baseline under the
 global node lock, without durable success or acceptance. A different root
 remains fenced. Finder's owned regular .DS_Store is ignored in the journals
-parent; unexpected entries and metadata links refuse explicitly.
+parent and initializing root; unexpected entries, foreign owners, directories
+and metadata links refuse explicitly. Ignored metadata is retained.
 
 The baseline must contain exactly RESUME_ORDER plus nats-1. Each uninstalled
 unit has explicit class absent, false loaded/running/disabled and identity
@@ -191,7 +192,8 @@ includes their package.json files as additional files. The helper reads ProgramA
 from that plist. It needs no loaded job or PID. Its schema is enforced for
 installed baseline units. Identical byte rewrites preserve identity; changed
 content or dependency targets do not. The driver must enumerate all required
-entry/config/build/dependency files and separately bind the running PID argv,
+entry/config/build/dependency files (including the NATS nats-auth.conf include
+and Mission Control actual npm-start build entry) and separately bind the running PID argv,
 loaded ProgramArguments, cwd and physical listeners. A static descriptor alone
 is not proof that the running process uses it.
 
