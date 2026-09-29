@@ -68,3 +68,38 @@ the seven actual killed-boundary controls; that first run is not acceptance.
 - Install and prove the actual five timer contracts in3.6 before production
   coordinated preservation.
 - No automatic pin recapture, production hold, topology change or new journal.
+
+## Exact-source acceptance — 2026-09-29 08:14 EDT
+
+Claude106 independently reviewed dbffa1a8e0021731003bdd50ea3e75eeac18ad5d
+against23e1a02 and found no blocker in the changed primitive or facade. Linux
+facade31pass/2native skips, Journal58pass, gate42pass/5Mac skips reproduce the
+portable controls. The two native forward-certification controls remain the
+local Mac33/33 attestation; neither reviewer nor CI independently proves them.
+CI36564796549 on the exact source passes all three jobs: root Node20/22 each
+2562tests/2556pass/6skip/0fail/0cancel; Mission Control lint/tests/audit/build.
+Node22 JetStream fixtures also run the four Python preservation suites with
+explicit NATS/runtime overrides; platform-specific skips remain visible.
+
+### Promised versus landed
+
+| Planned delta | Landed | Reachable result |
+|---|---|---|
+| Real gate publication callback and inline drained guards | yes | Copied real Gate in47 Mac controls, sole facade |
+| Sole JournaledHold and immutable intent/receipt binding | yes | Copied33-control facade consumer, recovery1.2 and timer3.6 next |
+| Existing Journal ordering and mandatory held-baseline facade | yes | Copied58 legacy controls plus33 hold controls |
+| Root test integration and scoped negative controls | yes | Node20/22 wrapper prints portable Python census |
+| Runtime evidence and plan/decision carriers | yes | Seven exact source/test hashes, raw output hashes and review record |
+
+Greppable deltas: workspace-bin/service_gate.py contains on_publication and
+before_open; journal_hold.py contains class JournaledHold and before_restore;
+preservation_journal.py calls hold.prepare and hold.complete. All manifest
+hashes still match the deployed private copies. Cross-references3.6/recovery1.2
+remain valid. POSITIVE: explicit failure fences, one live intent, restoration-only
+recovery, all-service/physical readiness, real foreground lifetime. Phase8 patches:
+none after independent exact-source acceptance. Feeds: the private runtime
+consumer proves3.5; the sole facade is now available for3.6 and recovery1.2.
+The earlier pending checkpoint is historical; this acceptance supersedes it.
+
+The closure changes only ledger/evidence files. Final closure-head CI remains
+required before merge. Production timers and full preservation remain open.

@@ -362,3 +362,17 @@ production hold, complete the preservation controller, prove VM power-loss
 durability, or supply native continuous-watch certification on Linux. The
 actual five Mac timers/install/import graph remain3.6; healthy cold masters
 and complete preservation remain recovery1.2.
+
+D21 closure (2026-09-29 08:14 EDT): source dbffa1a8e0021731003bdd50ea3e75eeac18ad5d
+approved without blocker by Claude106; exactCI36564796549 green3/3. Private
+Mac copied runtime passes33 hold+47 gate+58 Journal controls, including
+real killed controllers, foreground lifetime and actual owned launchd timer.
+Independent Linux31pass/2native skips, Journal58pass and gate42pass/5Mac skips
+confirm only the portable controls. Positive native certification remains
+locally observed; process interruption/fsync faults do not prove power loss.
+Close3.5's owned contract only. Changed merged Gate/Journal deltas were directly
+reviewed, so prior foundation hash approval is not substituted for this review.
+Node22 CI also runs all four Python preservation suites with explicit runtime
+overrides; platform skips do not establish actual Linux launchd behavior.
+Actual timer3.6 and full recovery1.2 remain open. Closure ledger contains no
+source changes; require exact closure-head CI before merge.
