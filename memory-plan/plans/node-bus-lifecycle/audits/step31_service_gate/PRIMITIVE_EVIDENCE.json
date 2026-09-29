@@ -1,17 +1,14 @@
 {
-  "at": "2026-09-29T07:14:50.547042+00:00",
+  "at": "2026-09-29T07:30:52.420518+00:00",
   "returncode": 0,
-  "elapsedSeconds": 6.505024584,
+  "elapsedSeconds": 7.146703417,
   "sourcePins": {
     "workspace-bin/service_gate.py": "9822ba60edcb9e86c860868147c52aa24147040107cc1099350e523574d1e102",
-    "test/service_gate_test.py": "0ec6a73100c2776540fd331174855fc1b2a7933b818da72aecdc5db705828715",
+    "test/service_gate_test.py": "fc321fa8a89aa56f0413e57318c59a81d67e2b5ad51b0c172844a43dc77ae5f9",
     "test/service-gate.test.mjs": "94fa39d47074d7aae5ef0701ba594a8c9d38889a519588b4135f5f3e31145731"
   },
   "actualMacOS": true,
   "productionMutations": 0,
-  "atMontreal": "2026-09-29 03:11:58 EDT",
-  "passed": 18,
-  "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v2",
   "execProof": {
     "at": "2026-09-29T06:54:44.570875+00:00",
     "actualMacOS": true,
@@ -58,9 +55,23 @@
     "Linux continuous inode-watch acceptance"
   ],
   "stepClosed": false,
-  "predecessorPrimitive": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v1",
   "atomicMarkerControls": [
     "Prepared marker sync failure publishes no marker and no accepted close.",
     "Directory sync failure after atomic hard-link publication retains valid closed state for explicit recovery."
-  ]
+  ],
+  "atMontreal": "2026-09-29 03:30:52 EDT",
+  "passed": 20,
+  "privateTools": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v3",
+  "predecessorPrimitive": "/Users/moltymac/.openclaw/backups/node-readiness/timer-gate-20260929-1/primitive-v2",
+  "priorPassed": 18,
+  "controllerCrashControls": [
+    "SIGKILL after durable publication before foreground drain completes",
+    "SIGKILL after verified drain; exact explicit reopen remains required"
+  ],
+  "currentIntegrationCI": "pending after added crash controls",
+  "priorIntegrationCI": {
+    "sha": "b87da1a4dbd7a85f6ee6c912538c96fbe4f8695f",
+    "run": 36536584523,
+    "conclusion": "3/3 success"
+  }
 }

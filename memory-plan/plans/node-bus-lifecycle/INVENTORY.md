@@ -52,7 +52,7 @@
 > **3.1 — Goal:** a durable closed marker plus foreground lock excludes scheduled application execution after drain, even after controller exit.
 > **Needs:** Python3/fcntl, installed Node/shell/launchd, Claude50/52 contract, D15.
 > **Feeds:**3.2 and recovery1.2.
-> **Verify:** code:18 real owned controls, isolated CI; runtime:private deployed source pins, actual inherited-lock positive/negative controls and a scheduled Mac job that starts twice while closed with unchanged application count and no job log bytes. Independent source review. No live installation claim.
+> **Verify:** code:20 real owned controls, isolated CI; runtime:private deployed source pins, actual inherited-lock positive/negative controls and a scheduled Mac job that starts twice while closed with unchanged application count and no job log bytes. Independent source review. No live installation claim.
 
 > **3.2 — Goal:** the actual five scheduled jobs cannot execute application work during the coordinated preservation interval, and verified recovery reopens their prior state.
 > **Needs:**3.1 closed; all call paths inventoried; no detached/unawaited work; consolidation notification fully awaited; exact source/loaded-entry/metadata identity; explicit persistent hold integration in the sole journal.

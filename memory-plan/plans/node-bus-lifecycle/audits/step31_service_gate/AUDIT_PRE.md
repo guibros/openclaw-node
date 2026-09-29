@@ -60,3 +60,9 @@ wait for the owned server's actual ps state T before requesting the drain.
 This changes only fixture ordering, with no daemon or gate implementation
 change. Preserve the failed CI log; rerun the focused owned control and exact
 integration CI before accepting3.1.
+
+Controller interruption also gets two real owned crash controls, beyond normal
+context exit: SIGKILL after durable publication while foreground drain is
+pending, and SIGKILL after verified drain. Both must keep scheduled execution
+closed until the exact window is explicitly reopened. These are process-crash
+controls, not a power-loss or VM filesystem-durability claim.

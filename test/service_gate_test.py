@@ -136,6 +136,67 @@ class GateTests(unittest.TestCase):
             self.assertEqual(reopened.marker()['window'], 'owned')
         self.assert_no_work(0)
 
+    def crashed_controller(self, phase):
+        ready = self.directory / 'controller-ready'
+        script = '''import importlib.util,pathlib,sys
+spec=importlib.util.spec_from_file_location('gate',sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+ready=pathlib.Path(sys.argv[3])
+with module.Gate(sys.argv[2]) as gate:
+ if sys.argv[4]=='draining':
+  original=gate.exclusive
+  def exclusive(seconds):
+   ready.write_text('durable marker published')
+   original(seconds)
+  gate.exclusive=exclusive
+ with gate.close_and_drain('owned','preservation',10) as guard:
+  guard.check()
+  if sys.argv[4]=='closed':ready.write_text('drain verified')
+  sys.stdin.read()
+'''
+        child = subprocess.Popen([sys.executable, '-c', script, str(SOURCE), str(self.root),
+                                  str(ready), phase], stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.children.append(child)
+        try:
+            end = time.monotonic() + 5
+            while not ready.exists() and child.poll() is None and time.monotonic() < end:
+                time.sleep(.01)
+            self.assertTrue(ready.exists(), 'owned controller did not reach the crash boundary')
+            self.assertIsNone(child.poll())
+            self.assert_no_work(0)
+            child.kill()
+            self.assertEqual(child.wait(timeout=5), -9)
+            self.assert_no_work(0)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=5)
+            child.stdin.close()
+
+    def test_controller_crash_after_publication_preserves_hold_until_foreground_drains(self):
+        child = self.launch(self.shell())
+        self.wait_ready(child)
+        self.crashed_controller('draining')
+        with Gate(self.root) as gate:
+            with self.assertRaises(BlockingIOError):
+                fcntl.flock(gate.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.stop.touch(mode=0o600)
+            self.assertEqual(child.wait(timeout=5), 0)
+            gate.reopen({'window': 'owned', 'reason': 'preservation'})
+        child = self.launch(self.no_work())
+        self.assertEqual(child.wait(timeout=5), 0)
+        self.assertTrue((self.directory / 'bypass').exists())
+
+    def test_controller_crash_after_verified_drain_preserves_closed_execution(self):
+        self.crashed_controller('closed')
+        with Gate(self.root) as gate:
+            self.assertEqual(gate.marker(), {'window': 'owned', 'reason': 'preservation'})
+            gate.reopen({'window': 'owned', 'reason': 'preservation'})
+        child = self.launch(self.no_work())
+        self.assertEqual(child.wait(timeout=5), 0)
+        self.assertTrue((self.directory / 'bypass').exists())
+
     def test_marker_sync_failure_cannot_publish_partial_closed_metadata(self):
         with Gate(self.root) as gate:
             with patch.object(module, 'sync', side_effect=OSError('owned sync fault')):
