@@ -16,6 +16,7 @@ function baseCtx(over = {}) {
   config.natsUrl = 'nats://127.0.0.1:14222';
   config.natsToken = 'FIXTURETOKEN';
   config.natsMonitorUrl = 'http://127.0.0.1:18222';
+  config.workspaceEnv = config.workspace;
   const teardown = [];
   const ctx = {
     config, runId: 'testrun', options: { mutate: true, deep: true }, teardown, path,
@@ -28,6 +29,7 @@ function baseCtx(over = {}) {
         if (p === config.transcriptSources) return JSON.stringify(['/tmp/acc-test-home/.openclaw/transcripts']);
         if (p === config.fixtureMarker) return JSON.stringify({ type: 'node-readiness-memory-fixture-v1', natsServerName: 'acc-test-bus' });
         if (p === config.fixtureEnv) return `OPENCLAW_NATS=${config.natsUrl}\nOPENCLAW_NATS_TOKEN=${config.natsToken}\n`;
+        if (p === config.daemonConfig) return JSON.stringify({ workspace: config.workspace });
         return '';
       },
       writeFile: async () => {},
@@ -37,7 +39,22 @@ function baseCtx(over = {}) {
     accountHome: () => os.homedir(),
     httpGet: async (url) => ({ status: 200, ok: true, json: url.endsWith('/varz')
       ? { server_id: 'fixture-id', server_name: 'acc-test-bus' }
-      : url.endsWith('/connz') ? { connections: [{ name: 'memory-daemon' }] } : {} }),
+      : url.endsWith('/runtime/paths') ? {
+        pid: 42,
+        home: '/tmp/acc-test-home',
+        workspace: config.workspace,
+        configuredWorkspace: config.workspace,
+        script: path.join(config.workspace, 'bin', 'memory-daemon.mjs'),
+        extractionDb: config.stateDb,
+        knowledgeDb: config.knowledgeDb,
+        vault: path.join(config.home, 'obsidian-local'),
+        transcriptRegistry: config.transcriptSources,
+        natsServerId: 'fixture-id',
+      }
+        : url.endsWith('/connz') ? { server_id: 'fixture-id', connections: [{ name: 'memory-daemon' }] }
+        : url.endsWith('/routez') ? { server_id: 'fixture-id', routes: [] }
+          : url.endsWith('/leafz') ? { server_id: 'fixture-id', leafnodes: 0 }
+            : url.endsWith('/gatewayz') ? { server_id: 'fixture-id', inbound_gateways: {}, outbound_gateways: {} } : {} }),
     httpPost: async () => ({ status: 200, json: {} }),
     queryDb: () => 0,
     writeDb: () => {},
@@ -239,6 +256,17 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
     assert.equal(ctx.teardown.length, 0);
   });
+  it('mutating probes refuse a daemon whose workspace would be the source checkout', async () => {
+    const ctx = baseCtx();
+    ctx.config.workspaceEnv = null;
+    assert.equal((await probeById(ctx, 'MEM-L2-INGEST').run()).status, VERDICT.BLOCK);
+    ctx.config.workspaceEnv = ctx.config.workspace;
+    const read = ctx.fsp.readFile;
+    ctx.fsp.readFile = async (p) => p === ctx.config.daemonConfig
+      ? JSON.stringify({ workspace: '/Users/live/openclaw/workspace' }) : read(p);
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+    assert.equal(ctx.teardown.length, 0);
+  });
   it('mutating probes refuse a fixture daemon configured for another bus', async () => {
     const ctx = baseCtx();
     const read = ctx.fsp.readFile;
@@ -250,6 +278,25 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
   });
   it('gold round-trip refuses a bus whose identity differs from the fixture marker', async () => {
     const ctx = baseCtx({ natsConnect: async () => ({ ...mockNc(), info: { server_name: 'live-bus', server_id: 'live-id' } }) });
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+    assert.equal(ctx.teardown.length, 0);
+  });
+  it('gold round-trip refuses a leaf-connected fixture bus', async () => {
+    const ctx = baseCtx();
+    const get = ctx.httpGet;
+    ctx.httpGet = async (url) => url.endsWith('/leafz')
+      ? { status: 200, ok: true, json: { server_id: 'fixture-id', leafnodes: 1 } } : get(url);
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+  });
+  it('gold round-trip refuses a daemon that writes its MEMORY.md into live workspace', async () => {
+    const ctx = baseCtx();
+    const get = ctx.httpGet;
+    ctx.httpGet = async (url, opts) => {
+      const response = await get(url, opts);
+      return url.endsWith('/runtime/paths')
+        ? { ...response, json: { ...response.json, workspace: path.join(os.homedir(), '.openclaw', 'workspace') } }
+        : response;
+    };
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
     assert.equal(ctx.teardown.length, 0);
   });

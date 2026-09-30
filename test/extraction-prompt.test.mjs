@@ -104,6 +104,14 @@ describe('coerceExtractionResult', () => {
     assert.equal(out.decisions[0].supersedes, undefined);
   });
 
+  it('does not hide a storage decision through a shared generic concept', () => {
+    const out = coerceExtractionResult({ decisions: [{ decision: 'Cap memory usage at 2 GB', rationale: 'budget', supersedes: 9 }] }, {
+      entities: [{ id: 1, name: 'memory', type: 'concept' }],
+      decisions: [{ id: 9, decision: 'Use SQLite for the memory store' }],
+    });
+    assert.equal(out.decisions[0].supersedes, undefined);
+  });
+
   it('drops references when no known-memory list was supplied', () => {
     const out = coerceExtractionResult({
       entities: [{ name: 'JetStream', type: 'technology', ref: 'entity #11' }],
@@ -449,6 +457,24 @@ describe('extractStructured', () => {
     await assert.rejects(() => extractStructured(mockClient, []), /another JSON object/);
     mockClient.generate = async () => ({ content: '{"entities":', finishReason: 'length' });
     await assert.rejects(() => extractStructured(mockClient, []), /output token limit/);
+    mockClient.generate = async () => ({ content: `${first}, "themes": ["storage", "datab`, finishReason: 'length' });
+    await assert.rejects(() => extractStructured(mockClient, []), /output token limit/);
+  });
+
+  it('refuses fragments and wrapped objects instead of recording an empty extraction', async () => {
+    const mockClient = { model: 'qwen2.5:3b', generate: async () => ({ content: '{"decision":"Use SQLite"}' }) };
+    await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
+    mockClient.generate = async () => ({ content: '{"extraction":{"entities":[]}}' });
+    await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
+    mockClient.model = 'qwen3:8b';
+    mockClient.generate = async () => ({ content: '{"decision":"Use SQLite"}]}' });
+    await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
+  });
+
+  it('refuses an earlier valid object hidden by a larger invalid thinking block', async () => {
+    const envelope = '{"entities":[],"themes":[],"actions":[],"decisions":[],"friction_signals":[],"relationships":[]}';
+    const mockClient = { generate: async () => ({ content: '{"entities":[{"name":"Borealis"}]}\n{thinking: this is an invalid and rather long model preamble}\n' + envelope }) };
+    await assert.rejects(() => extractStructured(mockClient, []), /another JSON object/);
   });
 
   it('throws on invalid JSON with informative message', async () => {
@@ -461,15 +487,13 @@ describe('extractStructured', () => {
     );
   });
 
-  it('throws ZodError on schema-invalid result that coercer cannot save', async () => {
+  it('rejects an object with no extraction-envelope field', async () => {
     const mockClient = {
       generate: async () => ({
         content: JSON.stringify({ /* missing required fields */ }),
       }),
     };
-    // Coercer produces empty-array defaults → validates OK actually
-    const result = await extractStructured(mockClient, []);
-    assert.equal(result.entities.length, 0);
+    await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
   });
 });
 

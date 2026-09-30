@@ -53,7 +53,7 @@ before(async () => {
   // Server creates its own injector internally; we pass null deps so it
   // degrades gracefully (empty results, but happy path / error handling
   // still exercised). Port 0 = OS-assigned.
-  serverHandle = await startInjectionServer({}, { port: 0, host: '127.0.0.1', log: () => {} });
+  serverHandle = await startInjectionServer({}, { port: 0, host: '127.0.0.1', log: () => {}, runtimeInfo: { pid: 42, workspace: '/fixture/workspace' } });
   token = serverHandle.token;
 });
 
@@ -117,6 +117,15 @@ describe('GET /health (with auth)', () => {
     assert.equal(r.status, 200);
     assert.equal(r.json.ok, true);
     assert.ok(typeof r.json.ts === 'number');
+  });
+});
+
+describe('GET /runtime/paths (with auth)', () => {
+  it('reports the daemon-owned write root only to authenticated callers', async () => {
+    assert.equal((await req('GET', '/runtime/paths')).status, 401);
+    const r = await req('GET', '/runtime/paths', { headers: { Authorization: `Bearer ${token}` } });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json, { pid: 42, workspace: '/fixture/workspace' });
   });
 });
 

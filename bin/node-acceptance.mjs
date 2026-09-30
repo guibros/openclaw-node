@@ -16,8 +16,9 @@
  * Exit: 0 ACCEPTED · 1 REJECTED · 2 INCOMPLETE · 3 harness error.
  */
 
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, realpath, rename } from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { parseArgs } from 'node:util';
 import { runAcceptance, formatTable, formatReport, resolveNodeConfig } from '../lib/node-acceptance.mjs';
 
@@ -39,6 +40,10 @@ const { values } = parseArgs({
 
 const config = resolveNodeConfig();
 const DEFAULT_REPORT = path.join(config.home, config.isolatedMemoryAcceptance ? '.node-acceptance-FIXTURE.md' : '.node-acceptance.md');
+const within = (root, target) => {
+  const relative = path.relative(root, target);
+  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+};
 
 async function main() {
   if (config.isolatedMemoryAcceptance && values.axis !== 'memory') {
@@ -67,10 +72,19 @@ async function main() {
   if (reportPath) {
     try {
       await mkdir(path.dirname(reportPath), { recursive: true });
-      await writeFile(reportPath, `${config.isolatedMemoryAcceptance ? '# FIXTURE — isolated memory acceptance\n\n' : ''}${formatReport(report)}`, 'utf8');
+      if (config.isolatedMemoryAcceptance) {
+        const root = await realpath(config.home);
+        const parent = await realpath(path.dirname(reportPath));
+        const live = await realpath(path.join(os.userInfo().homedir, '.openclaw'));
+        if (!within(root, parent) || within(live, root)) throw new Error('fixture report path resolves into live state');
+      }
+      const temp = `${reportPath}.${process.pid}.${Date.now()}.tmp`;
+      await writeFile(temp, `${config.isolatedMemoryAcceptance ? '# FIXTURE — isolated memory acceptance\n\n' : ''}${formatReport(report)}`, { mode: 0o600 });
+      await rename(temp, reportPath);
       if (!values.quiet && !values.json) process.stdout.write(`Evidence -> ${reportPath}\n`);
     } catch (err) {
       process.stderr.write(`[node-acceptance] could not write report: ${err.message}\n`);
+      if (config.isolatedMemoryAcceptance) throw err;
     }
   }
 

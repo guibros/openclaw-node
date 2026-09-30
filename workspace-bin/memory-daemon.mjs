@@ -1795,9 +1795,21 @@ async function main() {
   if (process.env.MEMORY_INJECT_DISABLED !== '1') {
     try {
       const { startInjectionServer } = await import('../lib/memory-inject-server.mjs');
+      const { getVaultPath } = await import('../lib/obsidian-vault.mjs');
       injectionServer = await startInjectionServer(
         { knowledgeDb: getKnowledgeDb(), graphCache: getGraphCache(), llmClient: getLlmClient(), extractionDb: getExtractionStore()?.db, eventLog: localEventLog, nodeId: NODE_ID },
-        { log: (m) => log(`[inject-server] ${m}`) },
+        { log: (m) => log(`[inject-server] ${m}`), runtimeInfo: () => ({
+          pid: process.pid,
+          script: __filename,
+          home: HOME,
+          workspace: WORKSPACE,
+          configuredWorkspace: config.workspace,
+          extractionDb: path.join(HOME, '.openclaw', 'state.db'),
+          knowledgeDb: path.join(HOME, '.openclaw', 'workspace', '.knowledge.db'),
+          vault: getVaultPath(),
+          transcriptRegistry: TRANSCRIPT_REGISTRY,
+          natsServerId: natsConn?.info?.server_id || null,
+        }) },
       );
     } catch (injErr) {
       log(`Memory inject server unavailable (${injErr.message}) — companion-bridge injection will be silent`);
