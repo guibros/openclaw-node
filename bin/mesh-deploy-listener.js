@@ -98,6 +98,7 @@ function writeDeployMarker(marker) {
  *   - HEAD at latest but that deploy FAILED (rollback impossible or
  *     incomplete) → yes, it is not done just because the tree moved.
  *   - latest already failed `maxAttempts` times here → no (operator's turn).
+ *   - latest failed preflight before checkout → no (operator must fix the target layout).
  *   - latest was skipped here (not for this role, or catch-up would have
  *     moved the tree backward) → no.
  */
@@ -109,6 +110,9 @@ function shouldCatchUp({ currentSha, latestSha, lastDeploy, maxAttempts = MAX_DE
   }
   if (lastForLatest && lastForLatest.status === 'skipped') {
     return { deploy: false, reason: `sha ${latestSha} was skipped here (${lastForLatest.reason || 'not applicable'})` };
+  }
+  if (lastForLatest && lastForLatest.status === 'refused') {
+    return { deploy: false, reason: `sha ${latestSha} failed preflight here — operator must fix the target layout` };
   }
   if (same(currentSha, latestSha)) {
     if (lastForLatest && lastForLatest.status === 'failed') {
@@ -190,7 +194,7 @@ async function runDeployScript(args) {
 /**
  * Deploy exactly `trigger.sha` on this node and, if that fails, put the
  * previous deployed sha back. Returns the result record (status success |
- * skipped | failed); never throws.
+ * skipped | refused | failed); never throws.
  *
  * forwardOnly (catch-up): never move the tree backward. The `latest` marker
  * is state read at every restart; a node ahead of it was moved on purpose
@@ -256,6 +260,21 @@ async function runDeploy(trigger, { forwardOnly = false } = {}) {
       const dirty = git('-c', 'core.fileMode=false', 'status', '--porcelain', '--untracked-files=no');
       if (dirty) {
         throw new Error(`tracked files differ from the commit (${dirty.split('\n').slice(0, 5).map(l => l.trim()).join(', ')}) — refusing to deploy over them`);
+      }
+      const preflightArgs = ['--from', preSha, '--to', targetSha, ...componentArgs, ...(trigger.force ? ['--force'] : []), '--preflight-only'];
+      try {
+        if (!fs.readFileSync(DEPLOY_SCRIPT, 'utf8').includes("args.includes('--preflight-only')")) {
+          throw new Error('deployed mesh-deploy.js lacks preflight support');
+        }
+        const { deployed } = await runDeployScript(preflightArgs);
+        if (deployed.preflight !== true) throw new Error('deploy script did not attest preflight');
+      } catch (err) {
+        result.status = 'refused';
+        result.errors.push(err.message);
+        result.log = String(err.stdout || err.stderr || err.message).slice(-5000);
+        result.preSha = preSha.slice(0, 7);
+        console.error(`[deploy-listener] Deploy REFUSED before checkout: ${err.message}`);
+        return result;
       }
       if (head !== targetSha) {
         console.log(`[deploy-listener] Checking out ${targetSha.slice(0, 7)} (was ${head.slice(0, 7)})`);
@@ -358,6 +377,8 @@ async function executeDeploy(trigger, resultsKv, nodesKv, opts = {}) {
 
     if (result.status === 'success') {
       notifyDesktop('success', 'Mesh deploy applied', `${NODE_ID} now at ${result.sha} (${result.durationSeconds}s)`);
+    } else if (result.status === 'refused') {
+      notifyDesktop('error', 'Mesh deploy REFUSED', `${NODE_ID} unchanged: ${result.errors[0]?.slice(0, 160) || 'preflight failed'}`);
     } else if (result.status === 'failed') {
       const where = result.rolledBack ? `rolled back to ${result.rollbackSha}` : (result.rolledBack === false ? 'ROLLBACK FAILED' : 'no rollback point');
       notifyDesktop('error', 'Mesh deploy FAILED', `${NODE_ID} (${where}, attempt ${attempts}/${MAX_DEPLOY_ATTEMPTS}): ${result.errors[0]?.slice(0, 160) || 'unknown'}`);

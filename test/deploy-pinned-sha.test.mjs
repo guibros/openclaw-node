@@ -254,6 +254,26 @@ describe('pinned-sha deploy through the listener (bare origin + node clone)', ()
     }
   });
 
+  it('refuses a foreign-linked daemon before checkout without attempting rollback', async () => {
+    write(HOME, 'other-checkout/memory-daemon.mjs', '// operator edit\n');
+    fs.mkdirSync(path.join(RT.workspace, 'bin'), { recursive: true });
+    const linked = path.join(RT.workspace, 'bin', 'memory-daemon.mjs');
+    fs.symlinkSync(path.join(HOME, 'other-checkout', 'memory-daemon.mjs'), linked);
+    write(SEED, 'workspace-bin/memory-daemon.mjs', '// new daemon\n');
+    const target = commit('daemon update');
+    try {
+      const r = await runDeploy(trigger(target));
+      assert.equal(r.status, 'refused');
+      assert.match(r.errors[0], /points outside this deployed revision/);
+      assert.equal(r.rolledBack, undefined);
+      assert.equal(head(), S3);
+      assert.equal(state().deployedSha, S3);
+      assert.equal(read(path.join(HOME, 'other-checkout', 'memory-daemon.mjs')), '// operator edit\n');
+    } finally {
+      fs.rmSync(linked);
+    }
+  });
+
   it('refuses a sha that is not on origin, and a checkout carrying unpushed commits', async () => {
     const unknown = await runDeploy(trigger('0123456789abcdef0123456789abcdef01234567'));
     assert.equal(unknown.status, 'failed');
@@ -550,6 +570,30 @@ describe('shared library deploy reaches workspace daemons', () => {
     assert.equal(read(fx.rt('other-checkout/isolated/sentinel.mjs')), '// untouched\n');
     assert.equal(fs.existsSync(fx.rt('other-checkout/isolated/helper.mjs')), false);
     assert.equal(fs.existsSync(fx.rt('openclaw/lib/tracer.js')), false);
+  });
+
+  it('refuses a symlinked parent of workspace/lib', () => {
+    const fx = makeNode('foreign-workspace-parent', {});
+    write(fx.home, 'other-checkout/sentinel.mjs', '// untouched\n');
+    fs.mkdirSync(fx.rt('.openclaw'), { recursive: true });
+    fs.symlinkSync(fx.rt('other-checkout'), fx.rt('.openclaw/workspace'));
+    const S1 = fx.commit('lib update', { 'lib/runtime-helper.mjs': '// helper v1\n' });
+    const run = fx.deploy(['--from', fx.S0, '--to', S1], { DEPLOY_TEST_PLATFORM: 'linux' });
+    assert.notEqual(run.status, 0);
+    assert.match(run.stderr + run.stdout, /points outside this deployed revision/);
+    assert.equal(read(fx.rt('other-checkout/sentinel.mjs')), '// untouched\n');
+    assert.equal(fs.existsSync(fx.rt('openclaw/lib/runtime-helper.mjs')), false);
+  });
+
+  it('replaces a hard-linked destination without changing its other name', () => {
+    const fx = makeNode('hard-linked-lib', {});
+    write(fx.home, 'other-checkout/tracer.js', '// operator edit\n');
+    fs.mkdirSync(fx.rt('.openclaw/workspace/lib'), { recursive: true });
+    fs.linkSync(fx.rt('other-checkout/tracer.js'), fx.rt('.openclaw/workspace/lib/tracer.js'));
+    const S1 = fx.commit('lib update', { 'lib/runtime-helper.mjs': '// helper v1\n' });
+    ranOk(fx.deploy(['--from', fx.S0, '--to', S1], { DEPLOY_TEST_PLATFORM: 'linux' }));
+    assert.equal(read(fx.rt('other-checkout/tracer.js')), '// operator edit\n');
+    assert.equal(read(fx.rt('.openclaw/workspace/lib/tracer.js')), read(path.join(REPO, 'lib/tracer.js')));
   });
 });
 

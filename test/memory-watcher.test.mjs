@@ -454,6 +454,18 @@ describe('createAnomalyDetector', () => {
     assert.equal(alerts.length, 0);
   });
 
+  it('does not count idempotent noops after a successful extraction as failures', () => {
+    const detector = createAnomalyDetector({ extractionRateMinSample: 3, extractionRateThreshold: 0.5 });
+    const record = { ts: new Date().toISOString(), op: 'memory.extracted', session: 'sess-1' };
+    detector.evaluate({ ...record, status: 'ok' });
+    detector.evaluate({ ...record, status: 'noop' });
+    assert.deepEqual(detector.evaluate({ ...record, status: 'noop' }), []);
+    const bounded = createAnomalyDetector({ windowSize: 3, extractionRateMinSample: 3, extractionRateThreshold: 0.5 });
+    bounded.evaluate({ ...record, status: 'ok' });
+    for (let i = 0; i < 4; i++) bounded.evaluate({ ts: record.ts, op: 'memory.retrieved', status: 'ok' });
+    for (let i = 0; i < 3; i++) assert.deepEqual(bounded.evaluate({ ...record, status: 'noop' }), []);
+  });
+
   it('fires stalled alert when events are old', () => {
     const detector = createAnomalyDetector({ staleThresholdMs: 1000 });
     const oldTs = new Date(Date.now() - 5000).toISOString();

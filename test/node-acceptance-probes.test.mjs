@@ -504,6 +504,26 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     const ctx = baseCtx({ queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }]), httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for another project', items: { decisions: 1 } } }) });
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
   });
+  it('MEM-L2-WATCHER requires a clean first extraction and observed injection', async () => {
+    const ts = new Date().toISOString();
+    const extraction = { ts, op: 'memory.extracted', session: 'acc-probe-testrun', status: 'ok' };
+    const injection = { ts, op: 'memory.injected', status: 'ok' };
+    const ctx = baseCtx();
+    ctx.startedAt = Date.now() - 1000;
+    const originalRead = ctx.fsp.readFile;
+    const watcherPath = path.join(ctx.config.home, 'watcher.jsonl');
+    let records = [extraction, injection];
+    ctx.fsp.readFile = async (file, ...args) => file === watcherPath
+      ? records.map((record) => JSON.stringify(record)).join('\n') + '\n' : originalRead(file, ...args);
+    const probe = probeById(ctx, 'MEM-L2-WATCHER');
+    assert.equal((await probe.run()).status, VERDICT.PASS);
+    records = [extraction, { ...injection, status: 'noop' }];
+    assert.equal((await probe.run()).status, VERDICT.FAIL);
+    records = [{ ...extraction, status: 'noop' }, extraction, injection];
+    assert.equal((await probe.run()).status, VERDICT.FAIL);
+    records = [extraction, { ts, op: 'watcher.alert', alert_type: 'extraction_failure_rate' }, injection];
+    assert.equal((await probe.run()).status, VERDICT.FAIL);
+  });
   it('teardown restores a real decision superseded by the synthetic extraction', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'acceptance-cleanup-'));
     const store = createExtractionStore({ dbPath: path.join(dir, 'state.db') });

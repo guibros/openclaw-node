@@ -43,6 +43,12 @@ describe('shouldCatchUp (deploy catch-up verdict)', () => {
     assert.match(v.reason, /skipped/);
   });
 
+  it('does not retry a refused preflight on every reconnect', () => {
+    const v = shouldCatchUp({ currentSha: 'aaaaaaa', latestSha: 'bbbbbbb', lastDeploy: { sha: 'bbbbbbb', status: 'refused', attempts: 1 } });
+    assert.equal(v.deploy, false);
+    assert.match(v.reason, /operator must fix/);
+  });
+
   it('a failed marker for a DIFFERENT sha does not block catching up to latest', () => {
     const v = shouldCatchUp({ currentSha: 'aaaaaaa', latestSha: 'ccccccc', lastDeploy: { sha: 'bbbbbbb', status: 'failed', attempts: 5 }, maxAttempts: 2 });
     assert.equal(v.deploy, true);

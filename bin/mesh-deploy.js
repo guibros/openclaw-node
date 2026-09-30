@@ -727,28 +727,41 @@ function targetSubPath(comp, file) {
   return file;
 }
 
-function assertSharedLibTargets(comp, repoDir, files) {
-  if (comp.id !== 'shared-lib') return;
-  const sourceRoot = fs.realpathSync(path.join(repoDir, 'lib'));
+function resolvedDestination(pathname) {
+  const missing = [];
+  let existing = pathname;
+  while (!fs.lstatSync(existing, { throwIfNoEntry: false })) {
+    missing.unshift(path.basename(existing));
+    existing = path.dirname(existing);
+  }
+  return path.join(fs.realpathSync(existing), ...missing);
+}
+
+function assertFileTargets(comp, repoDir, files) {
+  const sourceRoot = fs.realpathSync(repoDir);
   for (const target of comp.targets) {
-    const targetStat = fs.lstatSync(target, { throwIfNoEntry: false });
-    if (targetStat?.isSymbolicLink() && fs.realpathSync(target) !== sourceRoot) {
-      throw new Error(`${target} points outside this deployed revision — refusing to write through it`);
-    }
     for (const relFile of files) {
-      const subPath = targetSubPath(comp, relFile);
-      const parts = subPath.split(path.sep);
-      for (let depth = 1; depth <= parts.length; depth++) {
-        const nestedPath = path.join(target, ...parts.slice(0, depth));
-        const nestedStat = fs.lstatSync(nestedPath, { throwIfNoEntry: false });
-        if (!nestedStat?.isSymbolicLink()) continue;
-        const sourcePath = path.join(sourceRoot, ...parts.slice(0, depth));
-        if (!fs.existsSync(sourcePath) || fs.realpathSync(nestedPath) !== fs.realpathSync(sourcePath)) {
-          throw new Error(`${nestedPath} points outside this deployed revision — refusing to write through it`);
-        }
+      const dstPath = path.join(target, targetSubPath(comp, relFile));
+      const destination = resolvedDestination(dstPath);
+      const source = path.join(sourceRoot, relFile);
+      if (destination !== path.resolve(dstPath) && destination !== source) {
+        throw new Error(`${dstPath} points outside this deployed revision — refusing to write through it`);
       }
     }
   }
+}
+
+function prepareDeploy({ repoDir, fromSha, toSha, filterIds, force }) {
+  assertCommitted(repoDir);
+  const changes = diffChanges(repoDir, fromSha, toSha);
+  const plans = planComponents(changes, {
+    filterIds, force,
+    listAll: repoPaths => listFiles(repoDir, toSha, repoPaths),
+  });
+  for (const { comp, install, remove } of plans) {
+    if (!comp.install) assertFileTargets(comp, repoDir, [...install, ...remove]);
+  }
+  return { changes, plans };
 }
 
 /**
@@ -786,7 +799,7 @@ function planComponents(changes, { filterIds = [], force = false, listAll }) {
  * Copy a component's files from the checked-out tree to its targets.
  */
 function installFiles(comp, repoDir, files, dryRun) {
-  assertSharedLibTargets(comp, repoDir, files);
+  assertFileTargets(comp, repoDir, files);
   let count = 0;
   for (const target of comp.targets) {
     for (const relFile of files) {
@@ -813,9 +826,17 @@ function installFiles(comp, repoDir, files, dryRun) {
         continue;
       }
       fs.mkdirSync(path.dirname(dstPath), { recursive: true });
-      fs.copyFileSync(srcPath, dstPath);
+      const priorMode = fs.existsSync(dstPath) ? fs.statSync(dstPath).mode & 0o777 : null;
+      const tempPath = `${dstPath}.deploy-${process.pid}-${crypto.randomBytes(6).toString('hex')}`;
+      try {
+        fs.copyFileSync(srcPath, tempPath, fs.constants.COPYFILE_EXCL);
+        if (relFile.endsWith('.js') || relFile.endsWith('.sh')) fs.chmodSync(tempPath, 0o755);
+        else if (priorMode !== null) fs.chmodSync(tempPath, priorMode);
+        fs.renameSync(tempPath, dstPath);
+      } finally {
+        fs.rmSync(tempPath, { force: true });
+      }
       console.log(`  ${C.dim('copy')} ${srcPath} → ${dstPath}`);
-      if (relFile.endsWith('.js') || relFile.endsWith('.sh')) fs.chmodSync(dstPath, 0o755);
       count++;
     }
   }
@@ -828,11 +849,12 @@ function installFiles(comp, repoDir, files, dryRun) {
  * this node (learned soul genes, an operator's doc) stays, with a warning.
  */
 function removeFiles(comp, repoDir, fromSha, files, dryRun) {
-  assertSharedLibTargets(comp, repoDir, files);
+  assertFileTargets(comp, repoDir, files);
   let count = 0;
   for (const target of comp.targets) {
     for (const relFile of files) {
       const dstPath = path.join(target, targetSubPath(comp, relFile));
+      if (resolvedDestination(dstPath) === path.join(fs.realpathSync(repoDir), relFile)) continue;
       if (!fs.existsSync(dstPath)) continue;
       const shipped = git(repoDir, ['show', `${fromSha}:${relFile}`], 'buffer');
       if (!fs.readFileSync(dstPath).equals(shipped)) {
@@ -917,21 +939,12 @@ function restartService(svc) {
  */
 function deploy({ repoDir, fromSha, toSha, filterIds = [], force = false, includeServices = false,
                   dryRun = false, noRestart = false }) {
-  assertCommitted(repoDir);
+  const { changes, plans } = prepareDeploy({ repoDir, fromSha, toSha, filterIds, force });
   if (!dryRun && gitLine(repoDir, ['rev-parse', 'HEAD']) !== toSha) {
     info(`Checking out ${toSha.slice(0, 8)}`);
     git(repoDir, ['checkout', '--detach', '--quiet', toSha]);
   }
-  const changes = diffChanges(repoDir, fromSha, toSha);
   info(`${fromSha.slice(0, 8)} → ${toSha.slice(0, 8)}: ${changes.length} changed file(s)`);
-
-  const plans = planComponents(changes, {
-    filterIds, force,
-    listAll: repoPaths => listFiles(repoDir, toSha, repoPaths),
-  });
-  for (const { comp, install, remove } of plans) {
-    assertSharedLibTargets(comp, repoDir, [...install, ...remove]);
-  }
   if (plans.length === 0) ok('No components affected');
   else info(`${plans.length} component(s) to deploy:\n`);
 
@@ -1052,6 +1065,7 @@ async function main() {
   const doRollback = args.includes('--rollback');
   const includeServices = args.includes('--include-services');
   const forceAll = args.includes('--force');
+  const preflightOnly = args.includes('--preflight-only');
   const showStatus = args.includes('--status');
 
   // Parse --component flag (can be repeated)
@@ -1067,6 +1081,7 @@ async function main() {
   const argValue = flag => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : undefined; };
   const fromArg = argValue('--from');
   const toArg = argValue('--to');
+  if (preflightOnly && !toArg) throw new Error('--preflight-only requires --to');
 
   // Parse --node flag
   let deployLocal = true, deployRemote = !localOnly;
@@ -1194,6 +1209,11 @@ async function main() {
     if (!toSha) throw new Error(`--to ${toArg} is not a commit in ${REPO_DIR} (pinned mode never fetches)`);
     const fromSha = fromArg ? resolveCommit(REPO_DIR, fromArg) : deployedBase(REPO_DIR);
     if (!fromSha) throw new Error(`--from ${fromArg} is not a commit in ${REPO_DIR}`);
+    if (preflightOnly) {
+      const { changes, plans } = prepareDeploy({ repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll });
+      console.log(`DEPLOY_RESULT ${JSON.stringify({ preflight: true, changedFiles: changes.length, components: plans.map(({ comp }) => ({ id: comp.id })) })}`);
+      return;
+    }
     const result = deploy({ repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll, includeServices, dryRun, noRestart });
     console.log(`DEPLOY_RESULT ${JSON.stringify(result)}`);
     return;
@@ -1223,6 +1243,7 @@ async function main() {
     // Read before the fast-forward: with nothing recorded the base is HEAD, and
     // after the merge HEAD is already the target.
     const fromSha = deployedBase(REPO_DIR);
+    prepareDeploy({ repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll });
     if (!dryRun && head !== toSha && currentBranch(REPO_DIR) === DEPLOY_BRANCH) {
       git(REPO_DIR, ['merge', '--ff-only', '--quiet', toSha]);
       ok(`Fast-forwarded ${DEPLOY_BRANCH}: ${head.slice(0, 7)} → ${toSha.slice(0, 7)}`);
