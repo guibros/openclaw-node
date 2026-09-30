@@ -523,6 +523,21 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     assert.equal((await probe.run()).status, VERDICT.FAIL);
     records = [extraction, { ts, op: 'watcher.alert', alert_type: 'extraction_failure_rate' }, injection];
     assert.equal((await probe.run()).status, VERDICT.FAIL);
+    records = [{ ts, op: 'memory.error', session: 'acc-probe-testrun', data: { boundary: 'extract' } }, extraction, injection];
+    assert.equal((await probe.run()).status, VERDICT.FAIL);
+  });
+  it('MEM-L2-WATCHER does not classify an ordinary live noop as a failed first attempt', async () => {
+    const ctx = baseCtx();
+    ctx.config.isolatedMemoryAcceptance = false;
+    const watcherPath = path.join(ctx.config.home, 'watcher.jsonl');
+    const ts = new Date().toISOString();
+    ctx.fsp.readFile = async (file) => file === watcherPath
+      ? [
+        { ts, op: 'memory.extracted', session: 'prior-session', status: 'noop' },
+        { ts, op: 'memory.injected', status: 'ok' },
+      ].map((record) => JSON.stringify(record)).join('\n') + '\n'
+      : '';
+    assert.equal((await probeById(ctx, 'MEM-L2-WATCHER').run()).status, VERDICT.SKIP);
   });
   it('teardown restores a real decision superseded by the synthetic extraction', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'acceptance-cleanup-'));

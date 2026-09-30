@@ -11,6 +11,14 @@ response as containing another JSON object. The daemon fell back to regex, no SQ
 stored within 1022 s, and the watcher emitted `extraction_failure`. The stricter gate correctly
 rejected that run. These are isolated memory-path results, not full-node acceptance: extraction reliability, clean install,
 restart recovery, memory quality, production latency and two-machine execution remain open.
+With the Qwen3 non-thinking primer aligned to its template, a fourth isolated run on 2026-09-30
+at 08:03 EDT was **ACCEPTED** (8 PASS). Its daemon imported and indexed four turns, stored the
+synthetic SQLite decision, and returned that decision through the injector; the gold round-trip
+took 649 s and the watcher observed a clean first extraction. One green run after a red run does
+not establish first-attempt reliability. After the harness terminated it, the daemon logged
+`Daemon stopped` but the native runtime then aborted with a mutex error (`SIGABRT`). Restarting
+against the same fixture state restored the injector and isolated runtime paths; no duplicate
+gold extraction appeared during a 15 s observation. The native abort remains unresolved.
 `bin/node-acceptance.mjs` + `lib/node-acceptance.mjs` +
 `lib/node-acceptance-probes.mjs` implement L0–L2 + L4 hard-tests across memory / LLM / network.
 Inter-node L3 is specified but deferred (§8).

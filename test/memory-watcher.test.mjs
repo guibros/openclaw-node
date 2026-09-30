@@ -466,6 +466,16 @@ describe('createAnomalyDetector', () => {
     for (let i = 0; i < 3; i++) assert.deepEqual(bounded.evaluate({ ...record, status: 'noop' }), []);
   });
 
+  it('does not count explicitly deduplicated extracts after a watcher restart', () => {
+    const detector = createAnomalyDetector({ extractionRateMinSample: 3, extractionRateThreshold: 0.5 });
+    const record = { ts: new Date().toISOString(), op: 'memory.extracted', session: 'prior-session', status: 'noop', data: { deduplicated: true } };
+    detector.evaluate(record);
+    detector.evaluate(record);
+    assert.deepEqual(detector.evaluate({ ...record, data: { deduplicated: false } }), []);
+    detector.evaluate({ ...record, data: { deduplicated: false } });
+    assert.equal(detector.evaluate({ ...record, data: { deduplicated: false } })[0].alert_type, 'extraction_failure_rate');
+  });
+
   it('fires stalled alert when events are old', () => {
     const detector = createAnomalyDetector({ staleThresholdMs: 1000 });
     const oldTs = new Date(Date.now() - 5000).toISOString();

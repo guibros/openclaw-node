@@ -88,6 +88,7 @@ try {
   await fs.mkdir(path.join(root, 'jetstream'));
   for (const dir of ['bin', 'lib']) await fs.cp(path.join(source, dir), path.join(workspace, dir), { recursive: true, force: true });
   await fs.cp(path.join(source, 'packages', 'event-schemas', 'dist'), path.join(workspace, 'packages', 'event-schemas', 'dist'), { recursive: true });
+  await fs.copyFile(path.join(source, 'packages', 'event-schemas', 'package.json'), path.join(workspace, 'packages', 'event-schemas', 'package.json'));
   await fs.copyFile(path.join(source, 'package.json'), path.join(workspace, 'package.json'));
   for (const script of ['memory-daemon.mjs', 'flush-worker.mjs', 'session-trace-emitter.mjs', 'obsidian-sync.mjs', 'memory-maintenance.mjs', 'knowledge-index-job.mjs']) {
     await fs.copyFile(path.join(source, 'workspace-bin', script), path.join(workspace, 'bin', script));

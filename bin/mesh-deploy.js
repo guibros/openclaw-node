@@ -289,6 +289,20 @@ const MANIFEST = [
     nodeFilter: 'all',
   },
 
+  {
+    id: 'event-schemas',
+    name: 'Event Schemas',
+    description: 'Versioned schema runtime required by the memory daemon',
+    risk: 'safe',
+    repoPaths: ['packages/event-schemas/'],
+    targets: [path.join(HOME, 'openclaw', 'packages', 'event-schemas'),
+              path.join(DIRS.WORKSPACE, 'packages', 'event-schemas')],
+    fullOnChange: true,
+    servicesMac: ['ai.openclaw.memory-daemon'],
+    servicesLinux: ['openclaw-memory-daemon'],
+    nodeFilter: 'all',
+  },
+
   // ── MISSION CONTROL ─────────────────────────────────────────────────────
 
   {

@@ -28,6 +28,7 @@ skills/dist/
 
 # Workspace package build artifacts
 packages/*/dist/
+!packages/event-schemas/dist/
 .claude/worktrees/
 memory-plan/plans/*/tick-logs/
 memory-plan/plans/*/.tick.lock/

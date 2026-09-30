@@ -512,6 +512,7 @@ function emitExtractEvent(sessionId, extraction) {
     entity_names: extraction.entity_names,
     theme_labels: extraction.theme_labels,
     decision_texts: extraction.decision_texts,
+    deduplicated: extraction.deduplicated === true,
     model: DEFAULT_MODEL,
     duration_ms: extraction.duration_ms,
   }, NODE_ID);

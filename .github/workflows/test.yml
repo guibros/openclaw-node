@@ -115,6 +115,11 @@ jobs:
           echo "::group::mesh-task-daemon"; tail -100 /tmp/mesh-task-daemon.log || true; echo "::endgroup::"
       - name: Root dependency audit — high severity gate
         run: npm audit --audit-level=high
+      - name: Versioned event schemas match their TypeScript source
+        run: |
+          npm run build --workspace=event-schemas
+          git diff --exit-code -- packages/event-schemas/dist
+          test -z "$(git ls-files --others --exclude-standard packages/event-schemas/dist)"
       - name: Packed-tarball smoke — the two past packaging escapes stay caught
         if: matrix.node-version == 22
         run: |

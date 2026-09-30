@@ -31,24 +31,13 @@ else
   info "Repo node_modules present"
 fi
 
-# The memory daemon imports packages/event-schemas/dist and exits at startup
-# without it. dist/ is gitignored, the release tarball ships only the .ts
-# sources, and --omit=dev leaves no compiler behind — so on the first virgin-Mac
-# run the daemon died silently and the acceptance gate failed five rows
-# downstream (no DBs, no inject token, no event stream). Build it here.
+# The memory daemon requires the versioned schema build shipped in the release.
 SCHEMAS_DIST="$REPO_DIR/packages/event-schemas/dist/index.js"
 if [ ! -f "$SCHEMAS_DIST" ]; then
-  info "Building event-schemas (memory daemon refuses to start without its dist)..."
-  (cd "$REPO_DIR" && run npx --yes --package typescript@5 tsc -p packages/event-schemas/tsconfig.json) \
-    || { error "event-schemas build failed — the memory daemon cannot start"; exit 1; }
-  if ! $DRY_RUN && [ ! -f "$SCHEMAS_DIST" ]; then
-    error "event-schemas build produced no dist/index.js — the memory daemon cannot start"
-    exit 1
-  fi
-  info "event-schemas built"
-else
-  info "event-schemas dist present"
+  error "event-schemas dist missing from this release — the memory daemon cannot start"
+  exit 1
 fi
+info "event-schemas dist present"
 
 # ── Resolve the agent provider (the node's mind) ──
 # The runtime is provider-agnostic (lib/llm-providers.js): the mind is whatever

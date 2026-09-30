@@ -18,6 +18,7 @@ import {
   coerceExtractionResult,
   extractJsonFromText,
   buildExtractionPrompt,
+  parseWithPrimer,
   extractStructured,
 } from '../lib/extraction-prompt.mjs';
 import { validateExtractionResult } from '../lib/extraction-schema.mjs';
@@ -379,9 +380,41 @@ describe('buildExtractionPrompt', () => {
     assert.match(out[1].content, /Hello there/);
     assert.match(out[1].content, /Hi!/);
   });
+
+  it('matches Qwen3 non-thinking prefill when priming JSON', () => {
+    assert.equal(buildExtractionPrompt([], { jsonPrimer: true, qwen3Primer: true }).at(-1).content, '<think>\n\n</think>\n\n{');
+    assert.equal(buildExtractionPrompt([], { jsonPrimer: true }).at(-1).content, '{');
+  });
+});
+
+describe('parseWithPrimer', () => {
+  it('accepts a fresh object after the model closes an empty primer', () => {
+    assert.deepEqual(parseWithPrimer('}\n{"entities": []}', true), { entities: [] });
+    assert.throws(() => parseWithPrimer('}', true));
+  });
+
+  it('accepts a fresh object after an empty thinking block', () => {
+    assert.deepEqual(parseWithPrimer('<think>\n\n</think>\n\n{"entities": []}', true), { entities: [] });
+  });
+
+  it('still rejects ambiguous repeated objects', () => {
+    assert.throws(() => parseWithPrimer('"entities": []}{"entities": [1]}', true), /another JSON object/);
+  });
 });
 
 describe('extractStructured', () => {
+  it('uses the non-thinking primer only for the tested Qwen3 model', async () => {
+    const empty = '{"entities":[]}';
+    for (const [model, primer] of [['qwen3:8b', '<think>\n\n</think>\n\n{'], ['qwen3:8b-instruct-2507', '{']]) {
+      let prompt;
+      await extractStructured({ model, generate: async (messages) => {
+        prompt = messages;
+        return { content: empty };
+      } }, []);
+      assert.equal(prompt.at(-1).content, primer);
+    }
+  });
+
   it('preserves typed references only to supplied known memories', async () => {
     const knownMemories = {
       entities: [{ id: 11, name: 'ACCPROBE', type: 'project' }],
@@ -485,7 +518,7 @@ describe('extractStructured', () => {
     mockClient.generate = async () => ({ content: '{"entities":[],"extraction":{"decisions":[{"decision":"Use SQLite"}]}}' });
     await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
     mockClient.generate = async () => ({ content: '{}' });
-    assert.deepEqual((await extractStructured(mockClient, [])).decisions, []);
+    await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
   });
 
   it('throws on invalid JSON with informative message', async () => {
@@ -504,7 +537,7 @@ describe('extractStructured', () => {
         content: JSON.stringify({ /* missing required fields */ }),
       }),
     };
-    assert.deepEqual((await extractStructured(mockClient, [])).entities, []);
+    await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
   });
 });
 

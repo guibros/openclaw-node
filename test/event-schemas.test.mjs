@@ -197,12 +197,14 @@ describe('Boundary event schemas (Block 1 vocabulary)', () => {
       themes_count: 3,
       mentions_count: 8,
       decisions_count: 2,
+      deduplicated: false,
       model: 'qwen3:8b',
       duration_ms: 4200,
     });
     const result = MemoryExtractedSchema.parse(event);
     assert.equal(result.data.entities_count, 5);
     assert.equal(result.data.model, 'qwen3:8b');
+    assert.equal(result.data.deduplicated, false);
   });
 
   it('validates memory.retrieved', () => {

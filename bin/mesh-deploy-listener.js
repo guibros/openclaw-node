@@ -25,6 +25,7 @@ const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const BOOTED_LISTENER = fs.readFileSync(__filename);
 const { createTracer, setNatsConnection } = require('../lib/tracer');
 const tracer = createTracer('mesh-deploy-listener');
 
@@ -35,8 +36,6 @@ const NODE_ID = require('../lib/node-id').resolveNodeId();
 // ~/openclaw-node. See mesh-deploy.js "Two-directory problem" comment.
 const REPO_DIR = process.env.OPENCLAW_REPO_DIR ||
   path.join(os.homedir(), 'openclaw');
-const REPO_REMOTE_URL = process.env.OPENCLAW_REPO_URL ||
-  'https://github.com/moltyguibros-design/openclaw-node.git';
 const DEPLOY_SCRIPT = path.join(REPO_DIR, 'bin', 'mesh-deploy.js');
 // mesh-deploy's record of the sha this node last deployed in full.
 const DEPLOY_STATE = path.join(os.homedir(), '.openclaw', '.deploy-state.json');
@@ -98,11 +97,11 @@ function writeDeployMarker(marker) {
  *   - HEAD at latest but that deploy FAILED (rollback impossible or
  *     incomplete) → yes, it is not done just because the tree moved.
  *   - latest already failed `maxAttempts` times here → no (operator's turn).
- *   - latest failed preflight before checkout → no (operator must fix the target layout).
+ *   - latest was refused before checkout → no (operator must resolve the refusal).
  *   - latest was skipped here (not for this role, or catch-up would have
  *     moved the tree backward) → no.
  */
-function shouldCatchUp({ currentSha, latestSha, lastDeploy, maxAttempts = MAX_DEPLOY_ATTEMPTS }) {
+function shouldCatchUp({ currentSha, latestSha, lastDeploy, hasDeployedState = true, maxAttempts = MAX_DEPLOY_ATTEMPTS }) {
   const same = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
   const lastForLatest = lastDeploy && same(lastDeploy.sha, latestSha) ? lastDeploy : null;
   if (lastForLatest && lastForLatest.status === 'failed' && (lastForLatest.attempts || 0) >= maxAttempts) {
@@ -112,7 +111,10 @@ function shouldCatchUp({ currentSha, latestSha, lastDeploy, maxAttempts = MAX_DE
     return { deploy: false, reason: `sha ${latestSha} was skipped here (${lastForLatest.reason || 'not applicable'})` };
   }
   if (lastForLatest && lastForLatest.status === 'refused') {
-    return { deploy: false, reason: `sha ${latestSha} failed preflight here — operator must fix the target layout` };
+    return { deploy: false, reason: `sha ${latestSha} was refused here — operator must resolve: ${lastForLatest.reason || 'see deploy result'}` };
+  }
+  if (!hasDeployedState) {
+    return { deploy: true, reason: `no completed deploy recorded — installing ${latestSha} in full` };
   }
   if (same(currentSha, latestSha)) {
     if (lastForLatest && lastForLatest.status === 'failed') {
@@ -152,12 +154,11 @@ function isAncestor(ancestor, descendant) {
 // HEAD moves without deploying — on the lead the repo is a working checkout
 // and `mesh deploy` publishes its HEAD, so a HEAD-based diff is always empty.
 function deployedBase() {
-  let recorded = null;
-  try { recorded = JSON.parse(fs.readFileSync(DEPLOY_STATE, 'utf8')).deployedSha; } catch { /* not recorded yet */ }
-  if (/^[0-9a-f]{40}$/.test(recorded || '')) {
-    try { return git('rev-parse', '--verify', '--quiet', `${recorded}^{commit}`); } catch { /* not in this clone */ }
-  }
-  return git('rev-parse', 'HEAD');
+  if (!fs.existsSync(DEPLOY_STATE)) return null;
+  const recorded = JSON.parse(fs.readFileSync(DEPLOY_STATE, 'utf8')).deployedSha;
+  if (!/^[0-9a-f]{40}$/.test(recorded || '')) throw new Error('deploy state has no valid deployedSha');
+  try { return git('rev-parse', '--verify', '--quiet', `${recorded}^{commit}`); }
+  catch { throw new Error(`recorded deployedSha ${recorded} is not in this checkout`); }
 }
 
 // The signed sha, resolved after the fetch: it must be a commit on the
@@ -172,12 +173,12 @@ function resolveSignedSha(sha, branch) {
 }
 
 // Run the checked-out tree's mesh-deploy.js in pinned mode (no fetch).
-async function runDeployScript(args) {
+async function runDeployScript(args, script = DEPLOY_SCRIPT, envOverride = {}) {
   let stdout;
   try {
-    ({ stdout } = await execFileAsync(process.execPath, [DEPLOY_SCRIPT, '--local', ...args], {
+    ({ stdout } = await execFileAsync(process.execPath, [script, '--local', ...args], {
       cwd: REPO_DIR, encoding: 'utf8', timeout: DEPLOY_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024,
-      env: { ...process.env, OPENCLAW_REPO_DIR: REPO_DIR },
+      env: { ...process.env, ...envOverride, OPENCLAW_REPO_DIR: REPO_DIR },
     }));
   } catch (err) {
     const reported = String(err.stdout || '').split('\n').reverse().find(l => l.startsWith('DEPLOY_ERROR '));
@@ -186,9 +187,37 @@ async function runDeployScript(args) {
   }
   const line = stdout.split('\n').reverse().find(l => l.startsWith('DEPLOY_RESULT '));
   if (!line) {
-    throw Object.assign(new Error(`${DEPLOY_SCRIPT} printed no DEPLOY_RESULT — that tree's deploy script predates pinned deploys`), { stdout });
+    throw Object.assign(new Error(`${script} printed no DEPLOY_RESULT — that tree's deploy script predates pinned deploys`), { stdout });
   }
   return { stdout, deployed: JSON.parse(line.slice('DEPLOY_RESULT '.length)) };
+}
+
+async function preflightTarget(targetSha, args) {
+  const checkout = fs.mkdtempSync(path.join(os.tmpdir(), 'mesh-deploy-preflight-'));
+  let added = false;
+  try {
+    git('worktree', 'add', '--detach', '--quiet', checkout, targetSha);
+    added = true;
+    const script = path.join(checkout, 'bin', 'mesh-deploy.js');
+    if (!fs.readFileSync(script, 'utf8').includes("args.includes('--preflight-only')")) {
+      throw Object.assign(new Error('signed mesh-deploy.js lacks preflight support'), { refused: true });
+    }
+    let deployed;
+    try {
+      ({ deployed } = await runDeployScript(args, script, {
+        OPENCLAW_OBS_DB: path.join(checkout, 'preflight-observability.db'),
+      }));
+    } catch (err) {
+      if (/points outside this deployed revision|tracked files in .* differ from the commit/.test(String(err.stdout || err.message))) {
+        err.refused = true;
+      }
+      throw err;
+    }
+    if (deployed.preflight !== true) throw new Error('signed deploy script did not attest preflight');
+  } finally {
+    if (added) git('worktree', 'remove', '--force', checkout);
+    else fs.rmSync(checkout, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -214,8 +243,8 @@ async function runDeploy(trigger, { forwardOnly = false } = {}) {
     for (const c of applicable) componentArgs.push('--component', c);
   }
 
-  // Pre-deploy SHA (P4-9): the point to roll back to. Null on the bootstrap
-  // path (no git tree yet) — nothing to revert to; the failure is reported as-is.
+  // Pre-deploy SHA (P4-9): the point to roll back to. Null on the first full
+  // install, when no runtime revision has been recorded yet.
   let preSha = null;
   let targetSha = null;
   let touched = false; // tree moved or deploy script ran: a failure needs a rollback
@@ -229,16 +258,9 @@ async function runDeploy(trigger, { forwardOnly = false } = {}) {
 
     let deployArgs;
     if (!fs.existsSync(path.join(REPO_DIR, '.git'))) {
-      // Provisioner copied files without git clone: nothing recorded to diff
-      // from, so every component is reinstalled at the signed sha.
-      if (!fs.existsSync(REPO_DIR)) throw new Error(`Repo dir not found at ${REPO_DIR}`);
-      console.log(`[deploy-listener] No .git found — bootstrapping git repo`);
-      git('init', '--quiet');
-      git('remote', 'add', 'origin', REPO_REMOTE_URL);
-      git('fetch', 'origin', branch);
-      targetSha = resolveSignedSha(trigger.sha, branch);
-      git('reset', '--hard', '--quiet', targetSha);
-      deployArgs = ['--from', targetSha, '--to', targetSha, ...(componentArgs.length ? componentArgs : ['--component', 'all'])];
+      const reason = `no Git checkout at ${REPO_DIR} — clone the signed source into a separate directory before deploying`;
+      console.error(`[deploy-listener] Deploy REFUSED: ${reason}`);
+      return { ...result, status: 'refused', errors: [reason], log: reason };
     } else {
       preSha = deployedBase();
       console.log(`[deploy-listener] git fetch origin ${branch}...`);
@@ -261,19 +283,17 @@ async function runDeploy(trigger, { forwardOnly = false } = {}) {
       if (dirty) {
         throw new Error(`tracked files differ from the commit (${dirty.split('\n').slice(0, 5).map(l => l.trim()).join(', ')}) — refusing to deploy over them`);
       }
-      const preflightArgs = ['--from', preSha, '--to', targetSha, ...componentArgs, ...(trigger.force ? ['--force'] : []), '--preflight-only'];
+      const fromSha = preSha || targetSha;
+      const installArgs = preSha ? componentArgs : ['--component', 'all'];
+      const preflightArgs = ['--from', fromSha, '--to', targetSha, ...installArgs, ...(trigger.force ? ['--force'] : []), '--preflight-only'];
       try {
-        if (!fs.readFileSync(DEPLOY_SCRIPT, 'utf8').includes("args.includes('--preflight-only')")) {
-          throw new Error('deployed mesh-deploy.js lacks preflight support');
-        }
-        const { deployed } = await runDeployScript(preflightArgs);
-        if (deployed.preflight !== true) throw new Error('deploy script did not attest preflight');
+        await preflightTarget(targetSha, preflightArgs);
       } catch (err) {
-        result.status = 'refused';
+        result.status = err.refused ? 'refused' : 'failed';
         result.errors.push(err.message);
         result.log = String(err.stdout || err.stderr || err.message).slice(-5000);
-        result.preSha = preSha.slice(0, 7);
-        console.error(`[deploy-listener] Deploy REFUSED before checkout: ${err.message}`);
+        result.preSha = preSha ? preSha.slice(0, 7) : null;
+        console.error(`[deploy-listener] Deploy ${result.status.toUpperCase()} before checkout: ${err.message}`);
         return result;
       }
       if (head !== targetSha) {
@@ -281,7 +301,7 @@ async function runDeploy(trigger, { forwardOnly = false } = {}) {
         touched = true;
         git('checkout', '--detach', '--quiet', targetSha);
       }
-      deployArgs = ['--from', preSha, '--to', targetSha, ...componentArgs];
+      deployArgs = ['--from', fromSha, '--to', targetSha, ...installArgs];
     }
     if (trigger.force) deployArgs.push('--force');
 
@@ -362,7 +382,7 @@ async function executeDeploy(trigger, resultsKv, nodesKv, opts = {}) {
       sha: trigger.sha, status: result.status, attempts,
       completedAt: result.completedAt, preSha: result.preSha,
       rolledBack: result.rolledBack ?? null, initiator: trigger.initiator || null,
-      ...(result.status === 'skipped' ? { reason: result.log } : {}),
+      ...(['skipped', 'refused'].includes(result.status) ? { reason: result.errors[0] || result.log } : {}),
     });
     result.durationSeconds = Math.round(
       (new Date(result.completedAt) - new Date(result.startedAt)) / 1000
@@ -396,6 +416,10 @@ async function executeDeploy(trigger, resultsKv, nodesKv, opts = {}) {
           console.log(`[deploy-listener] Updated node registry: deployVersion=${result.sha.slice(0,7)}`);
         }
       } catch (err) { console.warn(`[deploy-listener] update node deploy version: ${err.message}`); }
+    }
+    if (result.status === 'success' && !BOOTED_LISTENER.equals(fs.readFileSync(__filename))) {
+      console.log('[deploy-listener] Listener source changed — exiting for service-manager restart');
+      process.exit(0);
     }
   } finally {
     deploying = false;
@@ -434,7 +458,7 @@ async function checkAndCatchUp(resultsKv, nodesKv) {
     // P4-9: "HEAD == latest" is not "deployed" — a merged-but-failed deploy
     // leaves the tree there too. The local marker breaks the tie, and caps
     // automatic retries of a sha that keeps failing on this node.
-    const verdict = shouldCatchUp({ currentSha, latestSha: sha, lastDeploy: readDeployMarker() });
+    const verdict = shouldCatchUp({ currentSha, latestSha: sha, lastDeploy: readDeployMarker(), hasDeployedState: fs.existsSync(DEPLOY_STATE) });
     console.log(`[deploy-listener] Catch-up: ${verdict.reason}`);
     if (verdict.deploy) {
       await executeDeploy(

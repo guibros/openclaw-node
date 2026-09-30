@@ -15,6 +15,7 @@ export const MemoryExtractedSchema = EventEnvelopeSchema.extend({
     entity_names: z.array(z.string().max(200)).max(20).optional(),
     theme_labels: z.array(z.string().max(200)).max(12).optional(),
     decision_texts: z.array(z.string().max(500)).max(10).optional(),
+    deduplicated: z.boolean().optional(),
     model: z.string(),
     duration_ms: z.number().int().nonnegative(),
   }),
