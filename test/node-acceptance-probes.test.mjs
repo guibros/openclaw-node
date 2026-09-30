@@ -9,6 +9,7 @@ import { runAcceptance, resolveNodeConfig, VERDICT } from '../lib/node-acceptanc
 import { createExtractionStore } from '../lib/extraction-store.mjs';
 import { parseJsonlFile } from '../lib/transcript-parser.mjs';
 import { MIN_SESSION_BYTES } from '../lib/transcript-discovery.mjs';
+import { sanitizeField, FIELD_CAPS } from '../lib/memory-formatter.mjs';
 
 // A fully-mocked runtime context — no live system is touched.
 function baseCtx(over = {}) {
@@ -438,6 +439,16 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     });
     const r = await probeById(ctx, 'MEM-L4-ROUNDTRIP').run();
     assert.equal(r.status, VERDICT.PASS);
+  });
+  it('MEM-L4-ROUNDTRIP recognizes the formatter-capped decision in its own channel', async () => {
+    const decision = `Use SQLite for ACCPROBETESTRUN because ${'portable '.repeat(45)}`;
+    const ctx = baseCtx({
+      queryDb: roundtripQuery([{ id: 7, decision, rationale: 'embedded and portable' }]),
+      httpPost: async () => ({ status: 200, json: {
+        block: decisionBlock(sanitizeField(decision, FIELD_CAPS.decision)), items: { decisions: 1 },
+      } }),
+    });
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.PASS);
   });
   it('MEM-L4-ROUNDTRIP uses the same rationale rule as LLM-L2-EXTRACT', async () => {
     const ctx = baseCtx({

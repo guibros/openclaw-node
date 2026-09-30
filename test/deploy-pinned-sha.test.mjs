@@ -476,15 +476,80 @@ describe('a deploy restarts only the services that are running', () => {
 describe('shared library deploy reaches workspace daemons', () => {
   it('updates both runtime lib trees and restarts a running memory daemon', () => {
     const fx = makeNode('workspace-lib', {});
-    const S1 = fx.commit('lib update', { 'lib/tracer.js': '// tracer v1\n' });
+    write(fx.home, '.openclaw/workspace/lib/tracer.js', '// stale tracer\n');
+    const S1 = fx.commit('lib update', { 'lib/runtime-helper.mjs': '// helper v1\n' });
     const run = fx.deploy(['--from', fx.S0, '--to', S1], {
       DEPLOY_TEST_PLATFORM: 'linux',
       DEPLOY_TEST_UNITS: 'openclaw-memory-daemon',
     });
     ranOk(run);
-    assert.equal(read(fx.rt('openclaw/lib/tracer.js')), '// tracer v1\n');
-    assert.equal(read(fx.rt('.openclaw/workspace/lib/tracer.js')), '// tracer v1\n');
+    assert.equal(read(fx.rt('openclaw/lib/runtime-helper.mjs')), '// helper v1\n');
+    assert.equal(read(fx.rt('.openclaw/workspace/lib/runtime-helper.mjs')), '// helper v1\n');
+    assert.equal(read(fx.rt('.openclaw/workspace/lib/tracer.js')), read(path.join(REPO, 'lib/tracer.js')));
     assert.ok(fx.calls().includes('systemctl --user try-restart openclaw-memory-daemon'));
+
+    write(fx.home, 'Library/LaunchAgents/ai.openclaw.memory-daemon.plist', '<plist/>\n');
+    fs.rmSync(fx.callLog, { force: true });
+    const S2 = fx.commit('lib update again', { 'lib/runtime-helper.mjs': '// helper v2\n' });
+    const macRun = fx.deploy(['--from', S1, '--to', S2], { DEPLOY_TEST_PLATFORM: 'darwin' });
+    ranOk(macRun);
+    assert.equal(read(fx.rt('.openclaw/workspace/lib/runtime-helper.mjs')), '// helper v2\n');
+    assert.ok(fx.calls().some((call) => call.startsWith('launchctl kickstart -k ') && call.endsWith('/ai.openclaw.memory-daemon')));
+  });
+
+  it('refuses a workspace lib symlink into a different checkout before copying', () => {
+    const fx = makeNode('foreign-workspace-lib', {});
+    write(fx.home, 'other-checkout/lib/sentinel.mjs', '// untouched\n');
+    fs.mkdirSync(fx.rt('.openclaw/workspace'), { recursive: true });
+    fs.symlinkSync(fx.rt('other-checkout/lib'), fx.rt('.openclaw/workspace/lib'));
+    const S1 = fx.commit('new shared module', { 'lib/runtime-helper.mjs': '// helper v1\n' });
+    const run = fx.deploy(['--from', fx.S0, '--to', S1], { DEPLOY_TEST_PLATFORM: 'linux' });
+    assert.notEqual(run.status, 0);
+    assert.match(run.stderr + run.stdout, /points outside this deployed revision/);
+    assert.equal(read(fx.rt('other-checkout/lib/sentinel.mjs')), '// untouched\n');
+    assert.equal(fs.existsSync(fx.rt('other-checkout/lib/runtime-helper.mjs')), false);
+    assert.equal(fs.existsSync(fx.rt('openclaw/lib/runtime-helper.mjs')), false);
+  });
+
+  it('refuses an individual shared-lib file linked into a different checkout', () => {
+    const fx = makeNode('foreign-workspace-file', { 'lib/runtime-helper.mjs': '// helper v0\n' });
+    write(fx.home, 'other-checkout/runtime-helper.mjs', '// untouched\n');
+    fs.mkdirSync(fx.rt('.openclaw/workspace/lib'), { recursive: true });
+    fs.symlinkSync(fx.rt('other-checkout/runtime-helper.mjs'), fx.rt('.openclaw/workspace/lib/runtime-helper.mjs'));
+    const S1 = fx.commit('update shared module', { 'lib/runtime-helper.mjs': '// helper v1\n' });
+    const run = fx.deploy(['--from', fx.S0, '--to', S1], { DEPLOY_TEST_PLATFORM: 'linux' });
+    assert.notEqual(run.status, 0);
+    assert.match(run.stderr + run.stdout, /points outside this deployed revision/);
+    assert.equal(read(fx.rt('other-checkout/runtime-helper.mjs')), '// untouched\n');
+    assert.equal(fs.existsSync(fx.rt('openclaw/lib/runtime-helper.mjs')), false);
+  });
+
+  it('refuses a deleted shared-lib file linked into a different checkout before other copies', () => {
+    const fx = makeNode('foreign-deleted-file', { 'lib/runtime-helper.mjs': '// helper v0\n' });
+    write(fx.home, 'other-checkout/runtime-helper.mjs', '// helper v0\n');
+    fs.mkdirSync(fx.rt('.openclaw/workspace/lib'), { recursive: true });
+    fs.symlinkSync(fx.rt('other-checkout/runtime-helper.mjs'), fx.rt('.openclaw/workspace/lib/runtime-helper.mjs'));
+    fs.rmSync(path.join(fx.seed, 'lib/runtime-helper.mjs'));
+    const S1 = fx.commit('delete shared module', {});
+    const run = fx.deploy(['--from', fx.S0, '--to', S1], { DEPLOY_TEST_PLATFORM: 'linux' });
+    assert.notEqual(run.status, 0);
+    assert.match(run.stderr + run.stdout, /points outside this deployed revision/);
+    assert.equal(read(fx.rt('other-checkout/runtime-helper.mjs')), '// helper v0\n');
+    assert.equal(fs.existsSync(fx.rt('openclaw/lib/tracer.js')), false);
+  });
+
+  it('refuses a nested shared-lib directory linked into a different checkout', () => {
+    const fx = makeNode('foreign-nested-dir', {});
+    write(fx.home, 'other-checkout/isolated/sentinel.mjs', '// untouched\n');
+    fs.mkdirSync(fx.rt('.openclaw/workspace/lib'), { recursive: true });
+    fs.symlinkSync(fx.rt('other-checkout/isolated'), fx.rt('.openclaw/workspace/lib/isolated'));
+    const S1 = fx.commit('new nested module', { 'lib/isolated/helper.mjs': '// helper v1\n' });
+    const run = fx.deploy(['--from', fx.S0, '--to', S1], { DEPLOY_TEST_PLATFORM: 'linux' });
+    assert.notEqual(run.status, 0);
+    assert.match(run.stderr + run.stdout, /points outside this deployed revision/);
+    assert.equal(read(fx.rt('other-checkout/isolated/sentinel.mjs')), '// untouched\n');
+    assert.equal(fs.existsSync(fx.rt('other-checkout/isolated/helper.mjs')), false);
+    assert.equal(fs.existsSync(fx.rt('openclaw/lib/tracer.js')), false);
   });
 });
 

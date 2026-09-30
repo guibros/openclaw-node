@@ -281,6 +281,7 @@ const MANIFEST = [
     risk: 'safe',
     repoPaths: ['lib/'],
     targets: [DIRS.CLI_LIB, DIRS.WORKSPACE_LIB],
+    fullOnChange: true,
     servicesMac: ['ai.openclaw.mesh-task-daemon', 'ai.openclaw.mesh-bridge',
                   'ai.openclaw.mesh-agent', 'ai.openclaw.memory-daemon'],
     servicesLinux: ['openclaw-mesh-task-daemon', 'openclaw-mesh-bridge', 'openclaw-mesh-agent',
@@ -726,6 +727,30 @@ function targetSubPath(comp, file) {
   return file;
 }
 
+function assertSharedLibTargets(comp, repoDir, files) {
+  if (comp.id !== 'shared-lib') return;
+  const sourceRoot = fs.realpathSync(path.join(repoDir, 'lib'));
+  for (const target of comp.targets) {
+    const targetStat = fs.lstatSync(target, { throwIfNoEntry: false });
+    if (targetStat?.isSymbolicLink() && fs.realpathSync(target) !== sourceRoot) {
+      throw new Error(`${target} points outside this deployed revision — refusing to write through it`);
+    }
+    for (const relFile of files) {
+      const subPath = targetSubPath(comp, relFile);
+      const parts = subPath.split(path.sep);
+      for (let depth = 1; depth <= parts.length; depth++) {
+        const nestedPath = path.join(target, ...parts.slice(0, depth));
+        const nestedStat = fs.lstatSync(nestedPath, { throwIfNoEntry: false });
+        if (!nestedStat?.isSymbolicLink()) continue;
+        const sourcePath = path.join(sourceRoot, ...parts.slice(0, depth));
+        if (!fs.existsSync(sourcePath) || fs.realpathSync(nestedPath) !== fs.realpathSync(sourcePath)) {
+          throw new Error(`${nestedPath} points outside this deployed revision — refusing to write through it`);
+        }
+      }
+    }
+  }
+}
+
 /**
  * Which components the changes touch, and with which files. A component named
  * with --component (every component under --force or --component all) is
@@ -749,7 +774,7 @@ function planComponents(changes, { filterIds = [], force = false, listAll }) {
 
     const own = changes.filter(c => ownsPath(comp, c.path));
     const remove = own.filter(c => c.status === 'D').map(c => c.path);
-    const install = (reinstallAll || named.includes(comp.id))
+    const install = (reinstallAll || named.includes(comp.id) || (comp.fullOnChange && own.length > 0))
       ? listAll(comp.repoPaths).filter(f => ownsPath(comp, f))
       : own.filter(c => c.status !== 'D').map(c => c.path);
     if (install.length > 0 || remove.length > 0) plans.push({ comp, install, remove });
@@ -761,6 +786,7 @@ function planComponents(changes, { filterIds = [], force = false, listAll }) {
  * Copy a component's files from the checked-out tree to its targets.
  */
 function installFiles(comp, repoDir, files, dryRun) {
+  assertSharedLibTargets(comp, repoDir, files);
   let count = 0;
   for (const target of comp.targets) {
     for (const relFile of files) {
@@ -802,6 +828,7 @@ function installFiles(comp, repoDir, files, dryRun) {
  * this node (learned soul genes, an operator's doc) stays, with a warning.
  */
 function removeFiles(comp, repoDir, fromSha, files, dryRun) {
+  assertSharedLibTargets(comp, repoDir, files);
   let count = 0;
   for (const target of comp.targets) {
     for (const relFile of files) {
@@ -902,6 +929,9 @@ function deploy({ repoDir, fromSha, toSha, filterIds = [], force = false, includ
     filterIds, force,
     listAll: repoPaths => listFiles(repoDir, toSha, repoPaths),
   });
+  for (const { comp, install, remove } of plans) {
+    assertSharedLibTargets(comp, repoDir, [...install, ...remove]);
+  }
   if (plans.length === 0) ok('No components affected');
   else info(`${plans.length} component(s) to deploy:\n`);
 
