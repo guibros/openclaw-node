@@ -1,0 +1,63 @@
+gui/501/ai.openclaw.openclaw-owned-recovery-4f4e5ecc42af8970.scheduler-heartbeat = {
+	active count = 0
+	path = /private/var/folders/52/24gckfjn2vd3yyz5smhmwhx00000gn/T/openclaw-owned-recovery-4f4e5ecc42af8970/plists/scheduler-heartbeat.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /usr/bin/python3
+	arguments = {
+		/usr/bin/python3
+		-I
+		-S
+		/private/var/folders/52/24gckfjn2vd3yyz5smhmwhx00000gn/T/openclaw-owned-recovery-4f4e5ecc42af8970/service_gate.py
+		run
+		/private/var/folders/52/24gckfjn2vd3yyz5smhmwhx00000gn/T/openclaw-owned-recovery-4f4e5ecc42af8970/gate
+		--lock
+		16777233:59503290:1790782823477234407
+		--root-pin
+		16777233:59503289
+		--
+		/bin/sh
+		-c
+		printf "fired\n" >> "$OWNED_FIRE_LOG"
+	}
+
+	working directory = /private/var/folders/52/24gckfjn2vd3yyz5smhmwhx00000gn/T/openclaw-owned-recovery-4f4e5ecc42af8970
+
+	stdout path = /private/var/folders/52/24gckfjn2vd3yyz5smhmwhx00000gn/T/openclaw-owned-recovery-4f4e5ecc42af8970/scheduler-heartbeat.out
+	stderr path = /private/var/folders/52/24gckfjn2vd3yyz5smhmwhx00000gn/T/openclaw-owned-recovery-4f4e5ecc42af8970/scheduler-heartbeat.err
+	inherited environment = {
+		SSH_AUTH_SOCK => [redacted]
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		OWNED_HEALTH_PORT => 55982
+		OWNED_FIRE_LOG => /private/var/folders/52/24gckfjn2vd3yyz5smhmwhx00000gn/T/openclaw-owned-recovery-4f4e5ecc42af8970/fires.log
+		OWNED_ROLE => scheduler-heartbeat
+		OWNED_UNREADY_FILE => /private/var/folders/52/24gckfjn2vd3yyz5smhmwhx00000gn/T/openclaw-owned-recovery-4f4e5ecc42af8970/unready
+		XPC_SERVICE_NAME => ai.openclaw.openclaw-owned-recovery-4f4e5ecc42af8970.scheduler-heartbeat
+	}
+
+	domain = gui/501 [100003]
+	asid = 100003
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 0
+	last exit code = (never exited)
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+	run interval = 3600 seconds
+
+	properties = inferred program | system service | tle system
+}

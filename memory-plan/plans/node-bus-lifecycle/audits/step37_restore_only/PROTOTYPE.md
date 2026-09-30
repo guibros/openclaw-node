@@ -9,6 +9,11 @@ Python process. It fires the timer through launchd, observes no application
 output while the gate is closed, bootstraps the missing saved daemon, verifies the complete
 baseline, resolves the journal, then observes the timer run after reopen. The
 fixture and owned launchd jobs are removed by the test.
+`generate_runtime_evidence.py` reruns this suite and an independent interrupted
+hold scenario, writing the test transcript, one captured loaded-timer
+`launchctl print`, and a source-hashed JSON result beside this document.
+The saved print has only its inherited SSH-agent socket path redacted; the
+loaded program, properties, arguments, job environment and schedule are intact.
 
 The command intentionally accepts only roots named
 `openclaw-owned-recovery-<16 hex digits>` directly under macOS `$TMPDIR`'s
@@ -33,6 +38,12 @@ shared lock past the drain deadline. None of those cases authorizes a new
 baseline, seal, or production mutation. Receipt drift remains a manual
 operator handoff under the existing 3.1 rule. Steps 3.8–3.11 and parent 1.2
 remain required for any production preservation flow.
+
+The adapter requires the loaded `program` to equal the pinned first argument
+and the launchd `properties` field to include `inferred program`. Its loaded
+environment parser currently expects `OSLogRateLimit = 64` on this macOS;
+a different launchd rendering refuses recovery rather than guessing readiness.
+The complete inherited launch environment is a separate 3.9 prerequisite.
 
 Earlier fixture teardown created persistent `enabled` entries for 333 unique
 private test labels in launchd's disabled-service database. They have no loaded

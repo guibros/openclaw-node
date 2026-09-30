@@ -312,6 +312,42 @@ with Journal(root, node_lock=lock) as journal:
         self.assertEqual(result['gate'], 'closed')
         self.assertFalse((self.root / 'fires.log').exists())
 
+    def test_loaded_timer_explicit_program_refuses_before_reopen(self):
+        self.interrupt()
+        service = self.services[ANCHOR]
+        original = service.plist.read_bytes()
+        subprocess.run(['/bin/launchctl', 'bootout', service.target], check=True)
+        changed = plistlib.loads(original)
+        changed['Program'] = '/bin/echo'
+        service.plist.write_bytes(plistlib.dumps(changed))
+        service.bootstrap()
+        service.plist.write_bytes(original)
+        loaded = subprocess.check_output(['/bin/launchctl', 'print', service.target], text=True)
+        self.assertIn('program = /bin/echo', loaded)
+        code, result = self.command()
+        self.assertEqual(code, 2)
+        self.assertEqual(result['outcome'], 'partial')
+        self.assertEqual(result['gate'], 'closed')
+        self.assertFalse((self.root / 'fires.log').exists())
+
+    def test_loaded_daemon_explicit_program_refuses_without_kickstart(self):
+        self.interrupt()
+        service = self.services['mesh-agent']
+        original = service.plist.read_bytes()
+        subprocess.run(['/bin/launchctl', 'bootout', service.target], check=True)
+        changed = plistlib.loads(original)
+        changed['Program'] = '/bin/echo'
+        service.plist.write_bytes(plistlib.dumps(changed))
+        service.bootstrap()
+        wait_for(lambda: service.status()['loaded'] and not service.status()['running'])
+        service.plist.write_bytes(original)
+        before = service.status()['runs']
+        code, result = self.command()
+        self.assertEqual(code, 2)
+        self.assertEqual(result['outcome'], 'partial')
+        self.assertEqual(result['gate'], 'closed')
+        self.assertEqual(service.status()['runs'], before)
+
     def test_production_shape_and_extra_plist_key_refuse_before_journal(self):
         before = sorted(path.name for path in self.journal_root.iterdir())
         production = self.root.parent / 'openclaw-production'

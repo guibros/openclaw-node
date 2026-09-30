@@ -184,6 +184,9 @@ class OwnedLaunchdAdapter:
             match = re.search(r'^\s*' + re.escape(name) + r' = (.+)$', result, re.M)
             require(match is not None, 'loaded owned job lacks ' + name)
             return match[1]
+        require(field('program') == plist['ProgramArguments'][0]
+                and 'inferred program' in [item.strip() for item in field('properties').split('|')],
+                'loaded owned executable differs')
         arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', result, re.M | re.S)
         require(arguments is not None and [line.strip() for line in arguments[1].splitlines()]
                 == plist['ProgramArguments'], 'loaded owned arguments differ')
