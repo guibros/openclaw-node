@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_ANALYSIS_TIMEOUT } from '../lib/llm-client.mjs';
+import { buildProbes } from '../lib/node-acceptance-probes.mjs';
 
 // Gate mutation-tests (audits/gate_mutation): prove each CUSTOM gate still
 // REJECTS known-bad input. Vendored tools don't rot; our glue does — grep
@@ -59,17 +60,19 @@ describe('tarball-smoke gate rejects doctored listings', () => {
 // or a live-but-loaded server grades BROKEN.
 
 describe('MEM-L2-INJECT budget clears the designed worst case', () => {
-  const src = readFileSync(join(REPO, 'lib/node-acceptance-probes.mjs'), 'utf8');
-  const block = src.slice(src.indexOf("id: 'MEM-L2-INJECT'"), src.indexOf("id: 'MEM-L4-ROUNDTRIP'"));
-  const probeTimeout = Number(block.match(/timeoutMs:\s*(\d+)/)[1]);
-  const httpTimeout = Number(block.match(/timeoutMs:\s*(\d+)/g)[1].match(/(\d+)/)[1]);
-
-  it('HTTP budget ≥ 2× the analysis fallback wait', () => {
+  it('the actual HTTP call and probe budget clear the analysis fallback wait', async () => {
+    let httpTimeout;
+    const config = { injectBudgetMs: 20_000, injectToken: '/fixture/token', injectHost: '127.0.0.1', injectPort: 17893 };
+    const ctx = {
+      config, runId: 'budget-test', fsp: { readFile: async () => 'fixture-token' },
+      httpPost: async (_url, options) => { httpTimeout = options.timeoutMs; return { status: 401 }; },
+    };
+    const probe = buildProbes(ctx).find((candidate) => candidate.id === 'MEM-L2-INJECT');
+    await probe.run();
     assert.ok(httpTimeout >= DEFAULT_ANALYSIS_TIMEOUT * 2,
       `httpTimeout ${httpTimeout} < 2×analysis ${DEFAULT_ANALYSIS_TIMEOUT} — a loaded live server will grade BROKEN again`);
-  });
-  it('probe budget exceeds its own HTTP budget', () => {
-    assert.ok(probeTimeout > httpTimeout, `probe ${probeTimeout} must outlive its HTTP call ${httpTimeout}`);
+    assert.ok(probe.timeoutMs > httpTimeout,
+      `probe ${probe.timeoutMs} must outlive its HTTP call ${httpTimeout}`);
   });
 });
 
