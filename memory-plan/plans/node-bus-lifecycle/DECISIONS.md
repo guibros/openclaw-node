@@ -438,3 +438,44 @@ the explicit actual commissioning step after3.6–3.10; bounded restore-only
 recovery is its sole handoff, not an unlisted full1.2 controller. Archive update
 semantics and misleading success on rsync failure remain recorded follow-ups.
 Require exact closure-head CI/source identity before merging ledger-only closure.
+
+## D23 — Owned 3.7 restoration prototype boundary (2026-09-30 10:26 EDT)
+
+The 3.7 command reopens only an existing, complete Journal and saved execution
+hold under a private, uniquely named macOS fixture root. It does not capture a
+new baseline, certify the interrupted interval, seal, or touch production
+labels, stores, timers or the production node lock. A fixed built-in adapter
+compares saved plist, entry, argv, working-directory and environment identity
+with the actual owned launchd services and local health before restoration and
+reopen. No caller-supplied readiness callback can authorize reopening.
+
+For a runnable end-to-end prototype, the adapter may bootstrap or kickstart
+only its saved, private timer or daemon when that unit is missing or stopped.
+It rechecks identity and both launchd domains before the action, never enables
+or bootouts a service, and never kickstarts a timer. This is an owned fixture
+acceptance path, not the production 1.2 resume controller. Other units are
+saved as absent, including nats-1; the schema accepts that class. Any
+production-shaped baseline or path, extra owned job, drift, live controller,
+straggler past the drain deadline or unreadable state refuses. Partial
+restoration leaves an unresolved journal for retry or operator handoff. The
+gate can remain closed when recovery fails before reopen, or be open if a
+subsequent durable record fails. The actual marker is read for reporting;
+journal state alone cannot establish whether the gate is physically open.
+
+Read-only preflight precedes the existing Journal constructor because that
+constructor repairs some missing or corrupt receipts. Receipt drift after an
+unrelated gate-directory entry change is classified and refused before a new
+record, preserving the accepted 3.1 full-receipt rule. That rule can strand a
+closed owned hold; changing root-time binding would require its own decision,
+tests and migration, so this prototype neither recaptures pins nor removes a
+marker automatically. 3.7 remains active until exact-source adversarial
+review, CI and its runtime evidence are accepted. Production commissioning
+still depends on 3.8–3.11 and parent 1.2.
+
+D23 closure (2026-09-30 11:46 EDT): Claude85 accepted the exact f72820c
+source after the loaded-`program` counterexample was closed and two native
+explicit-Program controls passed; CI36738649717 is green3/3. Private Mac
+runtime evidence includes27 owned recovery and33 hold controls, a real
+launchd timer inert while closed and active after reopen, and a restored-only
+resolved journal. The command did not touch production. Mark3.7[x]/v3.7;
+3.8–3.11 and parent1.2 still govern production commissioning.

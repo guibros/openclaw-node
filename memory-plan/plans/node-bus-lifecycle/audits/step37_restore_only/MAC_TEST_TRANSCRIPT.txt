@@ -1,0 +1,82 @@
+test_ambiguous_open_ready_service_loss_is_protected_before_later_mutation (__main__.HoldTests) ... ok
+test_competing_intents_and_duplicate_nonce_are_refused (__main__.HoldTests) ... ok
+test_failed_final_readiness_record_never_reopens (__main__.HoldTests) ... ok
+test_failed_full_reopen_readiness_record_keeps_hold_closed (__main__.HoldTests) ... ok
+test_failed_mark_failed_performs_zero_dependency_mutations (__main__.HoldTests) ... ok
+test_failed_post_unlink_record_is_unresolved_and_recovery_recloses (__main__.HoldTests) ... ok
+test_failed_protective_intent_never_publishes_or_mutates_dependencies (__main__.HoldTests) ... ok
+test_failed_publication_receipt_keeps_hold_closed_and_blocks_dependencies (__main__.HoldTests) ... ok
+test_failed_reopen_intent_keeps_hold_closed (__main__.HoldTests) ... ok
+test_failed_supersession_does_not_create_competing_protective_intents (__main__.HoldTests) ... ok
+test_fast_recheck_is_under_exclusive_lock_and_can_refuse_reopen (__main__.HoldTests) ... ok
+test_final_physical_failure_keeps_a_drained_hold_closed (__main__.HoldTests) ... ok
+test_forward_work_before_close_is_refused (__main__.HoldTests) ... ok
+test_full_baseline_unmutated_worker_readiness_is_required (__main__.HoldTests) ... ok
+test_intent_only_open_ready_is_ambiguous_and_never_certified (__main__.HoldTests) ... ok
+test_intent_only_open_unready_protects_before_dependency_restoration (__main__.HoldTests) ... ok
+test_intent_only_partial_readiness_protects_but_does_not_open (__main__.HoldTests) ... ok
+test_invalid_timer_cohort_refuses_without_gate_mutation (__main__.HoldTests) ... ok
+test_killed_owned_controller_after_persisted_receipt_restores_only (__main__.HoldTests) ... ok
+test_killed_owned_controllers_before_receipt_after_receipt_and_after_drain_restore_only (__main__.HoldTests) ... ok
+test_lock_ctime_and_metadata_substitution_cannot_recapture_pins (__main__.HoldTests) ... ok
+test_marker_change_during_a_forward_operation_never_verifies_or_seals (__main__.HoldTests) ... ok
+test_matching_saved_receipt_is_reattached_only_for_restoration (__main__.HoldTests) ... ok
+test_mismatched_marker_refuses_receipt_gap_adoption (__main__.HoldTests) ... ok
+test_original_native_observer_brackets_every_mutation_and_can_seal (__main__.HoldTests) ... ok
+test_persisted_receipt_missing_marker_always_gets_a_protective_new_hold (__main__.HoldTests) ... ok
+test_publication_gap_adopts_only_unique_matching_intent_for_restoration (__main__.HoldTests) ... ok
+test_raw_journal_cannot_skip_a_baselined_hold (__main__.HoldTests) ... ok
+test_real_foreground_straggler_blocks_recovery_before_any_dependency_mutation (__main__.HoldTests) ... ok
+test_real_foreground_survives_controller_death_until_normal_drain (__main__.HoldTests) ... ok
+test_restore_intent_write_failure_aborts_without_degraded_service_mutations (__main__.HoldTests) ... ok
+test_saved_root_pin_difference_is_refused (__main__.HoldTests) ... ok
+test_unowned_marker_refuses_all_dependency_mutation (__main__.HoldTests) ... ok
+
+----------------------------------------------------------------------
+Ran 33 tests in 12.351s
+
+OK
+
+✔ sole preservation journal restores interrupted execution holds without certifying lost history (12436.856167ms)
+test_active_owner_refuses_without_restoring (__main__.RestoreOnlyOwned) ... ok
+test_ambiguous_open_straggler_reports_protective_close (__main__.RestoreOnlyOwned) ... ok
+test_corrupt_receipt_refuses_without_repair_or_restoration (__main__.RestoreOnlyOwned) ... ok
+test_extra_owned_job_blocks_bootstrap_and_keeps_gate_closed (__main__.RestoreOnlyOwned) ... ok
+test_finished_head_lag_is_reported_without_repair (__main__.RestoreOnlyOwned) ... ok
+test_foreign_marker_refuses_without_appending_records (__main__.RestoreOnlyOwned) ... ok
+test_identity_drift_refuses_before_new_journal_records (__main__.RestoreOnlyOwned) ... ok
+test_intent_only_open_ready_resolves_without_certification (__main__.RestoreOnlyOwned) ... ok
+test_loaded_daemon_explicit_program_refuses_without_kickstart (__main__.RestoreOnlyOwned) ... ok
+test_loaded_stopped_owned_daemon_is_kickstarted (__main__.RestoreOnlyOwned) ... ok
+test_loaded_timer_explicit_program_refuses_before_reopen (__main__.RestoreOnlyOwned) ... ok
+test_loaded_timer_from_different_plist_is_not_treated_as_ready (__main__.RestoreOnlyOwned) ... ok
+test_missing_lock_refuses_without_recreating_it (__main__.RestoreOnlyOwned) ... ok
+test_missing_preservation_refuses_when_gate_and_services_exist (__main__.RestoreOnlyOwned) ... ok
+test_missing_receipt_refuses_without_rebuilding_or_restoring (__main__.RestoreOnlyOwned) ... ok
+test_prepublication_run_outlasting_drain_refuses_then_retries (__main__.RestoreOnlyOwned) ... ok
+test_production_shape_and_extra_plist_key_refuse_before_journal (__main__.RestoreOnlyOwned) ... ok
+test_real_interrupted_hold_restores_owned_daemon_and_resolves (__main__.RestoreOnlyOwned) ... ok
+test_receipt_drift_refuses_before_new_journal_records (__main__.RestoreOnlyOwned) ... ok
+test_receipt_gap_is_adopted_for_restoration_only (__main__.RestoreOnlyOwned) ... ok
+test_resolve_failure_reports_open_unresolved_and_retry_resolves (__main__.RestoreOnlyOwned) ... ok
+test_restoration_intent_write_failure_never_bootstraps_service (__main__.RestoreOnlyOwned) ... ok
+test_sequence_gap_refuses_without_repair (__main__.RestoreOnlyOwned) ... ok
+test_substituted_gate_pin_refuses_without_restoring (__main__.RestoreOnlyOwned) ... ok
+test_unloaded_owned_timer_is_bootstrapped_without_running_early (__main__.RestoreOnlyOwned) ... ok
+test_unready_process_keeps_gate_closed_then_retry_resolves (__main__.RestoreOnlyOwned) ... ok
+test_vanished_marker_triggers_protective_restore_only_close (__main__.RestoreOnlyOwned) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 102.955s
+
+OK
+
+✔ owned restore-only command resolves an interrupted hold and refuses unsafe state (103046.005417ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 103083.0825

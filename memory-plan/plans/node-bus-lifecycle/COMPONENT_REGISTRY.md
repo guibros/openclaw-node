@@ -218,3 +218,16 @@ script, graph/dependency or activation changed. Feeds3.9/3.11's tracked entry
 input and existing installer workspace copy.3.7 bounded recovery remains next;
 actual commissioning3.11 and full preservation1.2 stay open. Closure ledger has
 no source delta and still requires exact closure-head CI before merge.
+
+Owned restore-only recovery closure — 2026-09-30 11:46 EDT:3.7[x]/v3.7.
+`restore_only.py` is an owned-fixture-only bounded CLI through the sole
+Journal/node_lock and JournaledHold. Claude85 accepted source f72820c; CI
+36738649717 passes3/3. Native Mac27 owned/33 hold controls and a separate
+actual launchd timer scenario show closed application-inert fire, restoration
+of a stopped private daemon, resolved uncertified journal and normal fire
+after physical reopen. The loaded `program`/`inferred program` check rejects
+an explicit-Program timer or daemon before reopen/kickstart. Source-hashed
+runtime evidence and generator live in step37. Production services and gate
+were untouched; 3.8–3.11 and parent1.2 remain open. Prior temporary fixture
+teardown left333 enabled override records for unloaded private test labels;
+current teardown adds none. Closure-head CI is still required before merge.
