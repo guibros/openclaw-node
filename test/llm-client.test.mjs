@@ -197,10 +197,17 @@ describe('generate — native /api/chat path (LLM_NATIVE_API=true default)', () 
     nextResponse = { status: 200, body: [{ error: 'runner unavailable' }] };
     await assert.rejects(() => c.generate([], { bypassQueue: true }), /runner unavailable/);
   });
-  it('rejects a completed stream cut off by the output token limit', async () => {
+  it('rejects structured output cut off by the output token limit', async () => {
     const c = createLlmClient({ baseUrl: baseUrl() });
     nextResponse = { status: 200, body: [{ message: { content: '{}' }, done: true, done_reason: 'length' }] };
-    await assert.rejects(() => c.generate([], { bypassQueue: true }), /output token limit/);
+    await assert.rejects(() => c.generate([], { bypassQueue: true, jsonMode: true }), /output token limit/);
+  });
+  it('returns capped free-form text to summary callers', async () => {
+    const c = createLlmClient({ baseUrl: baseUrl() });
+    nextResponse = { status: 200, body: [{ message: { content: 'short summary' }, done: true, done_reason: 'length', eval_count: 8 }] };
+    const out = await c.generate([], { bypassQueue: true, maxTokens: 8 });
+    assert.equal(out.content, 'short summary');
+    assert.equal(out.finishReason, 'length');
   });
   it('caller cancellation closes a streamed response', async () => {
     let received;
@@ -248,6 +255,7 @@ describe('generateAnalysis — separate budget', () => {
     await new Promise(r => owned.listen(0, '127.0.0.1', r));
     const ac = new AbortController();
     const client = createLlmClient({ baseUrl: `http://127.0.0.1:${owned.address().port}`, model: 'owned-cancel' });
+    const timeoutCount = getState().totals.timeouts;
     const result = client.generateAnalysis([{ role: 'user', content: 'owned fixture' }], { signal: ac.signal, waitTimeoutMs: 5000 });
     const rejected = assert.rejects(result, /owned HTTP cancellation/);
     try {
@@ -257,6 +265,7 @@ describe('generateAnalysis — separate budget', () => {
       await rejected;
       await responseClosed;
       assert.equal(getState().current_job, null);
+      assert.equal(getState().totals.timeouts, timeoutCount, 'caller cancellation is not an LLM timeout');
     } finally {
       ac.abort(new Error('fixture cleanup'));
       owned.closeAllConnections();

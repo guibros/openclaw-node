@@ -12,15 +12,19 @@ import { createExtractionStore } from '../lib/extraction-store.mjs';
 function baseCtx(over = {}) {
   const config = resolveNodeConfig({ OPENCLAW_HOME: '/tmp/acc-test-home', OPENCLAW_NODE_ID: 'testnode' });
   config.isolatedMemoryAcceptance = true;
+  config.injectPort = 17893;
+  config.natsUrl = 'nats://127.0.0.1:14222';
   const teardown = [];
   const ctx = {
     config, runId: 'testrun', options: { mutate: true, deep: true }, teardown, path,
     fsp: {
       stat: async () => ({ size: 100, mode: 0o100600 }),
       access: async () => {},
+      realpath: async (p) => p,
       readFile: async (p) => {
         if (p === config.injectToken) return 'TESTTOKEN';
-        if (p === config.transcriptSources) return JSON.stringify(['/tmp/acc-src']);
+        if (p === config.transcriptSources) return JSON.stringify(['/tmp/acc-test-home/transcripts']);
+        if (p === config.fixtureMarker) return 'node-readiness-memory-fixture-v1\n';
         return '';
       },
       writeFile: async () => {},
@@ -141,6 +145,12 @@ describe('node-acceptance probes — LLM backing', () => {
   it('LLM-L2-EXTRACT PASS when the SQLite decision is tied to the probe project', async () => {
     assert.equal((await probeById(baseCtx(), 'LLM-L2-EXTRACT').run()).status, VERDICT.PASS);
   });
+  it('LLM-L2-EXTRACT accepts an explicit rejection of Postgres', async () => {
+    const ctx = baseCtx({ runExtraction: async () => ({
+      decisions: [{ decision: 'Use SQLite for ACCPROBETESTRUN; do not use Postgres', rationale: 'no separate server' }],
+    }) });
+    assert.equal((await probeById(ctx, 'LLM-L2-EXTRACT').run()).status, VERDICT.PASS);
+  });
   it('LLM-L2-EXTRACT FAIL on empty but schema-valid extraction', async () => {
     const ctx = baseCtx({ runExtraction: async () => ({ entities: [], decisions: [], themes: [] }) });
     assert.equal((await probeById(ctx, 'LLM-L2-EXTRACT').run()).status, VERDICT.FAIL);
@@ -196,9 +206,22 @@ describe('node-acceptance probes — network', () => {
 });
 
 describe('node-acceptance probes — memory + gold round-trip', () => {
+  it('MEM-L2-INGEST blocks live state writes without an isolated fixture', async () => {
+    const ctx = baseCtx();
+    ctx.config.isolatedMemoryAcceptance = false;
+    assert.equal((await probeById(ctx, 'MEM-L2-INGEST').run()).status, VERDICT.BLOCK);
+    assert.equal(ctx.teardown.length, 0);
+  });
   it('MEM-L4-ROUNDTRIP blocks live mutation without an isolated fixture', async () => {
     const ctx = baseCtx();
     ctx.config.isolatedMemoryAcceptance = false;
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+    assert.equal(ctx.teardown.length, 0);
+  });
+  it('mutating probes refuse a flag-only fixture whose state points into production', async () => {
+    const ctx = baseCtx();
+    ctx.fsp.realpath = async (p) => p === ctx.config.stateDb ? path.join(os.homedir(), '.openclaw', 'state.db') : p;
+    assert.equal((await probeById(ctx, 'MEM-L2-INGEST').run()).status, VERDICT.BLOCK);
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
     assert.equal(ctx.teardown.length, 0);
   });
@@ -222,37 +245,44 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
   });
   it('MEM-L4-ROUNDTRIP PASS when the nonce decision is persisted and retrieved', async () => {
     const ctx = baseCtx({
-      queryDb: () => ({ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN' }),
+      queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded and portable' }],
       httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 1 } } }),
     });
     const r = await probeById(ctx, 'MEM-L4-ROUNDTRIP').run();
     assert.equal(r.status, VERDICT.PASS);
+  });
+  it('MEM-L4-ROUNDTRIP uses the same rationale rule as LLM-L2-EXTRACT', async () => {
+    const ctx = baseCtx({
+      queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'no separate server' }],
+      httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 1 } } }),
+    });
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.PASS);
   });
   it('MEM-L4-ROUNDTRIP BLOCK when no transcript source dir', async () => {
     const ctx = baseCtx({ fsp: { ...baseCtx().fsp, readFile: async () => '[]' } });
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
   });
   it('MEM-L4-ROUNDTRIP FAIL when extraction never lands', async () => {
-    const ctx = baseCtx({ queryDb: () => null, httpPost: async () => ({ status: 200, json: { block: '' } }) });
+    const ctx = baseCtx({ queryDb: () => [], httpPost: async () => ({ status: 200, json: { block: '' } }) });
     ctx.config.roundtripPollMs = 50; // don't wait the full budget in tests
     const r = await probeById(ctx, 'MEM-L4-ROUNDTRIP').run();
     assert.equal(r.status, VERDICT.FAIL);
   });
   it('MEM-L4-ROUNDTRIP FAIL when only an entity lands without a decision', async () => {
-    const ctx = baseCtx({ queryDb: () => null, httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN uses SQLite' } }) });
+    const ctx = baseCtx({ queryDb: () => [], httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN uses SQLite' } }) });
     ctx.config.roundtripPollMs = 10;
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
   });
   it('MEM-L4-ROUNDTRIP FAIL when the decision is stored but injection omits SQLite', async () => {
-    const ctx = baseCtx({ queryDb: () => ({ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN' }), httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN codename', items: { decisions: 1 } } }) });
+    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }], httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN codename', items: { decisions: 1 } } }) });
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
   });
   it('MEM-L4-ROUNDTRIP FAIL when a snippet answers but the decision channel is empty', async () => {
-    const ctx = baseCtx({ queryDb: () => ({ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN' }), httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 0, snippets: 1 } } }) });
+    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }], httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 0, snippets: 1 } } }) });
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
   });
   it('MEM-L4-ROUNDTRIP FAIL when the decision channel returns a different real SQLite decision', async () => {
-    const ctx = baseCtx({ queryDb: () => ({ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN' }), httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for another project', items: { decisions: 1 } } }) });
+    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }], httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for another project', items: { decisions: 1 } } }) });
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
   });
   it('teardown restores a real decision superseded by the synthetic extraction', async () => {
@@ -267,7 +297,10 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
       const oldId = store.db.prepare('SELECT id FROM decisions WHERE session_id = ?').get('real').id;
       const realEntityId = store.db.prepare('SELECT id FROM entities WHERE name = ?').get('Real Project').id;
       store.storeExtractionResult(sessionId, { ...empty,
-        entities: [{ name: nonce, type: 'project', salience: 0.5, ref: realEntityId }],
+        entities: [
+          { name: nonce, type: 'project', salience: 0.5, ref: realEntityId },
+          { name: `Other ${nonce}`, type: 'project', salience: 0.5, aliases: ['other project'] },
+        ],
         decisions: [{ decision: `Use SQLite for ${nonce}`, rationale: 'embedded and portable', confidence: 0.5, supersedes: oldId }],
         relationships: [{ source: nonce, target: 'SQLite', type: 'uses' }],
       });
@@ -283,6 +316,7 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
       assert.equal(store.db.prepare('SELECT superseded_by FROM decisions WHERE id = ?').get(oldId).superseded_by, null);
       assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM decisions WHERE session_id = ?').get(sessionId).n, 0);
       assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM entity_aliases WHERE alias = ?').get(nonce).n, 0);
+      assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM entity_aliases WHERE alias = ?').get('other project').n, 0);
       assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM concept_edges WHERE session_id = ?').get(sessionId).n, 0);
     } finally {
       store.close();

@@ -226,7 +226,9 @@ GATE: REJECTED — 1 FAIL. Evidence → ~/.openclaw/.node-acceptance.md
 
 ### 7.3 Determinism + safety
 
-- The mutating gold round-trip requires a separate daemon, state DB, inject server and bus, selected with `ACCEPT_ISOLATED_MEMORY=1`. It blocks on the live node until the isolated fixture in node-readiness 2.1 exists. An environment flag is an operator declaration, not proof of isolation.
+- Mutating memory probes require a separate daemon and state DB; the gold round-trip additionally requires a separate inject server and bus. The probe requires `ACCEPT_ISOLATED_MEMORY=1`, a `node-readiness-memory-fixture-v1` marker in `OPENCLAW_HOME/ACCEPTANCE_FIXTURE`, database/token/transcript paths that resolve within that separate home, a dedicated high-port loopback `OPENCLAW_NATS`, and an inject port other than 7893. These checks prevent the flag alone from enabling live writes. Step 2.1 must supply and verify the daemon, bus, and inject-server fixture before the round-trip can count as runtime evidence.
+- The LLM extraction probe uses a new synthetic session with no known-memory candidates. A green result proves generation of a nonce-linked SQLite decision; it does not prove typed references or supersession against existing memories. Those require a seeded fixture test.
+- Native Ollama streaming has a 600-second owned request budget, but Node's HTTP client may time out waiting for the first response headers after about 300 seconds. A cold or overloaded model can therefore fail before the first token; record that separately from mid-stream completion.
 - Idempotent: a second run produces the same verdicts (modulo real drift).
 - Read-mostly: the only writes are the synthetic session JSONL, its derived rows, a probe NATS message,
   and the report file.

@@ -25,17 +25,18 @@ import { validateExtractionResult } from '../lib/extraction-schema.mjs';
 describe('coerceExtractionResult', () => {
   it('accepts typed known-memory references and drops unknown or wrong-kind ids', () => {
     const known = {
-      entities: [{ id: 11, name: 'Project', type: 'project' }],
+      entities: [{ id: 11, name: 'Aurora Project', type: 'project' }, { id: 12, name: 'ACCPROBE', type: 'project' }],
       decisions: [{ id: 17, decision: 'Use Postgres for ACCPROBE' }],
     };
     const out = coerceExtractionResult({
       entities: [
-        { name: 'Project', type: 'project', ref: 'entity #11' },
+        { name: 'Aurora Project', type: 'project', ref: 'entity #11' },
         { name: 'Other', type: 'project', ref: 'entity #999' },
         { name: 'Wrong', type: 'project', ref: 'decision #17' },
-        { name: 'Alias for Project', type: 'project', ref: 'entity #11' },
+        { name: 'Aurora', type: 'project', ref: 'entity #11', aliases: ['Aurora Service', 'Project Borealis', 'Postgres'] },
         { name: 'Postgres', type: 'project', ref: 'entity #11' },
-        { name: 'Project', type: 'technology', ref: 'entity #11' },
+        { name: 'Aurora Project', type: 'technology', ref: 'entity #11' },
+        { name: 'Borealis Project', type: 'project', ref: 'entity #11' },
       ],
       decisions: [
         { decision: 'Use SQLite for ACCPROBE', rationale: 'embedded', supersedes: 'decision #17' },
@@ -47,13 +48,59 @@ describe('coerceExtractionResult', () => {
     assert.equal(out.entities[0].ref, 11);
     assert.equal(out.entities[1].ref, undefined);
     assert.equal(out.entities[2].ref, undefined);
-    assert.equal(out.entities[3].ref, 11);
+    assert.equal(out.entities[3].ref, undefined);
+    assert.equal(out.entities[3].aliases, undefined);
     assert.equal(out.entities[4].ref, undefined);
     assert.equal(out.entities[5].ref, undefined);
+    assert.equal(out.entities[6].ref, undefined);
     assert.equal(out.decisions[0].supersedes, 17);
     assert.equal(out.decisions[1].supersedes, undefined);
     assert.equal(out.decisions[2].supersedes, undefined);
     assert.equal(out.decisions[3].supersedes, undefined);
+  });
+
+  it('requires the same identity for refs and aliases, not a shared component word', () => {
+    const known = { entities: [
+      { id: 1, name: 'memory-daemon', type: 'technology' },
+      { id: 2, name: 'test/llm-client.test.mjs', type: 'file' },
+      { id: 3, name: 'Claude Code', type: 'technology' },
+      { id: 4, name: 'Postgres', type: 'technology' },
+      { id: 5, name: 'NATS JetStream', type: 'technology' },
+    ], decisions: [] };
+    const names = [
+      ['memory-watcher', 1, false],
+      ['test/extraction-store.test.mjs', 2, false],
+      ['Claude Desktop', 3, false],
+      ['PostgreSQL', 4, true],
+      ['JetStream', 5, true],
+    ];
+    for (const [name, id, shouldLink] of names) {
+      const out = coerceExtractionResult({ entities: [{ name, type: known.entities[id - 1].type, ref: id, aliases: ['unrelated-service', name] }] }, known);
+      assert.equal(out.entities[0].ref === id, shouldLink, name);
+      assert.ok(!out.entities[0].aliases?.includes('unrelated-service'), name);
+    }
+  });
+
+  it('supersedes only decisions that share a supplied entity', () => {
+    const known = { entities: [{ id: 5, name: 'ACCPROBE', type: 'project' }], decisions: [
+      { id: 1, decision: 'Use Postgres for ACCPROBE' },
+      { id: 2, decision: 'Rotate NATS credentials every quarter' },
+    ] };
+    const out = coerceExtractionResult({ decisions: [
+      { decision: 'Use SQLite for ACCPROBE', rationale: 'portable', supersedes: 1 },
+      { decision: 'Rotate gateway token every week', rationale: 'security', supersedes: 2 },
+    ] }, known);
+    assert.equal(out.decisions[0].supersedes, 1);
+    assert.equal(out.decisions[1].supersedes, undefined);
+  });
+
+  it('drops references when no known-memory list was supplied', () => {
+    const out = coerceExtractionResult({
+      entities: [{ name: 'JetStream', type: 'technology', ref: 'entity #11' }],
+      decisions: [{ decision: 'Use SQLite for Aurora', rationale: 'portable', supersedes: 'decision #17' }],
+    });
+    assert.equal(out.entities[0].ref, undefined);
+    assert.equal(out.decisions[0].supersedes, undefined);
   });
 
   it('returns raw object passthrough for null / non-object input', () => {

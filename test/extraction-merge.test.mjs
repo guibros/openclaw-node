@@ -144,13 +144,13 @@ describe('prompt: known memories', () => {
     assert.match(withKnown[0].content, /"ref"/);
     assert.match(withKnown[0].content, /"supersedes"/);
   });
-  it('coerce carries ref/aliases/supersedes through, tolerating "#12" and dropping junk', () => {
+  it('coerce carries verified refs and related aliases through, dropping junk', () => {
     const out = coerceExtractionResult({
-      entities: [{ name: 'A', type: 'person', salience: 0.5, ref: '#12', aliases: ['a1', '', 42, 'a2'] }, { name: 'B', type: 'person', ref: 'B itself' }],
-      decisions: [{ decision: 'd', rationale: 'r', confidence: 0.5, supersedes: 3 }, { decision: 'e', rationale: 'r', supersedes: null }],
-    });
+      entities: [{ name: 'JetStream', type: 'technology', salience: 0.5, ref: '#12', aliases: ['NATS JetStream', 'Postgres', '', 42] }, { name: 'B', type: 'person', ref: 'B itself' }],
+      decisions: [{ decision: 'Use SQLite for Aurora', rationale: 'portable', confidence: 0.5, supersedes: 3 }, { decision: 'e', rationale: 'r', supersedes: null }],
+    }, { entities: [{ id: 12, name: 'NATS JetStream', type: 'technology' }, { id: 13, name: 'Aurora', type: 'project' }], decisions: [{ id: 3, decision: 'Use Postgres for Aurora' }] });
     assert.equal(out.entities[0].ref, 12);
-    assert.deepEqual(out.entities[0].aliases, ['a1', 'a2']);
+    assert.deepEqual(out.entities[0].aliases, ['NATS JetStream']);
     assert.equal(out.entities[1].ref, undefined);
     assert.equal(out.decisions[0].supersedes, 3);
     assert.equal(out.decisions[1].supersedes, undefined);

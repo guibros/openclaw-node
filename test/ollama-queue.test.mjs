@@ -319,6 +319,16 @@ describe('isStuck logic', () => {
     assert.equal(isStuck(), true);
   });
 
+  it('counts an owned TimeoutError as a timeout', async () => {
+    const before = getState().totals.timeouts;
+    await assert.rejects(() => requestExtraction(async () => {
+      const err = new Error('LLM timeout');
+      err.name = 'TimeoutError';
+      throw err;
+    }));
+    assert.equal(getState().totals.timeouts, before + 1);
+  });
+
   it('recordAutoRestart resets the stuck counters', async () => {
     for (let i = 0; i < 3; i++) {
       await assert.rejects(
