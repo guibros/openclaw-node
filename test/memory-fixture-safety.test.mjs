@@ -17,13 +17,17 @@ test('fixture startup refuses live service access before any daemon work', async
     await fs.mkdir(path.dirname(config), { recursive: true });
     await fs.mkdir(vault);
     await fs.writeFile(config, '{"enabled":false}');
+    await fs.writeFile(path.join(root, 'ACCEPTANCE_FIXTURE'), '{"type":"node-readiness-memory-fixture-v1"}');
     const env = {
       ACCEPT_ISOLATED_MEMORY: '1', OPENCLAW_HOME: root, OPENCLAW_WORKSPACE: workspace,
       OPENCLAW_NATS: 'nats://127.0.0.1:14222', OPENCLAW_NATS_TOKEN: 'fixture-only',
       OPENCLAW_OBSIDIAN_SYNC_CONFIG: config, OBSIDIAN_VAULT_PATH: vault,
     };
-    const args = { env, home, script: path.join(workspace, 'bin', 'memory-daemon.mjs'), workspace, configuredWorkspace: workspace };
+    const args = { env, home, accountHome: path.join(home, 'fresh-account'),
+      script: path.join(workspace, 'bin', 'memory-daemon.mjs'), workspace, configuredWorkspace: workspace };
     assert.doesNotThrow(() => assertMemoryFixtureSafety(args));
+    assert.throws(() => assertMemoryFixtureSafety({ ...args, env: { ...env, ACCEPT_ISOLATED_MEMORY: undefined } }), /marker and ACCEPT_ISOLATED_MEMORY/);
+    assert.throws(() => assertMemoryFixtureSafety({ ...args, accountHome: home }), /overlaps live/);
     assert.throws(() => assertMemoryFixtureSafety({ ...args, env: { ...env, OPENCLAW_DB_DIR: path.join(os.homedir(), '.openclaw') } }), /OPENCLAW_DB_DIR/);
     assert.throws(() => assertMemoryFixtureSafety({ ...args, env: { ...env, MC_URL: 'http://127.0.0.1:3000' } }), /MC_URL/);
     await fs.writeFile(config, '{"enabled":true}');

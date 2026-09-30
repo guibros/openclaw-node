@@ -316,6 +316,14 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     };
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
   });
+  it('gold round-trip can inspect a fixture on a fresh account with no live install', async () => {
+    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }],
+      httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 1 } } }) });
+    const realpath = ctx.fsp.realpath;
+    ctx.fsp.realpath = async (p) => p === path.join(ctx.accountHome(), '.openclaw')
+      ? Promise.reject(new Error('ENOENT')) : realpath(p);
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.PASS);
+  });
   it('gold round-trip refuses enabled Obsidian sync or a Mission Control token', async () => {
     const ctx = baseCtx();
     const read = ctx.fsp.readFile;
