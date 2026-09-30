@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
@@ -13,6 +13,7 @@ import { createRequire } from 'node:module';
 const release = process.argv[2];
 const nodeBinary = process.argv[3] || '/opt/homebrew/Cellar/node@22/22.22.0/bin/node';
 assert.ok(release && fs.existsSync(path.join(release, 'consolidation-graph.json')), 'stage a release first');
+const manifest = JSON.parse(fs.readFileSync(path.join(release, 'consolidation-graph.json'), 'utf8'));
 const require = createRequire(path.join(release, 'package.json'));
 const { connect } = require('nats');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'consolidation-graph-probe-'));
@@ -29,6 +30,15 @@ const token = randomBytes(24).toString('hex');
 const children = [];
 let llmHits = 0;
 let llm;
+
+function sha(file) { return createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }
+function checkRelease() {
+  for (const [name, hash] of Object.entries({ ...manifest.source, ...manifest.installed })) {
+    assert.equal(sha(path.join(release, name)), hash, `release drift: ${name}`);
+  }
+  assert.equal(sha(nodeBinary), manifest.node.sha256, 'timer Node changed');
+  assert.equal(sha(path.join(release, 'package-lock.json')), manifest.lockSha256, 'dependency lock changed');
+}
 
 function mkdir(dir) { fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); }
 function listen(server) { return new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); }
@@ -64,6 +74,7 @@ async function readyNats(url) {
 }
 
 async function main() {
+  checkRelease();
   for (const dir of [home, workspace, vault, path.join(home, '.openclaw/workspace/.tmp')]) mkdir(dir);
   fs.writeFileSync(notifier, '#!/bin/sh\nprintf "called\\n" >> "$PROBE_NOTIFIER_LOG"\n', { mode: 0o700 });
   const natsPort = await freePort();
@@ -152,6 +163,7 @@ async function main() {
   const ledgerRows = fs.readFileSync(ledger, 'utf8').trim().split('\n').map(JSON.parse);
   assert.ok(ledgerRows.some(row => row.source === 'consolidation' && row.kind === 'error'), 'missing failure notification');
   assert.match(fs.readFileSync(notifierLog, 'utf8'), /called/);
+  checkRelease();
   return { release, nodeBinary, positive, stale: 'skipped without DB change', busy: 'skipped without DB change', brokenSchema: 'entry exited 0 without NATS; acceptance rejected', failure: { exit: failed.code, ledgerRows: ledgerRows.length, notifierFinished: true } };
 }
 
