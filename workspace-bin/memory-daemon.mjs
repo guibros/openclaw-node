@@ -1109,9 +1109,10 @@ async function runPhase2ThrottledWork(config, sessionState) {
     throttle.lastSynthesis = now;
     stage1.push(
       (async () => {
+        let currentJsonl;
         try {
           const sources = loadTranscriptSources();
-          const currentJsonl = findCurrentJsonl(sources);
+          currentJsonl = findCurrentJsonl(sources);
           if (!currentJsonl) return;
           const memoryMd = path.join(WORKSPACE, 'MEMORY.md');
           const budget = initMemoryBudget(config);
@@ -1132,7 +1133,7 @@ async function runPhase2ThrottledWork(config, sessionState) {
           if (memoryBudget && (result.added > 0 || result.merged > 0)) {
             memoryBudget.reload();
           }
-        } catch (e) { log(`  Phase 2: interval synthesis failed: ${e.message}`); emitErrorEvent('extract', e); }
+        } catch (e) { log(`  Phase 2: interval synthesis failed: ${e.message}`); emitErrorEvent('extract', e, currentJsonl && path.basename(currentJsonl, '.jsonl')); }
       })()
     );
   }
