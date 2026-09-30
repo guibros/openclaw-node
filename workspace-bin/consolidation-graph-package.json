@@ -1,0 +1,19 @@
+{
+  "name": "openclaw-step38-private-deps",
+  "private": true,
+  "dependencies": {
+    "better-sqlite3": "11.10.0",
+    "nats": "2.29.3",
+    "js-yaml": "4.3.2",
+    "nkeys.js": "1.1.0",
+    "zod": "4.3.6",
+    "zod-to-json-schema": "3.25.1"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "node-abi": "3.89.0",
+    "tar-fs": "2.1.4"
+  }
+}
