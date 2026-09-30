@@ -6,7 +6,7 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 |---|---|---|---|---|
 | 1 | 1.1 | v1.1 | [x] | Restore gateway startup with schema-valid streaming configuration — 2026-09-27: 703s stable PID/run count, validator, healthy loopback and anonymous 401 |
 | 1 | 1.2 | v1.2 | [x] | Restore installed Mission Control — fa54a0d deployed; 605.21s healthy, supervised recovery 2.41s, auth/maintenance verified, 537 tasks preserved |
-| 1 | 1.6 | v1.6 | [ ] | Restore the plan viewer with authenticated control endpoints |
+| 1 | 1.6 | v1.6 | [A] | Restore the plan viewer with authenticated control endpoints — b4bbac2 deployed/source approved; 603.38s healthy stability and 0.447s crash recovery pass; production browser acceptance pending |
 | 1 | 1.3 | v1.3 | [ ] | Establish restorable persisted-state backups |
 | 1 | 1.4 | v1.4 | [ ] | Reconcile message-bus topology |
 | 1 | 1.5 | v1.5 | [ ] | Make deployment revision and services reproducible |
@@ -18,6 +18,7 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 | 3 | 3.3 | v3.3 | [ ] | Measure autonomous memory quality |
 | 4 | 4.1 | v4.1 | [ ] | Verify structured harness lifecycle |
 | 4 | 4.2 | v4.2 | [ ] | Verify dashboard task control |
+| 4 | 4.3 | v4.3 | [ ] | Bound workplan history loading |
 | 5 | 5.1 | v5.1 | [ ] | Establish explicit peer trust |
 | 5 | 5.2 | v5.2 | [ ] | Execute changing plan across two machines |
 | 6 | 6.1 | v6.1 | [ ] | Publish evidence-aligned release |
@@ -86,6 +87,11 @@ One row is one verified outcome. Open rows are unproven. Reuse existing issue ID
 > **Needs:** 1.2, 1.4, 1.5 and 4.1 closed; current Kanban schemas reviewed.
 > **Feeds:** Operator workflow.
 > **Verify:** runtime/code: Create, observe, cancel and inspect controlled tasks through actual UI; UI matches durable state.
+
+> **4.3 — Goal:** Bound workplan history loading.
+> **Needs:** 1.6 source deployed; 2.1 closed; whole-file reads on default Live, Activity and pinned History reverified in a disposable fixture.
+> **Feeds:** Responsive history viewing on consumer hardware.
+> **Verify:** runtime/code: Each of default Live, Activity and pinned History serves bounded initial history from a 512 MiB synthetic log while an authenticated discovery request completes within one second on the declared test machine; additional resident memory stays below 32 MiB and each response clearly identifies truncation. Run against the staged and deployed viewer without changing production logs.
 
 > **5.1 — Goal:** Establish explicit peer trust.
 > **Needs:** 1.4, 1.5 and 2.3 closed; two distinct accessible machines identified.
