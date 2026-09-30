@@ -43,4 +43,5 @@ test('parseWithPrimer restores the consumed brace only when primed', () => {
   assert.throws(() => parseWithPrimer(continuation, false));
   const echoed = '{"entities": []}';
   assert.deepEqual(parseWithPrimer(echoed, true), { entities: [] });
+  assert.deepEqual(parseWithPrimer('"entities": [{"name":"X"}]}', true), { entities: [{ name: 'X' }] });
 });

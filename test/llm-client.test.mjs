@@ -197,10 +197,12 @@ describe('generate — native /api/chat path (LLM_NATIVE_API=true default)', () 
     nextResponse = { status: 200, body: [{ error: 'runner unavailable' }] };
     await assert.rejects(() => c.generate([], { bypassQueue: true }), /runner unavailable/);
   });
-  it('rejects structured output cut off by the output token limit', async () => {
+  it('preserves the finish reason for structured output', async () => {
     const c = createLlmClient({ baseUrl: baseUrl() });
     nextResponse = { status: 200, body: [{ message: { content: '{}' }, done: true, done_reason: 'length' }] };
-    await assert.rejects(() => c.generate([], { bypassQueue: true, jsonMode: true }), /output token limit/);
+    const out = await c.generate([], { bypassQueue: true, jsonMode: true });
+    assert.equal(out.content, '{}');
+    assert.equal(out.finishReason, 'length');
   });
   it('returns capped free-form text to summary callers', async () => {
     const c = createLlmClient({ baseUrl: baseUrl() });

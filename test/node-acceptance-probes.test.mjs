@@ -10,27 +10,34 @@ import { createExtractionStore } from '../lib/extraction-store.mjs';
 
 // A fully-mocked runtime context — no live system is touched.
 function baseCtx(over = {}) {
-  const config = resolveNodeConfig({ OPENCLAW_HOME: '/tmp/acc-test-home', OPENCLAW_NODE_ID: 'testnode' });
+  const config = resolveNodeConfig({ OPENCLAW_HOME: '/tmp/acc-test-home/.openclaw', OPENCLAW_NODE_ID: 'testnode' });
   config.isolatedMemoryAcceptance = true;
   config.injectPort = 17893;
   config.natsUrl = 'nats://127.0.0.1:14222';
+  config.natsToken = 'FIXTURETOKEN';
+  config.natsMonitorUrl = 'http://127.0.0.1:18222';
   const teardown = [];
   const ctx = {
     config, runId: 'testrun', options: { mutate: true, deep: true }, teardown, path,
     fsp: {
-      stat: async () => ({ size: 100, mode: 0o100600 }),
+      stat: async (p) => ({ size: 100, mode: 0o100600, dev: 1, ino: [...p].reduce((n, c) => Math.imul(n, 31) + c.charCodeAt(0) | 0, 0) }),
       access: async () => {},
       realpath: async (p) => p,
       readFile: async (p) => {
         if (p === config.injectToken) return 'TESTTOKEN';
-        if (p === config.transcriptSources) return JSON.stringify(['/tmp/acc-test-home/transcripts']);
-        if (p === config.fixtureMarker) return 'node-readiness-memory-fixture-v1\n';
+        if (p === config.transcriptSources) return JSON.stringify(['/tmp/acc-test-home/.openclaw/transcripts']);
+        if (p === config.fixtureMarker) return JSON.stringify({ type: 'node-readiness-memory-fixture-v1', natsServerName: 'acc-test-bus' });
+        if (p === config.fixtureEnv) return `OPENCLAW_NATS=${config.natsUrl}\nOPENCLAW_NATS_TOKEN=${config.natsToken}\n`;
         return '';
       },
       writeFile: async () => {},
       unlink: async () => {},
     },
-    httpGet: async () => ({ status: 200, json: {} }),
+    runtimeHome: () => '/tmp/acc-test-home',
+    accountHome: () => os.homedir(),
+    httpGet: async (url) => ({ status: 200, ok: true, json: url.endsWith('/varz')
+      ? { server_id: 'fixture-id', server_name: 'acc-test-bus' }
+      : url.endsWith('/connz') ? { connections: [{ name: 'memory-daemon' }] } : {} }),
     httpPost: async () => ({ status: 200, json: {} }),
     queryDb: () => 0,
     writeDb: () => {},
@@ -49,6 +56,7 @@ function mockNc() {
   const queue = [];
   let wake = null;
   return {
+    info: { server_id: 'fixture-id', server_name: 'acc-test-bus' },
     subscribe() {
       return {
         async *[Symbol.asyncIterator]() {
@@ -224,6 +232,50 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     assert.equal((await probeById(ctx, 'MEM-L2-INGEST').run()).status, VERDICT.BLOCK);
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
     assert.equal(ctx.teardown.length, 0);
+  });
+  it('mutating probes refuse a separate OPENCLAW_HOME when daemon HOME still points to production', async () => {
+    const ctx = baseCtx({ runtimeHome: () => os.homedir() });
+    assert.equal((await probeById(ctx, 'MEM-L2-INGEST').run()).status, VERDICT.BLOCK);
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+    assert.equal(ctx.teardown.length, 0);
+  });
+  it('mutating probes refuse a fixture daemon configured for another bus', async () => {
+    const ctx = baseCtx();
+    const read = ctx.fsp.readFile;
+    ctx.fsp.readFile = async (p) => p === ctx.config.fixtureEnv
+      ? 'OPENCLAW_NATS=nats://127.0.0.1:4222\nOPENCLAW_NATS_TOKEN=FIXTURETOKEN\n'
+      : read(p);
+    assert.equal((await probeById(ctx, 'MEM-L2-INGEST').run()).status, VERDICT.BLOCK);
+    assert.equal(ctx.teardown.length, 0);
+  });
+  it('gold round-trip refuses a bus whose identity differs from the fixture marker', async () => {
+    const ctx = baseCtx({ natsConnect: async () => ({ ...mockNc(), info: { server_name: 'live-bus', server_id: 'live-id' } }) });
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+    assert.equal(ctx.teardown.length, 0);
+  });
+  it('gold round-trip refuses transcript sources also watched by the live daemon', async () => {
+    const ctx = baseCtx();
+    const read = ctx.fsp.readFile;
+    ctx.fsp.readFile = async (p) => p === path.join(os.homedir(), '.openclaw', 'config', 'transcript-sources.json')
+      ? JSON.stringify({ sources: [{ path: '/tmp/acc-test-home/.openclaw/transcripts' }] })
+      : read(p);
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+    assert.equal(ctx.teardown.length, 0);
+  });
+  it('gold round-trip skips disabled transcript sources', async () => {
+    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }],
+      httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 1 } } }) });
+    const read = ctx.fsp.readFile;
+    const written = [];
+    ctx.fsp.readFile = async (p) => p === ctx.config.transcriptSources
+      ? JSON.stringify({ sources: [
+        { path: '/tmp/acc-test-home/.openclaw/disabled', enabled: false },
+        { path: '/tmp/acc-test-home/.openclaw/transcripts', enabled: true },
+      ] }) : read(p);
+    ctx.fsp.writeFile = async (p) => { written.push(p); };
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.PASS);
+    assert.ok(written.some((p) => p.includes('/transcripts/')));
+    assert.ok(written.every((p) => !p.includes('/disabled/')));
   });
   it('MEM-L2-INGEST PASS when messages land + registers teardown', async () => {
     const ctx = baseCtx({ queryDb: () => 4 });

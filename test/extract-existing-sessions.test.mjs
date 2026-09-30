@@ -102,6 +102,7 @@ describe('loadCheckpoint', () => {
     const cp = loadCheckpoint('/nonexistent/path.json');
     assert.deepEqual(cp.completed, []);
     assert.deepEqual(cp.failed, []);
+    assert.deepEqual(cp.attempts, {});
     assert.equal(cp.startedAt, null);
   });
 });
@@ -310,6 +311,37 @@ describe('runExtraction', () => {
     const cp = loadCheckpoint(checkpointPath);
     assert.ok(cp.failed.includes('fail-session'));
     assert.ok(cp.completed.includes('ok-session'));
+  });
+
+  it('keeps an owned TimeoutError retryable in the checkpoint', async () => {
+    const sessionDbPath = join(testDir, 'sessions.db');
+    const checkpointPath = join(testDir, 'checkpoint.json');
+    createSessionDb(sessionDbPath, [{ id: 'slow-session', messages: [{ role: 'user', content: 'Slow extraction' }] }]);
+    const result = await runExtraction({
+      sessionDbPath,
+      extractionDbPath: join(testDir, 'extraction.db'),
+      checkpointPath,
+      llmClient: createMockLlmClient([VALID_EXTRACTION]),
+      extractionStore: createMockExtractionStore(),
+      extractFn: async () => { const error = new Error('LLM timeout'); error.name = 'TimeoutError'; throw error; },
+      skipNotes: true,
+      skipGraph: true,
+    });
+    const cp = loadCheckpoint(checkpointPath);
+    assert.equal(result.failed, 1);
+    assert.deepEqual(cp.failed, []);
+    assert.equal(cp.attempts['slow-session'], 1);
+    await runExtraction({
+      sessionDbPath,
+      extractionDbPath: join(testDir, 'extraction.db'),
+      checkpointPath,
+      llmClient: createMockLlmClient([VALID_EXTRACTION]),
+      extractionStore: createMockExtractionStore(),
+      extractFn: async () => { const error = new Error('LLM timeout'); error.name = 'TimeoutError'; throw error; },
+      skipNotes: true,
+      skipGraph: true,
+    });
+    assert.equal(loadCheckpoint(checkpointPath).attempts['slow-session'], 2);
   });
 
   it('returns zero results when session DB does not exist', async () => {

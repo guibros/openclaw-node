@@ -66,6 +66,7 @@ describe('coerceExtractionResult', () => {
       { id: 3, name: 'Claude Code', type: 'technology' },
       { id: 4, name: 'Postgres', type: 'technology' },
       { id: 5, name: 'NATS JetStream', type: 'technology' },
+      { id: 6, name: 'NATS Server', type: 'technology' },
     ], decisions: [] };
     const names = [
       ['memory-watcher', 1, false],
@@ -73,6 +74,7 @@ describe('coerceExtractionResult', () => {
       ['Claude Desktop', 3, false],
       ['PostgreSQL', 4, true],
       ['JetStream', 5, true],
+      ['Server', 6, false],
     ];
     for (const [name, id, shouldLink] of names) {
       const out = coerceExtractionResult({ entities: [{ name, type: known.entities[id - 1].type, ref: id, aliases: ['unrelated-service', name] }] }, known);
@@ -92,6 +94,14 @@ describe('coerceExtractionResult', () => {
     ] }, known);
     assert.equal(out.decisions[0].supersedes, 1);
     assert.equal(out.decisions[1].supersedes, undefined);
+  });
+
+  it('does not treat a generic acronym suffix as a decision anchor', () => {
+    const out = coerceExtractionResult({ decisions: [{ decision: 'Use the server for storage', rationale: 'fast', supersedes: 3 }] }, {
+      entities: [{ id: 1, name: 'NATS Server', type: 'technology' }],
+      decisions: [{ id: 3, decision: 'Run NATS Server on three nodes' }],
+    });
+    assert.equal(out.decisions[0].supersedes, undefined);
   });
 
   it('drops references when no known-memory list was supplied', () => {
@@ -427,6 +437,18 @@ describe('extractStructured', () => {
     };
     const result = await extractStructured(mockClient, []);
     assert.deepEqual(result.entities, []);
+  });
+
+  it('accepts complete JSON at the output limit but rejects a second object', async () => {
+    const first = '{"entities":[],"themes":[],"actions":[],"decisions":[],"friction_signals":[],"relationships":[]}';
+    const mockClient = { generate: async () => ({ content: `${first}   `, finishReason: 'length' }) };
+    assert.deepEqual((await extractStructured(mockClient, [])).entities, []);
+    mockClient.generate = async () => ({ content: `${first}{"entities":[]}`, finishReason: 'stop' });
+    await assert.rejects(() => extractStructured(mockClient, []), /another JSON object/);
+    mockClient.generate = async () => ({ content: `{"entities":[]}${first}`, finishReason: 'stop' });
+    await assert.rejects(() => extractStructured(mockClient, []), /another JSON object/);
+    mockClient.generate = async () => ({ content: '{"entities":', finishReason: 'length' });
+    await assert.rejects(() => extractStructured(mockClient, []), /output token limit/);
   });
 
   it('throws on invalid JSON with informative message', async () => {

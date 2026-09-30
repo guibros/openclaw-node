@@ -18,9 +18,8 @@
 
 import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import { parseArgs } from 'node:util';
-import { runAcceptance, formatTable, formatReport } from '../lib/node-acceptance.mjs';
+import { runAcceptance, formatTable, formatReport, resolveNodeConfig } from '../lib/node-acceptance.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -38,9 +37,17 @@ const { values } = parseArgs({
   },
 });
 
-const DEFAULT_REPORT = path.join(os.homedir(), '.openclaw', '.node-acceptance.md');
+const config = resolveNodeConfig();
+const DEFAULT_REPORT = path.join(config.home, config.isolatedMemoryAcceptance ? '.node-acceptance-FIXTURE.md' : '.node-acceptance.md');
 
 async function main() {
+  if (config.isolatedMemoryAcceptance && values.axis !== 'memory') {
+    throw new Error('isolated memory acceptance requires --axis memory');
+  }
+  if (config.isolatedMemoryAcceptance && values.report
+    && path.relative(config.home, path.resolve(values.report)).startsWith('..')) {
+    throw new Error('fixture report path must stay inside OPENCLAW_HOME');
+  }
   const report = await runAcceptance({
     profile: values.profile,
     axis: values.axis,
@@ -56,11 +63,11 @@ async function main() {
   }
 
   // An axis run is a partial view — it must not clobber the full-gate evidence file.
-  const reportPath = values.report || (values.axis ? null : DEFAULT_REPORT);
+  const reportPath = values.report || (values.axis && !config.isolatedMemoryAcceptance ? null : DEFAULT_REPORT);
   if (reportPath) {
     try {
       await mkdir(path.dirname(reportPath), { recursive: true });
-      await writeFile(reportPath, formatReport(report), 'utf8');
+      await writeFile(reportPath, `${config.isolatedMemoryAcceptance ? '# FIXTURE — isolated memory acceptance\n\n' : ''}${formatReport(report)}`, 'utf8');
       if (!values.quiet && !values.json) process.stdout.write(`Evidence -> ${reportPath}\n`);
     } catch (err) {
       process.stderr.write(`[node-acceptance] could not write report: ${err.message}\n`);
