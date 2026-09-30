@@ -473,6 +473,21 @@ describe('a deploy restarts only the services that are running', () => {
   });
 });
 
+describe('shared library deploy reaches workspace daemons', () => {
+  it('updates both runtime lib trees and restarts a running memory daemon', () => {
+    const fx = makeNode('workspace-lib', {});
+    const S1 = fx.commit('lib update', { 'lib/tracer.js': '// tracer v1\n' });
+    const run = fx.deploy(['--from', fx.S0, '--to', S1], {
+      DEPLOY_TEST_PLATFORM: 'linux',
+      DEPLOY_TEST_UNITS: 'openclaw-memory-daemon',
+    });
+    ranOk(run);
+    assert.equal(read(fx.rt('openclaw/lib/tracer.js')), '// tracer v1\n');
+    assert.equal(read(fx.rt('.openclaw/workspace/lib/tracer.js')), '// tracer v1\n');
+    assert.ok(fx.calls().includes('systemctl --user try-restart openclaw-memory-daemon'));
+  });
+});
+
 describe('a deploy installs the commit, never the working tree', () => {
   let fx, S1;
   const nodeHead = () => git(fx.node, 'rev-parse', 'HEAD');

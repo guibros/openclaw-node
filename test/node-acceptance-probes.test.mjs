@@ -108,6 +108,16 @@ function mockNc() {
 }
 
 const probeById = (ctx, id) => buildProbes(ctx).find((p) => p.id === id);
+const decisionBlock = (decision) => `[memory: recent relevant context]\nRecent decisions:\n- 2026-09-30: ${decision} (0.8)\n[end memory]`;
+const roundtripQuery = (candidates, { importedCount = 4, indexedTurns = 4 } = {}) => (_dbPath, fn) => fn({
+  prepare(sql) {
+    if (sql.includes('FROM sessions')) return { get: () => ({ message_count: importedCount }) };
+    if (sql.includes('FROM session_documents')) return { get: () => ({ turn_count: indexedTurns }) };
+    if (sql.includes('FROM decisions')) return { all: () => candidates };
+    if (sql.includes('FROM messages')) return { get: () => ({ n: 4 }) };
+    throw new Error(`unexpected query: ${sql}`);
+  },
+});
 
 describe('node-acceptance probes — L0 presence', () => {
   it('L0-DB PASS when all DBs present + non-empty', async () => {
@@ -335,8 +345,8 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
   });
   it('gold round-trip can inspect a fixture on a fresh account with no live install', async () => {
-    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }],
-      httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 1 } } }) });
+    const ctx = baseCtx({ queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }]),
+      httpPost: async () => ({ status: 200, json: { block: decisionBlock('Use SQLite for ACCPROBETESTRUN'), items: { decisions: 1 } } }) });
     const realpath = ctx.fsp.realpath;
     ctx.fsp.realpath = async (p) => p === path.join(ctx.accountHome(), '.openclaw')
       ? Promise.reject(new Error('ENOENT')) : realpath(p);
@@ -375,8 +385,8 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     assert.equal(ctx.teardown.length, 0);
   });
   it('gold round-trip skips disabled transcript sources', async () => {
-    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }],
-      httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 1 } } }) });
+    const ctx = baseCtx({ queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }]),
+      httpPost: async () => ({ status: 200, json: { block: decisionBlock('Use SQLite for ACCPROBETESTRUN'), items: { decisions: 1 } } }) });
     const read = ctx.fsp.readFile;
     const written = [];
     ctx.fsp.readFile = async (p) => p === ctx.config.transcriptSources
@@ -395,6 +405,20 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     assert.equal(r.status, VERDICT.PASS);
     assert.ok(ctx.teardown.length >= 1, 'should register cleanup');
   });
+  it('direct ingest and daemon round-trip use distinct sessions and nonce content', async () => {
+    const written = [];
+    const ctx = baseCtx({
+      fsp: { ...baseCtx().fsp, writeFile: async (file, data) => { written.push({ file, first: JSON.parse(data.split('\n')[0]) }); } },
+      importSession: async (_file, options) => ({ sessionId: options.sessionId, messageCount: 4, imported: true }),
+      queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded and portable' }]),
+      httpPost: async () => ({ status: 200, json: { block: decisionBlock('Use SQLite for ACCPROBETESTRUN'), items: { decisions: 1 } } }),
+    });
+    assert.equal((await probeById(ctx, 'MEM-L2-INGEST').run()).status, VERDICT.PASS);
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.PASS);
+    assert.deepEqual(written.map(({ first }) => first.sessionId), ['acc-ingest-testrun', 'acc-probe-testrun']);
+    assert.ok(written[0].first.message.content.includes('ACCINGESTTESTRUN'));
+    assert.ok(written[1].first.message.content.includes('ACCPROBETESTRUN'));
+  });
   it('MEM-L2-INGEST FAIL when ingest does not land', async () => {
     const ctx = baseCtx({ queryDb: () => 0 });
     assert.equal((await probeById(ctx, 'MEM-L2-INGEST').run()).status, VERDICT.FAIL);
@@ -409,16 +433,16 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
   });
   it('MEM-L4-ROUNDTRIP PASS when the nonce decision is persisted and retrieved', async () => {
     const ctx = baseCtx({
-      queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded and portable' }],
-      httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 1 } } }),
+      queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded and portable' }]),
+      httpPost: async () => ({ status: 200, json: { block: decisionBlock('Use SQLite for ACCPROBETESTRUN'), items: { decisions: 1 } } }),
     });
     const r = await probeById(ctx, 'MEM-L4-ROUNDTRIP').run();
     assert.equal(r.status, VERDICT.PASS);
   });
   it('MEM-L4-ROUNDTRIP uses the same rationale rule as LLM-L2-EXTRACT', async () => {
     const ctx = baseCtx({
-      queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'no separate server' }],
-      httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 1 } } }),
+      queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'no separate server' }]),
+      httpPost: async () => ({ status: 200, json: { block: decisionBlock('Use SQLite for ACCPROBETESTRUN'), items: { decisions: 1 } } }),
     });
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.PASS);
   });
@@ -427,26 +451,46 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
   });
   it('MEM-L4-ROUNDTRIP FAIL when extraction never lands', async () => {
-    const ctx = baseCtx({ queryDb: () => [], httpPost: async () => ({ status: 200, json: { block: '' } }) });
+    const ctx = baseCtx({ queryDb: roundtripQuery([]), httpPost: async () => ({ status: 200, json: { block: '' } }) });
     ctx.config.roundtripPollMs = 50; // don't wait the full budget in tests
     const r = await probeById(ctx, 'MEM-L4-ROUNDTRIP').run();
     assert.equal(r.status, VERDICT.FAIL);
   });
+  it('MEM-L4-ROUNDTRIP refuses a decision without the daemon import and index', async () => {
+    const decision = [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }];
+    for (const progress of [{ importedCount: 0 }, { indexedTurns: 0 }]) {
+      let queriedInject = false;
+      const ctx = baseCtx({
+        queryDb: roundtripQuery(decision, progress),
+        httpPost: async () => { queriedInject = true; return { status: 200, json: {} }; },
+      });
+      ctx.config.roundtripPollMs = 10;
+      assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
+      assert.equal(queriedInject, false);
+    }
+  });
   it('MEM-L4-ROUNDTRIP FAIL when only an entity lands without a decision', async () => {
-    const ctx = baseCtx({ queryDb: () => [], httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN uses SQLite' } }) });
+    const ctx = baseCtx({ queryDb: roundtripQuery([]), httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN uses SQLite' } }) });
     ctx.config.roundtripPollMs = 10;
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
   });
   it('MEM-L4-ROUNDTRIP FAIL when the decision is stored but injection omits SQLite', async () => {
-    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }], httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN codename', items: { decisions: 1 } } }) });
+    const ctx = baseCtx({ queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }]), httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN codename', items: { decisions: 1 } } }) });
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
   });
   it('MEM-L4-ROUNDTRIP FAIL when a snippet answers but the decision channel is empty', async () => {
-    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }], httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 0, snippets: 1 } } }) });
+    const ctx = baseCtx({ queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }]), httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 0, snippets: 1 } } }) });
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
+  });
+  it('MEM-L4-ROUNDTRIP FAIL when a snippet repeats the stored decision but another decision fills the count', async () => {
+    const ctx = baseCtx({
+      queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }]),
+      httpPost: async () => ({ status: 200, json: { block: `[memory: recent relevant context]\nRecent decisions:\n- 2026-09-30: Use Postgres for another project (0.8)\nRelated sessions:\n[acc-probe-testrun]: Use SQLite for ACCPROBETESTRUN\n[end memory]`, items: { decisions: 1, snippets: 1 } } }),
+    });
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
   });
   it('MEM-L4-ROUNDTRIP FAIL when the decision channel returns a different real SQLite decision', async () => {
-    const ctx = baseCtx({ queryDb: () => [{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }], httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for another project', items: { decisions: 1 } } }) });
+    const ctx = baseCtx({ queryDb: roundtripQuery([{ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'embedded' }]), httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for another project', items: { decisions: 1 } } }) });
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
   });
   it('teardown restores a real decision superseded by the synthetic extraction', async () => {
@@ -471,9 +515,15 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
       const syntheticId = store.db.prepare('SELECT id FROM decisions WHERE session_id = ?').get(sessionId).id;
       assert.equal(store.db.prepare('SELECT superseded_by FROM decisions WHERE id = ?').get(oldId).superseded_by, syntheticId);
       const ctx = baseCtx({
-        queryDb: (_db, fn) => fn(store.db),
+        queryDb: (_db, fn) => fn({
+          prepare(sql) {
+            if (sql.includes('FROM sessions')) return { get: () => ({ message_count: 4 }) };
+            if (sql.includes('FROM session_documents')) return { get: () => ({ turn_count: 4 }) };
+            return store.db.prepare(sql);
+          },
+        }),
         writeDb: (_db, fn) => fn(store.db),
-        httpPost: async () => ({ status: 200, json: { block: `Use SQLite for ${nonce}`, items: { decisions: 1 } } }),
+        httpPost: async () => ({ status: 200, json: { block: decisionBlock(`Use SQLite for ${nonce}`), items: { decisions: 1 } } }),
       });
       assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.PASS);
       await ctx.teardown[1]();
