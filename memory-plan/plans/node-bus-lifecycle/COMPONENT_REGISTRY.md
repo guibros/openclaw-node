@@ -246,3 +246,17 @@ audit fails on the same unchanged baseline as main run 36780863183. No live
 timer, shared dependency or memory daemon was changed. The queue and notifier
 were private fixtures; 3.9/3.10/3.11 still own the protected launch contract,
 safe first transition and actual timer commissioning.
+
+Loaded-interpreter correction — 2026-09-30 19:08 EDT: 3.8[x]/v3.8 was
+reopened and reclosed after fresh `launchctl print` showed the actual
+consolidation timer uses `/usr/local/bin/node` Node24.13.0/ABI137. Private
+release `consolidation-graph-20260930-4` now matches that loaded executable;
+its manifest SHA-256 is
+`6159fb51b28dfc6834962c95afc61fac609cdb758438616a68928290049ddab8`.
+Both native files are hashed and the real SQLite binding was observed through
+`process.dlopen`. The Node24 private real-entry/events/model/negative controls
+and Mac graph test passed; Claude found no blocker; PR #163 root Node20/22 CI
+passed at d635370. The Mission Control audit remains red on unchanged main.
+The live workspace scheduler is still older than accepted tracked3.2 source;
+3.10/3.11 own the safe live transition and actual commissioning. No live
+source, dependency, plist or loaded job changed here.

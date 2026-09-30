@@ -519,3 +519,12 @@ exact loaded-interpreter baseline. Reopen 3.8, create an owned release under
 the actual loaded Node 24 executable, and rerun the graph/native/real-entry
 checks before closing or feeding 3.9. The live scheduler body also predates
 the accepted 3.2 foreground fix; 3.11 still owns its safe production swap.
+
+D24 correction closure (2026-09-30 19:08 EDT): private release -4 matches the
+loaded Node24 program and its manifest hashes both generated native files,
+identifying the SQLite binding actually loaded. The owned scheduler probe and
+Mac graph/drift control pass. Claude's exact-diff review found no blocker;
+PR #163 source d635370 has green Node20/22 root CI, with Mission Control
+failing only the pre-existing audit on main. Reclose 3.8[x]/v3.8. Feed the
+corrected release to 3.9/3.11; the earlier Node22 fixture is not the loaded
+timer baseline.
