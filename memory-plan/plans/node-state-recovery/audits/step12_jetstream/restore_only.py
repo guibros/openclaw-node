@@ -53,9 +53,9 @@ def private_file(path):
 
 def preflight(root, window):
     preservation = root / 'preservation'
-    if not preservation.exists():
-        require(not os.path.lexists(root / 'gate/closed.json'),
-                'closed gate has no durable recovery receipt')
+    if not os.path.lexists(preservation):
+        require(not os.path.lexists(root / 'gate') and not any((root / 'plists').iterdir()),
+                'owned gate or service exists without durable recovery state')
         return {'outcome': 'no-hold'}
     private_dir(preservation)
     private_dir(preservation / 'journals')
@@ -102,6 +102,7 @@ class OwnedLaunchdAdapter:
         self.baseline = baseline
         for unit, prior in self.prior.items():
             self.identity(unit, prior)
+        self.refuse_extra_jobs()
 
     def label(self, unit):
         return self.label_prefix + unit
@@ -115,8 +116,9 @@ class OwnedLaunchdAdapter:
     def disabled(self, unit):
         result = subprocess.run(['/bin/launchctl', 'print-disabled', 'gui/' + str(os.getuid())],
                                 capture_output=True, text=True, check=True, timeout=3).stdout
-        values = re.findall(r'^\s*"' + re.escape(self.label(unit)) + r'" => (enabled|disabled)$', result, re.M)
-        require(len(values) <= 1, 'owned disabled override is ambiguous')
+        values = re.findall(r'^\s*"' + re.escape(self.label(unit)) + r'" => ([^\n]+)$', result, re.M)
+        require(len(values) <= 1 and all(value in ('enabled', 'disabled') for value in values),
+                'owned disabled override is ambiguous')
         return values == ['disabled']
 
     def identity(self, unit, prior):
@@ -136,11 +138,13 @@ class OwnedLaunchdAdapter:
                              'run', gate['root'], '--lock', gate['pins']['lock'],
                              '--root-pin', gate['pins']['root'], '--', '/bin/sh', '-c',
                              'printf "fired\\n" >> "$OWNED_FIRE_LOG"']
+            private_file(self.root / 'service_gate.py')
             require((self.root / 'service_gate.py').read_bytes()
                     == (REPO / 'workspace-bin/service_gate.py').read_bytes(),
                     'owned gate runner differs from the fixed source')
         else:
             expected_argv = ['/usr/local/bin/node', str(self.root / OWNED_SERVICE.name)]
+            private_file(self.root / OWNED_SERVICE.name)
             require((self.root / OWNED_SERVICE.name).read_bytes() == OWNED_SERVICE.read_bytes(),
                     'owned entry code differs from the fixed adapter')
         require(saved['argv'] == expected_argv and saved['working_directory'] == str(self.root)
@@ -155,9 +159,49 @@ class OwnedLaunchdAdapter:
                                 'OWNED_UNREADY_FILE': str(self.root / 'unready'),
                                 'OWNED_FIRE_LOG': str(self.root / 'fires.log')}
                 and environment['OWNED_HEALTH_PORT'].isdigit(), 'owned received environment differs')
+        port = int(environment['OWNED_HEALTH_PORT'])
+        require(1 <= port <= 65535, 'owned health port differs')
+        expected_plist = {'Label': self.label(unit), 'ProgramArguments': expected_argv,
+                          'WorkingDirectory': str(self.root),
+                          'StandardOutPath': str(self.root / (unit + '.out')),
+                          'StandardErrorPath': str(self.root / (unit + '.err')),
+                          'EnvironmentVariables': environment, 'RunAtLoad': unit != ANCHOR}
+        if unit == ANCHOR:
+            expected_plist['StartInterval'] = 3600
+        else:
+            expected_plist['KeepAlive'] = False
+        require(plist == expected_plist, 'owned launchd configuration differs')
+        private_file(self.root / (unit + '.out'))
+        private_file(self.root / (unit + '.err'))
         actual = static_identity(path, tuple(saved['files']), saved['dependencies'])
         require(actual == saved, 'immutable owned service identity changed')
         return actual
+
+    def loaded_configuration(self, unit, plist):
+        result = subprocess.run(['/bin/launchctl', 'print', self.service(unit).target],
+                                capture_output=True, text=True, check=True, timeout=3).stdout
+        def field(name):
+            match = re.search(r'^\s*' + re.escape(name) + r' = (.+)$', result, re.M)
+            require(match is not None, 'loaded owned job lacks ' + name)
+            return match[1]
+        arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', result, re.M | re.S)
+        require(arguments is not None and [line.strip() for line in arguments[1].splitlines()]
+                == plist['ProgramArguments'], 'loaded owned arguments differ')
+        environment = re.search(r'^\s*environment = \{\n(.*?)^\s*\}', result, re.M | re.S)
+        require(environment is not None, 'loaded owned environment is absent')
+        values = dict(re.findall(r'^\s*([A-Za-z0-9_]+) => (.*)$', environment[1], re.M))
+        require(values.pop('XPC_SERVICE_NAME', None) == self.label(unit)
+                and values.pop('OSLogRateLimit', None) == '64'
+                and values == plist['EnvironmentVariables'], 'loaded owned environment differs')
+        require(field('path') == str(self.plist(unit))
+                and field('working directory') == str(self.root)
+                and field('stdout path') == plist['StandardOutPath']
+                and field('stderr path') == plist['StandardErrorPath'],
+                'loaded owned job provenance differs')
+        if unit == ANCHOR:
+            require(field('run interval') == '3600 seconds', 'loaded owned timer schedule differs')
+        else:
+            require('run interval' not in result, 'owned daemon gained a timer schedule')
 
     def health(self, unit, status):
         if unit != 'mesh-agent' or not status['running']:
@@ -165,7 +209,8 @@ class OwnedLaunchdAdapter:
         plist = plistlib.loads(self.plist(unit).read_bytes())
         port = int(plist['EnvironmentVariables']['OWNED_HEALTH_PORT'])
         require(1 <= port <= 65535, 'owned health port differs')
-        with urllib.request.urlopen('http://127.0.0.1:' + str(port) + '/ready', timeout=.3) as response:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
+                'http://127.0.0.1:' + str(port) + '/ready', timeout=.3) as response:
             value = json.load(response)
         require(value == {'pid': status['pid'], 'ready': True}, 'owned process health differs')
         binding = self.service(unit).bind(self.prior[unit]['identity']['argv'], '/usr/local/bin/node',
@@ -179,6 +224,8 @@ class OwnedLaunchdAdapter:
         service = self.service(unit)
         require(not service.status('user')['loaded'], 'owned label is loaded outside the GUI domain')
         status = service.status()
+        if status['loaded']:
+            self.loaded_configuration(unit, plistlib.loads(self.plist(unit).read_bytes()))
         disabled = self.disabled(unit)
         actual = {'loaded': status['loaded'], 'running': status['running'], 'disabled': disabled,
                   'identity': identity}
@@ -195,6 +242,8 @@ class OwnedLaunchdAdapter:
         service = self.service(unit)
         require(not service.status('user')['loaded'], 'owned label is loaded outside the GUI domain')
         status = service.status()
+        if status['loaded']:
+            self.loaded_configuration(unit, plistlib.loads(self.plist(unit).read_bytes()))
         require(not self.disabled(unit), 'owned unit was disabled; operator handoff required')
         require(not status['running'], 'running owner cannot be replaced')
         self.refuse_extra_jobs()
@@ -214,29 +263,39 @@ class OwnedLaunchdAdapter:
         raise Refused('owned service did not reach its saved ready state: ' + unit
                       + (': ' + last_error if last_error else ''))
 
-    def loaded_labels(self):
-        result = subprocess.run(['/bin/launchctl', 'list'], capture_output=True, text=True,
+    def loaded_labels(self, domain='gui'):
+        result = subprocess.run(['/bin/launchctl', 'print', domain + '/' + str(os.getuid())],
+                                capture_output=True, text=True,
                                 check=True, timeout=3).stdout
-        return {line.split('\t')[-1] for line in result.splitlines()
-                if line.split('\t')[-1].startswith(self.label_prefix)}
+        require(re.search(r'^\s*services = \{$', result, re.M) is not None,
+                'owned launchd domain listing changed format')
+        names = re.findall(r'^\s*(?:\d+|-)\s+(?:\d+|-)\s+(\S+)\s*$', result, re.M)
+        return {name for name in names if name.startswith(self.label_prefix)}
 
     def refuse_extra_jobs(self):
         expected = {self.label(unit) for unit, prior in self.prior.items() if prior['loaded']}
-        require(self.loaded_labels() <= expected, 'unexpected owned launchd job is loaded')
+        require(self.loaded_labels() <= expected and not self.loaded_labels('user'),
+                'unexpected owned launchd job is loaded')
 
     def final_check(self):
         loaded = self.loaded_labels()
         expected = {self.label(unit) for unit, prior in self.prior.items() if prior['loaded']}
-        require(loaded == expected, 'unexpected owned launchd job or missing baseline job')
+        require(loaded == expected and not self.loaded_labels('user'),
+                'unexpected owned launchd job or missing baseline job')
         states = {unit: self.observe(unit, prior) for unit, prior in self.prior.items()}
         require(all(row['verified'] for row in states.values()), 'owned physical readiness differs')
         return {'verified': True, 'checked_units': len(states)}
 
     def fast_check(self):
+        self.refuse_extra_jobs()
         for unit, prior in self.prior.items():
             if prior['class'] != 'absent':
                 self.identity(unit, prior)
-            status = self.service(unit).status()
+            service = self.service(unit)
+            require(not service.status('user')['loaded'], 'owned label is loaded outside the GUI domain')
+            status = service.status()
+            if status['loaded']:
+                self.loaded_configuration(unit, plistlib.loads(self.plist(unit).read_bytes()))
             actual = {'loaded': status['loaded'], 'running': status['running'],
                       'disabled': self.disabled(unit)}
             require(matches(actual, prior), 'owned state changed immediately before reopen: ' + unit)
@@ -247,6 +306,9 @@ class OwnedLaunchdAdapter:
 
 def recover_owned(root, window):
     require(sys.platform == 'darwin', 'owned recovery prototype requires macOS launchd')
+    require(subprocess.run(['/bin/launchctl', 'managername'], capture_output=True, text=True,
+                           check=True, timeout=3).stdout.strip() == 'Aqua',
+            'owned recovery prototype requires the Aqua launchd session')
     root = owned_root(root)
     require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', window), 'invalid journal window')
     prepared = preflight(root, window)
@@ -270,14 +332,21 @@ def recover_owned(root, window):
     journal = None
     gate = None
     hold = None
+    initial_count = None
+    initial_marker = None
+    gate_before = 'unverified'
+    starting_entries = {path.name for path in prepared['journal_root'].iterdir()}
     try:
         journal = Journal(prepared['journal_root'], node_lock=prepared['node_lock'])
+        initial_count = len(journal.records)
         require(journal.prior == prior and journal.records == prepared['records']
                 and journal.active == prepared['receipt'], 'owned journal changed after preflight')
         gate = gate_module.Gate(saved['root'], saved['pins'])
+        initial_marker = gate.marker()
+        gate_before = 'closed' if initial_marker is not None else 'open'
         hold = JournaledHold(journal, gate, adapter.fast_check)
         _, live = hold.intents()
-        marker = gate.marker()
+        marker = initial_marker
         if marker is not None:
             require(len(live) == 1 and marker == {k: live[0]['hold'][k] for k in ('window', 'reason')},
                     'closed marker has no unique matching durable intent')
@@ -286,21 +355,36 @@ def recover_owned(root, window):
                     'saved closed receipt drifted; operator handoff required')
         result = hold.recover(adapter.restore, adapter.observe, adapter.final_check)
         if result['restored']:
+            restored = [row for row in journal.records if row['event'] == 'execution-hold-restored']
+            require(restored and restored[-1]['evidence']['history_certified'] is False
+                    and restored[-1]['evidence']['restored_only'] is True,
+                    'recovered hold lacks restoration-only evidence')
             journal.resolve()
         outcome = 'resolved' if result['restored'] else 'partial'
         marker = gate.marker()
         return {'outcome': outcome, 'gate': 'closed' if marker is not None else 'open',
-                'gate_marker': marker, 'receipt_status': journal.active['status'],
+                'gate_before': gate_before, 'gate_marker': marker,
+                'appended_events': [row['event'] for row in journal.records[initial_count:]],
+                'receipt_status': journal.active['status'],
                 'receipt_head': journal.active.get('head'),
                 'last_event': journal.records[-1]['event'], 'write_failed': journal.write_failed,
-                'errors': result['errors'], 'history_certified': False}
+                'errors': result['errors'],
+                'history_certified': restored[-1]['evidence']['history_certified'] if result['restored'] else False}
     except Exception as error:
         try:
-            state = ('closed' if gate.marker() is not None else 'open') if gate is not None else 'unverified'
+            marker = gate.marker() if gate is not None else None
+            state = ('closed' if marker is not None else 'open') if gate is not None else 'unverified'
         except Exception:
+            marker = None
             state = 'unverified'
-        return {'outcome': 'refused', 'reason': str(error),
-                'gate': state,
+        appended = ([row['event'] for row in journal.records[initial_count:]]
+                    if journal is not None and initial_count is not None else [])
+        new_entries = sorted({path.name for path in prepared['journal_root'].iterdir()} - starting_entries)
+        changed = bool(appended or new_entries or journal is not None and journal.write_failed
+                       or gate_before != 'unverified' and state != gate_before)
+        return {'outcome': 'partial' if changed else 'refused', 'reason': str(error),
+                'gate': state, 'gate_before': gate_before, 'gate_marker': marker,
+                'appended_events': appended, 'new_journal_entries': new_entries,
                 'last_event': journal.records[-1]['event'] if journal is not None else None,
                 'write_failed': journal.write_failed if journal is not None else None,
                 'receipt_status': journal.active['status'] if journal is not None and journal.active else None,

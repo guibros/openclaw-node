@@ -457,9 +457,10 @@ acceptance path, not the production 1.2 resume controller. Other units are
 saved as absent, including nats-1; the schema accepts that class. Any
 production-shaped baseline or path, extra owned job, drift, live controller,
 straggler past the drain deadline or unreadable state refuses. Partial
-restoration retains the gate and unresolved journal for retry or operator
-handoff. The actual marker is read for reporting; journal state alone cannot
-establish whether the gate is physically open.
+restoration leaves an unresolved journal for retry or operator handoff. The
+gate can remain closed when recovery fails before reopen, or be open if a
+subsequent durable record fails. The actual marker is read for reporting;
+journal state alone cannot establish whether the gate is physically open.
 
 Read-only preflight precedes the existing Journal constructor because that
 constructor repairs some missing or corrupt receipts. Receipt drift after an
