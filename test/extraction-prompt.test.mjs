@@ -475,6 +475,17 @@ describe('extractStructured', () => {
     const envelope = '{"entities":[],"themes":[],"actions":[],"decisions":[],"friction_signals":[],"relationships":[]}';
     const mockClient = { generate: async () => ({ content: '{"entities":[{"name":"Borealis"}]}\n{thinking: this is an invalid and rather long model preamble}\n' + envelope }) };
     await assert.rejects(() => extractStructured(mockClient, []), /another JSON object/);
+    mockClient.generate = async () => ({ content: '"unterminated preamble\n{"entities":[{"name":"Borealis"}]}\n' + envelope });
+    await assert.rejects(() => extractStructured(mockClient, []), /not valid JSON|another JSON object/);
+  });
+
+  it('rejects malformed envelope members without dropping wrapped facts', async () => {
+    const mockClient = { generate: async () => ({ content: '{"entities":"none","summary":"uses SQLite"}' }) };
+    await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
+    mockClient.generate = async () => ({ content: '{"entities":[],"extraction":{"decisions":[{"decision":"Use SQLite"}]}}' });
+    await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
+    mockClient.generate = async () => ({ content: '{}' });
+    assert.deepEqual((await extractStructured(mockClient, [])).decisions, []);
   });
 
   it('throws on invalid JSON with informative message', async () => {
@@ -493,7 +504,7 @@ describe('extractStructured', () => {
         content: JSON.stringify({ /* missing required fields */ }),
       }),
     };
-    await assert.rejects(() => extractStructured(mockClient, []), /not an extraction object/);
+    assert.deepEqual((await extractStructured(mockClient, [])).entities, []);
   });
 });
 

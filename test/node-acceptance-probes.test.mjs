@@ -21,7 +21,10 @@ function baseCtx(over = {}) {
   const ctx = {
     config, runId: 'testrun', options: { mutate: true, deep: true }, teardown, path,
     fsp: {
-      stat: async (p) => ({ size: 100, mode: 0o100600, dev: 1, ino: [...p].reduce((n, c) => Math.imul(n, 31) + c.charCodeAt(0) | 0, 0) }),
+      stat: async (p) => {
+        if (p.endsWith('mc-session-token') || p.endsWith('.obsidian-api-key')) throw new Error('ENOENT');
+        return { size: 100, mode: 0o100600, dev: 1, ino: [...p].reduce((n, c) => Math.imul(n, 31) + c.charCodeAt(0) | 0, 0) };
+      },
       access: async () => {},
       realpath: async (p) => p,
       readFile: async (p) => {
@@ -30,6 +33,7 @@ function baseCtx(over = {}) {
         if (p === config.fixtureMarker) return JSON.stringify({ type: 'node-readiness-memory-fixture-v1', natsServerName: 'acc-test-bus' });
         if (p === config.fixtureEnv) return `OPENCLAW_NATS=${config.natsUrl}\nOPENCLAW_NATS_TOKEN=${config.natsToken}\n`;
         if (p === config.daemonConfig) return JSON.stringify({ workspace: config.workspace });
+        if (p === config.vaultSyncConfig) return JSON.stringify({ enabled: false });
         return '';
       },
       writeFile: async () => {},
@@ -47,9 +51,15 @@ function baseCtx(over = {}) {
         script: path.join(config.workspace, 'bin', 'memory-daemon.mjs'),
         extractionDb: config.stateDb,
         knowledgeDb: config.knowledgeDb,
+        extractionStoreDb: config.stateDb,
+        federationExtractionDb: config.stateDb,
+        federationKnowledgeDb: config.knowledgeDb,
+        graphCacheDb: config.graphCacheDb,
         vault: path.join(config.home, 'obsidian-local'),
         transcriptRegistry: config.transcriptSources,
         natsServerId: 'fixture-id',
+        singletonSocket: path.join(config.home, 'memory-daemon.sock'),
+        isolatedMemory: true,
       }
         : url.endsWith('/connz') ? { server_id: 'fixture-id', connections: [{ name: 'memory-daemon' }] }
         : url.endsWith('/routez') ? { server_id: 'fixture-id', routes: [] }
@@ -286,6 +296,35 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     const get = ctx.httpGet;
     ctx.httpGet = async (url) => url.endsWith('/leafz')
       ? { status: 200, ok: true, json: { server_id: 'fixture-id', leafnodes: 1 } } : get(url);
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+  });
+  it('gold round-trip refuses a second fixture daemon and non-fixture DB path', async () => {
+    const ctx = baseCtx();
+    const get = ctx.httpGet;
+    ctx.httpGet = async (url, opts) => {
+      const response = await get(url, opts);
+      return url.endsWith('/connz')
+        ? { ...response, json: { ...response.json, connections: [{ name: 'memory-daemon' }, { name: 'memory-daemon' }] } }
+        : response;
+    };
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+    ctx.httpGet = async (url, opts) => {
+      const response = await get(url, opts);
+      return url.endsWith('/runtime/paths')
+        ? { ...response, json: { ...response.json, federationExtractionDb: path.join(os.homedir(), '.openclaw', 'state.db') } }
+        : response;
+    };
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+  });
+  it('gold round-trip refuses enabled Obsidian sync or a Mission Control token', async () => {
+    const ctx = baseCtx();
+    const read = ctx.fsp.readFile;
+    ctx.fsp.readFile = async (p) => p === ctx.config.vaultSyncConfig
+      ? JSON.stringify({ enabled: true }) : read(p);
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+    ctx.fsp.readFile = read;
+    const stat = ctx.fsp.stat;
+    ctx.fsp.stat = async (p) => p.endsWith('mc-session-token') ? { size: 64 } : stat(p);
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
   });
   it('gold round-trip refuses a daemon that writes its MEMORY.md into live workspace', async () => {

@@ -55,6 +55,8 @@ import { loadEventSchemas } from '../lib/event-schemas.mjs';
 import { createMemoryWatcher, runStoreHealthProbes, appendWatcherRecord } from '../lib/memory-watcher.mjs';
 import { initDatabase as initKnowledgeDb } from '../lib/mcp-knowledge/core.mjs';
 import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
+import { assertMemoryFixtureSafety } from '../lib/memory-fixture-safety.mjs';
+import { acquireMemoryDaemonSingleton } from '../lib/memory-daemon-singleton.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -158,6 +160,9 @@ const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.dirname(__dirname);
 const HOME = os.homedir();
 const CONFIG_PATH = path.join(HOME, '.openclaw/config/daemon.json');
 const TRANSCRIPT_REGISTRY = path.join(HOME, '.openclaw/config/transcript-sources.json');
+const FEDERATION_DB_DIR = process.env.OPENCLAW_DB_DIR || path.join(HOME, '.openclaw');
+const FEDERATION_KNOWLEDGE_DB = process.env.OPENCLAW_KNOWLEDGE_DB || path.join(WORKSPACE, '.knowledge.db');
+const FEDERATION_EXTRACTION_DB = process.env.OPENCLAW_EXTRACTION_DB || path.join(FEDERATION_DB_DIR, 'state.db');
 
 function loadConfig() {
   const defaults = {
@@ -1506,10 +1511,8 @@ async function initFederationSubsystems(nc) {
   // DB handles — same resolution as the retired daemon. Knowledge DB lives in
   // the workspace (same path the daemon's own knowledge indexing uses);
   // extraction tables live in state.db (C1 fix — one DB for reads and writes).
-  const dbDir = process.env.OPENCLAW_DB_DIR || path.join(HOME, '.openclaw');
-  const workspaceDir = process.env.OPENCLAW_WORKSPACE || path.join(HOME, '.openclaw', 'workspace');
-  const knowledgeDbPath = process.env.OPENCLAW_KNOWLEDGE_DB || path.join(workspaceDir, '.knowledge.db');
-  const extractionDbPath = process.env.OPENCLAW_EXTRACTION_DB || path.join(dbDir, 'state.db');
+  const knowledgeDbPath = FEDERATION_KNOWLEDGE_DB;
+  const extractionDbPath = FEDERATION_EXTRACTION_DB;
   try {
     const { openStore } = await import('../lib/sqlite-store.mjs');
     federationState.knowledgeDb = fs.existsSync(knowledgeDbPath) ? openStore(knowledgeDbPath) : null;
@@ -1587,6 +1590,9 @@ async function initFederationSubsystems(nc) {
 // ============================================================
 
 async function main() {
+  const config = loadConfig();
+  assertMemoryFixtureSafety({ script: __filename, workspace: WORKSPACE, configuredWorkspace: config.workspace });
+  const singleton = await acquireMemoryDaemonSingleton(HOME);
   ensureDirs();
   // P5-7: a missing/unbuilt event-schemas package used to surface as a
   // per-message NAK loop hours later. It is a deployment error — fail here.
@@ -1596,7 +1602,6 @@ async function main() {
     log(`FATAL: ${err.message}`);
     process.exit(1);
   }
-  const config = loadConfig();
   const sources = loadTranscriptSources();
 
   log(`Daemon starting (pid: ${process.pid}, workspace: ${WORKSPACE})`);
@@ -1806,9 +1811,15 @@ async function main() {
           configuredWorkspace: config.workspace,
           extractionDb: path.join(HOME, '.openclaw', 'state.db'),
           knowledgeDb: path.join(HOME, '.openclaw', 'workspace', '.knowledge.db'),
+          extractionStoreDb: getExtractionStore()?.dbPath || null,
+          federationExtractionDb: FEDERATION_EXTRACTION_DB,
+          federationKnowledgeDb: FEDERATION_KNOWLEDGE_DB,
+          graphCacheDb: path.join(HOME, '.openclaw', 'graph-cache.db'),
           vault: getVaultPath(),
           transcriptRegistry: TRANSCRIPT_REGISTRY,
           natsServerId: natsConn?.info?.server_id || null,
+          singletonSocket: singleton.socketPath,
+          isolatedMemory: process.env.ACCEPT_ISOLATED_MEMORY === '1',
         }) },
       );
     } catch (injErr) {
@@ -1885,6 +1896,7 @@ async function main() {
       try { federationState.extractionDb.close(); } catch (_) {}
     }
     log('Daemon stopped');
+    await singleton.close();
     process.exit(0);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
