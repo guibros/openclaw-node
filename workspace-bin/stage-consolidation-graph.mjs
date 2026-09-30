@@ -20,7 +20,7 @@ function sha(file) {
 
 function within(dir, file) {
   const rel = path.relative(dir, file);
-  return rel && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel);
+  return rel !== '' && rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel);
 }
 
 function run(command, args, opts = {}) {
@@ -94,7 +94,7 @@ export function scanGraph(release, typescript) {
             assert.ok(within(path.join(release, 'node_modules'), target), `package escapes release: ${file} -> ${target}`);
             bare.set(spec, target);
           }
-          edges.push({ from: path.relative(release, file), kind, spec, to: target.startsWith(release) ? path.relative(release, target) : target });
+          edges.push({ from: path.relative(release, file), kind, spec, to: within(release, target) ? path.relative(release, target) : target });
         }
       }
       typescript.forEachChild(node, visit);
@@ -123,7 +123,7 @@ function checkLock(release) {
     const name = key.slice(key.lastIndexOf('node_modules/') + 13);
     const priors = sourceByName.get(name) || [];
     assert.ok(priors.some(prior => prior.version === value.version && prior.integrity === value.integrity), `dependency lock drift: ${name}@${value.version}`);
-    checked[name] = { version: value.version, integrity: value.integrity };
+    checked[key] = { version: value.version, integrity: value.integrity };
   }
   return checked;
 }

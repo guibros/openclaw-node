@@ -18,6 +18,8 @@ test('private consolidation graph stages under the timer ABI and refuses file dr
     assert.ok(manifest.graph.sources.includes('bin/openclaw-notify.mjs'));
     assert.ok(manifest.graph.sources.includes('packages/event-schemas/dist/index.js'));
     assert.equal(manifest.graph.child.script, 'bin/openclaw-notify.mjs');
+    const lock = JSON.parse(fs.readFileSync(path.join(release, 'package-lock.json'), 'utf8'));
+    assert.deepEqual(Object.keys(manifest.dependencies).sort(), Object.keys(lock.packages).filter(key => key.includes('node_modules/')).sort());
     verifyRelease(fs.realpathSync(release), nodeBinary);
     const generated = path.join(release, 'packages/event-schemas/dist/index.js');
     const original = fs.readFileSync(generated);

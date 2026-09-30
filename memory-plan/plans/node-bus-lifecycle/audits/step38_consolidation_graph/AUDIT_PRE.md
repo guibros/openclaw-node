@@ -36,4 +36,5 @@ Run the staged scheduler's actual argv-less CLI from cwd `/` with an explicit fr
 
 ## Mid-Implementation Findings
 
-None yet.
+1. Claude's exact-source challenge found that `within()` accepted the bare parent `..` and that dependency versions were recorded by package name, collapsing a nested package's manifest identity. Both were corrected before the final private release. The graph test now compares every dependency path with the staged lock. The owned probe was rerun against the corrected release.
+2. CI's Mission Control dependency-audit job is red on unchanged `mission-control/package-lock.json`, including on `main` merge commit `ab9b8fb` (run 36780863183). Its lint and 129 tests pass; both root Node jobs pass on PR #162. The high-severity audit failure is an unrelated baseline finding and is not altered in this step.
