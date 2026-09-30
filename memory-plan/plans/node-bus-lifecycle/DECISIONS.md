@@ -471,3 +471,11 @@ tests and migration, so this prototype neither recaptures pins nor removes a
 marker automatically. 3.7 remains active until exact-source adversarial
 review, CI and its runtime evidence are accepted. Production commissioning
 still depends on 3.8–3.11 and parent 1.2.
+
+D23 closure (2026-09-30 11:46 EDT): Claude85 accepted the exact f72820c
+source after the loaded-`program` counterexample was closed and two native
+explicit-Program controls passed; CI36738649717 is green3/3. Private Mac
+runtime evidence includes27 owned recovery and33 hold controls, a real
+launchd timer inert while closed and active after reopen, and a restored-only
+resolved journal. The command did not touch production. Mark3.7[x]/v3.7;
+3.8–3.11 and parent1.2 still govern production commissioning.
