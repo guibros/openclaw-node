@@ -175,8 +175,8 @@ describe('runFlush read-before-write', () => {
         const decId = store.db.prepare('SELECT id FROM decisions').get().id;
         return { content: JSON.stringify({
           ...base,
-          entities: [ent('jetstream', { ref: known })],
-          decisions: [dec('Switch JetStream to memory storage', { supersedes: decId })],
+          entities: [ent('jetstream', { ref: `entity #${known}` })],
+          decisions: [dec('Switch JetStream to memory storage', { supersedes: `decision #${decId}` })],
         }) };
       },
     };

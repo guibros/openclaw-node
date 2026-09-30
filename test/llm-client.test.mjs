@@ -46,8 +46,25 @@ before(async () => {
         try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; }
         lastRequest = { method: req.method, url: req.url, body };
         const r = nextResponse || { status: 200, body: { error: 'no response queued' } };
-        res.writeHead(r.status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(r.body));
+        if (body?.stream && r.status === 200) {
+          res.writeHead(r.status, { 'Content-Type': 'application/x-ndjson' });
+          if (r.rawChunks) {
+            const chunks = [...r.rawChunks];
+            const writeNext = () => {
+              if (!chunks.length) return res.end();
+              res.write(chunks.shift());
+              setImmediate(writeNext);
+            };
+            writeNext();
+          } else {
+            const parts = Array.isArray(r.body) ? r.body : [{ ...r.body, done: true }];
+            for (const part of parts) res.write(`${JSON.stringify(part)}\n`);
+            res.end();
+          }
+        } else {
+          res.writeHead(r.status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(r.body));
+        }
         nextResponse = null;
       });
     });
@@ -98,16 +115,19 @@ describe('createLlmClient', () => {
 });
 
 describe('generate — native /api/chat path (LLM_NATIVE_API=true default)', () => {
-  it('hits /api/chat and includes think:false + stream:false', async () => {
+  it('hits /api/chat and assembles streamed content with final usage', async () => {
     const c = createLlmClient({ baseUrl: baseUrl() });
     nextResponse = {
       status: 200,
-      body: { message: { content: 'hello' }, prompt_eval_count: 5, eval_count: 1, done_reason: 'stop' },
+      body: [
+        { message: { content: 'hel' }, done: false },
+        { message: { content: 'lo' }, prompt_eval_count: 5, eval_count: 1, done_reason: 'stop', done: true },
+      ],
     };
     const out = await c.generate([{ role: 'user', content: 'hi' }], { bypassQueue: true });
     assert.equal(lastRequest.url, '/api/chat');
     assert.equal(lastRequest.body.think, false);
-    assert.equal(lastRequest.body.stream, false);
+    assert.equal(lastRequest.body.stream, true);
     assert.equal(out.content, 'hello');
     assert.equal(out.finishReason, 'stop');
     assert.equal(out.usage.total_tokens, 6);
@@ -159,6 +179,58 @@ describe('generate — native /api/chat path (LLM_NATIVE_API=true default)', () 
       () => c.generate([], { bypassQueue: true }),
       /LLM server returned 500/
     );
+  });
+  it('refuses a truncated native stream', async () => {
+    const c = createLlmClient({ baseUrl: baseUrl() });
+    nextResponse = { status: 200, body: [{ message: { content: 'partial' }, done: false }] };
+    await assert.rejects(() => c.generate([], { bypassQueue: true }), /stream ended before completion/);
+  });
+  it('decodes a JSON line and UTF-8 character split across response chunks', async () => {
+    const c = createLlmClient({ baseUrl: baseUrl() });
+    const line = Buffer.from(JSON.stringify({ message: { content: 'café' }, done: true, done_reason: 'stop' }));
+    const accent = line.indexOf(Buffer.from('é'));
+    nextResponse = { status: 200, rawChunks: [line.subarray(0, accent + 1), line.subarray(accent + 1)] };
+    assert.equal((await c.generate([], { bypassQueue: true })).content, 'café');
+  });
+  it('surfaces a native stream error', async () => {
+    const c = createLlmClient({ baseUrl: baseUrl() });
+    nextResponse = { status: 200, body: [{ error: 'runner unavailable' }] };
+    await assert.rejects(() => c.generate([], { bypassQueue: true }), /runner unavailable/);
+  });
+  it('rejects a completed stream cut off by the output token limit', async () => {
+    const c = createLlmClient({ baseUrl: baseUrl() });
+    nextResponse = { status: 200, body: [{ message: { content: '{}' }, done: true, done_reason: 'length' }] };
+    await assert.rejects(() => c.generate([], { bypassQueue: true }), /output token limit/);
+  });
+  it('caller cancellation closes a streamed response', async () => {
+    let received;
+    let closed;
+    const requestReceived = new Promise((resolve) => { received = resolve; });
+    const responseClosed = new Promise((resolve) => { closed = resolve; });
+    const owned = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
+        res.write('{"message":{"content":"partial"},"done":false}\n');
+        received();
+      });
+      res.on('close', closed);
+    });
+    await new Promise((resolve) => owned.listen(0, '127.0.0.1', resolve));
+    const ac = new AbortController();
+    const c = createLlmClient({ baseUrl: `http://127.0.0.1:${owned.address().port}` });
+    try {
+      const result = c.generate([], { bypassQueue: true, signal: ac.signal });
+      const rejected = assert.rejects(result, /caller cancelled/);
+      await requestReceived;
+      ac.abort(new Error('caller cancelled'));
+      await rejected;
+      await responseClosed;
+    } finally {
+      ac.abort();
+      owned.closeAllConnections();
+      await new Promise((resolve) => owned.close(resolve));
+    }
   });
 });
 
@@ -241,6 +313,13 @@ describe('healthCheck', () => {
 });
 
 describe('LLM_NATIVE_API=false — OpenAI-compat path', () => {
+  it('honors an explicit backend choice without changing the process environment', async () => {
+    const c = createLlmClient({ baseUrl: baseUrl(), nativeApi: false });
+    nextResponse = { status: 200, body: { choices: [{ message: { content: 'compat' } }] } };
+    await c.generate([], { bypassQueue: true });
+    assert.equal(lastRequest.url, '/v1/chat/completions');
+  });
+
   it('hits /v1/chat/completions with max_tokens instead of num_predict', async () => {
     process.env.LLM_NATIVE_API = 'false';
     const c = createLlmClient({ baseUrl: baseUrl() });

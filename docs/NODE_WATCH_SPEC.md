@@ -75,9 +75,9 @@ delegates to a `node-acceptance` probe · **applic.** = applicability gate (OFF 
 | Element | Watch signal | Probe |
 |---|---|---|
 | Ollama model present | `LLM_MODEL` in `/api/tags` | reuse |
-| Local generation | `/api/generate` non-empty completion | reuse (heavy) |
+| Local generation | `/api/chat` non-empty completion | reuse (heavy) |
 | Embedder (BGE-M3) | 1024-dim finite vector | reuse (heavy) |
-| Structured extraction | schema-valid extraction | reuse (heavy) |
+| Structured extraction | nonce-linked SQLite decision, Postgres rejected | reuse (heavy) |
 
 ### LLM — cloud
 | Element | Watch signal | Probe |

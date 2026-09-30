@@ -23,6 +23,39 @@ import {
 import { validateExtractionResult } from '../lib/extraction-schema.mjs';
 
 describe('coerceExtractionResult', () => {
+  it('accepts typed known-memory references and drops unknown or wrong-kind ids', () => {
+    const known = {
+      entities: [{ id: 11, name: 'Project', type: 'project' }],
+      decisions: [{ id: 17, decision: 'Use Postgres for ACCPROBE' }],
+    };
+    const out = coerceExtractionResult({
+      entities: [
+        { name: 'Project', type: 'project', ref: 'entity #11' },
+        { name: 'Other', type: 'project', ref: 'entity #999' },
+        { name: 'Wrong', type: 'project', ref: 'decision #17' },
+        { name: 'Alias for Project', type: 'project', ref: 'entity #11' },
+        { name: 'Postgres', type: 'project', ref: 'entity #11' },
+        { name: 'Project', type: 'technology', ref: 'entity #11' },
+      ],
+      decisions: [
+        { decision: 'Use SQLite for ACCPROBE', rationale: 'embedded', supersedes: 'decision #17' },
+        { decision: 'Other', rationale: 'test', supersedes: 'decision #999' },
+        { decision: 'Wrong', rationale: 'test', supersedes: 'entity #11' },
+        { decision: 'Use SQLite for unrelated work', rationale: 'test', supersedes: 'decision #17' },
+      ],
+    }, known);
+    assert.equal(out.entities[0].ref, 11);
+    assert.equal(out.entities[1].ref, undefined);
+    assert.equal(out.entities[2].ref, undefined);
+    assert.equal(out.entities[3].ref, 11);
+    assert.equal(out.entities[4].ref, undefined);
+    assert.equal(out.entities[5].ref, undefined);
+    assert.equal(out.decisions[0].supersedes, 17);
+    assert.equal(out.decisions[1].supersedes, undefined);
+    assert.equal(out.decisions[2].supersedes, undefined);
+    assert.equal(out.decisions[3].supersedes, undefined);
+  });
+
   it('returns raw object passthrough for null / non-object input', () => {
     assert.equal(coerceExtractionResult(null), null);
     assert.equal(coerceExtractionResult(undefined), undefined);
@@ -284,6 +317,25 @@ describe('buildExtractionPrompt', () => {
 });
 
 describe('extractStructured', () => {
+  it('preserves typed references only to supplied known memories', async () => {
+    const knownMemories = {
+      entities: [{ id: 11, name: 'ACCPROBE', type: 'project' }],
+      decisions: [{ id: 17, decision: 'Use Postgres for ACCPROBE' }],
+    };
+    const mockClient = {
+      model: 'qwen2.5:3b',
+      generate: async () => ({
+        content: JSON.stringify({
+          entities: [{ name: 'ACCPROBE', type: 'project', ref: 'entity #11' }],
+          decisions: [{ decision: 'Use SQLite for ACCPROBE', rationale: 'embedded', supersedes: 'decision #17' }],
+        }),
+      }),
+    };
+    const result = await extractStructured(mockClient, [{ role: 'user', content: 'Use SQLite for ACCPROBE' }], { knownMemories });
+    assert.equal(result.entities[0].ref, 11);
+    assert.equal(result.decisions[0].supersedes, 17);
+  });
+
   it('returns parsed + validated result on happy path', async () => {
     const mockClient = {
       generate: async () => ({

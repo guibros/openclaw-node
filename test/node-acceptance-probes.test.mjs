@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { buildProbes, parseIsolatedEmbedResult } from '../lib/node-acceptance-probes.mjs';
 import { runAcceptance, resolveNodeConfig, VERDICT } from '../lib/node-acceptance.mjs';
+import { createExtractionStore } from '../lib/extraction-store.mjs';
 
 // A fully-mocked runtime context — no live system is touched.
 function baseCtx(over = {}) {
   const config = resolveNodeConfig({ OPENCLAW_HOME: '/tmp/acc-test-home', OPENCLAW_NODE_ID: 'testnode' });
+  config.isolatedMemoryAcceptance = true;
   const teardown = [];
   const ctx = {
     config, runId: 'testrun', options: { mutate: true, deep: true }, teardown, path,
@@ -27,7 +31,8 @@ function baseCtx(over = {}) {
     queryDb: () => 0,
     writeDb: () => {},
     embed: async () => new Float32Array(1024).fill(0.1),
-    runExtraction: async () => ({ entities: [{ name: 'x' }], decisions: [], themes: [] }),
+    runExtraction: async () => ({ entities: [{ name: 'ACCPROBETESTRUN' }], decisions: [{ decision: 'Use SQLite for ACCPROBETESTRUN', rationale: 'It is embedded and portable' }], themes: [] }),
+    runGeneration: async () => ({ content: 'OK', usage: { completion_tokens: 1 } }),
     natsConnect: async () => mockNc(),
     importSession: async () => ({ sessionId: 'acc-probe-testrun', messageCount: 4, imported: true }),
     publishTrigger: async () => {},
@@ -106,13 +111,21 @@ describe('node-acceptance probes — LLM backing', () => {
     const ctx = baseCtx({ httpGet: async () => ({ status: 200, json: { models: [{ name: 'llama3' }] } }) });
     assert.equal((await probeById(ctx, 'LLM-L2-MODEL').run()).status, VERDICT.FAIL);
   });
-  it('LLM-L2-GEN PASS on non-empty completion with eval_count', async () => {
-    const ctx = baseCtx({ httpPost: async () => ({ status: 200, json: { response: 'OK', eval_count: 7 } }) });
+  it('LLM-L2-GEN PASS through the production generation client', async () => {
+    const ctx = baseCtx({ runGeneration: async (messages) => {
+      assert.equal(messages[0].role, 'user');
+      return { content: 'OK', usage: { completion_tokens: 7 } };
+    } });
     assert.equal((await probeById(ctx, 'LLM-L2-GEN').run()).status, VERDICT.PASS);
   });
   it('LLM-L2-GEN FAIL on empty/degenerate completion', async () => {
-    const ctx = baseCtx({ httpPost: async () => ({ status: 200, json: { response: '', eval_count: 0 } }) });
+    const ctx = baseCtx({ runGeneration: async () => ({ content: '', usage: { completion_tokens: 0 } }) });
     assert.equal((await probeById(ctx, 'LLM-L2-GEN').run()).status, VERDICT.FAIL);
+  });
+  it('LLM-L2-GEN accepts an unreported token count from OpenAI-compatible backends', async () => {
+    const ctx = baseCtx({ runGeneration: async () => ({ content: 'OK', usage: null }) });
+    ctx.config.llmNativeApi = false;
+    assert.equal((await probeById(ctx, 'LLM-L2-GEN').run()).status, VERDICT.PASS);
   });
   it('LLM-L2-EMBED PASS at dim 1024 with norm>0', async () => {
     assert.equal((await probeById(baseCtx(), 'LLM-L2-EMBED').run()).status, VERDICT.PASS);
@@ -125,12 +138,38 @@ describe('node-acceptance probes — LLM backing', () => {
     const ctx = baseCtx({ embed: async () => { throw new Error('model not cached — download first'); } });
     assert.equal((await probeById(ctx, 'LLM-L2-EMBED').run()).status, VERDICT.BLOCK);
   });
-  it('LLM-L2-EXTRACT PASS on schema-valid extraction', async () => {
+  it('LLM-L2-EXTRACT PASS when the SQLite decision is tied to the probe project', async () => {
     assert.equal((await probeById(baseCtx(), 'LLM-L2-EXTRACT').run()).status, VERDICT.PASS);
+  });
+  it('LLM-L2-EXTRACT FAIL on empty but schema-valid extraction', async () => {
+    const ctx = baseCtx({ runExtraction: async () => ({ entities: [], decisions: [], themes: [] }) });
+    assert.equal((await probeById(ctx, 'LLM-L2-EXTRACT').run()).status, VERDICT.FAIL);
+  });
+  it('LLM-L2-EXTRACT FAIL when it chooses the distractor database', async () => {
+    const ctx = baseCtx({ runExtraction: async () => ({
+      entities: [{ name: 'ACCPROBETESTRUN' }],
+      decisions: [{ decision: 'Use Postgres', rationale: 'It is reliable' }],
+      themes: [],
+    }) });
+    assert.equal((await probeById(ctx, 'LLM-L2-EXTRACT').run()).status, VERDICT.FAIL);
+  });
+  it('LLM-L2-EXTRACT FAIL when the decision is unrelated to the probe project', async () => {
+    const ctx = baseCtx({ runExtraction: async () => ({
+      entities: [{ name: 'ACCPROBETESTRUN' }],
+      decisions: [{ decision: 'Use SQLite', rationale: 'It is embedded' }],
+      themes: [],
+    }) });
+    assert.equal((await probeById(ctx, 'LLM-L2-EXTRACT').run()).status, VERDICT.FAIL);
   });
   it('LLM-L2-EXTRACT FAIL on invalid extraction', async () => {
     const ctx = baseCtx({ runExtraction: async () => { throw new Error('schema validation failed'); } });
     assert.equal((await probeById(ctx, 'LLM-L2-EXTRACT').run()).status, VERDICT.FAIL);
+  });
+  it('LLM-L2-EXTRACT uses the production extraction budget by default', () => {
+    assert.equal(probeById(baseCtx(), 'LLM-L2-EXTRACT').timeoutMs, 630000);
+    const ctx = baseCtx();
+    ctx.config.extractBudgetMs = 180000;
+    assert.equal(probeById(ctx, 'LLM-L2-EXTRACT').timeoutMs, 210000);
   });
 });
 
@@ -157,6 +196,12 @@ describe('node-acceptance probes — network', () => {
 });
 
 describe('node-acceptance probes — memory + gold round-trip', () => {
+  it('MEM-L4-ROUNDTRIP blocks live mutation without an isolated fixture', async () => {
+    const ctx = baseCtx();
+    ctx.config.isolatedMemoryAcceptance = false;
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
+    assert.equal(ctx.teardown.length, 0);
+  });
   it('MEM-L2-INGEST PASS when messages land + registers teardown', async () => {
     const ctx = baseCtx({ queryDb: () => 4 });
     const r = await probeById(ctx, 'MEM-L2-INGEST').run();
@@ -175,10 +220,10 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     const ctx = baseCtx({ httpPost: async () => ({ status: 401, json: { error: 'unauthorized' } }) });
     assert.equal((await probeById(ctx, 'MEM-L2-INJECT').run()).status, VERDICT.FAIL);
   });
-  it('MEM-L4-ROUNDTRIP PASS when nonce ingested→extracted→retrieved', async () => {
+  it('MEM-L4-ROUNDTRIP PASS when the nonce decision is persisted and retrieved', async () => {
     const ctx = baseCtx({
-      queryDb: () => 3, // mentions landed
-      httpPost: async () => ({ status: 200, json: { block: 'codename ACCPROBETESTRUN uses SQLite' } }),
+      queryDb: () => ({ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN' }),
+      httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 1 } } }),
     });
     const r = await probeById(ctx, 'MEM-L4-ROUNDTRIP').run();
     assert.equal(r.status, VERDICT.PASS);
@@ -188,10 +233,61 @@ describe('node-acceptance probes — memory + gold round-trip', () => {
     assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.BLOCK);
   });
   it('MEM-L4-ROUNDTRIP FAIL when extraction never lands', async () => {
-    const ctx = baseCtx({ queryDb: () => 0, httpPost: async () => ({ status: 200, json: { block: '' } }) });
+    const ctx = baseCtx({ queryDb: () => null, httpPost: async () => ({ status: 200, json: { block: '' } }) });
     ctx.config.roundtripPollMs = 50; // don't wait the full budget in tests
     const r = await probeById(ctx, 'MEM-L4-ROUNDTRIP').run();
     assert.equal(r.status, VERDICT.FAIL);
+  });
+  it('MEM-L4-ROUNDTRIP FAIL when only an entity lands without a decision', async () => {
+    const ctx = baseCtx({ queryDb: () => null, httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN uses SQLite' } }) });
+    ctx.config.roundtripPollMs = 10;
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
+  });
+  it('MEM-L4-ROUNDTRIP FAIL when the decision is stored but injection omits SQLite', async () => {
+    const ctx = baseCtx({ queryDb: () => ({ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN' }), httpPost: async () => ({ status: 200, json: { block: 'ACCPROBETESTRUN codename', items: { decisions: 1 } } }) });
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
+  });
+  it('MEM-L4-ROUNDTRIP FAIL when a snippet answers but the decision channel is empty', async () => {
+    const ctx = baseCtx({ queryDb: () => ({ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN' }), httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for ACCPROBETESTRUN', items: { decisions: 0, snippets: 1 } } }) });
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
+  });
+  it('MEM-L4-ROUNDTRIP FAIL when the decision channel returns a different real SQLite decision', async () => {
+    const ctx = baseCtx({ queryDb: () => ({ id: 7, decision: 'Use SQLite for ACCPROBETESTRUN' }), httpPost: async () => ({ status: 200, json: { block: 'Use SQLite for another project', items: { decisions: 1 } } }) });
+    assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.FAIL);
+  });
+  it('teardown restores a real decision superseded by the synthetic extraction', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'acceptance-cleanup-'));
+    const store = createExtractionStore({ dbPath: path.join(dir, 'state.db') });
+    const nonce = 'ACCPROBETESTRUN';
+    const sessionId = 'acc-probe-testrun';
+    const empty = { themes: [], actions: [], friction_signals: [], relationships: [] };
+    try {
+      store.db.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY); CREATE TABLE messages (session_id TEXT)');
+      store.storeExtractionResult('real', { ...empty, entities: [{ name: 'Real Project', type: 'project', salience: 0.5 }], decisions: [{ decision: 'Use Postgres for Real Project', rationale: 'old', confidence: 0.5 }] });
+      const oldId = store.db.prepare('SELECT id FROM decisions WHERE session_id = ?').get('real').id;
+      const realEntityId = store.db.prepare('SELECT id FROM entities WHERE name = ?').get('Real Project').id;
+      store.storeExtractionResult(sessionId, { ...empty,
+        entities: [{ name: nonce, type: 'project', salience: 0.5, ref: realEntityId }],
+        decisions: [{ decision: `Use SQLite for ${nonce}`, rationale: 'embedded and portable', confidence: 0.5, supersedes: oldId }],
+        relationships: [{ source: nonce, target: 'SQLite', type: 'uses' }],
+      });
+      const syntheticId = store.db.prepare('SELECT id FROM decisions WHERE session_id = ?').get(sessionId).id;
+      assert.equal(store.db.prepare('SELECT superseded_by FROM decisions WHERE id = ?').get(oldId).superseded_by, syntheticId);
+      const ctx = baseCtx({
+        queryDb: (_db, fn) => fn(store.db),
+        writeDb: (_db, fn) => fn(store.db),
+        httpPost: async () => ({ status: 200, json: { block: `Use SQLite for ${nonce}`, items: { decisions: 1 } } }),
+      });
+      assert.equal((await probeById(ctx, 'MEM-L4-ROUNDTRIP').run()).status, VERDICT.PASS);
+      await ctx.teardown[1]();
+      assert.equal(store.db.prepare('SELECT superseded_by FROM decisions WHERE id = ?').get(oldId).superseded_by, null);
+      assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM decisions WHERE session_id = ?').get(sessionId).n, 0);
+      assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM entity_aliases WHERE alias = ?').get(nonce).n, 0);
+      assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM concept_edges WHERE session_id = ?').get(sessionId).n, 0);
+    } finally {
+      store.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -205,6 +301,16 @@ describe('node-acceptance orchestration', () => {
     }];
     await runAcceptance({ profile: 'single-node', healthCheckFn: async () => ({}), ctx, probes });
     assert.equal(cleaned, 1, 'teardown must run');
+  });
+  it('rejects acceptance when synthetic cleanup fails', async () => {
+    const ctx = baseCtx();
+    const probes = [{ id: 'M', layer: 'L4', axis: 'memory', required: true, run: async () => {
+      ctx.teardown.push(() => { throw new Error('database locked'); });
+      return { status: VERDICT.PASS, detail: 'extracted' };
+    } }];
+    const report = await runAcceptance({ profile: 'single-node', healthCheckFn: async () => ({}), ctx, probes, axis: 'memory' });
+    assert.equal(report.results.find((r) => r.id === 'MEM-L4-CLEANUP').status, VERDICT.FAIL);
+    assert.equal(report.gate.state, 'REJECTED');
   });
   it('--no-mutate turns mutating probes into SKIP', async () => {
     const allHealthy = { daemon: { ok: true, detail: '' }, nats: { ok: true, detail: '' }, ollama: { ok: true, detail: '' }, embedder: { ok: true, detail: '' }, sqlite: { ok: true, detail: '' }, workspace_writable: { ok: true, detail: '' } };

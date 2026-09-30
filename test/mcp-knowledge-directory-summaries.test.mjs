@@ -76,10 +76,11 @@ function startFakeOllama() {
       const body = JSON.parse(raw);
       ollama.requests.push(body);
       ollama.reply(body, (status, content) => {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(status === 200
-          ? { message: { role: 'assistant', content }, done_reason: 'stop', prompt_eval_count: 1, eval_count: 1 }
-          : { error: content }));
+        const payload = status === 200
+          ? { message: { role: 'assistant', content }, done: true, done_reason: 'stop', prompt_eval_count: 1, eval_count: 1 }
+          : { error: content };
+        res.writeHead(status, { 'Content-Type': body.stream ? 'application/x-ndjson' : 'application/json' });
+        res.end(`${JSON.stringify(payload)}${body.stream ? '\n' : ''}`);
       });
     });
   });
