@@ -82,6 +82,7 @@ const DIRS = {
   WORKSPACE_BIN:    path.join(HOME, '.openclaw', 'workspace', 'bin'),
   CLI_BIN:          path.join(HOME, 'openclaw', 'bin'),
   CLI_LIB:          path.join(HOME, 'openclaw', 'lib'),
+  WORKSPACE_LIB:    path.join(HOME, '.openclaw', 'workspace', 'lib'),
   MC_PROJECT:       path.join(HOME, '.openclaw', 'workspace', 'projects', 'mission-control'),
   SKILLS:           path.join(HOME, '.openclaw', 'skills'),
   SOULS:            path.join(HOME, '.openclaw', 'souls'),
@@ -279,10 +280,26 @@ const MANIFEST = [
     description: 'nats-resolve.js, agent-activity.js, kanban-io.js, mesh-registry.js, mesh-tasks.js',
     risk: 'safe',
     repoPaths: ['lib/'],
-    targets: [DIRS.CLI_LIB],
+    targets: [DIRS.CLI_LIB, DIRS.WORKSPACE_LIB],
+    fullOnChange: true,
     servicesMac: ['ai.openclaw.mesh-task-daemon', 'ai.openclaw.mesh-bridge',
-                  'ai.openclaw.mesh-agent'],
-    servicesLinux: ['openclaw-mesh-task-daemon', 'openclaw-mesh-bridge', 'openclaw-mesh-agent'],
+                  'ai.openclaw.mesh-agent', 'ai.openclaw.memory-daemon'],
+    servicesLinux: ['openclaw-mesh-task-daemon', 'openclaw-mesh-bridge', 'openclaw-mesh-agent',
+                    'openclaw-memory-daemon'],
+    nodeFilter: 'all',
+  },
+
+  {
+    id: 'event-schemas',
+    name: 'Event Schemas',
+    description: 'Versioned schema runtime required by the memory daemon',
+    risk: 'safe',
+    repoPaths: ['packages/event-schemas/'],
+    targets: [path.join(HOME, 'openclaw', 'packages', 'event-schemas'),
+              path.join(DIRS.WORKSPACE, 'packages', 'event-schemas')],
+    fullOnChange: true,
+    servicesMac: ['ai.openclaw.memory-daemon'],
+    servicesLinux: ['openclaw-memory-daemon'],
     nodeFilter: 'all',
   },
 
@@ -724,6 +741,43 @@ function targetSubPath(comp, file) {
   return file;
 }
 
+function resolvedDestination(pathname) {
+  const missing = [];
+  let existing = pathname;
+  while (!fs.lstatSync(existing, { throwIfNoEntry: false })) {
+    missing.unshift(path.basename(existing));
+    existing = path.dirname(existing);
+  }
+  return path.join(fs.realpathSync(existing), ...missing);
+}
+
+function assertFileTargets(comp, repoDir, files) {
+  const sourceRoot = fs.realpathSync(repoDir);
+  for (const target of comp.targets) {
+    for (const relFile of files) {
+      const dstPath = path.join(target, targetSubPath(comp, relFile));
+      const destination = resolvedDestination(dstPath);
+      const source = path.join(sourceRoot, relFile);
+      if (destination !== path.resolve(dstPath) && destination !== source) {
+        throw new Error(`${dstPath} points outside this deployed revision — refusing to write through it`);
+      }
+    }
+  }
+}
+
+function prepareDeploy({ repoDir, fromSha, toSha, filterIds, force }) {
+  assertCommitted(repoDir);
+  const changes = diffChanges(repoDir, fromSha, toSha);
+  const plans = planComponents(changes, {
+    filterIds, force,
+    listAll: repoPaths => listFiles(repoDir, toSha, repoPaths),
+  });
+  for (const { comp, install, remove } of plans) {
+    if (!comp.install) assertFileTargets(comp, repoDir, [...install, ...remove]);
+  }
+  return { changes, plans };
+}
+
 /**
  * Which components the changes touch, and with which files. A component named
  * with --component (every component under --force or --component all) is
@@ -747,7 +801,7 @@ function planComponents(changes, { filterIds = [], force = false, listAll }) {
 
     const own = changes.filter(c => ownsPath(comp, c.path));
     const remove = own.filter(c => c.status === 'D').map(c => c.path);
-    const install = (reinstallAll || named.includes(comp.id))
+    const install = (reinstallAll || named.includes(comp.id) || (comp.fullOnChange && own.length > 0))
       ? listAll(comp.repoPaths).filter(f => ownsPath(comp, f))
       : own.filter(c => c.status !== 'D').map(c => c.path);
     if (install.length > 0 || remove.length > 0) plans.push({ comp, install, remove });
@@ -759,6 +813,7 @@ function planComponents(changes, { filterIds = [], force = false, listAll }) {
  * Copy a component's files from the checked-out tree to its targets.
  */
 function installFiles(comp, repoDir, files, dryRun) {
+  assertFileTargets(comp, repoDir, files);
   let count = 0;
   for (const target of comp.targets) {
     for (const relFile of files) {
@@ -785,9 +840,17 @@ function installFiles(comp, repoDir, files, dryRun) {
         continue;
       }
       fs.mkdirSync(path.dirname(dstPath), { recursive: true });
-      fs.copyFileSync(srcPath, dstPath);
+      const priorMode = fs.existsSync(dstPath) ? fs.statSync(dstPath).mode & 0o777 : null;
+      const tempPath = `${dstPath}.deploy-${process.pid}-${crypto.randomBytes(6).toString('hex')}`;
+      try {
+        fs.copyFileSync(srcPath, tempPath, fs.constants.COPYFILE_EXCL);
+        if (relFile.endsWith('.js') || relFile.endsWith('.sh')) fs.chmodSync(tempPath, 0o755);
+        else if (priorMode !== null) fs.chmodSync(tempPath, priorMode);
+        fs.renameSync(tempPath, dstPath);
+      } finally {
+        fs.rmSync(tempPath, { force: true });
+      }
       console.log(`  ${C.dim('copy')} ${srcPath} → ${dstPath}`);
-      if (relFile.endsWith('.js') || relFile.endsWith('.sh')) fs.chmodSync(dstPath, 0o755);
       count++;
     }
   }
@@ -800,10 +863,12 @@ function installFiles(comp, repoDir, files, dryRun) {
  * this node (learned soul genes, an operator's doc) stays, with a warning.
  */
 function removeFiles(comp, repoDir, fromSha, files, dryRun) {
+  assertFileTargets(comp, repoDir, files);
   let count = 0;
   for (const target of comp.targets) {
     for (const relFile of files) {
       const dstPath = path.join(target, targetSubPath(comp, relFile));
+      if (resolvedDestination(dstPath) === path.join(fs.realpathSync(repoDir), relFile)) continue;
       if (!fs.existsSync(dstPath)) continue;
       const shipped = git(repoDir, ['show', `${fromSha}:${relFile}`], 'buffer');
       if (!fs.readFileSync(dstPath).equals(shipped)) {
@@ -888,18 +953,12 @@ function restartService(svc) {
  */
 function deploy({ repoDir, fromSha, toSha, filterIds = [], force = false, includeServices = false,
                   dryRun = false, noRestart = false }) {
-  assertCommitted(repoDir);
+  const { changes, plans } = prepareDeploy({ repoDir, fromSha, toSha, filterIds, force });
   if (!dryRun && gitLine(repoDir, ['rev-parse', 'HEAD']) !== toSha) {
     info(`Checking out ${toSha.slice(0, 8)}`);
     git(repoDir, ['checkout', '--detach', '--quiet', toSha]);
   }
-  const changes = diffChanges(repoDir, fromSha, toSha);
   info(`${fromSha.slice(0, 8)} → ${toSha.slice(0, 8)}: ${changes.length} changed file(s)`);
-
-  const plans = planComponents(changes, {
-    filterIds, force,
-    listAll: repoPaths => listFiles(repoDir, toSha, repoPaths),
-  });
   if (plans.length === 0) ok('No components affected');
   else info(`${plans.length} component(s) to deploy:\n`);
 
@@ -1020,6 +1079,7 @@ async function main() {
   const doRollback = args.includes('--rollback');
   const includeServices = args.includes('--include-services');
   const forceAll = args.includes('--force');
+  const preflightOnly = args.includes('--preflight-only');
   const showStatus = args.includes('--status');
 
   // Parse --component flag (can be repeated)
@@ -1035,6 +1095,7 @@ async function main() {
   const argValue = flag => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : undefined; };
   const fromArg = argValue('--from');
   const toArg = argValue('--to');
+  if (preflightOnly && !toArg) throw new Error('--preflight-only requires --to');
 
   // Parse --node flag
   let deployLocal = true, deployRemote = !localOnly;
@@ -1162,6 +1223,11 @@ async function main() {
     if (!toSha) throw new Error(`--to ${toArg} is not a commit in ${REPO_DIR} (pinned mode never fetches)`);
     const fromSha = fromArg ? resolveCommit(REPO_DIR, fromArg) : deployedBase(REPO_DIR);
     if (!fromSha) throw new Error(`--from ${fromArg} is not a commit in ${REPO_DIR}`);
+    if (preflightOnly) {
+      const { changes, plans } = prepareDeploy({ repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll });
+      console.log(`DEPLOY_RESULT ${JSON.stringify({ preflight: true, changedFiles: changes.length, components: plans.map(({ comp }) => ({ id: comp.id })) })}`);
+      return;
+    }
     const result = deploy({ repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll, includeServices, dryRun, noRestart });
     console.log(`DEPLOY_RESULT ${JSON.stringify(result)}`);
     return;
@@ -1191,6 +1257,7 @@ async function main() {
     // Read before the fast-forward: with nothing recorded the base is HEAD, and
     // after the merge HEAD is already the target.
     const fromSha = deployedBase(REPO_DIR);
+    prepareDeploy({ repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll });
     if (!dryRun && head !== toSha && currentBranch(REPO_DIR) === DEPLOY_BRANCH) {
       git(REPO_DIR, ['merge', '--ff-only', '--quiet', toSha]);
       ok(`Fast-forwarded ${DEPLOY_BRANCH}: ${head.slice(0, 7)} → ${toSha.slice(0, 7)}`);

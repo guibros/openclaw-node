@@ -15,6 +15,12 @@ const require = createRequire(import.meta.url);
 const { shouldCatchUp } = require('../bin/mesh-deploy-listener.js');
 
 describe('shouldCatchUp (deploy catch-up verdict)', () => {
+  it('bootstraps when HEAD matches latest but no runtime deploy is recorded', () => {
+    const v = shouldCatchUp({ currentSha: 'bbbbbbb', latestSha: 'bbbbbbb', lastDeploy: null, hasDeployedState: false });
+    assert.equal(v.deploy, true);
+    assert.match(v.reason, /no completed deploy recorded/);
+  });
+
   it('deploys when the tree is behind latest', () => {
     const v = shouldCatchUp({ currentSha: 'aaaaaaa', latestSha: 'bbbbbbb', lastDeploy: null });
     assert.equal(v.deploy, true);
@@ -41,6 +47,12 @@ describe('shouldCatchUp (deploy catch-up verdict)', () => {
     const v = shouldCatchUp({ currentSha: 'ccccccc', latestSha: 'bbbbbbb', lastDeploy: { sha: 'bbbbbbb', status: 'skipped', attempts: 1, reason: 'HEAD ccccccc is ahead of bbbbbbb' } });
     assert.equal(v.deploy, false);
     assert.match(v.reason, /skipped/);
+  });
+
+  it('does not retry a refused preflight on every reconnect', () => {
+    const v = shouldCatchUp({ currentSha: 'aaaaaaa', latestSha: 'bbbbbbb', lastDeploy: { sha: 'bbbbbbb', status: 'refused', attempts: 1 } });
+    assert.equal(v.deploy, false);
+    assert.match(v.reason, /operator must resolve/);
   });
 
   it('a failed marker for a DIFFERENT sha does not block catching up to latest', () => {
