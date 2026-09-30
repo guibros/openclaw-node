@@ -25,7 +25,7 @@ const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const BOOTED_LISTENER = fs.readFileSync(__filename);
+const { moveToSha } = require('./schema-deploy-transition');
 const { createTracer, setNatsConnection } = require('../lib/tracer');
 const tracer = createTracer('mesh-deploy-listener');
 
@@ -68,6 +68,12 @@ const NODE_ROLE = resolveNodeRole();
 
 const { ROLE_COMPONENTS } = require('../lib/mesh-roles');
 const NODE_COMPONENTS = new Set(ROLE_COMPONENTS[NODE_ROLE] || ROLE_COMPONENTS.worker);
+const SOURCE_ROOT = path.resolve(__dirname, '..') + path.sep;
+const BOOTED_MODULES = new Map(Object.keys(require.cache)
+  .filter(file => file.startsWith(SOURCE_ROOT))
+  .map(file => [file, fs.readFileSync(file)]));
+const AUTH_MODULE = path.join(SOURCE_ROOT, 'lib', 'deploy-trigger-auth.mjs');
+if (fs.existsSync(AUTH_MODULE)) BOOTED_MODULES.set(AUTH_MODULE, fs.readFileSync(AUTH_MODULE));
 
 let deploying = false; // prevent concurrent deploys
 
@@ -156,9 +162,24 @@ function isAncestor(ancestor, descendant) {
 function deployedBase() {
   if (!fs.existsSync(DEPLOY_STATE)) return null;
   const recorded = JSON.parse(fs.readFileSync(DEPLOY_STATE, 'utf8')).deployedSha;
-  if (!/^[0-9a-f]{40}$/.test(recorded || '')) throw new Error('deploy state has no valid deployedSha');
+  if (!/^[0-9a-f]{40}$/.test(recorded || '')) return null;
   try { return git('rev-parse', '--verify', '--quiet', `${recorded}^{commit}`); }
-  catch { throw new Error(`recorded deployedSha ${recorded} is not in this checkout`); }
+  catch { return null; }
+}
+
+function listenerSourceChanged() {
+  return [...BOOTED_MODULES].some(([file, contents]) => !contents.equals(fs.readFileSync(file)));
+}
+
+function validateFreshListener() {
+  const probe = 'require(process.argv[1]); import(process.argv[2]).catch(error => { console.error(error); process.exitCode = 1; })';
+  try {
+    execFileSync(process.execPath, ['-e', probe, __filename, AUTH_MODULE], {
+      cwd: REPO_DIR, timeout: 10000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (err) {
+    throw new Error(`new deploy listener cannot load: ${String(err.stderr || err.message).trim().slice(0, 500)}`);
+  }
 }
 
 // The signed sha, resolved after the fetch: it must be a commit on the
@@ -299,7 +320,7 @@ async function runDeploy(trigger, { forwardOnly = false } = {}) {
       if (head !== targetSha) {
         console.log(`[deploy-listener] Checking out ${targetSha.slice(0, 7)} (was ${head.slice(0, 7)})`);
         touched = true;
-        git('checkout', '--detach', '--quiet', targetSha);
+        moveToSha(REPO_DIR, targetSha);
       }
       deployArgs = ['--from', fromSha, '--to', targetSha, ...installArgs];
     }
@@ -310,6 +331,8 @@ async function runDeploy(trigger, { forwardOnly = false } = {}) {
     const { stdout, deployed } = await runDeployScript(deployArgs);
     const head = git('rev-parse', 'HEAD');
     if (head !== targetSha) throw new Error(`deploy left HEAD at ${head.slice(0, 7)}, expected ${targetSha.slice(0, 7)}`);
+    result.listenerReload = listenerSourceChanged() || deployed.components.some(c => ['mesh-cli', 'shared-lib'].includes(c.id));
+    if (result.listenerReload) validateFreshListener();
 
     result.log = stdout.slice(-5000);
     result.componentsDeployed = deployed.components;
@@ -329,7 +352,7 @@ async function runDeploy(trigger, { forwardOnly = false } = {}) {
       try {
         if (git('rev-parse', 'HEAD') !== preSha) {
           console.log(`[deploy-listener] Rolling back ${targetSha.slice(0, 7)} → ${preSha.slice(0, 7)}`);
-          git('checkout', '--detach', '--quiet', preSha);
+          moveToSha(REPO_DIR, preSha);
         }
         await runDeployScript(['--from', targetSha, '--to', preSha, ...componentArgs]);
         const head = git('rev-parse', 'HEAD');
@@ -417,8 +440,8 @@ async function executeDeploy(trigger, resultsKv, nodesKv, opts = {}) {
         }
       } catch (err) { console.warn(`[deploy-listener] update node deploy version: ${err.message}`); }
     }
-    if (result.status === 'success' && !BOOTED_LISTENER.equals(fs.readFileSync(__filename))) {
-      console.log('[deploy-listener] Listener source changed — exiting for service-manager restart');
+    if (result.status === 'success' && result.listenerReload) {
+      console.log('[deploy-listener] Listener modules changed and load-checked — exiting for service-manager restart');
       process.exit(0);
     }
   } finally {
@@ -458,7 +481,7 @@ async function checkAndCatchUp(resultsKv, nodesKv) {
     // P4-9: "HEAD == latest" is not "deployed" — a merged-but-failed deploy
     // leaves the tree there too. The local marker breaks the tie, and caps
     // automatic retries of a sha that keeps failing on this node.
-    const verdict = shouldCatchUp({ currentSha, latestSha: sha, lastDeploy: readDeployMarker(), hasDeployedState: fs.existsSync(DEPLOY_STATE) });
+    const verdict = shouldCatchUp({ currentSha, latestSha: sha, lastDeploy: readDeployMarker(), hasDeployedState: !!deployedBase() });
     console.log(`[deploy-listener] Catch-up: ${verdict.reason}`);
     if (verdict.deploy) {
       await executeDeploy(

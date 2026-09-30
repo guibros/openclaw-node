@@ -53,6 +53,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const { moveToSha } = require('./schema-deploy-transition');
 const { createTracer } = require('../lib/tracer');
 const tracer = createTracer('mesh-deploy');
 
@@ -262,7 +263,7 @@ const MANIFEST = [
     name: 'Mesh CLI Tools',
     description: 'mesh command, health check, repair, deploy, fleet-deploy',
     risk: 'safe',
-    repoPaths: ['bin/mesh.js', 'bin/mesh-deploy.js', 'bin/fleet-deploy.js',
+    repoPaths: ['bin/mesh.js', 'bin/mesh-deploy.js', 'bin/schema-deploy-transition.js', 'bin/fleet-deploy.js',
                 'bin/mesh-health.sh', 'bin/mesh-repair.sh'],
     targets: [DIRS.CLI_BIN],
     servicesMac: [],
@@ -286,20 +287,6 @@ const MANIFEST = [
                   'ai.openclaw.mesh-agent', 'ai.openclaw.memory-daemon'],
     servicesLinux: ['openclaw-mesh-task-daemon', 'openclaw-mesh-bridge', 'openclaw-mesh-agent',
                     'openclaw-memory-daemon'],
-    nodeFilter: 'all',
-  },
-
-  {
-    id: 'event-schemas',
-    name: 'Event Schemas',
-    description: 'Versioned schema runtime required by the memory daemon',
-    risk: 'safe',
-    repoPaths: ['packages/event-schemas/'],
-    targets: [path.join(HOME, 'openclaw', 'packages', 'event-schemas'),
-              path.join(DIRS.WORKSPACE, 'packages', 'event-schemas')],
-    fullOnChange: true,
-    servicesMac: ['ai.openclaw.memory-daemon'],
-    servicesLinux: ['openclaw-memory-daemon'],
     nodeFilter: 'all',
   },
 
@@ -956,7 +943,7 @@ function deploy({ repoDir, fromSha, toSha, filterIds = [], force = false, includ
   const { changes, plans } = prepareDeploy({ repoDir, fromSha, toSha, filterIds, force });
   if (!dryRun && gitLine(repoDir, ['rev-parse', 'HEAD']) !== toSha) {
     info(`Checking out ${toSha.slice(0, 8)}`);
-    git(repoDir, ['checkout', '--detach', '--quiet', toSha]);
+    moveToSha(repoDir, toSha);
   }
   info(`${fromSha.slice(0, 8)} → ${toSha.slice(0, 8)}: ${changes.length} changed file(s)`);
   if (plans.length === 0) ok('No components affected');
@@ -1259,7 +1246,7 @@ async function main() {
     const fromSha = deployedBase(REPO_DIR);
     prepareDeploy({ repoDir: REPO_DIR, fromSha, toSha, filterIds, force: forceAll });
     if (!dryRun && head !== toSha && currentBranch(REPO_DIR) === DEPLOY_BRANCH) {
-      git(REPO_DIR, ['merge', '--ff-only', '--quiet', toSha]);
+      moveToSha(REPO_DIR, toSha, { fastForward: true });
       ok(`Fast-forwarded ${DEPLOY_BRANCH}: ${head.slice(0, 7)} → ${toSha.slice(0, 7)}`);
     }
     const result = deploy({
