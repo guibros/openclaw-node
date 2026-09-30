@@ -54,7 +54,7 @@ function mockNc() {
     async flush() {},
     async close() {},
     async jetstreamManager() {
-      return { streams: { info: async () => ({ config: { subjects: ['local.>'] }, state: { messages: 5 } }) } };
+      return { streams: { info: async () => ({ config: { subjects: ['local.>'], storage: 'file', num_replicas: 1 }, state: { messages: 5 } }) } };
     },
   };
 }
@@ -107,7 +107,11 @@ describe('node-acceptance probes — LLM backing', () => {
     assert.equal((await probeById(ctx, 'LLM-L2-MODEL').run()).status, VERDICT.FAIL);
   });
   it('LLM-L2-GEN PASS on non-empty completion with eval_count', async () => {
-    const ctx = baseCtx({ httpPost: async () => ({ status: 200, json: { response: 'OK', eval_count: 7 } }) });
+    const ctx = baseCtx({ httpPost: async (_url, request) => {
+      assert.equal(request.body.think, false);
+      assert.equal(request.body.options.num_predict, 16);
+      return { status: 200, json: { response: 'OK', eval_count: 7 } };
+    } });
     assert.equal((await probeById(ctx, 'LLM-L2-GEN').run()).status, VERDICT.PASS);
   });
   it('LLM-L2-GEN FAIL on empty/degenerate completion', async () => {
@@ -148,6 +152,12 @@ describe('node-acceptance probes — network', () => {
   });
   it('NET-L2-STREAM FAIL when stream missing', async () => {
     const nc = mockNc(); nc.jetstreamManager = async () => ({ streams: { info: async () => { throw new Error('stream not found'); } } });
+    const ctx = baseCtx({ natsConnect: async () => nc });
+    assert.equal((await probeById(ctx, 'NET-L2-STREAM').run()).status, VERDICT.FAIL);
+  });
+  it('NET-L2-STREAM fails on a misbound stream', async () => {
+    const nc = mockNc();
+    nc.jetstreamManager = async () => ({ streams: { info: async () => ({ config: { subjects: ['other.>'], storage: 'file', num_replicas: 1 }, state: { messages: 5 } }) } });
     const ctx = baseCtx({ natsConnect: async () => nc });
     assert.equal((await probeById(ctx, 'NET-L2-STREAM').run()).status, VERDICT.FAIL);
   });

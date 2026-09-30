@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { buildMemoryEvent, canonicalNodeId, localEventStreamName } from '../lib/local-event-log.mjs';
+import { buildMemoryEvent, canonicalNodeId, localEventStreamName, configuredLocalEventStreamName, localEventConsumerName, createLocalEventLog } from '../lib/local-event-log.mjs';
 import { MemoryBudget } from '../lib/memory-budget.mjs';
 import {
   MemoryEventSchema,
@@ -109,6 +109,67 @@ describe('local event stream naming', () => {
 
   it('rejects an empty node identity', () => {
     assert.throws(() => localEventStreamName('...'), /nodeId/);
+  });
+
+  it('keeps a persisted legacy stream while using the current node identity', () => {
+    fs.writeFileSync(path.join(tmpDir, 'openclaw.env'), 'OPENCLAW_LOCAL_EVENT_STREAM=local-events-daedalus\n');
+    assert.equal(configuredLocalEventStreamName('current-node', { OPENCLAW_HOME: tmpDir }), 'local-events-daedalus');
+    assert.equal(localEventConsumerName('watcher', 'local-events-daedalus'), 'watcher-daedalus');
+    assert.equal(localEventConsumerName('promoter', 'local-events-daedalus'), 'promoter-daedalus');
+  });
+
+  it('uses the current identity on a fresh node and rejects malformed overrides', () => {
+    assert.equal(configuredLocalEventStreamName('current-node', { OPENCLAW_HOME: tmpDir }), 'local-events-current-node');
+    assert.throws(
+      () => configuredLocalEventStreamName('current-node', { OPENCLAW_HOME: tmpDir, OPENCLAW_LOCAL_EVENT_STREAM: 'MESH_TASKS' }),
+      /OPENCLAW_LOCAL_EVENT_STREAM/,
+    );
+  });
+
+  it('refuses a missing legacy override without creating a replacement stream', async () => {
+    const previousHome = process.env.OPENCLAW_HOME;
+    const previousOverride = process.env.OPENCLAW_LOCAL_EVENT_STREAM;
+    process.env.OPENCLAW_HOME = tmpDir;
+    process.env.OPENCLAW_LOCAL_EVENT_STREAM = 'local-events-daedalus';
+    let adds = 0;
+    const nc = { jetstreamManager: async () => ({ streams: {
+      info: async () => { const error = new Error('stream not found'); error.code = '404'; throw error; },
+      add: async () => { adds++; },
+    } }) };
+    try {
+      await assert.rejects(() => createLocalEventLog(nc, 'current-node'), /configured local event stream .* missing/);
+      assert.equal(adds, 0);
+    } finally {
+      if (previousHome === undefined) delete process.env.OPENCLAW_HOME;
+      else process.env.OPENCLAW_HOME = previousHome;
+      if (previousOverride === undefined) delete process.env.OPENCLAW_LOCAL_EVENT_STREAM;
+      else process.env.OPENCLAW_LOCAL_EVENT_STREAM = previousOverride;
+    }
+  });
+
+  it('creates a canonical stream on a fresh node', async () => {
+    const previousHome = process.env.OPENCLAW_HOME;
+    const previousOverride = process.env.OPENCLAW_LOCAL_EVENT_STREAM;
+    process.env.OPENCLAW_HOME = tmpDir;
+    delete process.env.OPENCLAW_LOCAL_EVENT_STREAM;
+    let adds = 0;
+    const nc = { jetstreamManager: async () => ({ streams: {
+      info: async () => {
+        if (!adds) { const error = new Error('stream not found'); error.code = '404'; throw error; }
+        return { config: { subjects: ['local.>'], storage: 'file', num_replicas: 1 } };
+      },
+      add: async (config) => { assert.equal(config.name, 'local-events-current-node'); adds++; },
+    } }), jetstream: () => ({}) };
+    try {
+      const log = await createLocalEventLog(nc, 'current-node');
+      assert.equal(log.streamName, 'local-events-current-node');
+      assert.equal(adds, 1);
+    } finally {
+      if (previousHome === undefined) delete process.env.OPENCLAW_HOME;
+      else process.env.OPENCLAW_HOME = previousHome;
+      if (previousOverride === undefined) delete process.env.OPENCLAW_LOCAL_EVENT_STREAM;
+      else process.env.OPENCLAW_LOCAL_EVENT_STREAM = previousOverride;
+    }
   });
 });
 

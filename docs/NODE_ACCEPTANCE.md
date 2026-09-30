@@ -167,7 +167,9 @@ answers `/api/tags`.
 ## 6. Axis: Network connection (local)
 
 Local NATS (loopback `:4222`, monitor `:8222`, JetStream on), the per-node stream
-`local-events-<NODE_ID>`, and the daemon's connection to it. Acceptance proves messages **flow**, not
+`local-events-<NODE_ID>`, and the daemon's connection to it. A renamed node can retain its existing
+stream and durable consumers by setting `OPENCLAW_LOCAL_EVENT_STREAM=local-events-<old-id>` in its
+0600 `openclaw.env`; the configured stream must already exist with `local.>` and R=1. Acceptance proves messages **flow**, not
 that a server is listening.
 
 | ID | Proves | Method | PASS threshold | Evidence | Builds on |

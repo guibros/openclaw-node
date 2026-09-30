@@ -1690,6 +1690,7 @@ async function main() {
     if (localEventLog) {
       try {
         memoryWatcher = await createMemoryWatcher(natsConn, NODE_ID, {
+          streamName: localEventLog.streamName,
           log: (m) => log(`[watcher] ${m}`),
         });
       } catch (watchErr) {
