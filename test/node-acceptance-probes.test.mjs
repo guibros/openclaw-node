@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildProbes, parseIsolatedEmbedResult } from '../lib/node-acceptance-probes.mjs';
+import { buildProbes, parseIsolatedEmbedResult, syntheticTranscript } from '../lib/node-acceptance-probes.mjs';
 import { runAcceptance, resolveNodeConfig, VERDICT } from '../lib/node-acceptance.mjs';
 import { createExtractionStore } from '../lib/extraction-store.mjs';
 
@@ -17,6 +17,7 @@ function baseCtx(over = {}) {
   config.natsToken = 'FIXTURETOKEN';
   config.natsMonitorUrl = 'http://127.0.0.1:18222';
   config.workspaceEnv = config.workspace;
+  config.modelCacheEnv = path.join(config.home, 'model-cache');
   const teardown = [];
   const ctx = {
     config, runId: 'testrun', options: { mutate: true, deep: true }, teardown, path,
@@ -56,6 +57,7 @@ function baseCtx(over = {}) {
         federationKnowledgeDb: config.knowledgeDb,
         graphCacheDb: config.graphCacheDb,
         vault: path.join(config.home, 'obsidian-local'),
+        modelCache: config.modelCacheEnv,
         transcriptRegistry: config.transcriptSources,
         natsServerId: 'fixture-id',
         singletonSocket: path.join(config.home, 'memory-daemon.sock'),
@@ -241,6 +243,9 @@ describe('node-acceptance probes — network', () => {
 });
 
 describe('node-acceptance probes — memory + gold round-trip', () => {
+  it('synthetic transcript passes the daemon minimum-size ingest threshold', () => {
+    assert.ok(Buffer.byteLength(syntheticTranscript('ACCPROBETESTRUN')) >= 1024);
+  });
   it('MEM-L2-INGEST blocks live state writes without an isolated fixture', async () => {
     const ctx = baseCtx();
     ctx.config.isolatedMemoryAcceptance = false;

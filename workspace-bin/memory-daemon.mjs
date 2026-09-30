@@ -55,7 +55,7 @@ import { loadEventSchemas } from '../lib/event-schemas.mjs';
 import { createMemoryWatcher, runStoreHealthProbes, appendWatcherRecord } from '../lib/memory-watcher.mjs';
 import { initDatabase as initKnowledgeDb } from '../lib/mcp-knowledge/core.mjs';
 import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
-import { assertMemoryFixtureSafety } from '../lib/memory-fixture-safety.mjs';
+import { assertMemoryFixtureSafety, verifyMemoryFixtureBus } from '../lib/memory-fixture-safety.mjs';
 import { acquireMemoryDaemonSingleton } from '../lib/memory-daemon-singleton.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
@@ -1591,7 +1591,7 @@ async function initFederationSubsystems(nc) {
 
 async function main() {
   const config = loadConfig();
-  assertMemoryFixtureSafety({ script: __filename, workspace: WORKSPACE, configuredWorkspace: config.workspace });
+  const fixture = assertMemoryFixtureSafety({ script: __filename, workspace: WORKSPACE, configuredWorkspace: config.workspace });
   const singleton = await acquireMemoryDaemonSingleton(HOME);
   ensureDirs();
   // P5-7: a missing/unbuilt event-schemas package used to surface as a
@@ -1657,7 +1657,16 @@ async function main() {
   try {
     const { connect: natsConnect } = require('nats');
     const { natsConnectOpts } = require('../lib/nats-resolve');
-    natsConn = await natsConnect(natsConnectOpts({ name: 'memory-daemon', timeout: 5000, ...NATS_RECONNECT_OPTS }));
+    natsConn = await natsConnect(natsConnectOpts({ name: 'memory-daemon', timeout: 5000,
+      ...NATS_RECONNECT_OPTS, ...(fixture ? { reconnect: false, maxReconnectAttempts: 0 } : {}) }));
+    if (fixture) {
+      try {
+        await verifyMemoryFixtureBus(natsConn, fixture, process.env.NATS_MONITOR_URL);
+      } catch (err) {
+        console.error(`Fatal fixture bus verification: ${err.message}`);
+        process.exit(1);
+      }
+    }
 
     // Monitor NATS connection status events (reconnect, disconnect, etc.)
     (async () => {
@@ -1681,7 +1690,7 @@ async function main() {
         }
       }
     })().catch(() => {}); // subscription ends on drain/close
-    log(`NATS connected (reconnect: infinite, wait: ${NATS_RECONNECT_OPTS.reconnectTimeWait}ms) — subscribed to mesh.memory.compaction_completed`);
+    log(`NATS connected (${fixture ? 'fixture no reconnect' : `reconnect: infinite, wait: ${NATS_RECONNECT_OPTS.reconnectTimeWait}ms`}) — subscribed to mesh.memory.compaction_completed`);
 
     // Initialize local event log for dual-write shadow mode
     try {
@@ -1816,6 +1825,7 @@ async function main() {
           federationKnowledgeDb: FEDERATION_KNOWLEDGE_DB,
           graphCacheDb: path.join(HOME, '.openclaw', 'graph-cache.db'),
           vault: getVaultPath(),
+          modelCache: process.env.OPENCLAW_MODEL_CACHE || null,
           transcriptRegistry: TRANSCRIPT_REGISTRY,
           natsServerId: natsConn?.info?.server_id || null,
           singletonSocket: singleton.socketPath,

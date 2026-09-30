@@ -1,8 +1,10 @@
 # Node Acceptance Protocol
 
-**Status:** BUILT for single-node (2026-06-15) — `bin/node-acceptance.mjs` + `lib/node-acceptance.mjs` +
-`lib/node-acceptance-probes.mjs` implement L0–L2 + L4 hard-tests across memory / LLM / network. 31
-mocked unit tests green; **not yet run against a live node** (operator will run it on the deployment).
+**Status:** Built for single-node. On 2026-09-30, the disposable memory fixture ran the real daemon,
+private NATS and injector: ingestion passed, but the memory gate was **REJECTED** because the local
+Ollama extraction timed out and no SQLite decision was stored. This is runtime evidence of a failing
+end-to-end path, not acceptance. `bin/node-acceptance.mjs` + `lib/node-acceptance.mjs` +
+`lib/node-acceptance-probes.mjs` implement L0–L2 + L4 hard-tests across memory / LLM / network.
 Inter-node L3 is specified but deferred (§8).
 **Owner principle:** MASTER_PLAN §4.1 (code on disk ≠ shipped), §4.7 (tests are not done-criteria),
 §5 (done requires runtime evidence). This protocol is the operational instance of §5 applied to a
@@ -20,6 +22,8 @@ node bin/node-acceptance.mjs --axis llm # one axis: memory | llm | network | sto
 node bin/node-acceptance.mjs --no-mutate# skip probes that write synthetic data
 node bin/node-acceptance.mjs --deep     # include invasive probes (e.g. extract-trigger)
 node bin/node-acceptance.mjs --json --report /path/report.md
+node bin/run-memory-fixture.mjs         # disposable real daemon/bus/injector + memory gate
+node bin/run-memory-fixture.mjs --startup-only # verify isolated service startup without the gold probe
 ```
 
 Exit codes: **0** ACCEPTED · **1** REJECTED · **2** INCOMPLETE · **3** harness error. Writes an evidence
@@ -226,7 +230,7 @@ GATE: REJECTED — 1 FAIL. Evidence → ~/.openclaw/.node-acceptance.md
 
 ### 7.3 Determinism + safety
 
-- Mutating memory probes require a separate daemon and state DB; the gold round-trip additionally requires a separate inject server and bus. Run the fixture with `HOME=<fixture-parent>`, `OPENCLAW_HOME=$HOME/.openclaw`, `OPENCLAW_WORKSPACE=$OPENCLAW_HOME/workspace`, `ACCEPT_ISOLATED_MEMORY=1`, `--axis memory`, a distinct `OPENCLAW_NATS_TOKEN`, and dedicated high loopback bus/monitor and inject ports. `ACCEPTANCE_FIXTURE` is JSON with `{"type":"node-readiness-memory-fixture-v1","natsServerName":"acc-<unique-name>"}`. The fixture `openclaw.env` must name that bus URL and token; its `config/daemon.json` may contain only fixture-local workspace and scalar settings. The guard rejects paths or database hardlinks overlapping live state, transcript sources watched by the live daemon, copied live bus credentials, and a bus whose server identity/topology or monitor connection list does not match the marker and fixture daemon. The authenticated inject server reports the daemon's own resolved script, HOME, workspace, DB, vault and registry paths and current bus identity; the gold probe refuses if any write path leaves the fixture. Reports are marked FIXTURE and stay inside the fixture home. Step 2.1 must supply a fresh database snapshot plus verified daemon, bus, and inject-server fixture before the round-trip can count as runtime evidence. Run the fixture while live Ollama extraction is idle.
+- Mutating memory probes require a separate daemon and state DB; the gold round-trip additionally requires a separate inject server and bus. `bin/run-memory-fixture.mjs` creates these under a mode-0700 temporary HOME and stops its children on exit. It uses the installed `nats-server`, project dependencies and the local Ollama service. Its report and logs remain in the printed fixture path. The launcher sets `OPENCLAW_HOME=$HOME/.openclaw`, `OPENCLAW_WORKSPACE=$OPENCLAW_HOME/workspace`, `ACCEPT_ISOLATED_MEMORY=1`, `--axis memory`, a distinct `OPENCLAW_NATS_TOKEN` and `OPENCLAW_NODE_ID`, and dedicated high loopback bus/monitor and inject ports. `ACCEPTANCE_FIXTURE` is JSON with `{"type":"node-readiness-memory-fixture-v1","natsServerName":"acc-<unique-name>"}`. The fixture `openclaw.env` names that bus URL and token; its `config/daemon.json` contains only fixture-local workspace and scalar settings. The guard rejects paths or database hardlinks overlapping live state, transcript sources watched by the live daemon, copied live bus credentials, and a bus whose server identity/topology or monitor connection list does not match the marker and fixture daemon. The daemon verifies the private bus before its first subscription or JetStream call and disables reconnect in fixture mode. The authenticated inject server reports the daemon's own resolved script, HOME, workspace, DB, vault, model cache and registry paths and current bus identity; the gold probe refuses if any write path leaves the fixture. Reports are marked FIXTURE and stay inside the fixture home. A fresh initialized database plus verified daemon, bus and inject server are required before the round-trip can count as runtime evidence. Run the fixture while live Ollama extraction is idle.
 - The LLM extraction probe uses a new synthetic session with no known-memory candidates. A green result proves generation of a nonce-linked SQLite decision; it does not prove typed references or supersession against existing memories. Those require a seeded fixture test.
 - Native Ollama streaming has a 600-second owned request budget, but Node's HTTP client may time out waiting for the first response headers after about 300 seconds. A cold or overloaded model can therefore fail before the first token; record that separately from mid-stream completion.
 - Idempotent: a second run produces the same verdicts (modulo real drift).
