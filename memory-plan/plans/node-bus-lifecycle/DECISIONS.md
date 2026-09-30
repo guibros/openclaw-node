@@ -501,3 +501,12 @@ exit alone is never acceptance because schema/NATS setup failure can be
 swallowed. Step 3.8 requires the connected line, model-backed note, and events
 read back from the owned stream. No production timer or memory daemon is
 changed, and no remote inference cancellation is claimed.
+
+D24 closure (2026-09-30 18:42 EDT): the private release manifest is
+`0a04d20fd3ebdc70a2b39e2b5c3ab5efe114e866e68df5f608f992d188511a5f`.
+Claude's bare-parent path and nested lock-identity findings were fixed before
+the final release. Owned real-entry positive and negative probes and root
+Node20/22 tests passed on PR #162 at source 56203ea. The Mission Control audit
+failure is reproduced on unmodified main (run 36780863183); no unrelated
+dependency change is included here. Mark 3.8[x]/v3.8. Private staging is the
+3.9/3.11 input, not production commissioning.

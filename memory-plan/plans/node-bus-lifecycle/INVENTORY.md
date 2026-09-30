@@ -52,7 +52,7 @@
 | 3 | 3.5 | v3.5 | [x] | Restore interrupted execution holds through the sole durable preservation journal — 2026-09-29: source dbffa1a approved by Claude106/exact CI3of3; private Mac33 hold+47 gate+58 Journal controls; restore-only recovery, no production hold |
 | 3 | 3.6 | v3.6 | [x] | Capture the existing transcript archive in the tracked timer contract — 2026-09-29: approved61d2d78/CI3of3; exact old bytes/unit, real filter/update/retention controls, owned Mac run1/exit0/two archives/verified teardown |
 | 3 | 3.7 | v3.7 | [x] | Expose bounded restore-only recovery through the sole Journal — 2026-09-30: source f72820c accepted by Claude85/exact CI3of3; private Mac 27 owned+33 hold controls, real closed/reopened timer fires, restored-only resolution, no production mutation |
-| 3 | 3.8 | v3.8 | [A] | Stage the complete reachable consolidation execution graph |
+| 3 | 3.8 | v3.8 | [x] | Stage the complete reachable consolidation execution graph — 2026-09-30: private Node22 release -3/probe passed, Claude path and lock-identity fixes, root CI Node20/22 green; Mission Control audit red on unchanged main baseline, no production timer |
 | 3 | 3.9 | v3.9 | [ ] | Pin the five timer launch environments and protected entry contract |
 | 3 | 3.10 | v3.10 | [ ] | Prove a safe first transition from the actual ungated timer entries |
 | 3 | 3.11 | v3.11 | [ ] | Install the reviewed execution hold on the five actual Mac timers |

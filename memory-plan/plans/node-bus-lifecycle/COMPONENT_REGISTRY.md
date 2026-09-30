@@ -231,3 +231,18 @@ runtime evidence and generator live in step37. Production services and gate
 were untouched; 3.8–3.11 and parent1.2 remain open. Prior temporary fixture
 teardown left333 enabled override records for unloaded private test labels;
 current teardown adds none. Closure-head CI is still required before merge.
+
+Private consolidation graph closure — 2026-09-30 18:42 EDT: 3.8[x]/v3.8.
+The complete foreground scheduler graph is staged under
+`~/.openclaw/backups/node-readiness/consolidation-graph-20260930-3`, outside
+the live workspace, with a 0600 source/dependency/native/child manifest. The
+exact timer Node 22.22.0 loads its private SQLite addon; the owned argv-less
+cycle from cwd `/` published two tokenized private JetStream events, called a
+local model and wrote a concept note. Stale/busy, broken-schema and failure
+notification controls passed; source/dependency hashes stayed fixed. Claude's
+two concrete path/lock identity defects were corrected. PR #162 root Node20/22
+tests are green at 56203ea; Mission Control lint/tests pass but its dependency
+audit fails on the same unchanged baseline as main run 36780863183. No live
+timer, shared dependency or memory daemon was changed. The queue and notifier
+were private fixtures; 3.9/3.10/3.11 still own the protected launch contract,
+safe first transition and actual timer commissioning.
