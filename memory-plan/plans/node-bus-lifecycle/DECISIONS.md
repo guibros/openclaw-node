@@ -510,3 +510,21 @@ Node20/22 tests passed on PR #162 at source 56203ea. The Mission Control audit
 failure is reproduced on unmodified main (run 36780863183); no unrelated
 dependency change is included here. Mark 3.8[x]/v3.8. Private staging is the
 3.9/3.11 input, not production commissioning.
+
+D24 correction in flight (2026-09-30 18:55 EDT): fresh loaded launchd evidence
+shows the consolidation timer's executable is `/usr/local/bin/node`, Node
+24.13.0/ABI 137, not the Node 22 binary exercised by the first private
+release. That release remains a valid Node-22 fixture but cannot serve as the
+exact loaded-interpreter baseline. Reopen 3.8, create an owned release under
+the actual loaded Node 24 executable, and rerun the graph/native/real-entry
+checks before closing or feeding 3.9. The live scheduler body also predates
+the accepted 3.2 foreground fix; 3.11 still owns its safe production swap.
+
+D24 correction closure (2026-09-30 19:08 EDT): private release -4 matches the
+loaded Node24 program and its manifest hashes both generated native files,
+identifying the SQLite binding actually loaded. The owned scheduler probe and
+Mac graph/drift control pass. Claude's exact-diff review found no blocker;
+PR #163 source d635370 has green Node20/22 root CI, with Mission Control
+failing only the pre-existing audit on main. Reclose 3.8[x]/v3.8. Feed the
+corrected release to 3.9/3.11; the earlier Node22 fixture is not the loaded
+timer baseline.

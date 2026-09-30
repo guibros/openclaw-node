@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -11,9 +11,15 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const release = process.argv[2];
-const nodeBinary = process.argv[3] || '/opt/homebrew/Cellar/node@22/22.22.0/bin/node';
+const nodeBinary = process.argv[3] || '/usr/local/bin/node';
 assert.ok(release && fs.existsSync(path.join(release, 'consolidation-graph.json')), 'stage a release first');
 const manifest = JSON.parse(fs.readFileSync(path.join(release, 'consolidation-graph.json'), 'utf8'));
+const loaded = spawnSync('launchctl', ['print', `gui/${process.getuid()}/ai.openclaw.consolidation-scheduler`], { encoding: 'utf8' });
+assert.equal(loaded.status, 0, 'loaded consolidation timer unavailable');
+const loadedProgram = loaded.stdout.match(/^\tprogram = (.+)$/m)?.[1];
+assert.equal(loadedProgram, nodeBinary, 'private probe does not use the loaded timer executable');
+assert.equal(manifest.node.path, fs.realpathSync(nodeBinary), 'release has a different Node executable');
+assert.equal(manifest.node.abi, '137', 'loaded timer Node ABI changed');
 const require = createRequire(path.join(release, 'package.json'));
 const { connect } = require('nats');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'consolidation-graph-probe-'));
@@ -164,7 +170,7 @@ async function main() {
   assert.ok(ledgerRows.some(row => row.source === 'consolidation' && row.kind === 'error'), 'missing failure notification');
   assert.match(fs.readFileSync(notifierLog, 'utf8'), /called/);
   checkRelease();
-  return { release, nodeBinary, positive, stale: 'skipped without DB change', busy: 'skipped without DB change', brokenSchema: 'entry exited 0 without NATS; acceptance rejected', failure: { exit: failed.code, ledgerRows: ledgerRows.length, notifierFinished: true } };
+  return { release, nodeBinary, loadedProgram, positive, stale: 'skipped without DB change', busy: 'skipped without DB change', brokenSchema: 'entry exited 0 without NATS; acceptance rejected', failure: { exit: failed.code, ledgerRows: ledgerRows.length, notifierFinished: true } };
 }
 
 try {
