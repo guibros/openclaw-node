@@ -128,14 +128,17 @@ function checkLock(release) {
   return checked;
 }
 
-export function verifyRelease(release, nodeBinary) {
+export function verifyRelease(release, nodeBinary, expectedAbi) {
   const ts = createRequire(path.join(release, 'package.json'))('typescript');
   const graph = scanGraph(release, ts);
   const native = files(path.join(release, 'node_modules')).filter(file => file.endsWith('.node'));
-  assert.equal(native.length, 1, `expected one native addon, got ${native.length}`);
-  const nativeProbe = run(nodeBinary, ['-e', "const D=require('better-sqlite3'); const db=new D(':memory:'); console.log(JSON.stringify({abi:process.versions.modules, sqlite:db.prepare('select sqlite_version() v').get().v})); db.close()"], { cwd: release, env: { HOME: os.tmpdir(), PATH: path.dirname(nodeBinary) + ':/usr/bin:/bin' } });
-  const node = { path: fs.realpathSync(nodeBinary), sha256: sha(nodeBinary), ...JSON.parse(nativeProbe) };
-  assert.equal(node.abi, '127', 'release requires launchd Node 22 ABI');
+  const nativeProbe = run(nodeBinary, ['-e', "const loaded=[]; const original=process.dlopen; process.dlopen=function(...args){loaded.push(args[1]);return original.apply(this,args)}; const D=require('better-sqlite3'); const db=new D(':memory:'); console.log(JSON.stringify({abi:process.versions.modules, sqlite:db.prepare('select sqlite_version() v').get().v, loaded})); db.close()"], { cwd: release, env: { HOME: os.tmpdir(), PATH: path.dirname(nodeBinary) + ':/usr/bin:/bin' } });
+  const { loaded, ...nativeResult } = JSON.parse(nativeProbe);
+  assert.equal(loaded.length, 1, 'SQLite loaded an unexpected number of native addons');
+  const selectedNative = fs.realpathSync(loaded[0]);
+  assert.ok(native.includes(selectedNative), `SQLite native addon escapes the release: ${selectedNative}`);
+  const node = { path: fs.realpathSync(nodeBinary), sha256: sha(nodeBinary), ...nativeResult };
+  if (expectedAbi) assert.equal(node.abi, expectedAbi, 'release native ABI differs from selected launcher');
   const dependencyFiles = files(path.join(release, 'node_modules'));
   const sourceFiles = [path.join(release, 'package.json'), ...files(path.join(release, 'bin')), ...files(path.join(release, 'lib')), ...files(path.join(release, 'packages'))];
   const dependencies = checkLock(release);
@@ -144,7 +147,7 @@ export function verifyRelease(release, nodeBinary) {
     entry,
     node,
     graph,
-    native: { file: path.relative(release, native[0]), sha256: sha(native[0]) },
+    native: { file: path.relative(release, selectedNative), sha256: sha(selectedNative), available: recorded(release, native) },
     dependencies,
     source: recorded(release, sourceFiles),
     installed: recorded(release, dependencyFiles),
@@ -159,7 +162,7 @@ export function verifyRelease(release, nodeBinary) {
   return manifest;
 }
 
-export function stageRelease(output, nodeBinary) {
+export function stageRelease(output, nodeBinary, expectedAbi) {
   assert.ok(path.isAbsolute(output), 'output must be absolute');
   assert.ok(!fs.existsSync(output), 'release path already exists');
   const parent = fs.realpathSync(path.dirname(output));
@@ -196,7 +199,7 @@ export function stageRelease(output, nodeBinary) {
     build();
     assert.deepEqual(recorded(output, files(dist)), first, 'schema compiler output is not reproducible');
     fs.rmSync(path.join(output, 'node_modules/.bin'), { recursive: true, force: true });
-    return verifyRelease(fs.realpathSync(output), nodeBinary);
+    return verifyRelease(fs.realpathSync(output), nodeBinary, expectedAbi);
   } catch (error) {
     fs.rmSync(output, { recursive: true, force: true });
     throw error;
@@ -205,9 +208,10 @@ export function stageRelease(output, nodeBinary) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const output = process.argv[2];
-  const nodeBinary = process.argv[3] || '/opt/homebrew/Cellar/node@22/22.22.0/bin/node';
+  const nodeBinary = process.argv[3] || '/usr/local/bin/node';
+  const expectedAbi = process.argv[4] || '137';
   try {
-    const manifest = stageRelease(output, nodeBinary);
+    const manifest = stageRelease(output, nodeBinary, expectedAbi);
     console.log(JSON.stringify({ release: output, node: manifest.node, sources: manifest.graph.sources.length, packages: Object.keys(manifest.dependencies).length, generated: Object.keys(manifest.source).filter(p => p.startsWith('packages/event-schemas/dist/')).length, native: manifest.native, manifest: path.join(output, manifestName) }));
   } catch (error) {
     console.error(error.stack);
