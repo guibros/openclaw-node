@@ -479,3 +479,25 @@ runtime evidence includes27 owned recovery and33 hold controls, a real
 launchd timer inert while closed and active after reopen, and a restored-only
 resolved journal. The command did not touch production. Mark3.7[x]/v3.7;
 3.8–3.11 and parent1.2 still govern production commissioning.
+
+## D24 — Stage consolidation with an owned Node-22 dependency closure (2026-09-30 18:04 EDT)
+
+The timer's Node 22 cannot load the shared `better-sqlite3` binary, which was
+built for Node 24. Step 3.8 installs the root lock's exact package versions and
+integrities into a private regular-file release, with a Node-22-compatible
+native binary; it does not relink or rebuild shared dependencies. Tracked
+`bin/`, `lib/` and event-schema source are copied; schema dist is compiled
+twice from the locked compiler and retained by hash. The manifest pins all
+copied and installed files and refuses changed content or resolution outside
+the release.
+
+The runtime probe invokes the real argv-less scheduler with the timer's Node
+from cwd `/`, but with a fresh explicit environment, fixture queue snapshot,
+private NATS/model/store/vault/tracer and a private notifier executable.
+The notifier stub proves the foreground child/ledger ordering without showing
+an OS popup. This is a declared private-test substitution; the real notifier
+and protected launch environment are step 3.9 responsibilities. A successful
+exit alone is never acceptance because schema/NATS setup failure can be
+swallowed. Step 3.8 requires the connected line, model-backed note, and events
+read back from the owned stream. No production timer or memory daemon is
+changed, and no remote inference cancellation is claimed.
