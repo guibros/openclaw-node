@@ -57,6 +57,7 @@ import { initDatabase as initKnowledgeDb } from '../lib/mcp-knowledge/core.mjs';
 import { createGraphCache } from '../bin/obsidian-graph-cache.mjs';
 import { assertMemoryFixtureSafety, verifyMemoryFixtureBus } from '../lib/memory-fixture-safety.mjs';
 import { acquireMemoryDaemonSingleton } from '../lib/memory-daemon-singleton.mjs';
+import { MIN_SESSION_BYTES } from '../lib/transcript-discovery.mjs';
 
 const traceEmitter = createSessionTraceEmitter(tracer);
 
@@ -730,8 +731,6 @@ function findPreviousJsonl(sources) {
 // short-but-real conversation from the interval/NATS flush paths and from
 // ended-session targeting; the 1.4 extraction dedup makes re-considering
 // small sessions cheap.
-const MIN_SESSION_BYTES = 1024;
-
 function findCurrentJsonl(sources) {
   const all = [];
   for (const source of sources) {

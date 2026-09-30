@@ -7,6 +7,8 @@ import path from 'node:path';
 import { buildProbes, parseIsolatedEmbedResult, syntheticTranscript } from '../lib/node-acceptance-probes.mjs';
 import { runAcceptance, resolveNodeConfig, VERDICT } from '../lib/node-acceptance.mjs';
 import { createExtractionStore } from '../lib/extraction-store.mjs';
+import { parseJsonlFile } from '../lib/transcript-parser.mjs';
+import { MIN_SESSION_BYTES } from '../lib/transcript-discovery.mjs';
 
 // A fully-mocked runtime context — no live system is touched.
 function baseCtx(over = {}) {
@@ -243,8 +245,19 @@ describe('node-acceptance probes — network', () => {
 });
 
 describe('node-acceptance probes — memory + gold round-trip', () => {
-  it('synthetic transcript passes the daemon minimum-size ingest threshold', () => {
-    assert.ok(Buffer.byteLength(syntheticTranscript('ACCPROBETESTRUN')) >= 1024);
+  it('synthetic transcript clears discovery size while parsing only the conversation', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'acc-transcript-'));
+    const file = path.join(dir, 'acc-probe-test-run.jsonl');
+    try {
+      const transcript = syntheticTranscript('ACCPROBETESTRUN', 'acc-probe-test-run');
+      assert.ok(Buffer.byteLength(transcript) >= MIN_SESSION_BYTES);
+      assert.ok(transcript.split('\n').filter(Boolean).every((line) => JSON.parse(line).sessionId === 'acc-probe-test-run'));
+      fs.writeFileSync(file, transcript);
+      const messages = await parseJsonlFile(file, { format: 'claude-code' });
+      assert.equal(messages.length, 4);
+      assert.match(messages.at(-1).content, /ACCPROBETESTRUN uses SQLite/);
+      assert.ok(messages.every((message) => !message.content.includes('/fixture/workspace')));
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
   it('MEM-L2-INGEST blocks live state writes without an isolated fixture', async () => {
     const ctx = baseCtx();

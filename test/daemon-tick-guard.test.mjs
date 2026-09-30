@@ -100,7 +100,7 @@ test('IDLE→ENDED targets the ended session\'s own JSONL (R17, repair 4.4)', ()
 
 test('the session-size floor is a named 1KB constant, not a bare 50KB (repair 4.6)', () => {
   assert.doesNotMatch(daemonSrc, /50 \* 1024/);
-  assert.match(daemonSrc, /const MIN_SESSION_BYTES = 1024;/);
+  assert.match(daemonSrc, /import \{ MIN_SESSION_BYTES \} from '\.\.\/lib\/transcript-discovery\.mjs';/);
   const uses = daemonSrc.match(/MIN_SESSION_BYTES/g) || [];
   assert.equal(uses.length, 4, 'declaration + all three lookup sites (previous/current/by-id)');
 });

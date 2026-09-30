@@ -9,7 +9,13 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const natsServer = '/opt/homebrew/bin/nats-server';
+const natsServer = [process.env.ACCEPT_NATS_SERVER,
+  ...(process.env.PATH || '').split(path.delimiter).map((dir) => path.join(dir, 'nats-server')),
+  '/opt/homebrew/bin/nats-server', '/usr/local/bin/nats-server']
+  .filter(Boolean).find((candidate) => {
+    try { fsSync.accessSync(candidate, fsSync.constants.X_OK); return fsSync.statSync(candidate).isFile(); }
+    catch { return false; }
+  });
 const nonce = randomBytes(8).toString('hex');
 const name = `acc-${nonce}`;
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'openclaw-memory-fixture-'));
@@ -66,7 +72,7 @@ process.once('SIGINT', () => { stopChildren().then(() => process.exit(130)); });
 process.once('SIGTERM', () => { stopChildren().then(() => process.exit(143)); });
 
 try {
-  if (!fsSync.existsSync(natsServer)) throw new Error(`NATS server unavailable: ${natsServer}`);
+  if (!natsServer) throw new Error('nats-server executable not found on PATH');
   await fs.mkdir(path.join(workspace, 'bin'), { recursive: true });
   await fs.mkdir(path.join(workspace, 'packages', 'event-schemas'), { recursive: true });
   await fs.mkdir(configDir, { recursive: true });
@@ -83,7 +89,7 @@ try {
   for (const dir of ['bin', 'lib']) await fs.cp(path.join(source, dir), path.join(workspace, dir), { recursive: true, force: true });
   await fs.cp(path.join(source, 'packages', 'event-schemas', 'dist'), path.join(workspace, 'packages', 'event-schemas', 'dist'), { recursive: true });
   await fs.copyFile(path.join(source, 'package.json'), path.join(workspace, 'package.json'));
-  for (const script of ['memory-daemon.mjs', 'flush-worker.mjs', 'session-trace-emitter.mjs', 'obsidian-sync.mjs', 'memory-maintenance.mjs']) {
+  for (const script of ['memory-daemon.mjs', 'flush-worker.mjs', 'session-trace-emitter.mjs', 'obsidian-sync.mjs', 'memory-maintenance.mjs', 'knowledge-index-job.mjs']) {
     await fs.copyFile(path.join(source, 'workspace-bin', script), path.join(workspace, 'bin', script));
   }
   await fs.symlink(path.join(source, 'node_modules'), path.join(workspace, 'node_modules'));
@@ -102,7 +108,7 @@ try {
   await fs.writeFile(path.join(configDir, 'daemon.json'), JSON.stringify({
     workspace, nodeId: name, contextWindowTokens: 100,
     intervals: { pollMs: 1000, synthesisMs: 1000, maintenanceMs: 9000000000000000,
-      obsidianSyncMs: 9000000000000000, sessionRecapMs: 9000000000000000,
+      obsidianSyncMs: 9000000000000000, sessionRecapMs: 30000,
       activityWindowMs: 120000, activeThresholdMs: 60000, idleThresholdMs: 120000 },
   }), { mode: 0o600 });
   const natsConfig = path.join(root, 'nats.conf');
@@ -157,7 +163,7 @@ try {
     const code = await new Promise((resolve) => acceptance.once('exit', resolve));
     const report = path.join(root, '.node-acceptance-FIXTURE.md');
     process.stdout.write(`Acceptance exit: ${code}\nReport: ${report}\nLogs: ${path.join(root, 'memory-daemon.log')}\n`);
-    process.exitCode = code === 0 ? 0 : 1;
+    process.exitCode = Number.isInteger(code) ? code : 3;
   }
 } catch (err) {
   process.stderr.write(`Fixture failed: ${err.message}\nFixture files: ${root}\n`);

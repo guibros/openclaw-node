@@ -6,6 +6,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_ANALYSIS_TIMEOUT } from '../lib/llm-client.mjs';
 import { buildProbes } from '../lib/node-acceptance-probes.mjs';
+import { resolveNodeConfig } from '../lib/node-acceptance.mjs';
 
 // Gate mutation-tests (audits/gate_mutation): prove each CUSTOM gate still
 // REJECTS known-bad input. Vendored tools don't rot; our glue does — grep
@@ -62,7 +63,7 @@ describe('tarball-smoke gate rejects doctored listings', () => {
 describe('MEM-L2-INJECT budget clears the designed worst case', () => {
   it('the actual HTTP call and probe budget clear the analysis fallback wait', async () => {
     let httpTimeout;
-    const config = { injectBudgetMs: 20_000, injectToken: '/fixture/token', injectHost: '127.0.0.1', injectPort: 17893 };
+    const config = { ...resolveNodeConfig({}), injectToken: '/fixture/token', injectHost: '127.0.0.1', injectPort: 17893 };
     const ctx = {
       config, runId: 'budget-test', fsp: { readFile: async () => 'fixture-token' },
       httpPost: async (_url, options) => { httpTimeout = options.timeoutMs; return { status: 401 }; },
