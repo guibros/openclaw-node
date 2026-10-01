@@ -54,7 +54,7 @@
 | 3 | 3.7 | v3.7 | [x] | Expose bounded restore-only recovery through the sole Journal — 2026-09-30: source f72820c accepted by Claude85/exact CI3of3; private Mac 27 owned+33 hold controls, real closed/reopened timer fires, restored-only resolution, no production mutation |
 | 3 | 3.8 | v3.8 | [x] | Stage the complete reachable consolidation execution graph — corrected 2026-09-30: loaded Node24 release -4/real-entry probe, both native files pinned, Claude no blocker, root CI Node20/22 green; baseline Mission Control audit red, no production timer |
 | 3 | 3.9 | v3.9 | [x] | Pin the five timer launch environments and protected entry contract — 2026-09-30: private candidate -5 verifies five jobs/1,885 sources; six Mac controls; Claude review and exact root Node20/22 CI pass, existing Mission Control audit red; no live install |
-| 3 | 3.10 | v3.10 | [ ] | Prove a safe first transition from the actual ungated timer entries |
+| 3 | 3.10 | v3.10 | [x] | Prove a safe first transition from the actual ungated timer entries — 2026-09-30: five private fences/rollback artifacts verify; ten owned Mac controls and exact root Node20/22 CI pass; Claude accepts staged proof; no live mutation, installation remains 3.11 |
 | 3 | 3.11 | v3.11 | [ ] | Install the reviewed execution hold on the five actual Mac timers |
 
 > **3.1 — Goal:** a durable closed marker plus foreground lock excludes scheduled application execution after drain, even after controller exit.

@@ -275,3 +275,16 @@ dependency audit remains red. Feed the saved candidate and D25–D26 contract
 to 3.10's first-transition proof, then 3.11 installation. No production
 timer, source path, plist, environment or gate has changed; current jobs
 still run ungated.
+
+First timer transition proof — 2026-09-30 21:35 EDT: 3.10[x]/v3.10.
+Owner-private `timer-transition-candidate-20260930-3` pins five exact old
+plist/source or link artifacts and service-specific scheduled-entry fences;
+saved verification rejects altered bytes. Ten owned Mac controls pass source
+swap during active Node/shell/gzip writes, foreground and unawaited child
+lifetime, late old-label refire, clean unload, and closed/open gate handoff.
+Exact `deaf7d4` CI 36801376382 passes root Node20/22; Mission Control's
+pre-existing dependency audit remains red. Claude's corrected adversarial
+review accepts the owned proof. The old consolidation child is unawaited and
+can die with its old parent. No live source or timer changed. Feed the private
+transition material, 3.9 candidate and 3.8 graph to 3.11; coordinate normal
+deploy activity during any live source fence and refuse an unsafe drain.

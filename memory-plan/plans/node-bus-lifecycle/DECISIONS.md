@@ -585,3 +585,52 @@ owned Mac controls pass; exact source `cae7186` passes root Node20/22 CI
 36797763658. The separate Mission Control audit remains red on its existing
 lockfile. Close 3.9[x]/v3.9 as a staged candidate only. Step 3.10 must prove
 the safe first transition; 3.11 owns actual commissioning.
+
+## D27 — Fence only the old scheduled entry before waiting to unload (2026-09-30 21:25 EDT)
+
+An already-loaded timer can fire after `launchctl disable` returns. `bootout`
+of an owned running job killed its active parent and child before either
+finished its fsynced write. Therefore neither disable-plus-idle polling nor
+bootout of a running old job establishes the first transition. Step 3.10
+prepares exact original plist/source/link artifacts and source-specific fences
+under an owner-private root. A future step may atomically publish each fence,
+then wait for that old job to become not running before unloading it. A late
+start after the atomic replacement loads only the inert scheduled path; a
+process that already opened the old source continues until its own exit.
+
+The fence uses the received `XPC_SERVICE_NAME` label so non-timer callers keep
+their old behavior. Consolidation's file retains its module exports for the
+memory daemon and its manual CLI path. Observer's live symlink is replaced only
+at its installed path by a wrapper that still imports the unchanged original
+target for non-timer calls. The other three files keep manual execution.
+The prepared fence must be staged on the same filesystem, installed with the
+original mode, and the old source identity rechecked immediately before an
+atomic replacement; any drift refuses. Source replacement during the wait
+must also be prevented or detected before another old application can start.
+
+All five old plists leave `AbandonProcessGroup` unset. The local macOS
+`launchd.plist(5)` contract says a job's remaining same-process-group children
+are killed when its parent dies; an owned `execFile` control confirms this.
+The old Mac notification path has no detached child. A foreground child that
+the parent awaits completes before parent exit. The old deployed consolidation
+scheduler instead starts notification asynchronously and can lose that child
+on its own forced exit. That is a pre-existing delivery defect, not a drain
+guarantee; the reviewed 3.8 replacement awaits notification. The handoff must
+never add a `bootout` while an old parent is still running, and must report
+this old-source limitation rather than claim every old notification completed.
+
+Step 3.10 stages and tests the first-transition material only. Step 3.11
+owns live fence publication, old-job drain observation, original-path restore
+while unloaded, gated bootstrap and persistent post-install verification.
+If a safe live drain or deployment coordination cannot be demonstrated,
+installation refuses with the old job fenced and exact rollback material
+retained; no forced old stop manufactures evidence.
+
+D27/3.10 closure (2026-09-30 21:35 EDT): the five old-entry fences and exact
+rollback artifacts are saved under owner-private
+`timer-transition-candidate-20260930-3`; manifest SHA-256
+`6e9b54f0a9e49c77901be7e97ac2cc48ea6a1c8fd2ea51824cd6c630e2df3e73`.
+Ten owned Mac controls and exact `deaf7d4` root Node20/22 CI pass. Claude's
+final challenge found no remaining staged-proof blocker after the additional
+heartbeat, child and refire controls. Close 3.10 as proof and preparation only;
+3.11 remains responsible for live mutation and its independent acceptance.
