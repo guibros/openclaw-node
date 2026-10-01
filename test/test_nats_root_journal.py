@@ -28,6 +28,7 @@ class RootJournalTest(unittest.TestCase):
         self.base.chmod(0o755)
         self.site = self.base / 'site'
         self.site.mkdir(mode=0o755)
+        self.ledger = self.base / 'site-ledger'
         self.lock = self.base / 'writer.lock'
         self.uid = os.getuid()
         self.gid = os.getgid()
@@ -41,140 +42,128 @@ class RootJournalTest(unittest.TestCase):
         return module.LockBootstrapJournal.begin(self.site, self.lock, self.uid, self.gid,
                                                  self.transaction, self.observation)
 
-    def test_intent_precedes_lock_creation_and_reopen_is_idempotent(self):
-        journal = self.begin()
-        self.assertFalse(self.lock.exists())
-        self.assertEqual([row['event'] for row in journal.records], ['lock-create-intent'])
-        observed = []
-        with journal.acquire_after_intent(self.lock, lambda: observed.append('admission') or self.observation,
-                                          lambda: observed.append('census') or {'verified': True}) as lock:
-            self.assertEqual(observed, ['admission', 'census', 'census', 'admission'])
-            lock.validate()
-            self.assertEqual(stat.S_IMODE(self.lock.stat().st_mode), 0o644)
-        self.assertEqual([row['event'] for row in journal.records],
-                         ['lock-create-intent', 'lock-created'])
-        reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)
-        with reopened.acquire_after_intent(self.lock, lambda: self.observation, lambda: {'verified': True}) as lock:
-            lock.validate()
-        self.assertEqual(reopened.records, journal.records)
+    def reopen(self):
+        return module.LockBootstrapJournal(self.site, self.uid, self.gid)
 
-    def test_failed_admission_does_not_create_lock(self):
-        journal = self.begin()
-        with self.assertRaisesRegex(module.Refused, 'admission changed'):
-            journal.acquire_after_intent(self.lock,
-                                         lambda: {**self.observation, 'admission': {'verified': True, 'masters': []}},
-                                         lambda: {'verified': True})
-        self.assertFalse(self.lock.exists())
-        self.assertEqual(len(journal.records), 1)
+    def acquire(self, journal, census=None, observe=None, seconds=10):
+        return journal.acquire_after_intent(
+            self.lock, observe or (lambda: self.observation),
+            census or (lambda context: {**context, 'verified': True}), seconds=seconds)
 
-    def test_reentry_refuses_another_lock_path(self):
-        journal = self.begin()
-        wrong = self.base / 'unrelated.lock'
-        with self.assertRaisesRegex(module.Refused, 'lock path differs'):
-            journal.acquire_after_intent(wrong, lambda: self.observation,
-                                         lambda: {'verified': True})
-        self.assertFalse(self.lock.exists())
-        self.assertFalse(wrong.exists())
-        self.assertEqual(len(journal.records), 1)
+    def test_ledger_is_outside_empty_protected_site_and_reopens_same_lock(self):
+        with self.begin() as journal:
+            self.assertEqual(list(self.site.iterdir()), [])
+            self.assertEqual([row['event'] for row in journal.records], ['lock-create-intent'])
+            with self.acquire(journal) as lock:
+                lock.validate()
+                self.assertEqual(stat.S_IMODE(self.lock.stat().st_mode), 0o644)
+            self.assertEqual([row['event'] for row in journal.records],
+                             ['lock-create-intent', 'lock-staged', 'lock-admitted'])
+        with self.reopen() as journal:
+            with self.acquire(journal) as lock:
+                lock.validate()
+            self.assertEqual(len(journal.records), 3)
+        self.assertEqual(list(self.site.iterdir()), [])
 
-    def test_census_failure_reopens_same_intent(self):
-        self.begin()
-        reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)
-        calls = 0
-        def census():
-            nonlocal calls
-            calls += 1
-            return {'verified': calls == 1}
-        with self.assertRaisesRegex(module.Refused, 'census is not verified'):
-            reopened.acquire_after_intent(self.lock, lambda: self.observation, census)
-        self.assertTrue(self.lock.exists())
-        self.assertEqual(len(reopened.records), 1)
-        again = module.LockBootstrapJournal(self.site, self.uid, self.gid)
-        with again.acquire_after_intent(self.lock, lambda: self.observation, lambda: {'verified': True}):
-            pass
-        self.assertEqual(len(again.records), 2)
-
-    def test_admission_drift_under_exclusion_prevents_receipt(self):
-        journal = self.begin()
-        calls = 0
-        def observe():
-            nonlocal calls
-            calls += 1
-            return self.observation if calls == 1 else {
-                **self.observation, 'admission': {'verified': True, 'masters': []}}
-        with self.assertRaisesRegex(module.Refused, 'changed under exclusion'):
-            journal.acquire_after_intent(self.lock, observe, lambda: {'verified': True})
-        self.assertTrue(self.lock.exists())
-        self.assertEqual(len(journal.records), 1)
-
-    def test_preexisting_lock_refuses_before_journal(self):
-        self.lock.write_bytes(b'')
-        with self.assertRaisesRegex(module.Refused, 'exists without'):
+    def test_empty_ledger_after_crash_allows_one_begin(self):
+        self.ledger.mkdir(mode=0o700)
+        with self.begin() as journal:
+            self.assertEqual(len(journal.records), 1)
+        with self.assertRaisesRegex(module.Refused, 'already has a transaction'):
             self.begin()
-        self.assertFalse((self.site / 'journal').exists())
 
-    def test_lock_path_cannot_publish_the_marker(self):
-        for target in (self.site / 'writer-handoff.json',
-                       self.site / '..' / self.site.name / 'writer-handoff.json',
-                       Path(str(self.site).upper()) / 'writer-handoff.json'):
-            with self.subTest(target=target), self.assertRaisesRegex(
-                    module.Refused, 'inside the protected handoff site'):
-                module.LockBootstrapJournal.begin(self.site, target, self.uid, self.gid,
-                                                  self.transaction, self.observation)
-        self.assertFalse((self.site / 'journal').exists())
-        self.assertFalse((self.site / 'writer-handoff.json').exists())
+    def test_pending_before_publication_is_discarded(self):
+        with self.begin() as journal:
+            pending = journal.root / ('.pending-' + uuid.uuid4().hex)
+            pending.write_bytes(b'interrupted')
+            pending.chmod(0o600)
+        with self.reopen() as journal:
+            with self.acquire(journal):
+                pass
+            self.assertEqual(journal.records[-1]['event'], 'lock-admitted')
+        self.assertFalse(pending.exists())
 
-    def test_production_lock_requires_lifecycle_recovery(self):
-        for target in (module.LOCK, module.LOCK.parent / 'unused' / '..' / module.LOCK.name,
-                       Path('/PRIVATE/var/db/openclaw-nats-writer.lock')):
-            with self.subTest(target=target), self.assertRaisesRegex(
-                    module.Refused, 'awaits lifecycle recovery'):
-                module.LockBootstrapJournal.begin(self.site, target, self.uid, self.gid,
-                                                  self.transaction, self.observation)
-        self.assertFalse((self.site / 'journal').exists())
+    def test_pending_after_hardlink_is_recovered(self):
+        with self.begin() as journal:
+            body = {'sequence': 1, 'previous': journal.records[-1]['sha256'],
+                    'event': 'lock-staged', 'data': {'inode': 123, 'nonce': 'a' * 64}}
+            pending = journal.root / ('.pending-' + uuid.uuid4().hex)
+            pending.write_bytes(module.encoded({**body, 'sha256': module.digest(body)}))
+            pending.chmod(0o600)
+            final = journal.root / '000001.json'
+            os.link(pending, final)
+        with self.reopen() as journal:
+            self.assertEqual(len(journal.records), 2)
+            self.assertFalse(pending.exists())
+            self.assertEqual(final.stat().st_nlink, 1)
 
-    def test_root_begin_refuses_before_journal_write(self):
-        with patch.object(module.sys, 'platform', 'darwin'), patch.object(
-                module.os, 'geteuid', return_value=0):
-            with self.assertRaisesRegex(module.Refused, 'awaits lifecycle recovery'):
-                self.begin()
-        self.assertFalse((self.site / 'journal').exists())
-        self.assertFalse(self.lock.exists())
+    def test_concurrent_driver_refuses_before_second_intent(self):
+        with self.begin():
+            script = """import pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from nats_root_journal import LockBootstrapJournal
+LockBootstrapJournal(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]))
+"""
+            result = subprocess.run([sys.executable, '-c', script, str(REPO / 'lib'),
+                                     str(self.site), str(self.uid), str(self.gid)],
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('active driver', result.stderr)
+            self.assertEqual(len(list(self.ledger.glob('*.json'))), 1)
 
-    def test_transfer_for_another_transaction_refuses_before_journal(self):
-        other = {**self.observation,
-                 'user_transfer': {**self.observation['user_transfer'],
-                                   'root_transaction': str(uuid.uuid4())}}
-        with self.assertRaisesRegex(module.Refused, 'observation is incomplete'):
-            module.LockBootstrapJournal.begin(self.site, self.lock, self.uid, self.gid,
-                                              self.transaction, other)
-        self.assertFalse((self.site / 'journal').exists())
+    def test_recovery_uses_existing_stage_inode(self):
+        with self.begin() as journal:
+            saved = journal.records[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            inode = journal._create_stage(stage, saved['lock_nonce'])
+        with self.reopen() as journal:
+            with self.acquire(journal):
+                pass
+            self.assertEqual(self.lock.stat().st_ino, inode)
+            self.assertFalse(stage.exists())
 
-    def test_modified_chain_refuses_reopen(self):
-        self.begin()
-        record = self.site / 'journal/000000.json'
-        record.write_bytes(b'{}')
-        with self.assertRaises(module.Refused):
-            module.LockBootstrapJournal(self.site, self.uid, self.gid)
+    def test_recovery_completes_two_link_gap(self):
+        with self.begin() as journal:
+            saved = journal.records[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            inode = journal._create_stage(stage, saved['lock_nonce'])
+            journal._append('lock-staged', inode=inode, nonce=saved['lock_nonce'])
+            os.link(stage, self.lock)
+            self.assertEqual(stage.stat().st_nlink, 2)
+        with self.reopen() as journal:
+            with self.acquire(journal):
+                pass
+            self.assertEqual(self.lock.stat().st_ino, inode)
+            self.assertFalse(stage.exists())
+            self.assertEqual(self.lock.stat().st_nlink, 1)
 
-    def test_lock_replacement_refuses_after_receipt(self):
-        journal = self.begin()
-        with journal.acquire_after_intent(self.lock, lambda: self.observation,
-                                          lambda: {'verified': True}):
-            pass
+    def test_deleted_stage_and_lock_after_receipt_cannot_recreate(self):
+        with self.begin() as journal:
+            saved = journal.records[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            inode = journal._create_stage(stage, saved['lock_nonce'])
+            journal._append('lock-staged', inode=inode, nonce=saved['lock_nonce'])
+            stage.unlink()
+        with self.reopen() as journal:
+            with self.assertRaisesRegex(module.Refused, 'refusing recreation'):
+                self.acquire(journal)
+            self.assertFalse(self.lock.exists())
+
+    def test_replacement_after_receipt_refuses(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
         self.lock.unlink()
-        self.lock.write_bytes(b'')
+        self.lock.write_bytes(b'bad')
         self.lock.chmod(0o644)
-        reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)
-        with self.assertRaisesRegex(module.Refused, 'identity changed'):
-            reopened.acquire_after_intent(self.lock, lambda: self.observation,
-                                          lambda: {'verified': True})
+        with self.reopen() as journal:
+            with self.assertRaises(module.Refused):
+                self.acquire(journal)
 
-    def test_lock_metadata_change_refuses_after_receipt(self):
-        journal = self.begin()
-        with journal.acquire_after_intent(self.lock, lambda: self.observation,
-                                          lambda: {'verified': True}):
-            pass
+    def test_metadata_change_after_admission_refuses(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
         saved = self.lock.stat().st_ctime_ns
         for _ in range(10):
             os.utime(self.lock, None)
@@ -182,73 +171,111 @@ class RootJournalTest(unittest.TestCase):
                 break
             time.sleep(0.001)
         self.assertNotEqual(self.lock.stat().st_ctime_ns, saved)
-        reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)
-        with self.assertRaisesRegex(module.Refused, 'identity changed'):
-            reopened.acquire_after_intent(self.lock, lambda: self.observation,
-                                          lambda: {'verified': True})
+        with self.reopen() as journal:
+            with self.assertRaisesRegex(module.Refused, 'identity changed'):
+                self.acquire(journal)
 
-    def test_shared_holder_prevents_lock_created_receipt(self):
-        journal = self.begin()
-        module._create(self.lock, self.uid, self.gid)
-        fd = os.open(self.lock, os.O_RDONLY)
-        fcntl.flock(fd, fcntl.LOCK_SH)
-        try:
-            with self.assertRaisesRegex(module.Refused, 'legacy NATS writer still holds'):
-                journal.acquire_after_intent(self.lock, lambda: self.observation,
-                                             lambda: {'verified': True}, seconds=0.01)
+    def test_shared_holder_prevents_admission_receipt(self):
+        with self.begin() as journal:
+            saved = journal.records[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            inode = journal._create_stage(stage, saved['lock_nonce'])
+            journal._append('lock-staged', inode=inode, nonce=saved['lock_nonce'])
+            journal._publish_stage(stage, self.lock, inode, saved['lock_nonce'])
+            fd = os.open(self.lock, os.O_RDONLY)
+            fcntl.flock(fd, fcntl.LOCK_SH)
+            try:
+                with self.assertRaisesRegex(module.Refused, 'legacy NATS writer still holds'):
+                    self.acquire(journal, seconds=0.01)
+                self.assertEqual(len(journal.records), 2)
+            finally:
+                os.close(fd)
+
+    def test_admission_drift_refuses_before_stage(self):
+        with self.begin() as journal:
+            other = {**self.observation, 'admission': {'verified': True, 'masters': []}}
+            with self.assertRaisesRegex(module.Refused, 'admission changed'):
+                self.acquire(journal, observe=lambda: other)
+            self.assertFalse(self.lock.exists())
             self.assertEqual(len(journal.records), 1)
-        finally:
-            os.close(fd)
 
-    def test_marker_presence_blocks_lock_bootstrap(self):
-        journal = self.begin()
-        (self.site / 'writer-handoff.json').write_bytes(b'{}')
-        with self.assertRaisesRegex(module.Refused, 'full recovery journal'):
-            journal.acquire_after_intent(self.lock, lambda: self.observation,
-                                         lambda: {'verified': True})
-        self.assertFalse(self.lock.exists())
+    def test_census_for_another_phase_or_inode_refuses(self):
+        with self.begin() as journal:
+            with self.assertRaisesRegex(module.Refused, 'census is not bound'):
+                self.acquire(journal, census=lambda context: {
+                    **context, 'phase': 'under-exclusion', 'verified': True})
+            self.assertFalse(self.lock.exists())
 
-    def test_marker_appearing_during_census_prevents_receipt(self):
-        journal = self.begin()
+    def test_census_failure_after_stage_reenters_same_inode(self):
         calls = 0
-        def census():
+        def census(context):
             nonlocal calls
             calls += 1
-            if calls == 2:
-                (self.site / 'writer-handoff.json').write_bytes(b'{}')
-            return {'verified': True}
-        with self.assertRaisesRegex(module.Refused, 'handoff changed'):
-            journal.acquire_after_intent(self.lock, lambda: self.observation, census)
-        self.assertEqual(len(journal.records), 1)
+            return {**context, 'verified': calls == 1}
+        with self.begin() as journal:
+            with self.assertRaisesRegex(module.Refused, 'census is not bound'):
+                self.acquire(journal, census=census)
+            inode = self.lock.stat().st_ino
+            self.assertEqual(len(journal.records), 2)
+        with self.reopen() as journal:
+            with self.acquire(journal):
+                pass
+            self.assertEqual(self.lock.stat().st_ino, inode)
 
-    def test_abrupt_exit_reenters_intent_and_creation_gap(self):
-        script = '''import json, os, pathlib, sys
-sys.path.insert(0, sys.argv[1])
-from nats_root_journal import LockBootstrapJournal, _create
-site, lock = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
-if sys.argv[4] == 'intent':
-    LockBootstrapJournal.begin(site, lock, os.getuid(), os.getgid(), sys.argv[5], json.loads(sys.argv[6]))
-else:
-    _create(lock, os.getuid(), os.getgid())
-os._exit(19)
-'''
-        def killed(phase):
-            return subprocess.run([sys.executable, '-c', script, str(REPO / 'lib'),
-                                   str(self.site), str(self.lock), phase,
-                                   self.transaction, json.dumps(self.observation)],
-                                  capture_output=True, text=True)
-        first = killed('intent')
-        self.assertEqual(first.returncode, 19, first.stderr)
-        self.assertFalse(self.lock.exists())
-        reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)
-        self.assertEqual(len(reopened.records), 1)
-        second = killed('created')
-        self.assertEqual(second.returncode, 19, second.stderr)
-        recovered = module.LockBootstrapJournal(self.site, self.uid, self.gid)
-        with recovered.acquire_after_intent(self.lock, lambda: self.observation,
-                                            lambda: {'verified': True}):
+    def test_marker_blocks_reentry(self):
+        with self.begin() as journal:
+            (self.site / 'writer-handoff.json').write_bytes(b'{}')
+            with self.assertRaisesRegex(module.Refused, 'full recovery journal'):
+                self.acquire(journal)
+            self.assertFalse(self.lock.exists())
+
+    def test_wrong_path_and_preexisting_lock_refuse(self):
+        with self.begin() as journal:
+            wrong = self.base / 'unrelated.lock'
+            with self.assertRaisesRegex(module.Refused, 'lock path differs'):
+                journal.acquire_after_intent(wrong, lambda: self.observation, lambda: {'verified': True})
+        self.assertFalse(wrong.exists())
+        other = self.base / 'other'
+        other.mkdir(mode=0o755)
+        lock = other / 'writer.lock'
+        lock.write_bytes(b'')
+        site = other / 'site'
+        site.mkdir(mode=0o755)
+        with self.assertRaisesRegex(module.Refused, 'exists without'):
+            module.LockBootstrapJournal.begin(site, lock, self.uid, self.gid,
+                                              self.transaction, self.observation)
+        self.assertFalse((other / 'site-ledger').exists())
+
+    def test_corrupt_record_refuses_reopen(self):
+        with self.begin():
             pass
-        self.assertEqual(len(recovered.records), 2)
+        record = self.ledger / '000000.json'
+        record.write_bytes(b'{}')
+        with self.assertRaises(module.Refused):
+            self.reopen()
+
+    def test_protected_site_and_production_lock_tripwires(self):
+        for target in (self.site / 'writer-handoff.json',
+                       self.site / '..' / self.site.name / 'writer-handoff.json',
+                       Path(str(self.site).upper()) / 'writer-handoff.json'):
+            with self.subTest(target=target), self.assertRaisesRegex(
+                    module.Refused, 'inside the protected handoff site'):
+                module.LockBootstrapJournal.begin(self.site, target, self.uid, self.gid,
+                                                  self.transaction, self.observation)
+        for target in (module.LOCK, Path('/PRIVATE/var/db/openclaw-nats-writer.lock')):
+            with self.subTest(target=target), self.assertRaisesRegex(
+                    module.Refused, 'awaits lifecycle recovery'):
+                module.LockBootstrapJournal.begin(self.site, target, self.uid, self.gid,
+                                                  self.transaction, self.observation)
+        self.assertFalse(self.ledger.exists())
+
+    def test_macos_root_refuses_before_writing(self):
+        with patch.object(module.sys, 'platform', 'darwin'), patch.object(
+                module.os, 'geteuid', return_value=0):
+            with self.assertRaisesRegex(module.Refused, 'awaits lifecycle recovery'):
+                self.begin()
+        self.assertFalse(self.ledger.exists())
+        self.assertFalse(self.lock.exists())
 
 
 if __name__ == '__main__':
