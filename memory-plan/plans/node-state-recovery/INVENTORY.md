@@ -205,3 +205,8 @@ Checkpoint 2026-10-01 14:03 EDT: D33 hardens the read-only site audit's
 macOS parsing after adversarial review. ACL entries are read even when `ls`
 shows `@`, and a valid `dseditgroup` non-membership result is accepted despite
 exit 67. The live protected site is still not staged; no writer changed.
+
+Checkpoint 2026-10-01 14:09 EDT: D34 requires exclusive service UID/GID
+directory records, an empty dedicated group and a narrow supplemental-group
+set before staging. The root account/directory, migration journal and cold
+masters remain absent; no production writer changed.

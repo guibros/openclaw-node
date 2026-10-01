@@ -594,3 +594,17 @@ that answer, but refuses other nonzero statuses and malformed output. A local
 directory with both an xattr and an ACL confirmed the `@`/numbered-entry case.
 This changes read-only staging evidence only; the live account and protected
 root remain absent.
+
+## D34 — Make the protected account exclusive before staging (2026-10-01 14:09 EDT)
+
+The D31 account check accepted a second user with the same UID, a second group
+with the same GID, an explicit member of `_openclaw_nats`, or a service account
+in a supplemental privileged group such as `operator` or `_developer`.
+Read-only `dscl -search` results must identify exactly one matching user and
+group record, and the dedicated group must have no explicit members or nested
+groups. Effective `id -G` groups are limited to the dedicated primary group
+and the macOS ambient groups observed for system users on this
+host: everyone (12), localaccounts (61), `_lpoperator` (100), and the nested
+sharepoint group (701). Any other group refuses staging. The dedicated primary
+GID must be in the system range. These are staging qualifications, not proof
+that a root migration or any live protected writer exists.

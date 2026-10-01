@@ -1,11 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateProtectedSite, parseDiskutilInfo, parseLsAclEntries, parseAdminMembership } from '../lib/nats-protected-site-audit.mjs';
+import { evaluateProtectedSite, parseDiskutilInfo, parseLsAclEntries, parseAdminMembership,
+  uniqueDsclRecord, groupHasMembers } from '../lib/nats-protected-site-audit.mjs';
 
 const staged = {
   account: { uid: 400, gid: 400, recordUid: 400, recordGid: 400, groupRecordGid: 400,
     groupName: '_openclaw_nats', groups: [400], shell: '/usr/bin/false',
-    home: '/var/empty', adminMember: false },
+    home: '/var/empty', adminMember: false, uniqueUserRecord: true,
+    uniqueGroupRecord: true, groupMembersEmpty: true },
   operatorUid: 501,
   ancestors: Array.from({ length: 3 }, () => ({ isDirectory: true, uid: 0, gid: 0, mode: 0o40755,
     device: 7, aclEntries: false })),
@@ -43,6 +45,11 @@ describe('protected NATS site audit', () => {
       { gid: 20, recordGid: 20, groupName: 'staff', groups: [20] },
       { gid: 0, recordGid: 0, groupName: 'wheel', groups: [0] },
       { groups: [400, 80], adminMember: true },
+      { groups: [400, 5] },
+      { groups: [400, 204] },
+      { uniqueUserRecord: false },
+      { uniqueGroupRecord: false },
+      { groupMembersEmpty: false },
       { shell: '/bin/zsh' },
       { home: '/Users/shared' },
       { recordUid: 401 },
@@ -83,5 +90,16 @@ describe('protected NATS site audit', () => {
     assert.equal(parseAdminMembership('no _openclaw_nats is NOT a member of admin\n'), false);
     assert.equal(parseAdminMembership('yes _openclaw_nats is a member of admin\n'), true);
     assert.throws(() => parseAdminMembership('Group not found.\n'));
+  });
+
+  it('requires unique directory records and an empty dedicated group', () => {
+    const user = '_openclaw_nats\t\tUniqueID = (\n    400\n)\n';
+    const group = '_openclaw_nats\t\tPrimaryGroupID = (\n    400\n)\n';
+    assert.equal(uniqueDsclRecord(user, 'UniqueID', '_openclaw_nats'), true);
+    assert.equal(uniqueDsclRecord(user + '_other\t\tUniqueID = (\n    400\n)\n', 'UniqueID', '_openclaw_nats'), false);
+    assert.equal(uniqueDsclRecord(group, 'PrimaryGroupID', '_openclaw_nats'), true);
+    assert.equal(groupHasMembers('No such key: NestedGroups\nPrimaryGroupID: 400\n'), false);
+    assert.equal(groupHasMembers('GroupMembership: moltymac\nPrimaryGroupID: 400\n'), true);
+    assert.equal(groupHasMembers('NestedGroups: ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C\n'), true);
   });
 });
