@@ -660,14 +660,17 @@ full-node receipt before refusing; the revised current parser refuses an
 intact unsupported baseline without moving the receipt. On the live node,
 `timer-transition-active` is absent and `timer-entry-installed` is present;
 that protects only the current timer receipt. Claude's exact-head scratch
-emulation showed the frozen controller can rename a later resolved full-node
-receipt if `--commission` is rerun. Replacing or retiring every invocable old
-bundle with a compatible protected controller is a hard prerequisite before
+emulation showed the frozen controller can rename a later full-node receipt in
+`restored` state if `--commission` is rerun. Replacing or retiring every
+invocable old bundle with a compatible protected controller is a hard prerequisite before
 the first full-node journal. The current frozen controller was not invoked.
 The two Mac timer-controller suites pass 16/16 at PR #167's initial code head;
 the only existing journal baseline is timer-scoped and has no `known-broken`
-class. CI unit tests pass on Node 20 and 22; Mission Control's separate
-dependency audit remains red on its pre-existing Next.js advisory.
+class. CI unit tests passed on Node 20 and 22 at the earlier code and
+documentation heads. The first run on the runtime-evidence head hit an
+unrelated mesh-collaboration test failure on Node 20 and canceled Node 22;
+that head's rerun is pending. Mission Control's separate dependency audit
+remains red on its pre-existing Next.js advisory.
 No actual full-node recovery or cold-copy acceptance is claimed.
 
 ### Compatible timer-controller bundle — 2026-10-01 00:21 EDT
@@ -676,6 +679,13 @@ The current source was staged as a private, protected bundle at
 `~/.openclaw/backups/node-readiness/timer-hold-controller-20261001-4/` and its
 manifest verified in place (SHA256
 `eb09340de6284e7f65cbc648c4ca5205b7bcca94fa3388fecff42e43346d7258`).
+The manifest pins `preservation_journal.py` at
+`005087222475d7556e4c54f03cf1a1245847a5b8ca3a6bd7adebf9203f62d378`,
+the PR's compatible parser. Its other file hashes are
+`timer-hold-control.py` `032f33f01e83c8b6b8fcbd121cfe38aa063a4d353ed206ebd058d5714c33cef1`,
+`install-timer-hold.py` `637137129e7d40373040d92db5a80fc3e7afe6cc14e6f54bb7a4a4fd8663e939`,
+`preservation_checks.py` `bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c`,
+and `journal_hold.py` `713c680231847d22a913e510e4f2de5caf7080ae0d72eafdd1dee12983e43337`.
 The three earlier controller bundles were moved intact to sibling
 `.retired-timer-hold-controller-20261001-{1,2,3}` directories, each mode 000;
 their original paths are absent. Their retained manifest hashes are

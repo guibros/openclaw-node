@@ -189,10 +189,10 @@ An on-demand worker observed running during recovery is a refusal requiring
 operator handoff, not a restoration target. Capture requires a normal idle
 exit, unchanged run count and loaded entry provenance; an idle snapshot alone
 could be a crashed worker. A frozen timer-only controller with an older
-Journal parser must be replaced or retired before a new-class full-node
+Journal parser must be replaced or retired before the first full-node
 journal. Merely completing the timer transition does not prevent a later
-manual commission rerun from renaming a resolved full-node receipt. The idle
-worker is a latent writer: forward quiescence must unload it with spawn-race
+manual commission rerun from renaming a full-node receipt in `restored` state.
+The idle worker is a latent writer: forward quiescence must unload it with spawn-race
 evidence, while restore-only recovery may bootstrap its saved idle job but
 must never kickstart it.
 
