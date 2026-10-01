@@ -2,12 +2,11 @@ import copy
 import secrets
 
 from preservation_checks import require
-from preservation_journal import matches, valid_record
+from preservation_journal import TIMER_SCOPE, TIMER_UNITS, matches, valid_record
 
 
 ANCHOR = 'scheduler-heartbeat'
-TIMERS = frozenset((ANCHOR, 'consolidation-scheduler', 'observer',
-                    'transcript-archive', 'log-rotate'))
+TIMERS = TIMER_UNITS
 REASON = 'preservation execution hold'
 
 
@@ -242,7 +241,8 @@ class JournaledHold:
             self.journal.append('hold-opened', intent=intent['sequence'], baseline_sha256=self.baseline,
                                 restored_only=self.restore_only)
         return {'verified': True, 'baseline_sha256': self.baseline, 'gate_open': True,
-                'restored_only': self.restore_only, 'history_certified': not self.restore_only}
+                'restored_only': self.restore_only,
+                'history_certified': not self.restore_only and self.journal.scope != TIMER_SCOPE}
 
     def recover(self, restore, observe, final_check, diagnostics=None):
         return self.journal.recover(restore, observe, final_check, diagnostics, hold=self)

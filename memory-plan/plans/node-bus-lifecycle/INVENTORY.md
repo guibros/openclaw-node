@@ -55,7 +55,7 @@
 | 3 | 3.8 | v3.8 | [x] | Stage the complete reachable consolidation execution graph — corrected 2026-09-30: loaded Node24 release -4/real-entry probe, both native files pinned, Claude no blocker, root CI Node20/22 green; baseline Mission Control audit red, no production timer |
 | 3 | 3.9 | v3.9 | [x] | Pin the five timer launch environments and protected entry contract — 2026-09-30: private candidate -5 verifies five jobs/1,885 sources; six Mac controls; Claude review and exact root Node20/22 CI pass, existing Mission Control audit red; no live install |
 | 3 | 3.10 | v3.10 | [x] | Prove a safe first transition from the actual ungated timer entries — 2026-09-30: five private fences/rollback artifacts verify; ten owned Mac controls and exact root Node20/22 CI pass; Claude accepts staged proof; no live mutation, installation remains 3.11 |
-| 3 | 3.11 | v3.11 | [ ] | Install the reviewed execution hold on the five actual Mac timers |
+| 3 | 3.11 | v3.11 | [x] | Install the reviewed execution hold on the five actual Mac timers — 2026-09-30: five actual candidate jobs loaded with original schedules/sources; closed five forced plus two natural fires inert; journal resolved/open, post-open short timers fired; 16 owned Mac tests, controlled root suite 2,523 pass/0 fail; Claude delta review no blocker |
 
 > **3.1 — Goal:** a durable closed marker plus foreground lock excludes scheduled application execution after drain, even after controller exit.
 > **Needs:** Python3/fcntl, installed Node/shell/launchd, Claude50/52 contract, D15.
