@@ -476,3 +476,29 @@ all three roots are on the same volume, privileged snapshot creation and
 read-only mounting work, the snapshot identity is journaled and retained,
 the restored masters validate, and pre/post stop, handle, listener and
 manifest checks cover the snapshot bracket. No live snapshot was created.
+
+## D27 — Separate restoration observations from idle-job attestation (2026-10-01 04:17 EDT)
+
+Claude's exact-head PR #170 challenge found no defect in the fail-closed
+source checkpoint, but balanced newlines can still forge launchd's printed
+arguments or working directory. This limits restoration as well as forward
+certification: a `restored` or `resolved` full-node journal based on the
+current text checks would describe observed service state, not prove the
+loaded configuration of an idle job. Before the first real full-node journal,
+the controller must pin an owner-private plist copy or freeze and hash the
+installed plist around re-bootstrap, and bind the domain environment or
+require a startup self-check. No such attestation exists yet; full-node
+sealing remains disabled and no full-node restoration is accepted.
+
+The strict parser also refuses some ordinary Apple and third-party launchd
+reports before it can classify them. This is safe refusal but prevents a
+complete host scan. The next source change must preserve duplicate identity
+field checks for every job while scoping detailed argument/environment
+parsing to approved jobs; unknown non-Apple jobs still refuse. D25's
+`NODE_PATH` description records the state before PR #170 removed it from
+four source templates; the installed live plists still carry it.
+
+For the APFS target, use the volume UUID rather than a reboot-unstable disk
+number. A local snapshot can be thinned, so copy promptly from a read-only
+mount and recheck its identity afterwards. Privileged owned creation,
+mounting and handle evidence remain required before any production snapshot.

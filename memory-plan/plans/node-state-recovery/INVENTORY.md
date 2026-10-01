@@ -171,3 +171,14 @@ or structured attestation before a full-node seal. A single read-only APFS
 snapshot is the target cold-copy input, with privileged owned proof and
 quiescence still open. No live snapshot, root-job mutation, or full-node hold
 has occurred.
+
+Checkpoint 2026-10-01 04:17 EDT: PR #170 head `43ae5a0` passes exact CI
+and 187 owned Mac Python tests (one domain skip); Claude's exact-head
+challenge finds no additional fail-open source defect. D27 records two
+remaining operational boundaries: ordinary Apple launchd text can make
+the all-domain scanner refuse, and even a later `restored`/`resolved`
+full-node receipt cannot attest an idle job from unescaped text alone.
+Pinned re-bootstrap/domain environment, privileged APFS snapshot proof,
+unknown/root-job disposition, continuous admission, three healthy cold
+masters and verified resumption remain open. Step 1.2 stays [A] at
+v1.2-pre; no production hold or copy was started.

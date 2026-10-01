@@ -865,3 +865,17 @@ files places `jetstream`, `jetstream-2` and `jetstream-3` on the same APFS
 Data volume (`/dev/disk4s5`). This satisfies the single-volume precondition
 for an APFS snapshot design but does not prove privileged creation, mounting
 or a cold writer-free instant. No snapshot was created.
+
+2026-10-01 04:17 EDT — PR #170 head `43ae5a0` passes Node 20, Node 22
+and Mission Control CI. The complete owned Mac Python recovery suite passes
+187 tests with one explicit domain skip, three owned cluster servers and no
+production NATS connections. Its only earlier failure was a test fixture
+pointing at absent `/bin/false`; the corrected `/usr/bin/false` control passes.
+The tree is clean after push. Claude's exact-head scratch probes found no
+source defect that defeats the fail-closed checkpoint; balanced newline
+spoofs still pass the text parser, as D26 declares. The live full-domain
+read-only scan refuses some honest Apple job output before classification,
+so neither scan availability nor idle-job attestation is accepted. The
+three live NATS store roots share device 16777233; no live store was copied,
+snapshotted, stopped or changed. See D27 for the restoration and APFS
+carry-forwards.
