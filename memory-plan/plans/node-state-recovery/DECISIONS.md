@@ -280,3 +280,35 @@ restores and restoration evidence remain open. Bus3.5 imports the single
 journal from main without copying it or reaching into an absolute worktree.
 Bus3.6 then integrates actual timers. This breaks the source dependency cycle
 without declaring the unfinished preservation outcome done.
+
+## D21 — Preserve the idle on-demand worker as its own baseline class (2026-10-01 00:01 EDT)
+
+The live mesh-agent is loaded, idle and enabled after the VM restart. The
+existing `daemon` class required it running, while `known-broken` ignored its
+running bit. Neither represents that state truthfully. Admit `on-demand` only
+for mesh-agent with loaded=true, running=false and disabled=false; its exact
+running bit remains part of `matches()` during restoration. Reserve
+`known-broken` for the explicitly disabled Discord integration, so it cannot
+be used to waive the worker's running-state check. This is a baseline-schema
+correction, not a production recovery adapter or an accepted cold-copy window.
+The full 20-unit read-only structural capture now validates, but its 54 direct
+file pins are not a complete dependency or loaded-process provenance proof.
+Claude's independent challenge found that recovery otherwise sent an observed
+running worker to `restore()`. The Journal now refuses that case before any
+restoration intent; the operator must resolve a live worker. An intact receipt
+with an unsupported baseline is refused without being renamed as corrupt.
+The original immutable 3.11 controller carried the old parser. All three
+invocable old bundles were retired at 2026-10-01 00:21 EDT; the compatible
+protected `timer-hold-controller-20261001-4` now verifies in place (see
+step12_jetstream/RUNTIME_EVIDENCE.md). Keep that replacement pinned before the
+first full-node journal. An absent `timer-transition-active` and
+present `timer-entry-installed` only make a rerun harmless while the receipt
+still names the resolved timer journal. Once a full-node receipt reads
+`restored`, the old `--commission` path can reopen its installed timer window,
+rename the new receipt as corrupt and block the next window until the current
+journal is reopened with the new parser and its receipt repaired. Do not invoke
+old `--commission` or `--recover` once a full-node journal owns the receipt.
+Production capture must verify the worker's normal idle exit/provenance and refuse a running
+worker, rather than selecting a class from a transient observation. Forward
+quiescence must unload this latent writer with spawn-race evidence; restoration
+may bootstrap its saved idle job but must never kickstart it.

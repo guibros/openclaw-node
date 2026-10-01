@@ -639,3 +639,65 @@ string-PID verified/failed chains re-open all records, restore and resolve.
 domain skip, owned NATS exits0 and all22 owned labels are unloaded in both
 domains. Public sanitized pins/limits are in PID_KEY_EVIDENCE.json.
 No production journal exists or was repaired. No cold-copy acceptance.
+
+### Full-node baseline class check — 2026-10-01 00:01 EDT
+
+Read-only launchd/plist inspection after the VM restart observed all 20 fixed
+units. The original schema refused a truthful baseline because mesh-agent was
+loaded, not running and not disabled. Standalone NATS and members 2/3 were
+running on their existing 4222/8222, 4223/8223 and 4224/8224 listeners;
+member 1 remained unloaded and disabled. The standalone bus had five open
+clients, so no quiet window was inferred. With D21's on-demand class the same
+structural capture passed `valid_prior`: 20 units and 54 directly hashed files.
+These hashes do not cover transitive source/dependency closure or loaded
+process provenance. The production preservation controller and restoration
+adapter remain absent, and no service, stream or backup state changed.
+
+Focused positive/negative class and running-worker recovery tests pass. The
+full Journal suite passes 65/65; the owned Mac restore-only suite passes
+27/27. A disposable journal showed the frozen 3.11 parser renaming a newer
+full-node receipt before refusing; the revised current parser refuses an
+intact unsupported baseline without moving the receipt. On the live node,
+`timer-transition-active` is absent and `timer-entry-installed` is present;
+that protects only the current timer receipt. Claude's exact-head scratch
+emulation showed the frozen controller can rename a later full-node receipt in
+`restored` state if `--commission` is rerun. Replacing or retiring every
+invocable old bundle with a compatible protected controller is a hard prerequisite before
+the first full-node journal. The current frozen controller was not invoked.
+The two Mac timer-controller suites pass 16/16 at PR #167's initial code head;
+the only existing journal baseline is timer-scoped and has no `known-broken`
+class. CI unit tests passed on Node 20 and 22 at the earlier code and
+documentation heads. The first run on the runtime-evidence head hit an
+unrelated mesh-collaboration test failure on Node 20 and canceled Node 22;
+its rerun and the subsequent 7d6b10f run passed Node 20 and 22. Their Mission
+Control jobs failed on the old Next.js lockfile. PR #168 merged the patched
+Next.js 16.3.8 lockfile as a794c26; the recovery branch then merged that main
+commit, and its Mission Control job passed.
+No actual full-node recovery or cold-copy acceptance is claimed.
+
+### Compatible timer-controller bundle — 2026-10-01 00:21 EDT
+
+The current source was staged as a private, protected bundle at
+`~/.openclaw/backups/node-readiness/timer-hold-controller-20261001-4/` and its
+manifest verified in place (SHA256
+`eb09340de6284e7f65cbc648c4ca5205b7bcca94fa3388fecff42e43346d7258`).
+The manifest pins `preservation_journal.py` at
+`005087222475d7556e4c54f03cf1a1245847a5b8ca3a6bd7adebf9203f62d378`,
+the PR's compatible parser. Its other file hashes are
+`timer-hold-control.py` `032f33f01e83c8b6b8fcbd121cfe38aa063a4d353ed206ebd058d5714c33cef1`,
+`install-timer-hold.py` `637137129e7d40373040d92db5a80fc3e7afe6cc14e6f54bb7a4a4fd8663e939`,
+`preservation_checks.py` `bf7e1466c4be5fe3a7ad1eaa3771b84f6e7a424d2ab4144e4b1068b45ca4259c`,
+and `journal_hold.py` `713c680231847d22a913e510e4f2de5caf7080ae0d72eafdd1dee12983e43337`.
+The three earlier controller bundles were moved intact to sibling
+`.retired-timer-hold-controller-20261001-{1,2,3}` directories, each mode 000;
+their original paths are absent. Their retained manifest hashes are
+`624ba9cd7568e246ff74e3422f5026f08b45cf457bfa9895a0ddef6976550295`,
+`4193b948ab307994ca92e23c63b6f30be7eabfa2b4f5aa22ab22724b5f3d0fa2`
+and `bec1e5af6a9db7c6b2c0230d494471c4f211e74c6488bbf7ca356fb801a404e6`.
+No running controller or LaunchAgent/bin/preservation reference to those paths
+was found before retirement. Afterward the new bundle still verifies; the
+live receipt remains `restored` on timer window
+`timer-88ee57ba9644fff17f253319c70f63f4`, transition-active remains absent,
+and timer-entry-installed remains present. No controller commission/recover
+operation or service mutation occurred. This removes the known frozen parser
+entry points, but it does not establish production preservation readiness.

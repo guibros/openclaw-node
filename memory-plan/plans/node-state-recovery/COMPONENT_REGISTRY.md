@@ -81,3 +81,12 @@ No production importer or controller/hold exists. Existing evidence JSONs and
 RUNTIME_EVIDENCE.md remain scoped development history. Recovery1.2[A]/v1.2-pre,
 its controller/static baseline, three healthy cold masters and full restoration
 acceptance remain unfinished. Bus3.5/3.6 are the next explicit dependencies.
+
+2026-10-01 00:01 EDT — Bus3.5–3.11 are merged; five actual Mac timers are
+gated and reopened from a resolved timer-only journal. A separate read-only
+full-node baseline captured 20 live launchd states and 54 direct file pins
+after D21 admitted the legitimate idle on-demand mesh-agent. This is
+structural schema evidence only. Standalone still serves five clients,
+cluster members 2/3 serve, and member1 remains disabled/unloaded. No complete
+source/provenance closure, full-node controller, healthy cold master or
+restoration acceptance exists; 1.2 remains active.

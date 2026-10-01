@@ -180,10 +180,21 @@ The baseline must contain exactly RESUME_ORDER plus nats-1. Each uninstalled
 unit has explicit class absent, false loaded/running/disabled and identity
 {installed:false}; it is observed, never installed or mutated. An installed
 member1 alone may be held, disabled/unloaded. Daemons are loaded/running;
-timers loaded/idle; known-broken loops preserve loaded/disabled with running
+the on-demand mesh-agent is loaded/idle; timers are loaded/idle; only the
+disabled Discord integration is known-broken, with its running bit
 unconstrained. Classes come from approved desired state, never from observing
 a stopped daemon. Actual installed-unit completeness and extra writers still
 require driver inspection; the fixed names alone do not prove that inventory.
+An on-demand worker observed running during recovery is a refusal requiring
+operator handoff, not a restoration target. Capture requires a normal idle
+exit, unchanged run count and loaded entry provenance; an idle snapshot alone
+could be a crashed worker. A frozen timer-only controller with an older
+Journal parser must be replaced or retired before the first full-node
+journal. Merely completing the timer transition does not prevent a later
+manual commission rerun from renaming a full-node receipt in `restored` state.
+The idle worker is a latent writer: forward quiescence must unload it with spawn-race
+evidence, while restore-only recovery may bootstrap its saved idle job but
+must never kickstart it.
 
 `static_identity` hashes the plist bytes, binary, every argv element resolving
 to an existing file, declared additional files and actual dependency targets.
