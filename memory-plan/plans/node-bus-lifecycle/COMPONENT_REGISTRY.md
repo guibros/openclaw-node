@@ -35,7 +35,7 @@
 |---|---|
 | **Status** | LIVE, connected idle planned drain VERIFIED |
 | **Verified** | 2026-09-28 12:12 America/Montreal: two natural managed stops, exit 0/one completion; replacement PID 50887, runs 3. Old CID292231 closed normally, zero-holder gap, replacement CID292648 idle. 537 task rows/Kanban/core owners unchanged. Claude message 121 accepts closure. |
-| **Consumer** | /usr/local/bin/node ~/.openclaw/releases/worker-drain-69b7f37-e57f89b/bin/mesh-agent.js; entry SHA 1304cb310551cec27739852686bafcd356641d6c4e993011fb74fba5ed14666c. |
+| **Consumer** | /usr/local/bin/node ~/.openclaw/releases/worker-drain-69b7f37-foreman-5cb71b7-e57f89b/bin/mesh-agent.js since 2026-10-01 13:40 EDT. This is worker-drain-69b7f37-e57f89b plus foreman PR #174, and only `lib/foreman/supervisor.mjs` differs (see that release's LIFECYCLE_PROVENANCE.json). Entry SHA unchanged: 1304cb310551cec27739852686bafcd356641d6c4e993011fb74fba5ed14666c. Plist sha256 c9209b9b… (was bb28366c…). |
 | **Constraint** | KeepAlive=false/RunAtLoad=false preserved: permanent-loss exit does not automatically restart despite existing log wording; restoration needs explicit kickstart. Default poll can leave 15s before drain versus launchd’s 20s stop limit; keep task service available until worker exits. Current-main terminal-task handling absent from live e57. |
 
 ### Narrow lifecycle release durability
