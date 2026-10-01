@@ -404,3 +404,66 @@ retains the exact unresolved chain and pins. The operator must restore the
 original pinned identity from a trusted copy, or investigate the changed job
 and its effects, then rerun restore-only recovery. The journal stores hashes,
 not plist contents, and cannot reconstruct a changed plist by itself.
+
+## D24 — Treat protected NATS writer transfer as a separate one-way migration (2026-10-01 12:29 EDT)
+
+The existing same-UID preservation Journal restores its prior GUI jobs after
+interruption. It cannot own a transfer to root-pinned system jobs and a separate
+service UID: after the first protected server start, the old store is stale even
+if no client has connected. A separate root-held migration journal must record
+the old-job retirement, copied store/config/auth identities and the first
+protected bootstrap before it authorizes any further action. Recovery before
+that bootstrap may restore the untouched old bus; recovery afterward may only
+finish the protected migration or require an explicit reverse migration.
+
+A root-owned handoff marker under `/private/var/db/openclaw-nats/`, outside
+operator-writable ancestors and the operator's HOME, must be published
+before retiring any old job and retained after commit. `/Library/Application
+Support` is excluded because its live parent is group-writable by `admin` on
+this Mac. The root journal creates the directory as `root:wheel` mode `0755`
+and publishes a root-owned marker there so non-root guards can observe it but
+cannot remove it. If recovery fails before the first protected bootstrap, only
+that root journal may remove the marker, as its final step after the untouched
+legacy bus has been verified restored. After bootstrap the marker remains;
+ordinary rollback must never restart the stale legacy stores. Ordinary
+installation, user-owned auth rendering and
+`openclaw-trust-peer --sync-nats` refuse while it
+exists; the trust command checks before changing the registry. The source
+guard is an accidental-resurrection barrier, not authority for the root
+migration and not a substitute for disabling and quarantining every old GUI
+job. The root path, service UID, ownership-enforcing volume, mount identity,
+protected binary/config/auth, exact old/new config equivalence, service-UID
+isolated replays, system-domain monitoring, targeted auth reload and revocation
+proof remain required before cutover. No source change in this decision starts
+or stops the live bus or closes 1.2.
+
+## D25 — Fence the stack entry and isolate auth fixtures (2026-10-01 12:41 EDT)
+
+`openclaw-stack up` discovers installed `ai.openclaw.*.plist` files and can
+bootstrap a leftover NATS GUI job independently of `install.sh`. It must refuse
+before any start when an enabled legacy NATS plist and the protected handoff
+marker are both present. Disabled plists are discovered for status but skipped
+by `up` and must not block other services. The source guard covers that path
+and owned child controls check refusal and the disabled-only case. This does not replace the
+migration's durable disable and hash-pinned quarantine of those plists.
+
+The auth tests run CLIs against a private HOME. A host handoff marker should
+not turn those isolated fixture tests red after migration. Their child-only
+preload makes that one marker appear absent in the fixture; a separate test
+simulates its presence and proves that live command paths refuse before the
+registry or auth file changes. Production code retains the fixed marker check.
+`mesh-deploy --include-services` currently reaches a `preInstall` callback
+that always returns false, so its service component does not presently write
+plists; it remains a deployment contract to revisit before protected cutover.
+Neither this source correction nor its tests operate the live bus.
+
+## D26 — Recheck legacy writes at their immediate boundary (2026-10-01 12:43 EDT)
+
+An installer launched before marker publication can reach NATS token, config or
+LaunchAgent writes after the initial preflight. Recheck at entry to the
+configuration stage, before NATS config generation, and before each NATS
+LaunchAgent render/start. An unreadable marker
+location is reported as handoff-verification failure, with legacy writer changes
+refused. These checks narrow the race but do not serialize a concurrent root
+migration; the root journal must exclude in-flight installers before publishing
+the marker and retiring old jobs.

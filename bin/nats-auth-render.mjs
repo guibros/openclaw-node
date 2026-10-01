@@ -41,6 +41,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createIdentityRegistry, IDENTITY_REGISTRY_FILE } from '../lib/node-identity.mjs';
 import { atomicWriteFileSync } from '../lib/atomic-write.mjs';
+import { assertLegacyNatsWriterAllowed } from '../lib/nats-writer-ownership.mjs';
 
 const require = createRequire(import.meta.url);
 const { identityToNkey, publicKeyBase64ToNkey, defaultIdentityDir } = require('../lib/nats-nkey.js');
@@ -140,6 +141,7 @@ export async function syncNatsAuth({
   print = false,
   log = (m) => process.stderr.write(`[nats-auth] ${m}\n`),
 } = {}) {
+  assertLegacyNatsWriterAllowed();
   const resolve = require('../lib/nats-resolve.js');
   const effectiveMode = (mode || resolve.NATS_AUTH_MODE) === 'token' ? 'token' : 'nkey';
   const token = resolve.NATS_TOKEN;

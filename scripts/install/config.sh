@@ -4,6 +4,8 @@
 
 step "Step 7: Environment Configuration"
 
+"$NODE_BIN" "$REPO_DIR/bin/nats-legacy-writer-check.mjs"
+
 if [ ! -f "$ENV_FILE" ]; then
   run cp "$REPO_DIR/openclaw.env.example" "$ENV_FILE"
   warn "Created $ENV_FILE — EDIT THIS FILE with your API keys before proceeding!"
@@ -138,6 +140,7 @@ generate_config "$REPO_DIR/config/transcript-sources.json.template" "$OPENCLAW_R
 # by bin/nats-auth-render.mjs: token mode by default, per-node nkeys when
 # OPENCLAW_NATS_AUTH=nkey. nats.conf is the DEFAULT single-node bus every fresh
 # node runs; nats-{1,2,3} are the R=3 cluster (operator-gated, federation 1.5).
+"$NODE_BIN" "$REPO_DIR/bin/nats-legacy-writer-check.mjs"
 run mkdir -p "$OPENCLAW_ROOT/nats"
 generate_config "$REPO_DIR/services/nats/nats-single.conf" "$OPENCLAW_ROOT/config/nats.conf"
 generate_config "$REPO_DIR/services/nats/nats-1.conf" "$OPENCLAW_ROOT/config/nats-1.conf"

@@ -17,6 +17,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { assertLegacyNatsWriterAllowed } from '../lib/nats-writer-ownership.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOME = os.homedir();
@@ -225,6 +226,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!units.length) { console.error('no openclaw units installed — run install.sh first'); process.exit(1); }
 
   if (cmd === 'up') {
+    if (process.platform === 'darwin' && units.some((u) => !u.disabled && /^nats(?:-|$)/.test(u.id))) {
+      try { assertLegacyNatsWriterAllowed(); }
+      catch (error) { console.error(error.message); process.exit(1); }
+    }
     const started = process.platform === 'darwin' ? up(units) : upLinux(units);
     const bridge = await startBridge();
     console.log(`started: ${started.length ? started.join(', ') : '(everything already running)'} · bridge: ${bridge}`);

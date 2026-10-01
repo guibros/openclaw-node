@@ -131,3 +131,20 @@ continuous launchd/process watch exists. The current read-only scan takes
 4.75 seconds and still refuses the same two root-managed system jobs. The
 controller, privileged job disposition, healthy cold masters, isolated
 restores and verified production resumption remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 12:29 EDT: D24 defines the separate protected-writer
+migration boundary. A source-only guard refuses ordinary install/auth-sync
+paths once the future root-owned handoff marker exists. It has no effect on the
+current live bus, where no marker has been created. Root migration journal,
+old GUI job retirement, protected service UID/volume, credential lifecycle,
+system-domain probes and healthy cold masters remain open; 1.2 stays [A].
+
+Checkpoint 2026-10-01 12:41 EDT: D25 adds the reachable `openclaw-stack up`
+refusal and keeps auth fixture tests runnable after a host marker is published.
+The separate root migration, protected credential publisher, system-domain
+monitoring and production recovery evidence remain open at 1.2[A].
+
+Checkpoint 2026-10-01 12:43 EDT: D26 defines the marker directory mode,
+pre-commit rollback removal order, and installer rechecks at NATS write
+boundaries. The future root migration must also exclude installers already in
+flight; the source rechecks alone are not a cross-process lock.
