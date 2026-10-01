@@ -230,3 +230,10 @@ and `/varz` start times in reproducible public evidence. The current read-only
 and the three live process start times are unchanged. This is an election
 observation, not cold-master or restoration acceptance. Exact CI and Claude
 delta review remain pending for this head.
+
+Checkpoint 2026-10-01 14:38 EDT: D38 makes the read-only staging audit refuse
+a protected root with any leftover entry. This closes an older false-ready
+case without touching the live node; its root and dedicated account remain
+absent. Focused tests and exact-head CI/review must pass before merging the
+preflight source. UID/GID stale-file search across the data volume remains a
+separate account-provisioning requirement, not evidence from this audit.

@@ -634,7 +634,7 @@ primary group need not appear as an explicit group member. The protected-site
 audit now refuses all three membership attributes (`GroupMembership`,
 `GroupMembers`, `NestedGroups`) and compares the service GID against every
 effective group of the invoking operator, resolved by UID even under sudo.
-It also requires a directory-wide `PrimaryGroupID` search to find only the
+It also requires a local-directory `PrimaryGroupID` search to find only the
 service account for that GID; checking the operator alone would miss another
 user with the service group as its primary group. This is a staging identity
 check, not proof that protected credentials or a root migration have been
@@ -649,5 +649,18 @@ a server restart or re-derive the named-leader part of the classifier. The
 fresh snapshot still says `standalone-plus-two`; the opposite expectation
 exits 1. All three `/varz` starts remain 2026-10-01 00:29:20 UTC despite
 leader changes between snapshots, so that observed shift was an election,
-not a process restart. This does not bind the held store to its Raft peer ID
-or prove stream-level health.
+not a process restart. The nearly identical timestamps across three separate
+processes are not a precise launch spread on this VM; they establish only no
+restart between observations, not survival across a VM state restore. This
+does not bind the held store to its Raft peer ID or prove stream-level health.
+
+## D38 — Require a pristine protected root before staging (2026-10-01 14:38 EDT)
+
+The protected-site audit previously checked the root directory's owner, mode,
+device and ACL but not its contents. A leftover user-owned store under a root
+whose permissions were later corrected could therefore receive
+`readyForStaging: true`. The pre-staging audit now reads the directory and
+requires it to be empty. The future root migration must separately inventory
+and pin all protected assets after staging; this check applies only before
+that transaction and is not cutover authorization. The live protected root is
+still absent.

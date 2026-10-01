@@ -12,7 +12,7 @@ const staged = {
   operatorUid: 501,
   ancestors: Array.from({ length: 3 }, () => ({ isDirectory: true, uid: 0, gid: 0, mode: 0o40755,
     device: 7, aclEntries: false })),
-  root: { isDirectory: true, uid: 0, gid: 0, mode: 0o40755, device: 7, aclEntries: false },
+  root: { isDirectory: true, uid: 0, gid: 0, mode: 0o40755, device: 7, aclEntries: false, entriesEmpty: true },
   marker: 'absent',
   volume: { apfs: true, ownersEnabled: true },
 };
@@ -74,6 +74,11 @@ describe('protected NATS site audit', () => {
       ancestors: [{ ...staged.ancestors[0], aclEntries: true }, ...staged.ancestors.slice(1)] }).readyForStaging, false);
     assert.equal(evaluateProtectedSite({ ...staged,
       root: { ...staged.root, aclEntries: true } }).readyForStaging, false);
+  });
+
+  it('refuses a protected root with leftover contents', () => {
+    assert.equal(evaluateProtectedSite({ ...staged,
+      root: { ...staged.root, entriesEmpty: false } }).readyForStaging, false);
   });
 
   it('parses the macOS ownership facts without inferring them from APFS alone', () => {

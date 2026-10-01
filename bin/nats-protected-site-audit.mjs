@@ -27,12 +27,13 @@ function recordField(output, key) {
   return output.match(new RegExp(`^${key}:\\s+([^\\n]+)$`, 'm'))?.[1]?.trim() || null;
 }
 
-async function identity(path) {
+async function identity(path, inspectContents = false) {
   try {
     const value = await fs.lstat(path);
     const listing = await run('/bin/ls', ['-lde', path]);
     return { isDirectory: value.isDirectory(), uid: value.uid, gid: value.gid, mode: value.mode,
-      device: value.dev, aclEntries: parseLsAclEntries(listing.stdout) };
+      device: value.dev, aclEntries: parseLsAclEntries(listing.stdout),
+      ...(inspectContents && value.isDirectory() ? { entriesEmpty: (await fs.readdir(path)).length === 0 } : {}) };
   } catch (error) {
     if (error.code === 'ENOENT') return null;
     throw error;
@@ -96,7 +97,7 @@ async function main() {
   const operator = operatorUid();
   const [serviceAccount, privateRoot, varRoot, dbRoot, root, marker, filesystem] = await Promise.all([
     account(operator), identity('/private'), identity('/private/var'), identity('/private/var/db'),
-    identity(SITE_ROOT), identity(HANDOFF_MARKER), volume(),
+    identity(SITE_ROOT, true), identity(HANDOFF_MARKER), volume(),
   ]);
   const report = evaluateProtectedSite({ account: serviceAccount, operatorUid: operator,
     ancestors: [privateRoot, varRoot, dbRoot], root,
