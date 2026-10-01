@@ -137,12 +137,14 @@ service failure keeps BROKEN even when another service or policy is unobservable
 | Deploy in sync | `diff -rq` repo lib ↔ workspace lib empty | live |
 | Identity + token + config | token `0600`, identity keypair present | live |
 
-The NATS service cohort defaults to the installer's single `nats` job. A node
-using the documented `nats-1..3` cluster or the `nats`, `nats-2`, `nats-3` layout declares
+The installer declares the single `nats` job on a fresh node. A node using
+the documented `nats-1..3` cluster or the `nats`, `nats-2`, `nats-3` layout declares
 `{"schema":1,"activeLabels":[...]}` in
 `~/.openclaw/config/nats-writer-cohort.json`. After a protected writer
 handoff, the root-owned marker pins the active labels and selects launchd's
-`system` domain. The watcher reports PID liveness and checks the four known
+`system` domain. A missing declaration reports UNKNOWN; an update to an
+existing NATS installation does not guess its cohort. The watcher reports PID
+liveness and checks the four known
 NATS labels in `gui`, `user` and `system`; it does not prove binary, UID,
 config, store, JetStream health, or absence of unlisted/unmanaged processes.
 

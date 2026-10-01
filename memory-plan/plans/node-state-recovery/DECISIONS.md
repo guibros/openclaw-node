@@ -477,8 +477,11 @@ predecessors have been retired. The separate historical `ai.openclaw.nats-1`
 job remains held. Other nodes may use the documented `nats-1..3` cohort or
 the single `nats` job. In the legacy state, an optional 0600
 `config/nats-writer-cohort.json` under the OpenClaw home declares
-`{"schema":1,"activeLabels":[...]}`; its absence selects the installer's
-single `nats` job. On this Mac the explicit file names the observed active cohort.
+`{"schema":1,"activeLabels":[...]}`. Fresh installs initialize the single
+`nats` cohort before rendering NATS config; existing installs without the file
+remain UNKNOWN until explicitly declared. A missing declaration never lowers
+the required set during a partial bootout. On this Mac the explicit file names
+the observed active cohort.
 The fixed root handoff marker selects the system domain and pins the same
 `activeLabels` alongside `schema:1` and
 `kind:"openclaw-nats-writer-handoff"`. It is a root-owned, readable,
