@@ -81,11 +81,13 @@ describe('node-watch honesty invariants', () => {
     let marker = true;
     let oldLoaded = false;
     let systemLoaded = true;
+    let markerContent = '{"schema":1,"kind":"openclaw-nats-writer-handoff"}';
+    let markerUid = 0;
     const ctx = makeCtx({
       fsp: { lstat: async () => {
         if (!marker) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
-        return { isFile: () => true, isSymbolicLink: () => false };
-      } },
+        return { isFile: () => true, isSymbolicLink: () => false, uid: markerUid, mode: 0o100644 };
+      }, readFile: async () => markerContent },
       exec: async (_bin, args) => {
         const name = args[1];
         calls.push(name);
@@ -102,6 +104,14 @@ describe('node-watch honesty invariants', () => {
     assert.equal(protectedVerdict.status, STATUS.WORKING);
     assert.match(protectedVerdict.evidence, /system\/ai\.openclaw\.nats-1:42/);
     assert.ok(calls.includes('system/ai.openclaw.nats-1'));
+    markerContent = '{broken';
+    calls.length = 0;
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.UNKNOWN);
+    assert.equal(calls.length, 0);
+    markerContent = '{"schema":1,"kind":"openclaw-nats-writer-handoff"}';
+    markerUid = 501;
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.UNKNOWN);
+    markerUid = 0;
     oldLoaded = true;
     assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
     marker = false;

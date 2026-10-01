@@ -472,7 +472,9 @@ the marker and retiring old jobs.
 
 The protected jobs retain the three `ai.openclaw.nats-{1,2,3}` labels in
 `system`, after their GUI predecessors have been retired. The fixed root
-handoff marker selects that domain for the core-service watcher; other core
+handoff marker selects that domain for the core-service watcher. It is a
+root-owned, readable, non-group-writable regular JSON file with
+`{"schema":1,"kind":"openclaw-nats-writer-handoff"}`; other core
 jobs remain in `gui/<uid>`. A protected NATS PID in `system` is insufficient
 while any same-label GUI job is still loaded: that is a duplicate writer risk
 and reports BROKEN. Without the marker, a loaded system-domain NATS job also
