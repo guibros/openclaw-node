@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateProtectedSite, parseDiskutilInfo } from '../lib/nats-protected-site-audit.mjs';
+import { evaluateProtectedSite, parseDiskutilInfo, parseLsAclEntries, parseAdminMembership } from '../lib/nats-protected-site-audit.mjs';
 
 const staged = {
   account: { uid: 400, gid: 400, recordUid: 400, recordGid: 400, groupRecordGid: 400,
@@ -71,5 +71,17 @@ describe('protected NATS site audit', () => {
       { apfs: true, ownersEnabled: true });
     assert.deepEqual(parseDiskutilInfo('File System Personality: APFS\nOwners: Disabled\n'),
       { apfs: true, ownersEnabled: false });
+  });
+
+  it('reads ACL entries even when extended attributes take the mode suffix', () => {
+    assert.equal(parseLsAclEntries('drwxr-xr-x@ 4 root wheel 128 Oct 1 12:00 /private/var/db\n 0: user:guest allow write,delete\n'), true);
+    assert.equal(parseLsAclEntries('drwxr-xr-x@ 4 root wheel 128 Oct 1 12:00 /private/var/db\n'), false);
+    assert.throws(() => parseLsAclEntries('drwxr-xr-x+ 4 root wheel 128 Oct 1 12:00 /private/var/db\n'));
+  });
+
+  it('accepts dseditgroup non-membership output regardless of its exit status', () => {
+    assert.equal(parseAdminMembership('no _openclaw_nats is NOT a member of admin\n'), false);
+    assert.equal(parseAdminMembership('yes _openclaw_nats is a member of admin\n'), true);
+    assert.throws(() => parseAdminMembership('Group not found.\n'));
   });
 });

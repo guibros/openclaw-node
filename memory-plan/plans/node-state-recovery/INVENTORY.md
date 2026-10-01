@@ -200,3 +200,8 @@ Checkpoint 2026-10-01 13:55 EDT: D32 narrows the offline-replica claim to
 one live peer's observation; the leader is not pinned by the saved snapshot.
 The separately held member-1 store and three healthy cold masters retain
 their independent preservation requirements.
+
+Checkpoint 2026-10-01 14:03 EDT: D33 hardens the read-only site audit's
+macOS parsing after adversarial review. ACL entries are read even when `ls`
+shows `@`, and a valid `dseditgroup` non-membership result is accepted despite
+exit 67. The live protected site is still not staged; no writer changed.

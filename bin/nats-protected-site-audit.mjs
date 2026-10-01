@@ -2,7 +2,7 @@
 import { promises as fs } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify, parseArgs } from 'node:util';
-import { SITE_ROOT, HANDOFF_MARKER, parseDiskutilInfo, evaluateProtectedSite } from '../lib/nats-protected-site-audit.mjs';
+import { SITE_ROOT, HANDOFF_MARKER, parseDiskutilInfo, parseLsAclEntries, parseAdminMembership, evaluateProtectedSite } from '../lib/nats-protected-site-audit.mjs';
 
 const run = promisify(execFile);
 const { values } = parseArgs({ options: { 'operator-uid': { type: 'string' } } });
@@ -31,7 +31,7 @@ async function identity(path) {
     const value = await fs.lstat(path);
     const listing = await run('/bin/ls', ['-lde', path]);
     return { isDirectory: value.isDirectory(), uid: value.uid, gid: value.gid, mode: value.mode,
-      device: value.dev, aclEntries: listing.stdout.trimStart().split(/\s+/)[0].includes('+') };
+      device: value.dev, aclEntries: parseLsAclEntries(listing.stdout) };
   } catch (error) {
     if (error.code === 'ENOENT') return null;
     throw error;
@@ -52,15 +52,17 @@ async function account() {
     run('/usr/bin/id', ['-G', '_openclaw_nats']),
     run('/usr/bin/dscl', ['.', '-read', '/Users/_openclaw_nats', 'UniqueID', 'PrimaryGroupID', 'UserShell', 'NFSHomeDirectory']),
     run('/usr/bin/dscl', ['.', '-read', '/Groups/_openclaw_nats', 'PrimaryGroupID']),
-    run('/usr/sbin/dseditgroup', ['-o', 'checkmember', '-m', '_openclaw_nats', 'admin']),
+    run('/usr/sbin/dseditgroup', ['-o', 'checkmember', '-m', '_openclaw_nats', 'admin'])
+      .catch((error) => {
+        if (error.code !== 67) throw error;
+        return { stdout: error.stdout ?? '' };
+      }),
   ]);
-  const adminResult = admin.stdout.trim();
-  if (!/^yes |^no /.test(adminResult)) throw new Error('service admin membership unobservable');
   return {
     uid: Number(uid.stdout.trim()), gid: Number(gid.stdout.trim()),
     groupName: groupName.stdout.trim(), groups: groups.stdout.trim().split(/\s+/).map(Number),
     shell: recordField(record.stdout, 'UserShell'), home: recordField(record.stdout, 'NFSHomeDirectory'),
-    adminMember: adminResult.startsWith('yes '),
+    adminMember: parseAdminMembership(admin.stdout),
     recordUid: Number(recordField(record.stdout, 'UniqueID')),
     recordGid: Number(recordField(record.stdout, 'PrimaryGroupID')),
     groupRecordGid: Number(recordField(groupRecord.stdout, 'PrimaryGroupID')),

@@ -582,3 +582,15 @@ The supported claim is that one of the two routed cluster peers reported one
 offline replica while both reported a meta-cluster size of three. The held
 member-1 store remains a separate source by its own prior identity evidence;
 the loopback snapshot does not certify that identity or a stable leader.
+
+## D33 — Parse ACL entries and directory membership from macOS command output (2026-10-01 14:03 EDT)
+
+The protected-site audit must inspect the numbered ACL entries printed by
+`ls -lde`, not just the mode suffix: an extended attribute makes macOS show
+`@` even when ACL entries also exist. A `+` suffix without the expected entry
+listing is unobservable and refuses. `dseditgroup checkmember` returns status
+67 with a valid `no ... NOT a member` answer on this Mac; the audit accepts
+that answer, but refuses other nonzero statuses and malformed output. A local
+directory with both an xattr and an ACL confirmed the `@`/numbered-entry case.
+This changes read-only staging evidence only; the live account and protected
+root remain absent.
