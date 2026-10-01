@@ -26,10 +26,10 @@ def boot_identity():
     else:
         value = pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
     try:
-        canonical = str(uuid.UUID(value.strip()))
+        uuid.UUID(value.strip())
     except ValueError as error:
         raise Refused('current boot identity is unavailable') from error
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    return hashlib.sha256(value.strip().encode()).hexdigest()
 
 
 def present(path):
@@ -56,9 +56,11 @@ def bootstrap_target(site, lock_path):
     target_name = str(target).casefold()
     site_name = str(site_path).casefold()
     ledger_name = str(site_path.parent / (site_path.name + '-ledger')).casefold()
+    outcomes_name = str(site_path.parent / (site_path.name + '-outcomes')).casefold()
     if (target_name == site_name or target_name.startswith(site_name + os.sep)
-            or target_name == ledger_name or target_name.startswith(ledger_name + os.sep)):
-        raise Refused('root writer lock cannot be inside the protected handoff site or ledger')
+            or target_name == ledger_name or target_name.startswith(ledger_name + os.sep)
+            or target_name == outcomes_name or target_name.startswith(outcomes_name + os.sep)):
+        raise Refused('root writer lock cannot be inside the protected handoff site or ledger/outcomes')
     if target_name == str(LOCK.resolve(strict=False)).casefold():
         raise Refused('production root writer bootstrap awaits lifecycle recovery')
     return target
@@ -97,7 +99,8 @@ def valid_descriptor(descriptor):
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['boot']))):
         raise Refused('root writer lock admission descriptor is incomplete')
     try:
-        uuid.UUID(descriptor['transaction'])
+        if str(uuid.UUID(descriptor['transaction'])) != descriptor['transaction']:
+            raise ValueError('noncanonical transaction UUID')
     except (TypeError, ValueError) as error:
         raise Refused('root writer lock transaction is invalid') from error
 
@@ -228,6 +231,7 @@ class LockBootstrapJournal:
                             or not isinstance(lock['ctime_ns'], int) or lock['ctime_ns'] <= 0
                             or lock['nonce'] != saved['lock_nonce'])
                         or (staged is not None or inherited is not None) and lock is None
+                        or staged is None and inherited is None and lock is not None
                         or staged is not None and lock['inode'] != staged['inode']
                         or inherited is not None and lock['inode'] != inherited['inode']):
                     raise Refused('root writer return receipt is incomplete')
@@ -244,6 +248,8 @@ class LockBootstrapJournal:
         if any(site.iterdir()):
             raise Refused('protected handoff site is not empty before bootstrap')
         bootstrap_target(site, lock_path)
+        if not isinstance(observation, dict) or observation.get('boot') != boot_identity():
+            raise Refused('root writer admission is from another boot')
         if present(site / 'writer-handoff.json'):
             raise Refused('root writer handoff is already published')
         root = site.parent / (site.name + '-ledger')
@@ -267,6 +273,9 @@ class LockBootstrapJournal:
                 journal._validate()
                 if journal.current[-1]['event'] != 'returned':
                     raise Refused('root writer ledger already has an active transaction')
+                if any(row['data']['descriptor']['transaction'] == transaction
+                       for row in journal.records if row['event'] == 'lock-create-intent'):
+                    raise Refused('root writer transaction was reused')
                 journal.read_returned_outcome()
                 predecessor = journal.current[-1]['sha256']
                 inherited = journal.current[-1]['data']['lock']
@@ -492,11 +501,14 @@ class LockBootstrapJournal:
             raise Refused('root writer marker blocks returned outcome')
         root = self._outcome_path()
         protected_parent(root, self.uid, self.gid)
+        prior_umask = os.umask(0o022)
         try:
             root.mkdir(mode=0o755)
             sync_dir(root.parent)
         except FileExistsError:
             pass
+        finally:
+            os.umask(prior_umask)
         directory(root, self.uid, self.gid, 0o755)
         for pending in root.iterdir():
             if re.fullmatch(r'\.pending-[0-9a-f]{32}', pending.name):
@@ -544,9 +556,15 @@ class LockBootstrapJournal:
             if present(target):
                 raise Refused('unrecorded root writer lock blocks return')
             if present(stage):
-                self._stage_identity(stage, saved['lock_nonce'])
-                if stage.lstat().st_nlink != 1:
-                    raise Refused('unpublished root writer stage has another link')
+                protected_parent(stage, self.uid, self.gid)
+                info = stage.lstat()
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != self.uid
+                        or info.st_gid != self.gid or stat.S_IMODE(info.st_mode) != 0o644
+                        or info.st_nlink != 1):
+                    raise Refused('unpublished root writer stage identity differs')
+                require_no_acl(stage)
+                if not saved['lock_nonce'].encode().startswith(stage.read_bytes()):
+                    raise Refused('unpublished root writer stage nonce differs')
                 stage.unlink()
                 sync_dir(stage.parent)
             identity = None
@@ -595,6 +613,8 @@ class LockBootstrapJournal:
         if segment[-1]['event'] == 'returned':
             raise Refused('returned root writer transaction cannot be readmitted')
         saved = segment[0]['data']['descriptor']
+        if saved['boot'] != boot_identity():
+            raise Refused('root writer admission is from another boot')
         inherited = segment[0]['data'].get('inherited')
         if str(pathlib.Path(lock_path).absolute()) != saved['lock_path']:
             raise Refused('root writer lock path differs from intent')
