@@ -467,3 +467,16 @@ location is reported as handoff-verification failure, with legacy writer changes
 refused. These checks narrow the race but do not serialize a concurrent root
 migration; the root journal must exclude in-flight installers before publishing
 the marker and retiring old jobs.
+
+## D27 — Observe protected NATS in the system domain (2026-10-01 12:55 EDT)
+
+The protected jobs retain the three `ai.openclaw.nats-{1,2,3}` labels in
+`system`, after their GUI predecessors have been retired. The fixed root
+handoff marker selects that domain for the core-service watcher; other core
+jobs remain in `gui/<uid>`. A protected NATS PID in `system` is insufficient
+while any same-label GUI job is still loaded: that is a duplicate writer risk
+and reports BROKEN. Without the marker, a loaded system-domain NATS job also
+reports BROKEN. An unreadable or malformed marker reports UNKNOWN rather
+than assuming the legacy domain. This is read-only monitoring, not migration
+authority or proof of JetStream health; quorum and replay checks remain
+separate. No live service is changed by this decision.

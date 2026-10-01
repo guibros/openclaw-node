@@ -148,3 +148,9 @@ Checkpoint 2026-10-01 12:43 EDT: D26 defines the marker directory mode,
 pre-commit rollback removal order, and installer rechecks at NATS write
 boundaries. The future root migration must also exclude installers already in
 flight; the source rechecks alone are not a cross-process lock.
+
+Checkpoint 2026-10-01 12:55 EDT: D27 adds a system-domain NATS watcher path
+under the fixed handoff marker and a duplicate-GUI-job refusal. Owned tests
+cover legacy, protected, duplicate and unreadable-marker results; source CI,
+adversarial review and live evidence remain pending. The root migration and
+three healthy cold masters remain open at 1.2[A].

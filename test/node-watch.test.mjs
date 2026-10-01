@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {
   WATCH_TARGETS, runWatch, formatHtml, STATUS,
-  parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway,
+  parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway, probeCoreLaunchdServices,
 } from '../lib/node-watch.mjs';
 import { resolveNodeConfig } from '../lib/node-acceptance.mjs';
 
@@ -74,6 +74,53 @@ describe('node-watch honesty invariants', () => {
     assert.equal(gradeRequiredServices([{ ...running, running: false, pid: null }]).status, STATUS.BROKEN);
     assert.equal(gradeRequiredServices([{ ...running, loaded: false, running: false, pid: null }]).status, STATUS.BROKEN);
     assert.equal(gradeRequiredServices([{ ...running, observable: false }]).status, STATUS.UNKNOWN);
+  });
+
+  it('reads protected NATS jobs in system and refuses a loaded legacy GUI peer', async () => {
+    const calls = [];
+    let marker = true;
+    let oldLoaded = false;
+    let systemLoaded = true;
+    const ctx = makeCtx({
+      fsp: { lstat: async () => {
+        if (!marker) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+        return { isFile: () => true, isSymbolicLink: () => false };
+      } },
+      exec: async (_bin, args) => {
+        const name = args[1];
+        calls.push(name);
+        if (name.startsWith('gui/') && name.includes('/ai.openclaw.nats-') && !oldLoaded) {
+          return { code: 113, stdout: '', stderr: 'Could not find service' };
+        }
+        if (name.startsWith('system/') && !systemLoaded) {
+          return { code: 113, stdout: '', stderr: 'Could not find service' };
+        }
+        return { code: 0, stdout: 'state = running\npid = 42\n', stderr: '' };
+      },
+    });
+    const protectedVerdict = await probeCoreLaunchdServices(ctx, { platform: 'darwin' });
+    assert.equal(protectedVerdict.status, STATUS.WORKING);
+    assert.match(protectedVerdict.evidence, /system\/ai\.openclaw\.nats-1:42/);
+    assert.ok(calls.includes('system/ai.openclaw.nats-1'));
+    oldLoaded = true;
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
+    marker = false;
+    calls.length = 0;
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
+    systemLoaded = false;
+    calls.length = 0;
+    const legacyVerdict = await probeCoreLaunchdServices(ctx, { platform: 'darwin' });
+    assert.equal(legacyVerdict.status, STATUS.WORKING);
+    assert.ok(calls.includes(`gui/${process.getuid()}/ai.openclaw.nats-1`));
+    assert.ok(calls.includes('system/ai.openclaw.nats-1'));
+  });
+
+  it('does not claim core services healthy when handoff state cannot be read', async () => {
+    const ctx = makeCtx({ fsp: { lstat: async () => { throw Object.assign(new Error('denied'), { code: 'EACCES' }); } },
+      exec: async () => { throw new Error('must not probe jobs'); } });
+    const verdict = await probeCoreLaunchdServices(ctx, { platform: 'darwin' });
+    assert.equal(verdict.status, STATUS.UNKNOWN);
+    assert.match(verdict.detail, /EACCES/);
   });
 
   it('an old gateway JSONL cannot earn WORKING even when the service has a PID', () => {
