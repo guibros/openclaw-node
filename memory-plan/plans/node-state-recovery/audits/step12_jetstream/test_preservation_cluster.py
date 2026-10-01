@@ -18,7 +18,56 @@ from cold_copy import capture_tree, copy_candidate, copy_view, verify_candidate
 from preservation_checks import QuietWindow, Refused, capture, http_json, stream_state
 
 
+def post_stepdown_ready(before, after, stream_group):
+    group_names = set(before[0]['raft']['$G'])
+    if not all(set(report['raft']['$G']) == group_names for report in after):
+        return False
+    for account, names in (('$G', group_names), ('$SYS', {'_meta_'})):
+        for name in names:
+            nodes = [report['raft'].get(account, {}).get(name) for report in after]
+            if (not all(nodes)
+                    or len({(node['leader'], node['term'], node['committed'],
+                             node['applied'], node['pindex']) for node in nodes}) != 1
+                    or not all(node['leader'] and node['committed'] ==
+                               node['applied'] == node['pindex'] for node in nodes)):
+                return False
+    stream = after[0]['raft']['$G'][stream_group]
+    return (stream['leader'] != before[0]['raft']['$G'][stream_group]['leader']
+            and stream['committed'] >
+            max(report['raft']['$G'][stream_group]['committed'] for report in before))
+
+
 class Cluster(unittest.TestCase):
+    def test_post_stepdown_rejects_precommit_election(self):
+        def report(stream_leader, stream_term, stream_index, applied=None, persisted=None,
+                   meta_applied=5):
+            applied = stream_index if applied is None else applied
+            persisted = stream_index if persisted is None else persisted
+            return {'raft': {'$G': {
+                'S-owned': {'leader': stream_leader, 'term': stream_term,
+                            'committed': stream_index, 'applied': applied, 'pindex': persisted},
+                'C-owned': {'leader': 'consumer', 'term': 1,
+                            'committed': 5, 'applied': 5, 'pindex': 5}},
+                '$SYS': {'_meta_': {'leader': 'meta', 'term': 1,
+                                    'committed': 5, 'applied': meta_applied, 'pindex': 5}}}}
+        before = [report('old', 1, 2) for _ in range(3)]
+        elected_without_commit = [report('new', 2, 2) for _ in range(3)]
+        self.assertTrue(all(row['raft']['$G'] != before[i]['raft']['$G']
+                            for i, row in enumerate(elected_without_commit)))
+        self.assertEqual({row['raft']['$G']['S-owned']['committed']
+                          for row in elected_without_commit}, {2})
+        self.assertFalse(post_stepdown_ready(before, elected_without_commit, 'S-owned'))
+        leaderless = [report('old', 1, 2), report(None, 1, 2), report(None, 2, 2)]
+        self.assertFalse(post_stepdown_ready(before, leaderless, 'S-owned'))
+        unapplied = [report('new', 2, 4, applied=3) for _ in range(3)]
+        self.assertFalse(post_stepdown_ready(before, unapplied, 'S-owned'))
+        unpersisted = [report('new', 2, 4, persisted=3) for _ in range(3)]
+        self.assertFalse(post_stepdown_ready(before, unpersisted, 'S-owned'))
+        metadata_in_flight = [report('new', 2, 4, meta_applied=4) for _ in range(3)]
+        self.assertFalse(post_stepdown_ready(before, metadata_in_flight, 'S-owned'))
+        settled = [report('new', 2, 4) for _ in range(3)]
+        self.assertTrue(post_stepdown_ready(before, settled, 'S-owned'))
+
     def raft_files(self, store):
         return copy_view({'raft': capture_tree(store/'jetstream'/'$SYS'/'_js_')})['raft']
 
@@ -541,9 +590,9 @@ let nc,stage='connect';
             after = None
             previous = None
             stable_since = None
-            group_names = set(before[0]['raft']['$G'])
-            stream_groups = {name for name in group_names if name.startswith('S-')}
+            stream_groups = {name for name in before[0]['raft']['$G'] if name.startswith('S-')}
             self.assertEqual(len(stream_groups), 1)
+            stream_group = next(iter(stream_groups))
             while time.monotonic() < deadline:
                 try:
                     after = [capture(ports[i*3+1]) for i in range(3)]
@@ -552,33 +601,8 @@ let nc,stage='connect';
                     stable_since = None
                     time.sleep(.05)
                     continue
-                converged = (all(set(report['raft']['$G']) == group_names for report in after)
-                             and all(len({(report['raft']['$G'][name]['leader'],
-                                           report['raft']['$G'][name]['term'],
-                                           report['raft']['$G'][name]['committed'],
-                                           report['raft']['$G'][name]['applied'],
-                                           report['raft']['$G'][name]['pindex'])
-                                          for report in after}) == 1
-                                     and all(report['raft']['$G'][name]['leader']
-                                             for report in after)
-                                     and all(report['raft']['$G'][name]['committed'] ==
-                                             report['raft']['$G'][name]['applied'] ==
-                                             report['raft']['$G'][name]['pindex']
-                                             for report in after)
-                                     for name in group_names))
-                meta = [report['raft'].get('$SYS', {}).get('_meta_') for report in after]
-                meta_converged = (all(meta)
-                                  and len({(node['leader'], node['term'], node['committed'],
-                                            node['applied'], node['pindex']) for node in meta}) == 1
-                                  and all(node['leader'] and node['committed'] ==
-                                          node['applied'] == node['pindex'] for node in meta))
-                elected = (converged and all(
-                    after[0]['raft']['$G'][name]['leader'] != before[0]['raft']['$G'][name]['leader']
-                    and after[0]['raft']['$G'][name]['committed'] >
-                    max(report['raft']['$G'][name]['committed'] for report in before)
-                    for name in stream_groups))
                 state = [report['raft'] for report in after]
-                if elected and meta_converged and state == previous:
+                if post_stepdown_ready(before, after, stream_group) and state == previous:
                     if stable_since is None:
                         stable_since = time.monotonic()
                     if time.monotonic() - stable_since >= 1:

@@ -360,3 +360,11 @@ the old index `2`. The final exact-source cluster module passed 5/5 in
 owned reference; exact CI and adversarial review remain pending. The
 protected production writer, three cold masters, peer/vote validation and
 verified resumption remain open at 1.2 `[A]`/`v1.2-pre`.
+
+D44 checkpoint, 2026-10-01 11:40 EDT: `ad9927a` exact CI passed 3/3.
+The D43 election/advance check now has a deterministic regression for
+pre-commit leader changes, leaderless mixed terms, incomplete persistence
+and in-flight metadata. The final owned cluster module passed 6/6 in
+276.778 seconds with normal cleanup. Exact D44 CI/review are pending;
+protected live custody, three cold masters and verified resumption remain
+open at step 1.2 `[A]`/`v1.2-pre`.

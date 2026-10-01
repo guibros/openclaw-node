@@ -967,3 +967,25 @@ after capture but before shutdown are outside that reference; protected live
 custody, peer/vote validity, unobserved tails, three production cold masters
 and coordinated resumption remain open. Step 1.2 stays `[A]` at `v1.2-pre`;
 full-node `seal()` remains disabled.
+
+## D44 — Make the premature-election refusal deterministic (2026-10-01 11:40 EDT)
+
+Exact `ad9927a` CI passed Node 20, Node 22 and Mission Control (run
+36884044547). The prior D42 capture had passed CI while accepting the
+pre-commit election state on macOS, so a live timing test alone cannot keep
+this regression closed. The D43 election/advance/index predicate is now a
+pure check called by the same owned three-member integration loop. A
+deterministic test feeds it an elected new leader still at the old index,
+leaderless mixed-term reports, unapplied and unpersisted entries, and
+in-flight metadata; each refuses. A fully elected and persisted index-4
+state passes. This tests the formerly missed boundary even when CI never
+samples that instant. The one-second hold and five-second deadline remain
+in the integration loop. On the final source, the owned cluster module
+passed 6/6 in 276.778 seconds with normal scratch cleanup; the real
+three-member case captured index 4 and each isolated member replayed at
+least to that index. Exact new CI and adversarial review remain pending.
+This remains an owned reference only: sequential shutdown can append
+leadership-transfer entries beyond the captured point, so no common
+post-shutdown tail is claimed. Protected live custody, peer/vote validation,
+production cold masters and resumption are open;
+step 1.2 stays `[A]` and full-node `seal()` remains disabled.

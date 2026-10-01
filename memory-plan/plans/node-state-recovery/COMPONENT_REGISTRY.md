@@ -233,3 +233,12 @@ least that captured index independently, with normal scratch cleanup. This
 only validates the owned captured point. The final exact-source cluster
 module passed 5/5 in 271.532 seconds with normal cleanup. Exact CI and
 review remain pending; production custody and cold-master gates remain open.
+
+2026-10-01 11:40 EDT — D44 exposes the D43 capture predicate to a
+deterministic early-election regression: changed leader at the old index,
+leaderless mixed terms and unapplied/unpersisted positions refuse; an
+elected persisted index-4 state passes. The real three-member loop calls
+that predicate and retains its one-second stability watch. The expanded
+owned cluster module passes 6/6 in 276.778 seconds with normal cleanup.
+`ad9927a` exact CI passed 3/3; exact D44 CI/review remain pending. Full-node
+`seal()` and production cold-master acceptance remain disabled.

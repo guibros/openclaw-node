@@ -1330,7 +1330,9 @@ pending. The reference still excludes entries written
 after capture and does not certify a production cold master. No live NATS
 process, store, job, volume or journal changed; `seal()` remains disabled.
 
-Claude's exact `b26abc2` review separately confirmed the Mac counterexample.
+Claude's exact `b26abc2` review confirmed the NATS timing mechanism and
+rejected the Mac-shaped premature observations offline; it did not reproduce
+an early capture on Linux.
 Its scratch strict-capture prototype passed ten healthy Linux runs with
 stream index `4` and no replay below the captured threshold. It also found
 that the D42 latent junk-snapshot parent could accept a numeric shortfall
@@ -1347,3 +1349,21 @@ predicate rejected all six early states and accepted all six later index-4
 states. Those later records also had agreed `$SYS/_meta_` leaders, terms and
 persisted indexes. This is deterministic evidence for the previously missed
 interleaving, complemented by the passing exact-source integration run.
+
+## D44 deterministic election regression — 2026-10-01 11:40 EDT
+
+Exact `ad9927a` CI passed Node 20, Node 22 and Mission Control (run
+36884044547). The post-stepdown predicate is now callable independently of
+the live sampling loop. Its regression refuses the previously missed
+elected-but-pre-commit index-2 state, leaderless mixed-term reports,
+unapplied/unpersisted index-4 entries and in-flight metadata; a fully
+agreed index-4 state passes. The real loop uses that same predicate and
+retains its one-second unchanged-state watch. The final owned cluster
+module passed 6/6 in 276.778 seconds, with the real stream captured at
+index 4 and isolated replay indexes `[5,5,4]`. All scratch servers exited
+normally. Sequential shutdown may add leadership-transfer entries after the
+captured point, accounting for replay indexes above four on two members; it
+does not establish a common post-shutdown tail. Exact new CI and Claude
+review are pending. Live NATS PIDs
+815/831/842 and their operator-owned configs/stores remain unchanged;
+this is not production cold-master evidence.
