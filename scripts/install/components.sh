@@ -13,7 +13,17 @@ else
     if command -v ollama >/dev/null 2>&1; then
       info "Starting ollama..."
       if [ "$OS" = "macos" ]; then
-        brew services start ollama >/dev/null 2>&1 || { nohup ollama serve >"$OPENCLAW_ROOT/logs/ollama.log" 2>&1 & }
+        brew services start ollama >/dev/null 2>&1 || {
+          (
+            if [ -n "${OPENCLAW_NATS_LEGACY_LOCK_HELD:-}" ]; then
+              lock_fd="${OPENCLAW_NATS_LEGACY_LOCK_HELD%%:*}"
+              [[ "$lock_fd" =~ ^[0-9]+$ ]] || exit 1
+              eval "exec ${lock_fd}<&-"
+              unset OPENCLAW_NATS_LEGACY_LOCK_HELD
+            fi
+            nohup ollama serve >"$OPENCLAW_ROOT/logs/ollama.log" 2>&1 &
+          )
+        }
       else
         if $DRY_RUN; then info "  [dry-run] would start ollama"; else sudo systemctl start ollama 2>/dev/null || { nohup ollama serve >"$OPENCLAW_ROOT/logs/ollama.log" 2>&1 & }; fi
       fi

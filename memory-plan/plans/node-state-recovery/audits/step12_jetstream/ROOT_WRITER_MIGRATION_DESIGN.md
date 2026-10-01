@@ -48,8 +48,12 @@ check applies only before staging.
 
 Every legacy NATS-changing entrypoint must acquire the same root-owned lock
 for its entire mutation, including auth reload and launchd load: installer,
-trust-peer sync, auth renderer, cohort initializer, stack-up and preservation
-restoration. The lock file must live outside the protected staging root, whose
+uninstaller (including purge), trust-peer sync, auth renderer, cohort
+initializer, stack-up/down when an enabled legacy NATS unit is present, and
+preservation restoration. A stack command whose scan contains only parked
+NATS units may continue managing non-NATS services. A long-lived child started
+by the installer must close the shared descriptor before backgrounding. The
+lock file must live outside the protected staging root, whose
 preflight requires emptiness. On macOS the wrapper uses `fcntl.flock`, not a
 nonexistent stock `flock(1)` or an in-process Node assumption. Each operation
 checks the marker while holding the lock and validates the lock-file identity.
@@ -59,7 +63,10 @@ child can outlive its parent and must make the root refuse, not proceed.
 A newly deployed lock cannot cover an old in-flight process. With the lock
 held, the root must physically inspect executable paths and arguments for all
 NATS-changing tools and preservation controllers, and refuse if any old or
-unclassified instance could still mutate. This process check is a necessary
+unclassified instance could still mutate, including stale installed copies of
+the uninstaller. Re-scan launchd for loaded, pending and disabled labels before
+publishing the marker; process absence alone does not rule out a queued start.
+This process check is a necessary
 precondition, not a substitute for the lock. Launchd disable, parked GUI
 plists, and occupied monitor ports provide further physical fences against
 legacy restarts. The protected system jobs must retain the historical monitor

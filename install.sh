@@ -26,9 +26,11 @@ REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ "$(uname -s)" = Darwin ]; then
   NATS_WRITER_LOCK=/private/var/db/openclaw-nats-writer.lock
   if [ -e "$NATS_WRITER_LOCK" ] || [ -L "$NATS_WRITER_LOCK" ]; then
-    if [ -n "${OPENCLAW_NATS_LEGACY_LOCK_HELD:-}" ]; then
-      /usr/bin/python3 "$REPO_DIR/bin/nats-legacy-lock.py" --verify
+    if [ -n "${OPENCLAW_NATS_LEGACY_LOCK_HELD:-}" ] &&
+       /usr/bin/python3 "$REPO_DIR/bin/nats-legacy-lock.py" --verify >/dev/null 2>&1; then
+      :
     else
+      unset OPENCLAW_NATS_LEGACY_LOCK_HELD
       exec /usr/bin/python3 "$REPO_DIR/bin/nats-legacy-lock.py" -- /bin/bash "$REPO_DIR/install.sh" "$@"
     fi
   fi

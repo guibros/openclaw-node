@@ -65,6 +65,10 @@ def verify_inherited(token, lock_file=LOCK):
         raise RuntimeError('inherited legacy writer lock is invalid') from error
     if fd < 3 or (actual.st_dev, actual.st_ino) != (dev, ino) or (named.st_dev, named.st_ino) != (dev, ino):
         raise RuntimeError('inherited legacy writer lock identity changed')
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        raise RuntimeError('inherited legacy writer lock is not held') from error
 
 
 def run_locked(command, lock_file=LOCK, marker=MARKER, expected_uid=0, expected_gid=0):

@@ -112,7 +112,8 @@ export function peersFromRegistry(registry, warn = () => {}) {
  * binary is on PATH, else SIGHUP every nats-server process we can see. Never
  * throws — a failed reload is reported and the operator restarts by hand.
  */
-export function reloadNatsServer(log = console.error) {
+function reloadNatsServer(log = console.error) {
+  assertLegacyNatsLockHeld();
   const bin = spawnSync('sh', ['-c', 'command -v nats-server'], { encoding: 'utf8' }).stdout.trim();
   if (bin) {
     const r = spawnSync(bin, ['--signal', 'reload'], { encoding: 'utf8' });

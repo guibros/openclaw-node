@@ -94,6 +94,19 @@ class LegacyWriterLockTest(unittest.TestCase):
         finally:
             os.close(owner)
 
+    def test_unlocked_descriptor_cannot_claim_lock_during_exclusive_hold(self):
+        contender = os.open(self.lock, os.O_RDONLY)
+        owner = os.open(self.lock, os.O_RDONLY)
+        try:
+            info = os.fstat(contender)
+            token = f'{contender}:{info.st_dev}:{info.st_ino}'
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaisesRegex(RuntimeError, 'not held'):
+                lock_module.verify_inherited(token, self.lock)
+        finally:
+            os.close(contender)
+            os.close(owner)
+
 
 if __name__ == '__main__':
     unittest.main()

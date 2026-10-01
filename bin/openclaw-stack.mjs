@@ -223,12 +223,14 @@ function notifyResult(rows) {
 
 const cmd = process.argv[2] || 'status';
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (cmd === 'up' || cmd === 'down') reexecUnderLegacyNatsLock();
   const units = process.platform === 'darwin' ? scanLaunchdUnits() : scanSystemdUnits();
   if (!units.length) { console.error('no openclaw units installed — run install.sh first'); process.exit(1); }
+  const hasLegacyNats = process.platform === 'darwin'
+    && units.some((u) => !u.disabled && /^nats(?:-|$)/.test(u.id));
+  if ((cmd === 'up' || cmd === 'down') && hasLegacyNats) reexecUnderLegacyNatsLock();
 
   if (cmd === 'up') {
-    if (process.platform === 'darwin' && units.some((u) => !u.disabled && /^nats(?:-|$)/.test(u.id))) {
+    if (hasLegacyNats) {
       try { assertLegacyNatsWriterAllowed(); }
       catch (error) { console.error(error.message); process.exit(1); }
     }
