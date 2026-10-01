@@ -669,3 +669,23 @@ the only existing journal baseline is timer-scoped and has no `known-broken`
 class. CI unit tests pass on Node 20 and 22; Mission Control's separate
 dependency audit remains red on its pre-existing Next.js advisory.
 No actual full-node recovery or cold-copy acceptance is claimed.
+
+### Compatible timer-controller bundle — 2026-10-01 00:21 EDT
+
+The current source was staged as a private, protected bundle at
+`~/.openclaw/backups/node-readiness/timer-hold-controller-20261001-4/` and its
+manifest verified in place (SHA256
+`eb09340de6284e7f65cbc648c4ca5205b7bcca94fa3388fecff42e43346d7258`).
+The three earlier controller bundles were moved intact to sibling
+`.retired-timer-hold-controller-20261001-{1,2,3}` directories, each mode 000;
+their original paths are absent. Their retained manifest hashes are
+`624ba9cd7568e246ff74e3422f5026f08b45cf457bfa9895a0ddef6976550295`,
+`4193b948ab307994ca92e23c63b6f30be7eabfa2b4f5aa22ab22724b5f3d0fa2`
+and `bec1e5af6a9db7c6b2c0230d494471c4f211e74c6488bbf7ca356fb801a404e6`.
+No running controller or LaunchAgent/bin/preservation reference to those paths
+was found before retirement. Afterward the new bundle still verifies; the
+live receipt remains `restored` on timer window
+`timer-88ee57ba9644fff17f253319c70f63f4`, transition-active remains absent,
+and timer-entry-installed remains present. No controller commission/recover
+operation or service mutation occurred. This removes the known frozen parser
+entry points, but it does not establish production preservation readiness.
