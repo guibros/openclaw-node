@@ -823,3 +823,33 @@ the healthy observed state through stop, hash publication and restore,
 plus independent validation of every retained message and durable position.
 `c9569ea` CI passed all three jobs, but this newer source needs exact-head
 CI and adversarial review. Step 1.2 and full-node `seal()` remain open.
+
+## D40 — Treat the restore log as a secondary integrity signal (2026-10-01 09:00 EDT)
+
+Claude's exact-head review of `7d40a3f` found no false acceptance within the
+owned stopped-Raft-byte claim, and all three CI jobs passed. Its independent
+NATS 2.12.6 probes also showed a healthy restored meta leader can log
+`snapshot can not be installed while catchups running`: one of 24 positive
+runs was falsely refused by the broad `catchup` tripwire. The fixture now
+excludes that exact message while retaining actual corruption and rebuild
+warnings. A source-side latent junk snapshot, introduced before the saved
+stopped view, must reach a `Snapshot corrupt` warning and refuse; this makes
+the tripwire's `corrupt` term observable in a negative control. The failure
+message includes the matching log lines instead of asserting that any hit
+proves peer repair. Pre-baseline and post-stepdown settling may retry a
+transient monitoring refusal within their existing deadlines; the quiet
+window itself remains fail-closed.
+
+The same review accepted a latent hollow Raft WAL, junk peer index and junk
+vote in independent probes. The log check cannot establish that no peer
+repair happened: NATS logs some catch-up only at debug level, and healthy
+members can legitimately catch up. Production cold-master acceptance still
+requires a NATS-native per-member Raft validity check and the separately
+protected live custody, all-message baseline and service restoration gates.
+The four-test focused owned suite passes; complete Mac suite and exact new
+CI/review remain pending. Step 1.2 stays `[A]` at `v1.2-pre`; full-node
+`seal()` remains disabled.
+
+At 09:16 EDT the stable-source Mac recovery suite passed 208 tests with three
+expected skips. This remains owned fixture evidence; exact new CI and review
+of the correction are pending.

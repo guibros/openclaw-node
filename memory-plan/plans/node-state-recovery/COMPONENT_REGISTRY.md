@@ -173,9 +173,21 @@ checks are exercised independently. The healthy restore and earlier
 eleven-mode negative suite pass locally; a twelfth changed-vote control
 refuses at member 1. The refined twelve-mode suite, exact CI and re-review
 are pending. The same-uid stopped baseline is not a protected production
-publication, nor proof of content already corrupt before the stop.
+publication, nor does it detect content already corrupt before the stop.
 
 At 08:22 EDT, the refined twelve-mode negatives and complete stable-source
 Mac recovery suite pass (208 tests, three expected skips, owned-server normal
 cleanup, no production connections). New exact CI and Claude code-level
 review remain pending; the production boundary is unchanged.
+
+2026-10-01 09:16 EDT — `7d40a3f` CI passed Node 20, Node 22 and Mission
+Control; Claude's exact-head read and independent damage probes found no
+blocker within the owned stopped-Raft-byte claim. D40 corrects a healthy
+meta-snapshot log false refusal and adds a latent snapshot negative that
+must reach `Snapshot corrupt`. Stable-source focused cluster tests pass 4/4,
+and the complete Mac recovery suite passes 208 with three expected skips.
+The first full run was invalidated by a missing worktree-external NATS module
+path and timed-out restore fixtures; the rerun used the installed module and
+production Node paths. No production job, service, store, volume or journal
+was changed. New exact CI/review and all live protection/restore gates remain
+open; full-node `seal()` stays disabled.

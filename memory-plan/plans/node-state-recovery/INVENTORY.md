@@ -308,3 +308,16 @@ pass at stable source (208 tests, three expected skips). The baseline and
 candidate comparison is still an owner-held fixture continuity check; exact
 CI, adversarial review, protected live custody, three cold masters, the
 production driver and resumption remain open.
+
+D40 follows Claude's exact-head `7d40a3f` review: CI passed 3/3 and the
+stopped-Raft-byte claim had no source blocker. A healthy meta-snapshot
+catch-up warning caused a false refusal, while latent damaged Raft contents
+could still be accepted. The owned fixture now exempts only that warning,
+records the actual integrity line on refusal, and includes a latent junk
+snapshot control that must reach `Snapshot corrupt`. The fixture retries
+transient observations during pre-baseline settling and post-stepdown
+election within their deadlines. The focused four-test cluster suite and
+complete 208-test Mac recovery suite pass, with three expected skips.
+Protected production custody,
+NATS-native per-member Raft validity, three healthy cold masters, the full
+driver and verified resumption remain open; 1.2 stays `[A]`.

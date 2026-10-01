@@ -1199,3 +1199,33 @@ NATS processes and no production connections. The earlier `c9569ea` CI is
 green 3/3, but this refined baseline revision still needs its own exact-head
 CI and code-level Claude review. No live service, store, job or journal was
 changed.
+
+At 09:16 EDT, `7d40a3f` passed all three CI jobs (run 36861425295). Claude's
+exact-head review found no false acceptance within the owned stopped-Raft-byte
+claim, confirmed the fixture order and independently tested damaged stored
+members. A latent hollow Raft WAL, peers index or saved vote can still pass;
+this is the unclosed NATS-native per-member validity gate. Claude also found
+one healthy restore refused by the broad `catchup` log term among 24 positive
+runs, and one pre-damage observation failure among about 105 cluster runs.
+
+The subsequent D40 fixture correction excludes only the observed benign
+meta-leader snapshot warning, reports matching integrity lines, and places a
+latent junk snapshot before the stopped baseline so `Snapshot corrupt` must
+cause a refusal. Settling reads retry transient `Refused` observations within
+existing deadlines; the quiet-window checks still refuse. The four-test
+cluster module passed in 183.702 s, including the new negative and normal
+owned-server cleanup. A first broad run was misconfigured: the worktree's
+absent `node_modules` path broke managed-launchd setup, and three restore-only
+timing cases failed. It is not counted as validation. Repeating with
+`RECOVERY_NATS_MODULE=/Users/moltymac/openclaw-nodedev/node_modules/nats`,
+`RECOVERY_NODE=/usr/local/bin/node` and the installed NATS server passed 208
+tests in 368.095 s, three expected skips, normal owned-server cleanup and no
+production connections. Exact new CI and Claude review are pending. Nothing
+in the live node was stopped, copied, deployed or sealed.
+
+The silo lint remains nonconformant for two pre-existing manifest omissions:
+`automation.json` and `tick-logs/` are absent on `origin/main` as well as this
+branch. It also warns that the active `v1.2-pre` step has accumulated many
+source commits. Neither condition was introduced by D40; the missing
+automation/history surfaces need their own plan decision rather than being
+silently created inside this preservation fixture correction.

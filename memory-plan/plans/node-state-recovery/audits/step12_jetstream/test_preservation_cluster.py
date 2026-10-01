@@ -30,6 +30,8 @@ class Cluster(unittest.TestCase):
                                 text=True, timeout=60)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(stage, result.stderr)
+        if mode == 'latent-junk-raft-snapshot-1':
+            self.assertIn('Snapshot corrupt', result.stderr)
         if stage == 'restore-message-get':
             self.assertIn('"code":"404"', result.stderr)
 
@@ -50,13 +52,16 @@ class Cluster(unittest.TestCase):
     def test_missing_local_history_cannot_be_healed_into_a_valid_candidate(self):
         for mode in ('empty-1', 'empty-0-2', 'missing-1', 'missing-group-1',
                      'missing-consumer-1', 'empty-raft-1', 'no-raft-log-1',
-                     'no-raft-term-1', 'junk-raft-snapshot-1', 'junk-raft-log-1',
+                     'no-raft-term-1', 'latent-junk-raft-snapshot-1',
+                     'junk-raft-snapshot-1', 'junk-raft-log-1',
                      'junk-raft-peers-1', 'junk-raft-vote-1'):
             with self.subTest(mode=mode):
                 member = 0 if mode == 'empty-0-2' else 1
                 stage = (f'isolated member {member} raft groups differ' if mode == 'missing-group-1'
                          else f'isolated member {member} raft group content differs'
                          if mode in ('empty-raft-1', 'no-raft-log-1', 'no-raft-term-1')
+                         else 'logged repair or corruption'
+                         if mode == 'latent-junk-raft-snapshot-1'
                          else f'isolated member {member} raft bytes differ from stopped baseline'
                          if mode.startswith('junk-raft-')
                          else f'isolated member {member} stream state differs')
@@ -343,9 +348,18 @@ let nc,stage='connect';
             self.assertEqual(original_message, {'seq': 1, 'subject': 'history', 'data': 'preserved'})
             previous = None
             stable_since = None
+            before = None
+            last_refusal = None
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
-                before = [capture(ports[i*3+1]) for i in range(3)]
+                try:
+                    before = [capture(ports[i*3+1]) for i in range(3)]
+                except Refused as error:
+                    last_refusal = str(error)
+                    previous = None
+                    stable_since = None
+                    time.sleep(.05)
+                    continue
                 groups = [report['raft'] for report in before]
                 elected = all('$G' in report['raft']
                               and len(report['raft']['$G']) >= 2
@@ -361,7 +375,9 @@ let nc,stage='connect';
                 previous = groups
                 time.sleep(.05)
             else:
-                (root/'raft-readiness-refused.json').write_text(json.dumps(before, indent=2))
+                (root/'raft-readiness-refused.json').write_text(json.dumps({
+                    'last_observation': before, 'last_refusal': last_refusal
+                }, indent=2))
                 self.fail('owned replication groups did not settle after creation')
             for report in before:
                 self.assertIn('$SYS', report['raft'])
@@ -379,13 +395,18 @@ let nc,stage='connect';
                     raise
             client('stepdown')
             deadline = time.monotonic() + 5
+            after = None
             while time.monotonic() < deadline:
-                after = [capture(ports[i*3+1]) for i in range(3)]
+                try:
+                    after = [capture(ports[i*3+1]) for i in range(3)]
+                except Refused:
+                    time.sleep(.05)
+                    continue
                 if all(report['raft']['$G'] != before[i]['raft']['$G'] for i, report in enumerate(after)):
                     break
                 time.sleep(.05)
             else:
-                self.fail('owned stream election did not change observed account groups')
+                self.fail(f'owned stream election did not change observed account groups: {after}')
             self.assertEqual(after[0]['raft']['$SYS'], before[0]['raft']['$SYS'])
             changed = copy.deepcopy(before[0]); changed['raft'] = after[0]['raft']
             with self.assertRaisesRegex(Refused, 'Raft state changed'):
@@ -443,11 +464,11 @@ let nc,stage='connect';
                 shutil.rmtree(directory/'snapshots')
             else:
                 (directory/'tav.idx').unlink()
-        elif corruption in ('junk-raft-snapshot-1', 'junk-raft-log-1',
+        elif corruption in ('latent-junk-raft-snapshot-1', 'junk-raft-snapshot-1', 'junk-raft-log-1',
                             'junk-raft-peers-1', 'junk-raft-vote-1'):
             group = next(group for group in before[1]['raft']['$G'] if group.startswith('S-'))
             directory = root/'store-1'/'jetstream'/'$SYS'/'_js_'/group
-            if corruption == 'junk-raft-snapshot-1':
+            if corruption.endswith('snapshot-1'):
                 path = next((directory/'snapshots').glob('snap.*'))
             elif corruption == 'junk-raft-log-1':
                 path = next((directory/'msgs').glob('*.blk'))
@@ -552,10 +573,14 @@ cluster {{ name: owned-preservation
                     time.sleep(.05)
                 else:
                     self.fail('restored leader did not serve the original message')
-            self.assertFalse(any(re.search(r'catchup|stream state outdated|rebuild|corrupt',
-                                           (root/f'restored-{i}.log').read_text(), re.I)
-                                 for i in range(3)),
-                             'restored member repaired from peers before acceptance')
+            warnings = []
+            for i in range(3):
+                for line in (root/f'restored-{i}.log').read_text().splitlines():
+                    if 'Error snapshotting JetStream cluster state: raft: snapshot can not be installed while catchups running' in line:
+                        continue
+                    if re.search(r'catchup|stream state outdated|rebuild|corrupt', line, re.I):
+                        warnings.append(f'member {i}: {line}')
+            self.assertFalse(warnings, f'logged repair or corruption before acceptance: {warnings}')
             restore_proof = {
                 'status': candidate['status'], 'manifest_sha256': candidate['manifest_sha256'],
                 'copy_manifest_sha256': candidate['copy_manifest_sha256'],
