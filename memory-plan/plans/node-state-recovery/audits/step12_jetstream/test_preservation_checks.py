@@ -91,6 +91,32 @@ class Gates(unittest.TestCase):
                 'ProgramArguments': ['/bin/sh', '-c', 'exec "$HOME/repo/tick.sh"']}))
             with patch('preservation_checks.pathlib.Path.home', return_value=home):
                 self.assertIn('local.shell', installed_entrypoints(directory, [protected]))
+                for label, arguments in (
+                    ('com.apple.viewer-tick', 'exec "~/repo/tick.sh"'),
+                    ('local.indirect', 'exec "$SCRIPT"')):
+                    with self.subTest(label=label):
+                        detail = ('path = /tmp/' + label + '.plist\nprogram = /bin/sh\n'
+                                  'arguments = {\n  /bin/sh\n  -c\n  ' + arguments + '\n}\n'
+                                  'environment = {\n  ROOT => ' + str(home) + '\n'
+                                  '  SCRIPT => ${ROOT}/repo/tick.sh\n}\n')
+                        actual = loaded_entrypoints('services = {\n  1 - ' + label + '\n}\n',
+                            'gui/501', [protected], inspect=lambda _: detail)
+                        self.assertEqual(actual, {label})
+                self.assertEqual(loaded_entrypoints('services = {\n  1 - com.apple.idle\n}\n',
+                    'system', [protected], inspect=lambda _: 'path = /System/Library/idle.plist\n'
+                        'program = /usr/libexec/idle\n'), set())
+                dynamic = directory / 'local.dynamic.plist'
+                dynamic.write_bytes(plistlib.dumps({'Label': 'local.dynamic',
+                    'ProgramArguments': ['/bin/sh', '-c', 'exec "$SCRIPT"']}))
+                self.assertIn('local.dynamic', installed_entrypoints(directory, [protected]))
+                script = protected / 'tick.sh'
+                script.write_text('#!/bin/sh\n')
+                hardlink = directory / 'tick-alias'
+                os.link(script, hardlink)
+                linked = directory / 'local.linked.plist'
+                linked.write_bytes(plistlib.dumps({'Label': 'local.linked',
+                    'Program': str(hardlink), 'ProgramArguments': [str(hardlink)]}))
+                self.assertIn('local.linked', installed_entrypoints(directory, [protected]))
 
     def test_timer_signal_race(self):
         verify_timer_idle({'loaded': True}, False, [20, 0], [20, 0])

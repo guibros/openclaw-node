@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 
 from managed_launchd import Launchd, StopWatch, process_exists, unload_idle_timer
 from legacy_fixture import legacy_journal
@@ -34,6 +35,17 @@ def wait_for(check, seconds=10):
             return value
         time.sleep(.02)
     raise AssertionError('owned fixture deadline exceeded')
+
+
+class StopWatchPreflight(unittest.TestCase):
+    def test_deploy_listener_with_child_refuses_before_signal(self):
+        status = {'pid': 101}
+        watch = SimpleNamespace(prepared=True, drain=lambda: None,
+            unchanged_lifecycle=lambda: None, service=SimpleNamespace(
+                label='ai.openclaw.mesh-deploy-listener', status=lambda: status),
+            binding={'status': status, 'tree': {101: {}, 102: {}}}, events={})
+        with self.assertRaisesRegex(Refused, 'deploy listener has a child'):
+            StopWatch.ready_for_intent(watch)
 
 
 @unittest.skipUnless(sys.platform == 'darwin', 'requires actual macOS launchd and exit events')

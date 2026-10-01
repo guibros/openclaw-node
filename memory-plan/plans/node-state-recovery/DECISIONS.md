@@ -365,21 +365,35 @@ old creation separately. Full-node creation runs the source-owned GUI/user/syste
 launchd and plist preflight under the node lock before publishing a baseline,
 and the baseline durably saves installed plist paths/hashes, loaded labels by
 domain, protected roots and disabled-artifact hashes. The journal rechecks the
-installed/artifact pins before each forward mutation and recovery; final
-restoration and sealing require the original loaded-label map again. Unknown
-entrypoints refuse before a new window.
+installed/artifact pins before each forward mutation. Each verified stop
+persists the loaded-label map; subsequent forward work requires exactly that
+map, except for the unit being stopped. A recovery-time inventory failure is
+recorded as an uncertified error while independently verified prior units are
+still restored. Final restoration, sealing and resolution require the original
+loaded-label map again. Unknown entrypoints refuse before a new window.
 
-Loaded non-Apple services are inspected by `launchctl print` even when their
-labels are neutral and their plists live outside the standard directories.
-Installed plist relevance includes `Program`, `ProgramArguments`, working
-directory, resolved symlinks and literal/expanded HOME shell paths. The pinned
-roots include the repository, live OpenClaw home, legacy `~/openclaw`, global
-OpenClaw npm package and Codex worktrees. This is a conservative inventory
-test, not proof that arbitrary shell code cannot synthesize another path.
+Loaded services are inspected by `launchctl print` even when their labels are
+neutral or Apple-prefixed and their plists live outside the standard
+directories. Installed plist relevance includes `Program`,
+`ProgramArguments`, working directory, resolved symlinks, shell HOME and
+environment indirection, unclassified interpreters and multiply linked
+executables. The pinned roots include the repository, live OpenClaw home,
+legacy `~/openclaw`, global OpenClaw npm package locations, companion bridge
+and Codex worktrees. This is a conservative inventory test, not proof that
+arbitrary shell code cannot synthesize another path.
 
 The deploy listener must stop before the viewer and gateway and resume last.
+Its stop watch refuses if the listener already has a child process, before
+any signal is sent; a newly forked child also invalidates the process watch.
 Its missed-deploy catch-up can rewrite code and reinstall gateway state, so the
 driver must separately prove no pending deploy before resuming it. The source
 order does not itself prove that condition. The current live scan still refuses
 the same two root-managed system jobs; no production preservation window has
 started.
+
+If a plist or loaded job drifts during recovery, the journal does not certify
+or resolve. It restores each independently verified prior unit where safe and
+retains the exact unresolved chain and pins. The operator must restore the
+original pinned identity from a trusted copy, or investigate the changed job
+and its effects, then rerun restore-only recovery. The journal stores hashes,
+not plist contents, and cannot reconstruct a changed plist by itself.

@@ -6,6 +6,7 @@ import os
 import pathlib
 import plistlib
 import re
+import stat
 import subprocess
 import time
 import urllib.parse
@@ -36,19 +37,28 @@ RESUME_ORDER = (
 def production_entrypoint_roots(home=None):
     home = pathlib.Path(home or pathlib.Path.home())
     return (home / 'openclaw-nodedev', home / '.openclaw', home / 'openclaw',
-            home / '.npm-global/lib/node_modules/openclaw', home / '.codex/worktrees')
+            home / '.npm-global/lib/node_modules/openclaw', home / '.codex/worktrees',
+            home / 'Documents/openclaw infrastructure/companion-bridge',
+            pathlib.Path('/usr/local/lib/node_modules/openclaw'),
+            pathlib.Path('/opt/homebrew/lib/node_modules/openclaw'))
 
 
-def relevant_entrypoint(label, values, roots, home=None):
+def relevant_entrypoint(label, values, roots, home=None, environment=None):
     if label.startswith(('ai.openclaw.', 'com.openclaw.')):
         return True
     home = str(pathlib.Path(home or pathlib.Path.home()))
+    environment = {'HOME': home, **(environment or {})}
     for value in values:
         if not isinstance(value, str):
             continue
-        expanded = value.replace('${HOME}', home).replace('$HOME', home)
-        if expanded.startswith('~'):
-            expanded = home + expanded[1:]
+        expanded = value
+        for _ in range(5):
+            changed = re.sub(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)',
+                lambda match: environment.get(match[1] or match[2], match[0]), expanded)
+            if changed == expanded:
+                break
+            expanded = changed
+        expanded = re.sub(r'(?<![A-Za-z0-9_/])~(?=/)', home, expanded)
         for root in roots:
             if str(root) in expanded:
                 return True
@@ -57,6 +67,21 @@ def relevant_entrypoint(label, values, roots, home=None):
             if any(resolved == root or root in resolved.parents for root in roots):
                 return True
     return False
+
+
+def unclassified_executable(program, arguments, source):
+    executable = program or (arguments[0] if arguments else '')
+    name = pathlib.Path(executable).name
+    if str(source).startswith('/System/Library/'):
+        return False
+    if name in {'sh', 'bash', 'zsh', 'env', 'node', 'nodejs', 'python', 'python3',
+                'ruby', 'perl', 'php', 'osascript', 'npm', 'npx', 'bun', 'deno'}:
+        return True
+    try:
+        info = pathlib.Path(executable).stat()
+        return stat.S_ISREG(info.st_mode) and info.st_nlink > 1
+    except OSError:
+        return False
 
 
 def installed_entrypoints(directory, protected_roots):
@@ -80,11 +105,15 @@ def installed_entrypoints(directory, protected_roots):
         label = plist.get('Label')
         values = plist.get('ProgramArguments', [])
         location = plist.get('WorkingDirectory', '')
+        environment = plist.get('EnvironmentVariables', {})
         scan = [plist.get('Program'), location]
         if isinstance(values, list):
             scan.extend(values)
         relevant = (isinstance(label, str)
-                    and relevant_entrypoint(label, scan, roots))
+                    and (relevant_entrypoint(label, scan, roots,
+                                             environment=environment if isinstance(environment, dict) else {})
+                         or unclassified_executable(plist.get('Program'),
+                                                     values if isinstance(values, list) else [], path)))
         if not relevant:
             continue
         require(isinstance(label, str), 'installed OpenClaw LaunchAgent lacks a label: ' + path.name)
@@ -132,21 +161,32 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
         if len(fields) < 3:
             continue
         label = fields[-1]
-        if label.startswith('com.apple.'):
-            continue
         try:
             details = inspect(label)
         except (OSError, subprocess.SubprocessError) as error:
             raise Refused('loaded launchd service cannot be inspected: ' + label) from error
         values = []
+        fields = {}
         for key in ('path', 'program', 'working directory'):
             field = re.search(r'^\s*' + re.escape(key) + r' = (.+)$', details, re.M)
             if field:
+                fields[key] = field[1]
                 values.append(field[1])
         arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', details, re.M | re.S)
+        argv = []
         if arguments:
-            values.extend(line.strip() for line in arguments[1].splitlines())
-        if relevant_entrypoint(label, values, roots):
+            argv = [line.strip() for line in arguments[1].splitlines()]
+            values.extend(argv)
+        environment = {}
+        for section in re.finditer(r'^\s*(?:default )?environment = \{\n(.*?)^\s*\}',
+                                   details, re.M | re.S):
+            for line in section[1].splitlines():
+                entry = re.match(r'^\s*([A-Za-z_][A-Za-z0-9_]*) => (.*)$', line)
+                if entry:
+                    environment[entry[1]] = entry[2]
+        if (relevant_entrypoint(label, [*values, *environment.values()], roots,
+                                environment=environment)
+                or unclassified_executable(fields.get('program'), argv, fields.get('path', ''))):
             labels.add(label)
     return labels
 

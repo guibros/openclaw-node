@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from preservation_journal import FULL_NODE_SCOPE, Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
@@ -96,7 +97,7 @@ class JournalTests(unittest.TestCase):
                         scope=FULL_NODE_SCOPE)
         self.assertFalse(self.root.exists())
 
-    def test_full_scope_rechecks_entrypoints_before_forward_or_restore(self):
+    def test_full_scope_rechecks_entrypoints_but_restores_known_units_after_drift(self):
         prior = full_node_inventory()
         with patch('preservation_journal.capture_entrypoint_inventory',
                    return_value=full_entrypoint_evidence(prior)):
@@ -108,11 +109,64 @@ class JournalTests(unittest.TestCase):
                         journal.mutate('gateway', 'stop',
                                        lambda: self.fail('mutation reached'),
                                        lambda: self.fail('verification reached'))
-                    with self.assertRaisesRegex(Refused, 'unclassified loaded job'):
-                        journal.recover(lambda *_: self.fail('restore reached'),
-                                        lambda *_: self.fail('observe reached'),
-                                        lambda: self.fail('final check reached'))
-                self.assertEqual([row['event'] for row in journal.records], ['baseline'])
+                    current = copy.deepcopy(prior)
+                    current['gateway']['loaded'] = False
+                    current['gateway']['running'] = False
+                    restored = []
+                    def restore(unit, saved):
+                        restored.append(unit)
+                        current[unit] = copy.deepcopy(saved)
+                    hold = SimpleNamespace(journal=journal,
+                        prepare=lambda *_: None, before_restore=lambda: None,
+                        check_closed=lambda: None)
+                    result = journal.recover(restore,
+                        lambda unit, _: {**current[unit], 'verified': True},
+                        lambda: {'verified': True}, hold=hold)
+                self.assertIn('gateway', restored)
+                self.assertFalse(result['restored'])
+                self.assertIn('entrypoints', [row['unit'] for row in result['errors']])
+                self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
+
+    def test_full_scope_refuses_loaded_inactive_or_restarted_job(self):
+        prior = full_node_inventory()
+        baseline = full_entrypoint_evidence(prior)
+        current = copy.deepcopy(baseline)
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   side_effect=lambda _: copy.deepcopy(current)):
+            with Journal(self.root, prior, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                current['loaded']['gui'].append('ai.openclaw.federation-tick')
+                with self.assertRaisesRegex(Refused, 'outside its original'):
+                    journal.check_entrypoints()
+                current = copy.deepcopy(baseline)
+                hold = SimpleNamespace(journal=journal, check_forward=lambda: None)
+                def stop_viewer():
+                    current['loaded']['gui'].remove('ai.openclaw.workplan-viewer')
+                journal.mutate('workplan-viewer', 'stop', stop_viewer,
+                               lambda: {'verified': True}, hold=hold)
+                self.assertEqual(journal.records[-1]['evidence']['entrypoint_loaded'],
+                                 current['loaded'])
+                current = copy.deepcopy(baseline)
+                with self.assertRaisesRegex(Refused, 'changed inside'):
+                    journal.check_entrypoints(forward=True)
+
+    def test_full_scope_resolve_rechecks_loaded_jobs(self):
+        prior = full_node_inventory()
+        current = full_entrypoint_evidence(prior)
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   side_effect=lambda _: copy.deepcopy(current)):
+            with Journal(self.root, prior, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                hold = SimpleNamespace(journal=journal, prepare=lambda *_: None,
+                    complete=lambda *_: {'verified': True})
+                result = journal.recover(lambda *_: self.fail('already restored'),
+                    lambda unit, _: {**prior[unit], 'verified': True},
+                    lambda: {'verified': True}, hold=hold)
+                self.assertTrue(result['restored'])
+                current['loaded']['gui'].remove('ai.openclaw.gateway')
+                with self.assertRaisesRegex(Refused, 'were not restored'):
+                    journal.resolve()
+                self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
 
     def tearDown(self):
         self.temp.cleanup()

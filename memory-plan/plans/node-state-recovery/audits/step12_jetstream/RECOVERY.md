@@ -186,9 +186,10 @@ process snapshot excludes their later writes or children. Stop the deploy
 listener, then the viewer and gateway before other clients; prove their process
 groups and any detached work have drained. Restore the gateway and viewer after
 their dependencies, and the deploy listener last only after proving no pending
-deploy catch-up. Federation-tick must stay
-unloaded and disabled; a newly loaded or re-enabled job
-refuses recovery for operator handoff rather than being booted out silently.
+deploy catch-up. Refuse to signal the listener while it has a deploy child;
+the process watch must also reject a child forked after preparation.
+Federation-tick must stay unloaded and disabled; a newly loaded or re-enabled
+job prevents resolution for operator handoff rather than being booted out silently.
 Each uninstalled
 unit has explicit class absent, false loaded/running/disabled and identity
 {installed:false}; it is observed, never installed or mutated. An installed
@@ -197,8 +198,14 @@ the on-demand mesh-agent is loaded/idle; timers are loaded/idle; only the
 disabled Discord integration is known-broken, with its running bit
 unconstrained. Classes come from approved desired state, never from observing
 a stopped daemon. The full-node journal scans installed plists and loaded
-non-Apple services in the GUI/user/system domains before creation, persists
-their inventory, and rechecks it during forward work, restoration and sealing.
+services in the GUI/user/system domains before creation, persists their
+inventory, and requires the exact loaded map through forward work after each
+verified stop. Recovery records inventory drift as an uncertified error but
+still restores each independently verified prior unit; final recovery and
+resolution recheck the original installed and loaded inventory. An operator
+must restore a changed plist from a trusted copy or investigate the drift
+before rerunning restore-only recovery. The journal holds hashes, not
+reconstructible plist contents.
 Actual process descendants, detached work and dependency provenance still
 require driver inspection; fixed launchd names alone do not prove them.
 An on-demand worker observed running during recovery is a refusal requiring

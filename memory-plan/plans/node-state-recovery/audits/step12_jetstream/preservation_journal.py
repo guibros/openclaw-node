@@ -388,7 +388,7 @@ class Journal:
         self.scope = self.records[0].get('scope')
         self.entrypoint_inventory = self.records[0].get('entrypoint_inventory')
 
-    def check_entrypoints(self, final=False):
+    def check_entrypoints(self, final=False, forward=False, expected_loaded=None):
         if self.scope != FULL_NODE_SCOPE:
             return None
         current = capture_entrypoint_inventory(UNITS)
@@ -396,6 +396,16 @@ class Journal:
         require(all(current[key] == saved[key] for key in
                     ('installed', 'roots', 'disabled_artifacts')),
                 'full-node installed entrypoint identity changed')
+        require(all(set(current['loaded'][domain]) <= set(saved['loaded'][domain])
+                    for domain in ('gui', 'user', 'system')),
+                'full-node job loaded outside its original domain or state')
+        if forward:
+            previous = next((row['evidence']['entrypoint_loaded'] for row in reversed(self.records)
+                             if row['event'] == 'verified'
+                             and 'entrypoint_loaded' in row.get('evidence', {})), saved['loaded'])
+            expected = expected_loaded if expected_loaded is not None else previous
+            require(current['loaded'] == expected,
+                    'full-node loaded jobs changed inside the forward window')
         if final:
             require(current['loaded'] == saved['loaded'],
                     'full-node loaded entrypoints were not restored')
@@ -536,7 +546,7 @@ class Journal:
         require(self.prior[unit]['class'] != 'held', 'held unit cannot be mutated')
         require(self.prior[unit]['class'] != 'absent', 'absent unit cannot be mutated')
         self.require_forward()
-        self.check_entrypoints()
+        self.check_entrypoints(forward=True)
         held = 'execution_hold' in self.prior['scheduler-heartbeat']
         require((hold is not None) == held and (not held or hold.journal is self),
                 'baselined execution hold requires its forward facade')
@@ -550,10 +560,22 @@ class Journal:
             apply()
             if held:
                 hold.check_forward()
-            self.check_entrypoints()
+            expected = next((row['evidence']['entrypoint_loaded'] for row in reversed(self.records)
+                             if row['event'] == 'verified'
+                             and 'entrypoint_loaded' in row.get('evidence', {})),
+                            self.entrypoint_inventory['loaded'] if self.scope == FULL_NODE_SCOPE else None)
+            if self.scope == FULL_NODE_SCOPE and action == 'stop':
+                expected = {domain: sorted(set(labels) - {'ai.openclaw.' + unit})
+                            for domain, labels in expected.items()}
+            before_verify = self.check_entrypoints(forward=True, expected_loaded=expected)
             evidence = verify()
             require(isinstance(evidence, dict) and evidence.get('verified') is True,
                     'mutation lacks verified evidence')
+            if self.scope == FULL_NODE_SCOPE:
+                after_verify = self.check_entrypoints(forward=True, expected_loaded=expected)
+                require(after_verify['loaded'] == before_verify['loaded'],
+                        'full-node job changed during mutation verification')
+                evidence = {**evidence, 'entrypoint_loaded': after_verify['loaded']}
             self.append('verified', intent=intent['sequence'], unit=unit, action=action, evidence=evidence)
             return evidence
         except Exception as error:
@@ -568,7 +590,6 @@ class Journal:
                 'recovery requires the node lock')
         require(not self.sealed, 'sealed journal cannot restore services')
         require(callable(final_check), 'recovery requires final physical ownership checks')
-        self.check_entrypoints()
         held = 'execution_hold' in self.prior['scheduler-heartbeat']
         require((hold is not None) == held and (not held or hold.journal is self),
                 'baselined execution hold requires its journal recovery facade')
@@ -600,6 +621,11 @@ class Journal:
                 raise
             errors.append({'unit': 'journal', 'reason': type(error).__name__})
         record('recovery-started', original_boot=self.records[0]['boot'])
+        try:
+            self.check_entrypoints()
+        except Exception as error:
+            errors.append({'unit': 'entrypoints', 'reason': type(error).__name__,
+                           'detail': str(error)})
         buses_ready = True
         for unit in (u for u in RESUME_ORDER if u in self.prior):
             if not unit.startswith('nats') and not buses_ready:
@@ -702,6 +728,7 @@ class Journal:
         state = read_private(self.node_state)
         require(state['status'] == 'restored' and state.get('head') == self.records[-1]['sha256'],
                 'node restoration receipt is not durable')
+        self.check_entrypoints(final=True)
         record = self.append(event)
         self.sealed = True
         self._state({**self.active, 'status': 'restored', 'head': record['sha256']})

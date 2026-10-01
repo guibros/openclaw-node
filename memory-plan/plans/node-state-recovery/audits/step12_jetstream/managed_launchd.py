@@ -373,6 +373,9 @@ class StopWatch:
         self.drain()
         self.unchanged_lifecycle()
         require(self.service.status() == self.binding['status'], 'service generation changed before signal')
+        if self.service.label == 'ai.openclaw.mesh-deploy-listener':
+            require(set(self.binding['tree']) == {self.binding['status']['pid']},
+                    'deploy listener has a child; wait for deployment to finish')
         for pid in self.events:
             self.normal_exit(pid)
         require(set(process_tree(self.binding['status']['pid']))
