@@ -25,8 +25,6 @@
       <string>${HOME}</string>
       <key>PATH</key>
       <string>${OPENCLAW_WORKSPACE}/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-      <key>NODE_PATH</key>
-      <string>${OPENCLAW_REPO_DIR}/node_modules:${OPENCLAW_REPO_DIR}/lib</string>
       <!-- Local-first: the mesh bus is loopback-only. -->
       <key>OPENCLAW_NATS</key>
       <string>${OPENCLAW_NATS}</string>

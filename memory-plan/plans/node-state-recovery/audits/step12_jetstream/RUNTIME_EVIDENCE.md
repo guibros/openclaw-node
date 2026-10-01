@@ -832,3 +832,14 @@ changed the byte. The flag was cleared and the temp file removed in the same
 control. This confirms that freeze cannot be certification unless all
 pre-existing writable handles and mappings, including root processes, are
 ruled out before the flag is applied. No live store flag was changed.
+
+Claude's read-only review at PR #170 head `25d2d24` reproduced three
+source-level bypasses in scratch: extra or inherited loaded environment
+variables, stripped trailing argument space, and Apple provenance reached
+through a writable symlink. The later local source checks the original and
+resolved path ancestry, preserves printed argument bytes, parses inherited,
+default and job environment blocks, and refuses undeclared or loader
+variables even when a plist declares them. The real gateway's loaded
+arguments matched its installed plist, and all 15 effective environment
+keys passed the shared policy without exposing their values. Four installed
+mesh plists still carry `NODE_PATH`; no live plist or process was changed.

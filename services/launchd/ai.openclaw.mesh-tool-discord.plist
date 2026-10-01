@@ -28,8 +28,6 @@
       <string>${HOME}</string>
       <key>PATH</key>
       <string>${OPENCLAW_WORKSPACE}/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-      <key>NODE_PATH</key>
-      <string>${HOME}/openclaw/node_modules:${HOME}/openclaw/lib</string>
       <key>OPENCLAW_NATS</key>
       <string>${OPENCLAW_NATS}</string>
     </dict>

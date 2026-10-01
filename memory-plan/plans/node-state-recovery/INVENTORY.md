@@ -157,3 +157,10 @@ showed a pre-opened descriptor can write through `UF_IMMUTABLE`. The full-node
 seal stays refused until a privileged open-handle check, durable immutable
 freeze/undo and crash recovery are proved; the root jobs and explicit outside
 job exclusions also remain open.
+
+Claude's PR #170 exact-head review identified loaded-only environment,
+inherited environment, argument-whitespace and Apple-symlink bypasses; the
+source and owned regression checks now refuse them. Four source plist
+templates no longer set `NODE_PATH`, but their installed live copies still
+do. The source remains a draft until its new exact-head checks and adversarial
+follow-up pass. Step 1.2 stays [A] at v1.2-pre.

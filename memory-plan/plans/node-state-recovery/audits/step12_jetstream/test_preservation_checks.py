@@ -174,6 +174,7 @@ class Gates(unittest.TestCase):
                 'com.apple.claimed': 'path = /Library/LaunchDaemons/com.apple.claimed.plist\nprogram = /usr/libexec/claimed\n',
                 'com.apple.real': 'path = /System/Volumes/Preboot/Cryptexes/App/System/Library/LaunchAgents/com.apple.real.plist\nprogram = /System/Cryptexes/App/usr/libexec/real\n',
                 'application.registered': 'path = (submitted by runningboardd.101)\nprogram = /Applications/Registered.app/Contents/MacOS/Registered\n',
+                'com.apple.missing-path': 'program = /usr/libexec/real\n',
             }
             text = 'services = {\n' + ''.join(f'  1 - {label}\n' for label in details) + '}\n'
             loaded = loaded_entrypoints(text, 'gui/501', [], inspect=details.__getitem__)
@@ -207,6 +208,33 @@ class Gates(unittest.TestCase):
                    return_value='gui/501/wrong.job = {\n' + detail):
             self.refused(lambda: loaded_entrypoints('services = {\n  1 - local.job\n}\n',
                 'gui/501', []))
+
+    def test_loaded_configuration_refuses_extra_environment_and_argument_whitespace(self):
+        with tempfile.TemporaryDirectory(prefix='openclaw-loaded-config-owned-') as root:
+            path = pathlib.Path(root) / 'ai.openclaw.gateway.plist'
+            arguments = ['/owned/node', '/owned/gateway.js']
+            def check(declared, detail, refused=True):
+                path.write_bytes(plistlib.dumps({'Label': 'ai.openclaw.gateway',
+                    'ProgramArguments': arguments, 'EnvironmentVariables': declared}))
+                installed = installed_entrypoints(root, [])
+                identities = loaded_entrypoints('services = {\n  1 - ai.openclaw.gateway\n}\n',
+                    'gui/501', [], inspect=lambda _: 'path = ' + str(path.resolve()) + '\n'
+                    'program = /owned/node\n' + detail, include_identity=True)
+                verify = lambda: verify_entrypoint_inventory(installed,
+                    set(identities), set(), set(), {'gateway'},
+                    loaded_identity={'gui': identities, 'user': {}, 'system': {}})
+                if refused:
+                    self.refused(verify)
+                else:
+                    self.assertTrue(verify()['verified'])
+            ordinary = 'arguments = {\n  /owned/node\n  /owned/gateway.js\n}\n'
+            check({}, ordinary, refused=False)
+            check({}, ordinary + 'environment = {\n  NODE_OPTIONS => --require=/tmp/evil.js\n}\n')
+            check({'NODE_OPTIONS': '--require=/tmp/evil.js'}, ordinary +
+                  'environment = {\n  NODE_OPTIONS => --require=/tmp/evil.js\n}\n')
+            check({}, ordinary + 'inherited environment = {\n'
+                  '  NODE_OPTIONS => --require=/tmp/evil.js\n}\n')
+            check({}, 'arguments = {\n  /owned/node\n  /owned/gateway.js \n}\n')
 
     def test_timer_signal_race(self):
         verify_timer_idle({'loaded': True}, False, [20, 0], [20, 0])

@@ -432,3 +432,22 @@ open-handle/mapping check, durable freeze/unfreeze intent and crash recovery,
 and an unchanged post-copy manifest. Until those controls are implemented and
 tested, the structural full-node `seal()` refusal remains mandatory. The
 root-managed legacy agent and remote management job are still unresolved.
+
+## D25 — Bind the complete loaded launchd environment (2026-10-01 03:42 EDT)
+
+Claude's exact-head review of PR #170 found that the initial loaded-job check
+accepted extra `NODE_OPTIONS`, declared loaders, variables in launchd's
+`inherited environment`, and argument trailing whitespace. Read all three
+launchd environment sections, preserve argument bytes after printed
+indentation, and apply the same declared-or-ambient and no-code-loader rule
+to loaded jobs and running processes. A system-looking symlink must have
+protected ownership and permissions along its original path as well as its
+resolved target. Unknown or malformed jobs refuse; none are silently
+excluded. The approved gateway's real launchd output passes this parser.
+
+Four current mesh plist templates and their installed live copies still
+declare `NODE_PATH`. The templates drop it; the four entry scripts' `nats`
+imports resolve through their own `node_modules` ancestors without that override.
+the installed live plists are unchanged and must be replaced and checked
+before full-node preflight can pass. This source change does not authorize a
+live preservation window or relax the structural seal refusal.

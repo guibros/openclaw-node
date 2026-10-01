@@ -40,6 +40,85 @@ APPLE_SYSTEM_SOURCES = (
 APPLE_SYSTEM_PROGRAMS = APPLE_SYSTEM_SOURCES + (
     '/System/Cryptexes/App/', '/usr/libexec/', '/usr/sbin/', '/bin/', '/sbin/',
 )
+AMBIENT_ENVIRONMENT = frozenset({
+    'HOME', 'PATH', 'TMPDIR', 'LOGNAME', 'SHELL', 'SSH_AUTH_SOCK',
+    'USER', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'OSLogRateLimit',
+})
+LOADER_ENVIRONMENT = frozenset({
+    'NODE_OPTIONS', 'NODE_PATH', 'PYTHONPATH', 'PYTHONHOME',
+    'BASH_ENV', 'ENV', 'ZDOTDIR',
+})
+
+
+def verify_environment_hashes(actual, declared):
+    expected = {key: hashlib.sha256(value.encode()).hexdigest()
+                for key, value in declared.items()}
+    require(not (set(actual) & LOADER_ENVIRONMENT)
+            and not any(key.startswith('DYLD_') for key in actual),
+            'loaded environment contains a code loader')
+    require(set(actual) <= set(expected) | AMBIENT_ENVIRONMENT,
+            'loaded environment contains an undeclared variable')
+    require(all(actual.get(key) == digest for key, digest in expected.items()),
+            'loaded environment differs from approved declaration')
+
+
+def launchctl_blocks(text):
+    lines = text.split('\n')
+    blocks = []
+    position = 0
+    while position < len(lines):
+        header = re.fullmatch(r'([ \t]*)([^{}\n]+) = \{', lines[position])
+        if header is None:
+            position += 1
+            continue
+        indentation, name = header.groups()
+        if name != 'arguments' and not name.endswith('environment'):
+            position += 1
+            continue
+        body = []
+        position += 1
+        while position < len(lines) and lines[position] != indentation + '}':
+            body.append(lines[position])
+            position += 1
+        require(position < len(lines), 'launchd section is unterminated: ' + name)
+        blocks.append((name, indentation, body))
+        position += 1
+    return blocks
+
+
+def launchctl_rows(indentation, body, name):
+    if not body:
+        return []
+    prefix = indentation + ('\t' if body[0].startswith(indentation + '\t') else '  ')
+    require(all(row.startswith(prefix) for row in body),
+            'launchd ' + name + ' contains an unparsed line')
+    return [row[len(prefix):] for row in body]
+
+
+def launchctl_arguments(text):
+    sections = [(indentation, body) for name, indentation, body in launchctl_blocks(text)
+                if name == 'arguments']
+    require(len(sections) <= 1, 'launchd arguments occur more than once')
+    return launchctl_rows(*sections[0], 'arguments') if sections else []
+
+
+def launchctl_environment(text):
+    sections = [(name, indentation, body) for name, indentation, body in launchctl_blocks(text)
+                if name.endswith('environment')]
+    environment = {}
+    require(len(sections) == len({name for name, _, _ in sections})
+            and all(name in {'inherited environment', 'default environment', 'environment'}
+                    for name, _, _ in sections),
+            'launchd environment contains a duplicate or unknown section')
+    for name, indentation, body in sections:
+        within = set()
+        for line in launchctl_rows(indentation, body, name):
+            entry = re.fullmatch(r'([A-Za-z_][A-Za-z0-9_]*) => (.*)', line)
+            require(entry is not None and entry[1] not in within,
+                    'launchd environment contains an unparsed or duplicate variable')
+            within.add(entry[1])
+            environment[entry[1]] = entry[2]
+    return environment
 
 
 def protected_system_path(path, roots):
@@ -253,18 +332,9 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None, inclu
             if field:
                 fields[key] = field[1]
                 values.append(field[1])
-        arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', service_text, re.M | re.S)
-        argv = []
-        if arguments:
-            argv = [line.strip() for line in arguments[1].splitlines()]
-            values.extend(argv)
-        environment = {}
-        for section in re.finditer(r'^\s*(?:default )?environment = \{\n(.*?)^\s*\}',
-                                   service_text, re.M | re.S):
-            for line in section[1].splitlines():
-                entry = re.match(r'^\s*([A-Za-z_][A-Za-z0-9_]*) => (.*)$', line)
-                if entry:
-                    environment[entry[1]] = entry[2]
+        argv = launchctl_arguments(service_text)
+        values.extend(argv)
+        environment = launchctl_environment(service_text)
         source = fields.get('path', '')
         relevant = (relevant_entrypoint(label, [*values, *environment.values()], roots,
                                         environment=environment,
@@ -305,13 +375,11 @@ def verify_entrypoint_inventory(installed, gui_loaded, user_loaded, system_loade
                     plist = plistlib.loads(pathlib.Path(installed[label]).read_bytes())
                     arguments = plist['ProgramArguments']
                     declared = plist.get('EnvironmentVariables', {})
+                    verify_environment_hashes(identity['environment_sha256'], declared)
                     require(identity['program'] == plist.get('Program', arguments[0])
                             and identity['working_directory'] == plist.get('WorkingDirectory', '')
                             and identity['arguments_sha256'] == hashlib.sha256(
-                                json.dumps(arguments, separators=(',', ':')).encode()).hexdigest()
-                            and all(identity['environment_sha256'].get(key)
-                                    == hashlib.sha256(value.encode()).hexdigest()
-                                    for key, value in declared.items()),
+                                json.dumps(arguments, separators=(',', ':')).encode()).hexdigest(),
                             'approved loaded job configuration differs from its plist: ' + domain + '/' + label)
     return {'verified': True,
             'installed': {label: {'path': path,

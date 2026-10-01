@@ -9,7 +9,8 @@ import struct
 import subprocess
 import time
 
-from preservation_checks import Refused, require, verify_completion, verify_timer_idle
+from preservation_checks import (Refused, launchctl_arguments, require,
+                                 verify_completion, verify_environment_hashes, verify_timer_idle)
 
 
 EXIT_FLAGS = 0x84000000
@@ -83,18 +84,7 @@ def running_identity(pid, executable, files, declared_environment):
     started = process_info(pid)
     require(started['state'] != 5, 'service owner is a zombie')
     argv, environment = process_arguments(pid)
-    expected = {key: hashlib.sha256(value.encode()).hexdigest()
-                for key, value in declared_environment.items()}
-    require(all(environment.get(key) == digest for key, digest in expected.items()),
-            'running environment differs from approved declaration')
-    ambient = {'HOME', 'PATH', 'TMPDIR', 'LOGNAME', 'SHELL', 'SSH_AUTH_SOCK',
-               'USER', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'OSLogRateLimit'}
-    require(set(environment) <= set(expected) | ambient,
-            'running environment contains an undeclared variable')
-    require(not (set(environment) & {'NODE_OPTIONS', 'NODE_PATH', 'PYTHONPATH',
-                                    'PYTHONHOME', 'BASH_ENV', 'ENV', 'ZDOTDIR'})
-            and not any(key.startswith('DYLD_') for key in environment),
-            'running environment contains a code loader')
+    verify_environment_hashes(environment, declared_environment)
     pins = {}
     for path, expected_hash in files.items():
         info = pathlib.Path(path).stat()
@@ -238,11 +228,11 @@ class Launchd:
             match = re.search(r'^\s*' + re.escape(name) + r' = (.+)$', text, re.M)
             require(match is not None, 'loaded job lacks ' + name)
             return match[1]
-        arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', text, re.M | re.S)
-        require(arguments is not None, 'loaded job lacks arguments')
+        arguments = launchctl_arguments(text)
+        require(arguments, 'loaded job lacks arguments')
         return {'path': str(pathlib.Path(field('path')).resolve(strict=True)),
                 'program': str(pathlib.Path(field('program')).resolve(strict=True)),
-                'arguments': [line.strip() for line in arguments[1].splitlines()],
+                'arguments': arguments,
                 'logs': sorted({str(pathlib.Path(field(name)).resolve(strict=True))
                                 for name in ('stdout path', 'stderr path')})}
 

@@ -53,7 +53,7 @@ class StopWatchPreflight(unittest.TestCase):
                 'pid': 101, 'state': 2, 'start_ns': 1}), \
              patch('managed_launchd.process_arguments', return_value=(
                 ['/bin/node'], {'NODE_OPTIONS': hashlib.sha256(b'--require /tmp/evil.js').hexdigest()})):
-            with self.assertRaisesRegex(Refused, 'undeclared variable'):
+            with self.assertRaisesRegex(Refused, 'code loader'):
                 running_identity(101, '/bin/node', {}, {})
 
     def test_deploy_listener_with_child_refuses_before_signal(self):
@@ -438,7 +438,7 @@ os.execv('/bin/sleep',['sleep','30'])
         plist = plistlib.loads(self.plist.read_bytes())
         plist['EnvironmentVariables']['OWNED_TOKEN'] = secrets.token_hex(32)
         self.plist.write_bytes(plistlib.dumps(plist))
-        with self.assertRaisesRegex(Refused, 'running environment differs') as error:
+        with self.assertRaisesRegex(Refused, 'loaded environment differs') as error:
             self.service.bind([self.node, str(self.script)], self.node, self.directory)
         self.assertNotIn(self.token, str(error.exception))
         self.assertNotIn(plist['EnvironmentVariables']['OWNED_TOKEN'], str(error.exception))
