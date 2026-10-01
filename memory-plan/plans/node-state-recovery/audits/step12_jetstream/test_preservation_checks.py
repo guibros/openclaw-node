@@ -186,6 +186,10 @@ class Gates(unittest.TestCase):
             '/System/Library/LaunchDaemons/com.apple.configd.plist', '/usr/libexec/configd'))
         self.assertFalse(apple_system_source(
             '/System/Library/LaunchDaemons/../../../../tmp/configd.plist', '/usr/libexec/configd'))
+        with tempfile.TemporaryDirectory(prefix='openclaw-system-alias-owned-') as root:
+            alias = pathlib.Path(root) / 'com.apple.configd.plist'
+            alias.symlink_to('/System/Library/LaunchDaemons/com.apple.configd.plist')
+            self.assertFalse(apple_system_source(str(alias), '/usr/libexec/configd'))
 
     def test_unlabeled_nonempty_plist_refuses(self):
         with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:

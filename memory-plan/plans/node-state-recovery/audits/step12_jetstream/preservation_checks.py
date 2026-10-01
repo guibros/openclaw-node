@@ -44,7 +44,14 @@ APPLE_SYSTEM_PROGRAMS = APPLE_SYSTEM_SOURCES + (
 
 def protected_system_path(path, roots):
     try:
-        resolved = pathlib.Path(path).resolve(strict=True)
+        original = pathlib.Path(path)
+        if not original.is_absolute():
+            return False
+        for component in (original, *original.parents):
+            info = component.lstat()
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                return False
+        resolved = original.resolve(strict=True)
         if not any(str(resolved).startswith(root) for root in roots):
             return False
         for component in (resolved, *resolved.parents):
