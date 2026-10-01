@@ -30,14 +30,7 @@ def process_exists(pid):
         return False
 
 
-def process_arguments(pid):
-    library = ctypes.CDLL('/usr/lib/libSystem.B.dylib', use_errno=True)
-    mib = (ctypes.c_int * 3)(1, 49, pid)
-    size = ctypes.c_size_t()
-    require(library.sysctl(mib, 3, None, ctypes.byref(size), None, 0) == 0, 'process argv unavailable')
-    buffer = ctypes.create_string_buffer(size.value)
-    require(library.sysctl(mib, 3, buffer, ctypes.byref(size), None, 0) == 0, 'process argv changed or unavailable')
-    data = buffer.raw[:size.value]
+def decode_process_arguments(data):
     argc = struct.unpack_from('i', data)[0]
     offset = data.index(b'\0', 4) + 1
     while offset < len(data) and data[offset] == 0:
@@ -49,10 +42,22 @@ def process_arguments(pid):
         offset = end + 1
     environment = {}
     for item in data[offset:].split(b'\0'):
+        if not item:
+            break
         if b'=' in item:
             name, value = item.split(b'=', 1)
             environment[name.decode()] = hashlib.sha256(value).hexdigest()
     return argv, environment
+
+
+def process_arguments(pid):
+    library = ctypes.CDLL('/usr/lib/libSystem.B.dylib', use_errno=True)
+    mib = (ctypes.c_int * 3)(1, 49, pid)
+    size = ctypes.c_size_t()
+    require(library.sysctl(mib, 3, None, ctypes.byref(size), None, 0) == 0, 'process argv unavailable')
+    buffer = ctypes.create_string_buffer(size.value)
+    require(library.sysctl(mib, 3, buffer, ctypes.byref(size), None, 0) == 0, 'process argv changed or unavailable')
+    return decode_process_arguments(buffer.raw[:size.value])
 
 
 def process_argv(pid):
@@ -82,6 +87,14 @@ def running_identity(pid, executable, files, declared_environment):
                 for key, value in declared_environment.items()}
     require(all(environment.get(key) == digest for key, digest in expected.items()),
             'running environment differs from approved declaration')
+    ambient = {'HOME', 'PATH', 'TMPDIR', 'LOGNAME', 'SHELL', 'SSH_AUTH_SOCK',
+               'USER', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'OSLogRateLimit'}
+    require(set(environment) <= set(expected) | ambient,
+            'running environment contains an undeclared variable')
+    require(not (set(environment) & {'NODE_OPTIONS', 'NODE_PATH', 'PYTHONPATH',
+                                    'PYTHONHOME', 'BASH_ENV', 'ENV', 'ZDOTDIR'})
+            and not any(key.startswith('DYLD_') for key in environment),
+            'running environment contains a code loader')
     pins = {}
     for path, expected_hash in files.items():
         info = pathlib.Path(path).stat()
@@ -110,7 +123,7 @@ def running_identity(pid, executable, files, declared_environment):
     require(current['pid'] == started['pid'] and current['start_ns'] == started['start_ns']
             and current['state'] != 5, 'process generation changed during identity inspection')
     return {'process': {key: started[key] for key in ('pid', 'start_ns')},
-            'files': pins, 'environment_sha256': expected, 'argv': argv}
+            'files': pins, 'environment_sha256': environment, 'argv': argv}
 
 
 def process_executable(pid):

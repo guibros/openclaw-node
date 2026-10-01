@@ -9,6 +9,7 @@ import select
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -104,7 +105,7 @@ class Gates(unittest.TestCase):
                         self.assertEqual(actual, {label})
                 self.assertEqual(loaded_entrypoints('services = {\n  1 - com.apple.idle\n}\n',
                     'system', [protected], inspect=lambda _: 'path = /System/Library/idle.plist\n'
-                        'program = /usr/libexec/idle\n'), set())
+                        'program = /usr/libexec/idle\n'), {'com.apple.idle'})
                 dynamic = directory / 'local.dynamic.plist'
                 dynamic.write_bytes(plistlib.dumps({'Label': 'local.dynamic',
                     'ProgramArguments': ['/bin/sh', '-c', 'exec "$SCRIPT"']}))
@@ -159,13 +160,32 @@ class Gates(unittest.TestCase):
             }
             text = 'services = {\n' + ''.join(f'  1 - {label}\n' for label in details) + '}\n'
             loaded = loaded_entrypoints(text, 'gui/501', [], inspect=details.__getitem__)
-            self.assertEqual(loaded, {'quiet.helper', 'application.fake', 'com.apple.claimed'})
+            self.assertEqual(loaded, set(details))
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'requires Apple system volume')
+    def test_actual_system_volume_provenance(self):
+        from preservation_checks import apple_system_source
+        self.assertTrue(apple_system_source(
+            '/System/Library/LaunchDaemons/com.apple.configd.plist', '/usr/libexec/configd'))
+        self.assertFalse(apple_system_source(
+            '/System/Library/LaunchDaemons/../../../../tmp/configd.plist', '/usr/libexec/configd'))
 
     def test_unlabeled_nonempty_plist_refuses(self):
         with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:
             pathlib.Path(root, 'unknown.plist').write_bytes(plistlib.dumps({
                 'ProgramArguments': ['/tmp/unknown']}))
             self.refused(lambda: installed_entrypoints(root, []))
+
+    def test_loaded_inventory_refuses_unparsed_duplicate_or_mismatched_detail(self):
+        detail = 'path = /tmp/local.plist\nprogram = /bin/echo\n'
+        self.refused(lambda: loaded_entrypoints('services = {\n  1 - local job\n}\n',
+            'gui/501', [], inspect=lambda _: detail))
+        self.refused(lambda: loaded_entrypoints('services = {\n  1 - local.job\n  2 - local.job\n}\n',
+            'gui/501', [], inspect=lambda _: detail))
+        with patch('preservation_checks.subprocess.check_output',
+                   return_value='gui/501/wrong.job = {\n' + detail):
+            self.refused(lambda: loaded_entrypoints('services = {\n  1 - local.job\n}\n',
+                'gui/501', []))
 
     def test_timer_signal_race(self):
         verify_timer_idle({'loaded': True}, False, [20, 0], [20, 0])

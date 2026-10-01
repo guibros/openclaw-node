@@ -7,14 +7,17 @@ import secrets
 import select
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
-from managed_launchd import Launchd, StopWatch, process_exists, unload_idle_timer
+from managed_launchd import (Launchd, StopWatch, decode_process_arguments,
+                             process_exists, running_identity, unload_idle_timer)
 from legacy_fixture import legacy_journal
 from preservation_checks import Refused, http_json
 from preservation_journal import Journal
@@ -38,6 +41,21 @@ def wait_for(check, seconds=10):
 
 
 class StopWatchPreflight(unittest.TestCase):
+    def test_process_environment_stops_before_apple_auxiliary_vector(self):
+        data = (struct.pack('i', 1) + b'/bin/node\0\0/bin/node\0'
+                + b'HOME=/owned\0NODE_OPTIONS=--require /tmp/evil.js\0\0dyld_file=fake\0')
+        argv, environment = decode_process_arguments(data)
+        self.assertEqual(argv, ['/bin/node'])
+        self.assertEqual(set(environment), {'HOME', 'NODE_OPTIONS'})
+
+    def test_undeclared_node_loader_refuses_before_binding(self):
+        with patch('managed_launchd.process_info', return_value={
+                'pid': 101, 'state': 2, 'start_ns': 1}), \
+             patch('managed_launchd.process_arguments', return_value=(
+                ['/bin/node'], {'NODE_OPTIONS': hashlib.sha256(b'--require /tmp/evil.js').hexdigest()})):
+            with self.assertRaisesRegex(Refused, 'undeclared variable'):
+                running_identity(101, '/bin/node', {}, {})
+
     def test_deploy_listener_with_child_refuses_before_signal(self):
         status = {'pid': 101}
         watch = SimpleNamespace(prepared=True, drain=lambda: None,

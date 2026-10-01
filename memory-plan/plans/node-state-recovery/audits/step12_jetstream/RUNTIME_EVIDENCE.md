@@ -779,8 +779,8 @@ No production service was stopped or modified, and no cold master was taken.
 
 The next source branch reverses the scanner's default for standard non-system
 plist directories and loaded GUI/user/system jobs: an ordinary job is now
-included unless its actual launchd source is in an Apple-managed system tree or
-it is a runningboardd-registered app-bundle process with no OpenClaw linkage.
+included unless its resolved launchd source and executable are root-owned,
+non-group-writable files in an Apple-managed system tree.
 Empty `{}` legacy plists are recorded separately by path and hash; nonempty
 unlabeled plists refuse. Neutral wrappers and self-declared `com.apple.*` or
 `application.*` labels no longer escape solely because their executable is
@@ -801,3 +801,19 @@ managed stop. A scratch plist with a custom `ProgramArguments[0]` and a
 different `Program` exercises the precedence case. The managed Mac and
 journal suites pass 97 tests with one explicit domain-specific skip; their
 owned NATS server reports no production connections.
+
+Claude's subsequent read-only challenge showed that even a runningboardd
+registration does not prove a GUI app cannot run user code. The source no
+longer exempts such apps: the conservative read-only scan now finds 50
+GUI-loaded labels (29 beyond the cohort), zero user-loaded, and 11
+system-loaded extras. The strict parser refuses unparsed or duplicated rows
+and checks that a real `launchctl print` detail names the listed job. Apple
+provenance now resolves actual paths and requires root-owned, non-writable
+components instead of trusting a `/System/Library` text prefix. The managed
+process binding parses only the real environment section, records every
+effective variable hash, and refuses undeclared or code-loading variables.
+None of these changes opens a preservation window; a complete exclusion
+policy and a continuous or effect-based copy fence remain unproved.
+The combined scanner, journal and managed Mac suites pass 120 tests with one
+explicit domain-specific skip; the owned servers made no production NATS
+connections. No production job was stopped or changed.

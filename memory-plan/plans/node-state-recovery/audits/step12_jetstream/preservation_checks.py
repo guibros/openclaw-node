@@ -37,12 +37,28 @@ APPLE_SYSTEM_SOURCES = (
     '/System/Volumes/Preboot/Cryptexes/App/System/Library/',
     '/Library/Apple/System/Library/',
 )
+APPLE_SYSTEM_PROGRAMS = APPLE_SYSTEM_SOURCES + (
+    '/System/Cryptexes/App/', '/usr/libexec/', '/usr/sbin/', '/bin/', '/sbin/',
+)
+
+
+def protected_system_path(path, roots):
+    try:
+        resolved = pathlib.Path(path).resolve(strict=True)
+        if not any(str(resolved).startswith(root) for root in roots):
+            return False
+        for component in (resolved, *resolved.parents):
+            info = component.stat()
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                return False
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def apple_system_source(source, program=''):
-    return (str(source).startswith(APPLE_SYSTEM_SOURCES)
-            or (str(source).startswith('(submitted by kernelmanagerd.')
-                and str(program).startswith('/System/Library/DriverExtensions/')))
+    return (protected_system_path(source, APPLE_SYSTEM_SOURCES)
+            and protected_system_path(program, APPLE_SYSTEM_PROGRAMS))
 
 
 def production_entrypoint_roots(home=None):
@@ -204,18 +220,24 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
     match = re.search(r'^\s*services = \{\n(.*?)^\s*\}', domain_text, re.M | re.S)
     require(match is not None, 'launchd domain lacks a services inventory')
     roots = tuple({pathlib.Path(root).resolve(strict=False) for root in protected_roots})
+    require_header = inspect is None
     inspect = inspect or (lambda label: subprocess.check_output(
         ['/bin/launchctl', 'print', domain + '/' + label], text=True, timeout=10))
     labels = set()
+    seen = set()
     for line in match[1].splitlines():
-        fields = line.split()
-        if len(fields) < 3:
-            continue
-        label = fields[-1]
+        row = re.fullmatch(r'\s*\d+\s+\S+\s+([A-Za-z0-9._:@/+\-]+)\s*', line)
+        require(row is not None, 'launchd services inventory contains an unparsed job')
+        label = row[1]
+        require(label not in seen, 'launchd services inventory contains a duplicate job')
+        seen.add(label)
         try:
             details = inspect(label)
         except (OSError, subprocess.SubprocessError) as error:
             raise Refused('loaded launchd service cannot be inspected: ' + label) from error
+        if require_header:
+            require(details.startswith(domain + '/' + label + ' = {\n'),
+                    'launchd service inspection identity differs: ' + label)
         values = []
         fields = {}
         for key in ('path', 'program', 'working directory'):
@@ -236,13 +258,11 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
                 if entry:
                     environment[entry[1]] = entry[2]
         source = fields.get('path', '')
-        dynamic_app = (source.startswith('(submitted by runningboardd.')
-                       and '.app/Contents/MacOS/' in fields.get('program', ''))
         relevant = (relevant_entrypoint(label, [*values, *environment.values()], roots,
                                         environment=environment,
                                         working_directory=fields.get('working directory'), source=source)
                     or unclassified_executable(fields.get('program'), argv, source, label))
-        if relevant or not (apple_system_source(source, fields.get('program', '')) or dynamic_app):
+        if relevant or not apple_system_source(source, fields.get('program', '')):
             labels.add(label)
     return labels
 

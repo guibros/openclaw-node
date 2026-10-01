@@ -141,3 +141,12 @@ scanner/journal tests pass. Explicit safe exclusions, disposition of the
 root-managed agent and remote management job, a continuous writer fence,
 the controller, healthy cold masters, isolated restores and runtime service
 resumption remain open. Step 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 03:11:15 EDT: Claude's closed-world review identified
+`Program` precedence, undeclared loader variables and untrusted path-prefix
+classification. Draft PR #170 binds the effective program, refuses undeclared
+code-loading environment, parses launchd rows strictly, and counts dynamic
+GUI jobs unless proven safe. The 120 scanner/journal/managed Mac tests pass
+with one domain-specific skip. The live preflight remains closed; process
+activity and copy-input continuity are still unproved, and no production
+service was changed.
