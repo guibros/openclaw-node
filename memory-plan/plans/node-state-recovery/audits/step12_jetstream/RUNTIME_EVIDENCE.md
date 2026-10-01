@@ -963,3 +963,10 @@ incomplete, including descriptors in transit and Mach memory entries, and
 proposed a dedicated volume/unmount bracket. Its further challenge of the
 stop-to-unmount writer interval is pending. No production service, volume,
 store or journal was changed, and full-node `seal()` remains refused.
+
+Read-only live ownership check at 05:46 EDT: all three NATS processes run as
+`moltymac` (PIDs 815, 831, 842), and the three store roots are owned by UID
+501 on Data device 16777233. Their modes are 0755, 0700 and 0700; sizes are
+38,484, 460 and 64,536 KiB. A separate volume alone would not exclude
+other processes under this same account from writing between NATS exit and
+unmount. No live configuration, process or permission was changed.

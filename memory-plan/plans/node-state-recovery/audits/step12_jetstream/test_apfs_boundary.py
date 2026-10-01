@@ -10,6 +10,8 @@ import sys
 import tempfile
 import unittest
 
+from cold_copy import copy_candidate
+
 
 @unittest.skipUnless(sys.platform == 'darwin' and os.environ.get('RECOVERY_APFS_TEST') == '1',
                      'owned APFS mount experiment is opt-in on macOS')
@@ -38,6 +40,12 @@ class OwnedAPFSBoundary(unittest.TestCase):
             volume_uuid = first['VolumeUUID']
             store = mountpoint / 'store.bin'
             store.write_bytes(b'0' * 4096)
+            roots = {}
+            for index in range(3):
+                store_root = mountpoint / ('store-' + str(index))
+                store_root.mkdir(mode=0o700)
+                (store_root / 'state.dat').write_bytes(bytes([index]) * 4096)
+                roots[str(index)] = store_root
             child = '''import ctypes, os, sys, time
 fd=os.open(sys.argv[1], os.O_RDWR)
 lib=ctypes.CDLL('/usr/lib/libSystem.B.dylib', use_errno=True)
@@ -87,6 +95,9 @@ lib.munmap(ctypes.c_void_p(address),4096)
             with self.assertRaises(OSError) as denied:
                 os.open(store, os.O_RDWR)
             self.assertEqual(denied.exception.errno, errno.EROFS)
+            copied = copy_candidate(roots, root / 'candidate')
+            self.assertEqual(copied['status'], 'candidate')
+            self.assertEqual(copied['files'], 3)
             subprocess.run(['/usr/bin/hdiutil', 'unmount', str(mountpoint)], check=True,
                            capture_output=True, text=True, timeout=10)
             mountpoint.chmod(0o555)
