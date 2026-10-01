@@ -1135,3 +1135,12 @@ was invalidated by source edits made while that long run was in progress.
 Neither failure is recorded as a green suite. A complete run against a stable
 final source, exact CI and Claude review remain pending. No production
 service, store, job or journal was changed.
+
+At 07:37 EDT, exact-head `4f80735` CI's Node 22 recovery fixture failed in
+the missing-consumer negative *before* source damage: the newly created
+owned durable answered the first `consumer.next` with transient HTTP 503
+`no responders`. That is a fixture startup race, not the negative's intended
+refusal. The fixture now retries only that pre-delivery stage for up to ten
+seconds; it does not retry a delivered message or a failed acknowledgement.
+The positive owned restore passed locally after this change. New exact CI
+and a stable full Mac suite are required; the failed run is retained here.

@@ -250,7 +250,9 @@ let nc,stage='connect';
                         or action in ('read', 'read-local', 'leader')
                         and error.get('stage') in ('account-info', 'message-get',
                                                    'restore-message-get', 'stream-info')
-                        and error.get('code') in ('503', 'TIMEOUT')):
+                        and error.get('code') in ('503', 'TIMEOUT')
+                        or action == 'ack' and error.get('stage') == 'consumer-next'
+                        and error.get('code') == '503'):
                     with (root/'startup-api-refusals.jsonl').open('a') as handle:
                         handle.write(json.dumps(error)+'\n')
                     return False
@@ -301,7 +303,13 @@ let nc,stage='connect';
                 (root/'publish-readiness-refused.json').write_text(json.dumps(subscriptions, indent=2))
                 self.fail('owned stream leader has no local history subscription')
             client('seed', port=ports[leader*3])
-            client('ack', port=ports[leader*3])
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if client('ack', startup=True, port=ports[leader*3]):
+                    break
+                time.sleep(.05)
+            else:
+                self.fail('owned durable did not become ready for delivery')
             original_message = client('read')
             self.assertEqual(original_message, {'seq': 1, 'subject': 'history', 'data': 'preserved'})
             previous = None
