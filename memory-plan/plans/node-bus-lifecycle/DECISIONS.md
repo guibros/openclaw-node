@@ -625,3 +625,12 @@ while unloaded, gated bootstrap and persistent post-install verification.
 If a safe live drain or deployment coordination cannot be demonstrated,
 installation refuses with the old job fenced and exact rollback material
 retained; no forced old stop manufactures evidence.
+
+D27/3.10 closure (2026-09-30 21:35 EDT): the five old-entry fences and exact
+rollback artifacts are saved under owner-private
+`timer-transition-candidate-20260930-3`; manifest SHA-256
+`6e9b54f0a9e49c77901be7e97ac2cc48ea6a1c8fd2ea51824cd6c630e2df3e73`.
+Ten owned Mac controls and exact `deaf7d4` root Node20/22 CI pass. Claude's
+final challenge found no remaining staged-proof blocker after the additional
+heartbeat, child and refire controls. Close 3.10 as proof and preparation only;
+3.11 remains responsible for live mutation and its independent acceptance.

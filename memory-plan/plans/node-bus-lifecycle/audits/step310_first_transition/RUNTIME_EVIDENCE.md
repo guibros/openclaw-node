@@ -52,3 +52,12 @@ The actual five-job fence publication, source restore, gated bootstrap and
 post-install stability check belong to step 3.11. Ordinary installer activity
 during that brief fence window must be coordinated before any production
 source mutation.
+
+Exact-source CI run 36801376382 at `deaf7d4` passed both root Node 20 and
+Node 22 jobs. The separate Mission Control job failed its unchanged dependency
+audit (`next`, `vitest`, `esbuild` advisories); the workflow is not fully green.
+Claude's final adversarial check accepted the staged 3.10 proof after the
+heartbeat, same-group child and monotonic refire controls were added. It found
+no remaining design blocker for this owned scope and reserved live fence
+publication, drain observation and deploy coordination for 3.11. The post-audit
+records the exact boundaries and Feed to that next step.
