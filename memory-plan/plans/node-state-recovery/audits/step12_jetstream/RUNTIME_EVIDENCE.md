@@ -669,8 +669,10 @@ the only existing journal baseline is timer-scoped and has no `known-broken`
 class. CI unit tests passed on Node 20 and 22 at the earlier code and
 documentation heads. The first run on the runtime-evidence head hit an
 unrelated mesh-collaboration test failure on Node 20 and canceled Node 22;
-that head's rerun is pending. Mission Control's separate dependency audit
-remains red on its pre-existing Next.js advisory.
+its rerun and the subsequent 7d6b10f run passed Node 20 and 22. Their Mission
+Control jobs failed on the old Next.js lockfile. PR #168 merged the patched
+Next.js 16.3.8 lockfile as a794c26; the recovery branch then merged that main
+commit, and its Mission Control job passed.
 No actual full-node recovery or cold-copy acceptance is claimed.
 
 ### Compatible timer-controller bundle — 2026-10-01 00:21 EDT

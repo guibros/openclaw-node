@@ -297,8 +297,10 @@ Claude's independent challenge found that recovery otherwise sent an observed
 running worker to `restore()`. The Journal now refuses that case before any
 restoration intent; the operator must resolve a live worker. An intact receipt
 with an unsupported baseline is refused without being renamed as corrupt.
-The immutable 3.11 controller still carries the old parser. Replace or retire
-every invocable old bundle and pin a compatible protected controller before the
+The original immutable 3.11 controller carried the old parser. All three
+invocable old bundles were retired at 2026-10-01 00:21 EDT; the compatible
+protected `timer-hold-controller-20261001-4` now verifies in place (see
+step12_jetstream/RUNTIME_EVIDENCE.md). Keep that replacement pinned before the
 first full-node journal. An absent `timer-transition-active` and
 present `timer-entry-installed` only make a rerun harmless while the receipt
 still names the resolved timer journal. Once a full-node receipt reads
