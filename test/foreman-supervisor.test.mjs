@@ -260,6 +260,98 @@ describe('foreman supervisor — STOP hysteresis on the tree (D3)', () => {
   });
 });
 
+describe('foreman supervisor — events during an in-flight cycle', () => {
+  // HEALTHY while a worker runs, READY once none does. The first assessment is held until
+  // release(), so an event lands mid-cycle by construction rather than by the clock.
+  function heldAssessor() {
+    const inner = createSimulatedAssessor([(obs) => (obs.active_workers.length ? HEALTHY : READY)]);
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    return {
+      name: 'held',
+      calls: inner.calls,
+      release,
+      async assess(observation) {
+        const answer = inner.assess(observation);
+        if (inner.calls.length === 1) await held;
+        return answer;
+      },
+    };
+  }
+  const quietConfig = { min_interval_ms: 10, periodic_ms: 60_000 };
+
+  for (const enforce of [false, true]) {
+    it(`a worker that exits during an assessment gets a cycle of its own when that one settles (${enforce ? 'enforce' : 'shadow'})`, async () => {
+      const assessor = heldAssessor();
+      let timers = 0;
+      const setTimer = (fn, ms) => { timers += 1; return setTimeout(fn, ms); };
+      const timelinePath = timelineFor(`in-flight-${enforce ? 'enf' : 'shd'}`);
+      const supervisor = createSupervisor({ task, assessor, setTimer, config: { ...quietConfig, enforce }, timelinePath }).start();
+      try {
+        supervisor.workerStarted({ attempt: 1 });
+        await waitFor(() => assessor.calls.length === 1);
+        const armed = timers;
+        supervisor.workerExited({ exitCode: 0 });
+        assert.equal(timers, armed, 'a cycle in flight arms no timer: its settle schedules the follow-up');
+        assessor.release();
+        await waitFor(() => supervisor.state.latest_intervention?.action === ACTIONS.FINISH);
+        await sleep(100);
+        assert.equal(assessor.calls.length, 2, 'the follow-up does not feed itself');
+      } finally {
+        assessor.release();
+        await supervisor.close();
+      }
+      assert.deepEqual(assessor.calls.map((obs) => obs.active_workers.length), [1, 0]);
+      const rows = readTimeline(timelinePath);
+      const types = rows.map((r) => r.type);
+      assert.ok(types.indexOf('worker.exited') < types.indexOf('foreman.assessed'), 'the exit landed during the first assessment');
+      const last = rows.filter((r) => r.type === 'foreman.intervened').at(-1);
+      assert.deepEqual([last.iteration, last.action, last.worker_id], [2, ACTIONS.FINISH, null]);
+      if (enforce) {
+        const dropped = rows.filter((r) => r.type === 'foreman.decision_dropped');
+        assert.deepEqual(dropped.map((r) => [r.iteration, r.observed, r.active]), [[1, 'worker-1', null]]);
+      }
+    });
+  }
+
+  it('output that arrives during an assessment is assessed when that one settles, not at the next periodic poll', async () => {
+    const assessor = heldAssessor();
+    const supervisor = createSupervisor({ task, assessor, config: quietConfig }).start();
+    try {
+      supervisor.workerStarted({ attempt: 1 });
+      const child = fakeChild();
+      supervisor.attach(child);
+      await waitFor(() => assessor.calls.length === 1);
+      child.stdout.write('step 2 of 3\n');
+      await waitFor(() => supervisor.state.workers[0].stdout.includes('step 2 of 3'));
+      assessor.release();
+      await waitFor(() => assessor.calls.length === 2);
+    } finally {
+      assessor.release();
+      await supervisor.close();
+    }
+    assert.doesNotMatch(assessor.calls[0].active_workers[0].stdout_tail, /step 2 of 3/);
+    assert.match(assessor.calls[1].active_workers[0].stdout_tail, /step 2 of 3/);
+  });
+
+  it('an event during an assessNow() cycle is followed up the same way', async () => {
+    const assessor = heldAssessor();
+    const supervisor = createSupervisor({ task, assessor, config: quietConfig }).start();
+    try {
+      const asked = supervisor.assessNow();
+      await waitFor(() => assessor.calls.length === 1);
+      supervisor.workerStarted({ attempt: 1 });
+      assessor.release();
+      await asked;
+      await waitFor(() => assessor.calls.length === 2);
+    } finally {
+      assessor.release();
+      await supervisor.close();
+    }
+    assert.deepEqual(assessor.calls.map((obs) => obs.active_workers.length), [0, 1]);
+  });
+});
+
 describe('foreman supervisor — configuration from the environment', () => {
   it('defaults to shadow, enabled, with the operator home for timelines', () => {
     const config = foremanConfigFromEnv({}, '/home/op');

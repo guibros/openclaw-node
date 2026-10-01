@@ -45,7 +45,11 @@ compares, and what the verifier gate compares.
 
 Only a running worker is polled. Between workers the loop sleeps: a lifecycle event (worker
 started / exited, verification recorded) forces one cycle, and the agent asks for a decision
-through `assessNow()` at its own decision points.
+through `assessNow()` at its own decision points. Cycles never overlap. A cycle consumes only
+the events pending when it begins: a lifecycle event that lands while one runs (a worker exiting
+during a 30 s assessment) gets its own cycle as soon as that one settles, and output that lands
+mid-cycle is assessed after the `MESH_FOREMAN_MIN_INTERVAL_MS` debounce. A supervisor closed in
+the meantime runs no follow-up.
 
 ## What it assesses
 
@@ -203,8 +207,10 @@ Thresholds and observation bounds are fields of `DEFAULT_POLICY` / `DEFAULT_LIMI
   launchd unload on deploy), a running CLI is suspected to be orphaned on macOS.
 - The assessor prompt is bounded field by field but not as a whole, and the request sets no
   `num_ctx`. The review measured it growing from 28k to 157k characters.
-- While a cycle is in flight the scheduler spins on zero-delay timers. A lifecycle event that
-  arrives mid-cycle is dropped rather than deferred.
+- Shadow mode still records the decision of a cycle whose worker exited mid-assessment: the
+  pre-exit assessment is decided against the post-exit state (the 2026-09-27 step 1.2 run recorded
+  `START_WORKER`, `worker_id: null`), and the follow-up cycle's decision comes after it.
+  Enforcing, such a decision is dropped (`foreman.decision_dropped`).
 - Not Foreman code, but on the same path: `commitWorktree` returns null both for "nothing to
   commit" and for a failed commit. Completion then reports success and deletes the task branch.
 
@@ -218,7 +224,8 @@ and STOP hysteresis), the strict assessment contract, git evidence and tree snap
 real temporary repositories, the assessor against a stub analysis lane (llm / fallback / error /
 rejected), the supervisor loop against fake streams and a **real spawned child process** (idle
 loop quiet, idle decisions off the ceiling, a writing worker never stopped, an idle tree stopped
-after three), enforcement against **real detached children** (SIGTERM, the SIGKILL fallback,
+after three, an exit or output that lands during an assessment followed up once it settles),
+enforcement against **real detached children** (SIGTERM, the SIGKILL fallback,
 ESCALATE, shadow leaving the worker alone), the verdict contract, and
 `test/foreman-verify-gate.test.mjs`: the agent's `foremanVerify` driven through its real `runLLM`
 with a registered stub provider — PASS completes; FAIL, no verdict, a quoted PASS beside a FAIL,
