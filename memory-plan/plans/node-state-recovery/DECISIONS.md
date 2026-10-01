@@ -882,8 +882,10 @@ and replaces its log blocks with same-length junk before the stopped-byte
 baseline. The structural sentinel, candidate copy and isolated stream-state
 check still pass; its copied member replays at index zero and is refused
 before healthy peers can repair it. The healthy owned replay and this negative
-pass locally. The older latent junk snapshot also refuses earlier in this
-replay with the same `Snapshot corrupt` warning. This is bounded evidence for
+pass locally. The older latent junk snapshot can refuse either when replay
+logs `Snapshot corrupt` or when the stream group's persisted index stays below
+its recorded committed/applied index; both failures occur before peer repair.
+This is bounded evidence for
 NATS 2.12.6's persisted-index
 replay behavior, not a validity certificate for all Raft metadata. Junk
 `peers.idx` and saved votes can still be loaded or reconstructed, and an

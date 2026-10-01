@@ -1262,3 +1262,20 @@ healthy replay and hollow-WAL refusal after tightening the explicit Raft
 60.044 seconds. The complete-suite run had loaded the preceding assertion
 revision; exact-final-source CI and Claude review remain required. The
 `v1.2-pre` version and disabled full-node `seal()` are unchanged.
+
+Exact-head `0befa89` CI run 36873531410 exposed a nondeterministic stage in
+the latent junk-snapshot control: Node 22 refused the damaged member at its
+stream-group replay index zero before the log scan; the Mac run had reached
+the explicit `Snapshot corrupt` warning instead. The parent had required
+only the warning, so that Node 22 job failed despite a real refusal. The
+control is being corrected to accept only those two named outcomes, and the
+shortfall path now reports the damaged group with actual and required
+indexes. Node 20 failed an unchanged Foreman STOP-hysteresis timing test;
+the replay fixture did not fail there. CI for the correction is pending.
+
+At 10:13 EDT, the corrected local hollow-WAL and full source-damage controls
+passed 2 tests in 122.607 seconds. The latent snapshot control now accepts
+only a member-1 replay damage warning containing `Snapshot corrupt` or an
+explicit member-1 stream-group persisted-index shortfall. A generic timeout,
+different member failure or later peer-assisted repair cannot satisfy that
+control. The source is awaiting a new exact-head CI run.

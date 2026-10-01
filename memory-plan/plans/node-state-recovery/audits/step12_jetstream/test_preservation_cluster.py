@@ -31,7 +31,16 @@ class Cluster(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(stage, result.stderr)
         if mode == 'latent-junk-raft-snapshot-1':
-            self.assertIn('Snapshot corrupt', result.stderr)
+            if 'Raft replay logged damage' in result.stderr:
+                self.assertIn('Snapshot corrupt', result.stderr)
+            else:
+                self.assertIn('isolated member 1 Raft replay did not reach committed index',
+                              result.stderr)
+                self.assertRegex(result.stderr,
+                                 r"\('\$G', 'S-[^']+', [0-9]+, [1-9][0-9]*\)")
+        if mode == 'latent-hollow-raft-wal-1':
+            self.assertRegex(result.stderr,
+                             r"\('\$G', 'S-[^']+', [0-9]+, [1-9][0-9]*\)")
         if stage == 'restore-message-get':
             self.assertIn('"code":"404"', result.stderr)
 
@@ -66,7 +75,7 @@ class Cluster(unittest.TestCase):
                 stage = (f'isolated member {member} raft groups differ' if mode == 'missing-group-1'
                          else f'isolated member {member} raft group content differs'
                          if mode in ('empty-raft-1', 'no-raft-log-1', 'no-raft-term-1')
-                         else 'Raft replay logged damage'
+                         else 'isolated member 1 Raft replay'
                          if mode == 'latent-junk-raft-snapshot-1'
                          else f'isolated member {member} raft bytes differ from stopped baseline'
                          if mode.startswith('junk-raft-')
@@ -215,6 +224,7 @@ cluster {{ name: owned-preservation
             deadline = time.monotonic() + 20
             stable_since = None
             previous = None
+            last_shortfall = None
             while time.monotonic() < deadline:
                 self.assertTrue(all(proc.poll() is None for proc, _ in owners),
                                 f'isolated member {index} Raft replay server exited')
@@ -234,6 +244,7 @@ cluster {{ name: owned-preservation
                             and all(set(member[account]) == set(groups)
                                     for account, groups in raft_reference.items())):
                         stable_since = None
+                        last_shortfall = None
                         time.sleep(.2)
                         continue
                     self.assertFalse(blank_groups,
@@ -255,20 +266,26 @@ cluster {{ name: owned-preservation
                            group['pindex'] < max(expected['committed'], expected['applied'])]
                     if low:
                         stable_since = None
+                        last_shortfall = low
                     elif indexes == previous:
+                        last_shortfall = None
                         if stable_since is None:
                             stable_since = time.monotonic()
                         if time.monotonic() - stable_since >= 2:
                             break
                     else:
                         stable_since = None
+                        last_shortfall = None
                     previous = indexes
                 except Refused:
                     stable_since = None
+                    last_shortfall = None
                 time.sleep(.2)
             else:
-                self.fail(f'isolated member {index} Raft replay did not reach committed index: '
-                          f'{observations}')
+                if last_shortfall:
+                    self.fail(f'isolated member {index} Raft replay did not reach committed index: '
+                              f'{last_shortfall}')
+                self.fail(f'isolated member {index} Raft replay did not settle: {observations}')
         finally:
             for proc, log in reversed(owners):
                 try:
