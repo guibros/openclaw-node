@@ -367,10 +367,12 @@ and the baseline durably saves installed plist paths/hashes, loaded labels by
 domain, protected roots and disabled-artifact hashes. The journal rechecks the
 installed/artifact pins before each forward mutation. Each verified stop
 persists the loaded-label map; subsequent forward work requires exactly that
-map, except for the unit being stopped. A recovery-time inventory failure is
+map, except for the unit being stopped or unloaded. A recovery-time inventory failure is
 recorded as an uncertified error while independently verified prior units are
-still restored. Final restoration, sealing and resolution require the original
-loaded-label map again. Unknown entrypoints refuse before a new window.
+still restored. Final restoration and resolution require the original
+loaded-label map again. Full-node sealing is refused until a continuous
+launchd/process watch can prove that a stopped writer never restarted between
+point-in-time scans. Unknown entrypoints refuse before a new window.
 
 Loaded services are inspected by `launchctl print` even when their labels are
 neutral or Apple-prefixed and their plists live outside the standard
@@ -379,8 +381,12 @@ directories. Installed plist relevance includes `Program`,
 environment indirection, unclassified interpreters and multiply linked
 executables. The pinned roots include the repository, live OpenClaw home,
 legacy `~/openclaw`, global OpenClaw npm package locations, companion bridge
-and Codex worktrees. This is a conservative inventory test, not proof that
-arbitrary shell code cannot synthesize another path.
+and Codex worktrees. Relative arguments resolve against the declared working
+directory; versioned interpreters and common process wrappers are classified.
+System-library jobs and dynamically registered app-bundle executables are
+excluded from the hard-link heuristic unless another path or label binds them
+to OpenClaw. This is a conservative inventory test, not proof that arbitrary
+shell code cannot synthesize another path.
 
 The deploy listener must stop before the viewer and gateway and resume last.
 Its stop watch refuses if the listener already has a child process, before

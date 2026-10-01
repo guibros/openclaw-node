@@ -117,6 +117,24 @@ class Gates(unittest.TestCase):
                 linked.write_bytes(plistlib.dumps({'Label': 'local.linked',
                     'Program': str(hardlink), 'ProgramArguments': [str(hardlink)]}))
                 self.assertIn('local.linked', installed_entrypoints(directory, [protected]))
+                for label, argv in (
+                    ('local.wrapper', ['/usr/bin/caffeinate', '-i',
+                                       'repo/tick.sh']),
+                    ('local.versioned', ['/opt/homebrew/bin/python3.12',
+                                         'repo/tick.sh']),
+                    ('local.link-argument', ['/usr/bin/nice', '-n', '5', str(hardlink)])):
+                    with self.subTest(label=label):
+                        path = directory / (label + '.plist')
+                        path.write_bytes(plistlib.dumps({'Label': label,
+                            'WorkingDirectory': str(home), 'ProgramArguments': argv}))
+                        self.assertIn(label, installed_entrypoints(directory, [protected]))
+                        detail = ('path = ' + str(path) + '\nprogram = ' + argv[0]
+                                  + '\nworking directory = ' + str(home)
+                                  + '\narguments = {\n' + ''.join('  ' + part + '\n' for part in argv) + '}\n')
+                        actual = loaded_entrypoints('services = {\n  1 - ' + label + '\n}\n',
+                            'gui/501', [protected], inspect=lambda _: detail)
+                        self.assertEqual(actual, {label})
+                        path.unlink()
 
     def test_timer_signal_race(self):
         verify_timer_idle({'loaded': True}, False, [20, 0], [20, 0])

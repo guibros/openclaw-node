@@ -122,3 +122,12 @@ correction requires explicit new-window scope, binds the multi-domain inventory
 to the full-node journal, and restores the deploy listener last. Owned tests and
 new exact CI/review are required. The live widened scan still refuses the two
 system jobs; the driver, cold masters and production restoration remain open.
+
+Checkpoint 2026-10-01 02:29:15 EDT: the bounded PR #169 source now carries
+Claude's d7fc991 follow-up corrections. Relative/wrapper and hard-linked
+argument jobs are classified, recovery continues restoring known units after
+inventory drift without certifying, and full-node sealing refuses until a
+continuous launchd/process watch exists. The current read-only scan takes
+4.75 seconds and still refuses the same two root-managed system jobs. The
+controller, privileged job disposition, healthy cold masters, isolated
+restores and verified production resumption remain open at 1.2[A]/v1.2-pre.

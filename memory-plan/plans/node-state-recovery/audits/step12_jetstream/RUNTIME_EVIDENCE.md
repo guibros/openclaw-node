@@ -750,3 +750,27 @@ review remain pending. A read-only scan with the tightened scanner still
 reports 25 installed, 21 GUI-loaded, zero user-loaded and two system-loaded
 jobs, and refuses the same two unmanaged system jobs. No live hold, service
 stop or cold master was attempted.
+
+### Scanner and sealing follow-up — 2026-10-01 02:29:15 EDT
+
+Claude's d7fc991 review found three plain-plist scanner bypasses: a wrapper
+with a relative script argument, a versioned Python interpreter, and a
+hard-linked script in a wrapper argument. Owned regressions reproduce all
+three and the corrected scanner detects them. It resolves relative arguments
+against `WorkingDirectory` and checks every existing path token for a hard
+link. System-library jobs and dynamically registered app-bundle executables
+are exempt from the hard-link heuristic; otherwise unrelated macOS jobs were
+false positives. A read-only scan inspected the installed plist directories
+and GUI/user/system loaded domains in 4.75 seconds: 25 installed (23 approved
+plus the two root jobs), 21 relevant GUI-loaded, zero user-loaded, and the two
+root jobs system-loaded. No additional job was classified after those bounded
+exemptions. The preflight still refuses a new full-node journal.
+
+The same review showed that point-in-time scans can miss a stopped writer
+which restarts during a copy and exits before the next scan. Full-node sealing
+now refuses until a continuous launchd/process watch supplies continuity
+evidence. Restore-only resolution still rechecks the original installed and
+loaded inventory. The listener's child check narrows deployment risk but does
+not prove its asynchronous `deploying` flag is false; the full driver must
+obtain that proof and rule out pending catch-up before restoration completes.
+No production service was stopped or modified, and no cold master was taken.

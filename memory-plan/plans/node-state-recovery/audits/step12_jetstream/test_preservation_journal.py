@@ -146,6 +146,12 @@ class JournalTests(unittest.TestCase):
                                lambda: {'verified': True}, hold=hold)
                 self.assertEqual(journal.records[-1]['evidence']['entrypoint_loaded'],
                                  current['loaded'])
+                def unload_timer():
+                    current['loaded']['gui'].remove('ai.openclaw.consolidation-scheduler')
+                journal.mutate('consolidation-scheduler', 'unload', unload_timer,
+                               lambda: {'verified': True}, hold=hold)
+                self.assertEqual(journal.records[-1]['evidence']['entrypoint_loaded'],
+                                 current['loaded'])
                 current = copy.deepcopy(baseline)
                 with self.assertRaisesRegex(Refused, 'changed inside'):
                     journal.check_entrypoints(forward=True)
@@ -163,6 +169,8 @@ class JournalTests(unittest.TestCase):
                     lambda unit, _: {**prior[unit], 'verified': True},
                     lambda: {'verified': True}, hold=hold)
                 self.assertTrue(result['restored'])
+                with self.assertRaisesRegex(Refused, 'continuous launchd and process watch'):
+                    journal.seal()
                 current['loaded']['gui'].remove('ai.openclaw.gateway')
                 with self.assertRaisesRegex(Refused, 'were not restored'):
                     journal.resolve()

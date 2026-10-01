@@ -43,14 +43,25 @@ def production_entrypoint_roots(home=None):
             pathlib.Path('/opt/homebrew/lib/node_modules/openclaw'))
 
 
-def relevant_entrypoint(label, values, roots, home=None, environment=None):
+def suspicious_hardlink(path, source, label):
+    if str(source).startswith('/System/Library/'):
+        return False
+    if label.startswith('application.') and '.app/Contents/MacOS/' in str(path):
+        return False
+    try:
+        info = pathlib.Path(path).stat()
+        return stat.S_ISREG(info.st_mode) and info.st_nlink > 1
+    except OSError:
+        return False
+
+
+def relevant_entrypoint(label, values, roots, home=None, environment=None,
+                        working_directory=None, source=None):
     if label.startswith(('ai.openclaw.', 'com.openclaw.')):
         return True
     home = str(pathlib.Path(home or pathlib.Path.home()))
     environment = {'HOME': home, **(environment or {})}
-    for value in values:
-        if not isinstance(value, str):
-            continue
+    def expand(value):
         expanded = value
         for _ in range(5):
             changed = re.sub(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)',
@@ -58,30 +69,39 @@ def relevant_entrypoint(label, values, roots, home=None, environment=None):
             if changed == expanded:
                 break
             expanded = changed
-        expanded = re.sub(r'(?<![A-Za-z0-9_/])~(?=/)', home, expanded)
+        return re.sub(r'(?<![A-Za-z0-9_/])~(?=/)', home, expanded)
+    cwd = pathlib.Path(expand(working_directory)) if isinstance(working_directory, str) else None
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        expanded = expand(value)
         for root in roots:
             if str(root) in expanded:
                 return True
-        for token in re.findall(r'/[^\s"\'`;,|&()]+', expanded):
-            resolved = pathlib.Path(token).resolve(strict=False)
+        for token in re.findall(r'[^\s"\'`;,|&()]+', expanded):
+            candidate = pathlib.Path(token)
+            if not candidate.is_absolute() and cwd is not None and '/' in token:
+                candidate = cwd / candidate
+            if not candidate.is_absolute():
+                continue
+            resolved = candidate.resolve(strict=False)
             if any(resolved == root or root in resolved.parents for root in roots):
+                return True
+            if suspicious_hardlink(candidate, source, label):
                 return True
     return False
 
 
-def unclassified_executable(program, arguments, source):
+def unclassified_executable(program, arguments, source, label):
     executable = program or (arguments[0] if arguments else '')
     name = pathlib.Path(executable).name
     if str(source).startswith('/System/Library/'):
         return False
-    if name in {'sh', 'bash', 'zsh', 'env', 'node', 'nodejs', 'python', 'python3',
-                'ruby', 'perl', 'php', 'osascript', 'npm', 'npx', 'bun', 'deno'}:
+    if (name in {'sh', 'bash', 'zsh', 'env', 'osascript', 'npm', 'npx', 'bun', 'deno',
+                 'caffeinate', 'nice', 'nohup', 'arch', 'xcrun'}
+            or re.fullmatch(r'(?:node|nodejs|python|ruby|perl|php)(?:[0-9]+(?:\.[0-9]+)*)?', name)):
         return True
-    try:
-        info = pathlib.Path(executable).stat()
-        return stat.S_ISREG(info.st_mode) and info.st_nlink > 1
-    except OSError:
-        return False
+    return suspicious_hardlink(executable, source, label)
 
 
 def installed_entrypoints(directory, protected_roots):
@@ -111,9 +131,10 @@ def installed_entrypoints(directory, protected_roots):
             scan.extend(values)
         relevant = (isinstance(label, str)
                     and (relevant_entrypoint(label, scan, roots,
-                                             environment=environment if isinstance(environment, dict) else {})
+                                             environment=environment if isinstance(environment, dict) else {},
+                                             working_directory=location, source=path)
                          or unclassified_executable(plist.get('Program'),
-                                                     values if isinstance(values, list) else [], path)))
+                                                     values if isinstance(values, list) else [], path, label)))
         if not relevant:
             continue
         require(isinstance(label, str), 'installed OpenClaw LaunchAgent lacks a label: ' + path.name)
@@ -185,8 +206,10 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
                 if entry:
                     environment[entry[1]] = entry[2]
         if (relevant_entrypoint(label, [*values, *environment.values()], roots,
-                                environment=environment)
-                or unclassified_executable(fields.get('program'), argv, fields.get('path', ''))):
+                                environment=environment,
+                                working_directory=fields.get('working directory'),
+                                source=fields.get('path', ''))
+                or unclassified_executable(fields.get('program'), argv, fields.get('path', ''), label)):
             labels.add(label)
     return labels
 

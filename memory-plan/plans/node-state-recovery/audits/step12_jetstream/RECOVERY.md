@@ -205,7 +205,10 @@ still restores each independently verified prior unit; final recovery and
 resolution recheck the original installed and loaded inventory. An operator
 must restore a changed plist from a trusted copy or investigate the drift
 before rerunning restore-only recovery. The journal holds hashes, not
-reconstructible plist contents.
+reconstructible plist contents. Full-node sealing is currently refused:
+point-in-time loaded-map checks cannot prove that a stopped writer never
+restarted and exited between scans. A continuous launchd/process watch is a
+required driver prerequisite before any copied history can be certified.
 Actual process descendants, detached work and dependency provenance still
 require driver inspection; fixed launchd names alone do not prove them.
 An on-demand worker observed running during recovery is a refusal requiring

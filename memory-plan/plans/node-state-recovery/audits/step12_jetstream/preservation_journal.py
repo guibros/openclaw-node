@@ -564,7 +564,7 @@ class Journal:
                              if row['event'] == 'verified'
                              and 'entrypoint_loaded' in row.get('evidence', {})),
                             self.entrypoint_inventory['loaded'] if self.scope == FULL_NODE_SCOPE else None)
-            if self.scope == FULL_NODE_SCOPE and action == 'stop':
+            if self.scope == FULL_NODE_SCOPE and action in ('stop', 'unload', 'disable-and-unload'):
                 expected = {domain: sorted(set(labels) - {'ai.openclaw.' + unit})
                             for domain, labels in expected.items()}
             before_verify = self.check_entrypoints(forward=True, expected_loaded=expected)
@@ -711,6 +711,8 @@ class Journal:
 
     def seal(self):
         require(self.scope != TIMER_SCOPE, 'timer commissioning cannot seal preservation history')
+        require(self.scope != FULL_NODE_SCOPE,
+                'full-node seal requires a continuous launchd and process watch')
         self.check_entrypoints(final=True)
         require(not self.reopened and not self.write_failed, 'interrupted window cannot be sealed')
         require(not self.pending_intents() and not any(r['event'] == 'failed' for r in self.records),
