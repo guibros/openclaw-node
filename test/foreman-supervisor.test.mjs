@@ -193,6 +193,15 @@ const waitFor = async (predicate, ms = 3_000) => {
     await sleep(10);
   }
 };
+// Close even when the wait times out: an open supervisor keeps polling its worker, and the test
+// process would never exit — the run hangs instead of failing.
+async function waitThenClose(supervisor, predicate) {
+  try {
+    await waitFor(predicate);
+  } finally {
+    await supervisor.close();
+  }
+}
 
 describe('foreman supervisor — idle loop and the ceiling', () => {
   it('does not poll while no worker runs; lifecycle events still force one cycle', async () => {
@@ -232,8 +241,7 @@ describe('foreman supervisor — STOP hysteresis on the tree (D3)', () => {
     const timelinePath = timelineFor('writing');
     const supervisor = createSupervisor({ task, worktreePath: dir, assessor: createSimulatedAssessor([STUCK]), exec, config: { ...fastConfig, enforce: false }, timelinePath }).start();
     supervisor.workerStarted({ attempt: 1 }); supervisor.attach(fakeChild());
-    await waitFor(() => supervisor.state.iteration >= 5);
-    await supervisor.close();
+    await waitThenClose(supervisor, () => supervisor.state.iteration >= 5);
     const decisions = readTimeline(timelinePath).filter((r) => r.type === 'foreman.intervened');
     assert.ok(decisions.length >= 4);
     assert.ok(decisions.every((r) => r.action === ACTIONS.CONTINUE), decisions.map((r) => r.reason).join(' | '));
@@ -246,8 +254,7 @@ describe('foreman supervisor — STOP hysteresis on the tree (D3)', () => {
     const timelinePath = timelineFor('idle-tree');
     const supervisor = createSupervisor({ task, worktreePath: dir, assessor: createSimulatedAssessor([STUCK]), config: { ...fastConfig, enforce: false }, timelinePath }).start();
     supervisor.workerStarted({ attempt: 1 }); supervisor.attach(fakeChild());
-    await waitFor(() => supervisor.state.actions.STOP_WORKER >= 1);
-    await supervisor.close();
+    await waitThenClose(supervisor, () => supervisor.state.actions.STOP_WORKER >= 1);
     const decisions = readTimeline(timelinePath).filter((r) => r.type === 'foreman.intervened');
     assert.deepEqual(decisions.slice(0, 3).map((r) => r.action), [ACTIONS.CONTINUE, ACTIONS.CONTINUE, ACTIONS.STOP_WORKER]);
     assert.match(decisions[0].reason, /unconfirmed \(1\/3/);
@@ -262,8 +269,7 @@ describe('foreman supervisor — STOP hysteresis on the tree (D3)', () => {
     const timelinePath = timelineFor('no-snapshot');
     const supervisor = createSupervisor({ task, worktreePath: dir, assessor: createSimulatedAssessor([STUCK]), exec, config: { ...fastConfig, enforce: false }, timelinePath }).start();
     supervisor.workerStarted({ attempt: 1 }); supervisor.attach(fakeChild());
-    await waitFor(() => supervisor.state.iteration >= 5);
-    await supervisor.close();
+    await waitThenClose(supervisor, () => supervisor.state.iteration >= 5);
     const decisions = readTimeline(timelinePath).filter((r) => r.type === 'foreman.intervened');
     assert.ok(decisions.length >= 4);
     assert.ok(decisions.every((r) => r.action === ACTIONS.CONTINUE), decisions.map((r) => r.reason).join(' | '));
