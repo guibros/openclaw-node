@@ -344,3 +344,36 @@ transfer ends the original hold's same-process forward certification. New
 focused controls cover the production gate, shared-lock exclusion and hold
 certification. Exact-head CI/review remain pending for this revision; no live
 root or NATS state was changed. Step 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 18:46 EDT: a dependent source branch adds a read-only
+root validator for the owner-private user transfer. It holds the node and
+journal locks, pins the journal directory descriptor, verifies the chain,
+full-node baseline, current boot, node receipt, original native hold and NATS
+unload lineage, then rechecks the same transfer head. The user intent now
+includes transfer-time hold evidence so the root can bind its hash and compare
+the watch session to the original close without requiring volatile fields to
+stay byte-identical. Five root-reader fixtures and 115 user/hold tests pass
+locally. The root journal does not yet invoke this validator or durably pin
+the two records. All production gates remain in place; 1.2 stays [A].
+
+Checkpoint 2026-10-01 19:01 EDT: adversarial review of PR #182 found that
+the real `close_and_drain` verifier records native hold evidence at the top
+level; the first validator fixture incorrectly nested it. The validator and
+fixture now use the producer's shape. Root recheck also detects replacement
+of a held owner lock by comparing open and named inode/ctime identities. The
+production root and transfer gates remain closed pending exact-head review.
+
+Checkpoint 2026-10-01 19:07 EDT: PR #182's adversarial review reproduced the
+receipt-shape blocker with a real gate/hold chain. The revision now includes
+that real macOS positive control, allows owner-owned Finder metadata, refuses
+unknown forward-window events, and detects replacement of either held owner
+lock. Local root/transfer suites pass 68/68 and user journal/hold 115/115.
+The branch remains draft until revised-head CI and review pass.
+
+Checkpoint 2026-10-01 19:15 EDT: Claude's exact-head review of 0006d8b
+reported no blocker. Its two minor refusal cases are now closed: owner-owned
+regular Finder metadata is allowed regardless of mode under the 0700 journal
+directory, and deeply nested malformed JSON returns `Refused`. macOS CI now
+runs the existing user journal and hold suites as well as the real-gate
+validator test. Local focused tests remain 68/68; user/hold tests 115/115.
+Revised CI is pending. Production gates remain closed.

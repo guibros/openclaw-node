@@ -625,12 +625,15 @@ class Journal:
             return None
         row = rows[0]
         require(set(row) == {'sequence', 'previous', 'event', 'boot', 'at', 'root_transaction',
-                             'units', 'baseline_sha256', 'observations', 'hold_sha256', 'sha256'}
+                             'units', 'baseline_sha256', 'observations', 'hold_sha256',
+                             'hold_evidence', 'sha256'}
                 and row['units'] == list(NATS_TRANSFER_UNITS)
                 and row['baseline_sha256'] == self.records[0]['sha256']
                 and isinstance(row['observations'], dict)
                 and set(row['observations']) == set(NATS_TRANSFER_UNITS)
-                and re.fullmatch(r'[0-9a-f]{64}', str(row['hold_sha256'])),
+                and isinstance(row['hold_evidence'], dict)
+                and re.fullmatch(r'[0-9a-f]{64}', str(row['hold_sha256']))
+                and hashlib.sha256(encoded(row['hold_evidence'])).hexdigest() == row['hold_sha256'],
                 'NATS transfer record is incomplete')
         try:
             require(str(uuid.UUID(row['root_transaction'])) == row['root_transaction'],
@@ -717,7 +720,8 @@ class Journal:
         return self.append('nats-transfer-intent', root_transaction=root_transaction,
                            units=list(NATS_TRANSFER_UNITS), baseline_sha256=self.records[0]['sha256'],
                            observations=observations,
-                           hold_sha256=hashlib.sha256(encoded(hold_evidence)).hexdigest())
+                           hold_sha256=hashlib.sha256(encoded(hold_evidence)).hexdigest(),
+                           hold_evidence=hold_evidence)
 
     def pending_intents(self):
         completed = {r['intent'] for r in self.records if r['event'] == 'verified'}
