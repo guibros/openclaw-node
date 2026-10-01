@@ -648,3 +648,34 @@ keys. An auxiliary-looking sequence before `NODE_OPTIONS` remains part of the
 environment and refuses as a loader. Unknown or changed kernel layouts still
 refuse; the parser does not infer an empty environment as valid. This is a
 source correction, not a cross-uid process attestation or a full-node seal.
+
+## D33 — Require complete tree inventory and message read-back for candidate evidence (2026-10-01 06:19 EDT)
+
+Claude's exact-head challenge of `da85d40` found two ways candidate evidence
+could overstate what was copied. `os.walk` silently omitted an unreadable
+subdirectory without an error handler, allowing the source and destination
+manifests to agree on a missing file. The copier now refuses traversal errors,
+requires a manifest entry for every directory listing, and compares copied
+directory entries. A real mode-000 subdirectory control refuses before
+publication. The isolated restore had compared stream and consumer metadata
+but had not read message content. It now reads the fixture's message from the
+original cluster before the quiet window and from each restored member after
+election. Replacing the payload with a same-length corrupt value in all three
+copied replicas produces a message-get 404 and must fail the restore control.
+These checks prove more about the owned candidate; they do not certify a
+production cold point or re-enable full-node sealing.
+
+The APFS fixture now reads the effective `statfs` mount flags and requires
+`MNT_IGNORE_OWNERSHIP` to be clear at attach, read-only remount and read-write
+remount. A second attach with ownership disabled sets that flag and is the
+negative control. The image's backing file is still operator-owned, so the
+fixture cannot prove a dedicated-uid or protected-volume boundary.
+
+A read-only inspection found `system/com.openclaw.tailscale-up` has no
+`UserName`, is loaded as a system LaunchDaemon, and runs a root-owned wrapper
+that invokes an executable under `/Applications`. The `/Applications` parent
+is writable to the operator's `admin` group on this host. This is an
+operator-writable ancestor in a privileged job's transitive code path and
+must be classified before any future root helper trusts a closed world. It
+was neither invoked nor changed. The `com.openclaw.agent` correction in D31
+still applies: that different system job declares the operator uid.

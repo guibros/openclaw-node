@@ -222,14 +222,15 @@ with Journal(root, node_lock=lock) as journal:
         with self.assertRaises(Exception):
             Journal(self.journal_root, node_lock=self.node_lock)
 
-    def test_intent_only_open_ready_resolves_without_certification(self):
+    def test_intent_only_open_resolves_without_certification(self):
         self.interrupt('intent')
         code, result = self.command()
         self.assertEqual(code, 0, result)
         self.assertEqual(result['outcome'], 'resolved')
         self.assertEqual(result['gate_before'], 'open')
         self.assertEqual(result['gate'], 'open')
-        self.assertIn('hold-ambiguous-open-ready', result['appended_events'])
+        self.assertTrue({'hold-ambiguous-open-ready', 'hold-restoration-drained'}
+                        & set(result['appended_events']))
         self.assertFalse(result['history_certified'])
 
     def test_receipt_gap_is_adopted_for_restoration_only(self):

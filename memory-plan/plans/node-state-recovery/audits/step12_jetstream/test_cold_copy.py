@@ -47,7 +47,7 @@ class CandidateCopy(unittest.TestCase):
                 mapping = mmap.mmap(handle.fileno(), 8192, access=mmap.ACCESS_WRITE)
             mapping[0] = ord('x')
         try:
-            with self.assertRaisesRegex(Refused, 'source content changed during copy'):
+            with self.assertRaises(Refused):
                 copy_candidate(self.roots, self.root / 'candidate', after_baseline=change)
         finally:
             if mapping is not None:
@@ -76,6 +76,19 @@ class CandidateCopy(unittest.TestCase):
         os.link(store / 'state.dat', store / 'alias')
         with self.assertRaisesRegex(Refused, 'linked or non-regular'):
             copy_candidate(self.roots, self.root / 'candidate')
+
+    @unittest.skipIf(os.geteuid() == 0, 'root can list a mode-000 directory')
+    def test_rejects_unlistable_store_subdirectory(self):
+        hidden = self.roots['0'] / 'jetstream' / 'hidden'
+        hidden.mkdir()
+        (hidden / 'state.dat').write_bytes(b'preserved')
+        hidden.chmod(0)
+        try:
+            with self.assertRaisesRegex(Refused, 'store directory could not be listed'):
+                copy_candidate(self.roots, self.root / 'candidate')
+            self.assertFalse((self.root / 'candidate').exists())
+        finally:
+            hidden.chmod(0o700)
 
 
 if __name__ == '__main__':

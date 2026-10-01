@@ -1023,3 +1023,41 @@ The managed-launchd and entrypoint subset passed 56 tests with one existing
 domain skip, no production NATS connections and normal owned-server exit.
 Head `da85d40` passed all three CI jobs, and its complete Mac recovery suite
 passed 199 tests with three expected skips before this decoder correction.
+
+At 06:19 EDT, Claude's exact `da85d40` review reproduced two source defects:
+`os.walk` silently omitted a mode-000 store subdirectory, and an isolated
+restore with a same-length payload change in all three copied replicas still
+passed the previous metadata comparison. The copier now raises `Refused` on
+directory traversal errors, checks that every listed child was inventoried,
+and compares source/copy directory listings. A real unlistable-subdirectory
+test passes. The owned cluster now reads the seeded message before the quiet
+window and from all three restored members; a negative subprocess corrupts
+all three copied message blocks and sees message-get 404, so it is accepted
+only as a failing restore. The focused cold-copy, both APFS and cluster tests
+passed 11/11 in 47.2 s with no production ports or routes.
+
+The APFS tests now inspect `statfs` directly rather than relying solely on
+`diskutil`'s `GlobalPermissionsEnabled`: `MNT_IGNORE_OWNERSHIP` is clear
+after all three owners-on mounts and set after an owners-off attach. The
+sparse image remains operator-owned, so this is a mount-behavior test, not
+cross-uid isolation evidence. Read-only inspection found that loaded
+`system/com.openclaw.tailscale-up` has no `UserName`; its root-owned
+`/usr/local/bin/tailscale` wrapper invokes an app beneath `/Applications`,
+which is group-writable to this operator's `admin` group. No job was started
+or changed. PR #170 head `086edaa` passed Node 20, Node 22 and Mission
+Control CI; the newer copier/read-back changes still need exact CI and
+adversarial re-review.
+
+At 06:33 EDT, the final Mac recovery suite passed 204 tests with three
+expected skips in 218.9 s. The owned three-member NATS fixture reported no
+production connections and normal cleanup. Two preceding full runs each had
+one test failure: first, the intent-only/open integration fixture observed a
+valid protective re-drain rather than the test's overly narrow leave-open
+event; second, a negative corruption child attempted stream placement before
+the owned metadata group became ready. The integration assertion now accepts
+either restore-only path without certification, and the cluster fixture waits
+for current metadata replicas and retries only NATS's transient "no suitable
+peers for placement" refusal. The targeted cluster control passed twice after
+that readiness correction. These were fixture corrections; the final 204-test
+pass is the result for the exact pending source. No production preservation
+window was entered. Exact-head CI and Claude re-review remain pending.

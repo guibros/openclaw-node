@@ -6,7 +6,7 @@ import re
 import stat
 import uuid
 
-from preservation_checks import require
+from preservation_checks import Refused, require
 
 
 def identity(info):
@@ -32,7 +32,9 @@ def capture_tree(root):
     require(stat.S_ISDIR(root.lstat().st_mode), 'store root is not a directory')
     result = {}
     device = root.lstat().st_dev
-    for directory, dirs, files in os.walk(root, followlinks=False):
+    def onerror(error):
+        raise Refused('store directory could not be listed: ' + str(error.filename)) from error
+    for directory, dirs, files in os.walk(root, followlinks=False, onerror=onerror):
         path = pathlib.Path(directory)
         relative = path.relative_to(root).as_posix()
         before = identity(path.lstat())
@@ -54,6 +56,10 @@ def capture_tree(root):
             require(stat.S_ISDIR(child.lstat().st_mode), 'store contains a linked directory')
         require(identity(path.lstat()) == before and sorted(os.listdir(path)) == entries,
                 'store directory changed during traversal')
+    for relative, item in result.items():
+        if item['type'] == 'directory':
+            require(all((pathlib.PurePosixPath(relative) / name).as_posix() in result
+                        for name in item['entries']), 'store directory entry was not inventoried')
     return result
 
 
@@ -135,6 +141,9 @@ def copy_candidate(roots, destination, after_baseline=None, after_copy=None):
             if item['type'] == 'file':
                 require(copied[name][relative]['sha256'] == item['sha256'],
                         'copied store content differs')
+            else:
+                require(copied[name][relative]['entries'] == item['entries'],
+                        'copied store directory entries differ')
     body = json.dumps(baseline, sort_keys=True, separators=(',', ':')).encode()
     for directory, _, _ in os.walk(staging):
         fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)

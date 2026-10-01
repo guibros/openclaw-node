@@ -231,3 +231,19 @@ D32 corrects the macOS argument decoder for a zero-padding layout in which
 Apple auxiliary strings directly follow environment strings. Eight owned
 process lengths and forged-prefix controls pass; unknown layouts refuse.
 This does not supply the missing cross-uid or continuous admission proof.
+
+D33 adds explicit refusal for unreadable store subdirectories, directory-entry
+coverage, and restored-message read-back. A same-length corruption negative
+fails at message retrieval even when stream metadata matches. The APFS fixture
+checks effective mount flags with an owners-off negative. Read-only inspection
+found a system-domain Tailscale job whose invoked app has an operator-writable
+ancestor; its privileged path must be classified before a root helper can
+claim protected execution. These remain source and owned-fixture controls;
+there is no production cold master or full-node seal.
+
+The final Mac suite for D33 passes 204 tests with three expected skips. Two
+earlier full runs exposed overly narrow restore-only event matching and an
+owned NATS placement startup race; both fixtures were corrected and the exact
+suite rerun. Exact-head CI and adversarial review remain open, as do protected
+cross-uid ownership, continuous admission, the detached production driver,
+three healthy cold masters and live restoration acceptance.

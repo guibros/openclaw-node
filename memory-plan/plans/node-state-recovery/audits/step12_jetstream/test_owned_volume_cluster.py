@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 
+from apfs_mount import MNT_IGNORE_OWNERSHIP, apfs_mount_flags
 from cold_copy import capture_tree, copy_candidate
 
 
@@ -34,6 +35,7 @@ class OwnedVolumeCluster(unittest.TestCase):
                 return plistlib.loads(report.stdout)
             first = volume_info()
             self.assertTrue(first['GlobalPermissionsEnabled'])
+            self.assertFalse(apfs_mount_flags(mountpoint) & MNT_IGNORE_OWNERSHIP)
             member = first['DeviceIdentifier']
             volume_uuid = first['VolumeUUID']
             env = {**os.environ, 'RECOVERY_EVIDENCE_DIR': str(mountpoint),
@@ -55,6 +57,7 @@ class OwnedVolumeCluster(unittest.TestCase):
             readonly = volume_info()
             self.assertEqual(readonly['VolumeUUID'], volume_uuid)
             self.assertTrue(readonly['GlobalPermissionsEnabled'])
+            self.assertFalse(apfs_mount_flags(mountpoint) & MNT_IGNORE_OWNERSHIP)
             self.assertFalse(readonly['WritableVolume'])
             roots = {str(i): cluster / f'store-{i}' for i in range(3)}
             candidate = copy_candidate(roots, root / 'readonly-candidate')
@@ -73,6 +76,7 @@ class OwnedVolumeCluster(unittest.TestCase):
                            capture_output=True, text=True, timeout=10)
             self.assertEqual(volume_info()['VolumeUUID'], volume_uuid)
             self.assertTrue(volume_info()['GlobalPermissionsEnabled'])
+            self.assertFalse(apfs_mount_flags(mountpoint) & MNT_IGNORE_OWNERSHIP)
         finally:
             if device is not None:
                 subprocess.run(['/usr/bin/hdiutil', 'detach', device], check=True,

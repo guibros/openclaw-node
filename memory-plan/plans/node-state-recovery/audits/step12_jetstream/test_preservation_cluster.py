@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import os
 import pathlib
@@ -6,6 +7,7 @@ import secrets
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -15,6 +17,18 @@ from preservation_checks import QuietWindow, Refused, capture, http_json
 
 
 class Cluster(unittest.TestCase):
+    @unittest.skipIf(os.environ.get('RECOVERY_CORRUPT_RESTORE') == '1',
+                     'negative-control child runs only the restore test')
+    def test_corrupted_message_copy_cannot_pass_restore(self):
+        result = subprocess.run([sys.executable, '-m', 'unittest', '-q',
+                                 'test_preservation_cluster.Cluster.test_stream_and_consumer_groups_and_real_stream_election'],
+                                env={**os.environ, 'RECOVERY_CORRUPT_RESTORE': '1'},
+                                cwd=pathlib.Path(__file__).parent, capture_output=True,
+                                text=True, timeout=60)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('"stage":"message-get"', result.stderr)
+        self.assertIn('"code":"404"', result.stderr)
+
     def test_stream_and_consumer_groups_and_real_stream_election(self):
         os.umask(0o077)
         root = pathlib.Path(tempfile.mkdtemp(prefix='openclaw-preservation-cluster-',
@@ -73,6 +87,9 @@ let nc,stage='connect';
   stage='publish';await nc.jetstream().publish('history',StringCodec().encode('preserved'));
   stage='consumer-add';
   await jm.consumers.add('HISTORY',{durable_name:'stable',ack_policy:'explicit',num_replicas:3});
+ }else if(process.env.OWNED_ACTION==='read'){
+  stage='message-get';const message=await jm.streams.getMessage('HISTORY',{seq:1});
+  console.log(JSON.stringify({seq:message.seq,subject:message.subject,data:StringCodec().decode(message.data)}));
  }else{
   stage='stepdown';
   const reply=await nc.request('$JS.API.STREAM.LEADER.STEPDOWN.HISTORY',Buffer.from('{}'),{timeout:5000});
@@ -92,12 +109,16 @@ let nc,stage='connect';
                 capture_output=True, text=True, timeout=15)
             if result.returncode and startup:
                 error = json.loads(result.stderr)
-                if error.get('stage') == 'account-info' and error.get('code') == '503':
+                if (error.get('stage') == 'account-info' and error.get('code') == '503'
+                        or error.get('stage') == 'stream-add' and error.get('code') == '400'
+                        and 'no suitable peers for placement' in error.get('message', '')
+                        or action == 'read' and error.get('stage') in ('account-info', 'message-get')
+                        and error.get('code') in ('503', 'TIMEOUT')):
                     with (root/'startup-api-refusals.jsonl').open('a') as handle:
                         handle.write(json.dumps(error)+'\n')
                     return False
             self.assertEqual(result.returncode, 0, result.stderr.replace(token, '[owned token omitted]'))
-            return json.loads(result.stdout) if action == 'create' else True
+            return json.loads(result.stdout) if action in ('create', 'read') else True
         try:
             for i, config in enumerate(configs):
                 log = open(root/f'server-{i}.log', 'ab', buffering=0)
@@ -109,9 +130,13 @@ let nc,stage='connect';
                 try:
                     js = [http_json(ports[i*3+1], '/jsz') for i in range(3)]
                     routes = [http_json(ports[i*3+1], '/routez') for i in range(3)]
-                    if all(report.get('meta_cluster', {}).get('leader', '').startswith('owned-raft-')
-                           for report in js) and all(len({route['remote_id'] for route in report['routes']}) == 2
-                                                    for report in routes) and client('ready', startup=True):
+                    meta = [report['meta_cluster'] for i, report in enumerate(js)
+                            if report.get('meta_cluster', {}).get('leader') == f'owned-raft-{i}']
+                    if (len(meta) == 1 and meta[0].get('cluster_size') == 3
+                            and len(meta[0].get('replicas', [])) == 2
+                            and all(peer.get('current') for peer in meta[0]['replicas'])
+                            and all(len({route['remote_id'] for route in report['routes']}) == 2
+                                    for report in routes) and client('ready', startup=True)):
                         break
                 except Refused:
                     pass
@@ -119,7 +144,14 @@ let nc,stage='connect';
             else:
                 (root/'readiness-refused.json').write_text(json.dumps({'jsz': js, 'routes': routes}, indent=2))
                 self.fail('owned cluster failed readiness')
-            creation = client('create')
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                creation = client('create', startup=True)
+                if creation:
+                    break
+                time.sleep(.05)
+            else:
+                self.fail('owned placement did not become ready')
             leader = int(creation['leader'].removeprefix('owned-raft-'))
             self.assertIn(leader, range(3))
             deadline = time.monotonic() + 5
@@ -132,6 +164,8 @@ let nc,stage='connect';
                 (root/'publish-readiness-refused.json').write_text(json.dumps(subscriptions, indent=2))
                 self.fail('owned stream leader has no local history subscription')
             client('seed', port=ports[leader*3])
+            original_message = client('read')
+            self.assertEqual(original_message, {'seq': 1, 'subject': 'history', 'data': 'preserved'})
             previous = None
             stable_since = None
             deadline = time.monotonic() + 10
@@ -202,6 +236,12 @@ let nc,stage='connect';
             print(json.dumps(report))
             self.assertFalse(cleanup, 'owned cluster shutdown was not normal')
         candidate = copy_candidate({str(i): root/f'store-{i}' for i in range(3)}, root/'candidate')
+        if os.environ.get('RECOVERY_CORRUPT_RESTORE') == '1':
+            for i in range(3):
+                block = root/'candidate'/str(i)/'jetstream'/'$G'/'streams'/'HISTORY'/'msgs'/'1.blk'
+                content = block.read_bytes()
+                self.assertIn(b'preserved', content)
+                block.write_bytes(content.replace(b'preserved', b'corrupted'))
         restored_sockets = []
         for _ in range(9):
             sock = socket.socket(); sock.bind(('127.0.0.1', 0)); restored_sockets.append(sock)
@@ -259,9 +299,22 @@ cluster {{ name: owned-preservation
                     'raft': [report['raft'] for report in reports] if reports else None
                 }, indent=2))
                 self.fail('isolated candidate restore did not recover the stream and consumer state')
+            for i in range(3):
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    restored_message = client('read', startup=True, port=restored_ports[i*3])
+                    if restored_message:
+                        self.assertEqual(restored_message, original_message,
+                                         'restored message is not readable with original bytes')
+                        break
+                    time.sleep(.05)
+                else:
+                    self.fail('restored message did not become readable')
             restore_proof = {
                 'status': candidate['status'], 'manifest_sha256': candidate['manifest_sha256'],
                 'files': candidate['files'], 'restored_streams': len(reports[0]['streams']),
+                'restored_message_sha256': hashlib.sha256(
+                    original_message['data'].encode()).hexdigest(),
                 'scope': 'owned isolated restore; no full-node certification'
             }
         finally:

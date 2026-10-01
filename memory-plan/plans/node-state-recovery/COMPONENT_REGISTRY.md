@@ -108,3 +108,13 @@ included; the deploy listener stops first and resumes last. The tightened live
 scan still refuses the two unmanaged system jobs. Owned source tests pass, but
 exact CI/review and a production driver remain pending. No live full-node hold
 or healthy NATS cold copy exists.
+
+2026-10-01 06:33 EDT — PR #170 is a draft source and owned-fixture checkpoint.
+The candidate copier refuses unreadable store subdirectories and missing
+directory entries. An owned three-member NATS restore reads the original
+message from every restored member; a same-length corruption control fails.
+APFS fixture checks effective ownership flags at attach/remount. The complete
+Mac recovery suite passes 204 tests with three expected skips; the NATS
+fixture reports no production connections. Exact CI and adversarial re-review
+of this final head are pending. The live stores remain operator-owned; no
+protected cross-uid driver, production cold master or full-node seal exists.

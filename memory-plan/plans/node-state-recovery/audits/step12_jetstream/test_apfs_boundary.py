@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 
+from apfs_mount import MNT_IGNORE_OWNERSHIP, apfs_mount_flags
 from cold_copy import copy_candidate
 
 
@@ -38,6 +39,7 @@ class OwnedAPFSBoundary(unittest.TestCase):
                 return plistlib.loads(report.stdout)
             first = volume_info()
             self.assertTrue(first['GlobalPermissionsEnabled'])
+            self.assertFalse(apfs_mount_flags(mountpoint) & MNT_IGNORE_OWNERSHIP)
             member = first['DeviceIdentifier']
             volume_uuid = first['VolumeUUID']
             store = mountpoint / 'store.bin'
@@ -96,6 +98,7 @@ lib.munmap(ctypes.c_void_p(address),4096)
             self.assertEqual(readonly['VolumeUUID'], volume_uuid)
             self.assertFalse(readonly['WritableVolume'])
             self.assertTrue(readonly['GlobalPermissionsEnabled'])
+            self.assertFalse(apfs_mount_flags(mountpoint) & MNT_IGNORE_OWNERSHIP)
             with self.assertRaises(OSError) as denied:
                 os.open(store, os.O_RDWR)
             self.assertEqual(denied.exception.errno, errno.EROFS)
@@ -113,7 +116,16 @@ lib.munmap(ctypes.c_void_p(address),4096)
                            capture_output=True, text=True, timeout=10)
             self.assertEqual(volume_info()['VolumeUUID'], volume_uuid)
             self.assertTrue(volume_info()['GlobalPermissionsEnabled'])
+            self.assertFalse(apfs_mount_flags(mountpoint) & MNT_IGNORE_OWNERSHIP)
             self.assertEqual(store.read_bytes(), b'0' * 4096)
+            subprocess.run(['/usr/bin/hdiutil', 'detach', device], check=True,
+                           capture_output=True, text=True, timeout=15)
+            device = None
+            ignored = subprocess.run(['/usr/bin/hdiutil', 'attach', '-nobrowse', '-noautoopen',
+                                      '-owners', 'off', '-mountpoint', str(mountpoint), str(image)],
+                                     check=True, capture_output=True, text=True, timeout=30)
+            device = ignored.stdout.splitlines()[0].split()[0]
+            self.assertTrue(apfs_mount_flags(mountpoint) & MNT_IGNORE_OWNERSHIP)
         finally:
             if holder is not None:
                 if holder.poll() is None:
