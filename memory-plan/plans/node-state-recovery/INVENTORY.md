@@ -288,3 +288,14 @@ before this journal can control a live migration. The production path now
 refuses in code until those are implemented. Durable preservation transfer,
 physical census implementation, cold masters and cutover remain open at
 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 17:11 EDT: a source-only follow-up to PR #178 now
+prototypes a single locked ledger outside the protected site and stages the
+shared lock under a transaction-specific name before linking it into view.
+Private tests cover an empty ledger, interrupted pending records, concurrent
+drivers, a two-link interruption, same-inode restart, deletion before the
+admission receipt, and replacement after it. The production root path remains
+gated. This does not yet implement terminal abandonment, reboot successors,
+user-journal transfer, marker/rollback states, physical census or the
+protected NATS driver. No live root path or NATS process was changed; step
+1.2 remains [A] at v1.2-pre.
