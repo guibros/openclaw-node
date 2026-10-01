@@ -296,11 +296,6 @@ plists while their original source paths and all saved schedule, environment,
 cwd and log settings are preserved. The controller accepted for the original
 3.11 transition was `timer-hold-controller-20261001-3` (manifest SHA-256
 `bec1e5af6a9db7c6b2c0230d494471c4f211e74c6488bbf7ca356fb801a404e6`).
-It was retired at 2026-10-01 00:21 EDT under node-state-recovery D21. The
-current protected controller is `timer-hold-controller-20261001-4`, manifest
-SHA-256 `eb09340de6284e7f65cbc648c4ca5205b7bcca94fa3388fecff42e43346d7258`;
-its compatible journal parser is pinned at
-`005087222475d7556e4c54f03cf1a1245847a5b8ca3a6bd7adebf9203f62d378`.
 The first call stopped safely at a durable partial receipt on the inherited
 PATH check; a corrected owned launchd process probe matched the pinned
 effective PATH, passed positive/negative tests and resumed that receipt.
@@ -313,3 +308,10 @@ suite (2,523 pass, zero fail, six visible skips) pass; Claude found no final
 source blocker. Exact live evidence is in
 `audits/step311_timer_install/RUNTIME_EVIDENCE.md`. This is a five-timer
 commissioning hold, not a full-node preservation window or recovery 1.2.
+
+At 2026-10-01 00:21 EDT, the original `timer-hold-controller-20261001-3`
+bundle was retired under node-state-recovery D21. The current protected
+controller is `timer-hold-controller-20261001-4`, manifest SHA-256
+`eb09340de6284e7f65cbc648c4ca5205b7bcca94fa3388fecff42e43346d7258`;
+its compatible journal parser is pinned at
+`005087222475d7556e4c54f03cf1a1245847a5b8ca3a6bd7adebf9203f62d378`.
