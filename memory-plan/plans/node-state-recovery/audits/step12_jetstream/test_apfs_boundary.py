@@ -28,6 +28,7 @@ class OwnedAPFSBoundary(unittest.TestCase):
                             '-volname', 'OCRecoveryTest', '-type', 'SPARSE', '-mode', '0600',
                             str(image)], check=True, capture_output=True, text=True, timeout=30)
             attached = subprocess.run(['/usr/bin/hdiutil', 'attach', '-nobrowse', '-noautoopen',
+                                       '-owners', 'on',
                                        '-mountpoint', str(mountpoint), str(image)], check=True,
                                       capture_output=True, text=True, timeout=30)
             device = attached.stdout.splitlines()[0].split()[0]
@@ -36,6 +37,7 @@ class OwnedAPFSBoundary(unittest.TestCase):
                                         check=True, capture_output=True, timeout=10)
                 return plistlib.loads(report.stdout)
             first = volume_info()
+            self.assertTrue(first['GlobalPermissionsEnabled'])
             member = first['DeviceIdentifier']
             volume_uuid = first['VolumeUUID']
             store = mountpoint / 'store.bin'
@@ -87,11 +89,13 @@ lib.munmap(ctypes.c_void_p(address),4096)
             subprocess.run(['/usr/bin/hdiutil', 'unmount', str(mountpoint)], check=True,
                            capture_output=True, text=True, timeout=10)
             subprocess.run(['/usr/sbin/diskutil', 'mount', 'readOnly', 'nobrowse',
+                            '-mountOptions', 'owners',
                             '-mountPoint', str(mountpoint), member], check=True,
                            capture_output=True, text=True, timeout=10)
             readonly = volume_info()
             self.assertEqual(readonly['VolumeUUID'], volume_uuid)
             self.assertFalse(readonly['WritableVolume'])
+            self.assertTrue(readonly['GlobalPermissionsEnabled'])
             with self.assertRaises(OSError) as denied:
                 os.open(store, os.O_RDWR)
             self.assertEqual(denied.exception.errno, errno.EROFS)
@@ -104,10 +108,11 @@ lib.munmap(ctypes.c_void_p(address),4096)
             with self.assertRaises(OSError) as denied:
                 (mountpoint / 'jetstream').mkdir()
             self.assertEqual(denied.exception.errno, errno.EACCES)
-            subprocess.run(['/usr/sbin/diskutil', 'mount', 'nobrowse', '-mountPoint',
+            subprocess.run(['/usr/sbin/diskutil', 'mount', 'nobrowse', '-mountOptions', 'owners', '-mountPoint',
                             str(mountpoint), member], check=True,
                            capture_output=True, text=True, timeout=10)
             self.assertEqual(volume_info()['VolumeUUID'], volume_uuid)
+            self.assertTrue(volume_info()['GlobalPermissionsEnabled'])
             self.assertEqual(store.read_bytes(), b'0' * 4096)
         finally:
             if holder is not None:

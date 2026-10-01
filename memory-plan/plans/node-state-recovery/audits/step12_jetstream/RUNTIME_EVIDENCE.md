@@ -954,15 +954,21 @@ owned 256 MiB APFS sparse image, verified a stable volume UUID, and saw a
 normal unmount refuse `Resource busy` for both a descriptor-free writable
 mapping and an unread UNIX-socket-transferred write descriptor. After
 releasing the references, normal unmount succeeded. A read-only remount
-refused `O_RDWR` with `EROFS`; an unwritable bare mountpoint refused new
-store creation; read-write remount retained the original bytes. The fixture
-detached and cleaned its image. These tests cover owned volume mechanics,
+refused `O_RDWR` with `EROFS`; the candidate copier read three roots from
+that read-only mount. An unwritable bare mountpoint refused new store
+creation; read-write remount retained the original bytes. An additional
+opt-in run passed with `-owners on` at attach and explicit `owners` on each
+remount; `GlobalPermissionsEnabled` stayed true. The fixture detached and
+cleaned its image. These tests cover owned volume mechanics,
 not the live Data volume or a certified production preservation point.
 Claude's Message 137 independently challenged the proposed root scan as
 incomplete, including descriptors in transit and Mach memory entries, and
-proposed a dedicated volume/unmount bracket. Its further challenge of the
-stop-to-unmount writer interval is pending. No production service, volume,
-store or journal was changed, and full-node `seal()` remains refused.
+proposed a dedicated volume/unmount bracket. Message 139 then challenged the
+stop-to-unmount writer interval: while NATS runs as the operator uid, another
+same-uid process can acquire a write capability before stop. Its proposed
+dedicated service uid is a design challenge, not an implemented control. No
+production service, volume, store or journal was changed, and full-node
+`seal()` remains refused.
 
 Read-only live ownership check at 05:46 EDT: all three NATS processes run as
 `moltymac` (PIDs 815, 831, 842), and the three store roots are owned by UID
@@ -970,3 +976,35 @@ Read-only live ownership check at 05:46 EDT: all three NATS processes run as
 38,484, 460 and 64,536 KiB. A separate volume alone would not exclude
 other processes under this same account from writing between NATS exit and
 unmount. No live configuration, process or permission was changed.
+
+`workspace-bin/plan-lint.sh node-state-recovery` completed with 11 PASS,
+one WARN and two pre-existing FAIL results: missing `automation.json` and
+`tick-logs/` in this checkout. The plan step was not advanced or closed.
+
+At 05:55 EDT, the opt-in owned-volume cluster control passed in 10.6 s. It
+ran the existing three-member JetStream fixture on a 512 MiB APFS image with
+ownership enforcement, cleanly stopped both original and restored clusters,
+unmounted normally, remounted read-only, and copied all three original store
+roots again. The resulting manifest hash equaled the first copy's saved
+pre-restore manifest hash; source and destination file hashes matched, the
+volume UUID and ownership setting stayed stable, and cleanup detached the
+image. An initial draft compared against the first copy after its restore
+cluster had changed the files; that invalid comparison was corrected before
+the passing run. The test does not exercise a separate service uid or a
+production volume and cannot certify absence of a same-uid pre-stop writer.
+
+The live `system/com.openclaw.agent` job is a KeepAlive LaunchDaemon whose
+script path is missing and under the operator's writable home. `launchctl
+print` reports `username = moltymac`, and the plist declares that same
+`UserName`; Claude's initial description of this job as a root execution
+path was incorrect. The correction was sent for adversarial re-review. A
+new focused regression proves that an argv-only process dump with no observed
+environment refuses before identity binding; both focused identity tests
+passed. This is local code evidence, not protected cross-uid process evidence.
+
+The combined relevant run passed 61 tests with one existing user-domain
+bootstrap skip in 42.5 s: candidate-copy controls, both opt-in APFS controls,
+entrypoint checks and managed-launchd stop/watch cases. It used only owned
+NATS servers, reported no production NATS connections, and cleaned those
+servers normally. PR #170 head `4f2c1a1` separately passed all three CI jobs;
+this newer change requires its own CI run after push.

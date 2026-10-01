@@ -562,7 +562,7 @@ This proves usability of those exact copied bytes, not absence of a writer
 before the first manifest.
 
 The missing writer proof is concrete. A writable shared `mmap` on an owned
-file changed its bytes while its ctime remained unchanged until `flush()`.
+file changed its bytes while its ctime remained unchanged until `munmap`.
 `lsof` exposed the mapping as `txt`, not as a writable descriptor. A direct
 `proc_pidinfo(PROC_PIDREGIONPATHINFO)` probe found that mapping in its own
 process but returned `EPERM` before enumerating any regions of root
@@ -579,9 +579,12 @@ non-forced unmount refused while a descriptor-free writable mapping existed
 and while a write descriptor sat unread in a UNIX socket; it succeeded after
 those references were released. A read-only remount refused `O_RDWR` with
 `EROFS`, and an unwritable bare mountpoint refused store creation. The volume
-UUID was stable across remounts. A separate owned APFS probe found that a
-mapped write changed file bytes while ctime stayed unchanged even after
-`fsync` on a read-only descriptor; ctime advanced on `munmap` in that probe.
+UUID was stable across remounts. The image was mounted with ownership
+enforcement on each mount; its files still belong to the operator account,
+so this fixture does not prove isolation from another UID. A separate owned
+APFS probe found that a mapped write changed file bytes while ctime stayed
+unchanged even after `fsync` on a read-only descriptor; ctime advanced on
+`munmap` in that probe.
 These are bounded host observations, not a proof against every memory-entry
 or pre-unmount writer and not permission to migrate the live stores.
 
@@ -590,3 +593,43 @@ every writer across the stop-to-manifest interval, including writable
 mappings and inaccessible processes, plus the already-required pinned
 re-bootstrap and truthful resumption. No production service or store was
 stopped, copied, or changed for this decision. Step 1.2 remains active.
+
+## D31 — Require service-identity isolation before cold-point certification (2026-10-01 05:55 EDT)
+
+The owned-volume end-to-end fixture ran all three NATS members on an
+ownership-enforcing APFS image, cleanly stopped them, unmounted without force,
+remounted read-only, and made a second three-store candidate. Its manifest
+matched the manifest taken before the first candidate was started for the
+isolated restore. The restored cluster had already changed its candidate
+files, so comparing to those live restored files would be invalid. This is a
+transitive byte-equivalence check of an owned fixture, not a cold-point
+certificate.
+
+On the live node, all three NATS servers and their stores are owned by the
+operator uid. Moving their stores to an APFS image without changing that
+identity would not exclude another operator-uid process from obtaining a write
+descriptor before stop or writing through a pre-existing mapping. A dedicated
+non-login service uid and ownership-enforcing store volume are the proposed
+boundary. The executable, config, credentials, plist, store and any privileged
+helper would need protected paths; service-domain jobs would need explicit
+`UserName`/`GroupName`. The account and migration are not implemented or
+approved as a runtime change. An ordinary unmount, read-only remount and
+root-owned evidence remain necessary observations, not substitutes for
+ownership or D24's continuous full-node entrypoint watch. Full-node `seal()`
+continues to refuse.
+
+The live `system/com.openclaw.agent` launchd job references a missing
+operator-writable script, but `launchctl print` reports `username = moltymac`
+and its plist declares `UserName=moltymac`. It is therefore a same-user
+KeepAlive path, not an observed root execution path. It remains an
+unclassified loaded job under D24. Do not
+claim it can execute as root without different evidence. No live job was
+created, stopped or modified.
+
+An argv-only process dump can omit every environment variable while still
+returning an apparently valid argument list. `running_identity()` now refuses
+an empty observed environment before comparing declared hashes. This closes
+the empty-declaration acceptance case; it does not grant the operator
+visibility into a different uid's process. Cross-uid NATS identity and
+launchd domain binding remain unimplemented and must refuse until protected
+evidence can supply them. Step 1.2 remains `[A]` at `v1.2-pre`.

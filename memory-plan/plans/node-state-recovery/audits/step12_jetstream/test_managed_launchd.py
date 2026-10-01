@@ -56,6 +56,17 @@ class StopWatchPreflight(unittest.TestCase):
             with self.assertRaisesRegex(Refused, 'code loader'):
                 running_identity(101, '/bin/node', {}, {})
 
+    def test_argv_only_process_dump_refuses_before_binding(self):
+        data = struct.pack('i', 1) + b'/bin/node\0\0/bin/node\0'
+        argv, environment = decode_process_arguments(data)
+        self.assertEqual(argv, ['/bin/node'])
+        self.assertEqual(environment, {})
+        with patch('managed_launchd.process_info', return_value={
+                'pid': 101, 'state': 2, 'start_ns': 1}), \
+             patch('managed_launchd.process_arguments', return_value=(argv, environment)):
+            with self.assertRaisesRegex(Refused, 'process environment unavailable'):
+                running_identity(101, '/bin/node', {}, {})
+
     def test_deploy_listener_with_child_refuses_before_signal(self):
         status = {'pid': 101}
         watch = SimpleNamespace(prepared=True, drain=lambda: None,

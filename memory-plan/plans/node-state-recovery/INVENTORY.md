@@ -216,3 +216,13 @@ An opt-in owned APFS image test now proves that a normal unmount refuses a
 descriptor-free writable mapping and a descriptor in transit, and that a
 read-only remount refuses writes. It does not close the stop-to-unmount
 same-user writer interval or authorize a live store migration.
+
+D31 adds an end-to-end owned-volume control: three owned NATS members run on
+an ownership-enforcing APFS image, stop normally, then the image is unmounted,
+remounted read-only and copied. The second source manifest equals the saved
+pre-restore candidate manifest. The current live stores remain operator-owned,
+so the fixture cannot certify a production cold point. A separate non-login
+NATS uid, protected job and file paths, cross-uid identity evidence, and the
+existing continuous full-node watch remain prerequisites. An argv-only process
+dump now refuses before identity binding. Step 1.2 remains open; no cold
+master, production bracket or seal was recorded.

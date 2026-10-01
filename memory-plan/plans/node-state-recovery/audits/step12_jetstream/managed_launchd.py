@@ -84,6 +84,7 @@ def running_identity(pid, executable, files, declared_environment):
     started = process_info(pid)
     require(started['state'] != 5, 'service owner is a zombie')
     argv, environment = process_arguments(pid)
+    require(environment, 'process environment unavailable')
     verify_environment_hashes(environment, declared_environment)
     pins = {}
     for path, expected_hash in files.items():
