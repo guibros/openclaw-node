@@ -280,3 +280,26 @@ restores and restoration evidence remain open. Bus3.5 imports the single
 journal from main without copying it or reaching into an absolute worktree.
 Bus3.6 then integrates actual timers. This breaks the source dependency cycle
 without declaring the unfinished preservation outcome done.
+
+## D21 — Preserve the idle on-demand worker as its own baseline class (2026-10-01 00:01 EDT)
+
+The live mesh-agent is loaded, idle and enabled after the VM restart. The
+existing `daemon` class required it running, while `known-broken` ignored its
+running bit. Neither represents that state truthfully. Admit `on-demand` only
+for mesh-agent with loaded=true, running=false and disabled=false; its exact
+running bit remains part of `matches()` during restoration. Reserve
+`known-broken` for the explicitly disabled Discord integration, so it cannot
+be used to waive the worker's running-state check. This is a baseline-schema
+correction, not a production recovery adapter or an accepted cold-copy window.
+The full 20-unit read-only structural capture now validates, but its 54 direct
+file pins are not a complete dependency or loaded-process provenance proof.
+Claude's independent challenge found that recovery otherwise sent an observed
+running worker to `restore()`. The Journal now refuses that case before any
+restoration intent; the operator must resolve a live worker. An intact receipt
+with an unsupported baseline is refused without being renamed as corrupt.
+The immutable 3.11 controller still carries the old parser: before the first
+on-demand full-node journal, verify its transition-active receipt is absent
+and installed receipt present, or replace that controller with a compatible
+protected bundle. Production capture must also verify the worker's normal
+idle exit/provenance and refuse a running worker, rather than selecting a
+class from a transient observation.

@@ -639,3 +639,25 @@ string-PID verified/failed chains re-open all records, restore and resolve.
 domain skip, owned NATS exits0 and all22 owned labels are unloaded in both
 domains. Public sanitized pins/limits are in PID_KEY_EVIDENCE.json.
 No production journal exists or was repaired. No cold-copy acceptance.
+
+### Full-node baseline class check — 2026-10-01 00:01 EDT
+
+Read-only launchd/plist inspection after the VM restart observed all 20 fixed
+units. The original schema refused a truthful baseline because mesh-agent was
+loaded, not running and not disabled. Standalone NATS and members 2/3 were
+running on their existing 4222/8222, 4223/8223 and 4224/8224 listeners;
+member 1 remained unloaded and disabled. The standalone bus had five open
+clients, so no quiet window was inferred. With D21's on-demand class the same
+structural capture passed `valid_prior`: 20 units and 54 directly hashed files.
+These hashes do not cover transitive source/dependency closure or loaded
+process provenance. The production preservation controller and restoration
+adapter remain absent, and no service, stream or backup state changed.
+
+Focused positive/negative class and running-worker recovery tests pass. The
+full Journal suite passes 65/65; the owned Mac restore-only suite passes
+27/27. A disposable journal showed the frozen 3.11 parser renaming a newer
+full-node receipt before refusing; the revised current parser refuses an
+intact unsupported baseline without moving the receipt. On the live node,
+`timer-transition-active` is absent and `timer-entry-installed` is present;
+the older controller's existing-timer-window reopen path is not active.
+No actual full-node recovery or cold-copy acceptance is claimed.

@@ -98,3 +98,11 @@ is retained as tool-development history; merging source enables no live hold.
 | Complete production preservation controller and new static baseline | Open | recovery1.2; all owners/invokers/dependencies and hold restoration readiness |
 | Three healthy cold masters and isolated restores | Open | recovery1.2; no accepted common healthy cold-copy window |
 | Complete live restoration / step1.2 closure | Open | Runtime evidence required after all prerequisites; source merge does not close it |
+
+Checkpoint 2026-10-01 00:01 EDT: the actual on-demand mesh-agent state exposed
+a full-node baseline refusal. D21 records the strict class correction and the
+known-broken classification fence. A read-only 20-unit structural capture now
+passes with 54 direct file pins; 65 Journal and 27 owned Mac recovery tests
+pass. Complete dependency/provenance pins, production controller, three healthy
+cold masters, isolated restores and truthful resumption remain open at
+1.2[A]/v1.2-pre. See step12_jetstream/RUNTIME_EVIDENCE.md.

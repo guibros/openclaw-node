@@ -86,6 +86,20 @@ failed verification, in dependency order, with explicit readiness evidence.
 The operational driver and real service-stop checks remain in step1.2.
 
 ## Mid-Implementation Findings
+The first full-node read-only baseline after bus3.11 refused because the
+actual mesh-agent is loaded but idle. `daemon` required running, while
+`known-broken` would waive the running-state check. D21 adds a narrow
+on-demand class only for that worker and confines known-broken to Discord.
+No serving bus or client was stopped for this schema correction. The direct
+file hashes are structural evidence only; dependency closure and a production
+restoration adapter remain required before a preservation window.
+Claude's separate review found a running on-demand worker would be sent to
+`restore()`; the Journal now refuses before restoration intent. A scratch
+reproduction with the immutable 3.11 parser showed it can rename a later
+full-node receipt as corrupt if it reopens an active timer transition. The
+transition is complete in the live node, but compatibility must be rechecked
+before the first full-node journal.
+
 Claude Message46 accepts9deef65, then identifies discarded raw kernel errors
 and the missing pre-watch startup-rewrite negative. Retain raw events before
 classification, refuse EV_ERROR, restore that negative and supply a structural

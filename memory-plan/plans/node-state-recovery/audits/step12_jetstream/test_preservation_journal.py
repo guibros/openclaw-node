@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from preservation_journal import Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, valid_record
+from preservation_journal import Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -501,9 +501,47 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
             with self.assertRaisesRegex(Refused, 'desired service state'):
                 self.journal(inventory({'nats': {}, 'mesh-agent': state}), root=self.parent / str(index))
 
-    def test_known_broken_running_state_is_unconstrained_and_not_restarted(self):
+    def test_idle_on_demand_worker_is_an_exact_restoration_baseline(self):
         prior = copy.deepcopy(PRIOR)
-        prior['mesh-agent']['class'] = 'known-broken'
+        prior['mesh-agent'].update({'class': 'on-demand', 'running': False})
+        self.assertTrue(matches(prior['mesh-agent'], prior['mesh-agent']))
+        self.assertFalse(matches({**prior['mesh-agent'], 'running': True}, prior['mesh-agent']))
+        with self.journal(prior) as journal:
+            self.assertEqual(journal.prior['mesh-agent'], prior['mesh-agent'])
+        with self.journal() as journal:
+            result = journal.recover(lambda *_: self.fail('idle worker was restarted'),
+                lambda unit, state: {**state, 'verified': True}, lambda: {'verified': True})
+            self.assertTrue(result['services_verified'])
+            journal.resolve()
+
+    def test_on_demand_class_refuses_a_running_or_unrelated_owner(self):
+        for index, (unit, running) in enumerate((('mesh-agent', True), ('nats', False))):
+            prior = copy.deepcopy(PRIOR)
+            prior[unit].update({'class': 'on-demand', 'running': running})
+            with self.assertRaisesRegex(Refused, 'desired service state'):
+                self.journal(prior, root=self.parent / str(index))
+        prior = copy.deepcopy(PRIOR)
+        prior['mesh-agent'].update({'class': 'known-broken', 'running': False})
+        with self.assertRaisesRegex(Refused, 'optional integration'):
+            self.journal(prior, root=self.parent / 'misclassified-worker')
+
+    def test_running_on_demand_worker_is_not_a_restoration_target(self):
+        prior = copy.deepcopy(PRIOR)
+        prior['mesh-agent'].update({'class': 'on-demand', 'running': False})
+        restored = []
+        with self.journal(prior) as journal:
+            result = journal.recover(lambda unit, _: restored.append(unit),
+                lambda unit, state: {**state, 'running': True if unit == 'mesh-agent' else state['running'],
+                                     'verified': True},
+                lambda: {'verified': True})
+            self.assertFalse(result['restored'])
+            self.assertEqual(restored, [])
+            self.assertIn({'unit': 'mesh-agent', 'reason': 'Refused'}, result['errors'])
+            self.assertFalse(any(row['event'] == 'restoration-intent' and row.get('unit') == 'mesh-agent'
+                                 for row in journal.records))
+
+    def test_known_broken_running_state_is_unconstrained_and_not_restarted(self):
+        prior = inventory({'nats': {}, 'mesh-tool-discord': {'class': 'known-broken', 'running': False}})
         with self.journal(prior) as journal:
             result = journal.recover(lambda *_: self.fail('known-broken loop was restarted'),
                 lambda unit, state: {**state, 'running': unit == 'nats', 'verified': True}, lambda: {'verified': True})
@@ -594,6 +632,21 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
         saved = list(receipt.parent.glob('.corrupt-receipt-*'))
         self.assertEqual(len(saved), 1)
         self.assertEqual(saved[0].read_bytes(), b'{corrupt')
+
+    def test_unsupported_intact_baseline_refuses_without_quarantining_receipt(self):
+        with self.journal(PRIOR) as journal:
+            receipt = journal.node_state
+        original = receipt.read_bytes()
+        with patch('preservation_journal.valid_prior', side_effect=Refused('service class is absent')):
+            with self.assertRaisesRegex(Refused, 'service class is absent'):
+                self.journal()
+        self.assertEqual(receipt.read_bytes(), original)
+        self.assertEqual(list(receipt.parent.glob('.corrupt-receipt-*')), [])
+        with self.journal() as journal:
+            result = journal.recover(lambda *_: self.fail('ready owner restarted'),
+                lambda unit, prior: {**prior, 'verified': True}, lambda: {'verified': True})
+            self.assertTrue(result['restored'])
+            journal.resolve()
 
     def test_crash_between_terminal_record_and_receipt_reconciles_without_reopening_window(self):
         for index, terminal in enumerate(('seal', 'resolve')):

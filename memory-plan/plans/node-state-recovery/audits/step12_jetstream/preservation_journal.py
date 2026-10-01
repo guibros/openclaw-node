@@ -124,7 +124,8 @@ def valid_prior(prior, scope=None):
         require(all(isinstance(state.get(k), bool) for k in ('loaded', 'running', 'disabled')),
                 'prior service state is incomplete')
         kind = state.get('class')
-        require(kind in ('daemon', 'timer', 'known-broken', 'held', 'absent'), 'service class is absent')
+        require(kind in ('daemon', 'on-demand', 'timer', 'known-broken', 'held', 'absent'),
+                'service class is absent')
         identity = state.get('identity')
         if kind == 'absent':
             require(identity == {'installed': False}
@@ -147,7 +148,11 @@ def valid_prior(prior, scope=None):
                 and all(isinstance(path, str) and pathlib.Path(path).is_absolute()
                         for path in identity['dependencies'].values()), 'prior static identity schema is incomplete')
         require((unit == 'nats-1') == (kind == 'held'), 'only member-1 may be declared held')
+        require(kind != 'known-broken' or unit == 'mesh-tool-discord',
+                'only the declared optional integration may be known-broken')
         require((kind != 'daemon' or state['loaded'] and state['running'] and not state['disabled'])
+                and (kind != 'on-demand' or unit == 'mesh-agent' and state['loaded']
+                     and not state['running'] and not state['disabled'])
                 and (kind != 'timer' or state['loaded'] and not state['running'] and not state['disabled'])
                 and (kind != 'known-broken' or state['loaded'] and not state['disabled'])
                 and (kind != 'held' or not state['loaded'] and not state['running'] and state['disabled']),
@@ -189,27 +194,28 @@ class Journal:
             require(self.root.parent.resolve() == self.journals.resolve() and not self.root.is_symlink(),
                     'journal must be a direct child of the fixed persistent parent')
             self.active = None
-            try:
-                if os.path.lexists(self.node_state):
+            if os.path.lexists(self.node_state):
+                try:
                     active = read_private(self.node_state)
                     valid_record(active['baseline'])
+                except (ValueError, KeyError, TypeError, Refused, OSError):
+                    require(not created, 'node receipt is corrupt; reopen the current journal to rebuild it, then create a new window')
+                    info = self.node_state.lstat()
+                    require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+                            and stat.S_IMODE(info.st_mode) == 0o600, 'corrupt receipt is not owner-private')
+                    saved = self.node_state.with_name('.corrupt-receipt-' + uuid.uuid4().hex)
+                    try:
+                        os.rename(self.node_state, saved)
+                        sync_dir(self.node_state.parent)
+                    except OSError:
+                        self.write_failed = True
+                        self.receipt_writable = False
+                else:
                     valid_prior(active['baseline']['prior'], active['baseline'].get('scope'))
                     require(active['status'] in ('unresolved', 'restored'), 'node receipt status is invalid')
                     require(pathlib.Path(active['journal_root']).parent.resolve() == self.journals.resolve(),
                             'node receipt root escaped the persistent parent')
                     self.active = active
-            except (ValueError, KeyError, TypeError, Refused, OSError):
-                require(not created, 'node receipt is corrupt; reopen the current journal to rebuild it, then create a new window')
-                info = self.node_state.lstat()
-                require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
-                        and stat.S_IMODE(info.st_mode) == 0o600, 'corrupt receipt is not owner-private')
-                saved = self.node_state.with_name('.corrupt-receipt-' + uuid.uuid4().hex)
-                try:
-                    os.rename(self.node_state, saved)
-                    sync_dir(self.node_state.parent)
-                except OSError:
-                    self.write_failed = True
-                    self.receipt_writable = False
             if self.active is None:
                 require(not created or not self._roots(),
                         'node receipt is missing; existing journals need restoration')
@@ -537,6 +543,8 @@ class Journal:
                 require(prior['class'] not in ('held', 'absent'), 'held or absent unit needs manual restoration')
                 require(not (prior['class'] == 'timer' and actual['loaded'] and actual['running']),
                         'timer is busy; re-observe after its current run')
+                require(not (prior['class'] == 'on-demand' and actual['loaded'] and actual['running']),
+                        'on-demand worker is running; operator handoff required')
                 if held:
                     hold.before_restore()
                 record('restoration-intent', unit=unit, action='restore-prior')
