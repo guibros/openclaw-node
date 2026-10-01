@@ -207,3 +207,15 @@ At 10:02 EDT, the D41 complete Mac recovery suite passed 209 tests with three
 expected skips and normal owned cleanup; final-source healthy replay and
 hollow-WAL control passed 2/2. Exact-head CI and independent review remain
 open. No live NATS process or store was changed.
+
+2026-10-01 10:49 EDT — `35f8a8a` passed all three CI jobs. Claude's exact-head
+review found no false acceptance in the owned D41 replay; 12/12 latent
+snapshot controls and 4/4 hollow-WAL controls passed their real parent
+assertions. D42 closes the fixture's lagging post-stepdown reference by
+waiting for all three members' `$G` committed/applied indexes to converge
+before the stopped-state copy. Replay checks its damage log even after an
+index timeout. The revised owned cluster module passes 5/5 in 261.318 s,
+with normal scratch cleanup, followed by five more healthy replays. Exact
+D42 CI/review remain pending. The
+dedicated protected NATS writer, live baseline and three production cold
+masters remain unimplemented; 1.2 stays `[A]` and full-node `seal()` refuses.

@@ -336,3 +336,13 @@ the detached controller and verified resumption remain open at 1.2 `[A]`.
 The corrected complete Mac recovery suite passes 209 tests with three expected
 skips; final-source replay focus passes 2/2. Exact-source CI and Claude review
 remain pending. No production preservation window was opened.
+
+D42 settles every owned `$G` group's committed/applied index across the three
+members after stepdown, before stop and copy, so the subsequent per-member
+replay reaches the same captured cluster threshold. It scans each replay log
+before reporting an index timeout. The owned cluster module passes 5/5 with
+normal cleanup, followed by five more healthy replays; `35f8a8a` CI passed
+3/3 and Claude found no false acceptance
+in that preceding head. Exact D42 CI/review, protected production custody,
+peer/vote validation, three healthy live cold masters, detached orchestration
+and verified resumption remain open. Step 1.2 is still `[A]` at `v1.2-pre`.

@@ -216,6 +216,7 @@ cluster {{ name: owned-preservation
         owners = []
         cleanup = []
         observations = None
+        settled = False
         try:
             for name, config in zip((f'replay-{index}', f'replay-blank-{index}'), configs):
                 log = open(root / f'{name}.log', 'ab', buffering=0)
@@ -272,6 +273,7 @@ cluster {{ name: owned-preservation
                         if stable_since is None:
                             stable_since = time.monotonic()
                         if time.monotonic() - stable_since >= 2:
+                            settled = True
                             break
                     else:
                         stable_since = None
@@ -279,13 +281,7 @@ cluster {{ name: owned-preservation
                     previous = indexes
                 except Refused:
                     stable_since = None
-                    last_shortfall = None
                 time.sleep(.2)
-            else:
-                if last_shortfall:
-                    self.fail(f'isolated member {index} Raft replay did not reach committed index: '
-                              f'{last_shortfall}')
-                self.fail(f'isolated member {index} Raft replay did not settle: {observations}')
         finally:
             for proc, log in reversed(owners):
                 try:
@@ -309,6 +305,11 @@ cluster {{ name: owned-preservation
                 warnings.append(line)
         self.assertFalse(warnings,
                          f'isolated member {index} Raft replay logged damage: {warnings}')
+        if not settled:
+            if last_shortfall:
+                self.fail(f'isolated member {index} Raft replay did not reach committed index: '
+                          f'{last_shortfall}')
+            self.fail(f'isolated member {index} Raft replay did not settle: {observations}')
         return {account: {name: group['pindex'] for name, group in groups.items()}
                 for account, groups in observations['member'].items()}
 
@@ -549,11 +550,22 @@ let nc,stage='connect';
                 except Refused:
                     time.sleep(.05)
                     continue
-                if all(report['raft']['$G'] != before[i]['raft']['$G'] for i, report in enumerate(after)):
+                group_names = set(before[0]['raft']['$G'])
+                changed = all(report['raft']['$G'] != before[i]['raft']['$G']
+                              for i, report in enumerate(after))
+                converged = (all(set(report['raft']['$G']) == group_names for report in after)
+                             and all(len({(report['raft']['$G'][name]['committed'],
+                                           report['raft']['$G'][name]['applied'])
+                                          for report in after}) == 1
+                                     and all(report['raft']['$G'][name]['committed'] ==
+                                             report['raft']['$G'][name]['applied']
+                                             for report in after)
+                                     for name in group_names))
+                if changed and converged:
                     break
                 time.sleep(.05)
             else:
-                self.fail(f'owned stream election did not change observed account groups: {after}')
+                self.fail(f'owned stream election did not converge after stepdown: {after}')
             self.assertEqual(after[0]['raft']['$SYS'], before[0]['raft']['$SYS'])
             changed = copy.deepcopy(before[0]); changed['raft'] = after[0]['raft']
             with self.assertRaisesRegex(Refused, 'Raft state changed'):

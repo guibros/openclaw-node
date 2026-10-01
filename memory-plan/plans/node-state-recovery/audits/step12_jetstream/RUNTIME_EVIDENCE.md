@@ -1279,3 +1279,28 @@ only a member-1 replay damage warning containing `Snapshot corrupt` or an
 explicit member-1 stream-group persisted-index shortfall. A generic timeout,
 different member failure or later peer-assisted repair cannot satisfy that
 control. The source is awaiting a new exact-head CI run.
+
+## D42 settled owned replay — 2026-10-01 10:49 EDT
+
+`35f8a8a` passed Node 20, Node 22 and Mission Control CI (run 36874991837).
+Claude's read-only exact-head check found no false acceptance: its real parent
+assertions passed 12/12 latent junk-snapshot cases, eight by member-1
+`Snapshot corrupt` and four by numeric member-1 stream-group index shortfall;
+the hollow-WAL control passed 4/4 by shortfall. Fourteen crafted wrong-reason
+child outputs were rejected. The reviewer found the former stream leader's
+post-stepdown record two entries behind the cluster in 9/12 healthy runs,
+despite healthy replay reaching the cluster maximum across 189 member-group
+checks.
+
+The owned fixture now waits within five seconds for equal committed/applied
+indexes across all three members' `$G` groups after stepdown. It scans replay
+damage logs after scratch shutdown even if index replay timed out, before
+reporting a shortfall. A transient monitoring refusal no longer erases the
+last observed shortfall. Syntax, diff hygiene and the focused healthy case
+passed; the full owned cluster module passed 5/5 in 261.318 seconds, including
+the hollow-WAL and latent junk-snapshot controls. All scratch servers exited
+normally. Five further healthy owned replays passed in 21.3, 21.2, 20.4,
+22.3 and 20.0 seconds; no production NATS process, store, job, volume or
+journal changed.
+Exact D42 CI and independent review are pending. This remains owned-fixture
+evidence, not a protected production cold-master certificate.

@@ -894,3 +894,39 @@ baseline and custody, full retained-message/durable comparisons, three
 production cold masters, detached controller and coordinated resumption
 remain open. Step 1.2 stays `[A]` at `v1.2-pre`; full-node `seal()` stays
 disabled.
+
+## D42 — Settle owned post-stepdown groups before per-member replay (2026-10-01 10:49 EDT)
+
+Claude's read-only review of `35f8a8a` found no false acceptance in the D41
+replay and confirmed its exact-head CI passed all three jobs (run
+36874991837). Its real parent-control runs passed 12/12 latent snapshot cases
+and 4/4 hollow-WAL cases. The old-head replay threshold still had a narrower
+meaning than an independent cold master: after stepdown, the former leader's
+recorded stream-group committed/applied index trailed the other members by
+two entries in 9/12 healthy runs. Replaying only to that member's lower
+recorded index could let its missing tail be supplied later by the peers.
+
+The owned fixture now waits within the existing five-second post-stepdown
+deadline until every `$G` group has the same committed and applied index on
+all three members, with each committed index equal to its applied index. This
+settled capture is the replay reference. Each member must therefore replay
+at least the cluster's captured committed/applied maximum without relying on
+another member. If the group state does not converge, the owned run refuses
+before stopping and copying the stores. This does not remove the separate
+production requirement for a protected quiet-window baseline or decide how
+to handle a live member that legitimately lags.
+
+The replay server's damage log is now checked after normal scratch shutdown
+even when its index loop times out. A `Snapshot corrupt` warning refuses
+before the numeric shortfall is reported; a hollow WAL without that warning
+still refuses on the specific stream-group shortfall. The last observed
+shortfall survives a transient monitoring refusal, avoiding a generic
+non-settlement result at the deadline. D40's latent corruption control now
+exercises this pre-peer replay log path, not the later restored-cluster
+tripwire. The owned cluster module passes 5/5 in 261.318 seconds, including
+the healthy restore and both source-damage controls; all scratch servers
+exited normally. Five additional healthy replays passed in succession.
+Exact new CI and adversarial review of this correction
+remain pending. Peer/vote metadata validity, unobserved tails, protected
+live custody, three production cold masters and coordinated resumption
+remain open; step 1.2 and full-node `seal()` do not advance.
