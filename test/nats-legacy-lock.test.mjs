@@ -39,6 +39,12 @@ test('legacy writer reexec reacquires a stale token and refuses an active handof
     assert.equal(first.status, 0, first.stderr);
     assert.equal(fs.readFileSync(effect, 'utf8'), 'ran');
     fs.rmSync(effect);
+    const invalid = spawnSync(process.execPath, [script], {
+      env: { ...env, OPENCLAW_NATS_LEGACY_REEXEC_ATTEMPT: '1' }, encoding: 'utf8',
+    });
+    assert.equal(invalid.status, 1);
+    assert.match(invalid.stderr, /verification failed after re-exec/);
+    assert.equal(fs.existsSync(effect), false);
     fs.writeFileSync(marker, '{}');
     const second = spawnSync(process.execPath, [script], { env, encoding: 'utf8' });
     assert.equal(second.status, 1);

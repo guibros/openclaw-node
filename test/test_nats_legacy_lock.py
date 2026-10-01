@@ -2,6 +2,7 @@ import fcntl
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import threading
@@ -106,6 +107,25 @@ class LegacyWriterLockTest(unittest.TestCase):
         finally:
             os.close(contender)
             os.close(owner)
+
+    def test_background_child_with_closed_descriptor_does_not_pin_lock(self):
+        pidfile = self.root / 'background.pid'
+        script = (
+            'lock_fd=${OPENCLAW_NATS_LEGACY_LOCK_HELD%%:*}; '
+            '( eval "exec ${lock_fd}<&-"; '
+            'unset OPENCLAW_NATS_LEGACY_LOCK_HELD; '
+            f'sleep 2 & echo $! > {str(pidfile)!r} )'
+        )
+        self.assertEqual(self.run_locked(['/bin/bash', '-c', script]), 0)
+        pid = int(pidfile.read_text())
+        try:
+            contender = os.open(self.lock, os.O_RDONLY)
+            try:
+                fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            finally:
+                os.close(contender)
+        finally:
+            subprocess.run(['/bin/kill', str(pid)], capture_output=True)
 
 
 if __name__ == '__main__':
