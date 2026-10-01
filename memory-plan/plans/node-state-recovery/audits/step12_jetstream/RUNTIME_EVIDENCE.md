@@ -1008,3 +1008,18 @@ entrypoint checks and managed-launchd stop/watch cases. It used only owned
 NATS servers, reported no production NATS connections, and cleaned those
 servers normally. PR #170 head `4f2c1a1` separately passed all three CI jobs;
 this newer change requires its own CI run after push.
+
+At 06:08 EDT, Claude's follow-up corrected its `com.openclaw.agent` claim:
+the root-owned plist runs as `moltymac`, while the run-as identity of the
+other legacy system job still needs direct inspection. It also identified a
+macOS process-argument layout with zero padding between environment and
+Apple auxiliary strings. A local synthetic probe reproduced the old parser
+misclassifying `pfz` and `stack_guard` as environment. An owned `/bin/sleep`
+probe with eight environment lengths observed the zero-padding layout and
+verified that the revised decoder returns exactly the two declared variables
+in every case. Unit controls cover zero through seven padding bytes, an
+argv-only dump, and a fake auxiliary prefix before `NODE_OPTIONS`; all pass.
+The managed-launchd and entrypoint subset passed 56 tests with one existing
+domain skip, no production NATS connections and normal owned-server exit.
+Head `da85d40` passed all three CI jobs, and its complete Mac recovery suite
+passed 199 tests with three expected skips before this decoder correction.

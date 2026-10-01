@@ -622,8 +622,8 @@ The live `system/com.openclaw.agent` launchd job references a missing
 operator-writable script, but `launchctl print` reports `username = moltymac`
 and its plist declares `UserName=moltymac`. It is therefore a same-user
 KeepAlive path, not an observed root execution path. It remains an
-unclassified loaded job under D24. Do not
-claim it can execute as root without different evidence. No live job was
+unclassified loaded job under D24. Do not claim it can execute as root
+without different evidence. No live job was
 created, stopped or modified.
 
 An argv-only process dump can omit every environment variable while still
@@ -633,3 +633,18 @@ the empty-declaration acceptance case; it does not grant the operator
 visibility into a different uid's process. Cross-uid NATS identity and
 launchd domain binding remain unimplemented and must refuse until protected
 evidence can supply them. Step 1.2 remains `[A]` at `v1.2-pre`.
+
+## D32 — Separate macOS auxiliary strings from observed process environment (2026-10-01 06:08 EDT)
+
+The argv-only refusal in D31 exposed a second decoder boundary. macOS can
+place its post-environment auxiliary strings immediately after the last
+environment value with zero padding. The old decoder then classified `pfz`,
+`stack_guard` and other auxiliary keys as undeclared environment variables,
+refusing an honest process. A synthetic probe reproduced that classification,
+and an owned eight-length `/bin/sleep` sweep reached the zero-padding layout.
+The decoder now strips only a trailing,
+ordered known auxiliary sequence beginning with the five observed leading
+keys. An auxiliary-looking sequence before `NODE_OPTIONS` remains part of the
+environment and refuses as a loader. Unknown or changed kernel layouts still
+refuse; the parser does not infer an empty environment as valid. This is a
+source correction, not a cross-uid process attestation or a full-node seal.

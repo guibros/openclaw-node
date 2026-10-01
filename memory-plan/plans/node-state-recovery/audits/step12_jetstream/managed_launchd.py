@@ -15,6 +15,11 @@ from preservation_checks import (Refused, launchctl_arguments, require,
 
 EXIT_FLAGS = 0x84000000
 CHANGE_FLAGS = 0x60000000
+APPLE_ARGUMENT_KEYS = (
+    b'pfz', b'stack_guard', b'malloc_entropy', b'ptr_munge', b'main_stack',
+    b'executable_file', b'dyld_file', b'executable_cdhash',
+    b'executable_boothash', b'arm64e_abi', b'th_port', b'security_config',
+)
 
 
 def command(argv, timeout=10):
@@ -41,10 +46,23 @@ def decode_process_arguments(data):
         end = data.index(b'\0', offset)
         argv.append(data[offset:end].decode())
         offset = end + 1
-    environment = {}
+    items = []
     for item in data[offset:].split(b'\0'):
         if not item:
             break
+        items.append(item)
+    names = [item.split(b'=', 1)[0] for item in items]
+    for start in reversed(range(len(names) - 4)):
+        suffix = names[start:]
+        if suffix[:5] != list(APPLE_ARGUMENT_KEYS[:5]):
+            continue
+        positions = [APPLE_ARGUMENT_KEYS.index(name) for name in suffix
+                     if name in APPLE_ARGUMENT_KEYS]
+        if len(positions) == len(suffix) and positions == sorted(set(positions)):
+            items = items[:start]
+            break
+    environment = {}
+    for item in items:
         if b'=' in item:
             name, value = item.split(b'=', 1)
             environment[name.decode()] = hashlib.sha256(value).hexdigest()

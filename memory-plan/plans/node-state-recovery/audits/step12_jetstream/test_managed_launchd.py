@@ -17,9 +17,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from managed_launchd import (Launchd, StopWatch, decode_process_arguments,
-                             process_exists, running_identity, unload_idle_timer)
+                             process_arguments, process_exists, running_identity, unload_idle_timer)
 from legacy_fixture import legacy_journal
-from preservation_checks import Refused, http_json
+from preservation_checks import Refused, http_json, verify_environment_hashes
 from preservation_journal import Journal
 from test_preservation_journal import inventory
 
@@ -47,6 +47,38 @@ class StopWatchPreflight(unittest.TestCase):
         argv, environment = decode_process_arguments(data)
         self.assertEqual(argv, ['/bin/node'])
         self.assertEqual(set(environment), {'HOME', 'NODE_OPTIONS'})
+
+    def test_process_environment_stops_at_unpadded_apple_auxiliary_vector(self):
+        apple = (b'pfz=1\0stack_guard=2\0malloc_entropy=3\0ptr_munge=4\0'
+                 b'main_stack=5\0executable_file=6\0dyld_file=7\0')
+        prefix = struct.pack('i', 1) + b'/bin/node\0\0/bin/node\0HOME=/owned\0'
+        for padding in range(8):
+            with self.subTest(padding=padding):
+                argv, environment = decode_process_arguments(prefix + b'\0' * padding + apple)
+                self.assertEqual(argv, ['/bin/node'])
+                verify_environment_hashes(environment, {'HOME': '/owned'})
+
+    def test_fake_apple_prefix_cannot_hide_later_loader_variable(self):
+        apple = (b'pfz=1\0stack_guard=2\0malloc_entropy=3\0ptr_munge=4\0main_stack=5\0')
+        prefix = (struct.pack('i', 1) + b'/bin/node\0\0/bin/node\0HOME=/owned\0'
+                  + apple + b'NODE_OPTIONS=--require=/tmp/evil.js\0')
+        _, environment = decode_process_arguments(prefix + apple)
+        with self.assertRaisesRegex(Refused, 'code loader'):
+            verify_environment_hashes(environment, {'HOME': '/owned'})
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'requires the macOS process argument layout')
+    def test_owned_process_environment_all_eight_padding_lengths(self):
+        for length in range(8):
+            with self.subTest(length=length):
+                declared = {'HOME': '/tmp', 'PAD': 'x' * length}
+                process = subprocess.Popen(['/bin/sleep', '5'], env=declared)
+                try:
+                    argv, environment = process_arguments(process.pid)
+                    self.assertEqual(argv, ['/bin/sleep', '5'])
+                    verify_environment_hashes(environment, declared)
+                finally:
+                    process.terminate()
+                    process.wait(timeout=5)
 
     def test_undeclared_node_loader_refuses_before_binding(self):
         with patch('managed_launchd.process_info', return_value={

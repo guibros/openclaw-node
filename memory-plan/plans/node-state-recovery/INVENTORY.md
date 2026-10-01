@@ -226,3 +226,8 @@ NATS uid, protected job and file paths, cross-uid identity evidence, and the
 existing continuous full-node watch remain prerequisites. An argv-only process
 dump now refuses before identity binding. Step 1.2 remains open; no cold
 master, production bracket or seal was recorded.
+
+D32 corrects the macOS argument decoder for a zero-padding layout in which
+Apple auxiliary strings directly follow environment strings. Eight owned
+process lengths and forged-prefix controls pass; unknown layouts refuse.
+This does not supply the missing cross-uid or continuous admission proof.
