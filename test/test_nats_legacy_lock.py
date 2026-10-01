@@ -10,7 +10,7 @@ import unittest
 
 
 REPO = Path(__file__).resolve().parents[1]
-HELPER = REPO / 'workspace-bin' / 'nats-legacy-lock.py'
+HELPER = REPO / 'bin' / 'nats-legacy-lock.py'
 spec = importlib.util.spec_from_file_location('nats_legacy_lock', HELPER)
 lock_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(lock_module)
