@@ -137,7 +137,11 @@ let nc,stage='connect';
             while time.monotonic() < deadline:
                 before = [capture(ports[i*3+1]) for i in range(3)]
                 groups = [report['raft'] for report in before]
-                if groups == previous:
+                elected = all('$G' in report['raft']
+                              and len(report['raft']['$G']) >= 2
+                              and all(node['leader'] for node in report['raft']['$G'].values())
+                              for report in before)
+                if elected and groups == previous:
                     if stable_since is None:
                         stable_since = time.monotonic()
                     if time.monotonic() - stable_since >= 1:

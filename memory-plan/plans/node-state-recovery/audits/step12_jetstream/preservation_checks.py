@@ -343,29 +343,38 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None, inclu
         if require_header:
             require(service_text.startswith(domain + '/' + label + ' = {\n'),
                     'launchd service inspection identity differs: ' + label)
-        lines = service_text.splitlines()[1:] if require_header else service_text.splitlines()
+        lines = service_text.split('\n')[1:] if require_header else service_text.split('\n')
         header = []
         for line in lines:
             if re.fullmatch(r'[ \t]*[^{}\n]+ (?:=|=>) \{', line):
                 break
             header.append(line)
         fields = {}
+        positions = {}
         field_prefix = '\t' if require_header else ''
         for key in ('path', 'program', 'working directory'):
             field = re.escape(field_prefix + key) + r' = (.+)'
             matches = re.findall(r'^' + field + r'$', service_text, re.M)
             require(len(matches) <= 1, 'launchd service has a duplicate ' + key + ': ' + label)
-            top = [match[1] for line in header
+            if key == 'working directory':
+                if matches:
+                    fields[key] = matches[0]
+                continue
+            top = [(index, match[1]) for index, line in enumerate(header)
                    if (match := re.fullmatch(field, line))]
             if top:
-                fields[key] = top[0]
+                positions[key], fields[key] = top[0]
         source = fields.get('path', '')
         program = fields.get('program', '')
+        printable_identity = all(value.isprintable() for value in fields.values())
         if approved_labels is not None and label not in approved_labels:
-            if not apple_system_source(source, program):
+            if not (printable_identity
+                    and positions.get('path', float('inf')) < positions.get('program', -1)
+                    and apple_system_source(source, program)):
                 labels.add(label)
                 identities[label] = {'unclassified': True, 'source': source, 'program': program}
             continue
+        require(printable_identity, 'launchd service identity contains a control character: ' + label)
         values = list(fields.values())
         argv = launchctl_arguments(service_text)
         values.extend(argv)

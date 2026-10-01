@@ -190,3 +190,13 @@ The cohort still refuses, and no source change certifies idle loaded jobs,
 Apple user-code dispatch, continuous admission or a cold copy. Full-node
 controller, privileged job/snapshot mechanism, three healthy masters,
 isolated restores and live resumption remain open at 1.2[A]/v1.2-pre.
+
+D29 corrects two regressions Claude found at PR #170 head `79a6ff5`:
+approved working directories printed after `arguments` are compared, and
+Unicode line separators in identity values cannot truncate a loaded program.
+The 190-test owned suite passes with one domain skip. The current read-only
+three-domain scan still reports 29 extra GUI and 11 extra system jobs; 17
+approved jobs match, while four installed mesh jobs correctly refuse their
+live `NODE_PATH` loader. The complete cohort still refuses. Idle-job
+attestation, domain-environment binding, a privileged snapshot, three cold
+masters and verified resumption remain open at 1.2[A]/v1.2-pre.

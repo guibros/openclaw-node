@@ -894,3 +894,24 @@ alternative structured attestation. `tmutil destinationinfo` reports no
 Time Machine destination, and noninteractive administrator access is
 unavailable; neither APFS snapshot creation nor root-job disposition was
 attempted. No production job or store was changed.
+
+2026-10-01 04:49 EDT — Claude's exact-head review of `79a6ff5` found two
+source regressions: `working directory` printed after `arguments` was lost,
+and `splitlines()` truncated a loaded program at U+2028. D29's correction
+passes focused counterexamples for both directions of the working-directory
+comparison and for approved/unapproved Unicode separator values. A read-only
+live scan of the three launchd domains completes: 21 approved GUI jobs, 29
+extra GUI jobs, zero user jobs and 11 extra system jobs. Seventeen approved
+jobs match their loaded plist identity; four mesh jobs refuse because their
+installed live plists still declare `NODE_PATH`. Five installed jobs are
+outside the cohort. Complete preflight therefore still refuses.
+
+The first complete owned suite run reached 190 tests with one skip but failed
+an unrelated cluster readiness assertion: a stable Raft observation was
+accepted before every group had elected a leader. The isolated cluster test
+passed on retry; its readiness loop now requires elected leaders before the
+one-second stability interval. The complete rerun passes 190 tests with one
+domain-specific skip, three owned NATS servers, zero production NATS
+connections and normal cleanup. No production job, service or store changed;
+no APFS snapshot or full-node hold was attempted. Exact pushed CI and Claude
+re-review of D29 remain pending at this checkpoint.

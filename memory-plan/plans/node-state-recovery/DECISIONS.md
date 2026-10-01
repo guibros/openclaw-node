@@ -524,3 +524,21 @@ domain variables; an exclusion policy and continuous process/admission
 evidence remain required. The live read-only scan now completes and still
 refuses 29 extra GUI and 11 extra system jobs plus installed extras. The
 raw-newline idle-job attestation limit in D26–D27 is unchanged.
+
+## D29 — Preserve literal launchctl value boundaries (2026-10-01 04:43 EDT)
+
+Claude's exact-head review of D28 found two parser regressions. An approved
+job's top-level `working directory` can follow its `arguments` block, so it
+must be read from the full service report and bound to the installed plist;
+`path` and `program` remain confined to the identity header for every job.
+Python's `splitlines()` also treats U+2028 and other separators inside a
+launchd value as record boundaries. Split the report only on literal LF and
+refuse non-printable identity values. An unapproved job with such a value
+remains explicitly unknown rather than becoming an Apple omission. Require
+`path` before `program` for that omission, matching the observed launchd
+identity header and refusing a forged `path` later in a program value.
+
+These checks correct source classification and approved-job comparison, but
+they do not turn launchd's unescaped text into idle-job attestation. D26–D27
+still require pinned re-bootstrap and domain binding or a structured trusted
+source before full-node sealing or restoration can be accepted.
