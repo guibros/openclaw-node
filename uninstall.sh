@@ -7,6 +7,23 @@
 
 set -euo pipefail
 
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ "$(uname -s)" = Darwin ]; then
+  NATS_WRITER_LOCK=/private/var/db/openclaw-nats-writer.lock
+  if [ -e "$NATS_WRITER_LOCK" ] || [ -L "$NATS_WRITER_LOCK" ]; then
+    if [ -n "${OPENCLAW_NATS_LEGACY_LOCK_HELD:-}" ]; then
+      /usr/bin/python3 "$REPO_DIR/bin/nats-legacy-lock.py" --verify
+    else
+      exec /usr/bin/python3 "$REPO_DIR/bin/nats-legacy-lock.py" -- /bin/bash "$REPO_DIR/uninstall.sh" "$@"
+    fi
+  fi
+  NATS_HANDOFF=/private/var/db/openclaw-nats/writer-handoff.json
+  if [ -e "$NATS_HANDOFF" ] || [ -L "$NATS_HANDOFF" ]; then
+    echo 'Protected NATS writer handoff active; legacy uninstall refused' >&2
+    exit 1
+  fi
+fi
+
 OPENCLAW_ROOT="${OPENCLAW_ROOT:-$HOME/.openclaw}"
 WORKSPACE="$OPENCLAW_ROOT/workspace"
 PURGE=false

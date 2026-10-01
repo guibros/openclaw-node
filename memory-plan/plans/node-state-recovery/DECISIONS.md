@@ -688,8 +688,8 @@ marker, root journal, cold masters or cutover exists yet.
 
 The old-writer source must take a shared `flock` on a root-owned 0644 lock at
 `/private/var/db/openclaw-nats-writer.lock` for its entire mutation, including
-installer work, auth reload and stack launch. The privileged transaction will
-take that same lock exclusively before its process census and handoff marker
+installer and uninstaller work, auth reload and stack launch. The privileged
+transaction will take that same lock exclusively before its process census and handoff marker
 publication. The source wrappers validate the lock path and inherited
 descriptor, wait for a bounded interval, and refuse a marker observed under
 the lock. If the lock is absent they retain the existing marker guard; this
