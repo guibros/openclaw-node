@@ -41,6 +41,7 @@ import {
   getOrCreateIdentity, createIdentityRegistry, DEFAULT_IDENTITY_DIR, IDENTITY_REGISTRY_FILE,
 } from '../lib/node-identity.mjs';
 import { assertLegacyNatsWriterAllowed } from '../lib/nats-writer-ownership.mjs';
+import { reexecUnderLegacyNatsLock } from '../lib/nats-legacy-lock.mjs';
 
 const require = createRequire(import.meta.url);
 const { resolveNodeId } = require('../lib/node-id.js');
@@ -86,6 +87,7 @@ async function main() {
   const argv = process.argv.slice(2);
   if (argv.length === 0) usage(1);
   const SYNC = argv.includes('--sync-nats');
+  if (SYNC) reexecUnderLegacyNatsLock();
   if (SYNC) assertLegacyNatsWriterAllowed();
   const roleIdx = argv.indexOf('--role');
   const role = roleIdx >= 0 ? argv[roleIdx + 1] : 'worker';

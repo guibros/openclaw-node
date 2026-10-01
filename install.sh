@@ -23,6 +23,16 @@ set -euo pipefail
 # ============================================================
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ "$(uname -s)" = Darwin ]; then
+  NATS_WRITER_LOCK=/private/var/db/openclaw-nats-writer.lock
+  if [ -e "$NATS_WRITER_LOCK" ] || [ -L "$NATS_WRITER_LOCK" ]; then
+    if [ -n "${OPENCLAW_NATS_LEGACY_LOCK_HELD:-}" ]; then
+      /usr/bin/python3 "$REPO_DIR/workspace-bin/nats-legacy-lock.py" --verify
+    else
+      exec /usr/bin/python3 "$REPO_DIR/workspace-bin/nats-legacy-lock.py" -- /bin/bash "$REPO_DIR/install.sh" "$@"
+    fi
+  fi
+fi
 OPENCLAW_ROOT="${OPENCLAW_ROOT:-$HOME/.openclaw}"
 WORKSPACE="$OPENCLAW_ROOT/workspace"
 ENV_FILE="$OPENCLAW_ROOT/openclaw.env"

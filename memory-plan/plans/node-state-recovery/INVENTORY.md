@@ -237,3 +237,19 @@ case without touching the live node; its root and dedicated account remain
 absent. Focused tests and exact-head CI/review must pass before merging the
 preflight source. UID/GID stale-file search across the data volume remains a
 separate account-provisioning requirement, not evidence from this audit.
+
+Checkpoint 2026-10-01 15:03 EDT: PR #175's read-only preflight merged with
+exact-head CI green on rerun and Claude's no-blocker review. The active watcher
+was separately switched to the already-merged PR #173 cohort code and reports
+the actual `nats`, `nats-2`, `nats-3` layout as WORKING. D39 records four
+root-migration design blockers and a revised review candidate. No root
+transaction, protected account/marker, cold masters, isolated restores or
+cutover exists; step 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 15:17 EDT: D40 adds the shared-lock prerequisite to
+legacy installer, auth-render, trust-peer sync, cohort init and stack control
+source. A private lock fixture proves shared child lifetime, exclusive
+contention, marker refusal and invalid-file refusal; relevant source tests
+pass. The root-owned lock has not been created, and the existing production
+entrypoints have not been redeployed from this candidate. Root journal,
+durable user-to-root transfer, client hold and cutover remain open at 1.2[A].

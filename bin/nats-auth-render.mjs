@@ -42,6 +42,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createIdentityRegistry, IDENTITY_REGISTRY_FILE } from '../lib/node-identity.mjs';
 import { atomicWriteFileSync } from '../lib/atomic-write.mjs';
 import { assertLegacyNatsWriterAllowed } from '../lib/nats-writer-ownership.mjs';
+import { assertLegacyNatsLockHeld, reexecUnderLegacyNatsLock } from '../lib/nats-legacy-lock.mjs';
 
 const require = createRequire(import.meta.url);
 const { identityToNkey, publicKeyBase64ToNkey, defaultIdentityDir } = require('../lib/nats-nkey.js');
@@ -141,6 +142,7 @@ export async function syncNatsAuth({
   print = false,
   log = (m) => process.stderr.write(`[nats-auth] ${m}\n`),
 } = {}) {
+  assertLegacyNatsLockHeld();
   assertLegacyNatsWriterAllowed();
   const resolve = require('../lib/nats-resolve.js');
   const effectiveMode = (mode || resolve.NATS_AUTH_MODE) === 'token' ? 'token' : 'nkey';
@@ -202,6 +204,7 @@ async function main() {
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  reexecUnderLegacyNatsLock();
   main().catch((err) => {
     process.stderr.write(`[nats-auth] fatal: ${err.message}\n`);
     process.exit(1);

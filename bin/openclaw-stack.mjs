@@ -18,6 +18,7 @@ import net from 'node:net';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { assertLegacyNatsWriterAllowed } from '../lib/nats-writer-ownership.mjs';
+import { reexecUnderLegacyNatsLock } from '../lib/nats-legacy-lock.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOME = os.homedir();
@@ -222,6 +223,7 @@ function notifyResult(rows) {
 
 const cmd = process.argv[2] || 'status';
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (cmd === 'up' || cmd === 'down') reexecUnderLegacyNatsLock();
   const units = process.platform === 'darwin' ? scanLaunchdUnits() : scanSystemdUnits();
   if (!units.length) { console.error('no openclaw units installed — run install.sh first'); process.exit(1); }
 
