@@ -191,3 +191,19 @@ path and timed-out restore fixtures; the rerun used the installed Node binary
 and the main checkout's NATS module for owned tests. No production job,
 service, store, volume or journal was changed. New exact CI/review and all
 live protection/restore gates remain open; full-node `seal()` stays disabled.
+
+2026-10-01 09:49 EDT — D41 runs each owned copied member's Raft state on a
+disposable store with one fresh empty routing peer before the three-member
+restore. The member must expose its recorded groups and persisted indexes at
+least as high as the last committed/applied observations, without a leader;
+the blank peer has no account groups. A pre-baseline hollow WAL reaches the
+new replay check at index zero and refuses, while the healthy fixture passes.
+The copied candidate is reverified after scratch replay. This does not
+validate peers/votes or unobserved tails and is not a production cold master.
+Complete suite, exact CI and adversarial review are pending; 1.2 remains
+`[A]` and full-node `seal()` is disabled.
+
+At 10:02 EDT, the D41 complete Mac recovery suite passed 209 tests with three
+expected skips and normal owned cleanup; final-source healthy replay and
+hollow-WAL control passed 2/2. Exact-head CI and independent review remain
+open. No live NATS process or store was changed.

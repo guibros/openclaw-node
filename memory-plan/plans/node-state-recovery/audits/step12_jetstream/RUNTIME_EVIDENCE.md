@@ -1230,3 +1230,35 @@ branch. It also warns that the active `v1.2-pre` step has accumulated many
 source commits. Neither condition was introduced by D40; the missing
 automation/history surfaces need their own plan decision rather than being
 silently created inside this preservation fixture correction.
+
+## D41 owned per-member replay — 2026-10-01 09:55 EDT
+
+The owned three-member fixture now replays each copied member on a disposable
+working store with one fresh empty routing peer, before any original peers
+can heal it. Its per-group persisted indexes must reach the last observed
+committed/applied indexes and remain stable for two seconds; no member group
+may become leader and the blank peer has no account group. Each scratch
+server exits normally, the member log has no damage line, and the untouched
+candidate is reverified before the ordinary three-member restore. The
+healthy focused case passed in 21.743 seconds. A source-side stream-group
+snapshot/WAL/index deletion and same-length junk mutation passed the earlier
+structural, copy and isolated-state checks but refused at member 1's replay
+index zero; its focused negative harness passed in 29.109 seconds. Installed
+NATS is 2.12.6 and the installed Node runner is v24.13.0.
+
+The first complete 209-test run failed one assertion in an existing negative
+control: a latent junk snapshot now reaches `Snapshot corrupt` during replay
+rather than at the later restored-cluster log scan. The expected stage was
+corrected without weakening the required warning. A complete exact-source
+rerun then passed. This local fixture does not validate saved peer/vote
+metadata or unobserved committed tails, and it is not a protected production
+cold master. No production process, store, job, volume or journal was changed.
+
+At 10:02 EDT, the corrected complete Mac recovery suite passed 209 tests in
+396.620 seconds with three expected skips, owned-server normal cleanup and
+no production connections. A subsequent final-source focus reran the
+healthy replay and hollow-WAL refusal after tightening the explicit Raft
+`LEADER` state, node-ID and reserved-port assertions: 2 tests passed in
+60.044 seconds. The complete-suite run had loaded the preceding assertion
+revision; exact-final-source CI and Claude review remain required. The
+`v1.2-pre` version and disabled full-node `seal()` are unchanged.

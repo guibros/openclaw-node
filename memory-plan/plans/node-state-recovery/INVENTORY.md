@@ -321,3 +321,18 @@ complete 208-test Mac recovery suite pass, with three expected skips.
 Protected production custody, per-member Raft replay and peer/vote
 metadata validation, three healthy cold masters, the full driver and
 verified resumption remain open; 1.2 stays `[A]`.
+
+D41 adds a disposable NATS-native replay of each copied owned member against
+one fresh empty routing peer before the candidate meets its original peers.
+All recorded Raft groups must replay to at least their observed committed and
+applied indexes without leader election, and the blank peer must have no
+account groups. A source-side hollow-WAL control passes the earlier structural
+and local-state checks but refuses at member 1's replay index. The healthy
+owned run and focused negative pass locally; complete exact-source suite,
+CI and independent review are pending. Peer/vote metadata validation,
+protected production custody, all-message baseline, three live cold masters,
+the detached controller and verified resumption remain open at 1.2 `[A]`.
+
+The corrected complete Mac recovery suite passes 209 tests with three expected
+skips; final-source replay focus passes 2/2. Exact-source CI and Claude review
+remain pending. No production preservation window was opened.

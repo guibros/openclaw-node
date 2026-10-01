@@ -861,3 +861,34 @@ detects the tested hollow WAL but NATS may reconstruct `peers.idx` and load
 a vote without validating it, so peer/vote evidence needs separate checks.
 The per-line exclusion matches the benign meta-snapshot condition and its
 same-condition suffixed variant, not arbitrary catch-up warnings.
+
+## D41 — Require owned per-member Raft replay before peer-assisted restore (2026-10-01 09:49 EDT)
+
+The owned three-member fixture now starts a disposable copy of each candidate
+member beside a fresh, empty routing peer. This supplies a route without
+supplying a quorum or a copy of the member's history. The member retains its
+original server name; it may not become a Raft leader, and the blank peer
+may not acquire an account Raft group. For every group in the last
+pre-stop observation, the copied member must expose the same group and a
+persisted Raft index at least as large as the recorded committed and applied
+indexes. The indexes must hold steady for two seconds within a 20-second
+deadline. Both scratch servers terminate normally, and the tested member's
+log must contain no known damage line. The candidate itself is checked again
+for byte equality after these mutable replay copies are stopped, before
+the ordinary three-member restore.
+
+A source-side negative deletes a stream group's snapshots and index database
+and replaces its log blocks with same-length junk before the stopped-byte
+baseline. The structural sentinel, candidate copy and isolated stream-state
+check still pass; its copied member replays at index zero and is refused
+before healthy peers can repair it. The healthy owned replay and this negative
+pass locally. The older latent junk snapshot also refuses earlier in this
+replay with the same `Snapshot corrupt` warning. This is bounded evidence for
+NATS 2.12.6's persisted-index
+replay behavior, not a validity certificate for all Raft metadata. Junk
+`peers.idx` and saved votes can still be loaded or reconstructed, and an
+unobserved committed tail can still be lost. Those cases, the protected live
+baseline and custody, full retained-message/durable comparisons, three
+production cold masters, detached controller and coordinated resumption
+remain open. Step 1.2 stays `[A]` at `v1.2-pre`; full-node `seal()` stays
+disabled.

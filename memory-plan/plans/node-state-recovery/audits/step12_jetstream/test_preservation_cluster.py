@@ -49,6 +49,12 @@ class Cluster(unittest.TestCase):
 
     @unittest.skipIf(bool(os.environ.get('RECOVERY_CORRUPT_RESTORE')),
                      'negative-control child runs only the restore test')
+    def test_hollow_raft_wal_cannot_replay(self):
+        self.corrupt_and_check('latent-hollow-raft-wal-1',
+                               'isolated member 1 Raft replay did not reach committed index')
+
+    @unittest.skipIf(bool(os.environ.get('RECOVERY_CORRUPT_RESTORE')),
+                     'negative-control child runs only the restore test')
     def test_missing_local_history_cannot_be_healed_into_a_valid_candidate(self):
         for mode in ('empty-1', 'empty-0-2', 'missing-1', 'missing-group-1',
                      'missing-consumer-1', 'empty-raft-1', 'no-raft-log-1',
@@ -60,7 +66,7 @@ class Cluster(unittest.TestCase):
                 stage = (f'isolated member {member} raft groups differ' if mode == 'missing-group-1'
                          else f'isolated member {member} raft group content differs'
                          if mode in ('empty-raft-1', 'no-raft-log-1', 'no-raft-term-1')
-                         else 'logged repair or corruption'
+                         else 'Raft replay logged damage'
                          if mode == 'latent-junk-raft-snapshot-1'
                          else f'isolated member {member} raft bytes differ from stopped baseline'
                          if mode.startswith('junk-raft-')
@@ -164,6 +170,130 @@ cluster {{ name: owned-preservation
                     sock.close()
             if cleanup_error is not None and not active_error:
                 raise cleanup_error
+
+    def replay_member_raft(self, root, index, candidate_root, raft_reference, binary,
+                           route_password, token):
+        working = root / f'replay-{index}'
+        blank = root / f'replay-blank-{index}'
+        shutil.copytree(candidate_root / str(index), working)
+        blank.mkdir()
+        held = []
+        for _ in range(6):
+            sock = socket.socket()
+            sock.bind(('127.0.0.1', 0))
+            held.append(sock)
+        ports = [sock.getsockname()[1] for sock in held]
+        self.assertFalse(set(ports) & {4222, 4223, 4224, 6222, 6223, 6224,
+                                       8222, 8223, 8224})
+        configs = []
+        for name, store, offset, peer in ((f'owned-raft-{index}', working, 0, 5),
+                                          (f'owned-replay-blank-{index}', blank, 3, 2)):
+            config = root / f'{name}.conf'
+            config.write_text(f'''server_name: {name}
+listen: 127.0.0.1:{ports[offset]}
+http: 127.0.0.1:{ports[offset+1]}
+authorization {{ token: "{token}" }}
+jetstream {{ store_dir: "{store}" }}
+cluster {{ name: owned-preservation
+ listen: 127.0.0.1:{ports[offset+2]}
+ authorization {{ user: owned, password: "{route_password}" }}
+ routes: ["nats://owned:{route_password}@127.0.0.1:{ports[peer]}"]
+ no_advertise: true
+}}
+''')
+            configs.append(config)
+        for sock in held:
+            sock.close()
+        owners = []
+        cleanup = []
+        observations = None
+        try:
+            for name, config in zip((f'replay-{index}', f'replay-blank-{index}'), configs):
+                log = open(root / f'{name}.log', 'ab', buffering=0)
+                proc = subprocess.Popen([binary, '--config', str(config)], stdout=log, stderr=log)
+                owners.append((proc, log))
+            deadline = time.monotonic() + 20
+            stable_since = None
+            previous = None
+            while time.monotonic() < deadline:
+                self.assertTrue(all(proc.poll() is None for proc, _ in owners),
+                                f'isolated member {index} Raft replay server exited')
+                try:
+                    routes = [http_json(ports[offset+1], '/routez') for offset in (0, 3)]
+                    member = http_json(ports[1], '/raftz')
+                    member.update(http_json(ports[1], '/raftz?acc=%24G'))
+                    blank_groups = http_json(ports[4], '/raftz?acc=%24G').get('$G', {})
+                    route_ids = [{route['remote_id'] for route in report['routes']}
+                                 for report in routes]
+                    observations = {'member': member, 'blank': blank_groups,
+                                    'route_ids': [list(ids) for ids in route_ids],
+                                    'expected_groups': {account: list(groups)
+                                                        for account, groups in raft_reference.items()}}
+                    if not (all(len(ids) == 1 for ids in route_ids)
+                            and set(member) == set(raft_reference)
+                            and all(set(member[account]) == set(groups)
+                                    for account, groups in raft_reference.items())):
+                        stable_since = None
+                        time.sleep(.2)
+                        continue
+                    self.assertFalse(blank_groups,
+                                     f'isolated member {index} replay blank acquired account state')
+                    self.assertTrue(all(group.get('state') != 'LEADER' and
+                                        not group.get('leader') and
+                                        group.get('id') == raft_reference[account][name]['id']
+                                        for account, groups in member.items()
+                                        for name, group in groups.items()),
+                                    f'isolated member {index} replay elected a leader')
+                    indexes = {account: {name: group.get('pindex') for name, group in groups.items()}
+                               for account, groups in member.items()}
+                    low = [(account, name, group.get('pindex'),
+                            max(expected['committed'], expected['applied']))
+                           for account, groups in raft_reference.items()
+                           for name, expected in groups.items()
+                           for group in [member[account][name]]
+                           if not isinstance(group.get('pindex'), int) or
+                           group['pindex'] < max(expected['committed'], expected['applied'])]
+                    if low:
+                        stable_since = None
+                    elif indexes == previous:
+                        if stable_since is None:
+                            stable_since = time.monotonic()
+                        if time.monotonic() - stable_since >= 2:
+                            break
+                    else:
+                        stable_since = None
+                    previous = indexes
+                except Refused:
+                    stable_since = None
+                time.sleep(.2)
+            else:
+                self.fail(f'isolated member {index} Raft replay did not reach committed index: '
+                          f'{observations}')
+        finally:
+            for proc, log in reversed(owners):
+                try:
+                    if proc.poll() is None:
+                        proc.send_signal(signal.SIGTERM)
+                    self.assertEqual(proc.wait(timeout=10), 0)
+                except Exception as error:
+                    cleanup.append(str(error))
+                    if proc.poll() is None:
+                        proc.kill()
+                        proc.wait(timeout=5)
+                finally:
+                    log.close()
+            self.assertFalse(cleanup, f'isolated member {index} replay cleanup failed: {cleanup}')
+        warnings = []
+        for line in (root / f'replay-{index}.log').read_text().splitlines():
+            if re.search(r'Snapshot corrupt|Corrupt WAL|Could not load|Error storing entry|'
+                         r'corrupt state|Stream state outdated|will rebuild|index mismatch|'
+                         r'checksum did not match|prior state|no checksum|Resetting WAL|Wrong index',
+                         line, re.I):
+                warnings.append(line)
+        self.assertFalse(warnings,
+                         f'isolated member {index} Raft replay logged damage: {warnings}')
+        return {account: {name: group['pindex'] for name, group in groups.items()}
+                for account, groups in observations['member'].items()}
 
     def test_stream_and_consumer_groups_and_real_stream_election(self):
         os.umask(0o077)
@@ -464,6 +594,14 @@ let nc,stage='connect';
                 shutil.rmtree(directory/'snapshots')
             else:
                 (directory/'tav.idx').unlink()
+        elif corruption == 'latent-hollow-raft-wal-1':
+            group = next(group for group in before[1]['raft']['$G'] if group.startswith('S-'))
+            directory = root/'store-1'/'jetstream'/'$SYS'/'_js_'/group
+            for snapshot in (directory/'snapshots').glob('snap.*'):
+                snapshot.unlink()
+            for block in (directory/'msgs').glob('*.blk'):
+                block.write_bytes(bytes([0xa5]) * block.stat().st_size)
+            (directory/'msgs'/'index.db').unlink()
         elif corruption in ('latent-junk-raft-snapshot-1', 'junk-raft-snapshot-1', 'junk-raft-log-1',
                             'junk-raft-peers-1', 'junk-raft-vote-1'):
             group = next(group for group in before[1]['raft']['$G'] if group.startswith('S-'))
@@ -491,6 +629,8 @@ let nc,stage='connect';
                              f'isolated member {i} raft bytes differ from stopped baseline')
         local_states = [self.isolated_member_state(root, i, root/'candidate', before[i], after[i],
                         binary, route_password, token) for i in range(3)]
+        replay_indexes = [self.replay_member_raft(root, i, root/'candidate', after[i]['raft'], binary,
+                          route_password, token) for i in range(3)]
         verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
         restored_sockets = []
         for _ in range(9):
@@ -586,6 +726,7 @@ cluster {{ name: owned-preservation
                 'copy_manifest_sha256': candidate['copy_manifest_sha256'],
                 'files': candidate['files'], 'restored_streams': len(reports[0]['streams']),
                 'isolated_member_states': local_states,
+                'isolated_replay_indexes': replay_indexes,
                 'stopped_raft_sha256': [hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
                                         for files in stopped_raft_files],
                 'restored_message_leaders': leaders_checked,
