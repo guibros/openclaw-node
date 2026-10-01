@@ -247,3 +247,11 @@ owned NATS placement startup race; both fixtures were corrected and the exact
 suite rerun. Exact-head CI and adversarial review remain open, as do protected
 cross-uid ownership, continuous admission, the detached production driver,
 three healthy cold masters and live restoration acceptance.
+
+D34 corrects the routed-read overclaim: an owned restored member must become
+stream leader before its message read counts as that replica's read-back.
+Single-follower and all-replica corruption negatives both fail at message
+retrieval; a copy-side manifest also detects a changed single replica before
+restore. The publication digest is still operator-held, and the live NATS
+stores remain same-uid. The production isolation and full-node gates remain
+open at 1.2[A]/v1.2-pre.

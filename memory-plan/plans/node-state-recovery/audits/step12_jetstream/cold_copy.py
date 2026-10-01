@@ -80,6 +80,51 @@ def capture(roots):
     return {name: capture_tree(root) for name, root in sorted(resolved.items())}
 
 
+def copy_view(captured):
+    return {name: {relative: ({'type': 'file', 'sha256': item['sha256']}
+                             if item['type'] == 'file' else
+                             {'type': 'directory', 'entries': item['entries']})
+                   for relative, item in entries.items()}
+            for name, entries in captured.items()}
+
+
+def verify_candidate(destination, manifest_sha256):
+    destination = pathlib.Path(destination)
+    root_info = destination.lstat()
+    require(stat.S_ISDIR(root_info.st_mode) and root_info.st_uid == os.getuid()
+            and stat.S_IMODE(root_info.st_mode) == 0o700,
+            'candidate directory is not owner-private')
+    manifest_path = destination / 'manifest.json'
+    fd = os.open(manifest_path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        before = identity(os.fstat(fd))
+        require(stat.S_ISREG(before['mode']) and before['nlink'] == 1,
+                'candidate manifest is not a regular file')
+        body = bytearray()
+        while chunk := os.read(fd, 1024 * 1024):
+            body.extend(chunk)
+        require(identity(os.fstat(fd)) == before,
+                'candidate manifest changed during read')
+    finally:
+        os.close(fd)
+    require(hashlib.sha256(body).hexdigest() == manifest_sha256,
+            'candidate manifest differs from publication')
+    manifest = json.loads(body)
+    require(isinstance(manifest, dict) and set(manifest) ==
+            {'schema', 'source_manifest_sha256', 'stores'} and manifest['schema'] == 1,
+            'candidate manifest has an invalid schema')
+    stores = manifest['stores']
+    require(isinstance(stores, dict) and len(stores) == 3 and
+            all(isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9_-]+', name)
+                for name in stores), 'candidate manifest has invalid stores')
+    require(set(os.listdir(destination)) == set(stores) | {'manifest.json'},
+            'candidate root entries differ')
+    actual = capture({name: destination / name for name in stores})
+    require(copy_view(actual) == stores, 'candidate store bytes or entries differ')
+    return {'status': 'candidate', 'manifest_sha256': manifest['source_manifest_sha256'],
+            'copy_manifest_sha256': manifest_sha256}
+
+
 def copy_file(source, target, expected):
     source_fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
     try:
@@ -145,7 +190,22 @@ def copy_candidate(roots, destination, after_baseline=None, after_copy=None):
                 require(copied[name][relative]['entries'] == item['entries'],
                         'copied store directory entries differ')
     body = json.dumps(baseline, sort_keys=True, separators=(',', ':')).encode()
-    for directory, _, _ in os.walk(staging):
+    source_digest = hashlib.sha256(body).hexdigest()
+    manifest = {'schema': 1, 'source_manifest_sha256': source_digest,
+                'stores': copy_view(copied)}
+    manifest_body = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
+    fd = os.open(staging / 'manifest.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                 0o600)
+    try:
+        view = memoryview(manifest_body)
+        while view:
+            view = view[os.write(fd, view):]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    def sync_error(error):
+        raise Refused('candidate directory could not be synced: ' + str(error.filename)) from error
+    for directory, _, _ in os.walk(staging, onerror=sync_error):
         fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
             os.fsync(fd)
@@ -157,6 +217,7 @@ def copy_candidate(roots, destination, after_baseline=None, after_copy=None):
         os.fsync(fd)
     finally:
         os.close(fd)
-    return {'status': 'candidate', 'manifest_sha256': hashlib.sha256(body).hexdigest(),
+    return {'status': 'candidate', 'manifest_sha256': source_digest,
+            'copy_manifest_sha256': hashlib.sha256(manifest_body).hexdigest(),
             'files': sum(item['type'] == 'file' for entries in baseline.values()
                          for item in entries.values())}

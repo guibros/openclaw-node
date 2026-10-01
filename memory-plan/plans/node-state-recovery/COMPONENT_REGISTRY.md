@@ -118,3 +118,13 @@ Mac recovery suite passes 204 tests with three expected skips; the NATS
 fixture reports no production connections. Exact CI and adversarial re-review
 of this final head are pending. The live stores remain operator-owned; no
 protected cross-uid driver, production cold master or full-node seal exists.
+
+2026-10-01 06:56 EDT — D34 corrects the routed-read limit in that checkpoint:
+the owned restore now makes each member stream leader before comparing the
+seeded message. Corrupting any one of the three copied members fails when it
+leads; the candidate also has a copy-side manifest whose publication digest
+detects later changes before restore. The Mac suite passes 207 tests with
+three skips, the opt-in copier/APFS/volume set passes 11 tests, and a final
+refusal-only sync traversal change passes nine focused copier tests. These
+are owned development controls. Exact CI/re-review are pending; live stores
+remain same-uid and no production cold-point or full-node seal exists.

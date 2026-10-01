@@ -1061,3 +1061,36 @@ peers for placement" refusal. The targeted cluster control passed twice after
 that readiness correction. These were fixture corrections; the final 204-test
 pass is the result for the exact pending source. No production preservation
 window was entered. Exact-head CI and Claude re-review remain pending.
+
+At 06:45 EDT, all three CI jobs passed on `d7fba03`. Claude reproduced that
+the three client-port reads can all be routed to one healthy stream leader:
+five of nine scratch restores with a corrupted follower passed. The next
+source revision adds a copy-side manifest checked by a separate verifier and
+uses preferred leader transfer so each restored member serves the original
+message while it is leader. Nine focused copier tests pass. Two direct
+single-follower corruption runs failed as intended at message-get 404; the
+three-test owned cluster suite passed in 30.9 s with no production routes.
+The copy-side manifest detects later byte or structure changes, while its
+digest still needs protected retention for production authenticity. The full
+Mac suite, exact-head CI and adversarial re-review for this newer revision
+are pending; no live NATS state was changed.
+
+At 06:53 EDT, Claude's exact `d7fba03` verdict closed the unreadable-tree
+blocker and confirmed the routed-read blocker. Its Linux scratch suite passed
+204 tests with platform/root skips. The first Mac full suite with preferred
+leader rotation and the copy-side manifest passed 207 tests with three skips
+in 228.9 s. The final negative now corrupts each replica separately and
+requires `restore-message-get` 404, which cannot be satisfied by the pre-stop
+read. Its three-test cluster suite passed in 61.3 s. The opt-in APFS aggregate
+first timed out because it launched that entire expanded cluster suite under
+a 60 s child limit; the normal detach initially returned busy, then succeeded
+after the timed-out child exited. No owned NATS process remained, and the
+disposable image was removed. The aggregate now invokes only the positive
+owned restore; all 11 copier/APFS/owned-volume tests pass in 20.2 s. At
+06:56 EDT the Mac recovery suite passed 207 tests
+with three expected skips in 244.3 s. Owned NATS fixtures reported no
+production connections and normal cleanup. A following refusal-only change
+made directory sync traversal raise on listing errors too; its nine focused
+copier tests pass. Exact-head CI and adversarial re-review of the
+leader-rotation revision remain open. All production services and stores
+remain untouched.

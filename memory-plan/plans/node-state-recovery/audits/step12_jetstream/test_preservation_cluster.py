@@ -12,22 +12,32 @@ import tempfile
 import time
 import unittest
 
-from cold_copy import copy_candidate
+from cold_copy import copy_candidate, verify_candidate
 from preservation_checks import QuietWindow, Refused, capture, http_json
 
 
 class Cluster(unittest.TestCase):
-    @unittest.skipIf(os.environ.get('RECOVERY_CORRUPT_RESTORE') == '1',
-                     'negative-control child runs only the restore test')
-    def test_corrupted_message_copy_cannot_pass_restore(self):
+    def corrupt_and_check(self, mode):
         result = subprocess.run([sys.executable, '-m', 'unittest', '-q',
                                  'test_preservation_cluster.Cluster.test_stream_and_consumer_groups_and_real_stream_election'],
-                                env={**os.environ, 'RECOVERY_CORRUPT_RESTORE': '1'},
+                                env={**os.environ, 'RECOVERY_CORRUPT_RESTORE': mode},
                                 cwd=pathlib.Path(__file__).parent, capture_output=True,
                                 text=True, timeout=60)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('"stage":"message-get"', result.stderr)
+        self.assertIn('"stage":"restore-message-get"', result.stderr)
         self.assertIn('"code":"404"', result.stderr)
+
+    @unittest.skipIf(bool(os.environ.get('RECOVERY_CORRUPT_RESTORE')),
+                     'negative-control child runs only the restore test')
+    def test_corrupted_message_copy_cannot_pass_restore(self):
+        self.corrupt_and_check('1')
+
+    @unittest.skipIf(bool(os.environ.get('RECOVERY_CORRUPT_RESTORE')),
+                     'negative-control child runs only the restore test')
+    def test_corrupted_follower_copy_cannot_pass_restore(self):
+        for i in range(3):
+            with self.subTest(replica=i):
+                self.corrupt_and_check(f'single-{i}')
 
     def test_stream_and_consumer_groups_and_real_stream_election(self):
         os.umask(0o077)
@@ -87,12 +97,25 @@ let nc,stage='connect';
   stage='publish';await nc.jetstream().publish('history',StringCodec().encode('preserved'));
   stage='consumer-add';
   await jm.consumers.add('HISTORY',{durable_name:'stable',ack_policy:'explicit',num_replicas:3});
- }else if(process.env.OWNED_ACTION==='read'){
-  stage='message-get';const message=await jm.streams.getMessage('HISTORY',{seq:1});
+ }else if(process.env.OWNED_ACTION==='leader'){
+  stage='stream-info';const info=await jm.streams.info('HISTORY');
+  console.log(JSON.stringify({leader:info.cluster?.leader}));
+ }else if(process.env.OWNED_ACTION==='read'||process.env.OWNED_ACTION==='read-local'){
+  if(process.env.OWNED_ACTION==='read-local'){
+   stage='local-leader-check';const info=await jm.streams.info('HISTORY');
+   if(info.cluster?.leader!==nc.info.server_name)throw Error('connected member is not stream leader');
+  }
+  stage=process.env.OWNED_ACTION==='read-local'?'restore-message-get':'message-get';
+  const message=await jm.streams.getMessage('HISTORY',{seq:1});
+  if(process.env.OWNED_ACTION==='read-local'){
+   stage='local-leader-recheck';const info=await jm.streams.info('HISTORY');
+   if(info.cluster?.leader!==nc.info.server_name)throw Error('stream leader changed during read');
+  }
   console.log(JSON.stringify({seq:message.seq,subject:message.subject,data:StringCodec().decode(message.data)}));
  }else{
   stage='stepdown';
-  const reply=await nc.request('$JS.API.STREAM.LEADER.STEPDOWN.HISTORY',Buffer.from('{}'),{timeout:5000});
+  const placement=process.env.OWNED_PREFERRED?{placement:{preferred:process.env.OWNED_PREFERRED}}:{};
+  const reply=await nc.request('$JS.API.STREAM.LEADER.STEPDOWN.HISTORY',Buffer.from(JSON.stringify(placement)),{timeout:5000});
   const data=JSON.parse(new TextDecoder().decode(reply.data));if(data.error||!data.success)throw Error('owned stepdown failed');
  }
  await nc.drain();
@@ -103,22 +126,25 @@ let nc,stage='connect';
         succeeded = False
         for sock in held:
             sock.close()
-        def client(action, startup=False, port=None):
+        def client(action, startup=False, port=None, preferred=None):
             result = subprocess.run([node, str(script)], env={**os.environ, 'OWNED_NATS_MODULE': module,
-                'OWNED_URL': f'nats://127.0.0.1:{port or ports[0]}', 'OWNED_TOKEN': token, 'OWNED_ACTION': action},
+                'OWNED_URL': f'nats://127.0.0.1:{port or ports[0]}', 'OWNED_TOKEN': token,
+                'OWNED_ACTION': action, 'OWNED_PREFERRED': preferred or ''},
                 capture_output=True, text=True, timeout=15)
             if result.returncode and startup:
                 error = json.loads(result.stderr)
                 if (error.get('stage') == 'account-info' and error.get('code') == '503'
                         or error.get('stage') == 'stream-add' and error.get('code') == '400'
                         and 'no suitable peers for placement' in error.get('message', '')
-                        or action == 'read' and error.get('stage') in ('account-info', 'message-get')
+                        or action in ('read', 'read-local', 'leader')
+                        and error.get('stage') in ('account-info', 'message-get',
+                                                   'restore-message-get', 'stream-info')
                         and error.get('code') in ('503', 'TIMEOUT')):
                     with (root/'startup-api-refusals.jsonl').open('a') as handle:
                         handle.write(json.dumps(error)+'\n')
                     return False
             self.assertEqual(result.returncode, 0, result.stderr.replace(token, '[owned token omitted]'))
-            return json.loads(result.stdout) if action in ('create', 'read') else True
+            return json.loads(result.stdout) if action in ('create', 'read', 'read-local', 'leader') else True
         try:
             for i, config in enumerate(configs):
                 log = open(root/f'server-{i}.log', 'ab', buffering=0)
@@ -236,12 +262,17 @@ let nc,stage='connect';
             print(json.dumps(report))
             self.assertFalse(cleanup, 'owned cluster shutdown was not normal')
         candidate = copy_candidate({str(i): root/f'store-{i}' for i in range(3)}, root/'candidate')
-        if os.environ.get('RECOVERY_CORRUPT_RESTORE') == '1':
-            for i in range(3):
+        corruption = os.environ.get('RECOVERY_CORRUPT_RESTORE')
+        if corruption == '1' or corruption in ('single-0', 'single-1', 'single-2'):
+            targets = range(3) if corruption == '1' else (int(corruption[-1]),)
+            for i in targets:
                 block = root/'candidate'/str(i)/'jetstream'/'$G'/'streams'/'HISTORY'/'msgs'/'1.blk'
                 content = block.read_bytes()
                 self.assertIn(b'preserved', content)
                 block.write_bytes(content.replace(b'preserved', b'corrupted'))
+        else:
+            verified = verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
+            self.assertEqual(verified['manifest_sha256'], candidate['manifest_sha256'])
         restored_sockets = []
         for _ in range(9):
             sock = socket.socket(); sock.bind(('127.0.0.1', 0)); restored_sockets.append(sock)
@@ -299,20 +330,34 @@ cluster {{ name: owned-preservation
                     'raft': [report['raft'] for report in reports] if reports else None
                 }, indent=2))
                 self.fail('isolated candidate restore did not recover the stream and consumer state')
+            leaders_checked = []
             for i in range(3):
+                target = f'owned-raft-{i}'
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline:
+                    leader = client('leader', startup=True, port=restored_ports[i*3])
+                    if leader and leader['leader'] == target:
+                        break
+                    if leader:
+                        client('stepdown', preferred=target, port=restored_ports[i*3])
+                    time.sleep(.05)
+                else:
+                    self.fail('restored member did not become stream leader')
                 deadline = time.monotonic() + 10
                 while time.monotonic() < deadline:
-                    restored_message = client('read', startup=True, port=restored_ports[i*3])
+                    restored_message = client('read-local', startup=True, port=restored_ports[i*3])
                     if restored_message:
                         self.assertEqual(restored_message, original_message,
-                                         'restored message is not readable with original bytes')
+                                         'restored member cannot serve the original message as leader')
+                        leaders_checked.append(target)
                         break
                     time.sleep(.05)
                 else:
-                    self.fail('restored message did not become readable')
+                    self.fail('restored leader did not serve the original message')
             restore_proof = {
                 'status': candidate['status'], 'manifest_sha256': candidate['manifest_sha256'],
                 'files': candidate['files'], 'restored_streams': len(reports[0]['streams']),
+                'restored_message_leaders': leaders_checked,
                 'restored_message_sha256': hashlib.sha256(
                     original_message['data'].encode()).hexdigest(),
                 'scope': 'owned isolated restore; no full-node certification'

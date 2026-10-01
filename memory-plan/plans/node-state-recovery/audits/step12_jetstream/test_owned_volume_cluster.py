@@ -42,7 +42,7 @@ class OwnedVolumeCluster(unittest.TestCase):
                    'RECOVERY_NATS_MODULE': os.environ.get('RECOVERY_NATS_MODULE',
                        '/Users/moltymac/openclaw-nodedev/node_modules/nats')}
             result = subprocess.run([sys.executable, '-m', 'unittest', '-q',
-                                     'test_preservation_cluster.py'], env=env,
+                                     'test_preservation_cluster.Cluster.test_stream_and_consumer_groups_and_real_stream_election'], env=env,
                                     cwd=pathlib.Path(__file__).parent, capture_output=True,
                                     text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stderr)

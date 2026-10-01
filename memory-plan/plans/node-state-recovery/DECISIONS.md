@@ -679,3 +679,26 @@ operator-writable ancestor in a privileged job's transitive code path and
 must be classified before any future root helper trusts a closed world. It
 was neither invoked nor changed. The `com.openclaw.agent` correction in D31
 still applies: that different system job declares the operator uid.
+
+## D34 — Verify the copy again and make each restored replica lead (2026-10-01 06:45 EDT)
+
+Claude's adversarial probe of `d7fba03` showed that a JetStream message read
+through each client port can be forwarded to the current stream leader. Five
+of nine restores with one corrupted follower passed the three-port read-back.
+Therefore, a client-port read is not evidence of that member's local history.
+The owned fixture now requests a preferred stream-leader transfer to each of
+the three restored members, verifies that member is leader immediately before
+and after its message read, and compares the message with the pre-stop value.
+Corrupting only one copied member yields message-get 404 when that member
+leads, in each of the three positions. The all-replica corruption negative
+remains; its failure stage is distinct from the original pre-stop read.
+
+The candidate now carries a copy-side manifest with every file digest and
+directory listing. `verify_candidate` checks the saved manifest against the
+publication digest and re-hashes all three copied trees before restore. A
+single changed replica or changed manifest refuses. This detects post-copy
+changes without access to source inode metadata; it does not authenticate a
+manifest stored under the same operator account unless its digest is retained
+in separately protected evidence. None of these owned-fixture checks proves
+the missing protected production writer boundary. Full-node `seal()` stays
+disabled, and step 1.2 remains active.

@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 import unittest
 
-from cold_copy import copy_candidate
+from cold_copy import copy_candidate, verify_candidate
 from preservation_checks import Refused
 
 
@@ -24,11 +24,30 @@ class CandidateCopy(unittest.TestCase):
         result = copy_candidate(self.roots, self.root / 'candidate')
         self.assertEqual(result['status'], 'candidate')
         self.assertEqual(result['files'], 3)
+        self.assertEqual(verify_candidate(self.root / 'candidate', result['copy_manifest_sha256']),
+                         {key: result[key] for key in
+                          ('status', 'manifest_sha256', 'copy_manifest_sha256')})
         for index in range(3):
             original = self.roots[str(index)] / 'jetstream' / 'state.dat'
             copied = self.root / 'candidate' / str(index) / 'jetstream' / 'state.dat'
             self.assertEqual(copied.read_bytes(), original.read_bytes())
             self.assertEqual(copied.stat().st_mode & 0o777, 0o600)
+
+    def test_recheck_refuses_a_changed_single_replica(self):
+        result = copy_candidate(self.roots, self.root / 'candidate')
+        copied = self.root / 'candidate' / '2' / 'jetstream' / 'state.dat'
+        with copied.open('r+b') as handle:
+            handle.write(b'x')
+        with self.assertRaisesRegex(Refused, 'candidate store bytes or entries differ'):
+            verify_candidate(self.root / 'candidate', result['copy_manifest_sha256'])
+
+    def test_recheck_refuses_a_changed_manifest(self):
+        result = copy_candidate(self.roots, self.root / 'candidate')
+        manifest = self.root / 'candidate' / 'manifest.json'
+        with manifest.open('ab') as handle:
+            handle.write(b' ')
+        with self.assertRaisesRegex(Refused, 'candidate manifest differs from publication'):
+            verify_candidate(self.root / 'candidate', result['copy_manifest_sha256'])
 
     def test_rejects_write_after_baseline(self):
         path = self.roots['1'] / 'jetstream' / 'state.dat'
