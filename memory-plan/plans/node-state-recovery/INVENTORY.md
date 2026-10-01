@@ -280,7 +280,7 @@ protected bootstrap remain open at 1.2[A]/v1.2-pre.
 Checkpoint 2026-10-01 16:16 EDT: draft PR #178 now includes a source-only root
 lock bootstrap journal: intent-before-create, exclusive lock, old-writer
 census callback, and admission readback under exclusion. Local private
-fixtures pass (root lock 14/14, journal 16/16). The callbacks do not yet have a
+fixtures pass (root lock 14/14, journal 17/17). The callbacks do not yet have a
 production pinned root driver; no marker, service, store or root-owned path
 was changed. Claude's exact-head review requires pre-receipt lock identity
 pinning, empty/pending-record reentry and a terminal reboot/abandonment path

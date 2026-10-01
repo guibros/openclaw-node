@@ -4,6 +4,7 @@ import os
 import pathlib
 import re
 import stat
+import sys
 import uuid
 
 from nats_root_lock import LOCK, Refused, _acquire, _create, protected_parent, require_no_acl, sync_dir, sync_fd
@@ -119,6 +120,8 @@ class LockBootstrapJournal:
 
     @classmethod
     def begin(cls, site, lock_path, uid, gid, transaction, observation):
+        if sys.platform == 'darwin' and os.geteuid() == 0:
+            raise Refused('production root writer bootstrap awaits lifecycle recovery')
         site = pathlib.Path(site)
         protected_parent(site, uid, gid)
         directory(site, uid, gid, 0o755)

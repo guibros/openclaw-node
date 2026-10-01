@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 import uuid
 
 
@@ -131,6 +132,14 @@ class RootJournalTest(unittest.TestCase):
                 module.LockBootstrapJournal.begin(self.site, target, self.uid, self.gid,
                                                   self.transaction, self.observation)
         self.assertFalse((self.site / 'journal').exists())
+
+    def test_root_begin_refuses_before_journal_write(self):
+        with patch.object(module.sys, 'platform', 'darwin'), patch.object(
+                module.os, 'geteuid', return_value=0):
+            with self.assertRaisesRegex(module.Refused, 'awaits lifecycle recovery'):
+                self.begin()
+        self.assertFalse((self.site / 'journal').exists())
+        self.assertFalse(self.lock.exists())
 
     def test_transfer_for_another_transaction_refuses_before_journal(self):
         other = {**self.observation,
