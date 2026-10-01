@@ -528,3 +528,60 @@ PR #163 source d635370 has green Node20/22 root CI, with Mission Control
 failing only the pre-existing audit on main. Reclose 3.8[x]/v3.8. Feed the
 corrected release to 3.9/3.11; the earlier Node22 fixture is not the loaded
 timer baseline.
+
+## D25 — Declare protected source-path relocations in the five-entry candidate (2026-09-30 19:15 EDT)
+
+The 3.9 phrase "unchanged application argv" conflicts with the accepted 3.8
+private release: Node resolves ESM dependencies from the scheduler source path.
+Running the new source from the old workspace path would load shared modules;
+symlinking that path into the private release would let ordinary installer
+copy/chmod follow the link. For consolidation-scheduler, the reviewed
+candidate relocates the script-path argv element from the old live workspace
+path to the owner-private `consolidation-graph-20260930-4` path. The interpreter
+remains `/usr/local/bin/node`; all flags, cwd, configured/inherited environment,
+schedule and log paths retain their exact baselines. This is an explicit
+deployment source change, not a silent "unchanged argv" claim. Fresh 3.9
+inspection also found observer's live script is a symlink into the development
+checkout. Its candidate copies the byte-matched script and local module into
+the protected tree and relocates only that script-path element; Node and
+`--sample` stay unchanged. The other three timer application argv remain
+unchanged. Neither relocation changes a live service in 3.9.
+
+The protected Python `-I -S` launch boundary must verify its own externally
+pinned code and the exact application source/dependency graph before app exec.
+External install/reopen checks pin the launcher and manifest path outside
+ordinary deploy copy/chmod/prune. In-Python checks cannot protect Python's
+loader retrospectively; same-owner malicious replacement is outside the
+declared threat model. The manifest may record environment key names and
+hashes, never publish raw inherited values. The five-job cohort is the sole
+JournaledHold.TIMERS set: scheduler-heartbeat, consolidation-scheduler,
+observer, transcript-archive and log-rotate. `lane-watchdog` is a separate
+KeepAlive service and must not be wrapped with a closed-exit0 timer gate.
+
+## D26 — Tie the rotating inherited SSH socket to the launchd domain (2026-09-30 20:37 EDT)
+
+A saved 3.9 candidate re-verification found `SSH_AUTH_SOCK` changed in all five
+neutral launchd probes while every other key/value and cwd stayed fixed. The
+new hash matched `launchctl getenv SSH_AUTH_SOCK`. Pinning that inherited
+socket's captured pathname would make the candidate refuse after an ordinary
+agent rotation or login. The five jobs do not configure this variable in
+their plists. Treat only this inherited key as optional/dynamic: if present,
+the private launcher and neutral verifier require its received value to equal
+the current launchd user-domain value; if absent, no value is invented. Hash
+`/bin/launchctl` before the launcher trusts it. Preserve exact hashes for all
+configured and other inherited environment values and refuse any unexpected
+key. A rotation between spawn and check refuses safely. This is not a general
+environment override or a claim against a malicious same-owner domain.
+
+Candidate `timer-entry-candidate-20260930-5` supersedes `-3` and `-4`; it
+keeps the same five application baselines and the Node24 private release.
+Claude's second adversarial check accepts the narrow policy and notes the
+safe-refusal race. No production job or environment was changed.
+
+D26/3.9 closure (2026-09-30 20:51 EDT): candidate `-5` manifest SHA-256
+`96e829f379978d0b67e61d2464d3624e4a9d426e8671fac4dab1e9c5a47d4644`
+re-verifies all five installed/loaded settings and 1,885 source files. Six
+owned Mac controls pass; exact source `cae7186` passes root Node20/22 CI
+36797763658. The separate Mission Control audit remains red on its existing
+lockfile. Close 3.9[x]/v3.9 as a staged candidate only. Step 3.10 must prove
+the safe first transition; 3.11 owns actual commissioning.

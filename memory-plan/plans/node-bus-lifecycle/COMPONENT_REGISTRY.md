@@ -260,3 +260,18 @@ passed at d635370. The Mission Control audit remains red on unchanged main.
 The live workspace scheduler is still older than accepted tracked3.2 source;
 3.10/3.11 own the safe live transition and actual commissioning. No live
 source, dependency, plist or loaded job changed here.
+
+Protected five-timer entry closure — 2026-09-30 20:51 EDT: 3.9[x]/v3.9.
+Owner-private `timer-entry-candidate-20260930-5` contains five reviewed
+candidate plists and manifest SHA-256
+`96e829f379978d0b67e61d2464d3624e4a9d426e8671fac4dab1e9c5a47d4644`.
+Saved verification rechecks loaded originals, dynamic launchd-domain SSH
+socket, all other received environment hashes, 1,885 source files, 21
+executables, delegated resolution and gate pins without recapture. Six
+owned Mac launch controls pass; Claude found two staging defects that were
+fixed and accepted the narrow socket policy. Exact `cae7186` CI
+36797763658 passes root Node20/22 jobs; Mission Control's pre-existing
+dependency audit remains red. Feed the saved candidate and D25–D26 contract
+to 3.10's first-transition proof, then 3.11 installation. No production
+timer, source path, plist, environment or gate has changed; current jobs
+still run ungated.

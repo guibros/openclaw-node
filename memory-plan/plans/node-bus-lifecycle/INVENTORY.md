@@ -53,7 +53,7 @@
 | 3 | 3.6 | v3.6 | [x] | Capture the existing transcript archive in the tracked timer contract — 2026-09-29: approved61d2d78/CI3of3; exact old bytes/unit, real filter/update/retention controls, owned Mac run1/exit0/two archives/verified teardown |
 | 3 | 3.7 | v3.7 | [x] | Expose bounded restore-only recovery through the sole Journal — 2026-09-30: source f72820c accepted by Claude85/exact CI3of3; private Mac 27 owned+33 hold controls, real closed/reopened timer fires, restored-only resolution, no production mutation |
 | 3 | 3.8 | v3.8 | [x] | Stage the complete reachable consolidation execution graph — corrected 2026-09-30: loaded Node24 release -4/real-entry probe, both native files pinned, Claude no blocker, root CI Node20/22 green; baseline Mission Control audit red, no production timer |
-| 3 | 3.9 | v3.9 | [ ] | Pin the five timer launch environments and protected entry contract |
+| 3 | 3.9 | v3.9 | [x] | Pin the five timer launch environments and protected entry contract — 2026-09-30: private candidate -5 verifies five jobs/1,885 sources; six Mac controls; Claude review and exact root Node20/22 CI pass, existing Mission Control audit red; no live install |
 | 3 | 3.10 | v3.10 | [ ] | Prove a safe first transition from the actual ungated timer entries |
 | 3 | 3.11 | v3.11 | [ ] | Install the reviewed execution hold on the five actual Mac timers |
 
@@ -97,7 +97,7 @@
 > **Feeds:**3.9/3.11's source identity and foreground contract.
 > **Verify:**code/runtime: static literal and computed resolution, native binding and subprocess inventories agree with the staged graph; meaningful private real-entry/event/notification/cleanup controls pass with source/dependency identity retained. No hidden memory-daemon deployment or remote-inference cancellation claim.
 
-> **3.9 — Goal:** the five rendered timer entries have exact reviewed launch environment content and protected admission/source pins, preserving application argv/cwd/schedules.
+> **3.9 — Goal:** the five rendered timer entries have the reviewed launch environment contract and protected admission/source pins, preserving application interpreter/flags/cwd/schedules; consolidation and observer have the declared source-path relocations of D25, and D26 governs the inherited SSH-agent socket.
 > **Needs:**3.6/3.7/3.8 closed; actual loaded plist/environment/command resolution; existing Python-I-S runner; protected location outside ordinary deploy copy/chmod/prune.
 > **Feeds:**3.10/3.11's installation baseline.
 > **Verify:**code/runtime: owned launch-boundary/preload/delegation mismatch and code/pin substitution negatives refuse before application work; exact application settings and new supervisor prefix are explicitly baselined. An in-Python check cannot retroactively protect Python's dynamic loader. No production units installed.
