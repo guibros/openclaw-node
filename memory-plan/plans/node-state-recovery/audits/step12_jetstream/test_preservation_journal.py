@@ -9,9 +9,11 @@ import sys
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from preservation_journal import Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
+from preservation_journal import FULL_NODE_SCOPE, Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
+from legacy_fixture import legacy_journal
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -43,6 +45,32 @@ def timer_inventory():
     return prior
 
 
+def full_node_inventory():
+    prior = inventory({unit: {} for unit in UNITS if unit not in ('nats-1', 'federation-tick')})
+    for unit in TIMER_UNITS:
+        prior[unit].update(running=False, **{'class': 'timer'})
+    prior['scheduler-heartbeat']['execution_hold'] = {'cohort': sorted(TIMER_UNITS)}
+    prior['mesh-agent'].update(running=False, **{'class': 'on-demand'})
+    prior['mesh-tool-discord']['class'] = 'known-broken'
+    prior['federation-tick'] = {'loaded': False, 'running': False, 'disabled': True,
+        'class': 'unloaded', 'identity': {
+            'plist_sha256': '0' * 64, 'argv': ['/owned/federation-tick'],
+            'files': {'/owned/federation-tick': '1' * 64}, 'dependencies': {},
+            'working_directory': '/'}}
+    return prior
+
+
+def full_entrypoint_evidence(prior):
+    return {'verified': True,
+            'installed': {'ai.openclaw.' + unit: {
+                'path': '/owned/' + unit + '.plist',
+                'sha256': state['identity']['plist_sha256']}
+                for unit, state in prior.items()},
+            'loaded': {'gui': sorted('ai.openclaw.' + unit for unit, state in prior.items()
+                                   if state['loaded']), 'user': [], 'system': []},
+            'roots': ['/owned'], 'disabled_artifacts': {}}
+
+
 class JournalTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='openclaw-journal-owned-')
@@ -52,10 +80,184 @@ class JournalTests(unittest.TestCase):
         self.node_lock = pathlib.Path(self.temp.name) / 'node.lock'
 
     def journal(self, prior=None, boot='boot-a', root=None):
-        return Journal(root or self.root, prior, boot=boot, node_lock=self.node_lock)
+        if prior is not None:
+            return legacy_journal(root or self.root, prior, boot=boot, node_lock=self.node_lock)
+        return Journal(root or self.root, boot=boot, node_lock=self.node_lock)
+
+    def test_new_unscoped_journal_refuses_before_creation(self):
+        with self.assertRaisesRegex(Refused, 'explicit protected scope'):
+            Journal(self.root, PRIOR, node_lock=self.node_lock)
+        self.assertFalse(self.root.exists())
+
+    def test_full_scope_cannot_skip_entrypoint_preflight(self):
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   side_effect=Refused('unclassified loaded job')):
+            with self.assertRaisesRegex(Refused, 'unclassified loaded job'):
+                Journal(self.root, full_node_inventory(), node_lock=self.node_lock,
+                        scope=FULL_NODE_SCOPE)
+        self.assertFalse(self.root.exists())
+
+    def test_full_scope_rechecks_entrypoints_but_restores_known_units_after_drift(self):
+        prior = full_node_inventory()
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   return_value=full_entrypoint_evidence(prior)):
+            with Journal(self.root, prior, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                with patch('preservation_journal.capture_entrypoint_inventory',
+                           side_effect=Refused('unclassified loaded job')):
+                    with self.assertRaisesRegex(Refused, 'unclassified loaded job'):
+                        journal.mutate('gateway', 'stop',
+                                       lambda: self.fail('mutation reached'),
+                                       lambda: self.fail('verification reached'))
+                    current = copy.deepcopy(prior)
+                    current['gateway']['loaded'] = False
+                    current['gateway']['running'] = False
+                    restored = []
+                    def restore(unit, saved):
+                        restored.append(unit)
+                        current[unit] = copy.deepcopy(saved)
+                    hold = SimpleNamespace(journal=journal,
+                        prepare=lambda *_: None, before_restore=lambda: None,
+                        check_closed=lambda: None)
+                    result = journal.recover(restore,
+                        lambda unit, _: {**current[unit], 'verified': True},
+                        lambda: {'verified': True}, hold=hold)
+                self.assertIn('gateway', restored)
+                self.assertFalse(result['restored'])
+                self.assertIn('entrypoints', [row['unit'] for row in result['errors']])
+                self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
+
+    def test_full_scope_refuses_loaded_inactive_or_restarted_job(self):
+        prior = full_node_inventory()
+        baseline = full_entrypoint_evidence(prior)
+        current = copy.deepcopy(baseline)
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   side_effect=lambda _: copy.deepcopy(current)):
+            with Journal(self.root, prior, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                current['loaded']['gui'].append('ai.openclaw.federation-tick')
+                with self.assertRaisesRegex(Refused, 'outside its original'):
+                    journal.check_entrypoints()
+                current = copy.deepcopy(baseline)
+                hold = SimpleNamespace(journal=journal, check_forward=lambda: None)
+                def stop_viewer():
+                    current['loaded']['gui'].remove('ai.openclaw.workplan-viewer')
+                journal.mutate('workplan-viewer', 'stop', stop_viewer,
+                               lambda: {'verified': True}, hold=hold)
+                self.assertEqual(journal.records[-1]['evidence']['entrypoint_loaded'],
+                                 current['loaded'])
+                def unload_timer():
+                    current['loaded']['gui'].remove('ai.openclaw.consolidation-scheduler')
+                journal.mutate('consolidation-scheduler', 'unload', unload_timer,
+                               lambda: {'verified': True}, hold=hold)
+                self.assertEqual(journal.records[-1]['evidence']['entrypoint_loaded'],
+                                 current['loaded'])
+                current = copy.deepcopy(baseline)
+                with self.assertRaisesRegex(Refused, 'changed inside'):
+                    journal.check_entrypoints(forward=True)
+
+    def test_full_scope_resolve_rechecks_loaded_jobs(self):
+        prior = full_node_inventory()
+        current = full_entrypoint_evidence(prior)
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   side_effect=lambda _: copy.deepcopy(current)):
+            with Journal(self.root, prior, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                hold = SimpleNamespace(journal=journal, prepare=lambda *_: None,
+                    complete=lambda *_: {'verified': True})
+                result = journal.recover(lambda *_: self.fail('already restored'),
+                    lambda unit, _: {**prior[unit], 'verified': True},
+                    lambda: {'verified': True}, hold=hold)
+                self.assertTrue(result['restored'])
+                with self.assertRaisesRegex(Refused, 'continuous launchd and process watch'):
+                    journal.seal()
+                with self.assertRaisesRegex(Refused, 'continuous launchd and process watch'):
+                    journal._finalize('sealed')
+                with self.assertRaisesRegex(Refused, 'continuous launchd and process watch'):
+                    journal.append('sealed')
+                current['loaded']['gui'].remove('ai.openclaw.gateway')
+                with self.assertRaisesRegex(Refused, 'were not restored'):
+                    journal.resolve()
+                self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_production_scope_requires_every_approved_entry_and_saved_hold(self):
+        prior = full_node_inventory()
+        for unit in ('gateway', 'workplan-viewer', 'federation-tick'):
+            with self.subTest(unit=unit):
+                changed = copy.deepcopy(prior)
+                changed[unit] = {'loaded': False, 'running': False, 'disabled': False,
+                                 'class': 'absent', 'identity': {'installed': False}}
+                with self.assertRaisesRegex(Refused, 'approved cohort'):
+                    Journal(self.parent / ('refuse-' + unit), changed, node_lock=self.node_lock,
+                            scope=FULL_NODE_SCOPE)
+        changed = copy.deepcopy(prior)
+        del changed['scheduler-heartbeat']['execution_hold']
+        with self.assertRaisesRegex(Refused, 'execution hold'):
+            Journal(self.parent / 'refuse-no-hold', changed, node_lock=self.node_lock,
+                    scope=FULL_NODE_SCOPE)
+        changed = copy.deepcopy(prior)
+        changed['federation-tick']['disabled'] = False
+        with self.assertRaisesRegex(Refused, 'must remain disabled'):
+            Journal(self.parent / 'refuse-enabled-tick', changed, node_lock=self.node_lock,
+                    scope=FULL_NODE_SCOPE)
+        evidence = full_entrypoint_evidence(prior)
+        with patch('preservation_journal.capture_entrypoint_inventory', return_value=evidence):
+            with Journal(self.root, prior, boot='boot-a', node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                self.assertEqual(journal.scope, FULL_NODE_SCOPE)
+                self.assertEqual(len(journal.prior), 23)
+                self.assertEqual(journal.check_entrypoints(final=True), evidence)
+        with self.journal() as reopened:
+            self.assertEqual(reopened.scope, FULL_NODE_SCOPE)
+            changed = copy.deepcopy(evidence)
+            changed['loaded']['gui'].remove('ai.openclaw.gateway')
+            with patch('preservation_journal.capture_entrypoint_inventory', return_value=changed):
+                with self.assertRaisesRegex(Refused, 'were not restored'):
+                    reopened.check_entrypoints(final=True)
+
+    def test_full_inventory_covers_gateway_viewer_and_installed_unloaded_tick(self):
+        self.assertTrue({'gateway', 'workplan-viewer', 'federation-tick'} <= UNITS)
+        prior = copy.deepcopy(PRIOR)
+        prior['federation-tick'] = {'loaded': False, 'running': False, 'disabled': True,
+            'class': 'unloaded', 'identity': {
+                'plist_sha256': '0' * 64, 'argv': ['/owned/federation-tick'],
+                'files': {'/owned/federation-tick': '1' * 64}, 'dependencies': {},
+                'working_directory': '/'}}
+        with legacy_journal(self.root, prior, boot='boot-a', node_lock=self.node_lock) as journal:
+            with self.assertRaisesRegex(Refused, 'held or unknown unit'):
+                journal.mutate('federation-tick', 'stop', lambda: self.fail('must not mutate'),
+                               lambda: {'verified': True})
+        with self.journal() as reopened:
+            current = copy.deepcopy(prior)
+            current['federation-tick']['loaded'] = True
+            restored = []
+            result = reopened.recover(lambda *args: restored.append(args),
+                lambda unit, saved: {**current[unit], 'verified': True},
+                lambda: {'verified': True})
+            self.assertFalse(result['restored'])
+            self.assertEqual(result['errors'][0]['unit'], 'federation-tick')
+            self.assertEqual(restored, [])
+            self.assertFalse(any(row['event'] == 'unloaded-unit-verified'
+                                 for row in reopened.records))
+            current['federation-tick']['loaded'] = False
+            current['federation-tick']['disabled'] = False
+            result = reopened.recover(lambda *args: restored.append(args),
+                lambda unit, saved: {**current[unit], 'verified': True},
+                lambda: {'verified': True})
+            self.assertFalse(result['restored'])
+            self.assertEqual(result['errors'][0]['unit'], 'federation-tick')
+            self.assertEqual(restored, [])
+            current['federation-tick']['disabled'] = True
+            result = reopened.recover(lambda *args: restored.append(args),
+                lambda unit, saved: {**current[unit], 'verified': True},
+                lambda: {'verified': True})
+            self.assertTrue(result['restored'])
+            self.assertEqual(restored, [])
+            self.assertTrue(any(row['event'] == 'unloaded-unit-verified'
+                                for row in reopened.records))
 
     def test_timer_commissioning_scope_is_durable_and_cannot_mutate_or_seal(self):
         with Journal(self.root, timer_inventory(), boot='boot-a', node_lock=self.node_lock,
@@ -92,12 +294,15 @@ class JournalTests(unittest.TestCase):
             finished = timer.append('recovery-finished', services_verified=True, errors=[])
             timer._state({**timer.active, 'status': 'restored', 'head': finished['sha256']})
             predecessor = timer.resolve()
-        with Journal(self.parent / 'full-node', PRIOR, boot='boot-a',
-                     node_lock=self.node_lock) as full:
-            self.assertIsNone(full.scope)
-            self.assertEqual(set(full.prior), UNITS)
-            self.assertEqual(full.records[0]['predecessor'],
-                             {'root': str(self.root.resolve()), 'head': predecessor})
+        prior = full_node_inventory()
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   return_value=full_entrypoint_evidence(prior)):
+            with Journal(self.parent / 'full-node', prior, boot='boot-a',
+                         node_lock=self.node_lock, scope=FULL_NODE_SCOPE) as full:
+                self.assertEqual(full.scope, FULL_NODE_SCOPE)
+                self.assertEqual(set(full.prior), UNITS)
+                self.assertEqual(full.records[0]['predecessor'],
+                                 {'root': str(self.root.resolve()), 'head': predecessor})
 
     def test_intent_is_durable_and_visible_before_mutation(self):
         with self.journal(PRIOR, boot='boot-a') as journal:
@@ -230,10 +435,10 @@ class JournalTests(unittest.TestCase):
         state = pathlib.Path(self.temp.name) / 'owned-unit-state.json'
         state.write_text(json.dumps(PRIOR['mesh-agent']))
         source = '''import json,os,pathlib,sys,time
-from preservation_journal import Journal
+from legacy_fixture import legacy_journal
 root,state,ready,node_lock=map(pathlib.Path,sys.argv[1:5])
 prior=json.loads(sys.argv[5])
-with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
+with legacy_journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
  def apply():
   with state.open('w') as f:
    json.dump({**prior['mesh-agent'],'loaded':False,'running':False,'disabled':True},f);f.flush();os.fsync(f.fileno())
@@ -867,7 +1072,7 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
             parent = pathlib.Path(self.temp.name) / ('creation-' + str(index))
             parent.mkdir(mode=0o700)
             root, lock = parent / 'journals/window', parent / 'node.lock'
-            with Journal(parent / 'journals/previous', PRIOR, boot='a', node_lock=lock) as previous:
+            with legacy_journal(parent / 'journals/previous', PRIOR, boot='a', node_lock=lock) as previous:
                 previous.recover(lambda *_: self.fail('previous ready owner restarted'),
                     lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})
                 previous.seal()
@@ -885,7 +1090,7 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
             with patch('preservation_journal.write_private', side_effect=write), \
                  patch('preservation_journal.pathlib.Path.mkdir', autospec=True, side_effect=mkdir):
                 with self.assertRaises(OSError):
-                    Journal(root, PRIOR, boot='a', node_lock=lock)
+                    legacy_journal(root, PRIOR, boot='a', node_lock=lock)
             with Journal(root, boot='b', node_lock=lock) as journal:
                 with self.assertRaisesRegex(Refused, 'reboot|reopened'):
                     journal.require_forward()
@@ -893,7 +1098,7 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
                     lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})
                 self.assertTrue(result['restored'])
                 journal.resolve()
-            with Journal(parent / 'journals/next', PRIOR, boot='b', node_lock=lock):
+            with legacy_journal(parent / 'journals/next', PRIOR, boot='b', node_lock=lock):
                 pass
 
     def test_setup_repair_full_disk_restores_from_the_prepared_receipt(self):
@@ -935,7 +1140,7 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
             parent = pathlib.Path(self.temp.name) / ('finder-setup-' + str(index))
             parent.mkdir(mode=0o700)
             root, lock = parent / 'journals/window', parent / 'node.lock'
-            with Journal(parent / 'journals/previous', PRIOR, boot='a', node_lock=lock) as previous:
+            with legacy_journal(parent / 'journals/previous', PRIOR, boot='a', node_lock=lock) as previous:
                 previous.recover(lambda *_: self.fail('ready owner restarted'),
                     lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})
                 previous.seal()
@@ -953,7 +1158,7 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
             with patch('preservation_journal.write_private', side_effect=write), \
                  patch('preservation_journal.pathlib.Path.mkdir', autospec=True, side_effect=mkdir):
                 with self.assertRaises(OSError):
-                    Journal(root, PRIOR, boot='a', node_lock=lock)
+                    legacy_journal(root, PRIOR, boot='a', node_lock=lock)
             root.mkdir(mode=0o700, exist_ok=True)
             metadata = root / '.DS_Store'
             metadata.write_bytes(b'owned Finder metadata')
@@ -964,7 +1169,7 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
                     lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})['restored'])
                 journal.resolve()
             self.assertEqual(metadata.read_bytes(), b'owned Finder metadata')
-            with Journal(parent / 'journals/next', PRIOR, boot='b', node_lock=lock):
+            with legacy_journal(parent / 'journals/next', PRIOR, boot='b', node_lock=lock):
                 pass
 
     def test_initializing_metadata_links_owners_and_unknown_entries_remain_fenced(self):
@@ -979,7 +1184,7 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
                     raise OSError(errno.EIO, 'interrupted setup')
             with patch('preservation_journal.write_private', side_effect=write):
                 with self.assertRaises(OSError):
-                    Journal(root, PRIOR, boot='a', node_lock=lock)
+                    legacy_journal(root, PRIOR, boot='a', node_lock=lock)
             root.mkdir(mode=0o700)
             metadata = root / ('.DS_Store' if kind != 'unknown' else 'unknown-file')
             if kind == 'link':
@@ -1003,7 +1208,7 @@ with Journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
                     Journal(root, boot='b', node_lock=lock)
                 next_root = parent / 'journals/next'
                 with self.assertRaisesRegex(Refused, 'prior node recovery is unresolved'):
-                    Journal(next_root, PRIOR, boot='b', node_lock=lock)
+                    legacy_journal(next_root, PRIOR, boot='b', node_lock=lock)
                 self.assertFalse(next_root.exists())
             self.assertTrue(os.path.lexists(metadata))
 

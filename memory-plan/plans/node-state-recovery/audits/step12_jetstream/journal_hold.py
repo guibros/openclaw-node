@@ -2,7 +2,7 @@ import copy
 import secrets
 
 from preservation_checks import require
-from preservation_journal import TIMER_SCOPE, TIMER_UNITS, matches, valid_record
+from preservation_journal import FULL_NODE_SCOPE, TIMER_SCOPE, TIMER_UNITS, matches, valid_record
 
 
 ANCHOR = 'scheduler-heartbeat'
@@ -242,7 +242,8 @@ class JournaledHold:
                                 restored_only=self.restore_only)
         return {'verified': True, 'baseline_sha256': self.baseline, 'gate_open': True,
                 'restored_only': self.restore_only,
-                'history_certified': not self.restore_only and self.journal.scope != TIMER_SCOPE}
+                'history_certified': not self.restore_only
+                                     and self.journal.scope not in (TIMER_SCOPE, FULL_NODE_SCOPE)}
 
     def recover(self, restore, observe, final_check, diagnostics=None):
         return self.journal.recover(restore, observe, final_check, diagnostics, hold=self)

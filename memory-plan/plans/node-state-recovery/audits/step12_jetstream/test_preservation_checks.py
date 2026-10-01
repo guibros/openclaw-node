@@ -3,6 +3,7 @@ import http.server
 import json
 import os
 import pathlib
+import plistlib
 import secrets
 import select
 import signal
@@ -12,10 +13,12 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 from preservation_checks import (
     QuietWindow, Refused, STOP_ORDER, capture, verify_admissions,
-    http_json, verify_completion, verify_queue, verify_streams, verify_timer_idle,
+    disabled_entrypoint_artifacts, http_json, installed_entrypoints, loaded_entrypoints, verify_completion,
+    verify_entrypoint_inventory, verify_queue, verify_streams, verify_timer_idle,
 )
 
 
@@ -23,6 +26,115 @@ class Gates(unittest.TestCase):
     def refused(self, call):
         with self.assertRaises(Refused):
             call()
+
+    def test_unclassified_installed_or_loaded_entrypoint_refuses(self):
+        with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:
+            agents = pathlib.Path(root)
+            protected = agents / 'repo'
+            protected.mkdir()
+            def add(label, argv):
+                path = agents / (label + '.plist')
+                path.write_bytes(plistlib.dumps({'Label': label, 'ProgramArguments': argv}))
+                return path
+            add('ai.openclaw.gateway', ['/owned/node', str(protected / 'gateway.js')])
+            add('ai.openclaw.workplan-viewer', ['/owned/node', str(protected / 'viewer.js')])
+            extra = add('com.openclaw.redesign-tick', ['/bin/sh', str(protected / 'redesign-tick.sh')])
+            installed = installed_entrypoints(agents, [protected])
+            self.refused(lambda: verify_entrypoint_inventory(installed,
+                {'ai.openclaw.gateway'}, set(), set(), {'gateway', 'workplan-viewer'}))
+            extra.unlink()
+            parked = agents / 'com.openclaw.redesign-tick.plist.disabled'
+            parked.write_bytes(plistlib.dumps({'Label': 'com.openclaw.redesign-tick',
+                'ProgramArguments': ['/bin/sh', str(protected / 'redesign-tick.sh')]}))
+            self.assertEqual(len(disabled_entrypoint_artifacts([agents])), 1)
+            installed = installed_entrypoints(agents, [protected])
+            gui = loaded_entrypoints('services = {\n  1 - ai.openclaw.gateway\n}\n'
+                'disabled services = {\n  "com.openclaw.redesign-tick" => disabled\n}\n',
+                'gui/501', [protected], inspect=lambda _: 'program = /owned/node\n')
+            self.assertTrue(verify_entrypoint_inventory(installed, gui, set(), set(),
+                {'gateway', 'workplan-viewer'})['verified'])
+            self.refused(lambda: verify_entrypoint_inventory(installed,
+                gui, set(), {'com.openclaw.agent'}, {'gateway', 'workplan-viewer'}))
+            add('other.agent', ['/owned/node', str(protected / 'worker.js')])
+            self.refused(lambda: verify_entrypoint_inventory(
+                installed_entrypoints(agents, [protected]), gui, set(), set(),
+                {'gateway', 'workplan-viewer'}))
+
+    def test_neutral_loaded_job_and_nonliteral_installed_paths_refuse(self):
+        with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:
+            directory = pathlib.Path(root)
+            protected = directory / 'repo'
+            protected.mkdir()
+            home = directory / 'home'
+            home.mkdir()
+            (home / 'repo').symlink_to(protected, target_is_directory=True)
+            for label in ('ai.openclaw.gateway', 'ai.openclaw.workplan-viewer'):
+                (directory / (label + '.plist')).write_bytes(plistlib.dumps({
+                    'Label': label, 'ProgramArguments': ['/owned/node']}))
+            expected = {'gateway', 'workplan-viewer'}
+            installed = installed_entrypoints(directory, [protected])
+            details = ('path = /tmp/local.viewer-tick.plist\n'
+                       'program = /bin/sh\narguments = {\n'
+                       '  /bin/sh\n  -c\n  exec "$HOME/repo/tick.sh"\n}\n')
+            with patch('preservation_checks.pathlib.Path.home', return_value=home):
+                loaded = loaded_entrypoints('services = {\n  1 - local.viewer-tick\n}\n',
+                    'gui/501', [protected], inspect=lambda _: details)
+            self.assertEqual(loaded, {'local.viewer-tick'})
+            self.refused(lambda: verify_entrypoint_inventory(installed, loaded, set(), set(), expected))
+            program = directory / 'local.program.plist'
+            program.write_bytes(plistlib.dumps({'Label': 'local.program',
+                'Program': str(protected / 'tick.sh'), 'ProgramArguments': ['/bin/sh']}))
+            self.assertIn('local.program', installed_entrypoints(directory, [protected]))
+            program.unlink()
+            shell = directory / 'local.shell.plist'
+            shell.write_bytes(plistlib.dumps({'Label': 'local.shell',
+                'ProgramArguments': ['/bin/sh', '-c', 'exec "$HOME/repo/tick.sh"']}))
+            with patch('preservation_checks.pathlib.Path.home', return_value=home):
+                self.assertIn('local.shell', installed_entrypoints(directory, [protected]))
+                for label, arguments in (
+                    ('com.apple.viewer-tick', 'exec "~/repo/tick.sh"'),
+                    ('local.indirect', 'exec "$SCRIPT"')):
+                    with self.subTest(label=label):
+                        detail = ('path = /tmp/' + label + '.plist\nprogram = /bin/sh\n'
+                                  'arguments = {\n  /bin/sh\n  -c\n  ' + arguments + '\n}\n'
+                                  'environment = {\n  ROOT => ' + str(home) + '\n'
+                                  '  SCRIPT => ${ROOT}/repo/tick.sh\n}\n')
+                        actual = loaded_entrypoints('services = {\n  1 - ' + label + '\n}\n',
+                            'gui/501', [protected], inspect=lambda _: detail)
+                        self.assertEqual(actual, {label})
+                self.assertEqual(loaded_entrypoints('services = {\n  1 - com.apple.idle\n}\n',
+                    'system', [protected], inspect=lambda _: 'path = /System/Library/idle.plist\n'
+                        'program = /usr/libexec/idle\n'), set())
+                dynamic = directory / 'local.dynamic.plist'
+                dynamic.write_bytes(plistlib.dumps({'Label': 'local.dynamic',
+                    'ProgramArguments': ['/bin/sh', '-c', 'exec "$SCRIPT"']}))
+                self.assertIn('local.dynamic', installed_entrypoints(directory, [protected]))
+                script = protected / 'tick.sh'
+                script.write_text('#!/bin/sh\n')
+                hardlink = directory / 'tick-alias'
+                os.link(script, hardlink)
+                linked = directory / 'local.linked.plist'
+                linked.write_bytes(plistlib.dumps({'Label': 'local.linked',
+                    'Program': str(hardlink), 'ProgramArguments': [str(hardlink)]}))
+                self.assertIn('local.linked', installed_entrypoints(directory, [protected]))
+                for label, argv in (
+                    ('local.wrapper', ['/usr/bin/caffeinate', '-i',
+                                       'repo/tick.sh']),
+                    ('local.versioned', ['/opt/homebrew/bin/python3.12',
+                                         'repo/tick.sh']),
+                    ('local.link-argument', ['/usr/bin/nice', '-n', '5', str(hardlink)])):
+                    with self.subTest(label=label):
+                        path = directory / (label + '.plist')
+                        path.write_bytes(plistlib.dumps({'Label': label,
+                            'WorkingDirectory': str(home), 'ProgramArguments': argv}))
+                        self.assertIn(label, installed_entrypoints(directory, [protected]))
+                        detail = ('path = ' + str(path) + '\nprogram = ' + argv[0]
+                                  + '\nworking directory = ' + str(home)
+                                  + '\narguments = {\n' + ''.join('  ' + part + '\n' for part in argv) + '}\n')
+                        actual = loaded_entrypoints('services = {\n  1 - ' + label + '\n}\n',
+                            'gui/501', [protected], inspect=lambda _: detail)
+                        self.assertEqual(actual, {label})
+                        path.unlink()
 
     def test_timer_signal_race(self):
         verify_timer_idle({'loaded': True}, False, [20, 0], [20, 0])

@@ -312,3 +312,95 @@ Production capture must verify the worker's normal idle exit/provenance and refu
 worker, rather than selecting a class from a transient observation. Forward
 quiescence must unload this latent writer with spawn-race evidence; restoration
 may bootstrap its saved idle job but must never kickstart it.
+
+## D22 — Include live gateway/viewer and fence all launchd entry points (2026-10-01 01:28 EDT)
+
+The viewer can detach an agentic plan tick that can drive `launchctl` and NATS;
+the gateway owns a live task SQLite store and can start tool-capable turns.
+Neither is excludable because it had no NATS socket at one instant. Extend the
+full-node Journal cohort from 20 to 23: stop viewer then gateway before other
+clients, restore gateway after its dependencies and viewer last, and represent
+the installed federation tick as unloaded with its current persistent disabled
+flag. The durable `full-node` scope requires these exact classes and the saved
+five-timer hold. A loaded or re-enabled federation tick refuses restore-only
+recovery; the controller does not silently boot it out or enable it.
+
+Before a full-node journal, enumerate installed and loaded jobs in the GUI,
+user and system launchd domains, including `ai.openclaw.*`, `com.openclaw.*`
+and programs resolving into the repository or OpenClaw roots. Record disabled
+plist artifacts separately. Unknown entry points refuse; disconnected sockets
+do not authorize exclusion. Check detached tick/companion processes and the
+launchd inventory repeatedly through the copy window. The viewer's old process
+group cannot account for a tick already reparented to launchd.
+
+The current widened read-only scan refuses: 23 approved user LaunchAgents plus
+root-managed `com.openclaw.agent` and `com.openclaw.tailscale-up` are installed
+and loaded. The former is enabled, KeepAlive, points to a missing legacy
+`agent.js`, and is repeatedly exiting 1. Missing code prevents execution now
+but not future reappearance after a deploy. The latter is an idle one-shot
+network helper, not yet accepted as a pinned exclusion. Neither was changed.
+The 11 `.plist.disabled` artifacts are inventoried by hash, not treated as
+loaded jobs. No live preservation window may start until the legacy system
+agent is durably retired or included with a verified stop/restoration contract,
+and the network helper has an explicit exclusion and final-state check.
+
+This supersedes D21's statement that timer controller bundle `-4` is compatible
+with a future full-node receipt. It still serves the current timer-only receipt
+and safely refuses the new 23-unit `full-node` scope without renaming it. Once
+a full-node journal exists, timer restoration belongs to that journal's hold
+path; `-4 --commission` and `-4 --recover` cannot service it. The gateway's
+startup hook and ephemeral token, companion bridge, detached ticks, complete
+dependency pins, healthy cold masters and truthful restoration remain driver
+prerequisites. This decision changes source schema only, not live services or
+the open 1.2[A] outcome.
+
+## D23 — Bind entrypoint evidence to the full-node journal (2026-10-01 01:55 EDT)
+
+Claude's PR #169 review reproduced two omissions in the draft: a new 23-unit
+journal could be created with no scope, and a neutral-label job loaded from a
+plist outside the scanned directories could evade the label-only check. New
+journals now require an explicit timer or full-node scope. Unscoped journals
+can only be reopened for historical restoration; fixture tests simulate their
+old creation separately. Full-node creation runs the source-owned GUI/user/system
+launchd and plist preflight under the node lock before publishing a baseline,
+and the baseline durably saves installed plist paths/hashes, loaded labels by
+domain, protected roots and disabled-artifact hashes. The journal rechecks the
+installed/artifact pins before each forward mutation. Each verified stop
+persists the loaded-label map; subsequent forward work requires exactly that
+map, except for the unit being stopped or unloaded. A recovery-time inventory failure is
+recorded as an uncertified error while independently verified prior units are
+still restored. Final restoration and resolution require the original
+loaded-label map again. Full-node sealing is refused until a continuous
+launchd/process watch can prove that a stopped writer never restarted between
+point-in-time scans; the hold completion receipt likewise reports
+`history_certified:false`. Unknown entrypoints refuse before a new window.
+
+Loaded services are inspected by `launchctl print` even when their labels are
+neutral or Apple-prefixed and their plists live outside the standard
+directories. Installed plist relevance includes `Program`,
+`ProgramArguments`, working directory, resolved symlinks, shell HOME and
+environment indirection, unclassified interpreters and multiply linked
+executables. The pinned roots include the repository, live OpenClaw home,
+legacy `~/openclaw`, global OpenClaw npm package locations, companion bridge
+and Codex worktrees. Relative arguments resolve against the declared working
+directory; versioned interpreters and common process wrappers are classified.
+System-library jobs and dynamically registered app-bundle executables are
+excluded from the hard-link heuristic unless another path or label binds them
+to OpenClaw. This is a conservative inventory test, not proof that arbitrary
+shell code cannot synthesize another path.
+
+The deploy listener must stop before the viewer and gateway and resume last.
+Its stop watch refuses if the listener already has a child process, before
+any signal is sent; a newly forked child also invalidates the process watch.
+Its missed-deploy catch-up can rewrite code and reinstall gateway state, so the
+driver must separately prove no pending deploy before resuming it. The source
+order does not itself prove that condition. The current live scan still refuses
+the same two root-managed system jobs; no production preservation window has
+started.
+
+If a plist or loaded job drifts during recovery, the journal does not certify
+or resolve. It restores each independently verified prior unit where safe and
+retains the exact unresolved chain and pins. The operator must restore the
+original pinned identity from a trusted copy, or investigate the changed job
+and its effects, then rerun restore-only recovery. The journal stores hashes,
+not plist contents, and cannot reconstruct a changed plist by itself.

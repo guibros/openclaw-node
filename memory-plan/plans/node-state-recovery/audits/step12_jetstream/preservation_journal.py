@@ -11,13 +11,14 @@ import subprocess
 import sys
 import uuid
 
-from preservation_checks import RESUME_ORDER, Refused, require
+from preservation_checks import RESUME_ORDER, Refused, capture_entrypoint_inventory, require
 
 
-UNITS = frozenset((*RESUME_ORDER, 'nats-1'))
+UNITS = frozenset((*RESUME_ORDER, 'nats-1', 'federation-tick'))
 TIMER_UNITS = frozenset(('scheduler-heartbeat', 'consolidation-scheduler', 'observer',
                          'transcript-archive', 'log-rotate'))
 TIMER_SCOPE = 'timer-commissioning'
+FULL_NODE_SCOPE = 'full-node'
 TERMINAL = ('sealed', 'resolved')
 
 
@@ -117,14 +118,15 @@ def matches(actual, prior):
 
 def valid_prior(prior, scope=None):
     expected = TIMER_UNITS if scope == TIMER_SCOPE else UNITS
-    require(scope in (None, TIMER_SCOPE) and isinstance(prior, dict) and set(prior) == expected,
+    require(scope in (None, TIMER_SCOPE, FULL_NODE_SCOPE)
+            and isinstance(prior, dict) and set(prior) == expected,
             'prior service inventory is incomplete or unknown')
     for unit, state in prior.items():
         require(isinstance(state, dict), 'prior service state is incomplete')
         require(all(isinstance(state.get(k), bool) for k in ('loaded', 'running', 'disabled')),
                 'prior service state is incomplete')
         kind = state.get('class')
-        require(kind in ('daemon', 'on-demand', 'timer', 'known-broken', 'held', 'absent'),
+        require(kind in ('daemon', 'on-demand', 'timer', 'known-broken', 'held', 'unloaded', 'absent'),
                 'service class is absent')
         identity = state.get('identity')
         if kind == 'absent':
@@ -150,21 +152,70 @@ def valid_prior(prior, scope=None):
         require((unit == 'nats-1') == (kind == 'held'), 'only member-1 may be declared held')
         require(kind != 'known-broken' or unit == 'mesh-tool-discord',
                 'only the declared optional integration may be known-broken')
+        require(kind != 'unloaded' or unit == 'federation-tick',
+                'only the declared inactive timer may be installed but unloaded')
         require((kind != 'daemon' or state['loaded'] and state['running'] and not state['disabled'])
                 and (kind != 'on-demand' or unit == 'mesh-agent' and state['loaded']
                      and not state['running'] and not state['disabled'])
                 and (kind != 'timer' or state['loaded'] and not state['running'] and not state['disabled'])
                 and (kind != 'known-broken' or state['loaded'] and not state['disabled'])
-                and (kind != 'held' or not state['loaded'] and not state['running'] and state['disabled']),
+                and (kind != 'held' or not state['loaded'] and not state['running'] and state['disabled'])
+                and (kind != 'unloaded' or not state['loaded'] and not state['running']),
                 'baseline does not match the declared desired service state')
         if scope == TIMER_SCOPE:
             require(kind == 'timer' and (unit == 'scheduler-heartbeat') == ('execution_hold' in state),
                     'timer commissioning baseline includes an unrelated unit or lacks its hold')
-    if scope == TIMER_SCOPE:
+    if scope == FULL_NODE_SCOPE:
+        for unit in UNITS:
+            kind = ('held' if unit == 'nats-1' else
+                    'unloaded' if unit == 'federation-tick' else
+                    'on-demand' if unit == 'mesh-agent' else
+                    'known-broken' if unit == 'mesh-tool-discord' else
+                    'timer' if unit in TIMER_UNITS else 'daemon')
+            require(prior[unit]['class'] == kind,
+                    'full-node service class differs from the approved cohort: ' + unit)
+        require(prior['federation-tick']['disabled'],
+                'installed federation tick must remain disabled across reboot')
+    if scope in (TIMER_SCOPE, FULL_NODE_SCOPE):
+        require('execution_hold' in prior['scheduler-heartbeat'],
+                'full execution hold is absent from the service baseline')
         hold = prior['scheduler-heartbeat']['execution_hold']
         cohort = hold.get('cohort') if isinstance(hold, dict) else None
         require(isinstance(cohort, list) and len(cohort) == len(TIMER_UNITS)
                 and set(cohort) == TIMER_UNITS, 'timer commissioning hold omits a scheduled entry')
+
+
+def valid_entrypoint_inventory(evidence, prior):
+    require(isinstance(evidence, dict) and evidence.get('verified') is True
+            and set(evidence) == {'verified', 'installed', 'loaded', 'roots', 'disabled_artifacts'},
+            'full-node entrypoint inventory is absent')
+    installed = evidence['installed']
+    loaded = evidence['loaded']
+    require(isinstance(installed, dict) and set(installed) ==
+            {'ai.openclaw.' + unit for unit in UNITS},
+            'full-node installed entrypoints differ from the baseline')
+    require(isinstance(loaded, dict) and set(loaded) == {'gui', 'user', 'system'}
+            and all(isinstance(value, list) and len(value) == len(set(value))
+                    for value in loaded.values()),
+            'full-node loaded entrypoints are incomplete')
+    expected_loaded = {'ai.openclaw.' + unit for unit, state in prior.items() if state['loaded']}
+    require(set().union(*map(set, loaded.values())) == expected_loaded
+            and sum(map(len, loaded.values())) == len(expected_loaded),
+            'full-node loaded entrypoints differ from the baseline')
+    require(isinstance(evidence['roots'], list) and evidence['roots']
+            and all(isinstance(root, str) and pathlib.Path(root).is_absolute()
+                    for root in evidence['roots'])
+            and isinstance(evidence['disabled_artifacts'], dict)
+            and all(pathlib.Path(path).is_absolute()
+                    and re.fullmatch(r'[0-9a-f]{64}', str(digest))
+                    for path, digest in evidence['disabled_artifacts'].items()),
+            'full-node entrypoint roots or disabled artifacts are incomplete')
+    for unit in UNITS:
+        entry = installed['ai.openclaw.' + unit]
+        require(isinstance(entry, dict) and set(entry) == {'path', 'sha256'}
+                and isinstance(entry['path'], str) and pathlib.Path(entry['path']).is_absolute()
+                and entry['sha256'] == prior[unit]['identity']['plist_sha256'],
+                'full-node installed plist differs from the saved service identity')
 
 
 class Journal:
@@ -212,6 +263,9 @@ class Journal:
                         self.receipt_writable = False
                 else:
                     valid_prior(active['baseline']['prior'], active['baseline'].get('scope'))
+                    if active['baseline'].get('scope') == FULL_NODE_SCOPE:
+                        valid_entrypoint_inventory(active['baseline'].get('entrypoint_inventory'),
+                                                   active['baseline']['prior'])
                     require(active['status'] in ('unresolved', 'restored'), 'node receipt status is invalid')
                     require(pathlib.Path(active['journal_root']).parent.resolve() == self.journals.resolve(),
                             'node receipt root escaped the persistent parent')
@@ -233,6 +287,7 @@ class Journal:
                     self.records = [self.active['baseline']]
                     self.prior = json.loads(encoded(self.records[0]['prior']))
                     self.scope = self.records[0].get('scope')
+                    self.entrypoint_inventory = self.records[0].get('entrypoint_inventory')
                     return
                 created = False
                 self.reopened = True
@@ -272,13 +327,20 @@ class Journal:
 
     def _open(self, created, prior, scope):
         if created:
+            require(scope in (TIMER_SCOPE, FULL_NODE_SCOPE),
+                    'new journal requires an explicit protected scope')
             require(prior is not None, 'new journal requires the complete prior state')
             valid_prior(prior, scope)
+            entrypoints = capture_entrypoint_inventory(UNITS) if scope == FULL_NODE_SCOPE else None
+            if scope == FULL_NODE_SCOPE:
+                valid_entrypoint_inventory(entrypoints, prior)
             predecessor = ({'root': self.active['journal_root'], 'head': self.active['head']}
                            if self.active is not None else None)
             self.records = []
-            initial = self._record('baseline', prior=prior, predecessor=predecessor,
-                                   **({'scope': scope} if scope is not None else {}))
+            fields = {'scope': scope} if scope is not None else {}
+            if entrypoints is not None:
+                fields['entrypoint_inventory'] = entrypoints
+            initial = self._record('baseline', prior=prior, predecessor=predecessor, **fields)
             self._state({'journal_root': str(self.root.resolve()), 'baseline': initial,
                          'status': 'unresolved', 'phase': 'initializing',
                          'holder': {'pid': os.getpid(), 'boot': self.boot}})
@@ -305,6 +367,9 @@ class Journal:
             require(scope is None, 'cannot replace a journal scope')
             require(self.records and self.records[0]['event'] == 'baseline', 'journal baseline is absent')
             valid_prior(self.records[0]['prior'], self.records[0].get('scope'))
+            if self.records[0].get('scope') == FULL_NODE_SCOPE:
+                valid_entrypoint_inventory(self.records[0].get('entrypoint_inventory'),
+                                           self.records[0]['prior'])
             if self.active is None:
                 self.active = {'journal_root': str(self.root.resolve()), 'baseline': self.records[0],
                                'status': 'restored' if self.records[-1]['event'] in TERMINAL else 'unresolved',
@@ -321,6 +386,30 @@ class Journal:
                 raise Refused('sealed or resolved journal receipt repaired; create a new window, no writing to this chain')
         self.prior = json.loads(encoded(self.records[0]['prior']))
         self.scope = self.records[0].get('scope')
+        self.entrypoint_inventory = self.records[0].get('entrypoint_inventory')
+
+    def check_entrypoints(self, final=False, forward=False, expected_loaded=None):
+        if self.scope != FULL_NODE_SCOPE:
+            return None
+        current = capture_entrypoint_inventory(UNITS)
+        saved = self.entrypoint_inventory
+        require(all(current[key] == saved[key] for key in
+                    ('installed', 'roots', 'disabled_artifacts')),
+                'full-node installed entrypoint identity changed')
+        require(all(set(current['loaded'][domain]) <= set(saved['loaded'][domain])
+                    for domain in ('gui', 'user', 'system')),
+                'full-node job loaded outside its original domain or state')
+        if forward:
+            previous = next((row['evidence']['entrypoint_loaded'] for row in reversed(self.records)
+                             if row['event'] == 'verified'
+                             and 'entrypoint_loaded' in row.get('evidence', {})), saved['loaded'])
+            expected = expected_loaded if expected_loaded is not None else previous
+            require(current['loaded'] == expected,
+                    'full-node loaded jobs changed inside the forward window')
+        if final:
+            require(current['loaded'] == saved['loaded'],
+                    'full-node loaded entrypoints were not restored')
+        return current
 
     def _state(self, value):
         require(self.receipt_writable, 'corrupt receipt could not be durably retained')
@@ -419,6 +508,8 @@ class Journal:
     def append(self, event, **data):
         require(self.lock is not None, 'journal is closed')
         require(not self.sealed, 'sealed journal cannot be changed')
+        require(event != 'sealed' or self.scope != FULL_NODE_SCOPE,
+                'full-node seal requires a continuous launchd and process watch')
         require(not self.write_failed, 'failed durable write requires reopening the journal')
         self.write_failed = True
         record = self._record(event, **data)
@@ -457,6 +548,7 @@ class Journal:
         require(self.prior[unit]['class'] != 'held', 'held unit cannot be mutated')
         require(self.prior[unit]['class'] != 'absent', 'absent unit cannot be mutated')
         self.require_forward()
+        self.check_entrypoints(forward=True)
         held = 'execution_hold' in self.prior['scheduler-heartbeat']
         require((hold is not None) == held and (not held or hold.journal is self),
                 'baselined execution hold requires its forward facade')
@@ -470,9 +562,22 @@ class Journal:
             apply()
             if held:
                 hold.check_forward()
+            expected = next((row['evidence']['entrypoint_loaded'] for row in reversed(self.records)
+                             if row['event'] == 'verified'
+                             and 'entrypoint_loaded' in row.get('evidence', {})),
+                            self.entrypoint_inventory['loaded'] if self.scope == FULL_NODE_SCOPE else None)
+            if self.scope == FULL_NODE_SCOPE and action in ('stop', 'unload', 'disable-and-unload'):
+                expected = {domain: sorted(set(labels) - {'ai.openclaw.' + unit})
+                            for domain, labels in expected.items()}
+            before_verify = self.check_entrypoints(forward=True, expected_loaded=expected)
             evidence = verify()
             require(isinstance(evidence, dict) and evidence.get('verified') is True,
                     'mutation lacks verified evidence')
+            if self.scope == FULL_NODE_SCOPE:
+                after_verify = self.check_entrypoints(forward=True, expected_loaded=expected)
+                require(after_verify['loaded'] == before_verify['loaded'],
+                        'full-node job changed during mutation verification')
+                evidence = {**evidence, 'entrypoint_loaded': after_verify['loaded']}
             self.append('verified', intent=intent['sequence'], unit=unit, action=action, evidence=evidence)
             return evidence
         except Exception as error:
@@ -518,6 +623,11 @@ class Journal:
                 raise
             errors.append({'unit': 'journal', 'reason': type(error).__name__})
         record('recovery-started', original_boot=self.records[0]['boot'])
+        try:
+            self.check_entrypoints()
+        except Exception as error:
+            errors.append({'unit': 'entrypoints', 'reason': type(error).__name__,
+                           'detail': str(error)})
         buses_ready = True
         for unit in (u for u in RESUME_ORDER if u in self.prior):
             if not unit.startswith('nats') and not buses_ready:
@@ -561,17 +671,20 @@ class Journal:
                     buses_ready = False
         for unit in (u for u in self.prior if u not in RESUME_ORDER and not (held and self.write_failed)):
             try:
-                require(unit == 'nats-1', 'unknown unit needs manual restoration')
+                require(unit in ('nats-1', 'federation-tick'), 'unknown unit needs manual restoration')
                 actual = observe(unit, self.prior[unit])
                 require(matches(actual, self.prior[unit]) and actual.get('verified') is True
-                        and actual.get('identity') == self.prior[unit]['identity'], 'member-1 hold changed')
-                record('held-unit-verified', unit=unit, evidence=actual)
+                        and actual.get('identity') == self.prior[unit]['identity'],
+                        'non-running installed unit or member-1 hold changed')
+                record('held-unit-verified' if unit == 'nats-1' else 'unloaded-unit-verified',
+                       unit=unit, evidence=actual)
             except Exception as error:
                 errors.append({'unit': unit, 'reason': type(error).__name__})
         try:
             evidence = final_check()
             require(isinstance(evidence, dict) and evidence.get('verified') is True,
                     'final physical ownership or member-1 hold was not verified')
+            self.check_entrypoints(final=True)
             record('final-state-verified', evidence=evidence)
         except Exception as error:
             errors.append({'unit': 'final-state', 'reason': type(error).__name__})
@@ -600,6 +713,7 @@ class Journal:
 
     def seal(self):
         require(self.scope != TIMER_SCOPE, 'timer commissioning cannot seal preservation history')
+        self.check_entrypoints(final=True)
         require(not self.reopened and not self.write_failed, 'interrupted window cannot be sealed')
         require(not self.pending_intents() and not any(r['event'] == 'failed' for r in self.records),
                 'failed forward window cannot be sealed')
@@ -610,12 +724,15 @@ class Journal:
         return self._finalize('resolved')
 
     def _finalize(self, event):
+        require(event != 'sealed' or self.scope != FULL_NODE_SCOPE,
+                'full-node seal requires a continuous launchd and process watch')
         require(self.records[-1]['event'] == 'recovery-finished'
                 and self.records[-1]['services_verified'] is True and not self.records[-1]['errors'],
                 'unrestored node cannot be sealed')
         state = read_private(self.node_state)
         require(state['status'] == 'restored' and state.get('head') == self.records[-1]['sha256'],
                 'node restoration receipt is not durable')
+        self.check_entrypoints(final=True)
         record = self.append(event)
         self.sealed = True
         self._state({**self.active, 'status': 'restored', 'head': record['sha256']})

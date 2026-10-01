@@ -176,22 +176,49 @@ and metadata links refuse explicitly on a new-window parent scan or an
 initializing-root reopen. Invalid parent entries do not block restoring the
 known prior root; they prevent a later new window. Ignored metadata is retained.
 
-The baseline must contain exactly RESUME_ORDER plus nats-1. Each uninstalled
+The production baseline uses the durable `full-node` Journal scope. It must
+contain exactly RESUME_ORDER plus nats-1 and the installed, unloaded
+federation-tick, with every unit in its approved class and the saved five-timer
+execution hold. The viewer and gateway are managed live entry points
+in RESUME_ORDER. The viewer's authenticated controls can detach plan ticks; the
+gateway owns a live task SQLite store. Neither a missing NATS socket nor an idle
+process snapshot excludes their later writes or children. Stop the deploy
+listener, then the viewer and gateway before other clients; prove their process
+groups and any detached work have drained. Restore the gateway and viewer after
+their dependencies, and the deploy listener last only after proving no pending
+deploy catch-up. Refuse to signal the listener while it has a deploy child;
+the process watch must also reject a child forked after preparation.
+Federation-tick must stay unloaded and disabled; a newly loaded or re-enabled
+job prevents resolution for operator handoff rather than being booted out silently.
+Each uninstalled
 unit has explicit class absent, false loaded/running/disabled and identity
 {installed:false}; it is observed, never installed or mutated. An installed
 member1 alone may be held, disabled/unloaded. Daemons are loaded/running;
 the on-demand mesh-agent is loaded/idle; timers are loaded/idle; only the
 disabled Discord integration is known-broken, with its running bit
 unconstrained. Classes come from approved desired state, never from observing
-a stopped daemon. Actual installed-unit completeness and extra writers still
-require driver inspection; the fixed names alone do not prove that inventory.
+a stopped daemon. The full-node journal scans installed plists and loaded
+services in the GUI/user/system domains before creation, persists their
+inventory, and requires the exact loaded map through forward work after each
+verified stop. Recovery records inventory drift as an uncertified error but
+still restores each independently verified prior unit; final recovery and
+resolution recheck the original installed and loaded inventory. An operator
+must restore a changed plist from a trusted copy or investigate the drift
+before rerunning restore-only recovery. The journal holds hashes, not
+reconstructible plist contents. Full-node sealing is currently refused:
+point-in-time loaded-map checks cannot prove that a stopped writer never
+restarted and exited between scans. A continuous launchd/process watch is a
+required driver prerequisite before any copied history can be certified;
+the execution-hold completion receipt also reports `history_certified:false`.
+Actual process descendants, detached work and dependency provenance still
+require driver inspection; fixed launchd names alone do not prove them.
 An on-demand worker observed running during recovery is a refusal requiring
 operator handoff, not a restoration target. Capture requires a normal idle
 exit, unchanged run count and loaded entry provenance; an idle snapshot alone
-could be a crashed worker. A frozen timer-only controller with an older
-Journal parser must be replaced or retired before the first full-node
-journal. Merely completing the timer transition does not prevent a later
-manual commission rerun from renaming a full-node receipt in `restored` state.
+could be a crashed worker. The current protected timer controller handles the
+existing timer-only receipt but safely refuses the new full-node scope. Once
+the first full-node journal exists, its own hold path owns timer restoration;
+the timer-only controller cannot commission or recover that receipt.
 The idle worker is a latent writer: forward quiescence must unload it with spawn-race
 evidence, while restore-only recovery may bootstrap its saved idle job but
 must never kickstart it.

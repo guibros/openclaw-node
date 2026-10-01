@@ -1,6 +1,13 @@
 import copy
+import hashlib
 import http.client
 import json
+import os
+import pathlib
+import plistlib
+import re
+import stat
+import subprocess
 import time
 import urllib.parse
 import urllib.request
@@ -11,7 +18,7 @@ class Refused(RuntimeError):
 
 
 STOP_ORDER = (
-    'health-watch', 'mesh-deploy-listener', 'node-watch',
+    'mesh-deploy-listener', 'workplan-viewer', 'gateway', 'health-watch', 'node-watch',
     'scheduler-heartbeat', 'consolidation-scheduler', 'observer',
     'transcript-archive', 'log-rotate', 'lane-watchdog', 'mesh-tool-discord',
     'mission-control', 'mesh-bridge', 'mesh-agent',
@@ -22,8 +29,226 @@ RESUME_ORDER = (
     'mesh-health-publisher', 'mission-control', 'mesh-bridge', 'mesh-agent',
     'mesh-tool-discord', 'transcript-archive',
     'observer', 'log-rotate', 'lane-watchdog', 'consolidation-scheduler',
-    'scheduler-heartbeat', 'node-watch', 'health-watch', 'mesh-deploy-listener',
+    'scheduler-heartbeat', 'node-watch', 'health-watch', 'gateway',
+    'workplan-viewer', 'mesh-deploy-listener',
 )
+
+
+def production_entrypoint_roots(home=None):
+    home = pathlib.Path(home or pathlib.Path.home())
+    return (home / 'openclaw-nodedev', home / '.openclaw', home / 'openclaw',
+            home / '.npm-global/lib/node_modules/openclaw', home / '.codex/worktrees',
+            home / 'Documents/openclaw infrastructure/companion-bridge',
+            pathlib.Path('/usr/local/lib/node_modules/openclaw'),
+            pathlib.Path('/opt/homebrew/lib/node_modules/openclaw'))
+
+
+def suspicious_hardlink(path, source, label):
+    if str(source).startswith('/System/Library/'):
+        return False
+    if label.startswith('application.') and '.app/Contents/MacOS/' in str(path):
+        return False
+    try:
+        info = pathlib.Path(path).stat()
+        return stat.S_ISREG(info.st_mode) and info.st_nlink > 1
+    except OSError:
+        return False
+
+
+def relevant_entrypoint(label, values, roots, home=None, environment=None,
+                        working_directory=None, source=None):
+    if label.startswith(('ai.openclaw.', 'com.openclaw.')):
+        return True
+    home = str(pathlib.Path(home or pathlib.Path.home()))
+    environment = {'HOME': home, **(environment or {})}
+    def expand(value):
+        expanded = value
+        for _ in range(5):
+            changed = re.sub(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)',
+                lambda match: environment.get(match[1] or match[2], match[0]), expanded)
+            if changed == expanded:
+                break
+            expanded = changed
+        return re.sub(r'(?<![A-Za-z0-9_/])~(?=/)', home, expanded)
+    cwd = pathlib.Path(expand(working_directory)) if isinstance(working_directory, str) else None
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        expanded = expand(value)
+        for root in roots:
+            if str(root) in expanded:
+                return True
+        for token in re.findall(r'[^\s"\'`;,|&()]+', expanded):
+            candidate = pathlib.Path(token)
+            if not candidate.is_absolute() and cwd is not None and '/' in token:
+                candidate = cwd / candidate
+            if not candidate.is_absolute():
+                continue
+            resolved = candidate.resolve(strict=False)
+            if any(resolved == root or root in resolved.parents for root in roots):
+                return True
+            if suspicious_hardlink(candidate, source, label):
+                return True
+    return False
+
+
+def unclassified_executable(program, arguments, source, label):
+    executable = program or (arguments[0] if arguments else '')
+    name = pathlib.Path(executable).name
+    if str(source).startswith('/System/Library/'):
+        return False
+    if (name in {'sh', 'bash', 'zsh', 'env', 'osascript', 'npm', 'npx', 'bun', 'deno',
+                 'caffeinate', 'nice', 'nohup', 'arch', 'xcrun'}
+            or re.fullmatch(r'(?:node|nodejs|python|ruby|perl|php)(?:[0-9]+(?:\.[0-9]+)*)?', name)):
+        return True
+    return suspicious_hardlink(executable, source, label)
+
+
+def installed_entrypoints(directory, protected_roots):
+    roots = tuple({pathlib.Path(root).resolve(strict=False) for root in protected_roots})
+    found = {}
+    directories = (directory,) if isinstance(directory, (str, pathlib.Path)) else directory
+    paths = []
+    for item in directories:
+        folder = pathlib.Path(item)
+        require(folder.is_dir(), 'LaunchAgent inventory directory is missing: ' + str(folder))
+        try:
+            paths.extend(path for path in folder.iterdir() if path.name.endswith('.plist'))
+        except OSError as error:
+            raise Refused('LaunchAgent inventory directory cannot be read: ' + str(folder)) from error
+    for path in paths:
+        try:
+            plist = plistlib.loads(path.read_bytes())
+        except (OSError, ValueError, TypeError) as error:
+            raise Refused('installed LaunchAgent plist cannot be read: ' + path.name) from error
+        require(isinstance(plist, dict), 'installed LaunchAgent plist is not a dictionary: ' + path.name)
+        label = plist.get('Label')
+        values = plist.get('ProgramArguments', [])
+        location = plist.get('WorkingDirectory', '')
+        environment = plist.get('EnvironmentVariables', {})
+        scan = [plist.get('Program'), location]
+        if isinstance(values, list):
+            scan.extend(values)
+        relevant = (isinstance(label, str)
+                    and (relevant_entrypoint(label, scan, roots,
+                                             environment=environment if isinstance(environment, dict) else {},
+                                             working_directory=location, source=path)
+                         or unclassified_executable(plist.get('Program'),
+                                                     values if isinstance(values, list) else [], path, label)))
+        if not relevant:
+            continue
+        require(isinstance(label, str), 'installed OpenClaw LaunchAgent lacks a label: ' + path.name)
+        require(isinstance(values, list) and all(isinstance(value, str) for value in values),
+                'installed OpenClaw LaunchAgent has invalid arguments: ' + path.name)
+        require(path.name == label + '.plist' and label not in found and not path.is_symlink(),
+                'installed OpenClaw LaunchAgent has ambiguous identity: ' + path.name)
+        found[label] = str(path.resolve(strict=True))
+    return found
+
+
+def disabled_entrypoint_artifacts(directories):
+    found = {}
+    paths = []
+    for item in directories:
+        folder = pathlib.Path(item)
+        require(folder.is_dir(), 'LaunchAgent artifact directory is missing: ' + str(folder))
+        try:
+            paths.extend(path for path in folder.iterdir() if path.name.endswith('.plist.disabled'))
+        except OSError as error:
+            raise Refused('LaunchAgent artifact directory cannot be read: ' + str(folder)) from error
+    for path in paths:
+        try:
+            raw = path.read_bytes()
+            label = plistlib.loads(raw).get('Label')
+        except (OSError, ValueError, TypeError, AttributeError) as error:
+            raise Refused('disabled LaunchAgent artifact cannot be read: ' + path.name) from error
+        if not isinstance(label, str) or not label.startswith(('ai.openclaw.', 'com.openclaw.')):
+            continue
+        require(path.name == label + '.plist.disabled' and not path.is_symlink()
+                and str(path) not in found, 'disabled OpenClaw artifact has ambiguous identity')
+        found[str(path)] = hashlib.sha256(raw).hexdigest()
+    return found
+
+
+def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
+    match = re.search(r'^\s*services = \{\n(.*?)^\s*\}', domain_text, re.M | re.S)
+    require(match is not None, 'launchd domain lacks a services inventory')
+    roots = tuple({pathlib.Path(root).resolve(strict=False) for root in protected_roots})
+    inspect = inspect or (lambda label: subprocess.check_output(
+        ['/bin/launchctl', 'print', domain + '/' + label], text=True, timeout=10))
+    labels = set()
+    for line in match[1].splitlines():
+        fields = line.split()
+        if len(fields) < 3:
+            continue
+        label = fields[-1]
+        try:
+            details = inspect(label)
+        except (OSError, subprocess.SubprocessError) as error:
+            raise Refused('loaded launchd service cannot be inspected: ' + label) from error
+        values = []
+        fields = {}
+        for key in ('path', 'program', 'working directory'):
+            field = re.search(r'^\s*' + re.escape(key) + r' = (.+)$', details, re.M)
+            if field:
+                fields[key] = field[1]
+                values.append(field[1])
+        arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', details, re.M | re.S)
+        argv = []
+        if arguments:
+            argv = [line.strip() for line in arguments[1].splitlines()]
+            values.extend(argv)
+        environment = {}
+        for section in re.finditer(r'^\s*(?:default )?environment = \{\n(.*?)^\s*\}',
+                                   details, re.M | re.S):
+            for line in section[1].splitlines():
+                entry = re.match(r'^\s*([A-Za-z_][A-Za-z0-9_]*) => (.*)$', line)
+                if entry:
+                    environment[entry[1]] = entry[2]
+        if (relevant_entrypoint(label, [*values, *environment.values()], roots,
+                                environment=environment,
+                                working_directory=fields.get('working directory'),
+                                source=fields.get('path', ''))
+                or unclassified_executable(fields.get('program'), argv, fields.get('path', ''), label)):
+            labels.add(label)
+    return labels
+
+
+def verify_entrypoint_inventory(installed, gui_loaded, user_loaded, system_loaded, expected,
+                                roots=(), disabled_artifacts=None):
+    expected = {'ai.openclaw.' + unit for unit in expected}
+    require(set(installed) == expected, 'installed OpenClaw jobs differ from the approved cohort')
+    require(gui_loaded <= expected and user_loaded <= expected and system_loaded <= expected,
+            'unclassified OpenClaw job is loaded')
+    require(not (gui_loaded & user_loaded or gui_loaded & system_loaded or user_loaded & system_loaded),
+            'OpenClaw job is loaded in two launchd domains')
+    return {'verified': True,
+            'installed': {label: {'path': path,
+                                  'sha256': hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()}
+                          for label, path in sorted(installed.items())},
+            'loaded': {'gui': sorted(gui_loaded), 'user': sorted(user_loaded),
+                       'system': sorted(system_loaded)},
+            'roots': sorted(str(pathlib.Path(root).resolve(strict=False)) for root in roots),
+            'disabled_artifacts': dict(sorted((disabled_artifacts or {}).items()))}
+
+
+def capture_entrypoint_inventory(expected):
+    home = pathlib.Path.home()
+    directories = (home / 'Library/LaunchAgents', pathlib.Path('/Library/LaunchAgents'),
+                   pathlib.Path('/Library/LaunchDaemons'))
+    roots = production_entrypoint_roots(home)
+    installed = installed_entrypoints(directories, roots)
+    disabled = disabled_entrypoint_artifacts(directories)
+    domains = ('gui/' + str(os.getuid()), 'user/' + str(os.getuid()), 'system')
+    loaded = [loaded_entrypoints(subprocess.check_output(['/bin/launchctl', 'print', domain],
+               text=True, timeout=10), domain, roots) for domain in domains]
+    evidence = verify_entrypoint_inventory(installed, *loaded, expected,
+                                           roots=roots, disabled_artifacts=disabled)
+    again = installed_entrypoints(directories, roots)
+    require(again == installed and all(hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+            == evidence['installed'][label]['sha256'] for label, path in again.items()),
+            'installed entrypoint changed during preflight')
+    return evidence
 
 
 def require(condition, reason):
