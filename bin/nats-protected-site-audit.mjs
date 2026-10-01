@@ -9,7 +9,7 @@ const run = promisify(execFile);
 async function identity(path) {
   try {
     const value = await fs.lstat(path);
-    return { isDirectory: value.isDirectory(), uid: value.uid, gid: value.gid, mode: value.mode };
+    return { isDirectory: value.isDirectory(), uid: value.uid, gid: value.gid, mode: value.mode, device: value.dev };
   } catch (error) {
     if (error.code === 'ENOENT') return null;
     throw error;
@@ -39,10 +39,12 @@ async function volume() {
 
 async function main() {
   if (process.platform !== 'darwin') throw new Error('protected site audit requires macOS');
-  const [serviceAccount, parent, root, marker, filesystem] = await Promise.all([
-    account(), identity('/private/var/db'), identity(SITE_ROOT), identity(HANDOFF_MARKER), volume(),
+  const [serviceAccount, privateRoot, varRoot, dbRoot, root, marker, filesystem] = await Promise.all([
+    account(), identity('/private'), identity('/private/var'), identity('/private/var/db'),
+    identity(SITE_ROOT), identity(HANDOFF_MARKER), volume(),
   ]);
-  const report = evaluateProtectedSite({ account: serviceAccount, operatorUid: process.getuid(), parent, root,
+  const report = evaluateProtectedSite({ account: serviceAccount, operatorUid: process.getuid(),
+    ancestors: [privateRoot, varRoot, dbRoot], root,
     marker: marker ? 'present' : 'absent', volume: filesystem });
   process.stdout.write(`${JSON.stringify({ observedAt: new Date().toISOString(), ...report }, null, 2)}\n`);
   if (!report.readyForStaging) process.exitCode = 1;

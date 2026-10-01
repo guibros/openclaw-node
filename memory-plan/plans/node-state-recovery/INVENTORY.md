@@ -181,3 +181,9 @@ passes its owned controls and refuses staging on the live host because
 and the root-controlled parent pass. The audit is not cutover authorization;
 no account, directory, service or store changed. Privileged staging and the
 root migration journal remain required before a protected writer can start.
+
+Checkpoint 2026-10-01 13:33 EDT: D30 extends that audit to every protected
+ancestor and refuses a handoff root on a different device. The refreshed
+`SITE_STATIC_EVIDENCE.json` passes the ancestor-chain check; the account and
+root remain absent. Focused controls pass 69/69. No privileged mutation or
+writer cutover occurred.

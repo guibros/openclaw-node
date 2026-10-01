@@ -539,3 +539,13 @@ those two exact blockers. Root-owned binary/config/auth staging, immutable
 identity pins, store transfer, legacy job retirement, first protected
 bootstrap, reverse-path constraints and three healthy cold masters are still
 open. No privileged mutation occurred.
+
+## D30 — Verify the protected ancestor chain and device (2026-10-01 13:33 EDT)
+
+D29's parent check now covers `/private`, `/private/var`, and
+`/private/var/db`: each must be a root:wheel directory without group or world
+write permission, and all three must be on the same device. The protected
+root must be on that device too, so a mounted handoff directory cannot pass
+the site preflight. This remains a read-only staging check, not cutover
+authorization. The live chain passes; the dedicated account and protected
+root remain absent.

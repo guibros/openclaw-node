@@ -26,6 +26,11 @@ protected-site check: APFS ownership and the root-controlled parent pass;
 the dedicated service account and protected root do not exist. The handoff
 marker is unpublished. No cutover stage has started.
 
+2026-10-01 13:33 EDT — D30's strengthened read-only check confirms each
+ancestor from `/private` through `/private/var/db` is root-controlled and on
+one device. A mounted protected root on another device now refuses. The live
+site still lacks the dedicated account and protected directory.
+
 Current mechanism checkpoint 2026-09-28 23:49 EDT: tools-v30 passes53 fresh journal tests; unchanged15 admission/1 election tests inherit identical source hashes. Creation prepares the receipt before mkdir; interrupted setup is restoration-only. bbbc883 CI36516935187 is green, while this newer patch awaits exact CI/review. No new healthy production stop or cold-copy acceptance.
 
 Current mechanism checkpoint 2026-09-29 00:58 EDT: tools-v31 passes55 fresh
