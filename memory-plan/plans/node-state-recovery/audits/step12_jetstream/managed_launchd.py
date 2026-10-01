@@ -225,9 +225,9 @@ class Launchd:
     def configuration(self):
         text = command(['/bin/launchctl', 'print', self.target])
         def field(name):
-            match = re.search(r'^\s*' + re.escape(name) + r' = (.+)$', text, re.M)
-            require(match is not None, 'loaded job lacks ' + name)
-            return match[1]
+            matches = re.findall(r'^[ \t]*' + re.escape(name) + r' = (.+)$', text, re.M)
+            require(len(matches) == 1, 'loaded job lacks or duplicates ' + name)
+            return matches[0]
         arguments = launchctl_arguments(text)
         require(arguments, 'loaded job lacks arguments')
         return {'path': str(pathlib.Path(field('path')).resolve(strict=True)),

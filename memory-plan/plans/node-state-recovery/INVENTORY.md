@@ -164,3 +164,10 @@ source and owned regression checks now refuse them. Four source plist
 templates no longer set `NODE_PATH`, but their installed live copies still
 do. The source remains a draft until its new exact-head checks and adversarial
 follow-up pass. Step 1.2 stays [A] at v1.2-pre.
+
+D26 narrows the remaining source boundary: raw newlines in `launchctl print`
+can spoof text structure, so loaded-but-idle jobs require pinned re-bootstrap
+or structured attestation before a full-node seal. A single read-only APFS
+snapshot is the target cold-copy input, with privileged owned proof and
+quiescence still open. No live snapshot, root-job mutation, or full-node hold
+has occurred.

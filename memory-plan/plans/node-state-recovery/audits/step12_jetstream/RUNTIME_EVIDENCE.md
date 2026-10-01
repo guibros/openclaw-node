@@ -849,3 +849,19 @@ environment value. A value can visually close its `environment` block before
 the next variable line. The scanner now refuses any variable-shaped line
 outside the parsed environment blocks. All 21 currently loaded approved GUI
 jobs still parse; the owned probe was booted out and removed.
+
+Claude's follow-up at head `1efb819` re-ran P1–P6 and found all six refused,
+then raised a new raw-newline argument/cwd spoof. An owned Mac LaunchAgent
+with an argument containing `a\n\t}` confirmed launchd emits those bytes
+literally. The later scanner rejects unmatched section boundaries, duplicate
+path/program/cwd fields, variable-shaped rows outside environment blocks,
+reordered environment blocks, and the additional Python and `LD_*` loader
+names. Its 21 currently loaded approved GUI jobs still parse. This is a
+fail-closed text check, not a structured attestation for idle jobs. The
+temporary probe was booted out; no production job was touched.
+
+Read-only inspection of the three installed NATS plists and their config
+files places `jetstream`, `jetstream-2` and `jetstream-3` on the same APFS
+Data volume (`/dev/disk4s5`). This satisfies the single-volume precondition
+for an APFS snapshot design but does not prove privileged creation, mounting
+or a cold writer-free instant. No snapshot was created.

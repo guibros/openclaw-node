@@ -46,7 +46,7 @@ AMBIENT_ENVIRONMENT = frozenset({
 })
 LOADER_ENVIRONMENT = frozenset({
     'NODE_OPTIONS', 'NODE_PATH', 'PYTHONPATH', 'PYTHONHOME',
-    'BASH_ENV', 'ENV', 'ZDOTDIR',
+    'PYTHONINSPECT', 'PYTHONSTARTUP', 'BASH_ENV', 'ENV', 'ZDOTDIR',
 })
 
 
@@ -54,7 +54,7 @@ def verify_environment_hashes(actual, declared):
     expected = {key: hashlib.sha256(value.encode()).hexdigest()
                 for key, value in declared.items()}
     require(not (set(actual) & LOADER_ENVIRONMENT)
-            and not any(key.startswith('DYLD_') for key in actual),
+            and not any(key.startswith(('DYLD_', 'LD_')) for key in actual),
             'loaded environment contains a code loader')
     require(set(actual) <= set(expected) | AMBIENT_ENVIRONMENT,
             'loaded environment contains an undeclared variable')
@@ -66,6 +66,16 @@ def launchctl_blocks(text):
     lines = text.split('\n')
     blocks = []
     position = 0
+    stack = []
+    for line in lines:
+        opened = re.fullmatch(r'([ \t]*)[^{}\n]+ (?:=|=>) \{', line)
+        closed = re.fullmatch(r'([ \t]*)\}', line)
+        if opened:
+            stack.append(opened[1])
+        elif closed:
+            require(stack and stack.pop() == closed[1],
+                    'launchd output has an unmatched section boundary')
+    require(not stack, 'launchd output has an unterminated section')
     while position < len(lines):
         header = re.fullmatch(r'([ \t]*)([^{}\n]+) = \{', lines[position])
         if header is None:
@@ -106,14 +116,16 @@ def launchctl_environment(text):
     sections = [(name, indentation, body) for name, indentation, body in launchctl_blocks(text)
                 if name.endswith('environment')]
     environment = {}
+    order = {'inherited environment': 0, 'default environment': 1, 'environment': 2}
     variable_row = re.compile(r'[ \t]*[A-Za-z_][A-Za-z0-9_]* => .*')
     visible_rows = sum(bool(variable_row.fullmatch(line)) for line in text.split('\n'))
     section_rows = sum(bool(variable_row.fullmatch(line)) for _, _, body in sections for line in body)
     require(visible_rows == section_rows,
             'launchd environment contains a variable outside its section')
     require(len(sections) == len({name for name, _, _ in sections})
-            and all(name in {'inherited environment', 'default environment', 'environment'}
-                    for name, _, _ in sections),
+            and all(name in order for name, _, _ in sections)
+            and [order[name] for name, _, _ in sections]
+                == sorted(order[name] for name, _, _ in sections),
             'launchd environment contains a duplicate or unknown section')
     for name, indentation, body in sections:
         within = set()
@@ -333,10 +345,11 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None, inclu
         values = []
         fields = {}
         for key in ('path', 'program', 'working directory'):
-            field = re.search(r'^\s*' + re.escape(key) + r' = (.+)$', service_text, re.M)
-            if field:
-                fields[key] = field[1]
-                values.append(field[1])
+            matches = re.findall(r'^[ \t]*' + re.escape(key) + r' = (.+)$', service_text, re.M)
+            require(len(matches) <= 1, 'launchd service has a duplicate ' + key + ': ' + label)
+            if matches:
+                fields[key] = matches[0]
+                values.append(matches[0])
         argv = launchctl_arguments(service_text)
         values.extend(argv)
         environment = launchctl_environment(service_text)

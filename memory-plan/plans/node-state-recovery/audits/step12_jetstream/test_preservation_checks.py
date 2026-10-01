@@ -19,7 +19,8 @@ from unittest.mock import patch
 
 from preservation_checks import (
     QuietWindow, Refused, STOP_ORDER, capture, verify_admissions,
-    disabled_entrypoint_artifacts, http_json, installed_entrypoints, loaded_entrypoints, verify_completion,
+    disabled_entrypoint_artifacts, http_json, installed_entrypoints, launchctl_arguments,
+    loaded_entrypoints, verify_completion,
     inert_entrypoint_artifacts, verify_entrypoint_inventory, verify_queue, verify_streams, verify_timer_idle,
 )
 
@@ -192,6 +193,27 @@ class Gates(unittest.TestCase):
             alias.symlink_to('/System/Library/LaunchDaemons/com.apple.configd.plist')
             self.assertFalse(apple_system_source(str(alias), '/usr/libexec/configd'))
 
+    @unittest.skipUnless(sys.platform == 'darwin', 'requires launchd')
+    def test_actual_launchctl_multiline_argument_refuses(self):
+        label = 'local.openclaw-owned-argv-' + secrets.token_hex(4)
+        domain = 'gui/' + str(os.getuid())
+        with tempfile.TemporaryDirectory(prefix='openclaw-argv-probe-') as root:
+            path = pathlib.Path(root) / (label + '.plist')
+            path.write_bytes(plistlib.dumps({'Label': label,
+                'ProgramArguments': ['/bin/sleep', 'a\n\t}'], 'RunAtLoad': False}))
+            result = subprocess.run(['/bin/launchctl', 'bootstrap', domain, str(path)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            try:
+                detail = subprocess.check_output(['/bin/launchctl', 'print', domain + '/' + label],
+                                                 text=True)
+                self.assertIn('a\n\t}', detail)
+                self.refused(lambda: launchctl_arguments(detail))
+            finally:
+                result = subprocess.run(['/bin/launchctl', 'bootout', domain + '/' + label],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_unlabeled_nonempty_plist_refuses(self):
         with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:
             pathlib.Path(root, 'unknown.plist').write_bytes(plistlib.dumps({
@@ -237,6 +259,12 @@ class Gates(unittest.TestCase):
                   '  NODE_OPTIONS => --require=/tmp/evil.js\n}\n')
             check({}, ordinary + 'environment = {\n  OSLogRateLimit => 64\n}\n'
                   '  NODE_OPTIONS => --require=/tmp/evil.js\n')
+            check({}, 'arguments = {\n  /owned/node\n  /owned/gateway.js\n}\n}\n')
+            check({'HOME': '/Users/op'}, ordinary +
+                  'environment = {\n  HOME => /tmp/evil\n}\n'
+                  'inherited environment = {\n  HOME => /Users/op\n}\n')
+            check({'LD_PRELOAD': '/tmp/evil.dylib'}, ordinary +
+                  'environment = {\n  LD_PRELOAD => /tmp/evil.dylib\n}\n')
             check({}, 'arguments = {\n  /owned/node\n  /owned/gateway.js \n}\n')
 
     def test_timer_signal_race(self):

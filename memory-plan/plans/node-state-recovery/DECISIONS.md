@@ -453,3 +453,26 @@ imports resolve through their own `node_modules` ancestors without that override
 the installed live plists are unchanged and must be replaced and checked
 before full-node preflight can pass. This source change does not authorize a
 live preservation window or relax the structural seal refusal.
+
+## D26 — Snapshot copy input; do not certify idle jobs from launchctl text (2026-10-01 04:02 EDT)
+
+An owned temporary LaunchAgent confirmed that `launchctl print` emits raw
+newlines in argument and environment values. Such a value can impersonate a
+section boundary. The scanner rejects unmatched braces, duplicate identity
+fields, out-of-section variable rows and reordered environment sections, but
+an unescaped text report is not a complete attestation of a loaded job that
+has no running process to inspect. A full-node controller must unload and
+re-bootstrap approved idle jobs from pinned plists before their restored
+state can be trusted, or obtain a structured trusted launchd attestation.
+The existing full-node `seal()` refusal remains in place.
+
+Target a single read-only APFS Data-volume snapshot, taken after writer
+quiescence, as the three cold NATS stores' copy input instead of setting
+`UF_IMMUTABLE` on the live stores. Apple's [snapshot guide](https://support.apple.com/en-ca/guide/disk-utility/dskuf82354dc/mac)
+describes a read-only point-in-time volume copy. This removes the long
+file-by-file copy interval from the live admission window; it does not prove
+that writers were absent at the snapshot instant. The owned proof must show
+all three roots are on the same volume, privileged snapshot creation and
+read-only mounting work, the snapshot identity is journaled and retained,
+the restored masters validate, and pre/post stop, handle, listener and
+manifest checks cover the snapshot bracket. No live snapshot was created.
