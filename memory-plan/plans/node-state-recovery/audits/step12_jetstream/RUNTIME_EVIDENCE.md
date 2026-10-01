@@ -824,3 +824,11 @@ load-run-unload between scans.
 The combined scanner, journal and managed Mac suites pass 120 tests with one
 explicit domain-specific skip; the owned servers made no production NATS
 connections. No production job was stopped or changed.
+
+An additional private temp-file control tested the proposed copy freeze on
+this Mac. After setting `UF_IMMUTABLE`, `open(O_WRONLY)` failed with EPERM,
+while `pwrite()` through a descriptor opened before the flag succeeded and
+changed the byte. The flag was cleared and the temp file removed in the same
+control. This confirms that freeze cannot be certification unless all
+pre-existing writable handles and mappings, including root processes, are
+ruled out before the flag is applied. No live store flag was changed.

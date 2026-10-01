@@ -404,3 +404,31 @@ retains the exact unresolved chain and pins. The operator must restore the
 original pinned identity from a trusted copy, or investigate the changed job
 and its effects, then rerun restore-only recovery. The journal stores hashes,
 not plist contents, and cannot reconstruct a changed plist by itself.
+
+## D24 — Unknown jobs refuse; FSEvents alone cannot certify a cold copy (2026-10-01 03:22:38 EDT)
+
+Invert the full-node launchd preflight: every non-system installed or loaded
+job is unknown until it belongs to the 23-unit cohort or has an explicit,
+reviewed exclusion. A label, `application.*` prefix or Apple-looking path
+string does not establish non-writer status. The scanner now resolves the
+actual loaded source and executable for root-owned, non-group-writable Apple
+system provenance; dynamic app jobs remain visible. It binds approved loaded
+program, arguments, working directory and declared environment to the
+installed plist, and records the effective loaded configuration in the
+journal. This is an admission and restoration guard, not continuous proof
+that no process ran between scans. No exclusion is accepted in the current
+source; the live preflight remains closed.
+
+Do not use a user-level FSEvents stream as full-node copy certification.
+Apple's [FSEvents guide](https://developer.apple.com/library/archive/documentation/Darwin/Conceptual/FSEvents_ProgGuide/UsingtheFSEventsFramework/UsingtheFSEventsFramework.html)
+calls the historical list advisory; event delivery can lag a writer holding
+an open descriptor or writable mapping. The proposed source-manifest
+comparison catches many write-and-revert or swap cases but does not establish
+the required absence of a mapped write before timestamp publication. In an
+owned Mac control, `UF_IMMUTABLE` refused a new write open but did not stop a
+write through a descriptor opened before the flag was set. A future kernel
+immutability fence is therefore conditional on a privileged complete
+open-handle/mapping check, durable freeze/unfreeze intent and crash recovery,
+and an unchanged post-copy manifest. Until those controls are implemented and
+tested, the structural full-node `seal()` refusal remains mandatory. The
+root-managed legacy agent and remote management job are still unresolved.

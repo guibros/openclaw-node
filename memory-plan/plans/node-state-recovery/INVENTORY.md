@@ -150,3 +150,10 @@ GUI jobs unless proven safe. The 120 scanner/journal/managed Mac tests pass
 with one domain-specific skip. The live preflight remains closed; process
 activity and copy-input continuity are still unproved, and no production
 service was changed.
+
+D24 records the remaining copy-integrity boundary: a user-level FSEvents
+stream cannot certify an uninterrupted cold copy, and an owned Mac control
+showed a pre-opened descriptor can write through `UF_IMMUTABLE`. The full-node
+seal stays refused until a privileged open-handle check, durable immutable
+freeze/undo and crash recovery are proved; the root jobs and explicit outside
+job exclusions also remain open.
