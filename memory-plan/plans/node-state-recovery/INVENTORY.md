@@ -107,6 +107,20 @@ pass. Complete dependency/provenance pins, production controller, three healthy
 cold masters, isolated restores and truthful resumption remain open at
 1.2[A]/v1.2-pre. See step12_jetstream/RUNTIME_EVIDENCE.md.
 
+Checkpoint 2026-10-01 13:40 EDT, amending the 00:01 capture above (foreman
+PR #174, operator-approved): `ai.openclaw.mesh-agent` was re-pointed to the
+layered release `~/.openclaw/releases/worker-drain-69b7f37-foreman-5cb71b7-e57f89b`,
+which is worker-drain-69b7f37-e57f89b plus `lib/foreman/supervisor.mjs` (see
+its LIFECYCLE_PROVENANCE.json). Only `ProgramArguments[1]` changed. The plist
+sha256 went from bb28366cfa6abde712e89dd84c5d0e725a1557cc2eec6ad024f321375d535de5
+to c9209b9b66ffde255061c790d3c9fa62fffa46fbe7e60357f6472258af578d0c. Unchanged:
+entry SHA 1304cb31…, environment, KeepAlive/RunAtLoad false, the `node_modules`
+link and bare-module resolutions. The unit is still loaded, not running and not
+disabled (D21 on-demand). The 00:01 capture's mesh-agent pins are stale:
+recapture the full-node baseline before the first full-node journal. Rollback:
+restore `~/.openclaw/backups/foreman/ai.openclaw.mesh-agent.plist.20261001T134005.bak`,
+then bootout and bootstrap; the old release is untouched.
+
 Checkpoint 2026-10-01 01:29 EDT: D22 widens the draft full-node source cohort
 to 23 and adds a strict durable scope plus a multi-domain entrypoint preflight.
 The live read-only preflight refuses two additional loaded system jobs; the
