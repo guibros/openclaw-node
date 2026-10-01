@@ -470,23 +470,30 @@ the marker and retiring old jobs.
 
 ## D27 — Observe protected NATS in the system domain (2026-10-01 12:55 EDT)
 
-The protected active jobs retain `ai.openclaw.nats`, `ai.openclaw.nats-2` and
-`ai.openclaw.nats-3` in `system`, after their GUI predecessors have been retired.
-The separate historical `ai.openclaw.nats-1` job remains held in the `gui`,
-`user` and `system` domains;
-starting it is a BROKEN state. The fixed root
-handoff marker selects that domain for the core-service watcher. It is a
-root-owned, readable, non-group-writable regular JSON file with
-`{"schema":1,"kind":"openclaw-nats-writer-handoff"}`; other core
-jobs remain in `gui/<uid>`. A protected NATS PID in `system` is insufficient
-while any known NATS label is still loaded in `gui/<uid>` or `user/<uid>`:
+The protected active jobs on this Mac are `ai.openclaw.nats`,
+`ai.openclaw.nats-2` and `ai.openclaw.nats-3` in `system`, after their GUI
+predecessors have been retired. The separate historical `ai.openclaw.nats-1`
+job remains held. Other nodes may use the documented `nats-1..3` cohort or
+the single `nats` job. In the legacy state, an optional 0600
+`config/nats-writer-cohort.json` under the OpenClaw home declares
+`{"schema":1,"activeLabels":[...]}`; its absence selects documented
+`nats-1..3`. On this Mac the explicit file names the observed active cohort.
+The fixed root handoff marker selects the system domain and pins the same
+`activeLabels` alongside `schema:1` and
+`kind:"openclaw-nats-writer-handoff"`. It is a root-owned, readable,
+non-group-writable regular JSON file. Only the single-node and two known
+three-member layouts are accepted; malformed state is UNKNOWN before any
+launchd observation. Other core jobs remain in `gui/<uid>`. A protected NATS
+PID in `system` is insufficient while any known NATS label is still loaded
+in `gui/<uid>` or `user/<uid>`:
 that is a duplicate writer risk and reports BROKEN. Without the marker, a
 loaded `system` or `user/<uid>` NATS job also reports BROKEN. An unreadable or
 malformed marker reports UNKNOWN rather than assuming the legacy domain.
 The WORKING verdict proves only required-label PID liveness and absence of
-loaded duplicates in the inspected domains; it does not validate the future
+loaded known-label duplicates in the inspected domains; it does not validate the future
 system jobs' binary, UID, config, store identity or an installed-but-unloaded
-legacy plist. Migration acceptance must pin those identities and inspect
+legacy plist, unlisted launchd label or unmanaged `nats-server` process.
+Migration acceptance must pin those identities and inspect
 persistently enabled jobs before publishing the marker. This is read-only
 monitoring, not migration authority or proof of JetStream health; quorum and
 replay checks remain separate. No live service is changed by this decision.
