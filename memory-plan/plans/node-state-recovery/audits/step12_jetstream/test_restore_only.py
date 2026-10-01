@@ -15,6 +15,7 @@ import unittest
 from unittest.mock import patch
 
 from journal_hold import ANCHOR, describe
+from legacy_fixture import legacy_journal
 from managed_launchd import Launchd
 from preservation_checks import Refused
 from preservation_journal import Journal, UNITS, static_identity
@@ -103,7 +104,7 @@ class RestoreOnlyOwned(unittest.TestCase):
                                 'disabled': False,
                                 'identity': static_identity(self.services[unit].plist)}
         self.prior[ANCHOR]['execution_hold'] = describe(self.gate, [ANCHOR])
-        with Journal(self.journal_root, self.prior, node_lock=self.node_lock):
+        with legacy_journal(self.journal_root, self.prior, node_lock=self.node_lock):
             pass
         self.children = []
 

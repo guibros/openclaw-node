@@ -100,3 +100,11 @@ Tailscale one-shot. The protected timer controller `-4` safely refuses the new
 full-node scope; it remains usable only for the current timer-only receipt.
 Neither system job was altered. Full-node capture, cold masters and truthful
 restoration remain open at 1.2[A].
+
+2026-10-01 01:55 EDT — D23's PR #169 correction requires explicit scope for
+new journals and binds the full-node baseline to a source-owned, multi-domain
+entrypoint scan. Neutral loaded labels and HOME-derived plist paths are now
+included; the deploy listener stops first and resumes last. The tightened live
+scan still refuses the two unmanaged system jobs. Owned source tests pass, but
+exact CI/review and a production driver remain pending. No live full-node hold
+or healthy NATS cold copy exists.

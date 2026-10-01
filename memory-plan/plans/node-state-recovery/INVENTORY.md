@@ -115,3 +115,10 @@ access. The gateway/viewer stop and detached-process fence, passive network
 helper exclusion, complete dependency pins, protected-controller handoff,
 healthy cold masters, isolated restores and truthful service resumption remain
 open. No production preservation window started; 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 01:55 EDT: Claude's exact b0669c7 challenge found an
+unscoped 23-unit journal and neutral-label loaded-job omissions. D23's source
+correction requires explicit new-window scope, binds the multi-domain inventory
+to the full-node journal, and restores the deploy listener last. Owned tests and
+new exact CI/review are required. The live widened scan still refuses the two
+system jobs; the driver, cold masters and production restoration remain open.

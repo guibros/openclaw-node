@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 from preservation_checks import (
     QuietWindow, Refused, STOP_ORDER, capture, verify_admissions,
@@ -48,7 +49,8 @@ class Gates(unittest.TestCase):
             self.assertEqual(len(disabled_entrypoint_artifacts([agents])), 1)
             installed = installed_entrypoints(agents, [protected])
             gui = loaded_entrypoints('services = {\n  1 - ai.openclaw.gateway\n}\n'
-                'disabled services = {\n  "com.openclaw.redesign-tick" => disabled\n}\n')
+                'disabled services = {\n  "com.openclaw.redesign-tick" => disabled\n}\n',
+                'gui/501', [protected], inspect=lambda _: 'program = /owned/node\n')
             self.assertTrue(verify_entrypoint_inventory(installed, gui, set(), set(),
                 {'gateway', 'workplan-viewer'})['verified'])
             self.refused(lambda: verify_entrypoint_inventory(installed,
@@ -57,6 +59,38 @@ class Gates(unittest.TestCase):
             self.refused(lambda: verify_entrypoint_inventory(
                 installed_entrypoints(agents, [protected]), gui, set(), set(),
                 {'gateway', 'workplan-viewer'}))
+
+    def test_neutral_loaded_job_and_nonliteral_installed_paths_refuse(self):
+        with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:
+            directory = pathlib.Path(root)
+            protected = directory / 'repo'
+            protected.mkdir()
+            home = directory / 'home'
+            home.mkdir()
+            (home / 'repo').symlink_to(protected, target_is_directory=True)
+            for label in ('ai.openclaw.gateway', 'ai.openclaw.workplan-viewer'):
+                (directory / (label + '.plist')).write_bytes(plistlib.dumps({
+                    'Label': label, 'ProgramArguments': ['/owned/node']}))
+            expected = {'gateway', 'workplan-viewer'}
+            installed = installed_entrypoints(directory, [protected])
+            details = ('path = /tmp/local.viewer-tick.plist\n'
+                       'program = /bin/sh\narguments = {\n'
+                       '  /bin/sh\n  -c\n  exec "$HOME/repo/tick.sh"\n}\n')
+            with patch('preservation_checks.pathlib.Path.home', return_value=home):
+                loaded = loaded_entrypoints('services = {\n  1 - local.viewer-tick\n}\n',
+                    'gui/501', [protected], inspect=lambda _: details)
+            self.assertEqual(loaded, {'local.viewer-tick'})
+            self.refused(lambda: verify_entrypoint_inventory(installed, loaded, set(), set(), expected))
+            program = directory / 'local.program.plist'
+            program.write_bytes(plistlib.dumps({'Label': 'local.program',
+                'Program': str(protected / 'tick.sh'), 'ProgramArguments': ['/bin/sh']}))
+            self.assertIn('local.program', installed_entrypoints(directory, [protected]))
+            program.unlink()
+            shell = directory / 'local.shell.plist'
+            shell.write_bytes(plistlib.dumps({'Label': 'local.shell',
+                'ProgramArguments': ['/bin/sh', '-c', 'exec "$HOME/repo/tick.sh"']}))
+            with patch('preservation_checks.pathlib.Path.home', return_value=home):
+                self.assertIn('local.shell', installed_entrypoints(directory, [protected]))
 
     def test_timer_signal_race(self):
         verify_timer_idle({'loaded': True}, False, [20, 0], [20, 0])

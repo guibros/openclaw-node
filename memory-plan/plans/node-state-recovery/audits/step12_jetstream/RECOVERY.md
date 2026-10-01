@@ -182,11 +182,12 @@ federation-tick, with every unit in its approved class and the saved five-timer
 execution hold. The viewer and gateway are managed live entry points
 in RESUME_ORDER. The viewer's authenticated controls can detach plan ticks; the
 gateway owns a live task SQLite store. Neither a missing NATS socket nor an idle
-process snapshot excludes their later writes or children. Stop them before the
-other clients, prove their process groups and any detached work have drained,
-and restore their exact prior loaded/running state after the bus and dependent
-services. Federation-tick must stay unloaded throughout and retain its saved
-disabled flag (disabled on the current node); a newly loaded or re-enabled job
+process snapshot excludes their later writes or children. Stop the deploy
+listener, then the viewer and gateway before other clients; prove their process
+groups and any detached work have drained. Restore the gateway and viewer after
+their dependencies, and the deploy listener last only after proving no pending
+deploy catch-up. Federation-tick must stay
+unloaded and disabled; a newly loaded or re-enabled job
 refuses recovery for operator handoff rather than being booted out silently.
 Each uninstalled
 unit has explicit class absent, false loaded/running/disabled and identity
@@ -195,8 +196,11 @@ member1 alone may be held, disabled/unloaded. Daemons are loaded/running;
 the on-demand mesh-agent is loaded/idle; timers are loaded/idle; only the
 disabled Discord integration is known-broken, with its running bit
 unconstrained. Classes come from approved desired state, never from observing
-a stopped daemon. Actual installed-unit completeness and extra writers still
-require driver inspection; the fixed names alone do not prove that inventory.
+a stopped daemon. The full-node journal scans installed plists and loaded
+non-Apple services in the GUI/user/system domains before creation, persists
+their inventory, and rechecks it during forward work, restoration and sealing.
+Actual process descendants, detached work and dependency provenance still
+require driver inspection; fixed launchd names alone do not prove them.
 An on-demand worker observed running during recovery is a refusal requiring
 operator handoff, not a restoration target. Capture requires a normal idle
 exit, unchanged run count and loaded entry provenance; an idle snapshot alone

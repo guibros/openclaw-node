@@ -11,7 +11,7 @@ import subprocess
 import sys
 import uuid
 
-from preservation_checks import RESUME_ORDER, Refused, require
+from preservation_checks import RESUME_ORDER, Refused, capture_entrypoint_inventory, require
 
 
 UNITS = frozenset((*RESUME_ORDER, 'nats-1', 'federation-tick'))
@@ -185,6 +185,39 @@ def valid_prior(prior, scope=None):
                 and set(cohort) == TIMER_UNITS, 'timer commissioning hold omits a scheduled entry')
 
 
+def valid_entrypoint_inventory(evidence, prior):
+    require(isinstance(evidence, dict) and evidence.get('verified') is True
+            and set(evidence) == {'verified', 'installed', 'loaded', 'roots', 'disabled_artifacts'},
+            'full-node entrypoint inventory is absent')
+    installed = evidence['installed']
+    loaded = evidence['loaded']
+    require(isinstance(installed, dict) and set(installed) ==
+            {'ai.openclaw.' + unit for unit in UNITS},
+            'full-node installed entrypoints differ from the baseline')
+    require(isinstance(loaded, dict) and set(loaded) == {'gui', 'user', 'system'}
+            and all(isinstance(value, list) and len(value) == len(set(value))
+                    for value in loaded.values()),
+            'full-node loaded entrypoints are incomplete')
+    expected_loaded = {'ai.openclaw.' + unit for unit, state in prior.items() if state['loaded']}
+    require(set().union(*map(set, loaded.values())) == expected_loaded
+            and sum(map(len, loaded.values())) == len(expected_loaded),
+            'full-node loaded entrypoints differ from the baseline')
+    require(isinstance(evidence['roots'], list) and evidence['roots']
+            and all(isinstance(root, str) and pathlib.Path(root).is_absolute()
+                    for root in evidence['roots'])
+            and isinstance(evidence['disabled_artifacts'], dict)
+            and all(pathlib.Path(path).is_absolute()
+                    and re.fullmatch(r'[0-9a-f]{64}', str(digest))
+                    for path, digest in evidence['disabled_artifacts'].items()),
+            'full-node entrypoint roots or disabled artifacts are incomplete')
+    for unit in UNITS:
+        entry = installed['ai.openclaw.' + unit]
+        require(isinstance(entry, dict) and set(entry) == {'path', 'sha256'}
+                and isinstance(entry['path'], str) and pathlib.Path(entry['path']).is_absolute()
+                and entry['sha256'] == prior[unit]['identity']['plist_sha256'],
+                'full-node installed plist differs from the saved service identity')
+
+
 class Journal:
     def __init__(self, root, prior=None, boot=None, node_lock=None, scope=None):
         self.root = pathlib.Path(root)
@@ -230,6 +263,9 @@ class Journal:
                         self.receipt_writable = False
                 else:
                     valid_prior(active['baseline']['prior'], active['baseline'].get('scope'))
+                    if active['baseline'].get('scope') == FULL_NODE_SCOPE:
+                        valid_entrypoint_inventory(active['baseline'].get('entrypoint_inventory'),
+                                                   active['baseline']['prior'])
                     require(active['status'] in ('unresolved', 'restored'), 'node receipt status is invalid')
                     require(pathlib.Path(active['journal_root']).parent.resolve() == self.journals.resolve(),
                             'node receipt root escaped the persistent parent')
@@ -251,6 +287,7 @@ class Journal:
                     self.records = [self.active['baseline']]
                     self.prior = json.loads(encoded(self.records[0]['prior']))
                     self.scope = self.records[0].get('scope')
+                    self.entrypoint_inventory = self.records[0].get('entrypoint_inventory')
                     return
                 created = False
                 self.reopened = True
@@ -290,13 +327,20 @@ class Journal:
 
     def _open(self, created, prior, scope):
         if created:
+            require(scope in (TIMER_SCOPE, FULL_NODE_SCOPE),
+                    'new journal requires an explicit protected scope')
             require(prior is not None, 'new journal requires the complete prior state')
             valid_prior(prior, scope)
+            entrypoints = capture_entrypoint_inventory(UNITS) if scope == FULL_NODE_SCOPE else None
+            if scope == FULL_NODE_SCOPE:
+                valid_entrypoint_inventory(entrypoints, prior)
             predecessor = ({'root': self.active['journal_root'], 'head': self.active['head']}
                            if self.active is not None else None)
             self.records = []
-            initial = self._record('baseline', prior=prior, predecessor=predecessor,
-                                   **({'scope': scope} if scope is not None else {}))
+            fields = {'scope': scope} if scope is not None else {}
+            if entrypoints is not None:
+                fields['entrypoint_inventory'] = entrypoints
+            initial = self._record('baseline', prior=prior, predecessor=predecessor, **fields)
             self._state({'journal_root': str(self.root.resolve()), 'baseline': initial,
                          'status': 'unresolved', 'phase': 'initializing',
                          'holder': {'pid': os.getpid(), 'boot': self.boot}})
@@ -323,6 +367,9 @@ class Journal:
             require(scope is None, 'cannot replace a journal scope')
             require(self.records and self.records[0]['event'] == 'baseline', 'journal baseline is absent')
             valid_prior(self.records[0]['prior'], self.records[0].get('scope'))
+            if self.records[0].get('scope') == FULL_NODE_SCOPE:
+                valid_entrypoint_inventory(self.records[0].get('entrypoint_inventory'),
+                                           self.records[0]['prior'])
             if self.active is None:
                 self.active = {'journal_root': str(self.root.resolve()), 'baseline': self.records[0],
                                'status': 'restored' if self.records[-1]['event'] in TERMINAL else 'unresolved',
@@ -339,6 +386,20 @@ class Journal:
                 raise Refused('sealed or resolved journal receipt repaired; create a new window, no writing to this chain')
         self.prior = json.loads(encoded(self.records[0]['prior']))
         self.scope = self.records[0].get('scope')
+        self.entrypoint_inventory = self.records[0].get('entrypoint_inventory')
+
+    def check_entrypoints(self, final=False):
+        if self.scope != FULL_NODE_SCOPE:
+            return None
+        current = capture_entrypoint_inventory(UNITS)
+        saved = self.entrypoint_inventory
+        require(all(current[key] == saved[key] for key in
+                    ('installed', 'roots', 'disabled_artifacts')),
+                'full-node installed entrypoint identity changed')
+        if final:
+            require(current['loaded'] == saved['loaded'],
+                    'full-node loaded entrypoints were not restored')
+        return current
 
     def _state(self, value):
         require(self.receipt_writable, 'corrupt receipt could not be durably retained')
@@ -475,6 +536,7 @@ class Journal:
         require(self.prior[unit]['class'] != 'held', 'held unit cannot be mutated')
         require(self.prior[unit]['class'] != 'absent', 'absent unit cannot be mutated')
         self.require_forward()
+        self.check_entrypoints()
         held = 'execution_hold' in self.prior['scheduler-heartbeat']
         require((hold is not None) == held and (not held or hold.journal is self),
                 'baselined execution hold requires its forward facade')
@@ -488,6 +550,7 @@ class Journal:
             apply()
             if held:
                 hold.check_forward()
+            self.check_entrypoints()
             evidence = verify()
             require(isinstance(evidence, dict) and evidence.get('verified') is True,
                     'mutation lacks verified evidence')
@@ -505,6 +568,7 @@ class Journal:
                 'recovery requires the node lock')
         require(not self.sealed, 'sealed journal cannot restore services')
         require(callable(final_check), 'recovery requires final physical ownership checks')
+        self.check_entrypoints()
         held = 'execution_hold' in self.prior['scheduler-heartbeat']
         require((hold is not None) == held and (not held or hold.journal is self),
                 'baselined execution hold requires its journal recovery facade')
@@ -592,6 +656,7 @@ class Journal:
             evidence = final_check()
             require(isinstance(evidence, dict) and evidence.get('verified') is True,
                     'final physical ownership or member-1 hold was not verified')
+            self.check_entrypoints(final=True)
             record('final-state-verified', evidence=evidence)
         except Exception as error:
             errors.append({'unit': 'final-state', 'reason': type(error).__name__})
@@ -620,6 +685,7 @@ class Journal:
 
     def seal(self):
         require(self.scope != TIMER_SCOPE, 'timer commissioning cannot seal preservation history')
+        self.check_entrypoints(final=True)
         require(not self.reopened and not self.write_failed, 'interrupted window cannot be sealed')
         require(not self.pending_intents() and not any(r['event'] == 'failed' for r in self.records),
                 'failed forward window cannot be sealed')

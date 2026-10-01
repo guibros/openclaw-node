@@ -14,6 +14,7 @@ import time
 import unittest
 
 from managed_launchd import Launchd, StopWatch, process_exists, unload_idle_timer
+from legacy_fixture import legacy_journal
 from preservation_checks import Refused, http_json
 from preservation_journal import Journal
 from test_preservation_journal import inventory
@@ -325,7 +326,7 @@ os.execv('/bin/sleep',['sleep','30'])
         journal_parent = self.directory / 'journals'
         journal_parent.mkdir(mode=0o700)
         journal_root = journal_parent / 'window'
-        with Journal(journal_root, inventory({'nats': {}, 'mesh-task-daemon': {}}), boot='owned',
+        with legacy_journal(journal_root, inventory({'nats': {}, 'mesh-task-daemon': {}}), boot='owned',
                      node_lock=self.directory / 'node.lock') as journal:
             with self.assertRaisesRegex(Refused, 'unexpected kernel event filter'):
                 with watch:

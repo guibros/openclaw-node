@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import patch
 
 from journal_hold import ANCHOR, JournaledHold, describe
+from legacy_fixture import legacy_journal
 from preservation_journal import Journal, TIMER_SCOPE, TIMER_UNITS, UNITS, matches
 
 
@@ -51,7 +52,7 @@ class HoldTests(unittest.TestCase):
         self.current = copy.deepcopy(self.prior)
         self.physical = True
         self.calls = []
-        self.journal = Journal(self.journal_root, self.prior, boot='owned-boot', node_lock=self.node_lock)
+        self.journal = legacy_journal(self.journal_root, self.prior, boot='owned-boot', node_lock=self.node_lock)
         self.hold = JournaledHold(self.journal, self.gate, self.fast)
         self.children = []
 

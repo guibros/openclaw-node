@@ -353,3 +353,33 @@ startup hook and ephemeral token, companion bridge, detached ticks, complete
 dependency pins, healthy cold masters and truthful restoration remain driver
 prerequisites. This decision changes source schema only, not live services or
 the open 1.2[A] outcome.
+
+## D23 — Bind entrypoint evidence to the full-node journal (2026-10-01 01:55 EDT)
+
+Claude's PR #169 review reproduced two omissions in the draft: a new 23-unit
+journal could be created with no scope, and a neutral-label job loaded from a
+plist outside the scanned directories could evade the label-only check. New
+journals now require an explicit timer or full-node scope. Unscoped journals
+can only be reopened for historical restoration; fixture tests simulate their
+old creation separately. Full-node creation runs the source-owned GUI/user/system
+launchd and plist preflight under the node lock before publishing a baseline,
+and the baseline durably saves installed plist paths/hashes, loaded labels by
+domain, protected roots and disabled-artifact hashes. The journal rechecks the
+installed/artifact pins before each forward mutation and recovery; final
+restoration and sealing require the original loaded-label map again. Unknown
+entrypoints refuse before a new window.
+
+Loaded non-Apple services are inspected by `launchctl print` even when their
+labels are neutral and their plists live outside the standard directories.
+Installed plist relevance includes `Program`, `ProgramArguments`, working
+directory, resolved symlinks and literal/expanded HOME shell paths. The pinned
+roots include the repository, live OpenClaw home, legacy `~/openclaw`, global
+OpenClaw npm package and Codex worktrees. This is a conservative inventory
+test, not proof that arbitrary shell code cannot synthesize another path.
+
+The deploy listener must stop before the viewer and gateway and resume last.
+Its missed-deploy catch-up can rewrite code and reinstall gateway state, so the
+driver must separately prove no pending deploy before resuming it. The source
+order does not itself prove that condition. The current live scan still refuses
+the same two root-managed system jobs; no production preservation window has
+started.

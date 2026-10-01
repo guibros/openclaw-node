@@ -734,3 +734,19 @@ The new 23-unit Journal scope and multi-domain preflight are source work only;
 the protected timer controller `-4` serves the existing timer receipt and
 safely refuses a future 23-unit full-node receipt. No service was stopped,
 started or reconfigured; no JetStream cold master was taken.
+
+### PR #169 adversarial correction — 2026-10-01 01:55 EDT
+
+Claude's exact-head review of b0669c7 reproduced a scope omission and three
+inventory counterexamples in scratch. It also verified the protected timer
+controller `-4` leaves a full-node receipt intact when refusing it. Source now
+requires an explicit scope for each new journal, captures the multi-domain
+entrypoint evidence into a full-node baseline before publishing it, and checks
+the inventory before mutations/recovery and at final restoration/sealing. The
+scanner inspects neutral-label loaded jobs and additional plist entry forms;
+the deploy listener is stopped first and resumed last. Owned journal and
+inventory tests pass on the corrected source; exact CI and another Claude
+review remain pending. A read-only scan with the tightened scanner still
+reports 25 installed, 21 GUI-loaded, zero user-loaded and two system-loaded
+jobs, and refuses the same two unmanaged system jobs. No live hold, service
+stop or cold master was attempted.
