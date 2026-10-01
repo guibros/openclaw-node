@@ -50,6 +50,20 @@ class RootJournalTest(unittest.TestCase):
             self.lock, observe or (lambda: self.observation),
             census or (lambda context: {**context, 'verified': True}), seconds=seconds)
 
+    def returned(self, journal, boot='d' * 64):
+        with patch.object(module, 'boot_identity', return_value=boot):
+            return journal.return_before_marker(
+                self.lock, lambda context: {**context, 'verified': True})
+
+    def successor(self):
+        transaction = str(uuid.uuid4())
+        observation = {**self.observation, 'boot': 'd' * 64,
+                       'user_transfer': {**self.observation['user_transfer'],
+                                         'root_transaction': transaction}}
+        journal = module.LockBootstrapJournal.begin(
+            self.site, self.lock, self.uid, self.gid, transaction, observation)
+        return journal, observation
+
     def test_ledger_is_outside_empty_protected_site_and_reopens_same_lock(self):
         with self.begin() as journal:
             self.assertEqual(list(self.site.iterdir()), [])
@@ -69,7 +83,7 @@ class RootJournalTest(unittest.TestCase):
         self.ledger.mkdir(mode=0o700)
         with self.begin() as journal:
             self.assertEqual(len(journal.records), 1)
-        with self.assertRaisesRegex(module.Refused, 'already has a transaction'):
+        with self.assertRaisesRegex(module.Refused, 'already has an active transaction'):
             self.begin()
 
     def test_pending_before_publication_is_discarded(self):
@@ -122,6 +136,18 @@ LockBootstrapJournal(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4
                 pass
             self.assertEqual(self.lock.stat().st_ino, inode)
             self.assertFalse(stage.exists())
+
+    def test_intent_only_reentry_refuses_stage_with_foreign_link(self):
+        with self.begin() as journal:
+            saved = journal.records[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            journal._create_stage(stage, saved['lock_nonce'])
+            os.link(stage, self.base / 'foreign-link')
+        with self.reopen() as journal:
+            with self.assertRaisesRegex(module.Refused, 'unpublished root writer stage has another link'):
+                self.acquire(journal)
+            self.assertFalse(self.lock.exists())
+            self.assertEqual(len(journal.records), 1)
 
     def test_reentry_resyncs_existing_stage_before_recording_it(self):
         with self.begin() as journal:
@@ -307,8 +333,163 @@ LockBootstrapJournal(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4
             stage = journal._stage_path(saved)
             inode = journal._create_stage(stage, saved['lock_nonce'])
             journal._append('lock-staged', inode=inode, nonce='d' * 64)
-        with self.assertRaisesRegex(module.Refused, 'nonce differs from intent'):
+        with self.assertRaisesRegex(module.Refused, 'stage receipt differs from intent'):
             self.reopen()
+
+    def test_intent_only_return_drops_unpublished_stage_and_allows_successor(self):
+        with self.begin() as journal:
+            saved = journal.current[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            journal._create_stage(stage, saved['lock_nonce'])
+            receipt = self.returned(journal)
+            self.assertEqual(receipt['outcome'], 'returned')
+            self.assertIsNone(journal.current[-1]['data']['lock'])
+            self.assertFalse(stage.exists())
+            self.assertFalse(self.lock.exists())
+            self.assertEqual(stat.S_IMODE((self.base / 'site-outcomes' /
+                                            (self.transaction + '.json')).stat().st_mode), 0o644)
+        with self.reopen() as journal:
+            self.assertEqual(journal.read_returned_outcome(), receipt)
+        successor, observation = self.successor()
+        with successor:
+            with self.acquire(successor, observe=lambda: observation):
+                pass
+            self.assertEqual(len(successor.current), 3)
+
+    def test_return_relinks_recorded_stage_and_successor_inherits_it(self):
+        with self.begin() as journal:
+            saved = journal.current[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            inode = journal._create_stage(stage, saved['lock_nonce'])
+            journal._append('lock-staged', inode=inode, nonce=saved['lock_nonce'])
+            os.link(stage, self.lock)
+            self.lock.unlink()
+            self.returned(journal)
+            self.assertEqual(self.lock.stat().st_ino, inode)
+            self.assertFalse(stage.exists())
+            self.assertEqual(journal.current[-1]['data']['lock']['inode'], inode)
+        successor, observation = self.successor()
+        with successor:
+            self.assertEqual(successor.current[0]['data']['inherited']['inode'], inode)
+            self.assertEqual(successor.current[0]['data']['descriptor']['lock_nonce'], saved['lock_nonce'])
+            with self.acquire(successor, observe=lambda: observation):
+                pass
+            self.assertEqual(self.lock.stat().st_ino, inode)
+            self.assertEqual([row['event'] for row in successor.current],
+                             ['lock-create-intent', 'lock-admitted'])
+
+    def test_lost_recorded_inode_refuses_return_and_successor(self):
+        with self.begin() as journal:
+            saved = journal.current[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            inode = journal._create_stage(stage, saved['lock_nonce'])
+            journal._append('lock-staged', inode=inode, nonce=saved['lock_nonce'])
+            journal._publish_stage(stage, self.lock, inode, saved['lock_nonce'])
+            self.lock.unlink()
+            with self.assertRaisesRegex(module.Refused, 'refusing recreation'):
+                self.returned(journal)
+            self.assertEqual(journal.current[-1]['event'], 'lock-staged')
+        with self.assertRaisesRegex(module.Refused, 'already has an active transaction'):
+            self.successor()
+
+    def test_reboot_return_of_admitted_lock_keeps_inode(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
+            inode = self.lock.stat().st_ino
+        with self.reopen() as journal:
+            receipt = self.returned(journal, boot='e' * 64)
+            self.assertEqual(journal.current[-1]['data']['boot'], 'e' * 64)
+            self.assertEqual(journal.current[-1]['data']['lock']['inode'], inode)
+            self.assertEqual(receipt['ledger_sha256'], journal.current[-1]['sha256'])
+        successor, _ = self.successor()
+        successor.close()
+        self.assertEqual(self.lock.stat().st_ino, inode)
+
+    def test_returned_record_republishes_missing_outcome_after_crash(self):
+        with self.begin() as journal, patch.object(journal, 'publish_returned_outcome',
+                                                    side_effect=OSError('killed before receipt')):
+            with self.assertRaisesRegex(OSError, 'killed before receipt'):
+                self.returned(journal)
+            self.assertEqual([row['event'] for row in journal.current],
+                             ['lock-create-intent', 'returned'])
+        with self.reopen() as journal:
+            receipt = journal.publish_returned_outcome()
+            self.assertEqual(receipt['outcome'], 'returned')
+            self.assertEqual(len(journal.records), 2)
+
+    def test_successor_refuses_changed_returned_lock(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
+            self.returned(journal)
+        self.lock.unlink()
+        self.lock.write_bytes(b'replacement')
+        self.lock.chmod(0o644)
+        with self.assertRaises(module.Refused):
+            self.successor()
+
+    def test_return_waits_for_inherited_shared_holder(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
+            holder = subprocess.Popen(
+                [sys.executable, '-c',
+                 'import fcntl, os, sys, time\n'
+                 'fd = os.open(sys.argv[1], os.O_RDONLY)\n'
+                 'fcntl.flock(fd, fcntl.LOCK_SH)\n'
+                 'print("holding", flush=True)\n'
+                 'time.sleep(30)\n', str(self.lock)],
+                stdout=subprocess.PIPE, text=True)
+            try:
+                self.assertEqual(holder.stdout.readline().strip(), 'holding')
+                with patch.object(module, 'boot_identity', return_value='d' * 64):
+                    with self.assertRaisesRegex(module.Refused, 'still holds'):
+                        journal.return_before_marker(
+                            self.lock, lambda context: {**context, 'verified': True}, seconds=0.15)
+                self.assertEqual(journal.current[-1]['event'], 'lock-admitted')
+            finally:
+                holder.terminate()
+                holder.wait(timeout=5)
+                holder.stdout.close()
+            self.returned(journal)
+
+    def test_marker_blocks_return_before_receipt(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
+            (self.site / 'writer-handoff.json').write_text('{}')
+            with self.assertRaisesRegex(module.Refused, 'marker blocks'):
+                self.returned(journal)
+            self.assertEqual(journal.current[-1]['event'], 'lock-admitted')
+
+    def test_tampered_public_outcome_blocks_successor(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
+            self.returned(journal)
+        outcome = self.base / 'site-outcomes' / (self.transaction + '.json')
+        outcome.write_text('{}')
+        with self.assertRaisesRegex(module.Refused, 'differs from ledger'):
+            self.successor()
+        self.assertEqual(len(list(self.ledger.glob('*.json'))), 4)
+
+    def test_multiple_successors_preserve_one_lock_inode(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
+            inode = self.lock.stat().st_ino
+            self.returned(journal)
+        for _ in range(3):
+            successor, observation = self.successor()
+            with successor:
+                with self.acquire(successor, observe=lambda: observation):
+                    pass
+                self.returned(successor)
+                self.assertEqual(self.lock.stat().st_ino, inode)
+        with self.reopen() as journal:
+            self.assertEqual(len(journal.records), 13)
+            self.assertEqual(journal.current[-1]['event'], 'returned')
 
     def test_macos_root_refuses_before_writing(self):
         with patch.object(module.sys, 'platform', 'darwin'), patch.object(

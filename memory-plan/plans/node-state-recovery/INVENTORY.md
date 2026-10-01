@@ -299,3 +299,15 @@ gated. This does not yet implement terminal abandonment, reboot successors,
 user-journal transfer, marker/rollback states, physical census or the
 protected NATS driver. No live root path or NATS process was changed; step
 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 17:44 EDT: after PR #179 merged, a new source-only
+branch adds a durable pre-marker `returned` outcome, a public readback receipt
+and successor transactions. A successor inherits the same lock inode, nonce
+and change time; once `lock-staged` was recorded, return relinks the recorded
+inode instead of dropping its last name. Intent-only unpublished stage may be
+discarded. Returning takes exclusive exclusion, so a live shared holder
+refuses. Private Mac fixtures pass 49/49 across journal and root-lock tests,
+including marker refusal, tampered outcome, reboot return and repeated
+successors. The real macOS-root path remains gated. Physical release/admission
+checks, durable user transfer, marker/rollback states, the protected driver,
+cold masters and live deployment remain open at 1.2[A]/v1.2-pre.

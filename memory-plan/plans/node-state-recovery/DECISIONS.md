@@ -751,3 +751,23 @@ bind census evidence to transaction, phase and lock identity; copy transfer
 evidence to root-owned storage; recompute verified state from fresh physical
 observations; and keep volatile fields outside the admission digest. Marker,
 retirement, protected bootstrap and live acceptance are also pending.
+
+## D43 — Stage the writer lock from a sibling ledger (2026-10-01 17:30 EDT)
+
+PR #179 supersedes D42's journal location and direct lock-creation step. A
+single root-owned ledger lives beside the protected site, keeping the site's
+empty-root staging preflight satisfiable. The ledger directory itself carries
+the exclusive driver lock; an empty directory and interrupted pending record
+are recoverable, while unknown entries or a broken hash chain refuse. Before
+the shared lock path can appear, the transaction stages a nonce-bearing lock
+under a private name, syncs it, and durably records its inode and nonce. It
+then hard-links that same inode at the shared name, syncs, and removes the
+staging name. Reentry completes a two-link gap; if both names disappear after
+the staged receipt, it refuses rather than creating a different inode. Under
+exclusive exclusion, the admission receipt pins inode and change time and
+requires census evidence to echo the transaction, boot, phase, inode and
+nonce. Claude challenged the exact 0c92cbe head with no blocker; four CI jobs
+passed. All macOS-root constructors and publication paths remain gated, so
+this is source-only. Reboot abandonment, terminal user-readable outcomes,
+successor transactions, physical admission/census, user transfer, marker and
+rollback states, and the protected driver are still required before live use.

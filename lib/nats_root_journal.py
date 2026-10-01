@@ -5,6 +5,7 @@ import os
 import pathlib
 import re
 import stat
+import subprocess
 import sys
 import uuid
 
@@ -17,6 +18,18 @@ def encoded(value):
 
 def digest(value):
     return hashlib.sha256(encoded(value)).hexdigest()
+
+
+def boot_identity():
+    if sys.platform == 'darwin':
+        value = subprocess.check_output(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], text=True)
+    else:
+        value = pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
+    try:
+        canonical = str(uuid.UUID(value.strip()))
+    except ValueError as error:
+        raise Refused('current boot identity is unavailable') from error
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def present(path):
@@ -56,6 +69,17 @@ def record_file(path, uid, gid):
     if (not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_gid != gid
             or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
         raise Refused('root journal record identity differs')
+    require_no_acl(path)
+
+
+def record_file_public(path, uid, gid):
+    try:
+        info = path.lstat()
+    except OSError as error:
+        raise Refused('root writer outcome is absent or unobservable') from error
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_gid != gid
+            or stat.S_IMODE(info.st_mode) != 0o644 or info.st_nlink != 1):
+        raise Refused('root writer outcome identity differs')
     require_no_acl(path)
 
 
@@ -144,29 +168,71 @@ class LockBootstrapJournal:
     def _validate(self):
         if not self.records or self.records[0]['event'] != 'lock-create-intent':
             raise Refused('root writer lock intent is absent')
-        if [row['event'] for row in self.records] not in (
-                ['lock-create-intent'], ['lock-create-intent', 'lock-staged'],
-                ['lock-create-intent', 'lock-staged', 'lock-admitted']):
-            raise Refused('root writer lock journal has an unknown state')
-        valid_descriptor(self.records[0]['data'].get('descriptor'))
-        saved = self.records[0]['data']['descriptor']
-        if (saved['site'], saved['uid'], saved['gid']) != (str(self.site.absolute()), self.uid, self.gid):
-            raise Refused('root writer lock intent identity differs')
-        if len(self.records) >= 2:
-            data = self.records[1]['data']
-            if set(data) != {'inode', 'nonce'} or not isinstance(data['inode'], int) or data['inode'] <= 0 or not re.fullmatch(r'[0-9a-f]{64}', str(data['nonce'])):
-                raise Refused('root writer lock stage receipt is incomplete')
-            if data['nonce'] != saved['lock_nonce']:
-                raise Refused('root writer lock stage nonce differs from intent')
-        if len(self.records) == 3:
-            data = self.records[2]['data']
-            if (set(data) != {'inode', 'ctime_ns', 'census_sha256'}
-                    or not isinstance(data['inode'], int) or data['inode'] <= 0
-                    or not isinstance(data['ctime_ns'], int) or data['ctime_ns'] <= 0
-                    or not re.fullmatch(r'[0-9a-f]{64}', str(data['census_sha256']))):
-                raise Refused('root writer lock admission receipt is incomplete')
-            if data['inode'] != self.records[1]['data']['inode']:
-                raise Refused('root writer lock inode differs across receipts')
+        segments = []
+        for row in self.records:
+            if row['event'] == 'lock-create-intent':
+                if segments and segments[-1][-1]['event'] != 'returned':
+                    raise Refused('root writer ledger has competing transactions')
+                segments.append([])
+            segments[-1].append(row)
+        previous = None
+        transactions = set()
+        for segment in segments:
+            begin = segment[0]['data']
+            if not isinstance(begin, dict) or 'descriptor' not in begin:
+                raise Refused('root writer lock intent is incomplete')
+            valid_descriptor(begin['descriptor'])
+            saved = begin['descriptor']
+            if saved['transaction'] in transactions:
+                raise Refused('root writer transaction was reused')
+            transactions.add(saved['transaction'])
+            if (saved['site'], saved['uid'], saved['gid']) != (str(self.site.absolute()), self.uid, self.gid):
+                raise Refused('root writer lock intent identity differs')
+            inherited = previous['data']['lock'] if previous is not None else None
+            expected_begin = ({'descriptor'} if previous is None else
+                              {'descriptor', 'predecessor', 'inherited'})
+            if (set(begin) != expected_begin or previous is not None and
+                    (begin['predecessor'] != previous['sha256'] or begin['inherited'] != inherited)):
+                raise Refused('root writer lock predecessor identity differs')
+            if inherited is not None and saved['lock_nonce'] != inherited['nonce']:
+                raise Refused('successor did not inherit the writer lock nonce')
+            events = [row['event'] for row in segment]
+            active_events = events[:-1] if events[-1] == 'returned' else events
+            allowed = ([['lock-create-intent'], ['lock-create-intent', 'lock-staged'],
+                        ['lock-create-intent', 'lock-staged', 'lock-admitted']]
+                       if inherited is None else
+                       [['lock-create-intent'], ['lock-create-intent', 'lock-admitted']])
+            if active_events not in allowed:
+                raise Refused('root writer lock journal has an unknown state')
+            staged = next((row['data'] for row in segment if row['event'] == 'lock-staged'), None)
+            if staged is not None:
+                if (set(staged) != {'inode', 'nonce'} or not isinstance(staged['inode'], int)
+                        or staged['inode'] <= 0 or staged['nonce'] != saved['lock_nonce']):
+                    raise Refused('root writer lock stage receipt differs from intent')
+            admitted = next((row['data'] for row in segment if row['event'] == 'lock-admitted'), None)
+            if admitted is not None:
+                if (set(admitted) != {'inode', 'ctime_ns', 'census_sha256'}
+                        or not isinstance(admitted['inode'], int) or admitted['inode'] <= 0
+                        or not isinstance(admitted['ctime_ns'], int) or admitted['ctime_ns'] <= 0
+                        or not re.fullmatch(r'[0-9a-f]{64}', str(admitted['census_sha256']))
+                        or admitted['inode'] != (staged['inode'] if staged is not None else inherited['inode'])):
+                    raise Refused('root writer lock admission receipt is incomplete')
+            if events[-1] == 'returned':
+                terminal = segment[-1]['data']
+                lock = terminal.get('lock')
+                if (set(terminal) != {'lock', 'boot', 'release_sha256'}
+                        or not re.fullmatch(r'[0-9a-f]{64}', str(terminal['boot']))
+                        or not re.fullmatch(r'[0-9a-f]{64}', str(terminal['release_sha256']))
+                        or lock is not None and (set(lock) != {'inode', 'nonce', 'ctime_ns'}
+                            or not isinstance(lock['inode'], int) or lock['inode'] <= 0
+                            or not isinstance(lock['ctime_ns'], int) or lock['ctime_ns'] <= 0
+                            or lock['nonce'] != saved['lock_nonce'])
+                        or (staged is not None or inherited is not None) and lock is None
+                        or staged is not None and lock['inode'] != staged['inode']
+                        or inherited is not None and lock['inode'] != inherited['inode']):
+                    raise Refused('root writer return receipt is incomplete')
+                previous = segment[-1]
+        self.current = segments[-1]
 
     @classmethod
     def begin(cls, site, lock_path, uid, gid, transaction, observation):
@@ -178,13 +244,11 @@ class LockBootstrapJournal:
         if any(site.iterdir()):
             raise Refused('protected handoff site is not empty before bootstrap')
         bootstrap_target(site, lock_path)
-        if present(lock_path):
-            raise Refused('root writer lock exists without a transaction intent')
         if present(site / 'writer-handoff.json'):
             raise Refused('root writer handoff is already published')
-        descriptor = descriptor_from_observation(
-            transaction, observation, site, lock_path, uid, gid, uuid.uuid4().hex + uuid.uuid4().hex)
         root = site.parent / (site.name + '-ledger')
+        if not present(root) and present(lock_path):
+            raise Refused('root writer lock exists without a transaction intent')
         protected_parent(root, uid, gid)
         try:
             root.mkdir(mode=0o700)
@@ -197,9 +261,31 @@ class LockBootstrapJournal:
         journal.fd = journal._exclusive()
         try:
             journal.records = journal._read()
+            predecessor = None
+            inherited = None
             if journal.records:
-                raise Refused('root writer ledger already has a transaction')
-            journal._append('lock-create-intent', descriptor=descriptor)
+                journal._validate()
+                if journal.current[-1]['event'] != 'returned':
+                    raise Refused('root writer ledger already has an active transaction')
+                journal.read_returned_outcome()
+                predecessor = journal.current[-1]['sha256']
+                inherited = journal.current[-1]['data']['lock']
+            if inherited is None:
+                if present(lock_path):
+                    raise Refused('root writer lock exists without a transaction intent')
+                nonce = uuid.uuid4().hex + uuid.uuid4().hex
+            else:
+                nonce = inherited['nonce']
+                if (not present(lock_path)
+                        or journal._stage_identity(pathlib.Path(lock_path), nonce, inherited['inode']) != inherited['inode']
+                        or pathlib.Path(lock_path).lstat().st_nlink != 1
+                        or pathlib.Path(lock_path).lstat().st_ctime_ns != inherited['ctime_ns']):
+                    raise Refused('inherited root writer lock identity changed')
+            descriptor = descriptor_from_observation(
+                transaction, observation, site, lock_path, uid, gid, nonce)
+            data = {'descriptor': descriptor} if predecessor is None else {
+                'descriptor': descriptor, 'predecessor': predecessor, 'inherited': inherited}
+            journal._append('lock-create-intent', **data)
             return journal
         except BaseException:
             journal.close()
@@ -225,9 +311,7 @@ class LockBootstrapJournal:
             path.unlink()
             sync_dir(self.root)
         files = [path for path in entries if path not in pending]
-        if [path.name for path in files] not in (
-                [], ['000000.json'], ['000000.json', '000001.json'],
-                ['000000.json', '000001.json', '000002.json']):
+        if [path.name for path in files] != [f'{index:06d}.json' for index in range(len(files))]:
             raise Refused('root writer lock journal is incomplete or contains unknown files')
         records = []
         for index, path in enumerate(files):
@@ -270,6 +354,10 @@ class LockBootstrapJournal:
         pending.unlink()
         sync_dir(self.root)
         self.records.append(record)
+        if event == 'lock-create-intent':
+            self.current = [record]
+        else:
+            self.current.append(record)
         if self._read() != self.records:
             raise Refused('root writer lock journal readback differs')
         return record
@@ -278,6 +366,7 @@ class LockBootstrapJournal:
         return pathlib.Path(saved['lock_path']).parent / ('.openclaw-nats-lock-' + uuid.UUID(saved['transaction']).hex)
 
     def _stage_identity(self, path, nonce, expected=None):
+        protected_parent(path, self.uid, self.gid)
         info = path.lstat()
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != self.uid or info.st_gid != self.gid
                 or stat.S_IMODE(info.st_mode) != 0o644 or info.st_nlink not in (1, 2)
@@ -311,6 +400,8 @@ class LockBootstrapJournal:
                     os.close(fd)
                 sync_dir(path.parent)
             inode = self._stage_identity(path, nonce)
+            if path.lstat().st_nlink != 1:
+                raise Refused('unpublished root writer stage has another link')
             fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
             try:
                 if os.fstat(fd).st_ino != inode:
@@ -356,6 +447,142 @@ class LockBootstrapJournal:
             raise Refused('old writer process census is not bound to this transaction and lock')
         return evidence
 
+    def _outcome_path(self):
+        return self.site.parent / (self.site.name + '-outcomes')
+
+    def _returned_receipt(self):
+        terminal = self.current[-1]
+        if terminal['event'] != 'returned':
+            raise Refused('root writer transaction has no returned outcome')
+        return {'transaction': self.current[0]['data']['descriptor']['transaction'],
+                'outcome': 'returned', 'ledger_sha256': terminal['sha256']}
+
+    def _check_returned_lock(self):
+        lock = self.current[-1]['data']['lock']
+        path = pathlib.Path(self.current[0]['data']['descriptor']['lock_path'])
+        if lock is None:
+            if present(path):
+                raise Refused('returned lock unexpectedly appeared')
+        elif (not present(path) or self._stage_identity(path, lock['nonce'], lock['inode']) != lock['inode']
+              or path.lstat().st_nlink != 1 or path.lstat().st_ctime_ns != lock['ctime_ns']):
+            raise Refused('returned writer lock identity changed')
+
+    def read_returned_outcome(self):
+        receipt = self._returned_receipt()
+        self._check_returned_lock()
+        root = self._outcome_path()
+        protected_parent(root, self.uid, self.gid)
+        directory(root, self.uid, self.gid, 0o755)
+        path = root / (receipt['transaction'] + '.json')
+        record_file_public(path, self.uid, self.gid)
+        try:
+            published = json.loads(path.read_bytes())
+        except (OSError, ValueError) as error:
+            raise Refused('root writer returned outcome is unreadable') from error
+        if published != receipt:
+            raise Refused('root writer returned outcome differs from ledger')
+        return receipt
+
+    def publish_returned_outcome(self):
+        if sys.platform == 'darwin' and os.geteuid() == 0:
+            raise Refused('production root writer bootstrap awaits lifecycle recovery')
+        receipt = self._returned_receipt()
+        self._check_returned_lock()
+        if present(self.site / 'writer-handoff.json'):
+            raise Refused('root writer marker blocks returned outcome')
+        root = self._outcome_path()
+        protected_parent(root, self.uid, self.gid)
+        try:
+            root.mkdir(mode=0o755)
+            sync_dir(root.parent)
+        except FileExistsError:
+            pass
+        directory(root, self.uid, self.gid, 0o755)
+        for pending in root.iterdir():
+            if re.fullmatch(r'\.pending-[0-9a-f]{32}', pending.name):
+                record_file_public(pending, self.uid, self.gid)
+                pending.unlink()
+                sync_dir(root)
+        final = root / (receipt['transaction'] + '.json')
+        if not present(final):
+            pending = root / ('.pending-' + uuid.uuid4().hex)
+            prior_umask = os.umask(0o022)
+            try:
+                fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+            finally:
+                os.umask(prior_umask)
+            with os.fdopen(fd, 'wb') as handle:
+                os.fchmod(handle.fileno(), 0o644)
+                os.fchown(handle.fileno(), self.uid, self.gid)
+                handle.write(encoded(receipt))
+                handle.flush()
+                sync_fd(handle.fileno())
+            os.rename(pending, final)
+            sync_dir(root)
+        return self.read_returned_outcome()
+
+    def return_before_marker(self, lock_path, verify_release, seconds=10):
+        if sys.platform == 'darwin' and os.geteuid() == 0:
+            raise Refused('production root writer bootstrap awaits lifecycle recovery')
+        if not callable(verify_release):
+            raise Refused('root writer return requires a verified boot and release check')
+        current_boot = boot_identity()
+        bootstrap_target(self.site, lock_path)
+        if self.current[-1]['event'] == 'returned':
+            return self.publish_returned_outcome()
+        saved = self.current[0]['data']['descriptor']
+        if str(pathlib.Path(lock_path).absolute()) != saved['lock_path']:
+            raise Refused('root writer lock path differs from intent')
+        if present(self.site / 'writer-handoff.json'):
+            raise Refused('root writer marker blocks pre-bootstrap return')
+        stage = self._stage_path(saved)
+        target = pathlib.Path(lock_path)
+        inherited = self.current[0]['data'].get('inherited')
+        staged = next((row['data'] for row in self.current if row['event'] == 'lock-staged'), None)
+        admitted = next((row['data'] for row in self.current if row['event'] == 'lock-admitted'), None)
+        if staged is None and inherited is None:
+            if present(target):
+                raise Refused('unrecorded root writer lock blocks return')
+            if present(stage):
+                self._stage_identity(stage, saved['lock_nonce'])
+                if stage.lstat().st_nlink != 1:
+                    raise Refused('unpublished root writer stage has another link')
+                stage.unlink()
+                sync_dir(stage.parent)
+            identity = None
+            lock = None
+        else:
+            if staged is not None:
+                self._publish_stage(stage, target, staged['inode'], staged['nonce'])
+            elif present(stage):
+                raise Refused('inherited writer lock has an unexpected staging name')
+            lock = _acquire(target, self.uid, self.gid, seconds)
+            expected = staged['inode'] if staged is not None else inherited['inode']
+            if (lock.identity[1] != expected or admitted is not None and
+                    (lock.identity[1], lock.identity[2]) != (admitted['inode'], admitted['ctime_ns'])
+                    or inherited is not None and lock.identity[2] != inherited['ctime_ns']):
+                lock.close()
+                raise Refused('root writer lock identity changed before return')
+            identity = {'inode': lock.identity[1], 'nonce': saved['lock_nonce'],
+                        'ctime_ns': lock.identity[2]}
+        try:
+            context = {'transaction': saved['transaction'], 'boot': current_boot,
+                       'phase': 'before-return', 'lock': identity}
+            evidence = verify_release(json.loads(encoded(context)))
+            if (not isinstance(evidence, dict) or evidence.get('verified') is not True
+                    or any(evidence.get(key) != value for key, value in context.items())):
+                raise Refused('root writer release was not verified')
+            if lock is not None:
+                lock.validate()
+            if present(self.site / 'writer-handoff.json'):
+                raise Refused('root writer marker appeared during return')
+            self._append('returned', lock=identity, boot=current_boot,
+                         release_sha256=digest(evidence))
+        finally:
+            if lock is not None:
+                lock.close()
+        return self.publish_returned_outcome()
+
     def acquire_after_intent(self, lock_path, observe_admission, process_census, seconds=10):
         if sys.platform == 'darwin' and os.geteuid() == 0:
             raise Refused('production root writer bootstrap awaits lifecycle recovery')
@@ -364,7 +591,11 @@ class LockBootstrapJournal:
         bootstrap_target(self.site, lock_path)
         if present(self.site / 'writer-handoff.json'):
             raise Refused('root writer handoff needs the full recovery journal')
-        saved = self.records[0]['data']['descriptor']
+        segment = self.current
+        if segment[-1]['event'] == 'returned':
+            raise Refused('returned root writer transaction cannot be readmitted')
+        saved = segment[0]['data']['descriptor']
+        inherited = segment[0]['data'].get('inherited')
         if str(pathlib.Path(lock_path).absolute()) != saved['lock_path']:
             raise Refused('root writer lock path differs from intent')
         observed = descriptor_from_observation(saved['transaction'], observe_admission(),
@@ -374,24 +605,33 @@ class LockBootstrapJournal:
             raise Refused('root lock admission changed')
         target = pathlib.Path(lock_path)
         stage = self._stage_path(saved)
-        if len(self.records) < 3:
+        admitted = segment[-1]['event'] == 'lock-admitted'
+        if not admitted:
             self._census(process_census, saved, 'before-publication',
-                         self.records[1]['data']['inode'] if len(self.records) == 2 else None)
+                         segment[1]['data']['inode'] if len(segment) == 2 and inherited is None else
+                         inherited['inode'] if inherited is not None else None)
             if present(self.site / 'writer-handoff.json'):
                 raise Refused('root writer handoff changed before lock creation')
-            if len(self.records) == 1:
-                if present(target):
-                    raise Refused('root writer lock exists without a staged receipt')
-                inode = self._create_stage(stage, saved['lock_nonce'])
-                self._append('lock-staged', inode=inode, nonce=saved['lock_nonce'])
-            staged = self.records[1]['data']
-            self._publish_stage(stage, target, staged['inode'], staged['nonce'])
+            if inherited is None:
+                if len(segment) == 1:
+                    if present(target):
+                        raise Refused('root writer lock exists without a staged receipt')
+                    inode = self._create_stage(stage, saved['lock_nonce'])
+                    self._append('lock-staged', inode=inode, nonce=saved['lock_nonce'])
+                staged = segment[1]['data']
+                self._publish_stage(stage, target, staged['inode'], staged['nonce'])
+            elif present(stage):
+                raise Refused('inherited writer lock has an unexpected staging name')
         lock = _acquire(lock_path, self.uid, self.gid, seconds)
         try:
-            if lock.identity[1] != self.records[1]['data']['inode']:
+            expected_inode = inherited['inode'] if inherited is not None else segment[1]['data']['inode']
+            if lock.identity[1] != expected_inode:
                 raise Refused('root writer lock inode changed after staging')
-            if len(self.records) == 3:
-                if (self.records[2]['data']['inode'], self.records[2]['data']['ctime_ns']) != lock.identity[1:]:
+            if inherited is not None and lock.identity[2] != inherited['ctime_ns']:
+                raise Refused('inherited root writer lock identity changed')
+            if admitted:
+                receipt = segment[-1]['data']
+                if (receipt['inode'], receipt['ctime_ns']) != lock.identity[1:]:
                     raise Refused('root writer lock identity changed after journaling')
             evidence = self._census(process_census, saved, 'under-exclusion', lock.identity[1])
             observed = descriptor_from_observation(saved['transaction'], observe_admission(),
@@ -402,7 +642,7 @@ class LockBootstrapJournal:
             lock.validate()
             if present(self.site / 'writer-handoff.json'):
                 raise Refused('root writer handoff changed during lock bootstrap')
-            if len(self.records) == 2:
+            if not admitted:
                 self._append('lock-admitted', inode=lock.identity[1], ctime_ns=lock.identity[2],
                              census_sha256=digest(evidence))
             return lock
