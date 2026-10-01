@@ -94,6 +94,7 @@ is retained as tool-development history; merging source enables no live hold.
 | Sole Journal and failure/lineage primitives | Verified private tools | Unchanged5fabf6e hashes; fresh copied58/58 controls; FOUNDATION_EVIDENCE.json |
 | Managed stop and admission/restore primitives | Verified bounded private controls | Prior21 actual Mac controls/1 explicit cross-domain skip, unchanged source; historical evidence |
 | Restore-only interrupted execution-hold integration | Open | bus3.5; original-session continuity must not be reconstructed |
+| Protected NATS root-lock lifecycle | Open | Before the production tripwire may be lifted: pin pre-receipt lock identity; recover empty and pending journal states; provide durable pre-marker abandonment, rollback and successor after reboot; bind root census to transaction, phase and lock identity; verify pinned transfer and fresh physical admission. PR #178 is source-only. |
 | Five actual Mac scheduled-job holds | Open | bus3.6; no production gate installation yet |
 | Complete production preservation controller and new static baseline | Open | recovery1.2; all owners/invokers/dependencies and hold restoration readiness |
 | Three healthy cold masters and isolated restores | Open | recovery1.2; no accepted common healthy cold-copy window |
@@ -279,10 +280,11 @@ protected bootstrap remain open at 1.2[A]/v1.2-pre.
 Checkpoint 2026-10-01 16:16 EDT: draft PR #178 now includes a source-only root
 lock bootstrap journal: intent-before-create, exclusive lock, old-writer
 census callback, and admission readback under exclusion. Local private
-fixtures pass (root lock 13/13, journal 14/14). The callbacks do not yet have a
+fixtures pass (root lock 13/13, journal 16/16). The callbacks do not yet have a
 production pinned root driver; no marker, service, store or root-owned path
 was changed. Claude's exact-head review requires pre-receipt lock identity
-pinning, pending-record reentry and a terminal reboot/abandonment path before
-this journal can control a live migration. Durable preservation transfer,
+pinning, empty/pending-record reentry and a terminal reboot/abandonment path
+before this journal can control a live migration. The production path now
+refuses in code until those are implemented. Durable preservation transfer,
 physical census implementation, cold masters and cutover remain open at
 1.2[A]/v1.2-pre.

@@ -112,6 +112,24 @@ class RootJournalTest(unittest.TestCase):
             self.begin()
         self.assertFalse((self.site / 'journal').exists())
 
+    def test_lock_path_cannot_publish_the_marker(self):
+        for target in (self.site / 'writer-handoff.json',
+                       self.site / '..' / self.site.name / 'writer-handoff.json'):
+            with self.subTest(target=target), self.assertRaisesRegex(
+                    module.Refused, 'inside the protected handoff site'):
+                module.LockBootstrapJournal.begin(self.site, target, self.uid, self.gid,
+                                                  self.transaction, self.observation)
+        self.assertFalse((self.site / 'journal').exists())
+        self.assertFalse((self.site / 'writer-handoff.json').exists())
+
+    def test_production_lock_requires_lifecycle_recovery(self):
+        for target in (module.LOCK, module.LOCK.parent / 'unused' / '..' / module.LOCK.name):
+            with self.subTest(target=target), self.assertRaisesRegex(
+                    module.Refused, 'awaits lifecycle recovery'):
+                module.LockBootstrapJournal.begin(self.site, target, self.uid, self.gid,
+                                                  self.transaction, self.observation)
+        self.assertFalse((self.site / 'journal').exists())
+
     def test_transfer_for_another_transaction_refuses_before_journal(self):
         other = {**self.observation,
                  'user_transfer': {**self.observation['user_transfer'],

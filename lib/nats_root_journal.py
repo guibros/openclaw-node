@@ -6,7 +6,7 @@ import re
 import stat
 import uuid
 
-from nats_root_lock import Refused, _acquire, _create, protected_parent, require_no_acl, sync_dir, sync_fd
+from nats_root_lock import LOCK, Refused, _acquire, _create, protected_parent, require_no_acl, sync_dir, sync_fd
 
 
 def encoded(value):
@@ -33,6 +33,16 @@ def directory(path, uid, gid, mode):
             or stat.S_IMODE(info.st_mode) != mode):
         raise Refused('root journal directory identity differs')
     require_no_acl(path)
+
+
+def bootstrap_target(site, lock_path):
+    target = pathlib.Path(lock_path).resolve(strict=False)
+    site_path = pathlib.Path(site).resolve(strict=True)
+    if target == site_path or site_path in target.parents:
+        raise Refused('root writer lock cannot be inside the protected handoff site')
+    if target == LOCK.resolve(strict=False):
+        raise Refused('production root writer bootstrap awaits lifecycle recovery')
+    return target
 
 
 def record_file(path, uid, gid):
@@ -110,6 +120,7 @@ class LockBootstrapJournal:
         site = pathlib.Path(site)
         protected_parent(site, uid, gid)
         directory(site, uid, gid, 0o755)
+        bootstrap_target(site, lock_path)
         if present(lock_path):
             raise Refused('root writer lock exists without a transaction intent')
         if present(site / 'writer-handoff.json'):
@@ -169,6 +180,7 @@ class LockBootstrapJournal:
     def acquire_after_intent(self, lock_path, observe_admission, process_census, seconds=10):
         if not callable(observe_admission) or not callable(process_census):
             raise Refused('root lock needs admission and process census checks')
+        bootstrap_target(self.site, lock_path)
         if present(self.site / 'writer-handoff.json'):
             raise Refused('root writer handoff needs the full recovery journal')
         saved = self.records[0]['data']['descriptor']

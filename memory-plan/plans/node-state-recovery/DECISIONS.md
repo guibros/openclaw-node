@@ -724,6 +724,9 @@ protected site before creating the D40 lock file. The intent binds a
 transaction UUID, boot identity, user-transfer digest and admission digest.
 It also binds the exact protected site, shared lock path and expected owner;
 reentry with a different path cannot receipt an unrelated lock.
+The lock path cannot lie inside the handoff site, and the source API refuses
+the actual D40 production lock until the remaining lifecycle branches are
+implemented and reviewed.
 Only then may explicit creation run. The pinned root driver must perform a
 process census before creation, including unlinked-file holders, then repeat
 it and re-observe the same admission under exclusive lock before writing a
@@ -738,8 +741,11 @@ A marker already present routes to
 the later full recovery path, never this bootstrap.
 The source journal stores digests, not the private transfer or cold-master
 contents. Claude's exact-head review found that a deleted lock could be
-recreated before the receipt, pending journal files can strand reentry, and
-reboot has no terminal abandonment or successor transaction. The production
-driver must not use this source primitive until those lifecycle branches,
-a root-verified census and transfer, marker, retirement, protected bootstrap
-and live acceptance are implemented and tested.
+recreated before the receipt, a crash before the first intent or during a
+later record write can strand reentry, and reboot has no terminal abandonment
+or successor transaction. The production gate must stay until those
+lifecycle branches are implemented and tested. The eventual driver must
+bind census evidence to transaction, phase and lock identity; copy transfer
+evidence to root-owned storage; recompute verified state from fresh physical
+observations; and keep volatile fields outside the admission digest. Marker,
+retirement, protected bootstrap and live acceptance are also pending.
