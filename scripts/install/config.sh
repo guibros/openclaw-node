@@ -4,6 +4,8 @@
 
 step "Step 7: Environment Configuration"
 
+"$NODE_BIN" "$REPO_DIR/bin/nats-legacy-writer-check.mjs"
+
 if [ ! -f "$ENV_FILE" ]; then
   run cp "$REPO_DIR/openclaw.env.example" "$ENV_FILE"
   warn "Created $ENV_FILE — EDIT THIS FILE with your API keys before proceeding!"

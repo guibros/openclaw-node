@@ -31,7 +31,8 @@ it('auth sync refuses before trust changes the registry or writes auth', () => {
 const original = fs.lstatSync;
 fs.lstatSync = (name, ...args) => String(name) === ${JSON.stringify(PROTECTED_NATS_HANDOFF)} ? {} : original(name, ...args);
 `);
-  const env = { ...process.env, HOME: root, OPENCLAW_IDENTITY_DIR: root, NODE_OPTIONS: `--require=${preload}` };
+  const env = { ...process.env, HOME: root, OPENCLAW_IDENTITY_DIR: root,
+    OPENCLAW_BRIDGE_DIR: path.join(root, 'no-bridge'), NODE_OPTIONS: `--require=${preload}` };
   try {
     const trust = spawnSync(process.execPath, [path.join(repo, 'bin/openclaw-trust-peer.mjs'), 'peer', 'A'.repeat(44), '--sync-nats'], { encoding: 'utf8', env });
     assert.equal(trust.status, 1);
@@ -52,6 +53,12 @@ fs.lstatSync = (name, ...args) => String(name) === ${JSON.stringify(PROTECTED_NA
     assert.equal(stack.status, 1);
     assert.match(stack.stderr, /protected NATS writer handoff active/);
     assert.doesNotMatch(stack.stdout, /started:/);
+
+    fs.renameSync(path.join(agents, 'ai.openclaw.nats.plist'), path.join(agents, 'ai.openclaw.nats.plist.disabled'));
+    const disabled = spawnSync(process.execPath, [path.join(repo, 'bin/openclaw-stack.mjs'), 'up'], { encoding: 'utf8', env, timeout: 10000 });
+    assert.equal(disabled.status, 0, disabled.stderr);
+    assert.match(disabled.stdout, /started: \(everything already running\)/);
+    assert.match(disabled.stdout, /nats\s+DISABLED/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

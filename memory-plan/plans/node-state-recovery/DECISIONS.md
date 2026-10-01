@@ -441,9 +441,10 @@ or stops the live bus or closes 1.2.
 
 `openclaw-stack up` discovers installed `ai.openclaw.*.plist` files and can
 bootstrap a leftover NATS GUI job independently of `install.sh`. It must refuse
-before any start when a legacy NATS plist and the protected handoff marker are
-both present. The source guard covers that path and an owned child control
-checks that no `started:` result follows refusal. This does not replace the
+before any start when an enabled legacy NATS plist and the protected handoff
+marker are both present. Disabled plists are discovered for status but skipped
+by `up` and must not block other services. The source guard covers that path
+and owned child controls check refusal and the disabled-only case. This does not replace the
 migration's durable disable and hash-pinned quarantine of those plists.
 
 The auth tests run CLIs against a private HOME. A host handoff marker should
@@ -458,9 +459,10 @@ Neither this source correction nor its tests operate the live bus.
 
 ## D26 — Recheck legacy writes at their immediate boundary (2026-10-01 12:43 EDT)
 
-An installer launched before marker publication can reach NATS config or
-LaunchAgent writes after the initial preflight. Recheck immediately before
-config generation and each NATS LaunchAgent render/start. An unreadable marker
+An installer launched before marker publication can reach NATS token, config or
+LaunchAgent writes after the initial preflight. Recheck at entry to the
+configuration stage, before NATS config generation, and before each NATS
+LaunchAgent render/start. An unreadable marker
 location is reported as handoff-verification failure, with legacy writer changes
 refused. These checks narrow the race but do not serialize a concurrent root
 migration; the root journal must exclude in-flight installers before publishing

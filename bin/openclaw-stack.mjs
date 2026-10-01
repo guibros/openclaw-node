@@ -226,7 +226,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!units.length) { console.error('no openclaw units installed — run install.sh first'); process.exit(1); }
 
   if (cmd === 'up') {
-    if (process.platform === 'darwin' && units.some((u) => /^nats(?:-|$)/.test(u.id))) {
+    if (process.platform === 'darwin' && units.some((u) => !u.disabled && /^nats(?:-|$)/.test(u.id))) {
       try { assertLegacyNatsWriterAllowed(); }
       catch (error) { console.error(error.message); process.exit(1); }
     }
