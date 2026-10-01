@@ -54,6 +54,13 @@ class Gates(unittest.TestCase):
                 'gui/501', [protected], inspect=lambda _: 'program = /owned/node\n')
             self.assertTrue(verify_entrypoint_inventory(installed, gui, set(), set(),
                 {'gateway', 'workplan-viewer'})['verified'])
+            identity = {'gui': {'ai.openclaw.gateway': {'source': installed['ai.openclaw.gateway']}},
+                        'user': {}, 'system': {}}
+            self.assertTrue(verify_entrypoint_inventory(installed, gui, set(), set(),
+                {'gateway', 'workplan-viewer'}, loaded_identity=identity)['verified'])
+            identity['gui']['ai.openclaw.gateway']['source'] = '/tmp/other.plist'
+            self.refused(lambda: verify_entrypoint_inventory(installed, gui, set(), set(),
+                {'gateway', 'workplan-viewer'}, loaded_identity=identity))
             self.refused(lambda: verify_entrypoint_inventory(installed,
                 gui, set(), {'com.openclaw.agent'}, {'gateway', 'workplan-viewer'}))
             add('other.agent', ['/owned/node', str(protected / 'worker.js')])

@@ -216,7 +216,7 @@ def disabled_entrypoint_artifacts(directories):
     return found
 
 
-def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
+def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None, include_identity=False):
     match = re.search(r'^\s*services = \{\n(.*?)^\s*\}', domain_text, re.M | re.S)
     require(match is not None, 'launchd domain lacks a services inventory')
     roots = tuple({pathlib.Path(root).resolve(strict=False) for root in protected_roots})
@@ -224,6 +224,7 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
     inspect = inspect or (lambda label: subprocess.check_output(
         ['/bin/launchctl', 'print', domain + '/' + label], text=True, timeout=10))
     labels = set()
+    identities = {}
     seen = set()
     for line in match[1].splitlines():
         row = re.fullmatch(r'\s*\d+\s+\S+\s+([A-Za-z0-9._:@/+\-]+)\s*', line)
@@ -232,27 +233,27 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
         require(label not in seen, 'launchd services inventory contains a duplicate job')
         seen.add(label)
         try:
-            details = inspect(label)
+            service_text = inspect(label)
         except (OSError, subprocess.SubprocessError) as error:
             raise Refused('loaded launchd service cannot be inspected: ' + label) from error
         if require_header:
-            require(details.startswith(domain + '/' + label + ' = {\n'),
+            require(service_text.startswith(domain + '/' + label + ' = {\n'),
                     'launchd service inspection identity differs: ' + label)
         values = []
         fields = {}
         for key in ('path', 'program', 'working directory'):
-            field = re.search(r'^\s*' + re.escape(key) + r' = (.+)$', details, re.M)
+            field = re.search(r'^\s*' + re.escape(key) + r' = (.+)$', service_text, re.M)
             if field:
                 fields[key] = field[1]
                 values.append(field[1])
-        arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', details, re.M | re.S)
+        arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', service_text, re.M | re.S)
         argv = []
         if arguments:
             argv = [line.strip() for line in arguments[1].splitlines()]
             values.extend(argv)
         environment = {}
         for section in re.finditer(r'^\s*(?:default )?environment = \{\n(.*?)^\s*\}',
-                                   details, re.M | re.S):
+                                   service_text, re.M | re.S):
             for line in section[1].splitlines():
                 entry = re.match(r'^\s*([A-Za-z_][A-Za-z0-9_]*) => (.*)$', line)
                 if entry:
@@ -264,23 +265,43 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
                     or unclassified_executable(fields.get('program'), argv, source, label))
         if relevant or not apple_system_source(source, fields.get('program', '')):
             labels.add(label)
-    return labels
+            identities[label] = {
+                'source': source,
+                'program': fields.get('program', ''),
+                'working_directory': fields.get('working directory', ''),
+                'arguments_sha256': hashlib.sha256(json.dumps(argv, separators=(',', ':')).encode()).hexdigest(),
+                'environment_sha256': {key: hashlib.sha256(value.encode()).hexdigest()
+                                       for key, value in sorted(environment.items())},
+            }
+    return identities if include_identity else labels
 
 
 def verify_entrypoint_inventory(installed, gui_loaded, user_loaded, system_loaded, expected,
-                                roots=(), disabled_artifacts=None, inert_artifacts=None):
+                                roots=(), disabled_artifacts=None, inert_artifacts=None,
+                                loaded_identity=None):
     expected = {'ai.openclaw.' + unit for unit in expected}
     require(set(installed) == expected, 'installed launchd jobs differ from the approved cohort')
     require(gui_loaded <= expected and user_loaded <= expected and system_loaded <= expected,
             'unclassified launchd job is loaded')
     require(not (gui_loaded & user_loaded or gui_loaded & system_loaded or user_loaded & system_loaded),
             'OpenClaw job is loaded in two launchd domains')
+    if loaded_identity is not None:
+        require(set(loaded_identity) == {'gui', 'user', 'system'}
+                and all(set(loaded_identity[domain]) == labels for domain, labels in (
+                    ('gui', gui_loaded), ('user', user_loaded), ('system', system_loaded))),
+                'loaded launchd identity does not cover every job')
+        for domain, entries in loaded_identity.items():
+            for label, identity in entries.items():
+                if label in expected:
+                    require(identity['source'] == installed[label],
+                            'approved loaded job differs from its installed plist: ' + domain + '/' + label)
     return {'verified': True,
             'installed': {label: {'path': path,
                                   'sha256': hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()}
                           for label, path in sorted(installed.items())},
             'loaded': {'gui': sorted(gui_loaded), 'user': sorted(user_loaded),
                        'system': sorted(system_loaded)},
+            'loaded_identity': loaded_identity or {'gui': {}, 'user': {}, 'system': {}},
             'roots': sorted(str(pathlib.Path(root).resolve(strict=False)) for root in roots),
             'disabled_artifacts': dict(sorted((disabled_artifacts or {}).items())),
             'inert_artifacts': dict(sorted((inert_artifacts or {}).items()))}
@@ -295,11 +316,13 @@ def capture_entrypoint_inventory(expected):
     disabled = disabled_entrypoint_artifacts(directories)
     inert = inert_entrypoint_artifacts(directories)
     domains = ('gui/' + str(os.getuid()), 'user/' + str(os.getuid()), 'system')
-    loaded = [loaded_entrypoints(subprocess.check_output(['/bin/launchctl', 'print', domain],
-               text=True, timeout=10), domain, roots) for domain in domains]
+    identities = [loaded_entrypoints(subprocess.check_output(['/bin/launchctl', 'print', domain],
+                  text=True, timeout=10), domain, roots, include_identity=True) for domain in domains]
+    loaded = [set(entries) for entries in identities]
     evidence = verify_entrypoint_inventory(installed, *loaded, expected,
                                            roots=roots, disabled_artifacts=disabled,
-                                           inert_artifacts=inert)
+                                           inert_artifacts=inert,
+                                           loaded_identity=dict(zip(('gui', 'user', 'system'), identities)))
     again = installed_entrypoints(directories, roots)
     require(again == installed and all(hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
             == evidence['installed'][label]['sha256'] for label, path in again.items()),

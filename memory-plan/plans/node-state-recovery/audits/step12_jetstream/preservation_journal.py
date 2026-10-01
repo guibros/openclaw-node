@@ -190,7 +190,7 @@ def valid_prior(prior, scope=None):
 
 def valid_entrypoint_inventory(evidence, prior):
     require(isinstance(evidence, dict) and evidence.get('verified') is True
-            and set(evidence) == {'verified', 'installed', 'loaded', 'roots',
+            and set(evidence) == {'verified', 'installed', 'loaded', 'loaded_identity', 'roots',
                                   'disabled_artifacts', 'inert_artifacts'},
             'full-node entrypoint inventory is absent')
     installed = evidence['installed']
@@ -206,6 +206,25 @@ def valid_entrypoint_inventory(evidence, prior):
     require(set().union(*map(set, loaded.values())) == expected_loaded
             and sum(map(len, loaded.values())) == len(expected_loaded),
             'full-node loaded entrypoints differ from the baseline')
+    identities = evidence['loaded_identity']
+    require(isinstance(identities, dict) and set(identities) == set(loaded)
+            and all(isinstance(identities[domain], dict)
+                    and set(identities[domain]) == set(loaded[domain])
+                    for domain in loaded),
+            'full-node loaded job identities are incomplete')
+    for domain, entries in identities.items():
+        for label, identity in entries.items():
+            require(isinstance(identity, dict) and set(identity) == {
+                'source', 'program', 'working_directory', 'arguments_sha256',
+                'environment_sha256'}
+                and identity['source'] == installed.get(label, {}).get('path')
+                and isinstance(identity['program'], str) and identity['program'].startswith('/')
+                and isinstance(identity['working_directory'], str)
+                and re.fullmatch(r'[0-9a-f]{64}', identity['arguments_sha256'])
+                and isinstance(identity['environment_sha256'], dict)
+                and all(isinstance(key, str) and re.fullmatch(r'[0-9a-f]{64}', value)
+                        for key, value in identity['environment_sha256'].items()),
+                'full-node loaded job provenance is incomplete: ' + domain + '/' + label)
     require(isinstance(evidence['roots'], list) and evidence['roots']
             and all(isinstance(root, str) and pathlib.Path(root).is_absolute()
                     for root in evidence['roots'])
@@ -407,6 +426,13 @@ class Journal:
         require(all(set(current['loaded'][domain]) <= set(saved['loaded'][domain])
                     for domain in ('gui', 'user', 'system')),
                 'full-node job loaded outside its original domain or state')
+        require(all(set(current['loaded_identity'][domain]) == set(current['loaded'][domain])
+                    for domain in ('gui', 'user', 'system')),
+                'full-node loaded job identity map is incomplete')
+        require(all(all(identity == saved['loaded_identity'][domain].get(label)
+                        for label, identity in current['loaded_identity'][domain].items())
+                    for domain in ('gui', 'user', 'system')),
+                'full-node loaded job configuration changed')
         if forward:
             previous = next((row['evidence']['entrypoint_loaded'] for row in reversed(self.records)
                              if row['event'] == 'verified'

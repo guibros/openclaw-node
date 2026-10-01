@@ -814,6 +814,12 @@ process binding parses only the real environment section, records every
 effective variable hash, and refuses undeclared or code-loading variables.
 None of these changes opens a preservation window; a complete exclusion
 policy and a continuous or effect-based copy fence remain unproved.
+The preflight now captures a hash-only environment and argument identity for
+each loaded job and requires each approved loaded source path to equal its
+installed plist. The journal rechecks the identity of each still-loaded job
+through forward work and final restoration. This closes same-label reloading
+from a different plist without claiming that a point-in-time scan detects a
+load-run-unload between scans.
 The combined scanner, journal and managed Mac suites pass 120 tests with one
 explicit domain-specific skip; the owned servers made no production NATS
 connections. No production job was stopped or changed.
