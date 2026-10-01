@@ -7,6 +7,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 
@@ -125,6 +126,23 @@ class RootJournalTest(unittest.TestCase):
         self.lock.unlink()
         self.lock.write_bytes(b'')
         self.lock.chmod(0o644)
+        reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)
+        with self.assertRaisesRegex(module.Refused, 'identity changed'):
+            reopened.acquire_after_intent(self.lock, lambda: self.observation,
+                                          lambda: {'verified': True})
+
+    def test_lock_metadata_change_refuses_after_receipt(self):
+        journal = self.begin()
+        with journal.acquire_after_intent(self.lock, lambda: self.observation,
+                                          lambda: {'verified': True}):
+            pass
+        saved = self.lock.stat().st_ctime_ns
+        for _ in range(10):
+            os.utime(self.lock, None)
+            if self.lock.stat().st_ctime_ns != saved:
+                break
+            time.sleep(0.001)
+        self.assertNotEqual(self.lock.stat().st_ctime_ns, saved)
         reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)
         with self.assertRaisesRegex(module.Refused, 'identity changed'):
             reopened.acquire_after_intent(self.lock, lambda: self.observation,

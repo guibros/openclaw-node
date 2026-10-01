@@ -88,8 +88,9 @@ class LockBootstrapJournal:
         valid_descriptor(self.records[0]['data'].get('descriptor'))
         if len(self.records) == 2:
             data = self.records[1]['data']
-            if (set(data) != {'inode', 'census_sha256'}
+            if (set(data) != {'inode', 'ctime_ns', 'census_sha256'}
                     or not isinstance(data['inode'], int) or data['inode'] <= 0
+                    or not isinstance(data['ctime_ns'], int) or data['ctime_ns'] <= 0
                     or not re.fullmatch(r'[0-9a-f]{64}', str(data['census_sha256']))):
                 raise Refused('root writer lock receipt is incomplete')
 
@@ -172,7 +173,7 @@ class LockBootstrapJournal:
         lock = _acquire(lock_path, self.uid, self.gid, seconds)
         try:
             if len(self.records) == 2:
-                if self.records[1]['data']['inode'] != lock.identity[1]:
+                if (self.records[1]['data']['inode'], self.records[1]['data']['ctime_ns']) != lock.identity[1:]:
                     raise Refused('root writer lock identity changed after journaling')
             evidence = process_census()
             if not isinstance(evidence, dict) or evidence.get('verified') is not True:
@@ -183,7 +184,8 @@ class LockBootstrapJournal:
             if present(self.site / 'writer-handoff.json'):
                 raise Refused('root writer handoff changed during lock bootstrap')
             if len(self.records) == 1:
-                self._append('lock-created', inode=lock.identity[1], census_sha256=digest(evidence))
+                self._append('lock-created', inode=lock.identity[1], ctime_ns=lock.identity[2],
+                             census_sha256=digest(evidence))
             return lock
         except BaseException:
             lock.close()

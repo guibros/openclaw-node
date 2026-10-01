@@ -55,10 +55,11 @@ def lock_identity(fd, path, uid, gid):
         named = path.lstat()
         if (not stat.S_ISREG(actual.st_mode) or actual.st_uid != uid or actual.st_gid != gid
                 or stat.S_IMODE(actual.st_mode) != 0o644 or actual.st_nlink != 1
-                or (actual.st_dev, actual.st_ino) != (named.st_dev, named.st_ino)):
+                or (actual.st_dev, actual.st_ino, actual.st_ctime_ns)
+                != (named.st_dev, named.st_ino, named.st_ctime_ns)):
             raise Refused('writer lock identity differs')
         require_no_acl(path)
-        return (actual.st_dev, actual.st_ino)
+        return (actual.st_dev, actual.st_ino, actual.st_ctime_ns)
     except (OSError, subprocess.CalledProcessError) as error:
         raise Refused('writer lock identity is unobservable') from error
 

@@ -41,7 +41,8 @@ class RootLockTest(unittest.TestCase):
             self.create()
         finally:
             os.umask(previous_umask)
-        self.assertEqual(self.create(), (self.lock.stat().st_dev, self.lock.stat().st_ino))
+        info = self.lock.stat()
+        self.assertEqual(self.create(), (info.st_dev, info.st_ino, info.st_ctime_ns))
         with self.acquire() as owner:
             self.assertEqual(stat.S_IMODE(self.lock.stat().st_mode), 0o644)
             self.assertEqual(self.lock.stat().st_uid, self.uid)
@@ -117,7 +118,8 @@ nats_root_lock._create(pathlib.Path(sys.argv[2]), os.getuid(), os.getgid())
                                 capture_output=True, text=True)
         self.assertEqual(killed.returncode, 23, killed.stderr)
         self.assertEqual(stat.S_IMODE(self.lock.stat().st_mode), 0o644)
-        identity = (self.lock.stat().st_dev, self.lock.stat().st_ino)
+        info = self.lock.stat()
+        identity = (info.st_dev, info.st_ino, info.st_ctime_ns)
         self.assertEqual(self.create(), identity)
         with self.acquire() as owner:
             owner.validate()

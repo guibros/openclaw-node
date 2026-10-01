@@ -725,9 +725,11 @@ transaction UUID, boot identity, user-transfer digest and admission digest.
 Only then may explicit creation run. The pinned root driver must perform a
 process census before creation, including unlinked-file holders, then repeat
 it and re-observe the same admission under exclusive lock before writing a
-lock-created receipt with the inode. The in-process descriptor/path identity
-still checks device and inode; the durable receipt does not pin a transient
-device number across reboot. A crash in the creation gap reopens the same
+lock-created receipt with the inode and change time. Linux can reuse an inode
+immediately after deletion, so the durable receipt requires both values. The
+in-process descriptor/path identity also checks device; the durable receipt
+does not pin a transient device number across reboot. Any metadata change
+after the receipt refuses and requires an operator review. A crash in the creation gap reopens the same
 intent and repeats the admission and both census checks; it cannot start a
 second journal. A marker
 already present routes to the later full recovery path, never this bootstrap.
