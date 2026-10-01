@@ -362,7 +362,7 @@ with Journal(root, node_lock=lock) as journal:
         original = plist.read_bytes()
         try:
             altered = plistlib.loads(original)
-            altered['Program'] = '/bin/false'
+            altered['Program'] = '/usr/bin/false'
             plist.write_bytes(plistlib.dumps(altered))
             malicious_prior = copy.deepcopy(self.prior)
             malicious_prior['mesh-agent']['identity'] = static_identity(plist)
