@@ -37,35 +37,42 @@ def require_no_acl(path):
 
 
 def protected_parent(path, uid, gid):
-    for ancestor in reversed((path.parent, *path.parent.parents)):
-        info = ancestor.lstat()
-        if not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, uid) or info.st_mode & 0o022:
-            raise Refused('writer lock ancestor is not protected')
-        require_no_acl(ancestor)
-    if path.parent.lstat().st_gid != gid:
-        raise Refused('writer lock parent group differs')
+    try:
+        for ancestor in reversed((path.parent, *path.parent.parents)):
+            info = ancestor.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, uid) or info.st_mode & 0o022:
+                raise Refused('writer lock ancestor is not protected')
+            require_no_acl(ancestor)
+        if path.parent.lstat().st_gid != gid:
+            raise Refused('writer lock parent group differs')
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise Refused('writer lock ancestor is unobservable') from error
 
 
 def lock_identity(fd, path, uid, gid):
-    actual = os.fstat(fd)
-    named = path.lstat()
-    if (not stat.S_ISREG(actual.st_mode) or actual.st_uid != uid or actual.st_gid != gid
-            or stat.S_IMODE(actual.st_mode) != 0o644 or actual.st_nlink != 1
-            or (actual.st_dev, actual.st_ino) != (named.st_dev, named.st_ino)):
-        raise Refused('writer lock identity differs')
-    require_no_acl(path)
-    return (actual.st_dev, actual.st_ino)
+    try:
+        actual = os.fstat(fd)
+        named = path.lstat()
+        if (not stat.S_ISREG(actual.st_mode) or actual.st_uid != uid or actual.st_gid != gid
+                or stat.S_IMODE(actual.st_mode) != 0o644 or actual.st_nlink != 1
+                or (actual.st_dev, actual.st_ino) != (named.st_dev, named.st_ino)):
+            raise Refused('writer lock identity differs')
+        require_no_acl(path)
+        return (actual.st_dev, actual.st_ino)
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise Refused('writer lock identity is unobservable') from error
 
 
 class WriterExclusion:
-    def __init__(self, fd, path, identity, created):
+    def __init__(self, fd, path, identity, uid, gid):
         self.fd = fd
         self.path = path
         self.identity = identity
-        self.created = created
+        self.uid = uid
+        self.gid = gid
 
-    def validate(self, uid, gid):
-        if lock_identity(self.fd, self.path, uid, gid) != self.identity:
+    def validate(self):
+        if lock_identity(self.fd, self.path, self.uid, self.gid) != self.identity:
             raise Refused('writer lock identity changed')
 
     def close(self):
@@ -80,24 +87,41 @@ class WriterExclusion:
         self.close()
 
 
-def _acquire(path, uid, gid, seconds):
+def _create(path, uid, gid):
     path = pathlib.Path(path)
-    protected_parent(path, uid, gid)
-    created = False
     try:
-        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
-    except FileExistsError:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    else:
-        created = True
+        protected_parent(path, uid, gid)
+        previous_umask = os.umask(0o022)
+        try:
+            try:
+                fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+            except FileExistsError:
+                fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                try:
+                    return lock_identity(fd, path, uid, gid)
+                finally:
+                    os.close(fd)
+        finally:
+            os.umask(previous_umask)
         try:
             os.fchmod(fd, 0o644)
             os.fchown(fd, uid, gid)
             sync_fd(fd)
             sync_dir(path.parent)
-        except BaseException:
+            return lock_identity(fd, path, uid, gid)
+        finally:
             os.close(fd)
-            raise
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise Refused('writer lock creation refused') from error
+
+
+def _acquire(path, uid, gid, seconds):
+    path = pathlib.Path(path)
+    try:
+        protected_parent(path, uid, gid)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise Refused('writer lock is absent or unobservable') from error
     try:
         identity = lock_identity(fd, path, uid, gid)
         deadline = time.monotonic() + seconds
@@ -111,10 +135,16 @@ def _acquire(path, uid, gid, seconds):
                 time.sleep(0.05)
         if lock_identity(fd, path, uid, gid) != identity:
             raise Refused('writer lock path changed during acquisition')
-        return WriterExclusion(fd, path, identity, created)
+        return WriterExclusion(fd, path, identity, uid, gid)
     except BaseException:
         os.close(fd)
         raise
+
+
+def create_root_writer_lock():
+    if sys.platform != 'darwin' or os.geteuid() != 0:
+        raise Refused('root-owned NATS writer exclusion requires macOS root')
+    return _create(LOCK, 0, 0)
 
 
 def acquire_root_writer_lock(seconds=10):

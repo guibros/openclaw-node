@@ -3,6 +3,8 @@ import importlib.util
 import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -27,21 +29,30 @@ class RootLockTest(unittest.TestCase):
     def acquire(self, seconds=0.1):
         return root_lock._acquire(self.lock, self.uid, self.gid, seconds)
 
+    def create(self):
+        return root_lock._create(self.lock, self.uid, self.gid)
+
     def test_create_pin_and_reopen_exclusive_lock(self):
+        with self.assertRaisesRegex(root_lock.Refused, 'absent or unobservable'):
+            self.acquire()
+        self.assertFalse(self.lock.exists())
+        previous_umask = os.umask(0o077)
+        try:
+            self.create()
+        finally:
+            os.umask(previous_umask)
+        self.assertEqual(self.create(), (self.lock.stat().st_dev, self.lock.stat().st_ino))
         with self.acquire() as owner:
-            self.assertTrue(owner.created)
             self.assertEqual(stat.S_IMODE(self.lock.stat().st_mode), 0o644)
             self.assertEqual(self.lock.stat().st_uid, self.uid)
-            owner.validate(self.uid, self.gid)
+            owner.validate()
             with self.assertRaisesRegex(RuntimeError, 'legacy NATS writer still holds'):
                 self.acquire()
         with self.acquire() as reopened:
-            self.assertFalse(reopened.created)
-            reopened.validate(self.uid, self.gid)
+            reopened.validate()
 
     def test_legacy_shared_holder_blocks_root_exclusive(self):
-        with self.acquire():
-            pass
+        self.create()
         holder = legacy.acquire(self.lock, self.uid, self.gid, seconds=0.1)
         try:
             with self.assertRaisesRegex(RuntimeError, 'legacy NATS writer still holds'):
@@ -49,7 +60,7 @@ class RootLockTest(unittest.TestCase):
         finally:
             os.close(holder)
         with self.acquire() as owner:
-            owner.validate(self.uid, self.gid)
+            owner.validate()
 
     def test_wrong_mode_hardlink_and_replacement_refuse(self):
         self.lock.write_bytes(b'')
@@ -67,12 +78,14 @@ class RootLockTest(unittest.TestCase):
             self.lock.write_bytes(b'')
             self.lock.chmod(0o644)
             with self.assertRaises(root_lock.Refused):
-                owner.validate(self.uid, self.gid)
+                owner.validate()
 
     def test_root_entrypoint_refuses_unprivileged_caller(self):
         if os.geteuid() != 0:
             with self.assertRaisesRegex(RuntimeError, 'requires macOS root'):
                 root_lock.acquire_root_writer_lock()
+            with self.assertRaisesRegex(RuntimeError, 'requires macOS root'):
+                root_lock.create_root_writer_lock()
 
     def test_world_writable_ancestor_refuses(self):
         parent = self.lock.parent
@@ -84,8 +97,36 @@ class RootLockTest(unittest.TestCase):
         target = self.lock.with_name('target')
         target.write_bytes(b'')
         self.lock.symlink_to(target)
-        with self.assertRaises(OSError):
+        with self.assertRaises(root_lock.Refused):
             self.acquire()
+
+    def test_fifo_refuses_without_blocking(self):
+        os.mkfifo(self.lock)
+        with self.assertRaises(root_lock.Refused):
+            self.acquire()
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS ACL fixture')
+    def test_granting_acl_refuses(self):
+        self.create()
+        subprocess.run(['/bin/chmod', '+a', 'everyone allow write', str(self.lock)], check=True)
+        with self.assertRaisesRegex(root_lock.Refused, 'has an ACL'):
+            self.acquire()
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS ACL fixture')
+    def test_granting_ancestor_acl_refuses(self):
+        subprocess.run(['/bin/chmod', '+a', 'everyone allow write', str(self.lock.parent)], check=True)
+        with self.assertRaisesRegex(root_lock.Refused, 'has an ACL'):
+            self.acquire()
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS ACL fixture')
+    def test_deny_only_acl_does_not_refuse(self):
+        self.create()
+        subprocess.run(['/bin/chmod', '+a', 'everyone deny delete', str(self.lock)], check=True)
+        try:
+            with self.acquire() as owner:
+                owner.validate()
+        finally:
+            subprocess.run(['/bin/chmod', '-N', str(self.lock)], check=True)
 
 
 if __name__ == '__main__':

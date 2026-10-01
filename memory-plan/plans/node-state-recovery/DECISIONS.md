@@ -702,8 +702,11 @@ been staged or exercised live.
 ## D41 — Root exclusion is an identity-pinned, exclusive lock (2026-10-01 16:02 EDT)
 
 The privileged migration uses the same fixed lock path as D40. Its root-only
-entrypoint creates a regular root:wheel 0644 file outside the staging root,
-syncs the file and parent directory, then takes a bounded exclusive `flock`.
+entrypoint creates a regular root:wheel 0644 file outside the staging root
+only after a durable migration intent. Creation and acquisition are distinct:
+acquisition refuses a missing file, so a read-only probe cannot switch the
+legacy tools into lock mode. Creation syncs the file and parent directory;
+acquisition then takes a bounded exclusive `flock`.
 It validates owner, mode, single link, inode, protected ancestors and absence
 of granting ACLs before and after acquisition. A current shared holder makes
 the root refuse; a replaced lock path also refuses. The root must retain the
