@@ -228,12 +228,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const hasLegacyNats = process.platform === 'darwin'
     && units.some((u) => !u.disabled && /^nats(?:-|$)/.test(u.id));
   if ((cmd === 'up' || cmd === 'down') && hasLegacyNats) reexecUnderLegacyNatsLock();
+  if ((cmd === 'up' || cmd === 'down') && hasLegacyNats) {
+    try { assertLegacyNatsWriterAllowed(); }
+    catch (error) { console.error(error.message); process.exit(1); }
+  }
 
   if (cmd === 'up') {
-    if (hasLegacyNats) {
-      try { assertLegacyNatsWriterAllowed(); }
-      catch (error) { console.error(error.message); process.exit(1); }
-    }
     const started = process.platform === 'darwin' ? up(units) : upLinux(units);
     const bridge = await startBridge();
     console.log(`started: ${started.length ? started.join(', ') : '(everything already running)'} · bridge: ${bridge}`);

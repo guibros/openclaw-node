@@ -85,6 +85,9 @@ def run_locked(command, lock_file=LOCK, marker=MARKER, expected_uid=0, expected_
 
 if __name__ == '__main__':
     try:
+        if len(sys.argv) == 2 and sys.argv[1] == '--check-marker':
+            require_no_marker(MARKER)
+            raise SystemExit(0)
         if len(sys.argv) == 2 and sys.argv[1] == '--verify':
             verify_inherited(os.environ.get('OPENCLAW_NATS_LEGACY_LOCK_HELD'))
             raise SystemExit(0)

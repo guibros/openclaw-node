@@ -24,11 +24,7 @@ if [ "$(uname -s)" = Darwin ]; then
       exec /usr/bin/python3 "$REPO_DIR/bin/nats-legacy-lock.py" -- /bin/bash "$REPO_DIR/uninstall.sh" "$@"
     fi
   fi
-  NATS_HANDOFF=/private/var/db/openclaw-nats/writer-handoff.json
-  if [ -e "$NATS_HANDOFF" ] || [ -L "$NATS_HANDOFF" ]; then
-    echo 'Protected NATS writer handoff active; legacy uninstall refused' >&2
-    exit 1
-  fi
+  /usr/bin/python3 "$REPO_DIR/bin/nats-legacy-lock.py" --check-marker
 fi
 
 OPENCLAW_ROOT="${OPENCLAW_ROOT:-$HOME/.openclaw}"

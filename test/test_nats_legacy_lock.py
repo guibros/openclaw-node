@@ -86,6 +86,16 @@ class LegacyWriterLockTest(unittest.TestCase):
             self.run_locked(command)
         self.assertFalse(output.exists())
 
+    def test_unobservable_marker_refuses(self):
+        private = self.root / 'unsearchable'
+        private.mkdir()
+        private.chmod(0)
+        try:
+            with self.assertRaisesRegex(RuntimeError, 'unobservable'):
+                lock_module.require_no_marker(private / 'handoff.json')
+        finally:
+            private.chmod(0o700)
+
     def test_exclusive_owner_makes_legacy_operation_timeout(self):
         owner = os.open(self.lock, os.O_RDONLY)
         try:
