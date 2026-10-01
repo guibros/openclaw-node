@@ -254,3 +254,8 @@ remain pending; production writer custody and cold masters are still open.
 leadership, persisted-ahead state and an unexpected Raft group. The actual
 capture predicate is unchanged. The focused unit passes; the prior complete
 Mac module passed 6/6. Exact new CI/review remain pending.
+
+2026-10-01 12:08 EDT — D47 rotates every synthetic dissent across all
+three members, covering positional shortcuts missed by D46. Focused unit
+passes; the capture predicate remains unchanged. Exact new CI/review and
+production writer/cold-master evidence remain open.

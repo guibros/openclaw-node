@@ -79,40 +79,44 @@ class Cluster(unittest.TestCase):
         self.assertFalse(post_stepdown_ready(lagging_baseline, settled, 'S-owned'))
 
         def disagree(account, name, field, value):
-            rows = copy.deepcopy(settled)
-            rows[2]['raft'][account][name][field] = value
-            self.assertFalse(post_stepdown_ready(before, rows, 'S-owned'))
+            for member in range(3):
+                rows = copy.deepcopy(settled)
+                rows[member]['raft'][account][name][field] = value
+                self.assertFalse(post_stepdown_ready(before, rows, 'S-owned'))
 
         disagree('$G', 'S-owned', 'leader', 'other')
         disagree('$G', 'S-owned', 'term', 3)
         for field in ('committed', 'applied', 'pindex'):
             disagree('$G', 'S-owned', field, 5)
-        divergent_index = copy.deepcopy(settled)
-        divergent_index[2]['raft']['$G']['S-owned'].update(
-            committed=5, applied=5, pindex=5)
-        self.assertFalse(post_stepdown_ready(before, divergent_index, 'S-owned'))
+        for member in range(3):
+            divergent_index = copy.deepcopy(settled)
+            divergent_index[member]['raft']['$G']['S-owned'].update(
+                committed=5, applied=5, pindex=5)
+            self.assertFalse(post_stepdown_ready(before, divergent_index, 'S-owned'))
         disagree('$G', 'C-owned', 'leader', 'other')
         disagree('$G', 'C-owned', 'term', 2)
-        divergent_consumer = copy.deepcopy(settled)
-        divergent_consumer[2]['raft']['$G']['C-owned'].update(
-            committed=6, applied=6, pindex=6)
-        self.assertFalse(post_stepdown_ready(before, divergent_consumer, 'S-owned'))
+        for member in range(3):
+            divergent_consumer = copy.deepcopy(settled)
+            divergent_consumer[member]['raft']['$G']['C-owned'].update(
+                committed=6, applied=6, pindex=6)
+            self.assertFalse(post_stepdown_ready(before, divergent_consumer, 'S-owned'))
         disagree('$SYS', '_meta_', 'leader', 'other')
         disagree('$SYS', '_meta_', 'term', 2)
-        divergent_meta = copy.deepcopy(settled)
-        divergent_meta[2]['raft']['$SYS']['_meta_'].update(
-            committed=6, applied=6, pindex=6)
-        self.assertFalse(post_stepdown_ready(before, divergent_meta, 'S-owned'))
-        missing_group = copy.deepcopy(settled)
-        del missing_group[2]['raft']['$G']['C-owned']
-        self.assertFalse(post_stepdown_ready(before, missing_group, 'S-owned'))
-        extra_group = copy.deepcopy(settled)
-        extra_group[2]['raft']['$G']['C-unexpected'] = copy.deepcopy(
-            extra_group[2]['raft']['$G']['C-owned'])
-        self.assertFalse(post_stepdown_ready(before, extra_group, 'S-owned'))
-        missing_meta = copy.deepcopy(settled)
-        del missing_meta[2]['raft']['$SYS']['_meta_']
-        self.assertFalse(post_stepdown_ready(before, missing_meta, 'S-owned'))
+        for member in range(3):
+            divergent_meta = copy.deepcopy(settled)
+            divergent_meta[member]['raft']['$SYS']['_meta_'].update(
+                committed=6, applied=6, pindex=6)
+            self.assertFalse(post_stepdown_ready(before, divergent_meta, 'S-owned'))
+            missing_group = copy.deepcopy(settled)
+            del missing_group[member]['raft']['$G']['C-owned']
+            self.assertFalse(post_stepdown_ready(before, missing_group, 'S-owned'))
+            extra_group = copy.deepcopy(settled)
+            extra_group[member]['raft']['$G']['C-unexpected'] = copy.deepcopy(
+                extra_group[member]['raft']['$G']['C-owned'])
+            self.assertFalse(post_stepdown_ready(before, extra_group, 'S-owned'))
+            missing_meta = copy.deepcopy(settled)
+            del missing_meta[member]['raft']['$SYS']['_meta_']
+            self.assertFalse(post_stepdown_ready(before, missing_meta, 'S-owned'))
 
     def raft_files(self, store):
         return copy_view({'raft': capture_tree(store/'jetstream'/'$SYS'/'_js_')})['raft']

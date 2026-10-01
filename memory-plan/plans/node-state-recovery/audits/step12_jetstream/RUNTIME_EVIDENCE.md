@@ -1393,3 +1393,19 @@ scratch copy of these rows killed all 11 mutants it tried. The last full
 owned Mac module on the unchanged capture path passed 6/6 in 270.827
 seconds. Exact new CI/review remain pending. This is still an owned
 reference, not a production cold-master certificate.
+
+D45's title described intended coverage ahead of the tested facts. The
+three D46 rows close the specifically observed mutation gaps; the 11
+mutants are a bounded check, not an exhaustive proof of Raft validity.
+
+## D47 per-member disagreement coverage — 2026-10-01 12:08 EDT
+
+Claude's exact `08d9167` review found three additional positional test
+mutants after the 11 original mutants were caught. The synthetic stream,
+consumer, metadata, missing-group and extra-group disagreements now rotate
+through all three member positions; the focused deterministic test passes.
+Claude confirmed in scratch that perturbing every member catches those
+positional weakenings. No production-facing predicate or live capture-loop
+code changed. Exact new CI and adversarial review remain pending; the
+last complete owned Mac module passed 6/6 in 270.827 seconds on the same
+capture path. This is bounded test evidence, not live cold-master proof.

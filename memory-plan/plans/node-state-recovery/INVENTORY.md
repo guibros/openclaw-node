@@ -382,3 +382,9 @@ refusals close the remaining non-equivalent predicate mutants found by
 Claude. The focused unit passes. The live predicate and capture loop are
 unchanged; prior full Mac module passed 6/6. Exact new CI/review are
 pending, and step 1.2 remains `[A]` at `v1.2-pre`.
+
+D47 checkpoint, 2026-10-01 12:08 EDT: the deterministic test now places
+stream, consumer, metadata and group-set dissent at each of the three
+member positions. This closes three positional test gaps found by Claude;
+the focused test passes and the live predicate is unchanged. Exact new
+CI/review remain pending. Step 1.2 stays `[A]`/`v1.2-pre`.

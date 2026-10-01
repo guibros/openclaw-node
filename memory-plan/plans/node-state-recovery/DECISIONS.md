@@ -1015,3 +1015,19 @@ augmentation killed all 11 tested mutants while the unmodified predicate
 still passed. The production-facing predicate and owned capture loop remain
 unchanged. The previous expanded Mac module passed 6/6; exact new CI and
 review are pending. Step 1.2 and full-node `seal()` remain open.
+
+D45's title was too broad at `6a3fd96`: its test did not yet protect the
+uniform leaderless, persisted-ahead or extra-group cases. D46 closes those
+specific gaps and claims coverage of the 11 tested mutations only, not
+every possible Raft state or production cold-master validity.
+
+## D47 — Vary the dissenting Raft member (2026-10-01 12:08 EDT)
+
+Claude's exact `08d9167` follow-up killed the original 11 predicate mutants
+but found three positional weakenings because the synthetic disagreements
+always changed member 2. Rotate stream, consumer and metadata disagreement,
+missing-group and extra-group cases across all three positions. The focused
+unit passes; Claude's scratch variant also caught the three positional
+mutants. The predicate and live cluster loop remain unchanged. Exact new
+CI/review are pending, and these bounded mutation checks do not certify a
+production cold master or permit full-node `seal()`.
