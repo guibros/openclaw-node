@@ -187,7 +187,7 @@ meta-snapshot log false refusal and adds a latent snapshot negative that
 must reach `Snapshot corrupt`. Stable-source focused cluster tests pass 4/4,
 and the complete Mac recovery suite passes 208 with three expected skips.
 The first full run was invalidated by a missing worktree-external NATS module
-path and timed-out restore fixtures; the rerun used the installed module and
-production Node paths. No production job, service, store, volume or journal
-was changed. New exact CI/review and all live protection/restore gates remain
-open; full-node `seal()` stays disabled.
+path and timed-out restore fixtures; the rerun used the installed Node binary
+and the main checkout's NATS module for owned tests. No production job,
+service, store, volume or journal was changed. New exact CI/review and all
+live protection/restore gates remain open; full-node `seal()` stays disabled.

@@ -318,6 +318,6 @@ snapshot control that must reach `Snapshot corrupt`. The fixture retries
 transient observations during pre-baseline settling and post-stepdown
 election within their deadlines. The focused four-test cluster suite and
 complete 208-test Mac recovery suite pass, with three expected skips.
-Protected production custody,
-NATS-native per-member Raft validity, three healthy cold masters, the full
-driver and verified resumption remain open; 1.2 stays `[A]`.
+Protected production custody, per-member Raft replay and peer/vote
+metadata validation, three healthy cold masters, the full driver and
+verified resumption remain open; 1.2 stays `[A]`.

@@ -853,3 +853,11 @@ CI/review remain pending. Step 1.2 stays `[A]` at `v1.2-pre`; full-node
 At 09:16 EDT the stable-source Mac recovery suite passed 208 tests with three
 expected skips. This remains owned fixture evidence; exact new CI and review
 of the correction are pending.
+
+Clarification after Claude's exact-head `53be89e` review: the test still
+accepts the latent hollow WAL, junk peer index and junk vote controls; that
+is a demonstrated gap, not approval of those stores. A NATS-native replay
+detects the tested hollow WAL but NATS may reconstruct `peers.idx` and load
+a vote without validating it, so peer/vote evidence needs separate checks.
+The per-line exclusion matches the benign meta-snapshot condition and its
+same-condition suffixed variant, not arbitrary catch-up warnings.

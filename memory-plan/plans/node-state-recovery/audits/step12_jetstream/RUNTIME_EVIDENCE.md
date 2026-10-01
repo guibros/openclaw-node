@@ -1204,7 +1204,8 @@ At 09:16 EDT, `7d40a3f` passed all three CI jobs (run 36861425295). Claude's
 exact-head review found no false acceptance within the owned stopped-Raft-byte
 claim, confirmed the fixture order and independently tested damaged stored
 members. A latent hollow Raft WAL, peers index or saved vote can still pass;
-this is the unclosed NATS-native per-member validity gate. Claude also found
+NATS-native replay can detect the tested hollow WAL, but peer/vote metadata
+needs separate validation. All remain unclosed. Claude also found
 one healthy restore refused by the broad `catchup` log term among 24 positive
 runs, and one pre-damage observation failure among about 105 cluster runs.
 
