@@ -774,3 +774,26 @@ controls. Folder-name equivalence and one seeded message still do not prove
 all production Raft log bytes or every retained message; that production
 acceptance and the protected writer boundary remain open. Full-node `seal()`
 stays disabled.
+
+## D38 — Refuse hollow owned Raft groups before peer repair (2026-10-01 07:49 EDT)
+
+Claude's exact-head `4f80735` review reproduced three more source-side false
+acceptances: a member's Raft group folders kept their names while their
+contents were emptied, their log and snapshots were removed, or `tav.idx`
+was removed. The restored peers silently repaired them, so neither isolated
+JetStream state nor the startup-log tripwire was sufficient. Before any
+isolated startup, the owned fixture now requires each group in the last
+pre-stop Raft record to have a saved term at least as large as the observed
+term, a nonempty peers index, and a nonempty snapshot or log block. Three
+source-side negatives pass through cold copying and manifest verification,
+then refuse at the damaged member's content check. The focused negative suite
+passes. This check is a bounded structural sentinel for the one-message owned
+fixture; it does not authenticate every Raft log byte or prove a production
+member independently retained all messages.
+
+The same fixture gives initial owned stream creation a longer bounded request
+deadline. On a timeout it checks whether the expected stream config committed
+instead of retrying an ambiguous create. Exact-source complete-suite and CI
+results are still required. The production protected writer, cross-uid
+evidence, full live content baseline, three cold masters and resumption remain
+open; step 1.2 stays `[A]` at `v1.2-pre` and full-node `seal()` remains disabled.

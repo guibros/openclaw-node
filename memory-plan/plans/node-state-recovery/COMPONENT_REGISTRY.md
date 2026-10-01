@@ -155,3 +155,12 @@ comes from an actually acknowledged message. Missing Raft and consumer
 folders injected into stopped source stores refuse after passing the copy
 verifier. The four-test cluster suite passes in 141.6 s. Full Mac suite and
 new exact CI/review remain pending; no production cold master was accepted.
+
+2026-10-01 07:54 EDT — D38 adds an offline Raft-content sentinel before an
+owned candidate member can meet its peers. Empty group contents, removed
+log/snapshot files, and a missing saved term now refuse at the damaged
+member after source-side copying and manifest verification. All eight focused
+source-damage modes pass, and the complete Mac recovery suite passes 208
+tests with three expected skips at stable source. Exact-head CI and Claude
+re-review remain pending. This is one-message fixture proof; no protected
+production cold copy, all-message baseline or live resumption is accepted.

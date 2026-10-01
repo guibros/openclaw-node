@@ -1144,3 +1144,27 @@ refusal. The fixture now retries only that pre-delivery stage for up to ten
 seconds; it does not retry a delivered message or a failed acknowledgement.
 The positive owned restore passed locally after this change. New exact CI
 and a stable full Mac suite are required; the failed run is retained here.
+
+At 07:47 EDT, exact-head `567ca57` CI did not pass. Node 22 timed out while
+creating the owned fixture stream for the `empty-1` source-damage control,
+before the intended damage was applied. Node 20's broad root suite failed an
+unrelated Foreman supervisor timing assertion; Mission Control passed. The
+fixture now gives the JetStream manager a bounded longer request deadline and,
+if stream creation still times out, reads back the committed stream config
+instead of issuing a second ambiguous create. The Mac recovery suite completed
+208 tests with three skips, but source changed during the run, so it is not
+final exact-source evidence. The new offline Raft-content controls and this
+startup correction still need focused, full-suite and exact-head CI results.
+
+At 07:49 EDT, the focused source-side damage suite passed: eight damaged
+source-store modes each copied into the candidate and refused at the intended
+member/stage. The added controls empty a Raft group, remove its log and
+snapshots, or remove its saved term file; none can be accepted by a healthy
+peer's later repair. The complete exact-source Mac suite and CI remain open.
+
+At 07:54 EDT, the complete Mac recovery suite passed at the same unchanged
+Python source: 208 tests in 356.048 s, three expected skips. The owned
+three-member cluster reported normal cleanup, no production connections,
+and a successful isolated-member and restored-cluster proof. This is local
+fixture evidence. Exact-head CI and Claude's adversarial re-review remain
+open, as do the protected production preservation and restoration gates.

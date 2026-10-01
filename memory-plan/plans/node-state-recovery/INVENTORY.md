@@ -280,3 +280,12 @@ missing Raft and consumer folders now refuse even if the repaired cluster
 would serve the message. The four-test owned cluster suite passes. Deeper
 per-group log-byte and production all-message proof, protected custody, and
 the full-node driver remain open; step 1.2 stays [A].
+
+D38 adds an offline sentinel for saved term, peers and nonempty snapshot/log
+content in every observed Raft group before an owned member can be repaired
+by its peers. Three new source-side damage controls refuse; the eight-mode
+negative suite and stable-source 208-test Mac recovery suite pass. The
+bounded fixture still does not prove every production Raft log byte or
+retained message. Exact-head CI/review, the protected writer and publication
+boundary, production cold masters, the full-node driver and live resumption
+remain open at 1.2[A]/v1.2-pre; `seal()` stays disabled.

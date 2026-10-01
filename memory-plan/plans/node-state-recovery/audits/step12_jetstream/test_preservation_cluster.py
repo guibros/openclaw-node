@@ -46,12 +46,14 @@ class Cluster(unittest.TestCase):
                      'negative-control child runs only the restore test')
     def test_missing_local_history_cannot_be_healed_into_a_valid_candidate(self):
         for mode in ('empty-1', 'empty-0-2', 'missing-1', 'missing-group-1',
-                     'missing-consumer-1'):
+                     'missing-consumer-1', 'empty-raft-1', 'no-raft-log-1',
+                     'no-raft-term-1'):
             with self.subTest(mode=mode):
                 member = 0 if mode == 'empty-0-2' else 1
-                stage = (f'isolated member {member} raft groups differ'
-                         if mode == 'missing-group-1' else
-                         f'isolated member {member} stream state differs')
+                stage = (f'isolated member {member} raft groups differ' if mode == 'missing-group-1'
+                         else f'isolated member {member} raft group content differs'
+                         if mode in ('empty-raft-1', 'no-raft-log-1', 'no-raft-term-1')
+                         else f'isolated member {member} stream state differs')
                 self.corrupt_and_check(mode, stage)
 
     def isolated_member_state(self, root, index, candidate_root, before, raft_reference, binary,
@@ -60,6 +62,18 @@ class Cluster(unittest.TestCase):
         stored_groups = set(os.listdir(candidate_root / str(index) / 'jetstream' / '$SYS' / '_js_'))
         self.assertEqual(stored_groups, expected_groups,
                          f'isolated member {index} raft groups differ from pre-stop state')
+        for entries in raft_reference['raft'].values():
+            for group, state in entries.items():
+                directory = candidate_root / str(index) / 'jetstream' / '$SYS' / '_js_' / group
+                tav = directory / 'tav.idx'
+                peers = directory / 'peers.idx'
+                self.assertTrue(tav.is_file() and tav.stat().st_size >= 8 and
+                                int.from_bytes(tav.read_bytes()[:8], 'little') >= state['term'] and
+                                peers.is_file() and peers.stat().st_size > 0 and
+                                any(path.is_file() and path.stat().st_size > 0 for path in
+                                    list((directory / 'snapshots').glob('snap.*')) +
+                                    list((directory / 'msgs').glob('*.blk'))),
+                                f'isolated member {index} raft group content differs from pre-stop state')
         working = root / f'isolated-{index}'
         shutil.copytree(candidate_root / str(index), working)
         held = []
@@ -177,11 +191,20 @@ cluster {{ name: owned-preservation
 let nc,stage='connect';
 (async()=>{
  nc=await connect({servers:process.env.OWNED_URL,token:process.env.OWNED_TOKEN,reconnect:false,name:'owned-raft-control'});
- stage='account-info';const jm=await nc.jetstreamManager();
+ stage='account-info';const jm=await nc.jetstreamManager({timeout:10000});
  if(process.env.OWNED_ACTION==='ready')await jm.getAccountInfo();
  else if(process.env.OWNED_ACTION==='create'){
   stage='stream-add';
-  await jm.streams.add({name:'HISTORY',subjects:['history'],storage:'file',num_replicas:3});
+  try{
+   await jm.streams.add({name:'HISTORY',subjects:['history'],storage:'file',num_replicas:3});
+  }catch(error){
+   if(error.code!=='TIMEOUT')throw error;
+   stage='stream-add-readback';
+   const info=await jm.streams.info('HISTORY');
+   const config=info.config;
+   if(config.name!=='HISTORY'||config.storage!=='file'||config.num_replicas!==3||
+      config.subjects.length!==1||config.subjects[0]!=='history')throw Error('owned stream create timed out without matching committed config');
+  }
   stage='stream-readiness';
   const deadline=Date.now()+5000;
   while(true){
@@ -241,7 +264,7 @@ let nc,stage='connect';
             result = subprocess.run([node, str(script)], env={**os.environ, 'OWNED_NATS_MODULE': module,
                 'OWNED_URL': f'nats://127.0.0.1:{port or ports[0]}', 'OWNED_TOKEN': token,
                 'OWNED_ACTION': action, 'OWNED_PREFERRED': preferred or ''},
-                capture_output=True, text=True, timeout=15)
+                capture_output=True, text=True, timeout=30)
             if result.returncode and startup:
                 error = json.loads(result.stderr)
                 if (error.get('stage') == 'account-info' and error.get('code') == '503'
@@ -400,6 +423,17 @@ let nc,stage='connect';
             shutil.rmtree(root/'store-1'/'jetstream'/'$SYS'/'_js_'/group)
         elif corruption == 'missing-consumer-1':
             shutil.rmtree(root/'store-1'/'jetstream'/'$G'/'streams'/'HISTORY'/'obs'/'stable')
+        elif corruption in ('empty-raft-1', 'no-raft-log-1', 'no-raft-term-1'):
+            group = next(group for group in before[1]['raft']['$G'] if group.startswith('S-'))
+            directory = root/'store-1'/'jetstream'/'$SYS'/'_js_'/group
+            if corruption == 'empty-raft-1':
+                shutil.rmtree(directory)
+                directory.mkdir()
+            elif corruption == 'no-raft-log-1':
+                shutil.rmtree(directory/'msgs')
+                shutil.rmtree(directory/'snapshots')
+            else:
+                (directory/'tav.idx').unlink()
         candidate = copy_candidate({str(i): root/f'store-{i}' for i in range(3)}, root/'candidate')
         verified = verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
         self.assertEqual(verified['manifest_sha256'], candidate['manifest_sha256'])
