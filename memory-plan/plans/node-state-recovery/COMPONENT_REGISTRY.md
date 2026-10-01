@@ -249,3 +249,8 @@ a lagging before-reference. The predicate and real capture path are
 unchanged. Exact `75149d1` CI passed 3/3; the expanded Mac cluster module
 passes 6/6 in 270.827 seconds with normal cleanup. Exact D45 CI/review
 remain pending; production writer custody and cold masters are still open.
+
+2026-10-01 12:00 EDT — D46 adds three deterministic rows for absent
+leadership, persisted-ahead state and an unexpected Raft group. The actual
+capture predicate is unchanged. The focused unit passes; the prior complete
+Mac module passed 6/6. Exact new CI/review remain pending.

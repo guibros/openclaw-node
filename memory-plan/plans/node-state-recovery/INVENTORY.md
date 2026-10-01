@@ -376,3 +376,9 @@ leader, term and index disagreements, absent groups, unchanged leadership
 and the maximum pre-stepdown index. The owned Mac module passed 6/6 in
 270.827 seconds with normal cleanup. Exact D45 CI/review remain pending;
 step 1.2 remains `[A]` at `v1.2-pre`.
+
+D46 checkpoint, 2026-10-01 12:00 EDT: three additional deterministic
+refusals close the remaining non-equivalent predicate mutants found by
+Claude. The focused unit passes. The live predicate and capture loop are
+unchanged; prior full Mac module passed 6/6. Exact new CI/review are
+pending, and step 1.2 remains `[A]` at `v1.2-pre`.

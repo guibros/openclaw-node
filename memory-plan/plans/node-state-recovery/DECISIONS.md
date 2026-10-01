@@ -1004,3 +1004,14 @@ predicate and real capture loop are unchanged. The expanded owned Mac
 cluster module passed 6/6 in 270.827 seconds with normal scratch cleanup.
 Exact new CI and adversarial review remain pending. These tests do not
 change the owned-reference scope or enable full-node `seal()`.
+
+## D46 — Close the last deterministic predicate mutation gaps (2026-10-01 12:00 EDT)
+
+Claude's exact `6a3fd96` mutation run found three surviving test mutants:
+the nonempty-leader check, a persisted index ahead of committed, and an
+extra `$G` group. The actual predicate refused all three states. Add one
+deterministic row per state; the focused unit passes. Claude's scratch
+augmentation killed all 11 tested mutants while the unmodified predicate
+still passed. The production-facing predicate and owned capture loop remain
+unchanged. The previous expanded Mac module passed 6/6; exact new CI and
+review are pending. Step 1.2 and full-node `seal()` remain open.

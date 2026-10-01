@@ -1381,3 +1381,15 @@ one-second capture loop did not change. The final owned Mac cluster module
 passed 6/6 in 270.827 seconds; scratch cleanup reported no failures.
 Exact D45 CI and Claude review remain pending. No production NATS process,
 store, job, volume or journal changed; full-node `seal()` remains disabled.
+
+## D46 remaining mutation rows — 2026-10-01 12:00 EDT
+
+Claude's exact `6a3fd96` mutation run found three surviving test mutants.
+The current predicate already refused the associated states: all three
+members reporting no leader after index advance, persisted index ahead
+of committed, and one member reporting an extra `$G` group. One row for
+each is now in the deterministic unit; the focused test passes. Claude's
+scratch copy of these rows killed all 11 mutants it tried. The last full
+owned Mac module on the unchanged capture path passed 6/6 in 270.827
+seconds. Exact new CI/review remain pending. This is still an owned
+reference, not a production cold-master certificate.

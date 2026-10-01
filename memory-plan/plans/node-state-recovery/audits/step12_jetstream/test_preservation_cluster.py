@@ -59,10 +59,14 @@ class Cluster(unittest.TestCase):
         self.assertFalse(post_stepdown_ready(before, elected_without_commit, 'S-owned'))
         leaderless = [report('old', 1, 2), report(None, 1, 2), report(None, 2, 2)]
         self.assertFalse(post_stepdown_ready(before, leaderless, 'S-owned'))
+        leaderless_after_advance = [report(None, 2, 4) for _ in range(3)]
+        self.assertFalse(post_stepdown_ready(before, leaderless_after_advance, 'S-owned'))
         unapplied = [report('new', 2, 4, applied=3) for _ in range(3)]
         self.assertFalse(post_stepdown_ready(before, unapplied, 'S-owned'))
         unpersisted = [report('new', 2, 4, persisted=3) for _ in range(3)]
         self.assertFalse(post_stepdown_ready(before, unpersisted, 'S-owned'))
+        persisted_ahead = [report('new', 2, 4, persisted=5) for _ in range(3)]
+        self.assertFalse(post_stepdown_ready(before, persisted_ahead, 'S-owned'))
         metadata_in_flight = [report('new', 2, 4, meta_applied=4) for _ in range(3)]
         self.assertFalse(post_stepdown_ready(before, metadata_in_flight, 'S-owned'))
         settled = [report('new', 2, 4) for _ in range(3)]
@@ -102,6 +106,10 @@ class Cluster(unittest.TestCase):
         missing_group = copy.deepcopy(settled)
         del missing_group[2]['raft']['$G']['C-owned']
         self.assertFalse(post_stepdown_ready(before, missing_group, 'S-owned'))
+        extra_group = copy.deepcopy(settled)
+        extra_group[2]['raft']['$G']['C-unexpected'] = copy.deepcopy(
+            extra_group[2]['raft']['$G']['C-owned'])
+        self.assertFalse(post_stepdown_ready(before, extra_group, 'S-owned'))
         missing_meta = copy.deepcopy(settled)
         del missing_meta[2]['raft']['$SYS']['_meta_']
         self.assertFalse(post_stepdown_ready(before, missing_meta, 'S-owned'))
