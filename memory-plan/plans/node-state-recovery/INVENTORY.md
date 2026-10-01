@@ -148,3 +148,20 @@ Checkpoint 2026-10-01 12:43 EDT: D26 defines the marker directory mode,
 pre-commit rollback removal order, and installer rechecks at NATS write
 boundaries. The future root migration must also exclude installers already in
 flight; the source rechecks alone are not a cross-process lock.
+
+Checkpoint 2026-10-01 12:55 EDT: D27 adds a system-domain NATS watcher path
+under the fixed handoff marker. This Mac's active labels are `nats`, `nats-2`,
+`nats-3`; historical `nats-1` must remain unloaded. A 0600 node-local cohort
+file records that layout; fresh installs create the singleton declaration,
+while missing declarations report UNKNOWN. The future root marker must pin
+its active cohort. GUI
+and user-domain known-label duplicates refuse. Owned tests cover both
+layouts, legacy/protected domains and invalid markers. A read-only live probe
+of the no-marker branch observed all five core PIDs with no loaded known
+duplicates. This does not exercise a protected system job. Claude's review of
+e9b17e6 found no source blocker within PID-liveness scope and identified the
+portable-layout correction. Claude's a96251c delta review then reproduced a
+missing-file false WORKING during partial bootout; the declaration is now
+mandatory, initialized only for fresh singleton installs. Focused owned tests
+pass; exact new CI and review are pending. Root
+migration and three healthy cold masters remain open at 1.2[A].

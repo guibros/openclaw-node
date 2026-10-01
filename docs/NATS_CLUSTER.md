@@ -50,6 +50,19 @@ done
 
 ### 3. Start the cluster
 
+For this `nats-1..3` layout, declare the watcher's expected service cohort:
+
+```bash
+(umask 077; cat > "$HOME/.openclaw/config/nats-writer-cohort.json" <<'JSON'
+{"schema":1,"activeLabels":["ai.openclaw.nats-1","ai.openclaw.nats-2","ai.openclaw.nats-3"]}
+JSON
+)
+chmod 600 "$HOME/.openclaw/config/nats-writer-cohort.json"
+```
+
+Preserve any existing standalone history and retire its writer before using
+this cluster layout; the cohort declaration only changes monitoring.
+
 ```bash
 # Load all three (order doesn't matter — NATS auto-discovers routes)
 for n in 1 2 3; do
@@ -83,6 +96,12 @@ for r in routes:
 ```
 
 ### 5. Stop the cluster
+
+Stopping temporarily leaves the cohort declaration in place, so the watcher
+reports the absent members as BROKEN. If restoring the single-node bus after
+preserving cluster history, replace the declaration with
+`{"schema":1,"activeLabels":["ai.openclaw.nats"]}` before expecting a
+single-node WORKING verdict.
 
 ```bash
 for n in 1 2 3; do

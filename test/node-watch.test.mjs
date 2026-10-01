@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {
   WATCH_TARGETS, runWatch, formatHtml, STATUS,
-  parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway,
+  parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway, probeCoreLaunchdServices,
 } from '../lib/node-watch.mjs';
 import { resolveNodeConfig } from '../lib/node-acceptance.mjs';
 
@@ -74,6 +74,95 @@ describe('node-watch honesty invariants', () => {
     assert.equal(gradeRequiredServices([{ ...running, running: false, pid: null }]).status, STATUS.BROKEN);
     assert.equal(gradeRequiredServices([{ ...running, loaded: false, running: false, pid: null }]).status, STATUS.BROKEN);
     assert.equal(gradeRequiredServices([{ ...running, observable: false }]).status, STATUS.UNKNOWN);
+  });
+
+  it('reads the selected NATS cohort and refuses known jobs in other domains', async () => {
+    const calls = [];
+    let marker = true;
+    const local = ['ai.openclaw.nats', 'ai.openclaw.nats-2', 'ai.openclaw.nats-3'];
+    const documented = ['ai.openclaw.nats-1', 'ai.openclaw.nats-2', 'ai.openclaw.nats-3'];
+    const loaded = { gui: new Set(), user: new Set(), system: new Set(local) };
+    let markerContent = JSON.stringify({ schema: 1, kind: 'openclaw-nats-writer-handoff', activeLabels: local });
+    let cohortContent = null;
+    let markerUid = 0;
+    const ctx = makeCtx({
+      fsp: { lstat: async () => {
+        if (!marker) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+        return { isFile: () => true, isSymbolicLink: () => false, uid: markerUid, mode: 0o100644 };
+      }, readFile: async (name) => {
+        if (name.endsWith('nats-writer-cohort.json')) {
+          if (cohortContent == null) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+          return cohortContent;
+        }
+        return markerContent;
+      } },
+      exec: async (_bin, args) => {
+        const name = args[1];
+        calls.push(name);
+        const domain = name.split('/')[0];
+        const label = name.slice(name.lastIndexOf('/') + 1);
+        if (label.startsWith('ai.openclaw.nats') && !loaded[domain].has(label)) {
+          return { code: 113, stdout: '', stderr: 'Could not find service' };
+        }
+        return { code: 0, stdout: 'state = running\npid = 42\n', stderr: '' };
+      },
+    });
+    const protectedVerdict = await probeCoreLaunchdServices(ctx, { platform: 'darwin' });
+    assert.equal(protectedVerdict.status, STATUS.WORKING);
+    assert.match(protectedVerdict.evidence, /system\/ai\.openclaw\.nats:42/);
+    assert.ok(calls.includes('system/ai.openclaw.nats'));
+    markerContent = '{broken';
+    calls.length = 0;
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.UNKNOWN);
+    assert.equal(calls.length, 0);
+    markerContent = JSON.stringify({ schema: 1, kind: 'openclaw-nats-writer-handoff', activeLabels: local });
+    markerUid = 501;
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.UNKNOWN);
+    markerUid = 0;
+    loaded.gui.add(local[0]);
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
+    loaded.gui.clear();
+    loaded.user.add(local[0]);
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
+    loaded.user.clear();
+    loaded.system.add('ai.openclaw.nats-1');
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
+    loaded.system.delete('ai.openclaw.nats-1');
+    marker = false;
+    loaded.system.clear();
+    for (const label of local) loaded.gui.add(label);
+    cohortContent = JSON.stringify({ schema: 1, activeLabels: local });
+    calls.length = 0;
+    const legacyVerdict = await probeCoreLaunchdServices(ctx, { platform: 'darwin' });
+    assert.equal(legacyVerdict.status, STATUS.WORKING);
+    assert.ok(calls.includes(`gui/${process.getuid()}/ai.openclaw.nats`));
+    assert.ok(calls.includes(`user/${process.getuid()}/ai.openclaw.nats`));
+    assert.ok(calls.includes('system/ai.openclaw.nats'));
+    loaded.system.add(local[0]);
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
+    loaded.system.clear();
+    cohortContent = null;
+    loaded.gui.clear();
+    loaded.gui.add('ai.openclaw.nats');
+    calls.length = 0;
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.UNKNOWN);
+    assert.equal(calls.length, 0);
+    cohortContent = JSON.stringify({ schema: 1, activeLabels: ['ai.openclaw.nats'] });
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.WORKING);
+    cohortContent = JSON.stringify({ schema: 1, activeLabels: documented });
+    loaded.gui.clear();
+    for (const label of documented) loaded.gui.add(label);
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.WORKING);
+    cohortContent = '{broken';
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.UNKNOWN);
+  });
+
+  it('does not claim core services healthy when handoff state cannot be read', async () => {
+    const ctx = makeCtx({ fsp: { lstat: async () => { throw Object.assign(new Error('denied'), { code: 'EACCES' }); } },
+      exec: async () => { throw new Error('must not probe jobs'); } });
+    const verdict = await probeCoreLaunchdServices(ctx, { platform: 'darwin' });
+    assert.equal(verdict.status, STATUS.UNKNOWN);
+    assert.match(verdict.detail, /EACCES/);
   });
 
   it('an old gateway JSONL cannot earn WORKING even when the service has a PID', () => {
