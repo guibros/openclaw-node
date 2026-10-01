@@ -114,7 +114,8 @@ class RootJournalTest(unittest.TestCase):
 
     def test_lock_path_cannot_publish_the_marker(self):
         for target in (self.site / 'writer-handoff.json',
-                       self.site / '..' / self.site.name / 'writer-handoff.json'):
+                       self.site / '..' / self.site.name / 'writer-handoff.json',
+                       Path(str(self.site).upper()) / 'writer-handoff.json'):
             with self.subTest(target=target), self.assertRaisesRegex(
                     module.Refused, 'inside the protected handoff site'):
                 module.LockBootstrapJournal.begin(self.site, target, self.uid, self.gid,
@@ -123,7 +124,8 @@ class RootJournalTest(unittest.TestCase):
         self.assertFalse((self.site / 'writer-handoff.json').exists())
 
     def test_production_lock_requires_lifecycle_recovery(self):
-        for target in (module.LOCK, module.LOCK.parent / 'unused' / '..' / module.LOCK.name):
+        for target in (module.LOCK, module.LOCK.parent / 'unused' / '..' / module.LOCK.name,
+                       Path('/PRIVATE/var/db/openclaw-nats-writer.lock')):
             with self.subTest(target=target), self.assertRaisesRegex(
                     module.Refused, 'awaits lifecycle recovery'):
                 module.LockBootstrapJournal.begin(self.site, target, self.uid, self.gid,

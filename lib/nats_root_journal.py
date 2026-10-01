@@ -38,9 +38,11 @@ def directory(path, uid, gid, mode):
 def bootstrap_target(site, lock_path):
     target = pathlib.Path(lock_path).resolve(strict=False)
     site_path = pathlib.Path(site).resolve(strict=True)
-    if target == site_path or site_path in target.parents:
+    target_name = str(target).casefold()
+    site_name = str(site_path).casefold()
+    if target_name == site_name or target_name.startswith(site_name + os.sep):
         raise Refused('root writer lock cannot be inside the protected handoff site')
-    if target == LOCK.resolve(strict=False):
+    if target_name == str(LOCK.resolve(strict=False)).casefold():
         raise Refused('production root writer bootstrap awaits lifecycle recovery')
     return target
 
