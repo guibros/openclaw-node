@@ -722,6 +722,8 @@ honor D40. No live lock file or marker is created by this change.
 The root transaction must durably record one lock-create intent under its
 protected site before creating the D40 lock file. The intent binds a
 transaction UUID, boot identity, user-transfer digest and admission digest.
+It also binds the exact protected site, shared lock path and expected owner;
+reentry with a different path cannot receipt an unrelated lock.
 Only then may explicit creation run. The pinned root driver must perform a
 process census before creation, including unlinked-file holders, then repeat
 it and re-observe the same admission under exclusive lock before writing a
@@ -729,10 +731,15 @@ lock-created receipt with the inode and change time. Linux can reuse an inode
 immediately after deletion, so the durable receipt requires both values. The
 in-process descriptor/path identity also checks device; the durable receipt
 does not pin a transient device number across reboot. Any metadata change
-after the receipt refuses and requires an operator review. A crash in the creation gap reopens the same
-intent and repeats the admission and both census checks; it cannot start a
-second journal. A marker
-already present routes to the later full recovery path, never this bootstrap.
+after the receipt refuses and requires an operator review. A process exit
+after a durable intent and before a later record write can reopen that intent
+and repeat the admission and census checks; it cannot start a second journal.
+A marker already present routes to
+the later full recovery path, never this bootstrap.
 The source journal stores digests, not the private transfer or cold-master
-contents. It is not a full migration driver: the production callbacks, marker,
-retirement, protected bootstrap and live acceptance remain unimplemented.
+contents. Claude's exact-head review found that a deleted lock could be
+recreated before the receipt, pending journal files can strand reentry, and
+reboot has no terminal abandonment or successor transaction. The production
+driver must not use this source primitive until those lifecycle branches,
+a root-verified census and transfer, marker, retirement, protected bootstrap
+and live acceptance are implemented and tested.

@@ -66,6 +66,16 @@ class RootJournalTest(unittest.TestCase):
         self.assertFalse(self.lock.exists())
         self.assertEqual(len(journal.records), 1)
 
+    def test_reentry_refuses_another_lock_path(self):
+        journal = self.begin()
+        wrong = self.base / 'unrelated.lock'
+        with self.assertRaisesRegex(module.Refused, 'lock path differs'):
+            journal.acquire_after_intent(wrong, lambda: self.observation,
+                                         lambda: {'verified': True})
+        self.assertFalse(self.lock.exists())
+        self.assertFalse(wrong.exists())
+        self.assertEqual(len(journal.records), 1)
+
     def test_census_failure_reopens_same_intent(self):
         self.begin()
         reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)

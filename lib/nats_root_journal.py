@@ -45,7 +45,12 @@ def record_file(path, uid, gid):
 
 def valid_descriptor(descriptor):
     if (not isinstance(descriptor, dict) or set(descriptor) !=
-            {'transaction', 'user_transfer_sha256', 'admission_sha256', 'boot'}
+            {'transaction', 'user_transfer_sha256', 'admission_sha256', 'boot',
+             'site', 'lock_path', 'uid', 'gid'}
+            or not isinstance(descriptor['site'], str) or not pathlib.Path(descriptor['site']).is_absolute()
+            or not isinstance(descriptor['lock_path'], str) or not pathlib.Path(descriptor['lock_path']).is_absolute()
+            or not isinstance(descriptor['uid'], int) or descriptor['uid'] < 0
+            or not isinstance(descriptor['gid'], int) or descriptor['gid'] < 0
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['user_transfer_sha256']))
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['admission_sha256']))
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['boot']))):
@@ -56,7 +61,7 @@ def valid_descriptor(descriptor):
         raise Refused('root writer lock transaction is invalid') from error
 
 
-def descriptor_from_observation(transaction, observation):
+def descriptor_from_observation(transaction, observation, site, lock_path, uid, gid):
     if (not isinstance(observation, dict) or set(observation) != {'boot', 'user_transfer', 'admission'}
             or not isinstance(observation['user_transfer'], dict)
             or not isinstance(observation['admission'], dict)
@@ -65,6 +70,9 @@ def descriptor_from_observation(transaction, observation):
             or observation['admission'].get('verified') is not True):
         raise Refused('root writer lock admission observation is incomplete')
     descriptor = {'transaction': transaction, 'boot': observation['boot'],
+                  'site': str(pathlib.Path(site).absolute()),
+                  'lock_path': str(pathlib.Path(lock_path).absolute()),
+                  'uid': uid, 'gid': gid,
                   'user_transfer_sha256': digest(observation['user_transfer']),
                   'admission_sha256': digest(observation['admission'])}
     valid_descriptor(descriptor)
@@ -86,6 +94,9 @@ class LockBootstrapJournal:
         if len(self.records) > 2 or (len(self.records) == 2 and self.records[1]['event'] != 'lock-created'):
             raise Refused('root writer lock journal has an unknown state')
         valid_descriptor(self.records[0]['data'].get('descriptor'))
+        saved = self.records[0]['data']['descriptor']
+        if (saved['site'], saved['uid'], saved['gid']) != (str(self.site.absolute()), uid, gid):
+            raise Refused('root writer lock intent identity differs')
         if len(self.records) == 2:
             data = self.records[1]['data']
             if (set(data) != {'inode', 'ctime_ns', 'census_sha256'}
@@ -103,7 +114,7 @@ class LockBootstrapJournal:
             raise Refused('root writer lock exists without a transaction intent')
         if present(site / 'writer-handoff.json'):
             raise Refused('root writer handoff is already published')
-        descriptor = descriptor_from_observation(transaction, observation)
+        descriptor = descriptor_from_observation(transaction, observation, site, lock_path, uid, gid)
         root = site / 'journal'
         root.mkdir(mode=0o700)
         sync_dir(site)
@@ -161,7 +172,10 @@ class LockBootstrapJournal:
         if present(self.site / 'writer-handoff.json'):
             raise Refused('root writer handoff needs the full recovery journal')
         saved = self.records[0]['data']['descriptor']
-        if descriptor_from_observation(saved['transaction'], observe_admission()) != saved:
+        if str(pathlib.Path(lock_path).absolute()) != saved['lock_path']:
+            raise Refused('root writer lock path differs from intent')
+        if descriptor_from_observation(saved['transaction'], observe_admission(),
+                                       self.site, lock_path, self.uid, self.gid) != saved:
             raise Refused('root lock admission changed')
         if len(self.records) == 1:
             before = process_census()
@@ -178,7 +192,8 @@ class LockBootstrapJournal:
             evidence = process_census()
             if not isinstance(evidence, dict) or evidence.get('verified') is not True:
                 raise Refused('old writer process census is not verified')
-            if descriptor_from_observation(saved['transaction'], observe_admission()) != saved:
+            if descriptor_from_observation(saved['transaction'], observe_admission(),
+                                           self.site, lock_path, self.uid, self.gid) != saved:
                 raise Refused('root lock admission changed under exclusion')
             lock.validate()
             if present(self.site / 'writer-handoff.json'):
