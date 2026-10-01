@@ -299,3 +299,25 @@ gated. This does not yet implement terminal abandonment, reboot successors,
 user-journal transfer, marker/rollback states, physical census or the
 protected NATS driver. No live root path or NATS process was changed; step
 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 17:44 EDT: after PR #179 merged, a new source-only
+branch adds a durable pre-marker `returned` outcome, a public readback receipt
+and successor transactions. A successor inherits the same lock inode, nonce
+and change time; once `lock-staged` was recorded, return relinks the recorded
+inode instead of dropping its last name. Intent-only unpublished stage may be
+discarded. Returning takes exclusive exclusion, so a live shared holder
+refuses. Private Mac fixtures passed 49/49 across journal and root-lock tests,
+including marker refusal, tampered outcome, reboot return and repeated
+successors. The real macOS-root path remains gated. Physical release/admission
+checks, durable user transfer, marker/rollback states, the protected driver,
+cold masters and live deployment remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 17:55 EDT: Claude's exact-head review of draft PR #180
+at 970ab8c confirmed same-inode relink and all four CI jobs, and found two
+fail-closed ledger wedges: a reused transaction ID, and an empty intent-only
+stage after interrupted creation. A local revision refuses reuse before
+append, permits only a one-link nonce-prefix unpublished stage to be removed,
+binds forward admission to the current boot, matches the user journal's boot
+hash format, and creates the public outcome directory at its fixed mode under
+a restrictive umask. Focused Mac tests pass 59/59. The revision needs a new
+exact-head CI and Claude review; live state is unchanged and 1.2 remains [A].
