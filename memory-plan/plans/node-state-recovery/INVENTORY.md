@@ -216,3 +216,9 @@ metadata before the audit can label a fully routed graph a three-member
 cluster. The saved evidence is now a reproducible CLI projection with a
 hashed unresolved peer ID. The live split topology is unchanged; this is
 read-only observation, not a cold-master or cutover acceptance.
+
+Checkpoint 2026-10-01 14:25 EDT: D36 closes two more protected-account
+false-ready cases: an operator whose primary or supplemental group is the
+service GID, and GUID-only `GroupMembers` membership. The live account and
+protected root remain absent; no writer cutover occurred. Exact source review
+and CI are pending at this checkpoint.

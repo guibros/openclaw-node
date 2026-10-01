@@ -625,3 +625,14 @@ offline peers. NATS currently labels the held replica with an unresolved peer
 ID instead of a server name; public evidence retains a SHA-256 digest of that
 ID, not the raw value. The held store still requires independent identity and
 history pinning before migration.
+
+## D36 — Exclude operator access through the protected primary group (2026-10-01 14:25 EDT)
+
+An empty `GroupMembership` attribute does not prove the dedicated GID is
+private. macOS can record a member by GUID in `GroupMembers`, and a user's
+primary group need not appear as an explicit group member. The protected-site
+audit now refuses all three membership attributes (`GroupMembership`,
+`GroupMembers`, `NestedGroups`) and compares the service GID against every
+effective group of the invoking operator, resolved by UID even under sudo.
+This is a staging identity check, not proof that protected credentials or a
+root migration have been installed.

@@ -39,7 +39,7 @@ async function identity(path) {
   }
 }
 
-async function account() {
+async function account(operator) {
   let uid;
   try {
     uid = await run('/usr/bin/id', ['-u', '_openclaw_nats']);
@@ -47,12 +47,13 @@ async function account() {
     if (error.code === 1) return null;
     throw error;
   }
-  const [gid, groupName, groups, record, groupRecord, admin] = await Promise.all([
+  const [gid, groupName, groups, operatorGroups, record, groupRecord, admin] = await Promise.all([
     run('/usr/bin/id', ['-g', '_openclaw_nats']),
     run('/usr/bin/id', ['-gn', '_openclaw_nats']),
     run('/usr/bin/id', ['-G', '_openclaw_nats']),
+    run('/usr/bin/id', ['-G', String(operator)]),
     run('/usr/bin/dscl', ['.', '-read', '/Users/_openclaw_nats', 'UniqueID', 'PrimaryGroupID', 'UserShell', 'NFSHomeDirectory']),
-    run('/usr/bin/dscl', ['.', '-read', '/Groups/_openclaw_nats', 'PrimaryGroupID', 'GroupMembership', 'NestedGroups']),
+    run('/usr/bin/dscl', ['.', '-read', '/Groups/_openclaw_nats', 'PrimaryGroupID', 'GroupMembership', 'GroupMembers', 'NestedGroups']),
     run('/usr/sbin/dseditgroup', ['-o', 'checkmember', '-m', '_openclaw_nats', 'admin'])
       .catch((error) => {
         if (error.code !== 67) throw error;
@@ -68,6 +69,7 @@ async function account() {
   return {
     uid: uidValue, gid: gidValue,
     groupName: groupName.stdout.trim(), groups: groups.stdout.trim().split(/\s+/).map(Number),
+    operatorGroups: operatorGroups.stdout.trim().split(/\s+/).map(Number),
     shell: recordField(record.stdout, 'UserShell'), home: recordField(record.stdout, 'NFSHomeDirectory'),
     adminMember: parseAdminMembership(admin.stdout),
     uniqueUserRecord: uniqueDsclRecord(userSearch.stdout, 'UniqueID', '_openclaw_nats'),
@@ -89,11 +91,12 @@ async function volume() {
 
 async function main() {
   if (process.platform !== 'darwin') throw new Error('protected site audit requires macOS');
+  const operator = operatorUid();
   const [serviceAccount, privateRoot, varRoot, dbRoot, root, marker, filesystem] = await Promise.all([
-    account(), identity('/private'), identity('/private/var'), identity('/private/var/db'),
+    account(operator), identity('/private'), identity('/private/var'), identity('/private/var/db'),
     identity(SITE_ROOT), identity(HANDOFF_MARKER), volume(),
   ]);
-  const report = evaluateProtectedSite({ account: serviceAccount, operatorUid: operatorUid(),
+  const report = evaluateProtectedSite({ account: serviceAccount, operatorUid: operator,
     ancestors: [privateRoot, varRoot, dbRoot], root,
     marker: marker ? 'present' : 'absent', volume: filesystem });
   process.stdout.write(`${JSON.stringify({ observedAt: new Date().toISOString(), ...report }, null, 2)}\n`);

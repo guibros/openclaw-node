@@ -7,7 +7,7 @@ const staged = {
   account: { uid: 400, gid: 400, recordUid: 400, recordGid: 400, groupRecordGid: 400,
     groupName: '_openclaw_nats', groups: [400], shell: '/usr/bin/false',
     home: '/var/empty', adminMember: false, uniqueUserRecord: true,
-    uniqueGroupRecord: true, groupMembersEmpty: true },
+    uniqueGroupRecord: true, groupMembersEmpty: true, operatorGroups: [20, 80] },
   operatorUid: 501,
   ancestors: Array.from({ length: 3 }, () => ({ isDirectory: true, uid: 0, gid: 0, mode: 0o40755,
     device: 7, aclEntries: false })),
@@ -50,6 +50,7 @@ describe('protected NATS site audit', () => {
       { uniqueUserRecord: false },
       { uniqueGroupRecord: false },
       { groupMembersEmpty: false },
+      { operatorGroups: [20, 400] },
       { shell: '/bin/zsh' },
       { home: '/Users/shared' },
       { recordUid: 401 },
@@ -100,6 +101,7 @@ describe('protected NATS site audit', () => {
     assert.equal(uniqueDsclRecord(group, 'PrimaryGroupID', '_openclaw_nats'), true);
     assert.equal(groupHasMembers('No such key: NestedGroups\nPrimaryGroupID: 400\n'), false);
     assert.equal(groupHasMembers('GroupMembership: moltymac\nPrimaryGroupID: 400\n'), true);
+    assert.equal(groupHasMembers('GroupMembers: 12345678-1234-1234-1234-123456789012\n'), true);
     assert.equal(groupHasMembers('NestedGroups: ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C\n'), true);
   });
 });
