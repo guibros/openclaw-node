@@ -346,3 +346,17 @@ normal cleanup, followed by five more healthy replays; `35f8a8a` CI passed
 in that preceding head. Exact D42 CI/review, protected production custody,
 peer/vote validation, three healthy live cold masters, detached orchestration
 and verified resumption remain open. Step 1.2 is still `[A]` at `v1.2-pre`.
+
+D43 correction, 2026-10-01 11:07 EDT: retained Mac evidence shows D42 could
+accept equal pre-election stream indexes while no new leader existed. The
+owned post-stepdown capture now requires the elected leader, equal
+committed/applied/persisted indexes in `$G` and `$SYS/_meta_`, and an advance
+to settle for one second. The latent damage control requires its actual
+replay-log warning.
+Six corrected healthy Mac replays capture and
+independently reach stream index `4` on each member, rather than accepting
+the old index `2`. The final exact-source cluster module passed 5/5 in
+271.532 seconds with normal cleanup. This only establishes the captured
+owned reference; exact CI and adversarial review remain pending. The
+protected production writer, three cold masters, peer/vote validation and
+verified resumption remain open at 1.2 `[A]`/`v1.2-pre`.

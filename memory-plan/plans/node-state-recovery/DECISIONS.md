@@ -930,3 +930,40 @@ Exact new CI and adversarial review of this correction
 remain pending. Peer/vote metadata validity, unobserved tails, protected
 live custody, three production cold masters and coordinated resumption
 remain open; step 1.2 and full-node `seal()` do not advance.
+
+## D43 — Require an elected, advanced stream state after stepdown (2026-10-01 11:07 EDT)
+
+D42's equality check was too early on macOS. In six retained healthy owned
+runs, its `after` stream-group committed/applied indexes were still `2/2` on
+all three members, equal to `before`. One retained observation had no stream
+leader on two members and mixed terms. After normal shutdown, independent
+member replay reached `3/3/3`, `5/5/3`, or `5/5/4` across the three members.
+The equality check therefore did not establish that the new leader's entries
+had reached every member; D42's claim that the replay threshold equaled the
+post-election cluster point was too strong.
+
+The owned fixture now requires all `$G` groups and `$SYS/_meta_` to report
+the same nonempty leader, term, committed, applied and persisted indexes
+across all members, with all three indexes equal on each member. The one
+owned stream group must
+have a leader different from its pre-stepdown leader and a committed index
+beyond the maximum pre-stepdown committed index. The
+entire Raft state must then remain identical for one second within the bounded
+five-second deadline. A transient capture refusal resets the stability watch;
+failure records the last observation and refuses before stopping or copying.
+The latent junk-snapshot parent control now requires the specific member-1
+`Snapshot corrupt` replay-log warning; a numeric shortfall alone cannot
+conceal a broken damage-log check. The hollow-WAL control still requires its
+numeric stream-group shortfall.
+This is a fixture-specific post-election reference, not a general production
+quiet-window algorithm. In the first six corrected healthy Mac runs, the
+captured stream group advanced from `2/2` to `4/4` on each of the three
+members, and each isolated member replay reached at least that captured
+index. All owned servers exited normally. After the metadata and strict
+damage-control refinements, the exact-source owned cluster module passed
+5/5 in 271.532 seconds with normal cleanup. Exact CI and adversarial review
+of this new head remain pending. Entries created
+after capture but before shutdown are outside that reference; protected live
+custody, peer/vote validity, unobserved tails, three production cold masters
+and coordinated resumption remain open. Step 1.2 stays `[A]` at `v1.2-pre`;
+full-node `seal()` remains disabled.

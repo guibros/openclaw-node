@@ -31,13 +31,8 @@ class Cluster(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(stage, result.stderr)
         if mode == 'latent-junk-raft-snapshot-1':
-            if 'Raft replay logged damage' in result.stderr:
-                self.assertIn('Snapshot corrupt', result.stderr)
-            else:
-                self.assertIn('isolated member 1 Raft replay did not reach committed index',
-                              result.stderr)
-                self.assertRegex(result.stderr,
-                                 r"\('\$G', 'S-[^']+', [0-9]+, [1-9][0-9]*\)")
+            self.assertIn('Raft replay logged damage', result.stderr)
+            self.assertIn('Snapshot corrupt', result.stderr)
         if mode == 'latent-hollow-raft-wal-1':
             self.assertRegex(result.stderr,
                              r"\('\$G', 'S-[^']+', [0-9]+, [1-9][0-9]*\)")
@@ -544,28 +539,59 @@ let nc,stage='connect';
             client('stepdown')
             deadline = time.monotonic() + 5
             after = None
+            previous = None
+            stable_since = None
+            group_names = set(before[0]['raft']['$G'])
+            stream_groups = {name for name in group_names if name.startswith('S-')}
+            self.assertEqual(len(stream_groups), 1)
             while time.monotonic() < deadline:
                 try:
                     after = [capture(ports[i*3+1]) for i in range(3)]
                 except Refused:
+                    previous = None
+                    stable_since = None
                     time.sleep(.05)
                     continue
-                group_names = set(before[0]['raft']['$G'])
-                changed = all(report['raft']['$G'] != before[i]['raft']['$G']
-                              for i, report in enumerate(after))
                 converged = (all(set(report['raft']['$G']) == group_names for report in after)
-                             and all(len({(report['raft']['$G'][name]['committed'],
-                                           report['raft']['$G'][name]['applied'])
+                             and all(len({(report['raft']['$G'][name]['leader'],
+                                           report['raft']['$G'][name]['term'],
+                                           report['raft']['$G'][name]['committed'],
+                                           report['raft']['$G'][name]['applied'],
+                                           report['raft']['$G'][name]['pindex'])
                                           for report in after}) == 1
+                                     and all(report['raft']['$G'][name]['leader']
+                                             for report in after)
                                      and all(report['raft']['$G'][name]['committed'] ==
-                                             report['raft']['$G'][name]['applied']
+                                             report['raft']['$G'][name]['applied'] ==
+                                             report['raft']['$G'][name]['pindex']
                                              for report in after)
                                      for name in group_names))
-                if changed and converged:
-                    break
+                meta = [report['raft'].get('$SYS', {}).get('_meta_') for report in after]
+                meta_converged = (all(meta)
+                                  and len({(node['leader'], node['term'], node['committed'],
+                                            node['applied'], node['pindex']) for node in meta}) == 1
+                                  and all(node['leader'] and node['committed'] ==
+                                          node['applied'] == node['pindex'] for node in meta))
+                elected = (converged and all(
+                    after[0]['raft']['$G'][name]['leader'] != before[0]['raft']['$G'][name]['leader']
+                    and after[0]['raft']['$G'][name]['committed'] >
+                    max(report['raft']['$G'][name]['committed'] for report in before)
+                    for name in stream_groups))
+                state = [report['raft'] for report in after]
+                if elected and meta_converged and state == previous:
+                    if stable_since is None:
+                        stable_since = time.monotonic()
+                    if time.monotonic() - stable_since >= 1:
+                        break
+                else:
+                    stable_since = None
+                previous = state
                 time.sleep(.05)
             else:
-                self.fail(f'owned stream election did not converge after stepdown: {after}')
+                (root/'post-stepdown-refused.json').write_text(json.dumps({
+                    'before': before, 'last_observation': after
+                }, indent=2))
+                self.fail('owned stream election did not advance and settle after stepdown')
             self.assertEqual(after[0]['raft']['$SYS'], before[0]['raft']['$SYS'])
             changed = copy.deepcopy(before[0]); changed['raft'] = after[0]['raft']
             with self.assertRaisesRegex(Refused, 'Raft state changed'):

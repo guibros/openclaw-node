@@ -219,3 +219,17 @@ with normal scratch cleanup, followed by five more healthy replays. Exact
 D42 CI/review remain pending. The
 dedicated protected NATS writer, live baseline and three production cold
 masters remain unimplemented; 1.2 stays `[A]` and full-node `seal()` refuses.
+
+2026-10-01 11:07 EDT — D43 corrects D42's post-stepdown reference. Six
+retained Mac runs showed that equal `2/2` stream indexes could be sampled
+before a new leader existed; their later independent replay indexes diverged.
+The owned check now requires an agreed elected leader, equal
+committed/applied/persisted indexes across `$G` and `$SYS/_meta_`, a stream
+index advance beyond the pre-stepdown maximum, and one second of stable
+Raft state. The latent junk-snapshot parent now requires the specific
+`Snapshot corrupt` replay warning. Six
+corrected healthy runs captured `4/4` on all three members and replayed at
+least that captured index independently, with normal scratch cleanup. This
+only validates the owned captured point. The final exact-source cluster
+module passed 5/5 in 271.532 seconds with normal cleanup. Exact CI and
+review remain pending; production custody and cold-master gates remain open.

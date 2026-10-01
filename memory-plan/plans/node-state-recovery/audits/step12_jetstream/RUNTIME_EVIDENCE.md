@@ -1304,3 +1304,46 @@ normally. Five further healthy owned replays passed in 21.3, 21.2, 20.4,
 journal changed.
 Exact D42 CI and independent review are pending. This remains owned-fixture
 evidence, not a protected production cold-master certificate.
+
+## D43 post-election capture correction — 2026-10-01 11:07 EDT
+
+Exact `b26abc2` CI passed all three jobs (run 36879933285), but retained Mac
+evidence invalidated its claimed post-election reference. Six healthy D42
+`group-evidence.json` files captured the stream group at committed/applied
+`2/2` on all members both before and after stepdown. One `after` observation
+had no leader on two members and mixed terms. After normal shutdown their
+isolated replay indexes included `[3,3,3]`, `[5,5,3]` and `[5,5,4]`: a
+later peer-assisted repair could supply entries omitted from the first
+member's D42 threshold.
+
+The D43 owned capture now requires an agreed nonempty leader and term for
+each `$G` group and `$SYS/_meta_`, with committed/applied/persisted indexes
+equal on each member; its stream leader must change and the committed index
+must exceed the pre-stepdown maximum. The entire Raft state must remain
+unchanged for one second within the five-second deadline. Six corrected
+healthy Mac runs passed in 22.7, 21.2, 20.9, 21.2, 20.7 and 23.8 seconds.
+Each captured `before=[2,2,2]`, `after=[4,4,4]` for the stream group, and
+each member's isolated replay reached at least the captured index. All
+scratch servers exited normally. The final exact-source cluster module passed
+5/5 in 271.532 seconds with normal cleanup; exact D43 CI/review remain
+pending. The reference still excludes entries written
+after capture and does not certify a production cold master. No live NATS
+process, store, job, volume or journal changed; `seal()` remains disabled.
+
+Claude's exact `b26abc2` review separately confirmed the Mac counterexample.
+Its scratch strict-capture prototype passed ten healthy Linux runs with
+stream index `4` and no replay below the captured threshold. It also found
+that the D42 latent junk-snapshot parent could accept a numeric shortfall
+without proving the log-damage warning. D43 now requires the specific
+`Snapshot corrupt` warning; this final refinement still awaits exact-source
+CI verification. The final exact-source owned cluster module passed 5/5 in
+271.532 seconds, including the strict latent warning and hollow-WAL controls,
+with normal scratch cleanup.
+
+An offline predicate check against the six retained D42 and six retained
+index-advance Mac captures found that D42 accepted all twelve observations,
+including all six early index-2 states. The final elected/advanced/index-equal
+predicate rejected all six early states and accepted all six later index-4
+states. Those later records also had agreed `$SYS/_meta_` leaders, terms and
+persisted indexes. This is deterministic evidence for the previously missed
+interleaving, complemented by the passing exact-source integration run.
