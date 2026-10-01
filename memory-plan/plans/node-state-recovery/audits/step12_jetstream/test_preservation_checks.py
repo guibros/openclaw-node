@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import http.server
 import json
 import os
@@ -54,11 +55,20 @@ class Gates(unittest.TestCase):
                 'gui/501', [protected], inspect=lambda _: 'program = /owned/node\n')
             self.assertTrue(verify_entrypoint_inventory(installed, gui, set(), set(),
                 {'gateway', 'workplan-viewer'})['verified'])
-            identity = {'gui': {'ai.openclaw.gateway': {'source': installed['ai.openclaw.gateway']}},
+            gateway_argv = plistlib.loads(pathlib.Path(installed['ai.openclaw.gateway']).read_bytes())['ProgramArguments']
+            identity = {'gui': {'ai.openclaw.gateway': {
+                'source': installed['ai.openclaw.gateway'], 'program': '/owned/node',
+                'working_directory': '',
+                'arguments_sha256': hashlib.sha256(json.dumps(gateway_argv, separators=(',', ':')).encode()).hexdigest(),
+                'environment_sha256': {}}},
                         'user': {}, 'system': {}}
             self.assertTrue(verify_entrypoint_inventory(installed, gui, set(), set(),
                 {'gateway', 'workplan-viewer'}, loaded_identity=identity)['verified'])
             identity['gui']['ai.openclaw.gateway']['source'] = '/tmp/other.plist'
+            self.refused(lambda: verify_entrypoint_inventory(installed, gui, set(), set(),
+                {'gateway', 'workplan-viewer'}, loaded_identity=identity))
+            identity['gui']['ai.openclaw.gateway']['source'] = installed['ai.openclaw.gateway']
+            identity['gui']['ai.openclaw.gateway']['program'] = '/tmp/other-node'
             self.refused(lambda: verify_entrypoint_inventory(installed, gui, set(), set(),
                 {'gateway', 'workplan-viewer'}, loaded_identity=identity))
             self.refused(lambda: verify_entrypoint_inventory(installed,

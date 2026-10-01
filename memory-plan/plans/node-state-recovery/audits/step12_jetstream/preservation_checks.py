@@ -295,6 +295,17 @@ def verify_entrypoint_inventory(installed, gui_loaded, user_loaded, system_loade
                 if label in expected:
                     require(identity['source'] == installed[label],
                             'approved loaded job differs from its installed plist: ' + domain + '/' + label)
+                    plist = plistlib.loads(pathlib.Path(installed[label]).read_bytes())
+                    arguments = plist['ProgramArguments']
+                    declared = plist.get('EnvironmentVariables', {})
+                    require(identity['program'] == plist.get('Program', arguments[0])
+                            and identity['working_directory'] == plist.get('WorkingDirectory', '')
+                            and identity['arguments_sha256'] == hashlib.sha256(
+                                json.dumps(arguments, separators=(',', ':')).encode()).hexdigest()
+                            and all(identity['environment_sha256'].get(key)
+                                    == hashlib.sha256(value.encode()).hexdigest()
+                                    for key, value in declared.items()),
+                            'approved loaded job configuration differs from its plist: ' + domain + '/' + label)
     return {'verified': True,
             'installed': {label: {'path': path,
                                   'sha256': hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()}

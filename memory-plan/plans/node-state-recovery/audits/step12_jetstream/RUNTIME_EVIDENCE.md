@@ -815,7 +815,8 @@ effective variable hash, and refuses undeclared or code-loading variables.
 None of these changes opens a preservation window; a complete exclusion
 policy and a continuous or effect-based copy fence remain unproved.
 The preflight now captures a hash-only environment and argument identity for
-each loaded job and requires each approved loaded source path to equal its
+each loaded job and requires each approved loaded source path, effective
+program, arguments, working directory and declared environment to match its
 installed plist. The journal rechecks the identity of each still-loaded job
 through forward work and final restoration. This closes same-label reloading
 from a different plist without claiming that a point-in-time scan detects a
