@@ -797,3 +797,29 @@ instead of retrying an ambiguous create. Exact-source complete-suite and CI
 results are still required. The production protected writer, cross-uid
 evidence, full live content baseline, three cold masters and resumption remain
 open; step 1.2 stays `[A]` at `v1.2-pre` and full-node `seal()` remains disabled.
+
+## D39 — Bind owned Raft bytes to a stopped-state baseline (2026-10-01 08:07 EDT)
+
+Claude's `c9569ea` probe found that nonempty junk snapshots, log blocks and
+peers indexes, and a changed vote in `tav.idx`, can pass the structural
+sentinel, isolated stream-state comparison, restored-cluster reads and log
+tripwire. A direct pre-stop/live file-hash comparison is invalid: in a healthy
+owned run NATS changes Raft logs, snapshots, indexes and some saved terms
+during normal shutdown. The fixture therefore captures every Raft group file
+digest and directory entry immediately **after** all three owned servers
+exit normally, then compares each copied candidate member with that saved
+stopped-state view before any peer-assisted restore. Deliberate source damage
+in the four same-length junk controls is applied after the saved view, so
+those controls test byte fidelity. Missing or empty group, stream and
+consumer controls are applied before the saved view, so structural and local
+state checks still have independent negative evidence. Candidate byte
+equality is checked before any isolated server starts.
+
+This proves a bounded post-stop continuity check for the owned fixture. The
+saved view is held by the same operator process and is not a protected
+production publication; corruption present before that view can still be
+copied and accepted. A production cold master needs protected custody from
+the healthy observed state through stop, hash publication and restore,
+plus independent validation of every retained message and durable position.
+`c9569ea` CI passed all three jobs, but this newer source needs exact-head
+CI and adversarial review. Step 1.2 and full-node `seal()` remain open.

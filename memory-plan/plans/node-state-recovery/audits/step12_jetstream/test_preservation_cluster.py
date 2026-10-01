@@ -14,11 +14,14 @@ import tempfile
 import time
 import unittest
 
-from cold_copy import copy_candidate, verify_candidate
+from cold_copy import capture_tree, copy_candidate, copy_view, verify_candidate
 from preservation_checks import QuietWindow, Refused, capture, http_json, stream_state
 
 
 class Cluster(unittest.TestCase):
+    def raft_files(self, store):
+        return copy_view({'raft': capture_tree(store/'jetstream'/'$SYS'/'_js_')})['raft']
+
     def corrupt_and_check(self, mode, stage):
         result = subprocess.run([sys.executable, '-m', 'unittest', '-q',
                                  'test_preservation_cluster.Cluster.test_stream_and_consumer_groups_and_real_stream_election'],
@@ -47,12 +50,15 @@ class Cluster(unittest.TestCase):
     def test_missing_local_history_cannot_be_healed_into_a_valid_candidate(self):
         for mode in ('empty-1', 'empty-0-2', 'missing-1', 'missing-group-1',
                      'missing-consumer-1', 'empty-raft-1', 'no-raft-log-1',
-                     'no-raft-term-1'):
+                     'no-raft-term-1', 'junk-raft-snapshot-1', 'junk-raft-log-1',
+                     'junk-raft-peers-1', 'junk-raft-vote-1'):
             with self.subTest(mode=mode):
                 member = 0 if mode == 'empty-0-2' else 1
                 stage = (f'isolated member {member} raft groups differ' if mode == 'missing-group-1'
                          else f'isolated member {member} raft group content differs'
                          if mode in ('empty-raft-1', 'no-raft-log-1', 'no-raft-term-1')
+                         else f'isolated member {member} raft bytes differ from stopped baseline'
+                         if mode.startswith('junk-raft-')
                          else f'isolated member {member} stream state differs')
                 self.corrupt_and_check(mode, stage)
 
@@ -405,6 +411,9 @@ let nc,stage='connect';
             print(json.dumps(report))
             self.assertFalse(cleanup, 'owned cluster shutdown was not normal')
         corruption = os.environ.get('RECOVERY_CORRUPT_RESTORE')
+        post_baseline_damage = bool(corruption and corruption.startswith('junk-raft-'))
+        if post_baseline_damage:
+            stopped_raft_files = [self.raft_files(root/f'store-{i}') for i in range(3)]
         if corruption == '1' or corruption in ('single-0', 'single-1', 'single-2'):
             targets = range(3) if corruption == '1' else (int(corruption[-1]),)
             for i in targets:
@@ -434,9 +443,31 @@ let nc,stage='connect';
                 shutil.rmtree(directory/'snapshots')
             else:
                 (directory/'tav.idx').unlink()
+        elif corruption in ('junk-raft-snapshot-1', 'junk-raft-log-1',
+                            'junk-raft-peers-1', 'junk-raft-vote-1'):
+            group = next(group for group in before[1]['raft']['$G'] if group.startswith('S-'))
+            directory = root/'store-1'/'jetstream'/'$SYS'/'_js_'/group
+            if corruption == 'junk-raft-snapshot-1':
+                path = next((directory/'snapshots').glob('snap.*'))
+            elif corruption == 'junk-raft-log-1':
+                path = next((directory/'msgs').glob('*.blk'))
+            elif corruption == 'junk-raft-peers-1':
+                path = directory/'peers.idx'
+            else:
+                path = directory/'tav.idx'
+            original = path.read_bytes()
+            junk = (original[:8] + bytes([0xa5]) * (len(original) - 8)
+                    if corruption == 'junk-raft-vote-1' else bytes([0xa5]) * len(original))
+            self.assertTrue(original and original != junk)
+            path.write_bytes(junk)
+        if not post_baseline_damage:
+            stopped_raft_files = [self.raft_files(root/f'store-{i}') for i in range(3)]
         candidate = copy_candidate({str(i): root/f'store-{i}' for i in range(3)}, root/'candidate')
         verified = verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
         self.assertEqual(verified['manifest_sha256'], candidate['manifest_sha256'])
+        for i in range(3):
+            self.assertEqual(self.raft_files(root/'candidate'/str(i)), stopped_raft_files[i],
+                             f'isolated member {i} raft bytes differ from stopped baseline')
         local_states = [self.isolated_member_state(root, i, root/'candidate', before[i], after[i],
                         binary, route_password, token) for i in range(3)]
         verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
@@ -521,7 +552,7 @@ cluster {{ name: owned-preservation
                     time.sleep(.05)
                 else:
                     self.fail('restored leader did not serve the original message')
-            self.assertFalse(any(re.search(r'catchup|stream state outdated|rebuild',
+            self.assertFalse(any(re.search(r'catchup|stream state outdated|rebuild|corrupt',
                                            (root/f'restored-{i}.log').read_text(), re.I)
                                  for i in range(3)),
                              'restored member repaired from peers before acceptance')
@@ -530,6 +561,8 @@ cluster {{ name: owned-preservation
                 'copy_manifest_sha256': candidate['copy_manifest_sha256'],
                 'files': candidate['files'], 'restored_streams': len(reports[0]['streams']),
                 'isolated_member_states': local_states,
+                'stopped_raft_sha256': [hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
+                                        for files in stopped_raft_files],
                 'restored_message_leaders': leaders_checked,
                 'restored_message_sha256': hashlib.sha256(
                     original_message['data'].encode()).hexdigest(),

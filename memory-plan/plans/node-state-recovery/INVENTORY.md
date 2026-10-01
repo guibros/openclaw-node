@@ -289,3 +289,22 @@ bounded fixture still does not prove every production Raft log byte or
 retained message. Exact-head CI/review, the protected writer and publication
 boundary, production cold masters, the full-node driver and live resumption
 remain open at 1.2[A]/v1.2-pre; `seal()` stays disabled.
+
+D39 corrects the owned fixture's same-length Raft-content false acceptance
+after stop: normal shutdown changes Raft bytes, so a live pre-stop file hash
+is not comparable to the stopped candidate. A full Raft file/directory view
+saved immediately after normal owned shutdown now detects later source-side
+junk snapshots, logs, peers and vote bytes before isolated startup. Other
+damage is injected before that baseline so the structural and local-state
+checks retain independent negative controls. The positive and earlier
+eleven-mode suite pass locally; the changed-vote control also refuses. The
+refined twelve-mode suite, exact-source complete suite, CI and Claude review
+are open.
+This owner-held test baseline does not authenticate latent pre-stop damage or
+close the protected production writer/cold-master gates; 1.2 remains [A].
+
+The refined twelve-mode owned negative suite and complete Mac recovery suite
+pass at stable source (208 tests, three expected skips). The baseline and
+candidate comparison is still an owner-held fixture continuity check; exact
+CI, adversarial review, protected live custody, three cold masters, the
+production driver and resumption remain open.

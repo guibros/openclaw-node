@@ -1168,3 +1168,34 @@ three-member cluster reported normal cleanup, no production connections,
 and a successful isolated-member and restored-cluster proof. This is local
 fixture evidence. Exact-head CI and Claude's adversarial re-review remain
 open, as do the protected production preservation and restoration gates.
+
+At 08:03 EDT, PR #170 head `c9569ea` passed all three CI jobs: Node 20, Node
+22 and Mission Control. Claude then reproduced four deeper false acceptances
+at that exact head: nonempty junk Raft snapshots, log blocks, peers indexes
+and changed saved vote bytes could be faithfully copied, silently repaired
+and reported as an owned restore proof. A direct pre-stop hash experiment
+failed on an undamaged cluster because normal NATS shutdown changed several
+Raft files. That refused local experiment was not committed.
+
+The next uncommitted fixture revision captures full Raft file digests and
+directory entries **after** normal owned-server shutdown. Its positive restore
+passed in 14.462 s. The eleven-mode source-damage suite passed in 92.646 s;
+a twelfth changed-vote mode separately refused at the intended member. A
+subsequent coverage correction puts the four junk-byte mutations after the
+saved stopped view, and the structural, local-state and payload mutations
+before it; candidate byte equality is checked before isolated startup. The
+saved view tests post-stop fidelity, not validity of bytes already damaged at
+that view, and has no protected production custody. The refined twelve-mode
+suite, final complete suite, exact CI and Claude follow-up are still required.
+
+At 08:16 EDT, the refined twelve-mode source-damage suite passed in 84.777 s.
+The pre-baseline structural/local damage modes still refuse at their intended
+semantic checks; four post-baseline junk-byte modes refuse at the copied
+member's stopped-byte comparison. The complete exact-source suite is running.
+
+At 08:22 EDT, the complete Mac recovery suite passed at stable revised source:
+208 tests in 373.743 s, three expected skips, normal cleanup of all owned
+NATS processes and no production connections. The earlier `c9569ea` CI is
+green 3/3, but this refined baseline revision still needs its own exact-head
+CI and code-level Claude review. No live service, store, job or journal was
+changed.

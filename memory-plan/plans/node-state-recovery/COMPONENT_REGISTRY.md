@@ -164,3 +164,18 @@ source-damage modes pass, and the complete Mac recovery suite passes 208
 tests with three expected skips at stable source. Exact-head CI and Claude
 re-review remain pending. This is one-message fixture proof; no protected
 production cold copy, all-message baseline or live resumption is accepted.
+
+2026-10-01 08:07 EDT — Exact `c9569ea` CI is green 3/3. Claude's deeper
+same-length Raft-content probes still passed that head; D39 adds an owned
+stopped-state digest baseline before four junk-byte mutations and copying;
+structural and local-state negatives remain before the baseline so those
+checks are exercised independently. The healthy restore and earlier
+eleven-mode negative suite pass locally; a twelfth changed-vote control
+refuses at member 1. The refined twelve-mode suite, exact CI and re-review
+are pending. The same-uid stopped baseline is not a protected production
+publication, nor proof of content already corrupt before the stop.
+
+At 08:22 EDT, the refined twelve-mode negatives and complete stable-source
+Mac recovery suite pass (208 tests, three expected skips, owned-server normal
+cleanup, no production connections). New exact CI and Claude code-level
+review remain pending; the production boundary is unchanged.
