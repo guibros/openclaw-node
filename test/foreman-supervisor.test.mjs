@@ -215,13 +215,18 @@ describe('foreman supervisor — idle loop and the ceiling', () => {
 describe('foreman supervisor — STOP hysteresis on the tree (D3)', () => {
   it('a worker flagged stuck while it keeps changing the tree is never stopped', async () => {
     const dir = tempRepo();
-    const timelinePath = timelineFor('writing');
-    const supervisor = createSupervisor({ task, worktreePath: dir, assessor: createSimulatedAssessor([STUCK]), config: { ...fastConfig, enforce: false }, timelinePath }).start();
-    supervisor.workerStarted({ attempt: 1 }); supervisor.attach(fakeChild());
+    const execFileAsync = promisify(execFile);
+    // Write right before each snapshot's `git add`, never on a timer: writeFileSync truncates first,
+    // and two snapshots that each hashed the empty file read as an unchanged tree.
     let n = 0;
-    const writer = setInterval(() => fs.writeFileSync(path.join(dir, 'progress.txt'), `step ${n++}\n`), 5);
+    const exec = (file, args, opts) => {
+      if (args.includes('add')) fs.writeFileSync(path.join(dir, 'progress.txt'), `step ${n++}\n`);
+      return execFileAsync(file, args, opts);
+    };
+    const timelinePath = timelineFor('writing');
+    const supervisor = createSupervisor({ task, worktreePath: dir, assessor: createSimulatedAssessor([STUCK]), exec, config: { ...fastConfig, enforce: false }, timelinePath }).start();
+    supervisor.workerStarted({ attempt: 1 }); supervisor.attach(fakeChild());
     await waitFor(() => supervisor.state.iteration >= 5);
-    clearInterval(writer);
     await supervisor.close();
     const decisions = readTimeline(timelinePath).filter((r) => r.type === 'foreman.intervened');
     assert.ok(decisions.length >= 4);
