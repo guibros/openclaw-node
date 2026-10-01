@@ -68,7 +68,7 @@ def full_entrypoint_evidence(prior):
                 for unit, state in prior.items()},
             'loaded': {'gui': sorted('ai.openclaw.' + unit for unit, state in prior.items()
                                    if state['loaded']), 'user': [], 'system': []},
-            'roots': ['/owned'], 'disabled_artifacts': {}}
+            'roots': ['/owned'], 'disabled_artifacts': {}, 'inert_artifacts': {}}
 
 
 class JournalTests(unittest.TestCase):

@@ -18,7 +18,7 @@ from unittest.mock import patch
 from preservation_checks import (
     QuietWindow, Refused, STOP_ORDER, capture, verify_admissions,
     disabled_entrypoint_artifacts, http_json, installed_entrypoints, loaded_entrypoints, verify_completion,
-    verify_entrypoint_inventory, verify_queue, verify_streams, verify_timer_idle,
+    inert_entrypoint_artifacts, verify_entrypoint_inventory, verify_queue, verify_streams, verify_timer_idle,
 )
 
 
@@ -135,6 +135,37 @@ class Gates(unittest.TestCase):
                             'gui/501', [protected], inspect=lambda _: detail)
                         self.assertEqual(actual, {label})
                         path.unlink()
+
+    def test_closed_world_launchd_provenance(self):
+        with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:
+            directory = pathlib.Path(root)
+            for label, program in (
+                    ('quiet.helper', '/usr/local/bin/taskpolicy'),
+                    ('application.fake', '/tmp/Fake.app/Contents/MacOS/Fake'),
+                    ('com.apple.claimed', '/usr/libexec/claimed')):
+                (directory / (label + '.plist')).write_bytes(plistlib.dumps({
+                    'Label': label, 'ProgramArguments': [program]}))
+            inert = directory / 'old.keystone.plist'
+            inert.write_bytes(plistlib.dumps({}))
+            installed = installed_entrypoints(directory, [])
+            self.assertEqual(set(installed), {'quiet.helper', 'application.fake', 'com.apple.claimed'})
+            self.assertEqual(set(inert_entrypoint_artifacts([directory])), {str(inert.resolve())})
+            details = {
+                'quiet.helper': 'path = /Library/LaunchDaemons/quiet.helper.plist\nprogram = /usr/local/bin/taskpolicy\n',
+                'application.fake': 'path = /tmp/application.fake.plist\nprogram = /tmp/Fake.app/Contents/MacOS/Fake\n',
+                'com.apple.claimed': 'path = /Library/LaunchDaemons/com.apple.claimed.plist\nprogram = /usr/libexec/claimed\n',
+                'com.apple.real': 'path = /System/Volumes/Preboot/Cryptexes/App/System/Library/LaunchAgents/com.apple.real.plist\nprogram = /System/Cryptexes/App/usr/libexec/real\n',
+                'application.registered': 'path = (submitted by runningboardd.101)\nprogram = /Applications/Registered.app/Contents/MacOS/Registered\n',
+            }
+            text = 'services = {\n' + ''.join(f'  1 - {label}\n' for label in details) + '}\n'
+            loaded = loaded_entrypoints(text, 'gui/501', [], inspect=details.__getitem__)
+            self.assertEqual(loaded, {'quiet.helper', 'application.fake', 'com.apple.claimed'})
+
+    def test_unlabeled_nonempty_plist_refuses(self):
+        with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:
+            pathlib.Path(root, 'unknown.plist').write_bytes(plistlib.dumps({
+                'ProgramArguments': ['/tmp/unknown']}))
+            self.refused(lambda: installed_entrypoints(root, []))
 
     def test_timer_signal_race(self):
         verify_timer_idle({'loaded': True}, False, [20, 0], [20, 0])

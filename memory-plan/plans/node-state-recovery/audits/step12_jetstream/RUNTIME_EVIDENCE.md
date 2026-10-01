@@ -774,3 +774,23 @@ loaded inventory. The listener's child check narrows deployment risk but does
 not prove its asynchronous `deploying` flag is false; the full driver must
 obtain that proof and rule out pending catch-up before restoration completes.
 No production service was stopped or modified, and no cold master was taken.
+
+### Closed-world launchd scan in source — 2026-10-01 02:58:37 EDT
+
+The next source branch reverses the scanner's default for standard non-system
+plist directories and loaded GUI/user/system jobs: an ordinary job is now
+included unless its actual launchd source is in an Apple-managed system tree or
+it is a runningboardd-registered app-bundle process with no OpenClaw linkage.
+Empty `{}` legacy plists are recorded separately by path and hash; nonempty
+unlabeled plists refuse. Neutral wrappers and self-declared `com.apple.*` or
+`application.*` labels no longer escape solely because their executable is
+outside known OpenClaw roots.
+
+The read-only host scan found 28 installed labeled jobs: 23 proposed cohort
+members and five extras (`com.google.GoogleUpdater.wake`,
+`com.openclaw.agent`, `com.openclaw.tailscale-up`, `com.tailscale.autostart`,
+`meshagent`). Two empty Google Keystone plists are inert artifacts. It found
+25 GUI-loaded labels (21 cohort, four extras), zero user-loaded, and five
+system-loaded extras. The extras are not accepted exclusions; a full-node
+baseline still refuses. Ninety-one focused scanner/journal tests pass on this
+source. No live hold, job mutation, or cold NATS master was attempted.

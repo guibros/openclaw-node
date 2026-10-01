@@ -131,3 +131,13 @@ continuous launchd/process watch exists. The current read-only scan takes
 4.75 seconds and still refuses the same two root-managed system jobs. The
 controller, privileged job disposition, healthy cold masters, isolated
 restores and verified production resumption remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 02:58:37 EDT: after PR #169 merged, the next source
+branch inverted launchd discovery toward a closed-world preflight. The
+read-only host scan now sees five additional installed jobs and nine loaded
+third-party/root jobs beyond the proposed cohort; none is implicitly
+approved. Empty legacy plists are recorded by hash. The 91 focused
+scanner/journal tests pass. Explicit safe exclusions, disposition of the
+root-managed agent and remote management job, a continuous writer fence,
+the controller, healthy cold masters, isolated restores and runtime service
+resumption remain open. Step 1.2 remains [A] at v1.2-pre.

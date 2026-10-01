@@ -187,7 +187,8 @@ def valid_prior(prior, scope=None):
 
 def valid_entrypoint_inventory(evidence, prior):
     require(isinstance(evidence, dict) and evidence.get('verified') is True
-            and set(evidence) == {'verified', 'installed', 'loaded', 'roots', 'disabled_artifacts'},
+            and set(evidence) == {'verified', 'installed', 'loaded', 'roots',
+                                  'disabled_artifacts', 'inert_artifacts'},
             'full-node entrypoint inventory is absent')
     installed = evidence['installed']
     loaded = evidence['loaded']
@@ -208,7 +209,11 @@ def valid_entrypoint_inventory(evidence, prior):
             and isinstance(evidence['disabled_artifacts'], dict)
             and all(pathlib.Path(path).is_absolute()
                     and re.fullmatch(r'[0-9a-f]{64}', str(digest))
-                    for path, digest in evidence['disabled_artifacts'].items()),
+                    for path, digest in evidence['disabled_artifacts'].items())
+            and isinstance(evidence['inert_artifacts'], dict)
+            and all(pathlib.Path(path).is_absolute()
+                    and re.fullmatch(r'[0-9a-f]{64}', str(digest))
+                    for path, digest in evidence['inert_artifacts'].items()),
             'full-node entrypoint roots or disabled artifacts are incomplete')
     for unit in UNITS:
         entry = installed['ai.openclaw.' + unit]
@@ -394,7 +399,7 @@ class Journal:
         current = capture_entrypoint_inventory(UNITS)
         saved = self.entrypoint_inventory
         require(all(current[key] == saved[key] for key in
-                    ('installed', 'roots', 'disabled_artifacts')),
+                    ('installed', 'roots', 'disabled_artifacts', 'inert_artifacts')),
                 'full-node installed entrypoint identity changed')
         require(all(set(current['loaded'][domain]) <= set(saved['loaded'][domain])
                     for domain in ('gui', 'user', 'system')),

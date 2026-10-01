@@ -32,6 +32,17 @@ RESUME_ORDER = (
     'scheduler-heartbeat', 'node-watch', 'health-watch', 'gateway',
     'workplan-viewer', 'mesh-deploy-listener',
 )
+APPLE_SYSTEM_SOURCES = (
+    '/System/Library/',
+    '/System/Volumes/Preboot/Cryptexes/App/System/Library/',
+    '/Library/Apple/System/Library/',
+)
+
+
+def apple_system_source(source, program=''):
+    return (str(source).startswith(APPLE_SYSTEM_SOURCES)
+            or (str(source).startswith('(submitted by kernelmanagerd.')
+                and str(program).startswith('/System/Library/DriverExtensions/')))
 
 
 def production_entrypoint_roots(home=None):
@@ -44,7 +55,7 @@ def production_entrypoint_roots(home=None):
 
 
 def suspicious_hardlink(path, source, label):
-    if str(source).startswith('/System/Library/'):
+    if apple_system_source(source, path):
         return False
     if label.startswith('application.') and '.app/Contents/MacOS/' in str(path):
         return False
@@ -95,7 +106,7 @@ def relevant_entrypoint(label, values, roots, home=None, environment=None,
 def unclassified_executable(program, arguments, source, label):
     executable = program or (arguments[0] if arguments else '')
     name = pathlib.Path(executable).name
-    if str(source).startswith('/System/Library/'):
+    if apple_system_source(source, executable):
         return False
     if (name in {'sh', 'bash', 'zsh', 'env', 'osascript', 'npm', 'npx', 'bun', 'deno',
                  'caffeinate', 'nice', 'nohup', 'arch', 'xcrun'}
@@ -122,27 +133,46 @@ def installed_entrypoints(directory, protected_roots):
         except (OSError, ValueError, TypeError) as error:
             raise Refused('installed LaunchAgent plist cannot be read: ' + path.name) from error
         require(isinstance(plist, dict), 'installed LaunchAgent plist is not a dictionary: ' + path.name)
+        if not plist:
+            continue
         label = plist.get('Label')
+        require(isinstance(label, str), 'installed launchd job lacks a label: ' + path.name)
         values = plist.get('ProgramArguments', [])
         location = plist.get('WorkingDirectory', '')
         environment = plist.get('EnvironmentVariables', {})
         scan = [plist.get('Program'), location]
         if isinstance(values, list):
             scan.extend(values)
-        relevant = (isinstance(label, str)
-                    and (relevant_entrypoint(label, scan, roots,
-                                             environment=environment if isinstance(environment, dict) else {},
-                                             working_directory=location, source=path)
-                         or unclassified_executable(plist.get('Program'),
-                                                     values if isinstance(values, list) else [], path, label)))
+        relevant = (not apple_system_source(path, plist.get('Program'))
+                    or relevant_entrypoint(label, scan, roots,
+                                           environment=environment if isinstance(environment, dict) else {},
+                                           working_directory=location, source=path)
+                    or unclassified_executable(plist.get('Program'),
+                                               values if isinstance(values, list) else [], path, label))
         if not relevant:
             continue
-        require(isinstance(label, str), 'installed OpenClaw LaunchAgent lacks a label: ' + path.name)
         require(isinstance(values, list) and all(isinstance(value, str) for value in values),
-                'installed OpenClaw LaunchAgent has invalid arguments: ' + path.name)
-        require(path.name == label + '.plist' and label not in found and not path.is_symlink(),
-                'installed OpenClaw LaunchAgent has ambiguous identity: ' + path.name)
+                'installed launchd job has invalid arguments: ' + path.name)
+        require(label not in found and not path.is_symlink(),
+                'installed launchd job has ambiguous identity: ' + path.name)
         found[label] = str(path.resolve(strict=True))
+    return found
+
+
+def inert_entrypoint_artifacts(directories):
+    found = {}
+    for item in directories:
+        folder = pathlib.Path(item)
+        require(folder.is_dir(), 'LaunchAgent artifact directory is missing: ' + str(folder))
+        for path in folder.glob('*.plist'):
+            try:
+                raw = path.read_bytes()
+                plist = plistlib.loads(raw)
+            except (OSError, ValueError, TypeError) as error:
+                raise Refused('installed LaunchAgent plist cannot be read: ' + path.name) from error
+            if plist == {}:
+                require(not path.is_symlink(), 'inert LaunchAgent artifact is a symlink: ' + path.name)
+                found[str(path.resolve(strict=True))] = hashlib.sha256(raw).hexdigest()
     return found
 
 
@@ -205,21 +235,24 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
                 entry = re.match(r'^\s*([A-Za-z_][A-Za-z0-9_]*) => (.*)$', line)
                 if entry:
                     environment[entry[1]] = entry[2]
-        if (relevant_entrypoint(label, [*values, *environment.values()], roots,
-                                environment=environment,
-                                working_directory=fields.get('working directory'),
-                                source=fields.get('path', ''))
-                or unclassified_executable(fields.get('program'), argv, fields.get('path', ''), label)):
+        source = fields.get('path', '')
+        dynamic_app = (source.startswith('(submitted by runningboardd.')
+                       and '.app/Contents/MacOS/' in fields.get('program', ''))
+        relevant = (relevant_entrypoint(label, [*values, *environment.values()], roots,
+                                        environment=environment,
+                                        working_directory=fields.get('working directory'), source=source)
+                    or unclassified_executable(fields.get('program'), argv, source, label))
+        if relevant or not (apple_system_source(source, fields.get('program', '')) or dynamic_app):
             labels.add(label)
     return labels
 
 
 def verify_entrypoint_inventory(installed, gui_loaded, user_loaded, system_loaded, expected,
-                                roots=(), disabled_artifacts=None):
+                                roots=(), disabled_artifacts=None, inert_artifacts=None):
     expected = {'ai.openclaw.' + unit for unit in expected}
-    require(set(installed) == expected, 'installed OpenClaw jobs differ from the approved cohort')
+    require(set(installed) == expected, 'installed launchd jobs differ from the approved cohort')
     require(gui_loaded <= expected and user_loaded <= expected and system_loaded <= expected,
-            'unclassified OpenClaw job is loaded')
+            'unclassified launchd job is loaded')
     require(not (gui_loaded & user_loaded or gui_loaded & system_loaded or user_loaded & system_loaded),
             'OpenClaw job is loaded in two launchd domains')
     return {'verified': True,
@@ -229,7 +262,8 @@ def verify_entrypoint_inventory(installed, gui_loaded, user_loaded, system_loade
             'loaded': {'gui': sorted(gui_loaded), 'user': sorted(user_loaded),
                        'system': sorted(system_loaded)},
             'roots': sorted(str(pathlib.Path(root).resolve(strict=False)) for root in roots),
-            'disabled_artifacts': dict(sorted((disabled_artifacts or {}).items()))}
+            'disabled_artifacts': dict(sorted((disabled_artifacts or {}).items())),
+            'inert_artifacts': dict(sorted((inert_artifacts or {}).items()))}
 
 
 def capture_entrypoint_inventory(expected):
@@ -239,15 +273,19 @@ def capture_entrypoint_inventory(expected):
     roots = production_entrypoint_roots(home)
     installed = installed_entrypoints(directories, roots)
     disabled = disabled_entrypoint_artifacts(directories)
+    inert = inert_entrypoint_artifacts(directories)
     domains = ('gui/' + str(os.getuid()), 'user/' + str(os.getuid()), 'system')
     loaded = [loaded_entrypoints(subprocess.check_output(['/bin/launchctl', 'print', domain],
                text=True, timeout=10), domain, roots) for domain in domains]
     evidence = verify_entrypoint_inventory(installed, *loaded, expected,
-                                           roots=roots, disabled_artifacts=disabled)
+                                           roots=roots, disabled_artifacts=disabled,
+                                           inert_artifacts=inert)
     again = installed_entrypoints(directories, roots)
     require(again == installed and all(hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
             == evidence['installed'][label]['sha256'] for label, path in again.items()),
             'installed entrypoint changed during preflight')
+    require(inert_entrypoint_artifacts(directories) == inert,
+            'inert entrypoint artifact changed during preflight')
     return evidence
 
 
