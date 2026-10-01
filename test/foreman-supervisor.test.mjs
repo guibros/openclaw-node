@@ -39,14 +39,20 @@ describe('foreman supervisor — shadow loop', () => {
     const published = [];
     const timelinePath = timelineFor('shadow');
     const supervisor = createSupervisor({
-      task, nodeId: 'node-a', assessor, config: { ...fastConfig, enforce: false }, timelinePath,
+      task, nodeId: 'node-a', assessor, config: { ...fastConfig, periodic_ms: 60_000, enforce: false }, timelinePath,
       publish: (subject, payload) => { published.push({ subject, payload }); },
     }).start();
 
     supervisor.workerStarted({ attempt: 1 });
     const child = fakeChild();
     supervisor.attach(child);
-    for (let i = 0; i < 60; i += 1) { child.stdout.write(`reasoning delta ${i}\n`); await sleep(2); }
+    // Bursts written in one tick each, and no periodic poll: lines paced by sleep(2) let a loaded
+    // runner stretch the stream across more debounce windows, so the count tracked the clock.
+    const bursts = 6;
+    for (let b = 0; b < bursts; b += 1) {
+      for (let i = 0; i < 10; i += 1) child.stdout.write(`reasoning delta ${b * 10 + i}\n`);
+      await sleep(20);
+    }
     await sleep(60);
     supervisor.workerExited({ exitCode: 0 });
     supervisor.recordVerification({ passed: true, summary: 'npm test: 12 passed', source: 'metric' });
@@ -66,7 +72,7 @@ describe('foreman supervisor — shadow loop', () => {
       assert.ok(types.includes(expected), `timeline lacks ${expected}: ${types.join(',')}`);
     }
     assert.ok(!types.includes('worker.output'), 'output lines must not be written to the timeline');
-    assert.ok(rows.filter((r) => r.type === 'foreman.observed').length < 20, 'bursts must coalesce');
+    assert.ok(rows.filter((r) => r.type === 'foreman.observed').length <= bursts + 1, 'bursts must coalesce: one observation per burst, plus the exit');
     const intervened = rows.filter((row) => row.type === 'foreman.intervened');
     assert.ok(intervened.every((row) => row.mode === 'shadow' && row.outcome === null));
     assert.equal(rows[0].type, 'foreman.started');
