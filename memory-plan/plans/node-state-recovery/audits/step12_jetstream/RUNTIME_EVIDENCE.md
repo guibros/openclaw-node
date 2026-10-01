@@ -1405,7 +1405,12 @@ mutants after the 11 original mutants were caught. The synthetic stream,
 consumer, metadata, missing-group and extra-group disagreements now rotate
 through all three member positions; the focused deterministic test passes.
 Claude confirmed in scratch that perturbing every member catches those
-positional weakenings. No production-facing predicate or live capture-loop
+positional weakenings. No owned capture predicate or cluster-loop
 code changed. Exact new CI and adversarial review remain pending; the
 last complete owned Mac module passed 6/6 in 270.827 seconds on the same
 capture path. This is bounded test evidence, not live cold-master proof.
+
+The D46 title's "last gaps" described only the 11 sampled mutations, and
+`post_stepdown_ready()` is part of the owned fixture, not production code.
+The one-second stability hold and five-second deadline have not been
+unit-tested deterministically.
