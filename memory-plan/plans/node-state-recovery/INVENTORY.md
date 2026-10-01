@@ -356,6 +356,15 @@ stay byte-identical. Five root-reader fixtures and 115 user/hold tests pass
 locally. The root journal does not yet invoke this validator or durably pin
 the two records. All production gates remain in place; 1.2 stays [A].
 
+Checkpoint 2026-10-01 18:57 EDT: the next dependent source slice binds root
+bootstrap and reentry to a locked, still-open user transfer. The wrapper holds
+the owner node/journal locks across root intent and writer-lock admission;
+five local controls pass, including a closed-transfer negative before writer
+lock creation and rejection of a root descriptor for another user head. It
+still accepts an isolated-test physical callback and does
+not durably pin the two user records or lift the macOS-root gate. Step 1.2
+remains [A].
+
 Checkpoint 2026-10-01 19:01 EDT: adversarial review of PR #182 found that
 the real `close_and_drain` verifier records native hold evidence at the top
 level; the first validator fixture incorrectly nested it. The validator and

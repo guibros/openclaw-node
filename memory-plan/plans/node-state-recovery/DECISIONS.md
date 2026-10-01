@@ -833,3 +833,22 @@ without treating arbitrary files as journal records, rejects events outside
 the uninterrupted forward window, and revalidates the open lock descriptors
 against their named inode/ctime identities. The production gate remains
 closed until root-owned physical admission and the outcome lifecycle exist.
+
+## D46 — Bind root bootstrap to the still-open user transfer (2026-10-01 19:10 EDT)
+
+The privileged transaction must acquire the owner node and journal locks before
+its root ledger intent, derive the user-transfer observation from the locked
+validator, and retain those locks until the root transaction is closed. Reentry
+reopens both journals and refuses if the saved root descriptor no longer binds
+the current terminal user transfer, baseline hash, root path, or boot. Root
+lock acquisition rechecks the binding both before and under writer exclusion.
+This keeps a second root bootstrap out of the interval in which the legacy
+restorer has already closed a prior transfer but the writer lock is absent.
+
+The source wrapper proves this binding with a supplied physical-admission
+callback only for isolated tests. It is not the production root driver: the
+caller-supplied physical verdict remains untrusted, direct low-level bootstrap
+is still available behind the macOS-root tripwire, and the root ledger has not
+yet durably copied the user baseline and transfer records. The tripwire stays
+closed until those interfaces are replaced by pinned root-owned observations
+and the declined/accepted/rollback lifecycle is complete.
