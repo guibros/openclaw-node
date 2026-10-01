@@ -21,7 +21,7 @@ from journal_hold import JournaledHold, describe
 
 
 class UserTransferTest(unittest.TestCase):
-    def prepared(self, extra_event=None):
+    def prepared(self, extra_event=None, boot='boot-a'):
         fixture = fixture_module.JournalTests('test_nats_transfer_freezes_user_journal_before_root_outcome')
         fixture.setUp()
         self.addCleanup(fixture.tearDown)
@@ -36,7 +36,7 @@ class UserTransferTest(unittest.TestCase):
                              fixture.parent / 'writer-handoff.json')
         marker_patch.start()
         fixture.addCleanup(marker_patch.stop)
-        journal = fixture_module.Journal(fixture.root, prior, boot='boot-a',
+        journal = fixture_module.Journal(fixture.root, prior, boot=boot,
                                          node_lock=fixture.node_lock,
                                          scope=fixture_module.FULL_NODE_SCOPE)
         fixture.addCleanup(journal.close)

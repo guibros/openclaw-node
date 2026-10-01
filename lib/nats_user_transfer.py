@@ -133,11 +133,12 @@ def valid_baseline(row):
 
 
 class UserTransfer:
-    def __init__(self, node_lock, journal_root, uid, transaction):
+    def __init__(self, node_lock, journal_root, uid, transaction, prior_boot=False):
         self.node_lock = pathlib.Path(node_lock)
         self.journal_root = pathlib.Path(journal_root)
         self.uid = uid
         self.transaction = transaction
+        self.prior_boot = prior_boot
         self.fds = []
         self.locks = []
         try:
@@ -238,9 +239,13 @@ class UserTransfer:
         return rows
 
     def _validate(self):
-        boot = boot_identity()
+        boot = self.records[0].get('boot') if self.prior_boot else boot_identity()
         require(all(row.get('boot') == boot for row in self.records),
+                'user transfer boot continuity differs' if self.prior_boot else
                 'user transfer is not from the current boot')
+        if self.prior_boot:
+            require(isinstance(boot, str) and HEX.fullmatch(boot),
+                    'user transfer prior boot is invalid')
         require(all(row['event'] in ('baseline', 'intent', 'hold-published',
                                      'verified', 'nats-transfer-intent')
                     for row in self.records),

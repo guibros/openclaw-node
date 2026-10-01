@@ -135,6 +135,30 @@ def descriptor_from_observation(transaction, observation, site, lock_path, uid, 
     return descriptor
 
 
+def valid_user_evidence(evidence, descriptor):
+    if (not isinstance(evidence, dict) or set(evidence) != {'baseline', 'transfer'}
+            or not isinstance(evidence['baseline'], dict)
+            or not isinstance(evidence['transfer'], dict)):
+        raise Refused('root writer user evidence is incomplete')
+    baseline, transfer = evidence['baseline'], evidence['transfer']
+    if (baseline.get('event') != 'baseline'
+            or transfer.get('event') != 'nats-transfer-intent'
+            or transfer.get('root_transaction') != descriptor['transaction']
+            or transfer.get('baseline_sha256') != descriptor['user_baseline_sha256']
+            or baseline.get('sha256') != descriptor['user_baseline_sha256']
+            or transfer.get('sha256') != descriptor['user_transfer_sha256']):
+        raise Refused('root writer user evidence differs from its descriptor')
+    for row in (baseline, transfer):
+        try:
+            valid_hash = (re.fullmatch(r'[0-9a-f]{64}', str(row.get('sha256')))
+                          and digest({key: value for key, value in row.items()
+                                      if key != 'sha256'}) == row['sha256'])
+        except (TypeError, ValueError, RecursionError):
+            valid_hash = False
+        if not valid_hash:
+            raise Refused('root writer user evidence content differs')
+
+
 class LockBootstrapJournal:
     def __init__(self, site, uid, gid):
         if sys.platform == 'darwin' and os.geteuid() == 0:
@@ -206,9 +230,12 @@ class LockBootstrapJournal:
             inherited = previous['data']['lock'] if previous is not None else None
             expected_begin = ({'descriptor'} if previous is None else
                               {'descriptor', 'predecessor', 'inherited'})
-            if (set(begin) != expected_begin or previous is not None and
+            if (set(begin) not in (expected_begin, expected_begin | {'user_evidence'})
+                    or previous is not None and
                     (begin['predecessor'] != previous['sha256'] or begin['inherited'] != inherited)):
                 raise Refused('root writer lock predecessor identity differs')
+            if 'user_evidence' in begin:
+                valid_user_evidence(begin['user_evidence'], saved)
             if inherited is not None and saved['lock_nonce'] != inherited['nonce']:
                 raise Refused('successor did not inherit the writer lock nonce')
             events = [row['event'] for row in segment]
@@ -251,7 +278,7 @@ class LockBootstrapJournal:
         self.current = segments[-1]
 
     @classmethod
-    def begin(cls, site, lock_path, uid, gid, transaction, observation):
+    def begin(cls, site, lock_path, uid, gid, transaction, observation, user_evidence=None):
         if sys.platform == 'darwin' and os.geteuid() == 0:
             raise Refused('production root writer bootstrap awaits lifecycle recovery')
         site = pathlib.Path(site)
@@ -306,6 +333,9 @@ class LockBootstrapJournal:
                 transaction, observation, site, lock_path, uid, gid, nonce)
             data = {'descriptor': descriptor} if predecessor is None else {
                 'descriptor': descriptor, 'predecessor': predecessor, 'inherited': inherited}
+            if user_evidence is not None:
+                valid_user_evidence(user_evidence, descriptor)
+                data['user_evidence'] = user_evidence
             journal._append('lock-create-intent', **data)
             return journal
         except BaseException:
