@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from preservation_journal import Journal, Refused, UNITS, encoded, valid_record
+from preservation_journal import Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, valid_record
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -31,6 +31,18 @@ def inventory(active):
 PRIOR = inventory({'nats': {}, 'mesh-agent': {}})
 
 
+def timer_inventory():
+    prior = {}
+    for unit in TIMER_UNITS:
+        prior[unit] = {'loaded': True, 'running': False, 'disabled': False,
+                       'class': 'timer',
+                       'identity': {'plist_sha256': '0' * 64, 'argv': ['/owned/' + unit],
+                                    'files': {'/owned/' + unit: '1' * 64}, 'dependencies': {},
+                                    'working_directory': '/'}}
+    prior['scheduler-heartbeat']['execution_hold'] = {'cohort': sorted(TIMER_UNITS)}
+    return prior
+
+
 class JournalTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='openclaw-journal-owned-')
@@ -44,6 +56,48 @@ class JournalTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_timer_commissioning_scope_is_durable_and_cannot_mutate_or_seal(self):
+        with Journal(self.root, timer_inventory(), boot='boot-a', node_lock=self.node_lock,
+                     scope=TIMER_SCOPE) as journal:
+            self.assertEqual(journal.scope, TIMER_SCOPE)
+            self.assertEqual(journal.records[0]['scope'], TIMER_SCOPE)
+            with self.assertRaisesRegex(Refused, 'cannot mutate'):
+                journal.mutate('observer', 'disable', lambda: self.fail('must not apply'),
+                               lambda: {'verified': True})
+            with self.assertRaisesRegex(Refused, 'cannot seal'):
+                journal.seal()
+            self.assertEqual(len(journal.records), 1)
+        with self.journal(boot='boot-a') as reopened:
+            self.assertEqual(reopened.scope, TIMER_SCOPE)
+            self.assertEqual(set(reopened.prior), TIMER_UNITS)
+            with self.assertRaisesRegex(Refused, 'cannot seal'):
+                reopened.seal()
+
+    def test_timer_subset_requires_explicit_scope_and_exact_cohort(self):
+        with self.assertRaisesRegex(Refused, 'inventory'):
+            self.journal(timer_inventory())
+        prior = timer_inventory()
+        prior.pop('observer')
+        with self.assertRaisesRegex(Refused, 'inventory'):
+            Journal(self.root, prior, node_lock=self.node_lock, scope=TIMER_SCOPE)
+        prior = timer_inventory()
+        prior['scheduler-heartbeat']['execution_hold']['cohort'].remove('observer')
+        with self.assertRaisesRegex(Refused, 'omits a scheduled entry'):
+            Journal(self.root, prior, node_lock=self.node_lock, scope=TIMER_SCOPE)
+
+    def test_resolved_timer_scope_chains_to_full_node_baseline(self):
+        with Journal(self.root, timer_inventory(), boot='boot-a', node_lock=self.node_lock,
+                     scope=TIMER_SCOPE) as timer:
+            finished = timer.append('recovery-finished', services_verified=True, errors=[])
+            timer._state({**timer.active, 'status': 'restored', 'head': finished['sha256']})
+            predecessor = timer.resolve()
+        with Journal(self.parent / 'full-node', PRIOR, boot='boot-a',
+                     node_lock=self.node_lock) as full:
+            self.assertIsNone(full.scope)
+            self.assertEqual(set(full.prior), UNITS)
+            self.assertEqual(full.records[0]['predecessor'],
+                             {'root': str(self.root.resolve()), 'head': predecessor})
 
     def test_intent_is_durable_and_visible_before_mutation(self):
         with self.journal(PRIOR, boot='boot-a') as journal:

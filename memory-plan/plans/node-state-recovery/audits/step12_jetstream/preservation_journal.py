@@ -15,6 +15,9 @@ from preservation_checks import RESUME_ORDER, Refused, require
 
 
 UNITS = frozenset((*RESUME_ORDER, 'nats-1'))
+TIMER_UNITS = frozenset(('scheduler-heartbeat', 'consolidation-scheduler', 'observer',
+                         'transcript-archive', 'log-rotate'))
+TIMER_SCOPE = 'timer-commissioning'
 TERMINAL = ('sealed', 'resolved')
 
 
@@ -112,8 +115,10 @@ def matches(actual, prior):
     return all(actual.get(k) == prior[k] for k in keys)
 
 
-def valid_prior(prior):
-    require(isinstance(prior, dict) and set(prior) == UNITS, 'prior service inventory is incomplete or unknown')
+def valid_prior(prior, scope=None):
+    expected = TIMER_UNITS if scope == TIMER_SCOPE else UNITS
+    require(scope in (None, TIMER_SCOPE) and isinstance(prior, dict) and set(prior) == expected,
+            'prior service inventory is incomplete or unknown')
     for unit, state in prior.items():
         require(isinstance(state, dict), 'prior service state is incomplete')
         require(all(isinstance(state.get(k), bool) for k in ('loaded', 'running', 'disabled')),
@@ -147,10 +152,18 @@ def valid_prior(prior):
                 and (kind != 'known-broken' or state['loaded'] and not state['disabled'])
                 and (kind != 'held' or not state['loaded'] and not state['running'] and state['disabled']),
                 'baseline does not match the declared desired service state')
+        if scope == TIMER_SCOPE:
+            require(kind == 'timer' and (unit == 'scheduler-heartbeat') == ('execution_hold' in state),
+                    'timer commissioning baseline includes an unrelated unit or lacks its hold')
+    if scope == TIMER_SCOPE:
+        hold = prior['scheduler-heartbeat']['execution_hold']
+        cohort = hold.get('cohort') if isinstance(hold, dict) else None
+        require(isinstance(cohort, list) and len(cohort) == len(TIMER_UNITS)
+                and set(cohort) == TIMER_UNITS, 'timer commissioning hold omits a scheduled entry')
 
 
 class Journal:
-    def __init__(self, root, prior=None, boot=None, node_lock=None):
+    def __init__(self, root, prior=None, boot=None, node_lock=None, scope=None):
         self.root = pathlib.Path(root)
         self.boot = boot if boot is not None else boot_identity()
         self.lock = None
@@ -180,7 +193,7 @@ class Journal:
                 if os.path.lexists(self.node_state):
                     active = read_private(self.node_state)
                     valid_record(active['baseline'])
-                    valid_prior(active['baseline']['prior'])
+                    valid_prior(active['baseline']['prior'], active['baseline'].get('scope'))
                     require(active['status'] in ('unresolved', 'restored'), 'node receipt status is invalid')
                     require(pathlib.Path(active['journal_root']).parent.resolve() == self.journals.resolve(),
                             'node receipt root escaped the persistent parent')
@@ -213,6 +226,7 @@ class Journal:
                     self.reopened = True
                     self.records = [self.active['baseline']]
                     self.prior = json.loads(encoded(self.records[0]['prior']))
+                    self.scope = self.records[0].get('scope')
                     return
                 created = False
                 self.reopened = True
@@ -229,7 +243,7 @@ class Journal:
                             rows = self._read(other)
                             require(rows and rows[-1]['event'] in TERMINAL,
                                     'unindexed journal requires manual resolution')
-            self._open(created, prior)
+            self._open(created, prior, scope)
         except BaseException:
             self.close()
             raise
@@ -250,14 +264,15 @@ class Journal:
             handle.close()
             raise
 
-    def _open(self, created, prior):
+    def _open(self, created, prior, scope):
         if created:
             require(prior is not None, 'new journal requires the complete prior state')
-            valid_prior(prior)
+            valid_prior(prior, scope)
             predecessor = ({'root': self.active['journal_root'], 'head': self.active['head']}
                            if self.active is not None else None)
             self.records = []
-            initial = self._record('baseline', prior=prior, predecessor=predecessor)
+            initial = self._record('baseline', prior=prior, predecessor=predecessor,
+                                   **({'scope': scope} if scope is not None else {}))
             self._state({'journal_root': str(self.root.resolve()), 'baseline': initial,
                          'status': 'unresolved', 'phase': 'initializing',
                          'holder': {'pid': os.getpid(), 'boot': self.boot}})
@@ -281,8 +296,9 @@ class Journal:
             self._state({**self.active, 'phase': 'initialized'})
         else:
             require(prior is None, 'cannot replace a journal baseline')
+            require(scope is None, 'cannot replace a journal scope')
             require(self.records and self.records[0]['event'] == 'baseline', 'journal baseline is absent')
-            valid_prior(self.records[0]['prior'])
+            valid_prior(self.records[0]['prior'], self.records[0].get('scope'))
             if self.active is None:
                 self.active = {'journal_root': str(self.root.resolve()), 'baseline': self.records[0],
                                'status': 'restored' if self.records[-1]['event'] in TERMINAL else 'unresolved',
@@ -298,6 +314,7 @@ class Journal:
                 self._receipt_head(self.records)
                 raise Refused('sealed or resolved journal receipt repaired; create a new window, no writing to this chain')
         self.prior = json.loads(encoded(self.records[0]['prior']))
+        self.scope = self.records[0].get('scope')
 
     def _state(self, value):
         require(self.receipt_writable, 'corrupt receipt could not be durably retained')
@@ -425,6 +442,10 @@ class Journal:
                 'incomplete durable intent may only restore prior services')
 
     def mutate(self, unit, action, apply, verify, failure_evidence=None, intent_fields=None, hold=None):
+        require(self.scope != TIMER_SCOPE or unit == 'scheduler-heartbeat'
+                and action == 'close-execution-hold' and not any(r['event'] == 'intent' for r in self.records)
+                and isinstance(intent_fields, dict) and 'hold' in intent_fields,
+                'timer commissioning cannot mutate other services or forward work')
         require(unit in self.prior, 'unit was not in the prior-state inventory')
         require(unit in RESUME_ORDER, 'held or unknown unit cannot be mutated')
         require(self.prior[unit]['class'] != 'held', 'held unit cannot be mutated')
@@ -570,6 +591,7 @@ class Journal:
                 'evidence_durable': not any(e['unit'] == 'journal' for e in errors), 'errors': errors}
 
     def seal(self):
+        require(self.scope != TIMER_SCOPE, 'timer commissioning cannot seal preservation history')
         require(not self.reopened and not self.write_failed, 'interrupted window cannot be sealed')
         require(not self.pending_intents() and not any(r['event'] == 'failed' for r in self.records),
                 'failed forward window cannot be sealed')

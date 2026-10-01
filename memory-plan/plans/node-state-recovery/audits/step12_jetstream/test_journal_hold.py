@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import patch
 
 from journal_hold import ANCHOR, JournaledHold, describe
-from preservation_journal import Journal, UNITS, matches
+from preservation_journal import Journal, TIMER_SCOPE, TIMER_UNITS, UNITS, matches
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -117,6 +117,47 @@ class HoldTests(unittest.TestCase):
             self.journal.recover(self.restore, self.observe, self.final)
         self.assertEqual(len(self.journal.records), 1)
         self.assertEqual(self.calls, [])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'timer commissioning requires the native gate observer')
+    def test_five_timer_scope_closes_and_resolves_without_preservation_seal(self):
+        with tempfile.TemporaryDirectory(prefix='openclaw-timer-scope-owned-') as place:
+            root = pathlib.Path(place).resolve()
+            gate_root = root / 'gate'
+            pins = gate_module.initialize(gate_root)
+            with gate_module.Gate(gate_root, pins) as gate:
+                prior = {}
+                for unit in TIMER_UNITS:
+                    prior[unit] = {'class': 'timer', 'loaded': True, 'running': False,
+                                   'disabled': False,
+                                   'identity': {'plist_sha256': '0' * 64,
+                                                'argv': ['/owned/' + unit],
+                                                'files': {'/owned/' + unit: '1' * 64},
+                                                'dependencies': {}, 'working_directory': '/'}}
+                prior[ANCHOR]['execution_hold'] = describe(gate, sorted(TIMER_UNITS))
+                baseline = root / 'journals' / 'timer'
+                with Journal(baseline, prior, boot='owned-boot', node_lock=root / 'node.lock',
+                             scope=TIMER_SCOPE) as journal:
+                    fast = lambda: {'verified': True, 'baseline_sha256': journal.records[0]['sha256']}
+                    hold = JournaledHold(journal, gate, fast)
+                    try:
+                        hold.close_and_drain()
+                        self.assertIsNotNone(gate.marker())
+                        with self.assertRaisesRegex(Exception, 'cannot mutate'):
+                            hold.mutate(ANCHOR, 'close-execution-hold',
+                                        lambda: self.fail('must not apply'), lambda: {'verified': True})
+                        observe = lambda unit, state: {**copy.deepcopy(state), 'verified': True}
+                        result = hold.recover(lambda *_: self.fail('baseline already restored'),
+                                              observe, lambda: {'verified': True})
+                        self.assertTrue(result['restored'], result)
+                        self.assertIsNone(gate.marker())
+                        restored = [row for row in journal.records
+                                    if row['event'] == 'execution-hold-restored'][-1]
+                        self.assertFalse(restored['evidence']['history_certified'])
+                        with self.assertRaisesRegex(Exception, 'cannot seal'):
+                            journal.seal()
+                        journal.resolve()
+                    finally:
+                        hold.close()
 
     def test_forward_work_before_close_is_refused(self):
         with self.assertRaisesRegex(Exception, 'original closed observer'):
@@ -484,6 +525,63 @@ with Journal(root,boot='owned-boot',node_lock=node_lock) as journal:
         child.wait(timeout=5)
         self.reopen_controller()
         self.assert_resolved_only()
+
+
+@unittest.skipUnless(sys.platform == 'darwin', 'timer recovery requires the native gate observer')
+class TimerScopeReopenTests(unittest.TestCase):
+    def exercise(self, remove_marker):
+        with tempfile.TemporaryDirectory(prefix='openclaw-timer-reopen-owned-') as place:
+            root = pathlib.Path(place).resolve()
+            gate_root = root / 'gate'
+            pins = gate_module.initialize(gate_root)
+            journal_root = root / 'journals/timer'
+            node_lock = root / 'node.lock'
+            prior = {}
+            for unit in TIMER_UNITS:
+                prior[unit] = {'class': 'timer', 'loaded': True, 'running': False,
+                               'disabled': False,
+                               'identity': {'plist_sha256': '0' * 64, 'argv': ['/owned/' + unit],
+                                            'files': {'/owned/' + unit: '1' * 64},
+                                            'dependencies': {}, 'working_directory': '/'}}
+            with gate_module.Gate(gate_root, pins) as gate:
+                prior[ANCHOR]['execution_hold'] = describe(gate, sorted(TIMER_UNITS))
+                with Journal(journal_root, prior, boot='owned-boot', node_lock=node_lock,
+                             scope=TIMER_SCOPE) as journal:
+                    fast = lambda: {'verified': True, 'baseline_sha256': journal.records[0]['sha256']}
+                    hold = JournaledHold(journal, gate, fast)
+                    try:
+                        hold.close_and_drain()
+                    finally:
+                        hold.close()
+            if remove_marker:
+                (gate_root / 'closed.json').unlink()
+            with gate_module.Gate(gate_root, pins) as gate:
+                with Journal(journal_root, boot='owned-boot', node_lock=node_lock) as journal:
+                    self.assertTrue(journal.reopened)
+                    fast = lambda: {'verified': True, 'baseline_sha256': journal.records[0]['sha256']}
+                    hold = JournaledHold(journal, gate, fast)
+                    try:
+                        observe = lambda unit, state: {**copy.deepcopy(state), 'verified': True}
+                        result = hold.recover(lambda *_: self.fail('timer baseline should match'),
+                                              observe, lambda: {'verified': True})
+                        self.assertTrue(result['restored'], result)
+                        self.assertIsNone(gate.marker())
+                        restored = [row for row in journal.records
+                                    if row['event'] == 'execution-hold-restored'][-1]
+                        self.assertTrue(restored['evidence']['restored_only'])
+                        self.assertFalse(restored['evidence']['history_certified'])
+                        if remove_marker:
+                            self.assertTrue(any(row.get('hold', {}).get('protective')
+                                                for row in journal.records))
+                        self.assertTrue(journal.resolve())
+                    finally:
+                        hold.close()
+
+    def test_closed_marker_reattaches_restore_only(self):
+        self.exercise(False)
+
+    def test_missing_marker_gets_protective_restore_only_close(self):
+        self.exercise(True)
 
 
 if __name__ == '__main__':

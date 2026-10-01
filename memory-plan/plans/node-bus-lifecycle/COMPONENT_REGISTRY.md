@@ -288,3 +288,23 @@ review accepts the owned proof. The old consolidation child is unawaited and
 can die with its old parent. No live source or timer changed. Feed the private
 transition material, 3.9 candidate and 3.8 graph to 3.11; coordinate normal
 deploy activity during any live source fence and refuse an unsafe drain.
+
+Actual five-timer execution hold — 2026-09-30 23:36 EDT: 3.11[x]/v3.11.
+The actual scheduler-heartbeat, consolidation-scheduler, observer,
+transcript-archive and log-rotate jobs now load the reviewed gated candidate
+plists while their original source paths and all saved schedule, environment,
+cwd and log settings are preserved. The accepted immutable controller bundle
+`timer-hold-controller-20261001-3` has manifest SHA-256
+`bec1e5af6a9db7c6b2c0230d494471c4f211e74c6488bbf7ca356fb801a404e6`.
+The first call stopped safely at a durable partial receipt on the inherited
+PATH check; a corrected owned launchd process probe matched the pinned
+effective PATH, passed positive/negative tests and resumed that receipt.
+The live timer-scoped Journal proved five forced and two natural scheduled
+fires inert under the marker, then resolved and reopened with full five-job
+readiness. Installed receipt and restored journal head agree; gate is open,
+active receipt absent. Heartbeat and observer each fired again after reopen
+with exit 0. Sixteen owned Mac controls and the controlled full Node22 root
+suite (2,523 pass, zero fail, six visible skips) pass; Claude found no final
+source blocker. Exact live evidence is in
+`audits/step311_timer_install/RUNTIME_EVIDENCE.md`. This is a five-timer
+commissioning hold, not a full-node preservation window or recovery 1.2.

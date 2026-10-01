@@ -634,3 +634,62 @@ Ten owned Mac controls and exact `deaf7d4` root Node20/22 CI pass. Claude's
 final challenge found no remaining staged-proof blocker after the additional
 heartbeat, child and refire controls. Close 3.10 as proof and preparation only;
 3.11 remains responsible for live mutation and its independent acceptance.
+
+## D28 — Timer commissioning uses an explicit non-preservation scope on the sole Journal (2026-09-30 21:53 EDT)
+
+The merged Journal's full-node baseline requires every fixed service unit.
+Recovery 1.2 has not built or verified a production adapter for those services.
+Claiming them absent, or reporting `verified` from process-alive alone, would
+weaken mandatory readiness. Step 3.11 therefore introduces an explicit
+timer-commissioning scope on the same Journal and node lock. Its immutable
+baseline contains exactly the five scheduled timers, all loaded, idle and
+enabled with reviewed source/plist identities and the exact saved gate
+descriptor. Existing full-node baseline validation and history semantics stay
+the default and are not relaxed.
+
+The timer scope can create only the execution-hold close intent and
+restore/resolve the saved five-timer state. It cannot stop other services,
+publish or seal a history copy, or certify a node-wide quiet window. A lost
+session reattaches restore-only; no recovered timer hold seals forward work.
+Because both scopes use the one persistent node lock and lineage, an unresolved
+timer window prevents a later full-node preservation window. This is a
+commissioning proof of the actual timer cohort, not completion of recovery
+1.2. The production timer adapter is fixed code pinned outside ordinary
+workspace deployment; caller-provided readiness cannot authorize reopen.
+
+The first file/launchd transition remains outside any certifying hold. D27's
+saved exact originals and physically classified retry govern that gap. Only
+after all five new gated entries verify can the timer-scoped Journal publish a
+closed marker. The old ungated entries must never be treated as excluded by a
+Gate marker they do not check.
+
+## D29 — Interrupted commissioning restores first and earns proof in a new window (2026-09-30 22:59 EDT)
+
+An interrupted timer journal may reopen with one candidate job unloaded. The
+closed-fire check cannot kick that job before Journal recovery has durably
+recorded and performed its restoration. Recovery therefore invalidates the
+old commissioning proof, restores and resolves the old window in restore-only
+mode, and atomically advances the active transition receipt to a distinct
+timer-scoped journal window. That new window closes and drains the gate again,
+observes explicit and natural closed fires, reopens after mandatory readiness,
+and resolves. Only its durable inertness proof and resolved receipt may be
+promoted to `timer-entry-installed`. A crash between either resolution and
+receipt advancement retries from the durable state; it cannot turn a recovered
+window into a certifying one.
+
+## D30 — Verify inherited launchd PATH through an owned process probe (2026-09-30 23:32 EDT)
+
+The first live commissioning attempt stopped with a durable active receipt
+after four candidate jobs loaded. Transcript-archive has no explicit PATH in
+its plist. `launchctl print` lists only the job's configured environment, so
+comparing that printed omission against the staged effective process PATH was
+a false refusal. An owned launchd probe with the same candidate environment
+measured the effective PATH hash equal to the pinned manifest. When a
+candidate explicitly configures PATH, the loaded job's printed value is
+checked directly. When it inherits PATH, the fixed verifier starts a short,
+randomly labelled owner-private launchd probe in the same domain, hashes the
+effective process value, requires the pinned hash, and unloads the probe.
+The positive and mismatching cases pass on actual Mac launchd; Claude's
+adversarial delta review found no concrete blocker. Resume the saved partial
+transition only with the corrected immutable controller bundle, preserving
+the old source paths and the sole active receipt.

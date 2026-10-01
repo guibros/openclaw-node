@@ -42,6 +42,20 @@ info "Directory structure ready"
 
 step "Step 3: Install Workspace Scripts"
 
+if ! $DRY_RUN && [ "$(uname -s)" = Darwin ]; then
+  _timer_copy_lock="$OPENCLAW_ROOT/timer-source-copy.lock"
+  (umask 077; : >> "$_timer_copy_lock")
+  exec 9>>"$_timer_copy_lock"
+  if ! /usr/bin/lockf -s -t 0 9; then
+    error "Timer source handoff holds the workspace copy lock"
+    exit 1
+  fi
+  if [ -e "$OPENCLAW_ROOT/timer-transition-active" ] || [ -e "$OPENCLAW_ROOT/timer-entry-installed" ]; then
+    error "Timer entry handoff is active or installed; use its reviewed update path"
+    exit 1
+  fi
+fi
+
 run rsync -av --exclude='*.bak' --exclude='*.bak.*' --exclude='routing-eval-tests.json' \
   "$REPO_DIR/workspace-bin/" "$WORKSPACE/bin/"
 # The node-watch/acceptance service units exec ${OPENCLAW_WORKSPACE}/bin/node-watch.mjs —
