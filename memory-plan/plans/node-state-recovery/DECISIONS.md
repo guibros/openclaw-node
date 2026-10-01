@@ -501,3 +501,166 @@ Migration acceptance must pin those identities and inspect
 persistently enabled jobs before publishing the marker. This is read-only
 monitoring, not migration authority or proof of JetStream health; quorum and
 replay checks remain separate. No live service is changed by this decision.
+
+## D28 — Bind protected handoff to the observed split source topology (2026-10-01 13:18 EDT)
+
+The live 4222 server has no NATS routes and no JetStream meta-cluster; the
+4223/4224 servers route to each other and report `openclaw-cluster`. The
+read-only loopback audit classifies this as `standalone-plus-two`, not a
+three-member cluster. The three live PIDs and reachable client ports
+must not be interpreted as one replicated history. Each distinct store and
+its stream/consumer state remains a separate preservation source. A protected
+writer handoff must pin the old topology and verify the new jobs reproduce the
+same separation before any topology repair or history union is attempted.
+
+`bin/nats-topology-audit.mjs` observes the three fixed local monitor ports,
+checks that `/routez` and `/jsz` name the same server at each port, collapses
+duplicate route connections by server ID and reports only the resulting
+topology. Its `--expect` control exits nonzero on drift; this Mac's observed
+split passes and a three-member expectation fails. It does not inspect
+credentials, config/store identity, message contents or cold-copy integrity.
+`SITE_TOPOLOGY_EVIDENCE.json` contains counts and port relationships without
+server IDs or secret-bearing payloads. The root migration journal, protected
+service identity, cold masters and resumption still gate step 1.2.
+
+## D29 — Audit protected site prerequisites without authorizing cutover (2026-10-01 13:20 EDT)
+
+The protected writer requires a distinct `_openclaw_nats` UID, an
+ownership-enforcing APFS volume, and a root:wheel `0755` directory under the
+root-controlled `/private/var/db` parent. Before a new handoff, the marker
+must be absent; if already published, only the root migration journal may
+decide recovery. `bin/nats-protected-site-audit.mjs` checks these facts
+read-only and returns `readyForStaging`, not `readyForCutover`. It neither
+creates the account nor directory, and it does not read or publish secrets.
+
+The live site passes APFS ownership and protected-parent checks, but the
+service account and protected directory are absent. The audit exits 1 with
+those two exact blockers. Root-owned binary/config/auth staging, immutable
+identity pins, store transfer, legacy job retirement, first protected
+bootstrap, reverse-path constraints and three healthy cold masters are still
+open. No privileged mutation occurred.
+
+## D30 — Verify the protected ancestor chain and device (2026-10-01 13:33 EDT)
+
+D29's parent check now covers `/private`, `/private/var`, and
+`/private/var/db`: each must be a root:wheel directory without group or world
+write permission, and all three must be on the same device. The protected
+root must be on that device too, so a mounted handoff directory cannot pass
+the site preflight. This remains a read-only staging check, not cutover
+authorization. The live chain passes; the dedicated account and protected
+root remain absent.
+
+## D31 — Tighten protected-site identity and expose held Raft membership (2026-10-01 13:47 EDT)
+
+Claude's read-only review of PR #175 at `6035e76` found that a positive
+non-operator UID could still be a normal, privileged account. The staging
+audit now requires `_openclaw_nats` to be a local system-range UID, with a
+matching dedicated primary group, no staff/wheel/admin group membership, a
+non-login shell and empty home. A root invocation must identify the original
+operator via `SUDO_UID` or `--operator-uid`; UID 0 cannot stand in for that
+operator. The audit refuses ACL entries on the protected directory or any
+ancestor. It derives its marker path from the legacy-writer guard's constant.
+These facts qualify only a staging site; the root journal still has to pin
+the exact account, binary, configuration, credential and store identities.
+
+The topology audit now binds `/varz` to `/routez` and `/jsz` by server ID and
+checks each monitor against its expected client port. Its classification is
+the currently routed graph, not the full JetStream Raft membership. The live
+8223/8224 peers each report meta-cluster size three; the leader reports one
+replica offline. This is consistent with the separately held member-1 store,
+whose identity and history still require their own pins and cold-copy proof.
+The two routed peers' stream counts differ. Four distinct store directories
+remain preservation sources; no same-named stream may be merged on the basis
+of routing alone. Refreshed evidence saves only counts and port relationships.
+
+## D32 — Attribute the offline replica to a peer, not a fixed leader (2026-10-01 13:55 EDT)
+
+D31's phrase "the leader reports one replica offline" overstates the saved
+evidence. The leader can change between loopback reads, and the saved report
+retains the offline replica count by monitor port without a leader binding.
+The supported claim is that one of the two routed cluster peers reported one
+offline replica while both reported a meta-cluster size of three. The held
+member-1 store remains a separate source by its own prior identity evidence;
+the loopback snapshot does not certify that identity or a stable leader.
+
+## D33 — Parse ACL entries and directory membership from macOS command output (2026-10-01 14:03 EDT)
+
+The protected-site audit must inspect the numbered ACL entries printed by
+`ls -lde`, not just the mode suffix: an extended attribute makes macOS show
+`@` even when ACL entries also exist. A `+` suffix without the expected entry
+listing is unobservable and refuses. `dseditgroup checkmember` returns status
+67 with a valid `no ... NOT a member` answer on this Mac; the audit accepts
+that answer, but refuses other nonzero statuses and malformed output. A local
+directory with both an xattr and an ACL confirmed the `@`/numbered-entry case.
+This changes read-only staging evidence only; the live account and protected
+root remain absent.
+
+## D34 — Make the protected account exclusive before staging (2026-10-01 14:09 EDT)
+
+The D31 account check accepted a second user with the same UID, a second group
+with the same GID, an explicit member of `_openclaw_nats`, or a service account
+in a supplemental privileged group such as `operator` or `_developer`.
+Read-only `dscl -search` results must identify exactly one matching user and
+group record, and the dedicated group must have no explicit members or nested
+groups. Effective `id -G` groups are limited to the dedicated primary group
+and the macOS ambient groups observed for system users on this
+host: everyone (12), localaccounts (61), `_lpoperator` (100), and the nested
+sharepoint group (701). Any other group refuses staging. The dedicated primary
+GID must be in the system range. These are staging qualifications, not proof
+that a root migration or any live protected writer exists.
+
+## D35 — Keep routed and healthy three-member claims separate (2026-10-01 14:15 EDT)
+
+Claude's second PR #175 review found that three mutually routed servers could
+report metadata cluster size five with no leader and still receive the label
+`three-member-cluster`. That label now additionally requires size three at
+each monitor, one shared leader matching a present server, and the leader's
+two other named replicas both current and not offline. This remains a narrow
+metadata gate, not proof that every stream group, client credential or store
+is healthy. The live split layout remains `standalone-plus-two`.
+
+Saved topology evidence is now emitted by the CLI's `--public-evidence`
+projection. An empty replica list is `null` rather than a false count of zero
+offline peers. NATS currently labels the held replica with an unresolved peer
+ID instead of a server name; public evidence retains a SHA-256 digest of that
+ID, not the raw value. The held store still requires independent identity and
+history pinning before migration.
+
+## D36 — Exclude operator access through the protected primary group (2026-10-01 14:25 EDT)
+
+An empty `GroupMembership` attribute does not prove the dedicated GID is
+private. macOS can record a member by GUID in `GroupMembers`, and a user's
+primary group need not appear as an explicit group member. The protected-site
+audit now refuses all three membership attributes (`GroupMembership`,
+`GroupMembers`, `NestedGroups`) and compares the service GID against every
+effective group of the invoking operator, resolved by UID even under sudo.
+It also requires a local-directory `PrimaryGroupID` search to find only the
+service account for that GID; checking the operator alone would miss another
+user with the service group as its primary group. This is a staging identity
+check, not proof that protected credentials or a root migration have been
+installed.
+
+## D37 — Preserve leader and process-start evidence in topology snapshots (2026-10-01 14:29 EDT)
+
+The public read-only topology projection retains NATS server names, each
+reported metadata leader and each `/varz` start time. These are not secrets;
+without them, a saved routed graph cannot distinguish a leader election from
+a server restart or re-derive the named-leader part of the classifier. The
+fresh snapshot still says `standalone-plus-two`; the opposite expectation
+exits 1. All three `/varz` starts remain 2026-10-01 00:29:20 UTC despite
+leader changes between snapshots, so that observed shift was an election,
+not a process restart. The nearly identical timestamps across three separate
+processes are not a precise launch spread on this VM; they establish only no
+restart between observations, not survival across a VM state restore. This
+does not bind the held store to its Raft peer ID or prove stream-level health.
+
+## D38 — Require a pristine protected root before staging (2026-10-01 14:38 EDT)
+
+The protected-site audit previously checked the root directory's owner, mode,
+device and ACL but not its contents. A leftover user-owned store under a root
+whose permissions were later corrected could therefore receive
+`readyForStaging: true`. The pre-staging audit now reads the directory and
+requires it to be empty. The future root migration must separately inventory
+and pin all protected assets after staging; this check applies only before
+that transaction and is not cutover authorization. The live protected root is
+still absent.

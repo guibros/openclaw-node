@@ -1,0 +1,60 @@
+{
+  "observedAt": "2026-10-01T18:29:06.693Z",
+  "source": "read-only loopback /routez, /jsz and /varz on 8222, 8223 and 8224",
+  "classification": "standalone-plus-two",
+  "classificationBasis": "routed graph; three-member-cluster additionally requires current three-member metadata",
+  "members": [
+    {
+      "monitorPort": 8222,
+      "clientPort": 4222,
+      "serverName": "openclaw-nats-moltymacs-virtual-machine",
+      "startedAt": "2026-10-01T00:29:20.138929Z",
+      "routePeers": [],
+      "metaLeader": null,
+      "metaClusterSize": null,
+      "reportedReplicas": null,
+      "streams": 7,
+      "consumers": 2
+    },
+    {
+      "monitorPort": 8223,
+      "clientPort": 4223,
+      "serverName": "openclaw-nats-2",
+      "startedAt": "2026-10-01T00:29:20.138931Z",
+      "routePeers": [
+        8224
+      ],
+      "metaLeader": "openclaw-nats-2",
+      "metaClusterSize": 3,
+      "reportedReplicas": [
+        {
+          "name": null,
+          "peerIdSha256": "72fe82afb679955a99a26e64ae1fd10b17aacf1da71c61ca5925c3d501b35516",
+          "offline": true,
+          "current": false
+        },
+        {
+          "name": "openclaw-nats-3",
+          "offline": null,
+          "current": true
+        }
+      ],
+      "streams": 1,
+      "consumers": 0
+    },
+    {
+      "monitorPort": 8224,
+      "clientPort": 4224,
+      "serverName": "openclaw-nats-3",
+      "startedAt": "2026-10-01T00:29:20.138931Z",
+      "routePeers": [
+        8223
+      ],
+      "metaLeader": "openclaw-nats-2",
+      "metaClusterSize": 3,
+      "reportedReplicas": null,
+      "streams": 4,
+      "consumers": 1
+    }
+  ]
+}

@@ -165,3 +165,75 @@ missing-file false WORKING during partial bootout; the declaration is now
 mandatory, initialized only for fresh singleton installs. Focused owned tests
 pass; exact new CI and review are pending. Root
 migration and three healthy cold masters remain open at 1.2[A].
+
+Checkpoint 2026-10-01 13:18 EDT: D28's read-only `/routez` + `/jsz` audit
+confirms standalone 4222 and a separate two-member 4223/4224 cluster.
+The owned topology classifier passes four fixture controls; the live
+`--expect standalone-plus-two` control passes and
+`--expect three-member-cluster` exits 1. The protected handoff must preserve these
+distinct histories before any repair. No service, store or marker changed;
+root migration, three healthy cold masters and complete restoration remain
+open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 13:20 EDT: D29's read-only protected-site audit
+passes its owned controls and refuses staging on the live host because
+`_openclaw_nats` and `/private/var/db/openclaw-nats` are absent. APFS ownership
+and the root-controlled parent pass. The audit is not cutover authorization;
+no account, directory, service or store changed. Privileged staging and the
+root migration journal remain required before a protected writer can start.
+
+Checkpoint 2026-10-01 13:33 EDT: D30 extends that audit to every protected
+ancestor and refuses a handoff root on a different device. The refreshed
+`SITE_STATIC_EVIDENCE.json` passes the ancestor-chain check; the account and
+root remain absent. Focused controls pass 69/69. No privileged mutation or
+writer cutover occurred.
+
+Checkpoint 2026-10-01 13:47 EDT: D31 closes Claude's PR #175 staging-account
+blocker in source and retains the offline third Raft peer in the topology
+evidence. The audit now checks the account's dedicated identity, ACL absence,
+the monitor-to-client port binding and the shared marker path. The live site
+still refuses: `_openclaw_nats` and the protected root are absent. Root
+migration, account creation, the three healthy cold masters and restoration proof
+remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 13:55 EDT: D32 narrows the offline-replica claim to
+one live peer's observation; the leader is not pinned by the saved snapshot.
+The separately held member-1 store and three healthy cold masters retain
+their independent preservation requirements.
+
+Checkpoint 2026-10-01 14:03 EDT: D33 hardens the read-only site audit's
+macOS parsing after adversarial review. ACL entries are read even when `ls`
+shows `@`, and a valid `dseditgroup` non-membership result is accepted despite
+exit 67. The live protected site is still not staged; no writer changed.
+
+Checkpoint 2026-10-01 14:09 EDT: D34 requires exclusive service UID/GID
+directory records, an empty dedicated group and a narrow supplemental-group
+set before staging. The root account/directory, migration journal and cold
+masters remain absent; no production writer changed.
+
+Checkpoint 2026-10-01 14:15 EDT: D35 requires converged three-member
+metadata before the audit can label a fully routed graph a three-member
+cluster. The saved evidence is now a reproducible CLI projection with a
+hashed unresolved peer ID. The live split topology is unchanged; this is
+read-only observation, not a cold-master or cutover acceptance.
+
+Checkpoint 2026-10-01 14:25 EDT: D36 closes two more protected-account
+false-ready cases: an operator whose primary or supplemental group is the
+service GID, and GUID-only `GroupMembers` membership. A follow-up search
+requires no other user's primary GID to match the service group, including a
+space-bearing directory record name. The live account and protected root
+remain absent; no writer cutover occurred.
+
+Checkpoint 2026-10-01 14:29 EDT: D37 records server names, metadata leaders
+and `/varz` start times in reproducible public evidence. The current read-only
+`standalone-plus-two` control passes, the three-member expectation exits 1,
+and the three live process start times are unchanged. This is an election
+observation, not cold-master or restoration acceptance. Exact CI and Claude
+delta review remain pending for this head.
+
+Checkpoint 2026-10-01 14:38 EDT: D38 makes the read-only staging audit refuse
+a protected root with any leftover entry. This closes an older false-ready
+case without touching the live node; its root and dedicated account remain
+absent. Focused tests and exact-head CI/review must pass before merging the
+preflight source. UID/GID stale-file search across the data volume remains a
+separate account-provisioning requirement, not evidence from this audit.
