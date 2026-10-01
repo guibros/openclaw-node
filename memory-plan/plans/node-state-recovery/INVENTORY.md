@@ -165,3 +165,19 @@ missing-file false WORKING during partial bootout; the declaration is now
 mandatory, initialized only for fresh singleton installs. Focused owned tests
 pass; exact new CI and review are pending. Root
 migration and three healthy cold masters remain open at 1.2[A].
+
+Checkpoint 2026-10-01 13:18 EDT: D28's read-only `/routez` + `/jsz` audit
+confirms standalone 4222 and a separate two-member 4223/4224 cluster.
+The owned topology classifier passes four fixture controls; the live
+`--expect standalone-plus-two` control passes and
+`--expect three-member-cluster` exits 1. The protected handoff must preserve these
+distinct histories before any repair. No service, store or marker changed;
+root migration, three healthy cold masters and complete restoration remain
+open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 13:20 EDT: D29's read-only protected-site audit
+passes its owned controls and refuses staging on the live host because
+`_openclaw_nats` and `/private/var/db/openclaw-nats` are absent. APFS ownership
+and the root-controlled parent pass. The audit is not cutover authorization;
+no account, directory, service or store changed. Privileged staging and the
+root migration journal remain required before a protected writer can start.

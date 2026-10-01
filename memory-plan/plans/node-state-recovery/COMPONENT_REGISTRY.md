@@ -14,6 +14,18 @@
 | **Status** | SPLIT, preservation in flight: standalone 4222 and cluster 4223/4224 serve; failed member 1 persistently held; three healthy cold masters pending |
 | **Verified** | 2026-09-28 21:33 EDT: member-1 protected master and its isolated R1 restoration accepted; eleven individual online archives restored with 80,156 non-expiring messages. After the VM crash, nine reachable non-expiring stream states/configs and durable positions match the older archive points; no immediate pre-crash acknowledgement guarantee. Worker explicitly restored under a 65-second idle guard. All three serving bus identities/routes remain unchanged through revised owned recovery tests; member 2 is metadata leader. Fifteen preservation checks, a real account-group election regression, fifty-three journal fault tests and complete owned recovery fixtures pass. Journal is a primitive; managed orchestration remains pending. New managed-window acceptance, three healthy cold copies and coordinated recovery remain open. |
 
+2026-10-01 13:18 EDT — Fresh read-only monitor evidence confirms the split:
+8222 has zero routes and no meta-cluster; 8223 and 8224 route to each other,
+with metadata leader now reported as member 3. The earlier member-2 leader
+observation is historical. `SITE_TOPOLOGY_EVIDENCE.json` records only port
+relationships and counts. None of these observations proves replay or cold
+ copy health, and no production bus operation occurred.
+
+2026-10-01 13:20 EDT — `SITE_STATIC_EVIDENCE.json` records a read-only
+protected-site check: APFS ownership and the root-controlled parent pass;
+the dedicated service account and protected root do not exist. The handoff
+marker is unpublished. No cutover stage has started.
+
 Current mechanism checkpoint 2026-09-28 23:49 EDT: tools-v30 passes53 fresh journal tests; unchanged15 admission/1 election tests inherit identical source hashes. Creation prepares the receipt before mkdir; interrupted setup is restoration-only. bbbc883 CI36516935187 is green, while this newer patch awaits exact CI/review. No new healthy production stop or cold-copy acceptance.
 
 Current mechanism checkpoint 2026-09-29 00:58 EDT: tools-v31 passes55 fresh

@@ -501,3 +501,41 @@ Migration acceptance must pin those identities and inspect
 persistently enabled jobs before publishing the marker. This is read-only
 monitoring, not migration authority or proof of JetStream health; quorum and
 replay checks remain separate. No live service is changed by this decision.
+
+## D28 — Bind protected handoff to the observed split source topology (2026-10-01 13:18 EDT)
+
+The live 4222 server has no NATS routes and no JetStream meta-cluster; the
+4223/4224 servers route to each other and report `openclaw-cluster`. The
+read-only loopback audit classifies this as `standalone-plus-two`, not a
+three-member cluster. The three live PIDs and reachable client ports
+must not be interpreted as one replicated history. Each distinct store and
+its stream/consumer state remains a separate preservation source. A protected
+writer handoff must pin the old topology and verify the new jobs reproduce the
+same separation before any topology repair or history union is attempted.
+
+`bin/nats-topology-audit.mjs` observes the three fixed local monitor ports,
+checks that `/routez` and `/jsz` name the same server at each port, collapses
+duplicate route connections by server ID and reports only the resulting
+topology. Its `--expect` control exits nonzero on drift; this Mac's observed
+split passes and a three-member expectation fails. It does not inspect
+credentials, config/store identity, message contents or cold-copy integrity.
+`SITE_TOPOLOGY_EVIDENCE.json` contains counts and port relationships without
+server IDs or secret-bearing payloads. The root migration journal, protected
+service identity, cold masters and resumption still gate step 1.2.
+
+## D29 — Audit protected site prerequisites without authorizing cutover (2026-10-01 13:20 EDT)
+
+The protected writer requires a distinct `_openclaw_nats` UID, an
+ownership-enforcing APFS volume, and a root:wheel `0755` directory under the
+root-controlled `/private/var/db` parent. Before a new handoff, the marker
+must be absent; if already published, only the root migration journal may
+decide recovery. `bin/nats-protected-site-audit.mjs` checks these facts
+read-only and returns `readyForStaging`, not `readyForCutover`. It neither
+creates the account nor directory, and it does not read or publish secrets.
+
+The live site passes APFS ownership and protected-parent checks, but the
+service account and protected directory are absent. The audit exits 1 with
+those two exact blockers. Root-owned binary/config/auth staging, immutable
+identity pins, store transfer, legacy job retirement, first protected
+bootstrap, reverse-path constraints and three healthy cold masters are still
+open. No privileged mutation occurred.
