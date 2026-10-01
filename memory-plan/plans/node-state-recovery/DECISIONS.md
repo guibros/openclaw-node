@@ -698,3 +698,56 @@ the lock. The root migration must still reject old in-flight processes that
 started before the lock existed. This is exclusion infrastructure only: the
 root-owned lock, ownership transfer, journal and protected writer have not
 been staged or exercised live.
+
+## D41 — Root exclusion is an identity-pinned, exclusive lock (2026-10-01 16:02 EDT)
+
+The privileged migration uses the same fixed lock path as D40. Its root-only
+entrypoint creates a regular root:wheel 0644 file outside the staging root
+only after a durable migration intent. Creation and acquisition are distinct:
+acquisition refuses a missing file, so a read-only probe cannot switch the
+legacy tools into lock mode. Creation syncs the file and parent directory;
+acquisition then takes a bounded exclusive `flock`.
+It validates owner, mode, single link, inode, protected ancestors and absence
+of granting ACLs before and after acquisition. A current shared holder makes
+the root refuse; a replaced lock path after acquisition also refuses. The
+file is never deleted or replaced once created: recreating it could leave a
+legacy process holding an unlinked old inode. A resumed creation syncs the
+existing file and parent before reporting success. The root must retain the
+descriptor until the handoff or pre-bootstrap rollback has ended. This is a
+source primitive, not a migration driver or proof that deployed legacy copies
+honor D40. No live lock file or marker is created by this change.
+
+## D42 — Journal the root lock bootstrap before the live switch (2026-10-01 16:16 EDT)
+
+The root transaction must durably record one lock-create intent under its
+protected site before creating the D40 lock file. The intent binds a
+transaction UUID, boot identity, user-transfer digest and admission digest.
+It also binds the exact protected site, shared lock path and expected owner;
+reentry with a different path cannot receipt an unrelated lock.
+The lock path cannot lie inside the handoff site, and the source API refuses
+the actual D40 production lock until the remaining lifecycle branches are
+implemented and reviewed. Both journal begin and private creation refuse
+every macOS root caller before writing, so a path alias or direct import
+cannot lift this gate or strand the protected site.
+Only then may explicit creation run. The pinned root driver must perform a
+process census before creation, including unlinked-file holders, then repeat
+it and re-observe the same admission under exclusive lock before writing a
+lock-created receipt with the inode and change time. Linux can reuse an inode
+immediately after deletion, so the durable receipt requires both values. The
+in-process descriptor/path identity also checks device; the durable receipt
+does not pin a transient device number across reboot. Any metadata change
+after the receipt refuses and requires an operator review. A process exit
+after a durable intent and before a later record write can reopen that intent
+and repeat the admission and census checks; it cannot start a second journal.
+A marker already present routes to
+the later full recovery path, never this bootstrap.
+The source journal stores digests, not the private transfer or cold-master
+contents. Claude's exact-head review found that a deleted lock could be
+recreated before the receipt, a crash before the first intent or during a
+later record write can strand reentry, and reboot has no terminal abandonment
+or successor transaction. The production gate must stay until those
+lifecycle branches are implemented and tested. The eventual driver must
+bind census evidence to transaction, phase and lock identity; copy transfer
+evidence to root-owned storage; recompute verified state from fresh physical
+observations; and keep volatile fields outside the admission digest. Marker,
+retirement, protected bootstrap and live acceptance are also pending.
