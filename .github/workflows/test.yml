@@ -25,6 +25,7 @@ jobs:
         run: |
           PYTHONDONTWRITEBYTECODE=1 python3 test/test_nats_legacy_lock.py
           PYTHONDONTWRITEBYTECODE=1 python3 test/test_nats_root_lock.py
+          PYTHONDONTWRITEBYTECODE=1 python3 test/test_nats_root_journal.py
       - name: SQLite recovery fixtures
         if: matrix.node-version == 22
         run: |
@@ -143,6 +144,7 @@ jobs:
         run: |
           /usr/bin/python3 test/test_nats_legacy_lock.py
           /usr/bin/python3 test/test_nats_root_lock.py
+          /usr/bin/python3 test/test_nats_root_journal.py
           node --test test/nats-legacy-lock.test.mjs
 
   mission-control-tests:

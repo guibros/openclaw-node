@@ -713,3 +713,18 @@ the root refuse; a replaced lock path also refuses. The root must retain the
 descriptor until the handoff or pre-bootstrap rollback has ended. This is a
 source primitive, not a migration driver or proof that deployed legacy copies
 honor D40. No live lock file or marker is created by this change.
+
+## D42 — Journal the root lock bootstrap before the live switch (2026-10-01 16:16 EDT)
+
+The root transaction must durably record one lock-create intent under its
+protected site before creating the D40 lock file. The intent binds a
+transaction UUID, boot identity, user-transfer digest and admission digest.
+Only then may explicit creation run. After exclusive acquisition, the pinned
+root driver must perform the pre-protocol process census and re-observe the
+same admission under the lock before writing a lock-created receipt with the
+file identity. A crash in the creation gap reopens the same intent and repeats
+the admission and census checks; it cannot start a second journal. A marker
+already present routes to the later full recovery path, never this bootstrap.
+The source journal stores digests, not the private transfer or cold-master
+contents. It is not a full migration driver: the production callbacks, marker,
+retirement, protected bootstrap and live acceptance remain unimplemented.

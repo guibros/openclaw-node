@@ -275,3 +275,11 @@ fixtures are being prepared separately. No live lock file exists yet; merged
 legacy source is not evidence that installed old copies have been replaced.
 The root journal, preservation transfer, client disable, cold masters and
 protected bootstrap remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 16:16 EDT: draft PR #178 now includes a source-only root
+lock bootstrap journal: intent-before-create, exclusive lock, old-writer
+census callback, and admission readback under exclusion. Local private
+fixtures pass (root lock 10/10, journal 9/9). The callbacks do not yet have a
+production pinned root driver; no marker, service, store or root-owned path
+was changed. Durable preservation transfer, physical census implementation,
+cold masters and cutover remain open at 1.2[A]/v1.2-pre.
