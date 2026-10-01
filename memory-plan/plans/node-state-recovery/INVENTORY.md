@@ -268,3 +268,10 @@ job exercises the descriptor handoff and background-child release; relevant
 source tests pass. The root-owned lock has not been created, and the existing production
 entrypoints have not been redeployed from this candidate. Root journal,
 durable user-to-root transfer, client hold and cutover remain open at 1.2[A].
+
+Checkpoint 2026-10-01 16:02 EDT: PR #177 merged with four green CI jobs and
+Claude's no-blocker review. The new root-side exclusion primitive and macOS
+fixtures are being prepared separately. No live lock file exists yet; merged
+legacy source is not evidence that installed old copies have been replaced.
+The root journal, preservation transfer, client disable, cold masters and
+protected bootstrap remain open at 1.2[A]/v1.2-pre.

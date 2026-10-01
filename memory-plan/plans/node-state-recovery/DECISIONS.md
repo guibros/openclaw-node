@@ -698,3 +698,15 @@ the lock. The root migration must still reject old in-flight processes that
 started before the lock existed. This is exclusion infrastructure only: the
 root-owned lock, ownership transfer, journal and protected writer have not
 been staged or exercised live.
+
+## D41 — Root exclusion is an identity-pinned, exclusive lock (2026-10-01 16:02 EDT)
+
+The privileged migration uses the same fixed lock path as D40. Its root-only
+entrypoint creates a regular root:wheel 0644 file outside the staging root,
+syncs the file and parent directory, then takes a bounded exclusive `flock`.
+It validates owner, mode, single link, inode, protected ancestors and absence
+of granting ACLs before and after acquisition. A current shared holder makes
+the root refuse; a replaced lock path also refuses. The root must retain the
+descriptor until the handoff or pre-bootstrap rollback has ended. This is a
+source primitive, not a migration driver or proof that deployed legacy copies
+honor D40. No live lock file or marker is created by this change.
