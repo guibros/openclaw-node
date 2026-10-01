@@ -1,0 +1,31 @@
+{
+  "observedAt": "2026-10-01T17:25:13.196Z",
+  "readyForStaging": false,
+  "checks": [
+    {
+      "id": "service-account",
+      "ok": false,
+      "detail": "_openclaw_nats is absent"
+    },
+    {
+      "id": "ownership-volume",
+      "ok": true,
+      "detail": "APFS with ownership enabled"
+    },
+    {
+      "id": "protected-parent",
+      "ok": true,
+      "detail": "root:wheel without group/world write"
+    },
+    {
+      "id": "protected-root",
+      "ok": false,
+      "detail": "protected root not staged"
+    },
+    {
+      "id": "handoff-marker",
+      "ok": true,
+      "detail": "unpublished"
+    }
+  ]
+}
