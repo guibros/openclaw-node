@@ -203,6 +203,9 @@ class Launchd:
         require(loaded['path'] == str(self.plist.resolve(strict=True)),
                 'loaded plist provenance differs from approved file')
         require(loaded['arguments'] == plist['ProgramArguments'], 'loaded arguments differ from approved plist')
+        approved_program = plist.get('Program', plist['ProgramArguments'][0])
+        require(loaded['program'] == str(pathlib.Path(approved_program).resolve(strict=True)),
+                'loaded program differs from approved plist')
         executable = str(pathlib.Path(executable).resolve(strict=True))
         paths = {self.plist.resolve(strict=True), pathlib.Path(executable)}
         paths.update(pathlib.Path(arg).resolve(strict=True) for arg in expected_argv
@@ -225,6 +228,7 @@ class Launchd:
         arguments = re.search(r'^\s*arguments = \{\n(.*?)^\s*\}', text, re.M | re.S)
         require(arguments is not None, 'loaded job lacks arguments')
         return {'path': str(pathlib.Path(field('path')).resolve(strict=True)),
+                'program': str(pathlib.Path(field('program')).resolve(strict=True)),
                 'arguments': [line.strip() for line in arguments[1].splitlines()],
                 'logs': sorted({str(pathlib.Path(field(name)).resolve(strict=True))
                                 for name in ('stdout path', 'stderr path')})}

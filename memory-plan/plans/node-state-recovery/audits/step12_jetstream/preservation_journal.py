@@ -97,13 +97,16 @@ def static_identity(plist_path, files=(), dependencies=None):
     raw = pathlib.Path(plist_path).read_bytes()
     plist = plistlib.loads(raw)
     argv = plist['ProgramArguments']
+    executable = plist.get('Program', argv[0])
+    require(isinstance(executable, str) and pathlib.Path(executable).is_absolute(),
+            'LaunchAgent executable must be an absolute path')
     dependencies = {name: str(pathlib.Path(path).resolve(strict=True))
                     for name, path in (dependencies or {}).items()}
     require(all(pathlib.Path(path).is_file() for path in dependencies.values()),
             'dependencies must be resolved entry files; include package.json in files')
     cwd = pathlib.Path(plist.get('WorkingDirectory', '/'))
     arguments = [pathlib.Path(arg) if pathlib.Path(arg).is_absolute() else cwd / arg for arg in argv]
-    paths = {pathlib.Path(path).resolve(strict=True) for path in (argv[0], *files, *dependencies.values())}
+    paths = {pathlib.Path(path).resolve(strict=True) for path in (executable, *files, *dependencies.values())}
     paths.update(path.resolve(strict=True) for path in arguments if path.is_file())
     return {'plist_sha256': hashlib.sha256(raw).hexdigest(), 'argv': argv,
             'working_directory': str(cwd.resolve(strict=True)),

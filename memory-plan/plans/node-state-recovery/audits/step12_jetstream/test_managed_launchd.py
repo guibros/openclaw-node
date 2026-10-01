@@ -224,6 +224,15 @@ os.execv('/bin/sleep',['sleep','30'])
             self.service.bind([self.node, '/nonexistent'], self.node, self.directory)
         self.assertTrue(self.service.status()['running'])
 
+    def test_plist_program_drift_refuses_before_service_stop(self):
+        self.launch()
+        plist = plistlib.loads(self.plist.read_bytes())
+        plist['Program'] = '/bin/echo'
+        self.plist.write_bytes(plistlib.dumps(plist))
+        with self.assertRaisesRegex(Refused, 'loaded program differs from approved plist'):
+            self.service.bind([self.node, str(self.script)], self.node, self.directory)
+        self.assertTrue(self.service.status()['running'])
+
     def test_idle_timer_unloads_without_new_log_bytes(self):
         self.launch(run_at_load=False)
         apply, verify = unload_idle_timer(self.service, [self.log, self.err])

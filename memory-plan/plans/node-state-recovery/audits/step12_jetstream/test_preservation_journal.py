@@ -1231,6 +1231,21 @@ with legacy_journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
         with self.assertRaisesRegex(Refused, 'resolved entry files'):
             static_identity(unit, dependencies={'package': parent})
 
+    def test_static_identity_hashes_program_over_custom_argv_zero(self):
+        import plistlib
+        from preservation_journal import static_identity
+        parent = pathlib.Path(self.temp.name)
+        program = parent / 'actual-executable'
+        program.write_bytes(b'first executable')
+        unit = parent / 'owned-program.plist'
+        unit.write_bytes(plistlib.dumps({'Program': str(program),
+                                        'ProgramArguments': ['custom-argv-zero'],
+                                        'WorkingDirectory': str(parent)}))
+        before = static_identity(unit)
+        self.assertIn(str(program.resolve()), before['files'])
+        program.write_bytes(b'changed executable')
+        self.assertNotEqual(static_identity(unit), before)
+
     def test_static_identity_binds_the_resolved_working_directory(self):
         import plistlib
         from preservation_journal import static_identity

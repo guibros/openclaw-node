@@ -794,3 +794,10 @@ members and five extras (`com.google.GoogleUpdater.wake`,
 system-loaded extras. The extras are not accepted exclusions; a full-node
 baseline still refuses. Ninety-one focused scanner/journal tests pass on this
 source. No live hold, job mutation, or cold NATS master was attempted.
+
+The same branch now binds launchd's explicit `Program` executable in the
+static file hash and compares the loaded program with the plist before a
+managed stop. A scratch plist with a custom `ProgramArguments[0]` and a
+different `Program` exercises the precedence case. The managed Mac and
+journal suites pass 97 tests with one explicit domain-specific skip; their
+owned NATS server reports no production connections.
