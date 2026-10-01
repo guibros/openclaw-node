@@ -545,3 +545,48 @@ source before full-node sealing or restoration can be accepted. A literal LF
 inside `path`, `program` or `working directory` still truncates the printed
 value at that boundary; the non-printable check only closes the other line
 separators and control characters.
+
+## D30 — Keep verified store copies separate from cold-point certification (2026-10-01 05:32 EDT)
+
+D26's APFS snapshot target is not available on this host as currently
+configured: `tmutil destinationinfo` has no destination, the Data volume has
+no local snapshots, and the installed `fs_snapshot_create(2)` manual requires
+superuser plus an additional entitlement. Do not create a snapshot or treat a
+sequential live copy as one. An owner-private candidate copier now inventories
+all three store trees, refuses links and special files, hashes source bytes
+before and during copying, compares complete source manifests after copying,
+hashes the destination, and publishes the candidate only after those checks.
+The owned three-member JetStream fixture cleanly stops, copies its stores,
+and restores the stream and durable consumer in a separate owned cluster.
+This proves usability of those exact copied bytes, not absence of a writer
+before the first manifest.
+
+The missing writer proof is concrete. A writable shared `mmap` on an owned
+file changed its bytes while its ctime remained unchanged until `flush()`.
+`lsof` exposed the mapping as `txt`, not as a writable descriptor. A direct
+`proc_pidinfo(PROC_PIDREGIONPATHINFO)` probe found that mapping in its own
+process but returned `EPERM` before enumerating any regions of root
+`meshagent` and `syspolicyd` from this user session. `proc_listpidspath`
+found the owned mapping, but that positive result does not prove complete
+coverage of protected processes or all writable kernel references. Thus a
+stop-time ctime anchor plus two hashes cannot certify that a pre-manifest
+mapped writer did not change the baseline. The candidate copier returns
+`status=candidate`; it cannot append a cold-point receipt or enable
+full-node `seal()`.
+
+An opt-in owned APFS sparse-image test supports a different future bracket:
+non-forced unmount refused while a descriptor-free writable mapping existed
+and while a write descriptor sat unread in a UNIX socket; it succeeded after
+those references were released. A read-only remount refused `O_RDWR` with
+`EROFS`, and an unwritable bare mountpoint refused store creation. The volume
+UUID was stable across remounts. A separate owned APFS probe found that a
+mapped write changed file bytes while ctime stayed unchanged even after
+`fsync` on a read-only descriptor; ctime advanced on `munmap` in that probe.
+These are bounded host observations, not a proof against every memory-entry
+or pre-unmount writer and not permission to migrate the live stores.
+
+A future certified bracket needs a tested mechanism that excludes or detects
+every writer across the stop-to-manifest interval, including writable
+mappings and inaccessible processes, plus the already-required pinned
+re-bootstrap and truthful resumption. No production service or store was
+stopped, copied, or changed for this decision. Step 1.2 remains active.

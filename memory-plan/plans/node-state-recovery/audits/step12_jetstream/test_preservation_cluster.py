@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 
+from cold_copy import copy_candidate
 from preservation_checks import QuietWindow, Refused, capture, http_json
 
 
@@ -200,6 +201,87 @@ let nc,stage='connect';
             (root/'cleanup.json').write_text(json.dumps(report, indent=2))
             print(json.dumps(report))
             self.assertFalse(cleanup, 'owned cluster shutdown was not normal')
+        candidate = copy_candidate({str(i): root/f'store-{i}' for i in range(3)}, root/'candidate')
+        restored_sockets = []
+        for _ in range(9):
+            sock = socket.socket(); sock.bind(('127.0.0.1', 0)); restored_sockets.append(sock)
+        restored_ports = [sock.getsockname()[1] for sock in restored_sockets]
+        self.assertFalse(set(restored_ports) & set(ports))
+        restored = []
+        restored_cleanup = []
+        restore_proof = None
+        try:
+            for sock in restored_sockets:
+                sock.close()
+            for i in range(3):
+                routes = ','.join(f'"nats://owned:{route_password}@127.0.0.1:{restored_ports[j*3+2]}"'
+                                  for j in range(3) if j != i)
+                config = root/f'restored-{i}.conf'
+                config.write_text(f'''server_name: owned-raft-{i}
+listen: 127.0.0.1:{restored_ports[i*3]}
+http: 127.0.0.1:{restored_ports[i*3+1]}
+authorization {{ token: "{token}" }}
+jetstream {{ store_dir: "{root}/candidate/{i}" }}
+cluster {{ name: owned-preservation
+ listen: 127.0.0.1:{restored_ports[i*3+2]}
+ authorization {{ user: owned, password: "{route_password}" }}
+ routes: [{routes}]
+ no_advertise: true
+}}
+''')
+                log = open(root/f'restored-{i}.log', 'ab', buffering=0)
+                proc = subprocess.Popen([binary, '--config', str(config)], stdout=log, stderr=log)
+                restored.append((proc, log))
+            deadline = time.monotonic() + 30
+            reports = None
+            while time.monotonic() < deadline:
+                self.assertTrue(all(proc.poll() is None for proc, _ in restored))
+                try:
+                    reports = [capture(restored_ports[i*3+1]) for i in range(3)]
+                    elected = all('$G' in report['raft']
+                                  and len(report['raft']['$G']) >= 2
+                                  and all(node['leader'] and node['committed'] == node['applied']
+                                          for node in report['raft']['$G'].values())
+                                  for report in reports)
+                    actual_streams = sorted(json.dumps(report['streams'], sort_keys=True)
+                                            for report in reports)
+                    expected_streams = sorted(json.dumps(report['streams'], sort_keys=True)
+                                              for report in before)
+                    if elected and actual_streams == expected_streams:
+                        break
+                except Refused:
+                    pass
+                time.sleep(.05)
+            else:
+                (root/'restore-refused.json').write_text(json.dumps({
+                    'expected': [report['streams'] for report in before],
+                    'actual': [report['streams'] for report in reports] if reports else None,
+                    'raft': [report['raft'] for report in reports] if reports else None
+                }, indent=2))
+                self.fail('isolated candidate restore did not recover the stream and consumer state')
+            restore_proof = {
+                'status': candidate['status'], 'manifest_sha256': candidate['manifest_sha256'],
+                'files': candidate['files'], 'restored_streams': len(reports[0]['streams']),
+                'scope': 'owned isolated restore; no full-node certification'
+            }
+        finally:
+            for i, (proc, log) in reversed(list(enumerate(restored))):
+                try:
+                    if proc.poll() is None:
+                        proc.send_signal(signal.SIGTERM)
+                    self.assertEqual(proc.wait(timeout=10), 0)
+                    self.assertIn('Server Exiting', (root/f'restored-{i}.log').read_text())
+                except Exception as error:
+                    restored_cleanup.append({'pid': proc.pid, 'error': str(error),
+                                             'forced': proc.poll() is None})
+                    if proc.poll() is None:
+                        proc.kill(); proc.wait(timeout=5)
+                finally:
+                    log.close()
+            self.assertFalse(restored_cleanup, 'owned restored cluster shutdown was not normal')
+        (root/'candidate-restore.json').write_text(json.dumps({
+            **restore_proof, 'owned_server_cleanup': 'normal'
+        }, indent=2))
 
 
 if __name__ == '__main__':

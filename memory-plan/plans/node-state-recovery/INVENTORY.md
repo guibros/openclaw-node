@@ -200,3 +200,19 @@ approved jobs match, while four installed mesh jobs correctly refuse their
 live `NODE_PATH` loader. The complete cohort still refuses. Idle-job
 attestation, domain-environment binding, a privileged snapshot, three cold
 masters and verified resumption remain open at 1.2[A]/v1.2-pre.
+
+D30 replaces the unavailable APFS snapshot path with an explicitly
+uncertified candidate-copy experiment. The new copier verifies three owned
+store trees before, during and after copying; an isolated three-server
+restore recovers the seeded JetStream stream and durable consumer. The
+stop-to-first-manifest writer-exclusion proof is still absent: writable
+`mmap` can change bytes before ctime publication, and protected-process
+mapping enumeration is inaccessible from this user session. The candidate
+does not count as a cold master or a preservation receipt. Pinned idle-job
+re-bootstrap, complete writer fencing, live stop/copy/resume and step closure
+remain open at 1.2[A]/v1.2-pre.
+
+An opt-in owned APFS image test now proves that a normal unmount refuses a
+descriptor-free writable mapping and a descriptor in transit, and that a
+read-only remount refuses writes. It does not close the stop-to-unmount
+same-user writer interval or authorize a live store migration.

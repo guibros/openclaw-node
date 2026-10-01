@@ -915,3 +915,51 @@ domain-specific skip, three owned NATS servers, zero production NATS
 connections and normal cleanup. No production job, service or store changed;
 no APFS snapshot or full-node hold was attempted. Exact pushed CI and Claude
 re-review of D29 remain pending at this checkpoint.
+
+2026-10-01 05:42 EDT — PR #170 head `a5f4719` passed Node 20, Node 22 and
+Mission Control CI. Claude's exact-code-head re-review of `a38f079` found no
+new source blocker; it reiterated that launchd's literal-LF text cannot
+attest an idle loaded job. The draft PR remains deliberately non-operational.
+
+D30's owned candidate-copy implementation inventories and hashes three
+JetStream store trees, refuses symlinks, hardlinks and special files, checks
+source identity and bytes during copying, rechecks the source, hashes the
+copy and publishes only after all comparisons pass. Six focused controls
+pass, including writes after the baseline, an unflushed writable mapping,
+new directory entries and linked-file refusal. The existing three-member
+owned NATS fixture then cleanly stopped, copied the three actual store trees,
+and restored them on separate owned ports. Across two repeat runs, the
+restored stream and durable consumer state matched the baseline multiset
+after Raft election. The initial per-server comparison had failed because
+the durable consumer's `pending` view moved with the elected leader; the
+final comparison preserves all three replica states while allowing the
+leader to move. The complete Mac recovery suite passed 196 tests with one
+domain skip; the owned servers exited normally, and it reported zero
+production NATS connections. The first suite invocation was missing the
+worktree's external `RECOVERY_NATS_MODULE` path and failed setup; the rerun
+with the installed module path passed.
+
+An owned macOS memory probe changed file bytes through a shared writable
+mapping with its descriptor closed. `lsof` listed the file as `txt`, not an
+open writable descriptor. `proc_pidinfo(PROC_PIDREGIONPATHINFO)` found that
+mapping in its own process; calls for root `meshagent` and `syspolicyd`
+returned `EPERM` before any region. `proc_listpidspath` found the owned
+mapping but is not a completeness proof. On an owned APFS sparse image,
+the mapped write left ctime unchanged immediately and after `fsync` of a
+read-only descriptor; ctime advanced on `munmap`. That falsifies a
+stop-time ctime check as a standalone guarantee.
+
+The opt-in `RECOVERY_APFS_TEST=1` fixture passed on this Mac. It created an
+owned 256 MiB APFS sparse image, verified a stable volume UUID, and saw a
+normal unmount refuse `Resource busy` for both a descriptor-free writable
+mapping and an unread UNIX-socket-transferred write descriptor. After
+releasing the references, normal unmount succeeded. A read-only remount
+refused `O_RDWR` with `EROFS`; an unwritable bare mountpoint refused new
+store creation; read-write remount retained the original bytes. The fixture
+detached and cleaned its image. These tests cover owned volume mechanics,
+not the live Data volume or a certified production preservation point.
+Claude's Message 137 independently challenged the proposed root scan as
+incomplete, including descriptors in transit and Mach memory entries, and
+proposed a dedicated volume/unmount bracket. Its further challenge of the
+stop-to-unmount writer interval is pending. No production service, volume,
+store or journal was changed, and full-node `seal()` remains refused.
