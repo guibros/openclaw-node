@@ -18,6 +18,7 @@ import net from 'node:net';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { assertLegacyNatsWriterAllowed } from '../lib/nats-writer-ownership.mjs';
+import { reexecUnderLegacyNatsLock } from '../lib/nats-legacy-lock.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOME = os.homedir();
@@ -224,12 +225,17 @@ const cmd = process.argv[2] || 'status';
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const units = process.platform === 'darwin' ? scanLaunchdUnits() : scanSystemdUnits();
   if (!units.length) { console.error('no openclaw units installed — run install.sh first'); process.exit(1); }
+  const hasLegacyNats = process.platform === 'darwin'
+    && units.some((u) => !u.disabled && /^nats(?:-|$)/.test(u.id));
+  if ((cmd === 'up' || cmd === 'down') && hasLegacyNats) reexecUnderLegacyNatsLock();
+  if ((cmd === 'up' || cmd === 'down') && hasLegacyNats) {
+    try { assertLegacyNatsWriterAllowed(); }
+    catch (error) { console.error(error.message); process.exit(1); }
+  }
+  delete process.env.OPENCLAW_NATS_LEGACY_REEXEC_ATTEMPT;
+  delete process.env.OPENCLAW_NATS_LEGACY_LOCK_HELD;
 
   if (cmd === 'up') {
-    if (process.platform === 'darwin' && units.some((u) => !u.disabled && /^nats(?:-|$)/.test(u.id))) {
-      try { assertLegacyNatsWriterAllowed(); }
-      catch (error) { console.error(error.message); process.exit(1); }
-    }
     const started = process.platform === 'darwin' ? up(units) : upLinux(units);
     const bridge = await startBridge();
     console.log(`started: ${started.length ? started.join(', ') : '(everything already running)'} · bridge: ${bridge}`);

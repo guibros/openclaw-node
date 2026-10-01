@@ -21,6 +21,8 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
+      - name: Legacy NATS writer lock fixtures
+        run: PYTHONDONTWRITEBYTECODE=1 python3 test/test_nats_legacy_lock.py
       - name: SQLite recovery fixtures
         if: matrix.node-version == 22
         run: |
@@ -125,6 +127,20 @@ jobs:
           # cannot silently break the gate (it did at 9 -> 11).
           test "$(grep -c " scripts/install/.*\.sh" /tmp/pack.txt)" = "$(ls scripts/install/*.sh | wc -l | tr -d ' ')"
           grep -q " packages/event-schemas/dist/" /tmp/pack.txt
+
+  legacy-writer-lock-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify macOS descriptor and subprocess lock behavior
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          /usr/bin/python3 test/test_nats_legacy_lock.py
+          node --test test/nats-legacy-lock.test.mjs
 
   mission-control-tests:
     runs-on: ubuntu-latest

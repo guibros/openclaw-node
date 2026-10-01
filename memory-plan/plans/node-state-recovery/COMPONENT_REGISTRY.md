@@ -45,6 +45,16 @@ process start times remain 00:29:20 UTC. The prior leader shift was an
 election, not a process restart. This does not prove held-store identity,
 stream replay, or protected-site readiness.
 
+2026-10-01 15:05 EDT — PR #175's read-only preflight is merged at `3f60fb7`;
+its staging audit still refuses the absent account/root. The active watcher
+uses the already-merged PR #173 cohort code from release
+`monitor-nats-cohort-529ee53`. Launchd reports PID 83069, runs 1, and the
+2026-10-01 19:05:50 UTC snapshot reports `fabric.services` WORKING with the
+actual `nats`, `nats-2`, `nats-3` GUI PIDs. This is watcher runtime evidence,
+not NATS cold-copy or protected-writer acceptance. Claude's root migration
+challenge found four blocking interleavings recorded in D39; the separate
+cutover remains unimplemented.
+
 Current mechanism checkpoint 2026-09-28 23:49 EDT: tools-v30 passes53 fresh journal tests; unchanged15 admission/1 election tests inherit identical source hashes. Creation prepares the receipt before mkdir; interrupted setup is restoration-only. bbbc883 CI36516935187 is green, while this newer patch awaits exact CI/review. No new healthy production stop or cold-copy acceptance.
 
 Current mechanism checkpoint 2026-09-29 00:58 EDT: tools-v31 passes55 fresh

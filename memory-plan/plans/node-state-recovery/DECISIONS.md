@@ -664,3 +664,37 @@ requires it to be empty. The future root migration must separately inventory
 and pin all protected assets after staging; this check applies only before
 that transaction and is not cutover authorization. The live protected root is
 still absent.
+
+## D39 — Root NATS writer migration requires a durable ownership transfer (2026-10-01 15:03 EDT)
+
+Claude's read-only challenge of the proposed protected-writer migration found
+four blocking interleavings: an installer already past a marker check can
+rewrite and reload a legacy job; the user preservation journal can restore GUI
+NATS after root retirement or become permanently unresolved; an enabled
+system plist can auto-start after a reboot before first-bootstrap intent; and
+bootout-only client holds let clients return at login during post-bootstrap
+acceptance. The corrected candidate is in
+`audits/step12_jetstream/ROOT_WRITER_MIGRATION_DESIGN.md`. It requires a
+durable user-to-root NATS-unit transfer, shared old-writer exclusion plus a
+pre-protocol process check, persistent client disable or equivalent physical
+hold, no loadable protected plist before durable first-bootstrap intent, and
+first boot with only the root acceptance identity. Clustered stores are
+single-use copies because startup rewrites `peers.idx`; the standalone store
+must never start under cluster config. These are implementation and live
+acceptance requirements, not a migration approval. No protected account,
+marker, root journal, cold masters or cutover exists yet.
+
+## D40 — Make legacy NATS mutation share a root-owned exclusion lock (2026-10-01 15:17 EDT)
+
+The old-writer source must take a shared `flock` on a root-owned 0644 lock at
+`/private/var/db/openclaw-nats-writer.lock` for its entire mutation, including
+installer and uninstaller work, auth reload and stack launch. The privileged
+transaction will take that same lock exclusively before its process census and handoff marker
+publication. The source wrappers validate the lock path and inherited
+descriptor, wait for a bounded interval, and refuse a marker observed under
+the lock. If the lock is absent they retain the existing marker guard; this
+lets the prerequisite source deploy before the privileged transaction creates
+the lock. The root migration must still reject old in-flight processes that
+started before the lock existed. This is exclusion infrastructure only: the
+root-owned lock, ownership transfer, journal and protected writer have not
+been staged or exercised live.
