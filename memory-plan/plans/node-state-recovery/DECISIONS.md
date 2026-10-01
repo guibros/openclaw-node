@@ -608,3 +608,20 @@ host: everyone (12), localaccounts (61), `_lpoperator` (100), and the nested
 sharepoint group (701). Any other group refuses staging. The dedicated primary
 GID must be in the system range. These are staging qualifications, not proof
 that a root migration or any live protected writer exists.
+
+## D35 — Keep routed and healthy three-member claims separate (2026-10-01 14:15 EDT)
+
+Claude's second PR #175 review found that three mutually routed servers could
+report metadata cluster size five with no leader and still receive the label
+`three-member-cluster`. That label now additionally requires size three at
+each monitor, one shared leader matching a present server, and the leader's
+two other named replicas both current and not offline. This remains a narrow
+metadata gate, not proof that every stream group, client credential or store
+is healthy. The live split layout remains `standalone-plus-two`.
+
+Saved topology evidence is now emitted by the CLI's `--public-evidence`
+projection. An empty replica list is `null` rather than a false count of zero
+offline peers. NATS currently labels the held replica with an unresolved peer
+ID instead of a server name; public evidence retains a SHA-256 digest of that
+ID, not the raw value. The held store still requires independent identity and
+history pinning before migration.

@@ -210,3 +210,9 @@ Checkpoint 2026-10-01 14:09 EDT: D34 requires exclusive service UID/GID
 directory records, an empty dedicated group and a narrow supplemental-group
 set before staging. The root account/directory, migration journal and cold
 masters remain absent; no production writer changed.
+
+Checkpoint 2026-10-01 14:15 EDT: D35 requires converged three-member
+metadata before the audit can label a fully routed graph a three-member
+cluster. The saved evidence is now a reproducible CLI projection with a
+hashed unresolved peer ID. The live split topology is unchanged; this is
+read-only observation, not a cold-master or cutover acceptance.

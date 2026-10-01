@@ -1,11 +1,15 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyNatsTopology, summarizeNatsTopology, observeNatsTopology } from '../lib/nats-topology-audit.mjs';
+import { classifyNatsTopology, summarizeNatsTopology, observeNatsTopology,
+  publicNatsTopologyEvidence } from '../lib/nats-topology-audit.mjs';
 
 const ids = ['A', 'B', 'C'];
 const fixture = (clustered) => ids.map((serverId, index) => ({
   routez: { server_id: serverId, routes: clustered[index].routes.map((remote_id) => ({ remote_id })) },
-  jsz: { server_id: serverId, meta_cluster: clustered[index].cluster ? { name: 'cluster', leader: 'C' } : undefined,
+  jsz: { server_id: serverId, meta_cluster: clustered[index].cluster ? { name: 'cluster', leader: 'server-C',
+    cluster_size: 3, replicas: index === 2 ? [
+      { name: 'server-A', current: true }, { name: 'server-B', current: true },
+    ] : [] } : undefined,
     streams: index + 1, consumers: 0 },
   varz: { server_id: serverId, server_name: `server-${serverId}`, port: 4222 + index },
 }));
@@ -33,6 +37,26 @@ describe('NATS topology audit', () => {
     assert.equal(summarizeNatsTopology(responses).classification, 'three-member-cluster');
     responses[0].routez.routes.pop();
     assert.equal(summarizeNatsTopology(responses).classification, 'other');
+  });
+
+  it('does not call a routed but unready Raft group a three-member cluster', () => {
+    const responses = fixture([
+      { routes: ['B', 'C'], cluster: true },
+      { routes: ['A', 'C'], cluster: true },
+      { routes: ['A', 'B'], cluster: true },
+    ]);
+    const variants = [
+      (copy) => { for (const item of copy) item.jsz.meta_cluster.cluster_size = 5; },
+      (copy) => { for (const item of copy) item.jsz.meta_cluster.leader = ''; },
+      (copy) => { copy[2].jsz.meta_cluster.replicas[0].current = false; },
+      (copy) => { copy[2].jsz.meta_cluster.replicas[0].offline = true; },
+      (copy) => { copy[2].jsz.meta_cluster.replicas[0].name = 'unrouted'; },
+    ];
+    for (const change of variants) {
+      const copy = structuredClone(responses);
+      change(copy);
+      assert.equal(summarizeNatsTopology(copy).classification, 'other');
+    }
   });
 
   it('refuses mismatched and missing monitor identity', () => {
@@ -72,5 +96,23 @@ describe('NATS topology audit', () => {
     assert.equal(report.classification, 'unobservable');
     assert.equal(report.members.length, 3);
     assert.ok(report.members.every((member) => member.error === 'unreachable'));
+  });
+
+  it('projects reproducible public evidence without monitor server IDs', () => {
+    const responses = fixture([
+      { routes: [], cluster: false },
+      { routes: ['C'], cluster: true },
+      { routes: ['B'], cluster: true },
+    ]);
+    responses[2].jsz.meta_cluster.replicas = [
+      { name: 'Server name unknown at this time (peerID: hidden-peer)', offline: true, current: false },
+    ];
+    const report = summarizeNatsTopology(responses);
+    const evidence = publicNatsTopologyEvidence(report);
+    assert.deepEqual(evidence.members[1].routePeers, [8224]);
+    assert.equal(evidence.members[1].reportedReplicas, null);
+    assert.equal(JSON.stringify(evidence).includes('"serverId"'), false);
+    assert.equal(JSON.stringify(evidence).includes('hidden-peer'), false);
+    assert.match(evidence.members[2].reportedReplicas[0].peerIdSha256, /^[0-9a-f]{64}$/);
   });
 });

@@ -1,16 +1,15 @@
 {
-  "observedAt": "2026-10-01T17:46:56.851Z",
-  "source": "read-only loopback /routez, /jsz and /varz on 8222, 8223, 8224",
+  "observedAt": "2026-10-01T18:14:38.859Z",
+  "source": "read-only loopback /routez, /jsz and /varz on 8222, 8223 and 8224",
   "classification": "standalone-plus-two",
-  "classificationBasis": "currently routed servers; JetStream Raft membership is separate",
+  "classificationBasis": "routed graph; three-member-cluster additionally requires current three-member metadata",
   "members": [
     {
       "monitorPort": 8222,
       "clientPort": 4222,
       "routePeers": [],
-      "metaCluster": null,
       "metaClusterSize": null,
-      "knownOfflineReplicas": 0,
+      "reportedReplicas": null,
       "streams": 7,
       "consumers": 2
     },
@@ -20,9 +19,20 @@
       "routePeers": [
         8224
       ],
-      "metaCluster": "openclaw-cluster",
       "metaClusterSize": 3,
-      "knownOfflineReplicas": 0,
+      "reportedReplicas": [
+        {
+          "name": null,
+          "peerIdSha256": "72fe82afb679955a99a26e64ae1fd10b17aacf1da71c61ca5925c3d501b35516",
+          "offline": true,
+          "current": false
+        },
+        {
+          "name": "openclaw-nats-3",
+          "offline": null,
+          "current": true
+        }
+      ],
       "streams": 1,
       "consumers": 0
     },
@@ -32,17 +42,10 @@
       "routePeers": [
         8223
       ],
-      "metaCluster": "openclaw-cluster",
       "metaClusterSize": 3,
-      "knownOfflineReplicas": 1,
+      "reportedReplicas": null,
       "streams": 4,
       "consumers": 1
     }
-  ],
-  "offlineMetaPeerObservation": "one live peer reported one offline replica; identity and store pinning remain separate",
-  "negativeControl": {
-    "expect": "three-member-cluster",
-    "exitCode": 1
-  },
-  "serviceAndStoreMutation": false
+  ]
 }

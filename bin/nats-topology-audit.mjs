@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
-import { observeNatsTopology } from '../lib/nats-topology-audit.mjs';
+import { observeNatsTopology, publicNatsTopologyEvidence } from '../lib/nats-topology-audit.mjs';
 
-const { values } = parseArgs({ options: { expect: { type: 'string' } } });
+const { values } = parseArgs({ options: { expect: { type: 'string' }, 'public-evidence': { type: 'boolean' } } });
 if (values.expect && !['three-member-cluster', 'standalone-plus-two'].includes(values.expect)) {
   throw new Error('expected topology must be three-member-cluster or standalone-plus-two');
 }
@@ -14,6 +14,7 @@ async function fetchJson(url) {
 }
 
 const observed = await observeNatsTopology(fetchJson);
-const report = { observedAt: new Date().toISOString(), ...observed };
+const report = { observedAt: new Date().toISOString(),
+  ...(values['public-evidence'] ? publicNatsTopologyEvidence(observed) : observed) };
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 if (values.expect && observed.classification !== values.expect) process.exitCode = 1;
