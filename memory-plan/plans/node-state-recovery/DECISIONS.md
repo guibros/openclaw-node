@@ -726,7 +726,8 @@ It also binds the exact protected site, shared lock path and expected owner;
 reentry with a different path cannot receipt an unrelated lock.
 The lock path cannot lie inside the handoff site, and the source API refuses
 the actual D40 production lock until the remaining lifecycle branches are
-implemented and reviewed.
+implemented and reviewed. The private creation primitive also refuses every
+macOS root caller, so a path alias or direct import cannot lift this gate.
 Only then may explicit creation run. The pinned root driver must perform a
 process census before creation, including unlinked-file holders, then repeat
 it and re-observe the same admission under exclusive lock before writing a

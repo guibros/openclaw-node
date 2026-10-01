@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -31,6 +32,13 @@ class RootLockTest(unittest.TestCase):
 
     def create(self):
         return root_lock._create(self.lock, self.uid, self.gid)
+
+    def test_root_creation_waits_for_lifecycle_recovery(self):
+        with patch.object(root_lock.sys, 'platform', 'darwin'), patch.object(
+                root_lock.os, 'geteuid', return_value=0):
+            with self.assertRaisesRegex(root_lock.Refused, 'awaits lifecycle recovery'):
+                self.create()
+        self.assertFalse(self.lock.exists())
 
     def test_create_pin_and_reopen_exclusive_lock(self):
         with self.assertRaisesRegex(root_lock.Refused, 'absent or unobservable'):

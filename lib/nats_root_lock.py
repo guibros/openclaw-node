@@ -91,6 +91,8 @@ class WriterExclusion:
 
 
 def _create(path, uid, gid):
+    if sys.platform == 'darwin' and os.geteuid() == 0:
+        raise Refused('production root writer lock creation awaits lifecycle recovery')
     path = pathlib.Path(path)
     try:
         protected_parent(path, uid, gid)
