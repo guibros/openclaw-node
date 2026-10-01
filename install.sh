@@ -96,6 +96,7 @@ echo ""
 
 source "$REPO_DIR/scripts/install/system-deps.sh"
 source "$REPO_DIR/scripts/install/env.sh"
+"$NODE_BIN" "$REPO_DIR/bin/nats-legacy-writer-check.mjs"
 source "$REPO_DIR/scripts/install/workspace.sh"
 source "$REPO_DIR/scripts/install/config.sh"
 source "$REPO_DIR/scripts/install/components.sh"

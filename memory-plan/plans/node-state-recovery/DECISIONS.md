@@ -404,3 +404,26 @@ retains the exact unresolved chain and pins. The operator must restore the
 original pinned identity from a trusted copy, or investigate the changed job
 and its effects, then rerun restore-only recovery. The journal stores hashes,
 not plist contents, and cannot reconstruct a changed plist by itself.
+
+## D24 — Treat protected NATS writer transfer as a separate one-way migration (2026-10-01 12:29 EDT)
+
+The existing same-UID preservation Journal restores its prior GUI jobs after
+interruption. It cannot own a transfer to root-pinned system jobs and a separate
+service UID: after the first protected server start, the old store is stale even
+if no client has connected. A separate root-held migration journal must record
+the old-job retirement, copied store/config/auth identities and the first
+protected bootstrap before it authorizes any further action. Recovery before
+that bootstrap may restore the untouched old bus; recovery afterward may only
+finish the protected migration or require an explicit reverse migration.
+
+A root-owned handoff marker outside the operator's HOME must be published
+before retiring any old job and retained after commit. Ordinary installation,
+user-owned auth rendering and `openclaw-trust-peer --sync-nats` refuse while it
+exists; the trust command checks before changing the registry. The source
+guard is an accidental-resurrection barrier, not authority for the root
+migration and not a substitute for disabling and quarantining every old GUI
+job. The root path, service UID, ownership-enforcing volume, mount identity,
+protected binary/config/auth, exact old/new config equivalence, service-UID
+isolated replays, system-domain monitoring, targeted auth reload and revocation
+proof remain required before cutover. No source change in this decision starts
+or stops the live bus or closes 1.2.

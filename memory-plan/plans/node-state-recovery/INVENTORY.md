@@ -131,3 +131,10 @@ continuous launchd/process watch exists. The current read-only scan takes
 4.75 seconds and still refuses the same two root-managed system jobs. The
 controller, privileged job disposition, healthy cold masters, isolated
 restores and verified production resumption remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 12:29 EDT: D24 defines the separate protected-writer
+migration boundary. A source-only guard refuses ordinary install/auth-sync
+paths once the future root-owned handoff marker exists. It has no effect on the
+current live bus, where no marker has been created. Root migration journal,
+old GUI job retirement, protected service UID/volume, credential lifecycle,
+system-domain probes and healthy cold masters remain open; 1.2 stays [A].
