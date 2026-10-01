@@ -43,6 +43,15 @@ fs.lstatSync = (name, ...args) => String(name) === ${JSON.stringify(PROTECTED_NA
     assert.equal(render.status, 1);
     assert.match(render.stderr, /protected NATS writer handoff active/);
     assert.equal(fs.existsSync(out), false);
+
+    const agents = path.join(root, 'Library', 'LaunchAgents');
+    fs.mkdirSync(agents, { recursive: true });
+    fs.writeFileSync(path.join(agents, 'ai.openclaw.nats.plist'), '<plist/>');
+    fs.appendFileSync(preload, "Object.defineProperty(process, 'platform', { value: 'darwin' });\n");
+    const stack = spawnSync(process.execPath, [path.join(repo, 'bin/openclaw-stack.mjs'), 'up'], { encoding: 'utf8', env });
+    assert.equal(stack.status, 1);
+    assert.match(stack.stderr, /protected NATS writer handoff active/);
+    assert.doesNotMatch(stack.stdout, /started:/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

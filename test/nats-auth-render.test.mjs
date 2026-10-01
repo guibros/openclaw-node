@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { renderAuthorization, syncNatsAuth, WORKER_PUBLISH_DENY, peersFromRegistry } from '../bin/nats-auth-render.mjs';
+import { PROTECTED_NATS_HANDOFF } from '../lib/nats-writer-ownership.mjs';
 import { getOrCreateIdentity, createIdentityRegistry } from '../lib/node-identity.mjs';
 
 const require = createRequire(import.meta.url);
@@ -23,6 +24,22 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const LEAD = 'UDGYMDZZXUB7NCYYJGDZYZMVD7PUZ3VU44ATD6YIX2D5GAKNJKKSAQ7R';
 const WORKER = 'UBZJ7OCYDR6BKVIAV4P2Z5SEVDISO2V2JKQ7CS3DI4FYIDMEJCYGM4WB';
+
+function runIsolatedCli(home, script, args, env) {
+  const preload = path.join(home, 'isolated-handoff.cjs');
+  fs.writeFileSync(preload, `const fs = require('node:fs');
+const original = fs.lstatSync;
+fs.lstatSync = (name, ...rest) => {
+  if (String(name) === ${JSON.stringify(PROTECTED_NATS_HANDOFF)}) {
+    const error = new Error('isolated fixture has no host handoff');
+    error.code = 'ENOENT';
+    throw error;
+  }
+  return original(name, ...rest);
+};
+`);
+  return spawnSync(process.execPath, ['--require', preload, path.join(ROOT, script), ...args], { encoding: 'utf8', env });
+}
 
 describe('renderAuthorization', () => {
   it('token mode reproduces the pre-Phase-7 block exactly', () => {
@@ -83,7 +100,7 @@ describe('syncNatsAuth', () => {
     registry.trust('bad', 'not-a-key', 'operator');
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !KEYS.includes(k)));
     const out = path.join(dir, 'config', 'nats-auth.conf');
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'bin/nats-auth-render.mjs'), '--out', out], { encoding: 'utf8', env: { ...env, HOME: home } });
+    const r = runIsolatedCli(home, 'bin/nats-auth-render.mjs', ['--out', out], { ...env, HOME: home });
     assert.equal(r.status, 0, r.stderr);
     assert.doesNotMatch(r.stderr, /tok-xyz/, 'the token never appears in output/logs');
     assert.match(r.stderr, /skipping registry entry bad/);
@@ -94,10 +111,10 @@ describe('syncNatsAuth', () => {
     assert.ok(text.includes(`{ nkey: "${publicKeyBase64ToNkey(peer.publicKeyBase64)}", permissions`));
     assert.ok(text.includes('password: "tok-xyz"'));
     // --no-legacy-user drops the password entry; --mode token overrides the file.
-    const r2 = spawnSync(process.execPath, [path.join(ROOT, 'bin/nats-auth-render.mjs'), '--out', out, '--no-legacy-user'], { encoding: 'utf8', env: { ...env, HOME: home } });
+    const r2 = runIsolatedCli(home, 'bin/nats-auth-render.mjs', ['--out', out, '--no-legacy-user'], { ...env, HOME: home });
     assert.equal(r2.status, 0, r2.stderr);
     assert.doesNotMatch(fs.readFileSync(out, 'utf8'), /password/);
-    const r3 = spawnSync(process.execPath, [path.join(ROOT, 'bin/nats-auth-render.mjs'), '--out', out, '--mode', 'token'], { encoding: 'utf8', env: { ...env, HOME: home } });
+    const r3 = runIsolatedCli(home, 'bin/nats-auth-render.mjs', ['--out', out, '--mode', 'token'], { ...env, HOME: home });
     assert.equal(r3.status, 0, r3.stderr);
     assert.equal(fs.readFileSync(out, 'utf8'), 'authorization {\n  token: "tok-xyz"\n}\n');
     fs.rmSync(home, { recursive: true, force: true });
@@ -119,7 +136,7 @@ describe('syncNatsAuth', () => {
     fs.writeFileSync(path.join(dir, 'openclaw.env'), 'OPENCLAW_NATS_TOKEN=t\nOPENCLAW_NATS_AUTH=nkey\nOPENCLAW_NODE_ROLE=lead\nOPENCLAW_NODE_ID=lead-a\n');
     const peer = getOrCreateIdentity(path.join(home, 'peer'));
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !KEYS.includes(k)));
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'bin/openclaw-trust-peer.mjs'), 'w2', peer.publicKeyBase64, '--sync-nats'], { encoding: 'utf8', env: { ...env, HOME: home, OPENCLAW_IDENTITY_DIR: dir } });
+    const r = runIsolatedCli(home, 'bin/openclaw-trust-peer.mjs', ['w2', peer.publicKeyBase64, '--sync-nats'], { ...env, HOME: home, OPENCLAW_IDENTITY_DIR: dir });
     assert.equal(r.status, 0, r.stderr + r.stdout);
     assert.match(r.stdout, /trusted: w2 \(worker\)/);
     assert.match(r.stdout, /nats-auth: nkey mode/);

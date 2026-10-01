@@ -420,7 +420,13 @@ A root-owned handoff marker under `/private/var/db/openclaw-nats/`, outside
 operator-writable ancestors and the operator's HOME, must be published
 before retiring any old job and retained after commit. `/Library/Application
 Support` is excluded because its live parent is group-writable by `admin` on
-this Mac. Ordinary installation, user-owned auth rendering and
+this Mac. The root journal creates the directory as `root:wheel` mode `0755`
+and publishes a root-owned marker there so non-root guards can observe it but
+cannot remove it. If recovery fails before the first protected bootstrap, only
+that root journal may remove the marker, as its final step after the untouched
+legacy bus has been verified restored. After bootstrap the marker remains;
+ordinary rollback must never restart the stale legacy stores. Ordinary
+installation, user-owned auth rendering and
 `openclaw-trust-peer --sync-nats` refuse while it
 exists; the trust command checks before changing the registry. The source
 guard is an accidental-resurrection barrier, not authority for the root
@@ -430,3 +436,32 @@ protected binary/config/auth, exact old/new config equivalence, service-UID
 isolated replays, system-domain monitoring, targeted auth reload and revocation
 proof remain required before cutover. No source change in this decision starts
 or stops the live bus or closes 1.2.
+
+## D25 — Fence the stack entry and isolate auth fixtures (2026-10-01 12:41 EDT)
+
+`openclaw-stack up` discovers installed `ai.openclaw.*.plist` files and can
+bootstrap a leftover NATS GUI job independently of `install.sh`. It must refuse
+before any start when a legacy NATS plist and the protected handoff marker are
+both present. The source guard covers that path and an owned child control
+checks that no `started:` result follows refusal. This does not replace the
+migration's durable disable and hash-pinned quarantine of those plists.
+
+The auth tests run CLIs against a private HOME. A host handoff marker should
+not turn those isolated fixture tests red after migration. Their child-only
+preload makes that one marker appear absent in the fixture; a separate test
+simulates its presence and proves that live command paths refuse before the
+registry or auth file changes. Production code retains the fixed marker check.
+`mesh-deploy --include-services` currently reaches a `preInstall` callback
+that always returns false, so its service component does not presently write
+plists; it remains a deployment contract to revisit before protected cutover.
+Neither this source correction nor its tests operate the live bus.
+
+## D26 — Recheck legacy writes at their immediate boundary (2026-10-01 12:43 EDT)
+
+An installer launched before marker publication can reach NATS config or
+LaunchAgent writes after the initial preflight. Recheck immediately before
+config generation and each NATS LaunchAgent render/start. An unreadable marker
+location is reported as handoff-verification failure, with legacy writer changes
+refused. These checks narrow the race but do not serialize a concurrent root
+migration; the root journal must exclude in-flight installers before publishing
+the marker and retiring old jobs.
