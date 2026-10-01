@@ -355,3 +355,17 @@ the watch session to the original close without requiring volatile fields to
 stay byte-identical. Five root-reader fixtures and 115 user/hold tests pass
 locally. The root journal does not yet invoke this validator or durably pin
 the two records. All production gates remain in place; 1.2 stays [A].
+
+Checkpoint 2026-10-01 19:01 EDT: adversarial review of PR #182 found that
+the real `close_and_drain` verifier records native hold evidence at the top
+level; the first validator fixture incorrectly nested it. The validator and
+fixture now use the producer's shape. Root recheck also detects replacement
+of a held owner lock by comparing open and named inode/ctime identities. The
+production root and transfer gates remain closed pending exact-head review.
+
+Checkpoint 2026-10-01 19:07 EDT: PR #182's adversarial review reproduced the
+receipt-shape blocker with a real gate/hold chain. The revision now includes
+that real macOS positive control, allows owner-owned Finder metadata, refuses
+unknown forward-window events, and detects replacement of either held owner
+lock. Local root/transfer suites pass 68/68 and user journal/hold 115/115.
+The branch remains draft until revised-head CI and review pass.

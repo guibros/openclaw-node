@@ -5,6 +5,7 @@ import os
 import pathlib
 import re
 import stat
+import subprocess
 import uuid
 
 from nats_root_journal import boot_identity, encoded
@@ -138,6 +139,7 @@ class UserTransfer:
         self.uid = uid
         self.transaction = transaction
         self.fds = []
+        self.locks = []
         try:
             require(isinstance(uid, int) and uid != 0 and uid >= 0,
                     'user transfer owner must be non-root')
@@ -156,6 +158,10 @@ class UserTransfer:
             self._lock(self.journal_root / '.lock')
             self.records = self._records()
             self._validate()
+            self._lock_identities()
+        except (OSError, subprocess.CalledProcessError, KeyError, TypeError, ValueError) as error:
+            self.close()
+            raise Refused('user preservation transfer is unobservable or malformed') from error
         except BaseException:
             self.close()
             raise
@@ -179,25 +185,52 @@ class UserTransfer:
         except BlockingIOError as error:
             raise Refused('user preservation controller still holds the node lock') from error
         named = path.lstat()
-        require((info.st_dev, info.st_ino) == (named.st_dev, named.st_ino),
+        require((info.st_dev, info.st_ino, info.st_ctime_ns) ==
+                (named.st_dev, named.st_ino, named.st_ctime_ns),
                 'user preservation lock changed during acquisition')
+        self.locks.append((path, fd, (info.st_dev, info.st_ino, info.st_ctime_ns)))
+
+    def _lock_identities(self):
+        for path, fd, identity in self.locks:
+            actual = os.fstat(fd)
+            named = path.lstat()
+            require((actual.st_dev, actual.st_ino, actual.st_ctime_ns) == identity
+                    and (named.st_dev, named.st_ino, named.st_ctime_ns) == identity
+                    and stat.S_ISREG(named.st_mode) and named.st_uid == self.uid
+                    and stat.S_IMODE(named.st_mode) == 0o600 and named.st_nlink == 1,
+                    'user preservation lock changed during root admission')
+            require_no_acl(path)
 
     def _records(self):
         self._directory_identity()
         names = sorted(os.listdir(self.dirfd))
+        if '.DS_Store' in names:
+            finder = self.journal_root / '.DS_Store'
+            info = finder.lstat()
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == self.uid
+                    and stat.S_IMODE(info.st_mode) in (0o600, 0o644)
+                    and info.st_nlink == 1,
+                    'user preservation Finder metadata identity differs')
+            require_no_acl(finder)
+            names.remove('.DS_Store')
         require(names == ['.lock', *(f'{index:06d}.json' for index in range(len(names) - 1))],
                 'user preservation journal has pending or unknown entries')
         rows = []
         for index in range(len(names) - 1):
             row = read_owned(self.journal_root / f'{index:06d}.json', self.uid, self.dirfd)
-            require(isinstance(row, dict) and row.get('sequence') == index
+            require(isinstance(row, dict), 'user preservation journal record is not an object')
+            try:
+                actual_hash = hashlib.sha256(encoded({key: value for key, value in row.items()
+                                                      if key != 'sha256'})).hexdigest()
+            except (TypeError, ValueError) as error:
+                raise Refused('user preservation journal content is invalid') from error
+            require(row.get('sequence') == index
                     and row.get('previous') == (rows[-1]['sha256'] if rows else None)
                     and isinstance(row.get('event'), str)
                     and isinstance(row.get('boot'), str)
                     and isinstance(row.get('at'), str)
                     and isinstance(row.get('sha256'), str) and HEX.fullmatch(row['sha256'])
-                    and hashlib.sha256(encoded({key: value for key, value in row.items()
-                                                if key != 'sha256'})).hexdigest() == row['sha256'],
+                    and actual_hash == row['sha256'],
                     'user preservation journal chain differs')
             rows.append(row)
         require(rows, 'user preservation journal is empty')
@@ -208,6 +241,10 @@ class UserTransfer:
         boot = boot_identity()
         require(all(row.get('boot') == boot for row in self.records),
                 'user transfer is not from the current boot')
+        require(all(row['event'] in ('baseline', 'intent', 'hold-published',
+                                     'verified', 'nats-transfer-intent')
+                    for row in self.records),
+                'user transfer contains an event outside the forward window')
         baseline, transfer = self.records[0], self.records[-1]
         valid_baseline(baseline)
         require(transfer.get('event') == 'nats-transfer-intent'
@@ -250,8 +287,7 @@ class UserTransfer:
                         {'window': hold_fields['window'], 'reason': hold_fields.get('reason')}
                         for row in self.records[:closed[0]['sequence']]),
                 'user transfer original hold publication differs')
-        close_evidence = closed[0].get('evidence')
-        original = close_evidence.get('execution_hold') if isinstance(close_evidence, dict) else None
+        original = closed[0].get('evidence')
         evidence = transfer['hold_evidence']
         require(isinstance(original, dict) and original.get('verified') is True
                 and original.get('restoration_only') is False
@@ -303,10 +339,14 @@ class UserTransfer:
                             'journal_root': str(self.journal_root.resolve())}
 
     def recheck(self):
-        require(self._records() == self.records,
-                'user transfer journal changed after root admission')
-        self._validate()
-        return self.observation
+        try:
+            self._lock_identities()
+            require(self._records() == self.records,
+                    'user transfer journal changed after root admission')
+            self._validate()
+            return self.observation
+        except (OSError, subprocess.CalledProcessError, KeyError, TypeError, ValueError) as error:
+            raise Refused('user preservation transfer is unobservable or malformed') from error
 
     def close(self):
         while self.fds:

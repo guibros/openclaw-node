@@ -16,10 +16,12 @@ sys.path.insert(0, str(AUDIT))
 
 import nats_user_transfer as module
 import test_preservation_journal as fixture_module
+import test_journal_hold as hold_fixture
+from journal_hold import JournaledHold, describe
 
 
 class UserTransferTest(unittest.TestCase):
-    def prepared(self):
+    def prepared(self, extra_event=None):
         fixture = fixture_module.JournalTests('test_nats_transfer_freezes_user_journal_before_root_outcome')
         fixture.setUp()
         self.addCleanup(fixture.tearDown)
@@ -52,7 +54,7 @@ class UserTransferTest(unittest.TestCase):
                        adopted_for_restoration=False)
         journal.append('verified', intent=intent['sequence'], unit='scheduler-heartbeat',
                        action='close-execution-hold',
-                       evidence={'verified': True, 'execution_hold': certificate,
+                       evidence={**certificate,
                                  'entrypoint_loaded': copy.deepcopy(loaded['loaded'])})
         for unit in ('nats', 'nats-2', 'nats-3'):
             journal.mutate(unit, 'unload',
@@ -63,6 +65,8 @@ class UserTransferTest(unittest.TestCase):
                 return {**saved, 'verified': True}
             return {**saved, 'loaded': False, 'running': False, 'verified': True}
         transaction = str(uuid.uuid4())
+        if extra_event is not None:
+            journal.append(extra_event)
         transfer = journal.transfer_nats(transaction, hold, observe)
         return fixture, journal, transaction, transfer
 
@@ -110,7 +114,8 @@ class UserTransferTest(unittest.TestCase):
 
     def test_root_requires_transfer_intent_to_be_the_last_record(self):
         fixture, journal, transaction, _ = self.prepared()
-        journal._append_durable('late-legacy-write')
+        journal._append_durable('verified', intent=999, unit='nats', action='unload',
+                                evidence={'verified': True})
         journal.close()
         with patch.object(module, 'boot_identity', return_value='boot-a'):
             with self.assertRaisesRegex(module.Refused, 'transfer intent differs'):
@@ -128,6 +133,72 @@ class UserTransferTest(unittest.TestCase):
         with patch.object(module, 'boot_identity', return_value='boot-a'):
             with self.assertRaisesRegex(module.Refused, 'no unique original execution hold'):
                 module.UserTransfer(fixture.node_lock, fixture.root, os.getuid(), transaction)
+
+    def test_root_refuses_replaced_owner_lock_during_recheck(self):
+        fixture, journal, transaction, _ = self.prepared()
+        journal.close()
+        with patch.object(module, 'boot_identity', return_value='boot-a'):
+            with module.UserTransfer(fixture.node_lock, fixture.root, os.getuid(), transaction) as reader:
+                fixture.node_lock.rename(fixture.parent / 'old-node.lock')
+                fixture.node_lock.write_bytes(b'')
+                fixture.node_lock.chmod(0o600)
+                with self.assertRaisesRegex(module.Refused, 'lock changed during root admission'):
+                    reader.recheck()
+
+    def test_root_tolerates_owner_finder_metadata(self):
+        fixture, journal, transaction, transfer = self.prepared()
+        journal.close()
+        metadata = fixture.root / '.DS_Store'
+        metadata.write_bytes(b'Finder metadata')
+        metadata.chmod(0o644)
+        with patch.object(module, 'boot_identity', return_value='boot-a'):
+            with module.UserTransfer(fixture.node_lock, fixture.root, os.getuid(), transaction) as reader:
+                self.assertEqual(reader.observation['head'], transfer['sha256'])
+
+    def test_root_refuses_unknown_forward_event(self):
+        fixture, journal, transaction, _ = self.prepared('restoration-intent')
+        journal.close()
+        with patch.object(module, 'boot_identity', return_value='boot-a'):
+            with self.assertRaisesRegex(module.Refused, 'outside the forward window'):
+                module.UserTransfer(fixture.node_lock, fixture.root, os.getuid(), transaction)
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'requires the native execution-hold observer')
+    def test_root_reads_real_gate_and_hold_transfer(self):
+        fixture = fixture_module.JournalTests('test_nats_transfer_freezes_user_journal_before_root_outcome')
+        fixture.setUp()
+        self.addCleanup(fixture.temp.cleanup)
+        gate_root = Path(fixture.temp.name).resolve() / 'gate'
+        pins = hold_fixture.gate_module.initialize(gate_root)
+        with hold_fixture.gate_module.Gate(gate_root, pins) as gate:
+            prior = fixture_module.full_node_inventory()
+            prior['scheduler-heartbeat']['execution_hold'] = describe(
+                gate, sorted(fixture_module.TIMER_UNITS))
+            loaded = fixture_module.full_entrypoint_evidence(prior)
+            with patch('preservation_journal.capture_entrypoint_inventory',
+                       side_effect=lambda _: copy.deepcopy(loaded)), patch(
+                       'preservation_journal.NATS_WRITER_MARKER',
+                       fixture.parent / 'writer-handoff.json'):
+                with fixture_module.Journal(fixture.root, prior, boot='boot-a',
+                                            node_lock=fixture.node_lock,
+                                            scope=fixture_module.FULL_NODE_SCOPE) as journal:
+                    hold = JournaledHold(journal, gate,
+                        lambda: {'verified': True,
+                                 'baseline_sha256': journal.records[0]['sha256']})
+                    try:
+                        hold.close_and_drain()
+                        for unit in ('nats', 'nats-2', 'nats-3'):
+                            hold.mutate(unit, 'unload',
+                                lambda unit=unit: loaded['loaded']['gui'].remove('ai.openclaw.' + unit),
+                                lambda: {'verified': True})
+                        transaction = str(uuid.uuid4())
+                        transfer = journal.transfer_nats(transaction, hold,
+                            lambda unit, saved: {**saved, 'verified': True,
+                                'loaded': False, 'running': False})
+                    finally:
+                        hold.close()
+        with patch.object(module, 'boot_identity', return_value='boot-a'):
+            with module.UserTransfer(fixture.node_lock, fixture.root, os.getuid(), transaction) as reader:
+                self.assertEqual(reader.observation['head'], transfer['sha256'])
 
 
 if __name__ == '__main__':

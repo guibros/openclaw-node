@@ -823,3 +823,13 @@ This is a read-only source validator. Root-owned durable copies of the two
 records, its integration into the privileged transaction, production physical
 admission, `declined`/marker outcomes, and the cold-master cutover are still
 required before the production tripwire can be lifted.
+
+Claude's PR #182 challenge found that the real hold-close verifier writes its
+native certificate at the top level of `verified.evidence`; only subsequent
+`JournaledHold.mutate` receipts nest `execution_hold`. The validator now reads
+that producer shape, and a macOS control builds the transfer with the actual
+gate and hold. Root admission accepts owner-owned Finder `.DS_Store` metadata
+without treating arbitrary files as journal records, rejects events outside
+the uninterrupted forward window, and revalidates the open lock descriptors
+against their named inode/ctime identities. The production gate remains
+closed until root-owned physical admission and the outcome lifecycle exist.
