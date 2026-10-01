@@ -416,9 +416,12 @@ protected bootstrap before it authorizes any further action. Recovery before
 that bootstrap may restore the untouched old bus; recovery afterward may only
 finish the protected migration or require an explicit reverse migration.
 
-A root-owned handoff marker outside the operator's HOME must be published
-before retiring any old job and retained after commit. Ordinary installation,
-user-owned auth rendering and `openclaw-trust-peer --sync-nats` refuse while it
+A root-owned handoff marker under `/private/var/db/openclaw-nats/`, outside
+operator-writable ancestors and the operator's HOME, must be published
+before retiring any old job and retained after commit. `/Library/Application
+Support` is excluded because its live parent is group-writable by `admin` on
+this Mac. Ordinary installation, user-owned auth rendering and
+`openclaw-trust-peer --sync-nats` refuse while it
 exists; the trust command checks before changing the registry. The source
 guard is an accidental-resurrection barrier, not authority for the root
 migration and not a substitute for disabling and quarantining every old GUI
