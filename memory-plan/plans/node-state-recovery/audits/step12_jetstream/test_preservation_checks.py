@@ -214,15 +214,16 @@ class Gates(unittest.TestCase):
             path = pathlib.Path(root) / 'ai.openclaw.gateway.plist'
             arguments = ['/owned/node', '/owned/gateway.js']
             def check(declared, detail, refused=True):
-                path.write_bytes(plistlib.dumps({'Label': 'ai.openclaw.gateway',
-                    'ProgramArguments': arguments, 'EnvironmentVariables': declared}))
-                installed = installed_entrypoints(root, [])
-                identities = loaded_entrypoints('services = {\n  1 - ai.openclaw.gateway\n}\n',
-                    'gui/501', [], inspect=lambda _: 'path = ' + str(path.resolve()) + '\n'
-                    'program = /owned/node\n' + detail, include_identity=True)
-                verify = lambda: verify_entrypoint_inventory(installed,
-                    set(identities), set(), set(), {'gateway'},
-                    loaded_identity={'gui': identities, 'user': {}, 'system': {}})
+                def verify():
+                    path.write_bytes(plistlib.dumps({'Label': 'ai.openclaw.gateway',
+                        'ProgramArguments': arguments, 'EnvironmentVariables': declared}))
+                    installed = installed_entrypoints(root, [])
+                    identities = loaded_entrypoints('services = {\n  1 - ai.openclaw.gateway\n}\n',
+                        'gui/501', [], inspect=lambda _: 'path = ' + str(path.resolve()) + '\n'
+                        'program = /owned/node\n' + detail, include_identity=True)
+                    return verify_entrypoint_inventory(installed,
+                        set(identities), set(), set(), {'gateway'},
+                        loaded_identity={'gui': identities, 'user': {}, 'system': {}})
                 if refused:
                     self.refused(verify)
                 else:
@@ -234,6 +235,8 @@ class Gates(unittest.TestCase):
                   'environment = {\n  NODE_OPTIONS => --require=/tmp/evil.js\n}\n')
             check({}, ordinary + 'inherited environment = {\n'
                   '  NODE_OPTIONS => --require=/tmp/evil.js\n}\n')
+            check({}, ordinary + 'environment = {\n  OSLogRateLimit => 64\n}\n'
+                  '  NODE_OPTIONS => --require=/tmp/evil.js\n')
             check({}, 'arguments = {\n  /owned/node\n  /owned/gateway.js \n}\n')
 
     def test_timer_signal_race(self):

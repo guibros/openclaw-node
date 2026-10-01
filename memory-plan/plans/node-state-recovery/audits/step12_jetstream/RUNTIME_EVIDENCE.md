@@ -843,3 +843,9 @@ variables even when a plist declares them. The real gateway's loaded
 arguments matched its installed plist, and all 15 effective environment
 keys passed the shared policy without exposing their values. Four installed
 mesh plists still carry `NODE_PATH`; no live plist or process was changed.
+
+An owned temporary LaunchAgent showed launchd prints literal newlines in an
+environment value. A value can visually close its `environment` block before
+the next variable line. The scanner now refuses any variable-shaped line
+outside the parsed environment blocks. All 21 currently loaded approved GUI
+jobs still parse; the owned probe was booted out and removed.

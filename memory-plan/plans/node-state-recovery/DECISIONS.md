@@ -443,7 +443,9 @@ indentation, and apply the same declared-or-ambient and no-code-loader rule
 to loaded jobs and running processes. A system-looking symlink must have
 protected ownership and permissions along its original path as well as its
 resolved target. Unknown or malformed jobs refuse; none are silently
-excluded. The approved gateway's real launchd output passes this parser.
+excluded. Because launchd prints literal newlines in environment values,
+variable-shaped rows outside a parsed environment block also refuse. The
+approved gateway's real launchd output passes this parser.
 
 Four current mesh plist templates and their installed live copies still
 declare `NODE_PATH`. The templates drop it; the four entry scripts' `nats`

@@ -106,6 +106,11 @@ def launchctl_environment(text):
     sections = [(name, indentation, body) for name, indentation, body in launchctl_blocks(text)
                 if name.endswith('environment')]
     environment = {}
+    variable_row = re.compile(r'[ \t]*[A-Za-z_][A-Za-z0-9_]* => .*')
+    visible_rows = sum(bool(variable_row.fullmatch(line)) for line in text.split('\n'))
+    section_rows = sum(bool(variable_row.fullmatch(line)) for _, _, body in sections for line in body)
+    require(visible_rows == section_rows,
+            'launchd environment contains a variable outside its section')
     require(len(sections) == len({name for name, _, _ in sections})
             and all(name in {'inherited environment', 'default environment', 'environment'}
                     for name, _, _ in sections),
