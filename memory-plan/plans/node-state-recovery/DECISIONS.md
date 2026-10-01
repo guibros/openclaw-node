@@ -502,3 +502,25 @@ For the APFS target, use the volume UUID rather than a reboot-unstable disk
 number. A local snapshot can be thinned, so copy promptly from a read-only
 mount and recheck its identity afterwards. Privileged owned creation,
 mounting and handle evidence remain required before any production snapshot.
+
+## D28 — Classify unapproved jobs from launchd's identity header (2026-10-01 04:29 EDT)
+
+The whole-domain `launchctl print` scan must not fail while decoding an
+unapproved Apple job's free-form arguments or environment, because many
+honest jobs print text those strict decoders reject. For each loaded job,
+inspect only the top-level `path`, `program` and working-directory fields
+before the first nested block, and refuse duplicate top-level identity
+fields anywhere in the report. This prevents a missing-path job from
+injecting one Apple-looking `path` inside an argument. Nested event-trigger
+objects may legitimately contain their own `path` keys and are not identity
+duplicates. A protected Apple source and program can be omitted from the
+entrypoint inventory; every other unapproved job is recorded as unknown
+without decoding its free-form values, so the cohort preflight refuses.
+Approved jobs retain the strict argument and complete environment checks.
+
+This is an inventory-availability correction, not permission to exclude
+Apple jobs as non-writers. Apple jobs can launch user content and inherit
+domain variables; an exclusion policy and continuous process/admission
+evidence remain required. The live read-only scan now completes and still
+refuses 29 extra GUI and 11 extra system jobs plus installed extras. The
+raw-newline idle-job attestation limit in D26–D27 is unchanged.

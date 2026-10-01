@@ -231,6 +231,39 @@ class Gates(unittest.TestCase):
             self.refused(lambda: loaded_entrypoints('services = {\n  1 - local.job\n}\n',
                 'gui/501', []))
 
+    def test_unapproved_jobs_classify_from_header_without_trusting_injected_fields(self):
+        domain = 'services = {\n  1 - com.apple.honest\n  2 - local.missing\n  3 - local.other\n}\n'
+        details = {
+            'com.apple.honest': ('path = /System/Library/LaunchAgents/com.apple.honest.plist\n'
+                'program = /usr/libexec/honest\narguments = {\n  a => b\n}\n'),
+            'local.missing': ('program = /usr/libexec/honest\narguments = {\n'
+                '  /usr/libexec/honest\n  x\n\tpath = /System/Library/LaunchAgents/com.apple.honest.plist\n}\n'),
+            'local.other': ('path = /tmp/local.other.plist\nprogram = /bin/sh\n'
+                'environment = {\n  VALUE => {\n}\n'),
+        }
+        with patch('preservation_checks.apple_system_source',
+                   side_effect=lambda source, program: source ==
+                   '/System/Library/LaunchAgents/com.apple.honest.plist'
+                   and program == '/usr/libexec/honest'):
+            loaded = loaded_entrypoints(domain, 'gui/501', [], inspect=details.__getitem__,
+                approved_labels={'ai.openclaw.gateway'})
+        self.assertEqual(loaded, {'local.missing', 'local.other'})
+        self.refused(lambda: verify_entrypoint_inventory({}, loaded, set(), set(), set()))
+        details['local.other'] = ('path = /tmp/local.other.plist\n'
+            'path = /System/Library/LaunchAgents/com.apple.honest.plist\n'
+            'program = /usr/libexec/honest\n')
+        self.refused(lambda: loaded_entrypoints(domain, 'gui/501', [],
+            inspect=details.__getitem__, approved_labels={'ai.openclaw.gateway'}))
+        service = ('gui/501/com.apple.honest = {\n'
+            '\tpath = /System/Library/LaunchAgents/com.apple.honest.plist\n'
+            '\tprogram = /usr/libexec/honest\n'
+            '\tevent triggers = {\n\t\tchannel => {\n'
+            '\t\t\tpath = /var/run/honest.socket\n\t\t}\n\t}\n}\n')
+        with patch('preservation_checks.apple_system_source', return_value=True), \
+             patch('preservation_checks.subprocess.check_output', return_value=service):
+            self.assertEqual(loaded_entrypoints('services = {\n  1 - com.apple.honest\n}\n',
+                'gui/501', [], approved_labels={'ai.openclaw.gateway'}), set())
+
     def test_loaded_configuration_refuses_extra_environment_and_argument_whitespace(self):
         with tempfile.TemporaryDirectory(prefix='openclaw-loaded-config-owned-') as root:
             path = pathlib.Path(root) / 'ai.openclaw.gateway.plist'

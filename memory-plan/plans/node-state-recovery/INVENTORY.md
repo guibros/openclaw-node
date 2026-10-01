@@ -182,3 +182,11 @@ Pinned re-bootstrap/domain environment, privileged APFS snapshot proof,
 unknown/root-job disposition, continuous admission, three healthy cold
 masters and verified resumption remain open. Step 1.2 stays [A] at
 v1.2-pre; no production hold or copy was started.
+
+D28's revised read-only scanner now completes across the three live launchd
+domains and reports the 29 GUI and 11 system extras explicitly. Its 188-test
+owned Mac suite passes with one domain skip and no production NATS contact.
+The cohort still refuses, and no source change certifies idle loaded jobs,
+Apple user-code dispatch, continuous admission or a cold copy. Full-node
+controller, privileged job/snapshot mechanism, three healthy masters,
+isolated restores and live resumption remain open at 1.2[A]/v1.2-pre.

@@ -879,3 +879,18 @@ so neither scan availability nor idle-job attestation is accepted. The
 three live NATS store roots share device 16777233; no live store was copied,
 snapshotted, stopped or changed. See D27 for the restoration and APFS
 carry-forwards.
+
+2026-10-01 04:32 EDT — The D28 header-only classification change passes the
+complete owned Mac Python recovery suite: 188 tests, one domain skip, three
+owned NATS servers, zero production NATS connections and normal owned-server
+cleanup. A fresh read-only scan of all loaded GUI, user and system jobs
+completes in 11.52 seconds: 21 approved GUI jobs, 29 extra GUI jobs, zero
+user extras and 11 system extras. The complete preflight still refuses on
+the installed cohort mismatch. A nested Apple event-trigger `path` no
+longer masquerades as a duplicate job source; an argument-forged Apple
+source outside the identity header remains unknown. The owned
+`launchctl list <label>` probe also emitted raw newlines, so it is not an
+alternative structured attestation. `tmutil destinationinfo` reports no
+Time Machine destination, and noninteractive administrator access is
+unavailable; neither APFS snapshot creation nor root-job disposition was
+attempted. No production job or store was changed.

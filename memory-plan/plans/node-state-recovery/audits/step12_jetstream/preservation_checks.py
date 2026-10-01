@@ -319,7 +319,8 @@ def disabled_entrypoint_artifacts(directories):
     return found
 
 
-def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None, include_identity=False):
+def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None, include_identity=False,
+                       approved_labels=None):
     match = re.search(r'^\s*services = \{\n(.*?)^\s*\}', domain_text, re.M | re.S)
     require(match is not None, 'launchd domain lacks a services inventory')
     roots = tuple({pathlib.Path(root).resolve(strict=False) for root in protected_roots})
@@ -342,27 +343,42 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None, inclu
         if require_header:
             require(service_text.startswith(domain + '/' + label + ' = {\n'),
                     'launchd service inspection identity differs: ' + label)
-        values = []
+        lines = service_text.splitlines()[1:] if require_header else service_text.splitlines()
+        header = []
+        for line in lines:
+            if re.fullmatch(r'[ \t]*[^{}\n]+ (?:=|=>) \{', line):
+                break
+            header.append(line)
         fields = {}
+        field_prefix = '\t' if require_header else ''
         for key in ('path', 'program', 'working directory'):
-            matches = re.findall(r'^[ \t]*' + re.escape(key) + r' = (.+)$', service_text, re.M)
+            field = re.escape(field_prefix + key) + r' = (.+)'
+            matches = re.findall(r'^' + field + r'$', service_text, re.M)
             require(len(matches) <= 1, 'launchd service has a duplicate ' + key + ': ' + label)
-            if matches:
-                fields[key] = matches[0]
-                values.append(matches[0])
+            top = [match[1] for line in header
+                   if (match := re.fullmatch(field, line))]
+            if top:
+                fields[key] = top[0]
+        source = fields.get('path', '')
+        program = fields.get('program', '')
+        if approved_labels is not None and label not in approved_labels:
+            if not apple_system_source(source, program):
+                labels.add(label)
+                identities[label] = {'unclassified': True, 'source': source, 'program': program}
+            continue
+        values = list(fields.values())
         argv = launchctl_arguments(service_text)
         values.extend(argv)
         environment = launchctl_environment(service_text)
-        source = fields.get('path', '')
         relevant = (relevant_entrypoint(label, [*values, *environment.values()], roots,
                                         environment=environment,
                                         working_directory=fields.get('working directory'), source=source)
-                    or unclassified_executable(fields.get('program'), argv, source, label))
-        if relevant or not apple_system_source(source, fields.get('program', '')):
+                    or unclassified_executable(program, argv, source, label))
+        if relevant or not apple_system_source(source, program):
             labels.add(label)
             identities[label] = {
                 'source': source,
-                'program': fields.get('program', ''),
+                'program': program,
                 'working_directory': fields.get('working directory', ''),
                 'arguments_sha256': hashlib.sha256(json.dumps(argv, separators=(',', ':')).encode()).hexdigest(),
                 'environment_sha256': {key: hashlib.sha256(value.encode()).hexdigest()
@@ -420,8 +436,10 @@ def capture_entrypoint_inventory(expected):
     disabled = disabled_entrypoint_artifacts(directories)
     inert = inert_entrypoint_artifacts(directories)
     domains = ('gui/' + str(os.getuid()), 'user/' + str(os.getuid()), 'system')
+    approved = {'ai.openclaw.' + unit for unit in expected}
     identities = [loaded_entrypoints(subprocess.check_output(['/bin/launchctl', 'print', domain],
-                  text=True, timeout=10), domain, roots, include_identity=True) for domain in domains]
+                  text=True, timeout=10), domain, roots, include_identity=True,
+                  approved_labels=approved) for domain in domains]
     loaded = [set(entries) for entries in identities]
     evidence = verify_entrypoint_inventory(installed, *loaded, expected,
                                            roots=roots, disabled_artifacts=disabled,
