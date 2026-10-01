@@ -572,3 +572,13 @@ whose identity and history still require their own pins and cold-copy proof.
 The two routed peers' stream counts differ. Four distinct store directories
 remain preservation sources; no same-named stream may be merged on the basis
 of routing alone. Refreshed evidence saves only counts and port relationships.
+
+## D32 — Attribute the offline replica to a peer, not a fixed leader (2026-10-01 13:55 EDT)
+
+D31's phrase "the leader reports one replica offline" overstates the saved
+evidence. The leader can change between loopback reads, and the saved report
+retains the offline replica count by monitor port without a leader binding.
+The supported claim is that one of the two routed cluster peers reported one
+offline replica while both reported a meta-cluster size of three. The held
+member-1 store remains a separate source by its own prior identity evidence;
+the loopback snapshot does not certify that identity or a stable leader.

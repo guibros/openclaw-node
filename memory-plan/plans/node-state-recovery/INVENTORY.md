@@ -195,3 +195,8 @@ the monitor-to-client port binding and the shared marker path. The live site
 still refuses: `_openclaw_nats` and the protected root are absent. Root
 migration, account creation, the three healthy cold masters and restoration proof
 remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-01 13:55 EDT: D32 narrows the offline-replica claim to
+one live peer's observation; the leader is not pinned by the saved snapshot.
+The separately held member-1 store and three healthy cold masters retain
+their independent preservation requirements.

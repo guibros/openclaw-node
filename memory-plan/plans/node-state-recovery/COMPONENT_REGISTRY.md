@@ -34,7 +34,7 @@ site still lacks the dedicated account and protected directory.
 2026-10-01 13:47 EDT — D31's live read-only check binds monitor ports
 8222/8223/8224 to client ports 4222/4223/4224. The two routed cluster
 members still report meta-cluster size three, with one offline replica
-reported by the leader. This reinforces the separately held member-1 store
+reported by a routed peer. This reinforces the separately held member-1 store
 as a preservation source, subject to identity and cold-copy verification.
 The site audit now refuses ordinary/admin account identities and ACL grants;
 the actual dedicated UID and protected root are still absent.

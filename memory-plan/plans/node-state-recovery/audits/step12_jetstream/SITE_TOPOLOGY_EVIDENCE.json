@@ -39,7 +39,7 @@
       "consumers": 1
     }
   ],
-  "heldThirdRaftPeer": "reported offline by the live leader; identity and store pinning remain separate",
+  "offlineMetaPeerObservation": "one live peer reported one offline replica; identity and store pinning remain separate",
   "negativeControl": {
     "expect": "three-member-cluster",
     "exitCode": 1
