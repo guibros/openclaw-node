@@ -73,10 +73,11 @@ class Cluster(unittest.TestCase):
         self.assertTrue(post_stepdown_ready(before, settled, 'S-owned'))
         unchanged_leader = [report('old', 2, 4) for _ in range(3)]
         self.assertFalse(post_stepdown_ready(before, unchanged_leader, 'S-owned'))
-        lagging_baseline = copy.deepcopy(before)
-        lagging_baseline[2]['raft']['$G']['S-owned'].update(
-            committed=5, applied=5, pindex=5)
-        self.assertFalse(post_stepdown_ready(lagging_baseline, settled, 'S-owned'))
+        for member in range(3):
+            lagging_baseline = copy.deepcopy(before)
+            lagging_baseline[member]['raft']['$G']['S-owned'].update(
+                committed=5, applied=5, pindex=5)
+            self.assertFalse(post_stepdown_ready(lagging_baseline, settled, 'S-owned'))
 
         def disagree(account, name, field, value):
             for member in range(3):

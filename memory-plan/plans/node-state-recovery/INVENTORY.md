@@ -388,3 +388,7 @@ stream, consumer, metadata and group-set dissent at each of the three
 member positions. This closes three positional test gaps found by Claude;
 the focused test passes and the live predicate is unchanged. Exact new
 CI/review remain pending. Step 1.2 stays `[A]`/`v1.2-pre`.
+
+The D47 phrase "live predicate" means the owned three-member fixture;
+`post_stepdown_ready()` is not called by production services. The lagging
+before-reference test now rotates across all three member positions too.

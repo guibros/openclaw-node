@@ -1028,7 +1028,7 @@ but found three positional weakenings because the synthetic disagreements
 always changed member 2. Rotate stream, consumer and metadata disagreement,
 missing-group and extra-group cases across all three positions. The focused
 unit passes; Claude's scratch variant also caught the three positional
-mutants. The predicate and owned cluster loop remain unchanged. Exact new
+mutants. The predicate and live cluster loop remain unchanged. Exact new
 CI/review are pending, and these bounded mutation checks do not certify a
 production cold master or permit full-node `seal()`.
 
@@ -1037,3 +1037,8 @@ D46's "last gaps" title was likewise too broad: the evidence covered its
 five-second deadline. Its phrase "production-facing predicate" was also
 imprecise; `post_stepdown_ready()` exists only in the owned fixture. D47
 extends positional coverage but does not claim exhaustive validation.
+
+The D47 phrase "live cluster loop" refers to the owned three-member fixture;
+no production NATS or preservation controller path changed. The prior-index
+maximum test now rotates its lagging member across all three positions as
+well, and the focused deterministic unit passes.
