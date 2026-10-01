@@ -45,6 +45,9 @@ else
 
     if [ "$OS" = "macos" ]; then
       LAUNCHD_SVC_NAME="${SVC_NAME#openclaw-}"
+      if [[ "$LAUNCHD_SVC_NAME" == nats* ]]; then
+        "$NODE_BIN" "$REPO_DIR/bin/nats-legacy-writer-check.mjs"
+      fi
       TEMPLATE="$LAUNCHD_TEMPLATES/ai.openclaw.${LAUNCHD_SVC_NAME}.plist"
       DEST="$LAUNCHD_DEST/ai.openclaw.${LAUNCHD_SVC_NAME}.plist"
 
