@@ -541,4 +541,7 @@ identity header and refusing a forged `path` later in a program value.
 These checks correct source classification and approved-job comparison, but
 they do not turn launchd's unescaped text into idle-job attestation. D26–D27
 still require pinned re-bootstrap and domain binding or a structured trusted
-source before full-node sealing or restoration can be accepted.
+source before full-node sealing or restoration can be accepted. A literal LF
+inside `path`, `program` or `working directory` still truncates the printed
+value at that boundary; the non-printable check only closes the other line
+separators and control characters.
