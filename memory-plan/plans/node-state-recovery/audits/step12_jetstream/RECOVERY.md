@@ -208,7 +208,8 @@ before rerunning restore-only recovery. The journal holds hashes, not
 reconstructible plist contents. Full-node sealing is currently refused:
 point-in-time loaded-map checks cannot prove that a stopped writer never
 restarted and exited between scans. A continuous launchd/process watch is a
-required driver prerequisite before any copied history can be certified.
+required driver prerequisite before any copied history can be certified;
+the execution-hold completion receipt also reports `history_certified:false`.
 Actual process descendants, detached work and dependency provenance still
 require driver inspection; fixed launchd names alone do not prove them.
 An on-demand worker observed running during recovery is a refusal requiring

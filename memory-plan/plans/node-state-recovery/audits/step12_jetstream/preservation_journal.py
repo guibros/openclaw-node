@@ -508,6 +508,8 @@ class Journal:
     def append(self, event, **data):
         require(self.lock is not None, 'journal is closed')
         require(not self.sealed, 'sealed journal cannot be changed')
+        require(event != 'sealed' or self.scope != FULL_NODE_SCOPE,
+                'full-node seal requires a continuous launchd and process watch')
         require(not self.write_failed, 'failed durable write requires reopening the journal')
         self.write_failed = True
         record = self._record(event, **data)
@@ -711,8 +713,6 @@ class Journal:
 
     def seal(self):
         require(self.scope != TIMER_SCOPE, 'timer commissioning cannot seal preservation history')
-        require(self.scope != FULL_NODE_SCOPE,
-                'full-node seal requires a continuous launchd and process watch')
         self.check_entrypoints(final=True)
         require(not self.reopened and not self.write_failed, 'interrupted window cannot be sealed')
         require(not self.pending_intents() and not any(r['event'] == 'failed' for r in self.records),
@@ -724,6 +724,8 @@ class Journal:
         return self._finalize('resolved')
 
     def _finalize(self, event):
+        require(event != 'sealed' or self.scope != FULL_NODE_SCOPE,
+                'full-node seal requires a continuous launchd and process watch')
         require(self.records[-1]['event'] == 'recovery-finished'
                 and self.records[-1]['services_verified'] is True and not self.records[-1]['errors'],
                 'unrestored node cannot be sealed')

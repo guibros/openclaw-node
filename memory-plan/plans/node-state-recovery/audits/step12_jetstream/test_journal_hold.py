@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from journal_hold import ANCHOR, JournaledHold, describe
 from legacy_fixture import legacy_journal
-from preservation_journal import Journal, TIMER_SCOPE, TIMER_UNITS, UNITS, matches
+from preservation_journal import FULL_NODE_SCOPE, Journal, TIMER_SCOPE, TIMER_UNITS, UNITS, matches
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -164,6 +164,14 @@ class HoldTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, 'original closed observer'):
             self.hold.mutate('mesh-agent', 'copy', lambda: self.fail('must not run'), lambda: {'verified': True})
         self.assertEqual(len(self.journal.records), 1)
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'continuous native observer is a Mac acceptance contract')
+    def test_full_scope_hold_completion_does_not_certify_without_process_watch(self):
+        self.hold.close_and_drain()
+        self.journal.scope = FULL_NODE_SCOPE
+        evidence = self.hold.complete(self.observe, self.final)
+        self.assertFalse(evidence['history_certified'])
+        self.assertTrue(evidence['gate_open'])
 
     @unittest.skipUnless(sys.platform == 'darwin', 'continuous native observer is a Mac acceptance contract')
     def test_original_native_observer_brackets_every_mutation_and_can_seal(self):

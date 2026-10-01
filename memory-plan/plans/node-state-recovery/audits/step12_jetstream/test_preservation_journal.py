@@ -171,6 +171,10 @@ class JournalTests(unittest.TestCase):
                 self.assertTrue(result['restored'])
                 with self.assertRaisesRegex(Refused, 'continuous launchd and process watch'):
                     journal.seal()
+                with self.assertRaisesRegex(Refused, 'continuous launchd and process watch'):
+                    journal._finalize('sealed')
+                with self.assertRaisesRegex(Refused, 'continuous launchd and process watch'):
+                    journal.append('sealed')
                 current['loaded']['gui'].remove('ai.openclaw.gateway')
                 with self.assertRaisesRegex(Refused, 'were not restored'):
                     journal.resolve()

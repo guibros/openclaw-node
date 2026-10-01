@@ -372,7 +372,8 @@ recorded as an uncertified error while independently verified prior units are
 still restored. Final restoration and resolution require the original
 loaded-label map again. Full-node sealing is refused until a continuous
 launchd/process watch can prove that a stopped writer never restarted between
-point-in-time scans. Unknown entrypoints refuse before a new window.
+point-in-time scans; the hold completion receipt likewise reports
+`history_certified:false`. Unknown entrypoints refuse before a new window.
 
 Loaded services are inspected by `launchctl print` even when their labels are
 neutral or Apple-prefixed and their plists live outside the standard
