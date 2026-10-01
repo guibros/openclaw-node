@@ -3,6 +3,7 @@ import http.server
 import json
 import os
 import pathlib
+import plistlib
 import secrets
 import select
 import signal
@@ -15,7 +16,8 @@ import unittest
 
 from preservation_checks import (
     QuietWindow, Refused, STOP_ORDER, capture, verify_admissions,
-    http_json, verify_completion, verify_queue, verify_streams, verify_timer_idle,
+    disabled_entrypoint_artifacts, http_json, installed_entrypoints, loaded_entrypoints, verify_completion,
+    verify_entrypoint_inventory, verify_queue, verify_streams, verify_timer_idle,
 )
 
 
@@ -23,6 +25,38 @@ class Gates(unittest.TestCase):
     def refused(self, call):
         with self.assertRaises(Refused):
             call()
+
+    def test_unclassified_installed_or_loaded_entrypoint_refuses(self):
+        with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:
+            agents = pathlib.Path(root)
+            protected = agents / 'repo'
+            protected.mkdir()
+            def add(label, argv):
+                path = agents / (label + '.plist')
+                path.write_bytes(plistlib.dumps({'Label': label, 'ProgramArguments': argv}))
+                return path
+            add('ai.openclaw.gateway', ['/owned/node', str(protected / 'gateway.js')])
+            add('ai.openclaw.workplan-viewer', ['/owned/node', str(protected / 'viewer.js')])
+            extra = add('com.openclaw.redesign-tick', ['/bin/sh', str(protected / 'redesign-tick.sh')])
+            installed = installed_entrypoints(agents, [protected])
+            self.refused(lambda: verify_entrypoint_inventory(installed,
+                {'ai.openclaw.gateway'}, set(), set(), {'gateway', 'workplan-viewer'}))
+            extra.unlink()
+            parked = agents / 'com.openclaw.redesign-tick.plist.disabled'
+            parked.write_bytes(plistlib.dumps({'Label': 'com.openclaw.redesign-tick',
+                'ProgramArguments': ['/bin/sh', str(protected / 'redesign-tick.sh')]}))
+            self.assertEqual(len(disabled_entrypoint_artifacts([agents])), 1)
+            installed = installed_entrypoints(agents, [protected])
+            gui = loaded_entrypoints('services = {\n  1 - ai.openclaw.gateway\n}\n'
+                'disabled services = {\n  "com.openclaw.redesign-tick" => disabled\n}\n')
+            self.assertTrue(verify_entrypoint_inventory(installed, gui, set(), set(),
+                {'gateway', 'workplan-viewer'})['verified'])
+            self.refused(lambda: verify_entrypoint_inventory(installed,
+                gui, set(), {'com.openclaw.agent'}, {'gateway', 'workplan-viewer'}))
+            add('other.agent', ['/owned/node', str(protected / 'worker.js')])
+            self.refused(lambda: verify_entrypoint_inventory(
+                installed_entrypoints(agents, [protected]), gui, set(), set(),
+                {'gateway', 'workplan-viewer'}))
 
     def test_timer_signal_race(self):
         verify_timer_idle({'loaded': True}, False, [20, 0], [20, 0])

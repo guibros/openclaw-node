@@ -313,5 +313,8 @@ At 2026-10-01 00:21 EDT, the original `timer-hold-controller-20261001-3`
 bundle was retired under node-state-recovery D21. The current protected
 controller is `timer-hold-controller-20261001-4`, manifest SHA-256
 `eb09340de6284e7f65cbc648c4ca5205b7bcca94fa3388fecff42e43346d7258`;
-its compatible journal parser is pinned at
+its timer-receipt journal parser is pinned at
 `005087222475d7556e4c54f03cf1a1245847a5b8ca3a6bd7adebf9203f62d378`.
+Node-state-recovery D22's new 23-unit `full-node` scope is outside this frozen
+controller: it refuses that intact receipt safely, without renaming it. Once a
+full-node journal exists, its own hold path owns timer restoration.

@@ -701,3 +701,36 @@ live receipt remains `restored` on timer window
 and timer-entry-installed remains present. No controller commission/recover
 operation or service mutation occurred. This removes the known frozen parser
 entry points, but it does not establish production preservation readiness.
+
+### Multi-domain entrypoint refusal — 2026-10-01 01:29 EDT
+
+Read-only inventory across the user LaunchAgents, system LaunchAgents and
+LaunchDaemons, and the GUI/user/system launchd domains found 25 installed
+OpenClaw-labelled jobs: the proposed 23-unit user cohort plus
+`com.openclaw.agent` and `com.openclaw.tailscale-up` in the system domain.
+Twenty-one approved jobs were GUI-loaded, none user-loaded, and the two system
+jobs were loaded. Eleven old `.plist.disabled` artifacts were hashed separately;
+they are not loaded entries. The widened code preflight returned an explicit
+refusal, not a preservation baseline.
+The owner-private, fsynced hash-only record is
+`~/.openclaw/backups/node-readiness/entrypoint-preflight-20261001-1/evidence.json`
+(SHA-256 `5366a167ddcfe222b0a33dbaa7907b1db943b0134710de6f26959af0efae8502`).
+
+`com.openclaw.agent` is a root-owned KeepAlive job whose plist points to the
+missing legacy `~/openclaw/agent.js` and declares a NATS URL. Its system
+launchd record advanced from 1,762 to 1,789 runs during this read-only review,
+last exit code 1, with matching module-not-found diagnostics. It has no current
+PID, but an absent source today is not a durable exclusion if a deployment can
+recreate it. The root-owned `com.openclaw.tailscale-up` one-shot is loaded,
+not running, run count 1, last exit 0; a static exclusion and unchanged-state
+check remain unimplemented. Noninteractive administrator access was unavailable
+(`sudo -n` required a password), and no attempt was made to change either job.
+
+The viewer's `run-once` route detaches plan ticks, and its load/unblock/config
+routes can alter launchd jobs. The gateway still has a live task SQLite handle;
+its configured token field is empty and its companion listener on :8787 was
+absent at observation time. These observations do not prove a quiet window.
+The new 23-unit Journal scope and multi-domain preflight are source work only;
+the protected timer controller `-4` serves the existing timer receipt and
+safely refuses a future 23-unit full-node receipt. No service was stopped,
+started or reconfigured; no JetStream cold master was taken.

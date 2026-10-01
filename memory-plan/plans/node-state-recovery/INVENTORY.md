@@ -106,3 +106,12 @@ passes with 54 direct file pins; 65 Journal and 27 owned Mac recovery tests
 pass. Complete dependency/provenance pins, production controller, three healthy
 cold masters, isolated restores and truthful resumption remain open at
 1.2[A]/v1.2-pre. See step12_jetstream/RUNTIME_EVIDENCE.md.
+
+Checkpoint 2026-10-01 01:29 EDT: D22 widens the draft full-node source cohort
+to 23 and adds a strict durable scope plus a multi-domain entrypoint preflight.
+The live read-only preflight refuses two additional loaded system jobs; the
+legacy root agent is crash-looping and cannot be retired without administrator
+access. The gateway/viewer stop and detached-process fence, passive network
+helper exclusion, complete dependency pins, protected-controller handoff,
+healthy cold masters, isolated restores and truthful service resumption remain
+open. No production preservation window started; 1.2 remains [A] at v1.2-pre.

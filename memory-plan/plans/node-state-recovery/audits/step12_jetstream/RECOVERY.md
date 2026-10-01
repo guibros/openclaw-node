@@ -176,7 +176,19 @@ and metadata links refuse explicitly on a new-window parent scan or an
 initializing-root reopen. Invalid parent entries do not block restoring the
 known prior root; they prevent a later new window. Ignored metadata is retained.
 
-The baseline must contain exactly RESUME_ORDER plus nats-1. Each uninstalled
+The production baseline uses the durable `full-node` Journal scope. It must
+contain exactly RESUME_ORDER plus nats-1 and the installed, unloaded
+federation-tick, with every unit in its approved class and the saved five-timer
+execution hold. The viewer and gateway are managed live entry points
+in RESUME_ORDER. The viewer's authenticated controls can detach plan ticks; the
+gateway owns a live task SQLite store. Neither a missing NATS socket nor an idle
+process snapshot excludes their later writes or children. Stop them before the
+other clients, prove their process groups and any detached work have drained,
+and restore their exact prior loaded/running state after the bus and dependent
+services. Federation-tick must stay unloaded throughout and retain its saved
+disabled flag (disabled on the current node); a newly loaded or re-enabled job
+refuses recovery for operator handoff rather than being booted out silently.
+Each uninstalled
 unit has explicit class absent, false loaded/running/disabled and identity
 {installed:false}; it is observed, never installed or mutated. An installed
 member1 alone may be held, disabled/unloaded. Daemons are loaded/running;
@@ -188,10 +200,10 @@ require driver inspection; the fixed names alone do not prove that inventory.
 An on-demand worker observed running during recovery is a refusal requiring
 operator handoff, not a restoration target. Capture requires a normal idle
 exit, unchanged run count and loaded entry provenance; an idle snapshot alone
-could be a crashed worker. A frozen timer-only controller with an older
-Journal parser must be replaced or retired before the first full-node
-journal. Merely completing the timer transition does not prevent a later
-manual commission rerun from renaming a full-node receipt in `restored` state.
+could be a crashed worker. The current protected timer controller handles the
+existing timer-only receipt but safely refuses the new full-node scope. Once
+the first full-node journal exists, its own hold path owns timer restoration;
+the timer-only controller cannot commission or recover that receipt.
 The idle worker is a latent writer: forward quiescence must unload it with spawn-race
 evidence, while restore-only recovery may bootstrap its saved idle job but
 must never kickstart it.

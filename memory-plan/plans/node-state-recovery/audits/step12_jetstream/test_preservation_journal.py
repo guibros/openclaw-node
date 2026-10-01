@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from preservation_journal import Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
+from preservation_journal import FULL_NODE_SCOPE, Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -43,6 +43,21 @@ def timer_inventory():
     return prior
 
 
+def full_node_inventory():
+    prior = inventory({unit: {} for unit in UNITS if unit not in ('nats-1', 'federation-tick')})
+    for unit in TIMER_UNITS:
+        prior[unit].update(running=False, **{'class': 'timer'})
+    prior['scheduler-heartbeat']['execution_hold'] = {'cohort': sorted(TIMER_UNITS)}
+    prior['mesh-agent'].update(running=False, **{'class': 'on-demand'})
+    prior['mesh-tool-discord']['class'] = 'known-broken'
+    prior['federation-tick'] = {'loaded': False, 'running': False, 'disabled': True,
+        'class': 'unloaded', 'identity': {
+            'plist_sha256': '0' * 64, 'argv': ['/owned/federation-tick'],
+            'files': {'/owned/federation-tick': '1' * 64}, 'dependencies': {},
+            'working_directory': '/'}}
+    return prior
+
+
 class JournalTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='openclaw-journal-owned-')
@@ -56,6 +71,74 @@ class JournalTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_production_scope_requires_every_approved_entry_and_saved_hold(self):
+        prior = full_node_inventory()
+        for unit in ('gateway', 'workplan-viewer', 'federation-tick'):
+            with self.subTest(unit=unit):
+                changed = copy.deepcopy(prior)
+                changed[unit] = {'loaded': False, 'running': False, 'disabled': False,
+                                 'class': 'absent', 'identity': {'installed': False}}
+                with self.assertRaisesRegex(Refused, 'approved cohort'):
+                    Journal(self.parent / ('refuse-' + unit), changed, node_lock=self.node_lock,
+                            scope=FULL_NODE_SCOPE)
+        changed = copy.deepcopy(prior)
+        del changed['scheduler-heartbeat']['execution_hold']
+        with self.assertRaisesRegex(Refused, 'execution hold'):
+            Journal(self.parent / 'refuse-no-hold', changed, node_lock=self.node_lock,
+                    scope=FULL_NODE_SCOPE)
+        changed = copy.deepcopy(prior)
+        changed['federation-tick']['disabled'] = False
+        with self.assertRaisesRegex(Refused, 'must remain disabled'):
+            Journal(self.parent / 'refuse-enabled-tick', changed, node_lock=self.node_lock,
+                    scope=FULL_NODE_SCOPE)
+        with Journal(self.root, prior, boot='boot-a', node_lock=self.node_lock,
+                     scope=FULL_NODE_SCOPE) as journal:
+            self.assertEqual(journal.scope, FULL_NODE_SCOPE)
+            self.assertEqual(len(journal.prior), 23)
+        with self.journal() as reopened:
+            self.assertEqual(reopened.scope, FULL_NODE_SCOPE)
+
+    def test_full_inventory_covers_gateway_viewer_and_installed_unloaded_tick(self):
+        self.assertTrue({'gateway', 'workplan-viewer', 'federation-tick'} <= UNITS)
+        prior = copy.deepcopy(PRIOR)
+        prior['federation-tick'] = {'loaded': False, 'running': False, 'disabled': True,
+            'class': 'unloaded', 'identity': {
+                'plist_sha256': '0' * 64, 'argv': ['/owned/federation-tick'],
+                'files': {'/owned/federation-tick': '1' * 64}, 'dependencies': {},
+                'working_directory': '/'}}
+        with self.journal(prior) as journal:
+            with self.assertRaisesRegex(Refused, 'held or unknown unit'):
+                journal.mutate('federation-tick', 'stop', lambda: self.fail('must not mutate'),
+                               lambda: {'verified': True})
+        with self.journal() as reopened:
+            current = copy.deepcopy(prior)
+            current['federation-tick']['loaded'] = True
+            restored = []
+            result = reopened.recover(lambda *args: restored.append(args),
+                lambda unit, saved: {**current[unit], 'verified': True},
+                lambda: {'verified': True})
+            self.assertFalse(result['restored'])
+            self.assertEqual(result['errors'][0]['unit'], 'federation-tick')
+            self.assertEqual(restored, [])
+            self.assertFalse(any(row['event'] == 'unloaded-unit-verified'
+                                 for row in reopened.records))
+            current['federation-tick']['loaded'] = False
+            current['federation-tick']['disabled'] = False
+            result = reopened.recover(lambda *args: restored.append(args),
+                lambda unit, saved: {**current[unit], 'verified': True},
+                lambda: {'verified': True})
+            self.assertFalse(result['restored'])
+            self.assertEqual(result['errors'][0]['unit'], 'federation-tick')
+            self.assertEqual(restored, [])
+            current['federation-tick']['disabled'] = True
+            result = reopened.recover(lambda *args: restored.append(args),
+                lambda unit, saved: {**current[unit], 'verified': True},
+                lambda: {'verified': True})
+            self.assertTrue(result['restored'])
+            self.assertEqual(restored, [])
+            self.assertTrue(any(row['event'] == 'unloaded-unit-verified'
+                                for row in reopened.records))
 
     def test_timer_commissioning_scope_is_durable_and_cannot_mutate_or_seal(self):
         with Journal(self.root, timer_inventory(), boot='boot-a', node_lock=self.node_lock,

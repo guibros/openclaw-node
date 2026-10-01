@@ -14,10 +14,11 @@ import uuid
 from preservation_checks import RESUME_ORDER, Refused, require
 
 
-UNITS = frozenset((*RESUME_ORDER, 'nats-1'))
+UNITS = frozenset((*RESUME_ORDER, 'nats-1', 'federation-tick'))
 TIMER_UNITS = frozenset(('scheduler-heartbeat', 'consolidation-scheduler', 'observer',
                          'transcript-archive', 'log-rotate'))
 TIMER_SCOPE = 'timer-commissioning'
+FULL_NODE_SCOPE = 'full-node'
 TERMINAL = ('sealed', 'resolved')
 
 
@@ -117,14 +118,15 @@ def matches(actual, prior):
 
 def valid_prior(prior, scope=None):
     expected = TIMER_UNITS if scope == TIMER_SCOPE else UNITS
-    require(scope in (None, TIMER_SCOPE) and isinstance(prior, dict) and set(prior) == expected,
+    require(scope in (None, TIMER_SCOPE, FULL_NODE_SCOPE)
+            and isinstance(prior, dict) and set(prior) == expected,
             'prior service inventory is incomplete or unknown')
     for unit, state in prior.items():
         require(isinstance(state, dict), 'prior service state is incomplete')
         require(all(isinstance(state.get(k), bool) for k in ('loaded', 'running', 'disabled')),
                 'prior service state is incomplete')
         kind = state.get('class')
-        require(kind in ('daemon', 'on-demand', 'timer', 'known-broken', 'held', 'absent'),
+        require(kind in ('daemon', 'on-demand', 'timer', 'known-broken', 'held', 'unloaded', 'absent'),
                 'service class is absent')
         identity = state.get('identity')
         if kind == 'absent':
@@ -150,17 +152,33 @@ def valid_prior(prior, scope=None):
         require((unit == 'nats-1') == (kind == 'held'), 'only member-1 may be declared held')
         require(kind != 'known-broken' or unit == 'mesh-tool-discord',
                 'only the declared optional integration may be known-broken')
+        require(kind != 'unloaded' or unit == 'federation-tick',
+                'only the declared inactive timer may be installed but unloaded')
         require((kind != 'daemon' or state['loaded'] and state['running'] and not state['disabled'])
                 and (kind != 'on-demand' or unit == 'mesh-agent' and state['loaded']
                      and not state['running'] and not state['disabled'])
                 and (kind != 'timer' or state['loaded'] and not state['running'] and not state['disabled'])
                 and (kind != 'known-broken' or state['loaded'] and not state['disabled'])
-                and (kind != 'held' or not state['loaded'] and not state['running'] and state['disabled']),
+                and (kind != 'held' or not state['loaded'] and not state['running'] and state['disabled'])
+                and (kind != 'unloaded' or not state['loaded'] and not state['running']),
                 'baseline does not match the declared desired service state')
         if scope == TIMER_SCOPE:
             require(kind == 'timer' and (unit == 'scheduler-heartbeat') == ('execution_hold' in state),
                     'timer commissioning baseline includes an unrelated unit or lacks its hold')
-    if scope == TIMER_SCOPE:
+    if scope == FULL_NODE_SCOPE:
+        for unit in UNITS:
+            kind = ('held' if unit == 'nats-1' else
+                    'unloaded' if unit == 'federation-tick' else
+                    'on-demand' if unit == 'mesh-agent' else
+                    'known-broken' if unit == 'mesh-tool-discord' else
+                    'timer' if unit in TIMER_UNITS else 'daemon')
+            require(prior[unit]['class'] == kind,
+                    'full-node service class differs from the approved cohort: ' + unit)
+        require(prior['federation-tick']['disabled'],
+                'installed federation tick must remain disabled across reboot')
+    if scope in (TIMER_SCOPE, FULL_NODE_SCOPE):
+        require('execution_hold' in prior['scheduler-heartbeat'],
+                'full execution hold is absent from the service baseline')
         hold = prior['scheduler-heartbeat']['execution_hold']
         cohort = hold.get('cohort') if isinstance(hold, dict) else None
         require(isinstance(cohort, list) and len(cohort) == len(TIMER_UNITS)
@@ -561,11 +579,13 @@ class Journal:
                     buses_ready = False
         for unit in (u for u in self.prior if u not in RESUME_ORDER and not (held and self.write_failed)):
             try:
-                require(unit == 'nats-1', 'unknown unit needs manual restoration')
+                require(unit in ('nats-1', 'federation-tick'), 'unknown unit needs manual restoration')
                 actual = observe(unit, self.prior[unit])
                 require(matches(actual, self.prior[unit]) and actual.get('verified') is True
-                        and actual.get('identity') == self.prior[unit]['identity'], 'member-1 hold changed')
-                record('held-unit-verified', unit=unit, evidence=actual)
+                        and actual.get('identity') == self.prior[unit]['identity'],
+                        'non-running installed unit or member-1 hold changed')
+                record('held-unit-verified' if unit == 'nats-1' else 'unloaded-unit-verified',
+                       unit=unit, evidence=actual)
             except Exception as error:
                 errors.append({'unit': unit, 'reason': type(error).__name__})
         try:

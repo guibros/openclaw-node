@@ -312,3 +312,44 @@ Production capture must verify the worker's normal idle exit/provenance and refu
 worker, rather than selecting a class from a transient observation. Forward
 quiescence must unload this latent writer with spawn-race evidence; restoration
 may bootstrap its saved idle job but must never kickstart it.
+
+## D22 — Include live gateway/viewer and fence all launchd entry points (2026-10-01 01:28 EDT)
+
+The viewer can detach an agentic plan tick that can drive `launchctl` and NATS;
+the gateway owns a live task SQLite store and can start tool-capable turns.
+Neither is excludable because it had no NATS socket at one instant. Extend the
+full-node Journal cohort from 20 to 23: stop viewer then gateway before other
+clients, restore gateway after its dependencies and viewer last, and represent
+the installed federation tick as unloaded with its current persistent disabled
+flag. The durable `full-node` scope requires these exact classes and the saved
+five-timer hold. A loaded or re-enabled federation tick refuses restore-only
+recovery; the controller does not silently boot it out or enable it.
+
+Before a full-node journal, enumerate installed and loaded jobs in the GUI,
+user and system launchd domains, including `ai.openclaw.*`, `com.openclaw.*`
+and programs resolving into the repository or OpenClaw roots. Record disabled
+plist artifacts separately. Unknown entry points refuse; disconnected sockets
+do not authorize exclusion. Check detached tick/companion processes and the
+launchd inventory repeatedly through the copy window. The viewer's old process
+group cannot account for a tick already reparented to launchd.
+
+The current widened read-only scan refuses: 23 approved user LaunchAgents plus
+root-managed `com.openclaw.agent` and `com.openclaw.tailscale-up` are installed
+and loaded. The former is enabled, KeepAlive, points to a missing legacy
+`agent.js`, and is repeatedly exiting 1. Missing code prevents execution now
+but not future reappearance after a deploy. The latter is an idle one-shot
+network helper, not yet accepted as a pinned exclusion. Neither was changed.
+The 11 `.plist.disabled` artifacts are inventoried by hash, not treated as
+loaded jobs. No live preservation window may start until the legacy system
+agent is durably retired or included with a verified stop/restoration contract,
+and the network helper has an explicit exclusion and final-state check.
+
+This supersedes D21's statement that timer controller bundle `-4` is compatible
+with a future full-node receipt. It still serves the current timer-only receipt
+and safely refuses the new 23-unit `full-node` scope without renaming it. Once
+a full-node journal exists, timer restoration belongs to that journal's hold
+path; `-4 --commission` and `-4 --recover` cannot service it. The gateway's
+startup hook and ephemeral token, companion bridge, detached ticks, complete
+dependency pins, healthy cold masters and truthful restoration remain driver
+prerequisites. This decision changes source schema only, not live services or
+the open 1.2[A] outcome.

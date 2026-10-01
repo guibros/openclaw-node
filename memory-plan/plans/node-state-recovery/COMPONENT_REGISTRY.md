@@ -90,3 +90,13 @@ structural schema evidence only. Standalone still serves five clients,
 cluster members 2/3 serve, and member1 remains disabled/unloaded. No complete
 source/provenance closure, full-node controller, healthy cold master or
 restoration acceptance exists; 1.2 remains active.
+
+2026-10-01 01:29 EDT — D22's source draft expands the full-node Journal
+cohort to 23, adding the live gateway and viewer and the installed disabled
+federation tick. The prior 20-state/54-file capture is historical and cannot
+authorize a new window. A multi-domain read-only preflight refuses two
+additional loaded system jobs: a crash-looping legacy agent and an idle
+Tailscale one-shot. The protected timer controller `-4` safely refuses the new
+full-node scope; it remains usable only for the current timer-only receipt.
+Neither system job was altered. Full-node capture, cold masters and truthful
+restoration remain open at 1.2[A].

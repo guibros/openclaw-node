@@ -1,6 +1,10 @@
 import copy
+import hashlib
 import http.client
 import json
+import pathlib
+import plistlib
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -11,7 +15,7 @@ class Refused(RuntimeError):
 
 
 STOP_ORDER = (
-    'health-watch', 'mesh-deploy-listener', 'node-watch',
+    'workplan-viewer', 'gateway', 'health-watch', 'mesh-deploy-listener', 'node-watch',
     'scheduler-heartbeat', 'consolidation-scheduler', 'observer',
     'transcript-archive', 'log-rotate', 'lane-watchdog', 'mesh-tool-discord',
     'mission-control', 'mesh-bridge', 'mesh-agent',
@@ -23,7 +27,76 @@ RESUME_ORDER = (
     'mesh-tool-discord', 'transcript-archive',
     'observer', 'log-rotate', 'lane-watchdog', 'consolidation-scheduler',
     'scheduler-heartbeat', 'node-watch', 'health-watch', 'mesh-deploy-listener',
+    'gateway', 'workplan-viewer',
 )
+
+
+def installed_entrypoints(directory, protected_roots):
+    roots = tuple({name for root in protected_roots for name in
+                   (str(pathlib.Path(root)), str(pathlib.Path(root).resolve(strict=True)))})
+    found = {}
+    directories = (directory,) if isinstance(directory, (str, pathlib.Path)) else directory
+    for path in (path for item in directories for path in pathlib.Path(item).glob('*.plist')):
+        try:
+            plist = plistlib.loads(path.read_bytes())
+        except (OSError, ValueError, TypeError) as error:
+            raise Refused('installed LaunchAgent plist cannot be read: ' + path.name) from error
+        require(isinstance(plist, dict), 'installed LaunchAgent plist is not a dictionary: ' + path.name)
+        label = plist.get('Label')
+        values = plist.get('ProgramArguments', [])
+        location = plist.get('WorkingDirectory', '')
+        relevant = (isinstance(label, str) and label.startswith(('ai.openclaw.', 'com.openclaw.'))
+                    or isinstance(values, list) and any(isinstance(value, str) and root in value
+                        for value in values for root in roots)
+                    or isinstance(location, str) and any(root in location for root in roots))
+        if not relevant:
+            continue
+        require(isinstance(label, str), 'installed OpenClaw LaunchAgent lacks a label: ' + path.name)
+        require(isinstance(values, list) and all(isinstance(value, str) for value in values),
+                'installed OpenClaw LaunchAgent has invalid arguments: ' + path.name)
+        require(path.name == label + '.plist' and label not in found and not path.is_symlink(),
+                'installed OpenClaw LaunchAgent has ambiguous identity: ' + path.name)
+        found[label] = str(path.resolve(strict=True))
+    return found
+
+
+def disabled_entrypoint_artifacts(directories):
+    found = {}
+    for path in (path for item in directories for path in pathlib.Path(item).glob('*.plist.disabled')):
+        try:
+            raw = path.read_bytes()
+            label = plistlib.loads(raw).get('Label')
+        except (OSError, ValueError, TypeError, AttributeError) as error:
+            raise Refused('disabled LaunchAgent artifact cannot be read: ' + path.name) from error
+        if not isinstance(label, str) or not label.startswith(('ai.openclaw.', 'com.openclaw.')):
+            continue
+        require(path.name == label + '.plist.disabled' and not path.is_symlink()
+                and str(path) not in found, 'disabled OpenClaw artifact has ambiguous identity')
+        found[str(path)] = hashlib.sha256(raw).hexdigest()
+    return found
+
+
+def loaded_entrypoints(domain_text):
+    match = re.search(r'^\s*services = \{\n(.*?)^\s*\}', domain_text, re.M | re.S)
+    require(match is not None, 'launchd domain lacks a services inventory')
+    labels = set()
+    for line in match[1].splitlines():
+        fields = line.split()
+        if len(fields) >= 3 and fields[-1].startswith(('ai.openclaw.', 'com.openclaw.')):
+            labels.add(fields[-1])
+    return labels
+
+
+def verify_entrypoint_inventory(installed, gui_loaded, user_loaded, system_loaded, expected):
+    expected = {'ai.openclaw.' + unit for unit in expected}
+    require(set(installed) == expected, 'installed OpenClaw jobs differ from the approved cohort')
+    require(gui_loaded <= expected and user_loaded <= expected and system_loaded <= expected,
+            'unclassified OpenClaw job is loaded')
+    require(not (gui_loaded & user_loaded or gui_loaded & system_loaded or user_loaded & system_loaded),
+            'OpenClaw job is loaded in two launchd domains')
+    return {'verified': True, 'installed': len(installed),
+            'gui_loaded': len(gui_loaded), 'user_loaded': len(user_loaded),
+            'system_loaded': len(system_loaded)}
 
 
 def require(condition, reason):
