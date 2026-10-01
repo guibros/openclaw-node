@@ -7,6 +7,7 @@ const fixture = (clustered) => ids.map((serverId, index) => ({
   routez: { server_id: serverId, routes: clustered[index].routes.map((remote_id) => ({ remote_id })) },
   jsz: { server_id: serverId, meta_cluster: clustered[index].cluster ? { name: 'cluster', leader: 'C' } : undefined,
     streams: index + 1, consumers: 0 },
+  varz: { server_id: serverId, server_name: `server-${serverId}`, port: 4222 + index },
 }));
 
 describe('NATS topology audit', () => {
@@ -20,6 +21,7 @@ describe('NATS topology audit', () => {
     assert.equal(report.classification, 'standalone-plus-two');
     assert.deepEqual(report.members.map((m) => m.routeIds), [[], ['C'], ['B']]);
     assert.deepEqual(report.members.map((m) => m.streams), [1, 2, 3]);
+    assert.deepEqual(report.members.map((m) => m.clientPort), [4222, 4223, 4224]);
   });
 
   it('recognizes a three-member cluster only when each member routes to both others', () => {
@@ -41,7 +43,28 @@ describe('NATS topology audit', () => {
     ]);
     responses[1].jsz.server_id = 'different';
     assert.equal(summarizeNatsTopology(responses).classification, 'unobservable');
+    responses[1].jsz.server_id = 'B';
+    responses[1].varz.port = 4222;
+    assert.equal(summarizeNatsTopology(responses).classification, 'unobservable');
     assert.equal(classifyNatsTopology([{ error: 'down' }]), 'unobservable');
+  });
+
+  it('retains the offline Raft peer behind a two-route cluster', () => {
+    const responses = fixture([
+      { routes: [], cluster: false },
+      { routes: ['C'], cluster: true },
+      { routes: ['B'], cluster: true },
+    ]);
+    for (const item of responses.slice(1)) item.jsz.meta_cluster.cluster_size = 3;
+    responses[2].jsz.meta_cluster.replicas = [
+      { name: 'held-member', offline: true, current: false },
+      { name: 'active-member', current: true },
+    ];
+    const report = summarizeNatsTopology(responses);
+    assert.equal(report.classification, 'standalone-plus-two');
+    assert.equal(report.members[2].clusterSize, 3);
+    assert.deepEqual(report.members[2].replicas[0],
+      { name: 'held-member', offline: true, current: false });
   });
 
   it('records a failed endpoint without turning it into a topology claim', async () => {

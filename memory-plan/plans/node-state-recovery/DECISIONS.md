@@ -549,3 +549,26 @@ root must be on that device too, so a mounted handoff directory cannot pass
 the site preflight. This remains a read-only staging check, not cutover
 authorization. The live chain passes; the dedicated account and protected
 root remain absent.
+
+## D31 — Tighten protected-site identity and expose held Raft membership (2026-10-01 13:47 EDT)
+
+Claude's read-only review of PR #175 at `6035e76` found that a positive
+non-operator UID could still be a normal, privileged account. The staging
+audit now requires `_openclaw_nats` to be a local system-range UID, with a
+matching dedicated primary group, no staff/wheel/admin group membership, a
+non-login shell and empty home. A root invocation must identify the original
+operator via `SUDO_UID` or `--operator-uid`; UID 0 cannot stand in for that
+operator. The audit refuses ACL entries on the protected directory or any
+ancestor. It derives its marker path from the legacy-writer guard's constant.
+These facts qualify only a staging site; the root journal still has to pin
+the exact account, binary, configuration, credential and store identities.
+
+The topology audit now binds `/varz` to `/routez` and `/jsz` by server ID and
+checks each monitor against its expected client port. Its classification is
+the currently routed graph, not the full JetStream Raft membership. The live
+8223/8224 peers each report meta-cluster size three; the leader reports one
+replica offline. This is consistent with the separately held member-1 store,
+whose identity and history still require their own pins and cold-copy proof.
+The two routed peers' stream counts differ. Four distinct store directories
+remain preservation sources; no same-named stream may be merged on the basis
+of routing alone. Refreshed evidence saves only counts and port relationships.

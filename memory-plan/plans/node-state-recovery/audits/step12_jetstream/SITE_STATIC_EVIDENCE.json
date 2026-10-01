@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-10-01T17:33:53.746Z",
+  "observedAt": "2026-10-01T17:47:06.964Z",
   "readyForStaging": false,
   "checks": [
     {
@@ -15,7 +15,7 @@
     {
       "id": "protected-parent",
       "ok": true,
-      "detail": "root:wheel, one device, no writable ancestor"
+      "detail": "root:wheel, one device, no writable ancestor or ACL"
     },
     {
       "id": "protected-root",

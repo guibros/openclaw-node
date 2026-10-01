@@ -1,34 +1,45 @@
 {
-  "observedAt": "2026-10-01T17:18:41.286Z",
-  "source": "read-only loopback /routez and /jsz on 8222, 8223, 8224",
+  "observedAt": "2026-10-01T17:46:56.851Z",
+  "source": "read-only loopback /routez, /jsz and /varz on 8222, 8223, 8224",
   "classification": "standalone-plus-two",
+  "classificationBasis": "currently routed servers; JetStream Raft membership is separate",
   "members": [
     {
       "monitorPort": 8222,
+      "clientPort": 4222,
       "routePeers": [],
       "metaCluster": null,
+      "metaClusterSize": null,
+      "knownOfflineReplicas": 0,
       "streams": 7,
       "consumers": 2
     },
     {
       "monitorPort": 8223,
+      "clientPort": 4223,
       "routePeers": [
         8224
       ],
       "metaCluster": "openclaw-cluster",
+      "metaClusterSize": 3,
+      "knownOfflineReplicas": 0,
       "streams": 1,
       "consumers": 0
     },
     {
       "monitorPort": 8224,
+      "clientPort": 4224,
       "routePeers": [
         8223
       ],
       "metaCluster": "openclaw-cluster",
+      "metaClusterSize": 3,
+      "knownOfflineReplicas": 1,
       "streams": 4,
       "consumers": 1
     }
   ],
+  "heldThirdRaftPeer": "reported offline by the live leader; identity and store pinning remain separate",
   "negativeControl": {
     "expect": "three-member-cluster",
     "exitCode": 1

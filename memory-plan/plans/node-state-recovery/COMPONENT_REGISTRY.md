@@ -31,6 +31,14 @@ ancestor from `/private` through `/private/var/db` is root-controlled and on
 one device. A mounted protected root on another device now refuses. The live
 site still lacks the dedicated account and protected directory.
 
+2026-10-01 13:47 EDT — D31's live read-only check binds monitor ports
+8222/8223/8224 to client ports 4222/4223/4224. The two routed cluster
+members still report meta-cluster size three, with one offline replica
+reported by the leader. This reinforces the separately held member-1 store
+as a preservation source, subject to identity and cold-copy verification.
+The site audit now refuses ordinary/admin account identities and ACL grants;
+the actual dedicated UID and protected root are still absent.
+
 Current mechanism checkpoint 2026-09-28 23:49 EDT: tools-v30 passes53 fresh journal tests; unchanged15 admission/1 election tests inherit identical source hashes. Creation prepares the receipt before mkdir; interrupted setup is restoration-only. bbbc883 CI36516935187 is green, while this newer patch awaits exact CI/review. No new healthy production stop or cold-copy acceptance.
 
 Current mechanism checkpoint 2026-09-29 00:58 EDT: tools-v31 passes55 fresh

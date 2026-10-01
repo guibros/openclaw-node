@@ -187,3 +187,11 @@ ancestor and refuses a handoff root on a different device. The refreshed
 `SITE_STATIC_EVIDENCE.json` passes the ancestor-chain check; the account and
 root remain absent. Focused controls pass 69/69. No privileged mutation or
 writer cutover occurred.
+
+Checkpoint 2026-10-01 13:47 EDT: D31 closes Claude's PR #175 staging-account
+blocker in source and retains the offline third Raft peer in the topology
+evidence. The audit now checks the account's dedicated identity, ACL absence,
+the monitor-to-client port binding and the shared marker path. The live site
+still refuses: `_openclaw_nats` and the protected root are absent. Root
+migration, account creation, the three healthy cold masters and restoration proof
+remain open at 1.2[A]/v1.2-pre.

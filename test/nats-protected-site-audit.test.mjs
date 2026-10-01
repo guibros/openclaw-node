@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import { evaluateProtectedSite, parseDiskutilInfo } from '../lib/nats-protected-site-audit.mjs';
 
 const staged = {
-  account: { uid: 400, gid: 400 },
+  account: { uid: 400, gid: 400, recordUid: 400, recordGid: 400, groupRecordGid: 400,
+    groupName: '_openclaw_nats', groups: [400], shell: '/usr/bin/false',
+    home: '/var/empty', adminMember: false },
   operatorUid: 501,
-  ancestors: Array.from({ length: 3 }, () => ({ isDirectory: true, uid: 0, gid: 0, mode: 0o40755, device: 7 })),
-  root: { isDirectory: true, uid: 0, gid: 0, mode: 0o40755, device: 7 },
+  ancestors: Array.from({ length: 3 }, () => ({ isDirectory: true, uid: 0, gid: 0, mode: 0o40755,
+    device: 7, aclEntries: false })),
+  root: { isDirectory: true, uid: 0, gid: 0, mode: 0o40755, device: 7, aclEntries: false },
   marker: 'absent',
   volume: { apfs: true, ownersEnabled: true },
 };
@@ -29,13 +32,38 @@ describe('protected NATS site audit', () => {
   });
 
   it('does not accept the operator UID as the protected writer', () => {
-    assert.equal(evaluateProtectedSite({ ...staged, account: { uid: 501, gid: 400 } }).readyForStaging, false);
+    assert.equal(evaluateProtectedSite({ ...staged,
+      account: { ...staged.account, uid: 501, recordUid: 501 } }).readyForStaging, false);
+    assert.equal(evaluateProtectedSite({ ...staged, operatorUid: 0 }).readyForStaging, false);
+  });
+
+  it('requires a dedicated non-admin system account', () => {
+    for (const account of [
+      { uid: 502, recordUid: 502 },
+      { gid: 20, recordGid: 20, groupName: 'staff', groups: [20] },
+      { gid: 0, recordGid: 0, groupName: 'wheel', groups: [0] },
+      { groups: [400, 80], adminMember: true },
+      { shell: '/bin/zsh' },
+      { home: '/Users/shared' },
+      { recordUid: 401 },
+      { groupRecordGid: 401 },
+    ]) {
+      assert.equal(evaluateProtectedSite({ ...staged,
+        account: { ...staged.account, ...account } }).readyForStaging, false);
+    }
   });
 
   it('refuses a handoff root mounted on another device', () => {
     const result = evaluateProtectedSite({ ...staged, root: { ...staged.root, device: 8 } });
     assert.equal(result.readyForStaging, false);
     assert.equal(result.checks.find((check) => check.id === 'protected-root').ok, false);
+  });
+
+  it('refuses ACL entries on an ancestor or the protected root', () => {
+    assert.equal(evaluateProtectedSite({ ...staged,
+      ancestors: [{ ...staged.ancestors[0], aclEntries: true }, ...staged.ancestors.slice(1)] }).readyForStaging, false);
+    assert.equal(evaluateProtectedSite({ ...staged,
+      root: { ...staged.root, aclEntries: true } }).readyForStaging, false);
   });
 
   it('parses the macOS ownership facts without inferring them from APFS alone', () => {
