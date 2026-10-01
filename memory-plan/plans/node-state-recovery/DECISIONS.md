@@ -702,3 +702,50 @@ manifest stored under the same operator account unless its digest is retained
 in separately protected evidence. None of these owned-fixture checks proves
 the missing protected production writer boundary. Full-node `seal()` stays
 disabled, and step 1.2 remains active.
+
+## D35 — Separate cluster recovery from each member's cold-master health (2026-10-01 07:08 EDT)
+
+D34's preferred-leader read-back verifies that the restored **cluster** can
+serve the pre-stop message while each member leads. It does not prove that
+each member's copied store independently held that message at publication:
+JetStream can refill a damaged member from healthy peers before transferring
+leadership. The single-member corruption controls modify a candidate *after*
+publication and bypass `verify_candidate` to exercise the restore-read layer;
+they do not model a source member already damaged before the copy. A manifest
+made from that damaged source would match it, and cluster recovery could heal
+it. The copy-side manifest protects against subsequent change only when its
+publication digest is retained separately.
+
+Accepting each healthy production cold master therefore still needs an
+independent per-store content/recovery check that cannot be satisfied by peer
+healing, plus the protected writer boundary and a live pre-stop content
+baseline. Until that check is implemented and passed, record only candidate
+copy integrity and cluster-level recovery. No full-node seal or step closure
+follows from the owned fixture or its green CI.
+
+## D36 — Inspect each copied member before allowing peer repair (2026-10-01 07:16 EDT)
+
+Claude's exact-head `6868c1f` probe confirmed D35's gap. Source-side empty
+message blocks, missing stream folders and even two damaged members could
+still pass the restored-cluster check because NATS caught them up from a peer.
+An isolated clustered-mode server with closed routes can expose its own
+`/jsz` stream state without a quorum: healthy fixture members report one
+message and the expected sequence/bytes; an emptied block reports zero and a
+missing stream reports none. Non-clustered startup refuses an R3 stream.
+
+The owned fixture now creates a disposable working copy of each verified
+candidate member, starts that member alone with no reachable routes, and
+compares its local stream state and durable-consumer configuration with the
+pre-stop observation before starting the restored cluster. Source-side
+same-length corruption, emptied blocks in one or two members, and a missing
+stream are injected *before* candidate copying; all travel through the
+copy-side verifier. Local state catches absence and zero counts; the existing
+leader read catches the tested same-length corruption. A restored-cluster
+log tripwire refuses observed catch-up/rebuild before acceptance. The proof
+records all three isolated states and both manifest digests.
+
+This is an owned one-message mechanism test, not exhaustive local payload
+verification for production streams. A protected live baseline of every
+relevant message and durable position, cross-uid protected cold-copy input,
+three live cold masters and full service resumption remain open. Full-node
+`seal()` remains disabled; step 1.2 stays `[A]` at `v1.2-pre`.

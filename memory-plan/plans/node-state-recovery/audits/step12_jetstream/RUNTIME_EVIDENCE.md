@@ -1094,3 +1094,28 @@ made directory sync traversal raise on listing errors too; its nine focused
 copier tests pass. Exact-head CI and adversarial re-review of the
 leader-rotation revision remain open. All production services and stores
 remain untouched.
+
+At 07:08 EDT, PR #170 exact head `6868c1f` passed all three CI jobs.
+Adversarial isolation work found the leader-rotation read-back cannot certify
+each copied member independently: a damaged source member may be rebuilt by
+peers during restored-cluster startup, before it is made leader. The existing
+single-member corruption negatives alter the *published candidate* and
+deliberately skip `verify_candidate` to test the restore read separately;
+they do not model source-side damage before the copy. The publication digest
+also lacks protected retention. D35 records the narrowed cluster-level
+claim. No production cold master or full-node seal was accepted.
+
+At 07:16 EDT, Claude's `6868c1f` review showed source-side emptied blocks or
+removed stream folders on one or two members can be faithfully copied,
+verified, then healed by peers during restored-cluster startup. A single
+member started in clustered mode with no reachable routes exposes its local
+`/jsz` state without catch-up: intact stores report one message/46 bytes/seq
+1, an emptied block reports zero messages, and a removed stream is absent.
+The new owned fixture compares each isolated member with its pre-stop state
+before clustered restore, and checks for catch-up/rebuild logs afterwards.
+It moves corruption injection to the stopped source stores before the copy.
+The four-test cluster suite passed in 86.9 s, including single and double
+empty blocks, missing stream, and same-length payload negatives; the positive
+re-passed after the log tripwire. These are disposable fixtures on private
+ports. Complete Mac suite, exact new CI and adversarial re-review remain
+pending; no live store or service was changed.

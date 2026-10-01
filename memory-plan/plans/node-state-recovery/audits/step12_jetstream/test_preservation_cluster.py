@@ -3,7 +3,9 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
@@ -13,31 +15,103 @@ import time
 import unittest
 
 from cold_copy import copy_candidate, verify_candidate
-from preservation_checks import QuietWindow, Refused, capture, http_json
+from preservation_checks import QuietWindow, Refused, capture, http_json, stream_state
 
 
 class Cluster(unittest.TestCase):
-    def corrupt_and_check(self, mode):
+    def corrupt_and_check(self, mode, stage):
         result = subprocess.run([sys.executable, '-m', 'unittest', '-q',
                                  'test_preservation_cluster.Cluster.test_stream_and_consumer_groups_and_real_stream_election'],
                                 env={**os.environ, 'RECOVERY_CORRUPT_RESTORE': mode},
                                 cwd=pathlib.Path(__file__).parent, capture_output=True,
                                 text=True, timeout=60)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('"stage":"restore-message-get"', result.stderr)
-        self.assertIn('"code":"404"', result.stderr)
+        self.assertIn(stage, result.stderr)
 
     @unittest.skipIf(bool(os.environ.get('RECOVERY_CORRUPT_RESTORE')),
                      'negative-control child runs only the restore test')
     def test_corrupted_message_copy_cannot_pass_restore(self):
-        self.corrupt_and_check('1')
+        self.corrupt_and_check('1', 'restore-message-get')
 
     @unittest.skipIf(bool(os.environ.get('RECOVERY_CORRUPT_RESTORE')),
                      'negative-control child runs only the restore test')
     def test_corrupted_follower_copy_cannot_pass_restore(self):
         for i in range(3):
             with self.subTest(replica=i):
-                self.corrupt_and_check(f'single-{i}')
+                self.corrupt_and_check(f'single-{i}', 'restore-message-get')
+
+    @unittest.skipIf(bool(os.environ.get('RECOVERY_CORRUPT_RESTORE')),
+                     'negative-control child runs only the restore test')
+    def test_missing_local_history_cannot_be_healed_into_a_valid_candidate(self):
+        for mode in ('empty-1', 'empty-0-2', 'missing-1'):
+            with self.subTest(mode=mode):
+                self.corrupt_and_check(mode, 'isolated member stream state differs')
+
+    def isolated_member_state(self, root, index, candidate_root, before, binary,
+                              route_password, token):
+        working = root / f'isolated-{index}'
+        shutil.copytree(candidate_root / str(index), working)
+        held = []
+        for _ in range(5):
+            sock = socket.socket()
+            sock.bind(('127.0.0.1', 0))
+            held.append(sock)
+        ports = [sock.getsockname()[1] for sock in held]
+        config = root / f'isolated-{index}.conf'
+        routes = ','.join(f'"nats://owned:{route_password}@127.0.0.1:{port}"'
+                          for port in ports[3:])
+        config.write_text(f'''server_name: owned-raft-{index}
+listen: 127.0.0.1:{ports[0]}
+http: 127.0.0.1:{ports[1]}
+authorization {{ token: "{token}" }}
+jetstream {{ store_dir: "{working}" }}
+cluster {{ name: owned-preservation
+ listen: 127.0.0.1:{ports[2]}
+ authorization {{ user: owned, password: "{route_password}" }}
+ routes: [{routes}]
+ no_advertise: true
+}}
+''')
+        for sock in held[:3]:
+            sock.close()
+        log = open(root / f'isolated-{index}.log', 'ab', buffering=0)
+        proc = subprocess.Popen([binary, '--config', str(config)], stdout=log, stderr=log)
+        try:
+            deadline = time.monotonic() + 10
+            first_response = None
+            while time.monotonic() < deadline:
+                self.assertIsNone(proc.poll(), 'isolated member exited before local inspection')
+                try:
+                    js = http_json(ports[1], '/jsz?accounts=true&streams=true&consumers=true&config=true')
+                    if first_response is None:
+                        first_response = time.monotonic()
+                    local = stream_state(js.get('account_details', []))
+                    if local or time.monotonic() - first_response > 1:
+                        break
+                except Refused:
+                    pass
+                time.sleep(.05)
+            else:
+                self.fail('isolated member did not expose local stream state')
+            self.assertEqual(http_json(ports[1], '/varz')['server_name'],
+                             f'owned-raft-{index}')
+            self.assertEqual(http_json(ports[1], '/routez')['num_routes'], 0,
+                             'isolated member connected to a peer')
+            def local_view(streams):
+                return {name: {'state': stream['state'],
+                               'consumers': {consumer: details['config'] for consumer, details
+                                             in stream['consumers'].items()}}
+                        for name, stream in streams.items()}
+            self.assertEqual(local_view(local), local_view(before['streams']),
+                             'isolated member stream state differs from pre-stop state')
+            return {name: stream['state'] for name, stream in local.items()}
+        finally:
+            if proc.poll() is None:
+                proc.send_signal(signal.SIGTERM)
+            self.assertEqual(proc.wait(timeout=10), 0)
+            log.close()
+            for sock in held[3:]:
+                sock.close()
 
     def test_stream_and_consumer_groups_and_real_stream_election(self):
         os.umask(0o077)
@@ -261,18 +335,26 @@ let nc,stage='connect';
             (root/'cleanup.json').write_text(json.dumps(report, indent=2))
             print(json.dumps(report))
             self.assertFalse(cleanup, 'owned cluster shutdown was not normal')
-        candidate = copy_candidate({str(i): root/f'store-{i}' for i in range(3)}, root/'candidate')
         corruption = os.environ.get('RECOVERY_CORRUPT_RESTORE')
         if corruption == '1' or corruption in ('single-0', 'single-1', 'single-2'):
             targets = range(3) if corruption == '1' else (int(corruption[-1]),)
             for i in targets:
-                block = root/'candidate'/str(i)/'jetstream'/'$G'/'streams'/'HISTORY'/'msgs'/'1.blk'
+                block = root/f'store-{i}'/'jetstream'/'$G'/'streams'/'HISTORY'/'msgs'/'1.blk'
                 content = block.read_bytes()
                 self.assertIn(b'preserved', content)
                 block.write_bytes(content.replace(b'preserved', b'corrupted'))
-        else:
-            verified = verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
-            self.assertEqual(verified['manifest_sha256'], candidate['manifest_sha256'])
+        elif corruption in ('empty-1', 'empty-0-2'):
+            targets = (1,) if corruption == 'empty-1' else (0, 2)
+            for i in targets:
+                (root/f'store-{i}'/'jetstream'/'$G'/'streams'/'HISTORY'/'msgs'/'1.blk').write_bytes(b'')
+        elif corruption == 'missing-1':
+            shutil.rmtree(root/'store-1'/'jetstream'/'$G'/'streams'/'HISTORY')
+        candidate = copy_candidate({str(i): root/f'store-{i}' for i in range(3)}, root/'candidate')
+        verified = verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
+        self.assertEqual(verified['manifest_sha256'], candidate['manifest_sha256'])
+        local_states = [self.isolated_member_state(root, i, root/'candidate', before[i],
+                        binary, route_password, token) for i in range(3)]
+        verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
         restored_sockets = []
         for _ in range(9):
             sock = socket.socket(); sock.bind(('127.0.0.1', 0)); restored_sockets.append(sock)
@@ -354,9 +436,15 @@ cluster {{ name: owned-preservation
                     time.sleep(.05)
                 else:
                     self.fail('restored leader did not serve the original message')
+            self.assertFalse(any(re.search(r'catchup|stream state outdated|rebuild',
+                                           (root/f'restored-{i}.log').read_text(), re.I)
+                                 for i in range(3)),
+                             'restored member repaired from peers before acceptance')
             restore_proof = {
                 'status': candidate['status'], 'manifest_sha256': candidate['manifest_sha256'],
+                'copy_manifest_sha256': candidate['copy_manifest_sha256'],
                 'files': candidate['files'], 'restored_streams': len(reports[0]['streams']),
+                'isolated_member_states': local_states,
                 'restored_message_leaders': leaders_checked,
                 'restored_message_sha256': hashlib.sha256(
                     original_message['data'].encode()).hexdigest(),

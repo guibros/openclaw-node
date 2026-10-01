@@ -255,3 +255,21 @@ retrieval; a copy-side manifest also detects a changed single replica before
 restore. The publication digest is still operator-held, and the live NATS
 stores remain same-uid. The production isolation and full-node gates remain
 open at 1.2[A]/v1.2-pre.
+
+D35 narrows the owned restore evidence: member-by-member leader rotation is
+a cluster recovery check because healthy peers can refill a damaged copied
+store before it leads. The current post-publication corruption controls and
+copy-side manifest do not prove a source store was independently healthy at
+the cold point. An isolated per-store content/recovery check, protected
+publication digest, dedicated service identity and production restoration
+remain open. PR #170 head `6868c1f` has green Node 20, Node 22 and Mission
+Control CI; this does not close step 1.2 or permit full-node `seal()`.
+
+D36 adds the independent per-member *state* check to the owned fixture:
+each candidate store is inspected alone on a disposable server before any
+peer can refill it, then cluster-level message reads and a catch-up-log
+tripwire run. Source-side empty blocks and a missing stream that previously
+passed now refuse; same-length source corruption refuses at message read.
+The one-message fixture is not the production all-message content baseline.
+Protected ownership, production cold masters, the controller and verified
+live restoration remain open at 1.2[A]/v1.2-pre.

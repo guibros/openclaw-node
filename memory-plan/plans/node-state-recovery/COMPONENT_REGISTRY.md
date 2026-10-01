@@ -128,3 +128,22 @@ three skips, the opt-in copier/APFS/volume set passes 11 tests, and a final
 refusal-only sync traversal change passes nine focused copier tests. These
 are owned development controls. Exact CI/re-review are pending; live stores
 remain same-uid and no production cold-point or full-node seal exists.
+
+2026-10-01 07:08 EDT — D35 limits the leader-rotation claim: a restored
+member can become leader *after* peers heal a damaged source store. The
+fixture proves recovered-cluster content, not independent health of each
+published member copy. The post-publication corruption negatives exercise
+the restore-read layer separately from `verify_candidate`; they do not cover
+pre-copy source damage. PR #170 head `6868c1f` passes all three CI jobs and
+remains draft. Independent per-store recovery, protected publication and live
+service migration are still open.
+
+2026-10-01 07:16 EDT — D36 adds an owned pre-cluster local inspection of
+each member's copied store on a disposable isolated server with closed
+routes. The fixture compares local stream counts, bytes, sequence and durable
+configuration to the pre-stop observation, then checks the restored cluster
+and refuses catch-up logs. Source-side empty/missing-store and same-length
+payload negatives run through the candidate verifier. The four-test owned
+cluster suite passed; complete Mac suite and exact new CI/review are pending.
+This validates the one-message fixture mechanism, not every production
+message or a protected production cold master.
