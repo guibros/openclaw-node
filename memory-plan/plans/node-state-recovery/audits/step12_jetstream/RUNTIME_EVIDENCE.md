@@ -659,5 +659,13 @@ full Journal suite passes 65/65; the owned Mac restore-only suite passes
 full-node receipt before refusing; the revised current parser refuses an
 intact unsupported baseline without moving the receipt. On the live node,
 `timer-transition-active` is absent and `timer-entry-installed` is present;
-the older controller's existing-timer-window reopen path is not active.
+that protects only the current timer receipt. Claude's exact-head scratch
+emulation showed the frozen controller can rename a later resolved full-node
+receipt if `--commission` is rerun. Replacing or retiring every invocable old
+bundle with a compatible protected controller is a hard prerequisite before
+the first full-node journal. The current frozen controller was not invoked.
+The two Mac timer-controller suites pass 16/16 at PR #167's initial code head;
+the only existing journal baseline is timer-scoped and has no `known-broken`
+class. CI unit tests pass on Node 20 and 22; Mission Control's separate
+dependency audit remains red on its pre-existing Next.js advisory.
 No actual full-node recovery or cold-copy acceptance is claimed.

@@ -297,9 +297,15 @@ Claude's independent challenge found that recovery otherwise sent an observed
 running worker to `restore()`. The Journal now refuses that case before any
 restoration intent; the operator must resolve a live worker. An intact receipt
 with an unsupported baseline is refused without being renamed as corrupt.
-The immutable 3.11 controller still carries the old parser: before the first
-on-demand full-node journal, verify its transition-active receipt is absent
-and installed receipt present, or replace that controller with a compatible
-protected bundle. Production capture must also verify the worker's normal
-idle exit/provenance and refuse a running worker, rather than selecting a
-class from a transient observation.
+The immutable 3.11 controller still carries the old parser. Replace or retire
+every invocable old bundle and pin a compatible protected controller before the
+first on-demand full-node journal. An absent `timer-transition-active` and
+present `timer-entry-installed` only make a rerun harmless while the receipt
+still names the resolved timer journal. After a full-node window resolves, the
+old `--commission` path can reopen its installed timer window, rename the new
+receipt as corrupt and strand the next window. Do not invoke old `--commission`
+or `--recover` once a full-node journal owns the receipt. Production capture
+must verify the worker's normal idle exit/provenance and refuse a running
+worker, rather than selecting a class from a transient observation. Forward
+quiescence must unload this latent writer with spawn-race evidence; restoration
+may bootstrap its saved idle job but must never kickstart it.
