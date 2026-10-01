@@ -1119,3 +1119,19 @@ empty blocks, missing stream, and same-length payload negatives; the positive
 re-passed after the log tripwire. These are disposable fixtures on private
 ports. Complete Mac suite, exact new CI and adversarial re-review remain
 pending; no live store or service was changed.
+
+At 07:32 EDT, Claude's exact `f6021e3` review reproduced a source-side
+member with missing stream/consumer Raft folders that passed isolated stream
+state and restored-cluster reads without catch-up log entries. The candidate
+now requires exact Raft group directory names from the member's last pre-stop
+monitoring record. A source-side missing-group control refuses at member 1;
+a missing durable-consumer folder refuses in the isolated state comparison.
+The fixture also `ackAck`-confirms one message, yielding nonzero delivered
+and ack-floor cursors for local comparison. After bounded local readiness and
+cleanup fixes, its four tests pass in 141.6 s. The earlier full Mac run with
+this branch failed before the managed launchd fixture because this checkout
+has no `node_modules` link; its rerun with the explicit installed module path
+was invalidated by source edits made while that long run was in progress.
+Neither failure is recorded as a green suite. A complete run against a stable
+final source, exact CI and Claude review remain pending. No production
+service, store, job or journal was changed.

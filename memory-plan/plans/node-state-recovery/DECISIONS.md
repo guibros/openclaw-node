@@ -749,3 +749,28 @@ verification for production streams. A protected live baseline of every
 relevant message and durable position, cross-uid protected cold-copy input,
 three live cold masters and full service resumption remain open. Full-node
 `seal()` remains disabled; step 1.2 stays `[A]` at `v1.2-pre`.
+
+## D37 — Bind owned local state to Raft folders and durable cursors (2026-10-01 07:32 EDT)
+
+Claude's review of `f6021e3` showed a source member missing its stream and
+consumer Raft group directories could still pass D36's isolated stream-state
+check and the restored cluster, without a catch-up log. The last pre-stop
+`raftz` record names every expected group; the fixture now requires the
+candidate member's offline `jetstream/$SYS/_js_` directory to contain exactly
+those group names before starting that member alone. A source-side missing
+group negative passes through copying and manifest verification, then refuses
+at this comparison. The log tripwire remains useful for observed repairs but
+is not evidence that an unlogged Raft repair did not occur.
+
+The fixture also delivers and durably acknowledges its message before the
+quiet window, then compares isolated durable delivered/ack-floor positions,
+ack-pending/redelivery and config with the pre-stop record; only `pending` is
+excluded because it changes without a quorum. A missing source consumer
+store now refuses. Isolated reads poll until the expected local view is
+available or the deadline expires, and child cleanup preserves the original
+failure while terminating and closing resources. Negative checks name the
+damaged member. The owned four-test cluster suite passes with all these
+controls. Folder-name equivalence and one seeded message still do not prove
+all production Raft log bytes or every retained message; that production
+acceptance and the protected writer boundary remain open. Full-node `seal()`
+stays disabled.

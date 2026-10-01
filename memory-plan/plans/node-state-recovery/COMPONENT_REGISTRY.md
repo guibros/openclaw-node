@@ -147,3 +147,11 @@ payload negatives run through the candidate verifier. The four-test owned
 cluster suite passed; complete Mac suite and exact new CI/review are pending.
 This validates the one-message fixture mechanism, not every production
 message or a protected production cold master.
+
+2026-10-01 07:32 EDT — D37 closes an owned-fixture Raft-folder false
+acceptance found by Claude at `f6021e3`. Each copied member's offline Raft
+group names now match its last pre-stop record; its isolated durable cursor
+comes from an actually acknowledged message. Missing Raft and consumer
+folders injected into stopped source stores refuse after passing the copy
+verifier. The four-test cluster suite passes in 141.6 s. Full Mac suite and
+new exact CI/review remain pending; no production cold master was accepted.

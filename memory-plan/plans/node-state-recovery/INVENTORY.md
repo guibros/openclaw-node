@@ -273,3 +273,10 @@ passed now refuse; same-length source corruption refuses at message read.
 The one-message fixture is not the production all-message content baseline.
 Protected ownership, production cold masters, the controller and verified
 live restoration remain open at 1.2[A]/v1.2-pre.
+
+D37 adds the last pre-stop Raft group-name check that D36 lacked, and makes
+the owned durable cursor nonzero before its isolated comparison. Source-side
+missing Raft and consumer folders now refuse even if the repaired cluster
+would serve the message. The four-test owned cluster suite passes. Deeper
+per-group log-byte and production all-message proof, protected custody, and
+the full-node driver remain open; step 1.2 stays [A].

@@ -27,6 +27,8 @@ class Cluster(unittest.TestCase):
                                 text=True, timeout=60)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(stage, result.stderr)
+        if stage == 'restore-message-get':
+            self.assertIn('"code":"404"', result.stderr)
 
     @unittest.skipIf(bool(os.environ.get('RECOVERY_CORRUPT_RESTORE')),
                      'negative-control child runs only the restore test')
@@ -43,12 +45,21 @@ class Cluster(unittest.TestCase):
     @unittest.skipIf(bool(os.environ.get('RECOVERY_CORRUPT_RESTORE')),
                      'negative-control child runs only the restore test')
     def test_missing_local_history_cannot_be_healed_into_a_valid_candidate(self):
-        for mode in ('empty-1', 'empty-0-2', 'missing-1'):
+        for mode in ('empty-1', 'empty-0-2', 'missing-1', 'missing-group-1',
+                     'missing-consumer-1'):
             with self.subTest(mode=mode):
-                self.corrupt_and_check(mode, 'isolated member stream state differs')
+                member = 0 if mode == 'empty-0-2' else 1
+                stage = (f'isolated member {member} raft groups differ'
+                         if mode == 'missing-group-1' else
+                         f'isolated member {member} stream state differs')
+                self.corrupt_and_check(mode, stage)
 
-    def isolated_member_state(self, root, index, candidate_root, before, binary,
+    def isolated_member_state(self, root, index, candidate_root, before, raft_reference, binary,
                               route_password, token):
+        expected_groups = {group for entries in raft_reference['raft'].values() for group in entries}
+        stored_groups = set(os.listdir(candidate_root / str(index) / 'jetstream' / '$SYS' / '_js_'))
+        self.assertEqual(stored_groups, expected_groups,
+                         f'isolated member {index} raft groups differ from pre-stop state')
         working = root / f'isolated-{index}'
         shutil.copytree(candidate_root / str(index), working)
         held = []
@@ -75,43 +86,59 @@ cluster {{ name: owned-preservation
         for sock in held[:3]:
             sock.close()
         log = open(root / f'isolated-{index}.log', 'ab', buffering=0)
-        proc = subprocess.Popen([binary, '--config', str(config)], stdout=log, stderr=log)
+        proc = None
+        def local_view(streams):
+            return {name: {'state': stream['state'],
+                           'consumers': {consumer: {key: value for key, value in details.items()
+                                                   if key != 'pending'}
+                                         for consumer, details in stream['consumers'].items()}}
+                    for name, stream in streams.items()}
+        expected = local_view(before['streams'])
         try:
+            proc = subprocess.Popen([binary, '--config', str(config)], stdout=log, stderr=log)
             deadline = time.monotonic() + 10
-            first_response = None
+            local = None
             while time.monotonic() < deadline:
                 self.assertIsNone(proc.poll(), 'isolated member exited before local inspection')
                 try:
                     js = http_json(ports[1], '/jsz?accounts=true&streams=true&consumers=true&config=true')
-                    if first_response is None:
-                        first_response = time.monotonic()
                     local = stream_state(js.get('account_details', []))
-                    if local or time.monotonic() - first_response > 1:
+                    if local_view(local) == expected:
                         break
                 except Refused:
                     pass
                 time.sleep(.05)
-            else:
+            if local is None:
                 self.fail('isolated member did not expose local stream state')
             self.assertEqual(http_json(ports[1], '/varz')['server_name'],
                              f'owned-raft-{index}')
             self.assertEqual(http_json(ports[1], '/routez')['num_routes'], 0,
                              'isolated member connected to a peer')
-            def local_view(streams):
-                return {name: {'state': stream['state'],
-                               'consumers': {consumer: details['config'] for consumer, details
-                                             in stream['consumers'].items()}}
-                        for name, stream in streams.items()}
-            self.assertEqual(local_view(local), local_view(before['streams']),
-                             'isolated member stream state differs from pre-stop state')
-            return {name: stream['state'] for name, stream in local.items()}
+            self.assertEqual(local_view(local), expected,
+                             f'isolated member {index} stream state differs from pre-stop state')
+            return local_view(local)
         finally:
-            if proc.poll() is None:
-                proc.send_signal(signal.SIGTERM)
-            self.assertEqual(proc.wait(timeout=10), 0)
-            log.close()
-            for sock in held[3:]:
-                sock.close()
+            active_error = sys.exc_info()[0] is not None
+            cleanup_error = None
+            try:
+                if proc is not None:
+                    if proc.poll() is None:
+                        proc.send_signal(signal.SIGTERM)
+                    self.assertEqual(proc.wait(timeout=10), 0)
+            except Exception as error:
+                cleanup_error = error
+                if proc is not None and proc.poll() is None:
+                    proc.kill()
+                    try:
+                        proc.wait(timeout=5)
+                    except Exception as kill_error:
+                        cleanup_error = kill_error
+            finally:
+                log.close()
+                for sock in held[3:]:
+                    sock.close()
+            if cleanup_error is not None and not active_error:
+                raise cleanup_error
 
     def test_stream_and_consumer_groups_and_real_stream_election(self):
         os.umask(0o077)
@@ -169,8 +196,18 @@ let nc,stage='connect';
   stage='local-leader-check';const info=await jm.streams.info('HISTORY');
   if(info.cluster?.leader!==nc.info.server_name)throw Error('owned seed is not on the stream leader');
   stage='publish';await nc.jetstream().publish('history',StringCodec().encode('preserved'));
-  stage='consumer-add';
+ stage='consumer-add';
   await jm.consumers.add('HISTORY',{durable_name:'stable',ack_policy:'explicit',num_replicas:3});
+ }else if(process.env.OWNED_ACTION==='ack'){
+  stage='consumer-next';
+  const consumer=await nc.jetstream().consumers.get('HISTORY','stable');
+  const message=await consumer.next({expires:5000});
+  if(!message||StringCodec().decode(message.data)!=='preserved')throw Error('owned durable delivery differs');
+  stage='consumer-ack';await message.ackAck({timeout:5000});
+  stage='consumer-info';
+  const info=await jm.consumers.info('HISTORY','stable');
+  if(info.delivered.consumer_seq!==1||info.ack_floor.consumer_seq!==1)
+   throw Error('owned durable acknowledgement did not persist');
  }else if(process.env.OWNED_ACTION==='leader'){
   stage='stream-info';const info=await jm.streams.info('HISTORY');
   console.log(JSON.stringify({leader:info.cluster?.leader}));
@@ -264,6 +301,7 @@ let nc,stage='connect';
                 (root/'publish-readiness-refused.json').write_text(json.dumps(subscriptions, indent=2))
                 self.fail('owned stream leader has no local history subscription')
             client('seed', port=ports[leader*3])
+            client('ack', port=ports[leader*3])
             original_message = client('read')
             self.assertEqual(original_message, {'seq': 1, 'subject': 'history', 'data': 'preserved'})
             previous = None
@@ -349,10 +387,15 @@ let nc,stage='connect';
                 (root/f'store-{i}'/'jetstream'/'$G'/'streams'/'HISTORY'/'msgs'/'1.blk').write_bytes(b'')
         elif corruption == 'missing-1':
             shutil.rmtree(root/'store-1'/'jetstream'/'$G'/'streams'/'HISTORY')
+        elif corruption == 'missing-group-1':
+            group = next(group for group in before[1]['raft']['$G'] if group.startswith('S-'))
+            shutil.rmtree(root/'store-1'/'jetstream'/'$SYS'/'_js_'/group)
+        elif corruption == 'missing-consumer-1':
+            shutil.rmtree(root/'store-1'/'jetstream'/'$G'/'streams'/'HISTORY'/'obs'/'stable')
         candidate = copy_candidate({str(i): root/f'store-{i}' for i in range(3)}, root/'candidate')
         verified = verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
         self.assertEqual(verified['manifest_sha256'], candidate['manifest_sha256'])
-        local_states = [self.isolated_member_state(root, i, root/'candidate', before[i],
+        local_states = [self.isolated_member_state(root, i, root/'candidate', before[i], after[i],
                         binary, route_password, token) for i in range(3)]
         verify_candidate(root/'candidate', candidate['copy_manifest_sha256'])
         restored_sockets = []
