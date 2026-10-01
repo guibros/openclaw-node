@@ -634,5 +634,20 @@ primary group need not appear as an explicit group member. The protected-site
 audit now refuses all three membership attributes (`GroupMembership`,
 `GroupMembers`, `NestedGroups`) and compares the service GID against every
 effective group of the invoking operator, resolved by UID even under sudo.
-This is a staging identity check, not proof that protected credentials or a
-root migration have been installed.
+It also requires a directory-wide `PrimaryGroupID` search to find only the
+service account for that GID; checking the operator alone would miss another
+user with the service group as its primary group. This is a staging identity
+check, not proof that protected credentials or a root migration have been
+installed.
+
+## D37 — Preserve leader and process-start evidence in topology snapshots (2026-10-01 14:29 EDT)
+
+The public read-only topology projection retains NATS server names, each
+reported metadata leader and each `/varz` start time. These are not secrets;
+without them, a saved routed graph cannot distinguish a leader election from
+a server restart or re-derive the named-leader part of the classifier. The
+fresh snapshot still says `standalone-plus-two`; the opposite expectation
+exits 1. All three `/varz` starts remain 2026-10-01 00:29:20 UTC despite
+leader changes between snapshots, so that observed shift was an election,
+not a process restart. This does not bind the held store to its Raft peer ID
+or prove stream-level health.

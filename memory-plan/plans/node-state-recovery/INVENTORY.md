@@ -219,6 +219,14 @@ read-only observation, not a cold-master or cutover acceptance.
 
 Checkpoint 2026-10-01 14:25 EDT: D36 closes two more protected-account
 false-ready cases: an operator whose primary or supplemental group is the
-service GID, and GUID-only `GroupMembers` membership. The live account and
-protected root remain absent; no writer cutover occurred. Exact source review
-and CI are pending at this checkpoint.
+service GID, and GUID-only `GroupMembers` membership. A follow-up search
+requires no other user's primary GID to match the service group, including a
+space-bearing directory record name. The live account and protected root
+remain absent; no writer cutover occurred.
+
+Checkpoint 2026-10-01 14:29 EDT: D37 records server names, metadata leaders
+and `/varz` start times in reproducible public evidence. The current read-only
+`standalone-plus-two` control passes, the three-member expectation exits 1,
+and the three live process start times are unchanged. This is an election
+observation, not cold-master or restoration acceptance. Exact CI and Claude
+delta review remain pending for this head.

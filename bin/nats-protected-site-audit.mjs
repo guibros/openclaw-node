@@ -62,9 +62,10 @@ async function account(operator) {
   ]);
   const uidValue = Number(uid.stdout.trim());
   const gidValue = Number(gid.stdout.trim());
-  const [userSearch, groupSearch] = await Promise.all([
+  const [userSearch, groupSearch, primaryGroupSearch] = await Promise.all([
     run('/usr/bin/dscl', ['.', '-search', '/Users', 'UniqueID', String(uidValue)]),
     run('/usr/bin/dscl', ['.', '-search', '/Groups', 'PrimaryGroupID', String(gidValue)]),
+    run('/usr/bin/dscl', ['.', '-search', '/Users', 'PrimaryGroupID', String(gidValue)]),
   ]);
   return {
     uid: uidValue, gid: gidValue,
@@ -74,6 +75,7 @@ async function account(operator) {
     adminMember: parseAdminMembership(admin.stdout),
     uniqueUserRecord: uniqueDsclRecord(userSearch.stdout, 'UniqueID', '_openclaw_nats'),
     uniqueGroupRecord: uniqueDsclRecord(groupSearch.stdout, 'PrimaryGroupID', '_openclaw_nats'),
+    uniquePrimaryGroupUser: uniqueDsclRecord(primaryGroupSearch.stdout, 'PrimaryGroupID', '_openclaw_nats'),
     groupMembersEmpty: !groupHasMembers(groupRecord.stdout),
     recordUid: Number(recordField(record.stdout, 'UniqueID')),
     recordGid: Number(recordField(record.stdout, 'PrimaryGroupID')),

@@ -11,7 +11,8 @@ const fixture = (clustered) => ids.map((serverId, index) => ({
       { name: 'server-A', current: true }, { name: 'server-B', current: true },
     ] : [] } : undefined,
     streams: index + 1, consumers: 0 },
-  varz: { server_id: serverId, server_name: `server-${serverId}`, port: 4222 + index },
+  varz: { server_id: serverId, server_name: `server-${serverId}`, port: 4222 + index,
+    start: '2026-10-01T00:29:20Z' },
 }));
 
 describe('NATS topology audit', () => {
@@ -110,6 +111,9 @@ describe('NATS topology audit', () => {
     const report = summarizeNatsTopology(responses);
     const evidence = publicNatsTopologyEvidence(report);
     assert.deepEqual(evidence.members[1].routePeers, [8224]);
+    assert.equal(evidence.members[1].serverName, 'server-B');
+    assert.equal(evidence.members[1].metaLeader, 'server-C');
+    assert.equal(evidence.members[1].startedAt, '2026-10-01T00:29:20Z');
     assert.equal(evidence.members[1].reportedReplicas, null);
     assert.equal(JSON.stringify(evidence).includes('"serverId"'), false);
     assert.equal(JSON.stringify(evidence).includes('hidden-peer'), false);
