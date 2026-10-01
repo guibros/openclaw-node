@@ -368,3 +368,11 @@ and in-flight metadata. The final owned cluster module passed 6/6 in
 276.778 seconds with normal cleanup. Exact D44 CI/review are pending;
 protected live custody, three cold masters and verified resumption remain
 open at step 1.2 `[A]`/`v1.2-pre`.
+
+D45 checkpoint, 2026-10-01 11:56 EDT: exact `75149d1` CI passed 3/3.
+Claude's read-only mutation check found missing deterministic refusal rows;
+the predicate itself rejected them. The unit test now covers cross-member
+leader, term and index disagreements, absent groups, unchanged leadership
+and the maximum pre-stepdown index. The owned Mac module passed 6/6 in
+270.827 seconds with normal cleanup. Exact D45 CI/review remain pending;
+step 1.2 remains `[A]` at `v1.2-pre`.

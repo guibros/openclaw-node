@@ -989,3 +989,18 @@ leadership-transfer entries beyond the captured point, so no common
 post-shutdown tail is claimed. Protected live custody, peer/vote validation,
 production cold masters and resumption are open;
 step 1.2 stays `[A]` and full-node `seal()` remains disabled.
+
+## D45 — Pin every material owned election refusal (2026-10-01 11:56 EDT)
+
+Exact `75149d1` CI passed Node 20, Node 22 and Mission Control (run
+36886669475). Claude's read-only mutation check found that the first
+deterministic test left several predicate clauses untested, although the
+predicate itself rejected the missing states. The test now also refuses
+cross-member leader, term and fully persisted index disagreements for the
+stream, consumer and metadata groups; missing groups; an unchanged stream
+leader after index advance; and an after-index that has not exceeded every
+member's before-index. The accepted settled state remains explicit. The
+predicate and real capture loop are unchanged. The expanded owned Mac
+cluster module passed 6/6 in 270.827 seconds with normal scratch cleanup.
+Exact new CI and adversarial review remain pending. These tests do not
+change the owned-reference scope or enable full-node `seal()`.

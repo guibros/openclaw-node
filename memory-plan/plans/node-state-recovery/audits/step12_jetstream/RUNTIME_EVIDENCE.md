@@ -1367,3 +1367,17 @@ does not establish a common post-shutdown tail. Exact new CI and Claude
 review are pending. Live NATS PIDs
 815/831/842 and their operator-owned configs/stores remain unchanged;
 this is not production cold-master evidence.
+
+## D45 deterministic refusal coverage — 2026-10-01 11:56 EDT
+
+Exact `75149d1` CI passed Node 20, Node 22 and Mission Control (run
+36886669475). Claude's read-only mutation check found test coverage gaps,
+not a predicate acceptance bug. The widened test refuses cross-member
+leader, term and persisted-index disagreement for stream, consumer and
+metadata groups; missing groups; an unchanged stream leader; and a capture
+index below one member's prior maximum. It retains the earlier premature
+election, in-flight and accepted settled cases. The live predicate and
+one-second capture loop did not change. The final owned Mac cluster module
+passed 6/6 in 270.827 seconds; scratch cleanup reported no failures.
+Exact D45 CI and Claude review remain pending. No production NATS process,
+store, job, volume or journal changed; full-node `seal()` remains disabled.
