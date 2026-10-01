@@ -72,6 +72,8 @@ class WriterExclusion:
         self.gid = gid
 
     def validate(self):
+        if self.fd is None:
+            raise Refused('writer lock is closed')
         if lock_identity(self.fd, self.path, self.uid, self.gid) != self.identity:
             raise Refused('writer lock identity changed')
 
@@ -98,7 +100,10 @@ def _create(path, uid, gid):
             except FileExistsError:
                 fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
                 try:
-                    return lock_identity(fd, path, uid, gid)
+                    identity = lock_identity(fd, path, uid, gid)
+                    sync_fd(fd)
+                    sync_dir(path.parent)
+                    return identity
                 finally:
                     os.close(fd)
         finally:
@@ -133,18 +138,14 @@ def _acquire(path, uid, gid, seconds):
                 if time.monotonic() >= deadline:
                     raise Refused(f'legacy NATS writer still holds {path}; inspect holders with lsof')
                 time.sleep(0.05)
+            except OSError as error:
+                raise Refused('writer lock acquisition failed') from error
         if lock_identity(fd, path, uid, gid) != identity:
             raise Refused('writer lock path changed during acquisition')
         return WriterExclusion(fd, path, identity, uid, gid)
     except BaseException:
         os.close(fd)
         raise
-
-
-def create_root_writer_lock():
-    if sys.platform != 'darwin' or os.geteuid() != 0:
-        raise Refused('root-owned NATS writer exclusion requires macOS root')
-    return _create(LOCK, 0, 0)
 
 
 def acquire_root_writer_lock(seconds=10):

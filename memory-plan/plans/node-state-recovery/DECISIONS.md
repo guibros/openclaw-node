@@ -709,7 +709,10 @@ legacy tools into lock mode. Creation syncs the file and parent directory;
 acquisition then takes a bounded exclusive `flock`.
 It validates owner, mode, single link, inode, protected ancestors and absence
 of granting ACLs before and after acquisition. A current shared holder makes
-the root refuse; a replaced lock path also refuses. The root must retain the
+the root refuse; a replaced lock path after acquisition also refuses. The
+file is never deleted or replaced once created: recreating it could leave a
+legacy process holding an unlinked old inode. A resumed creation syncs the
+existing file and parent before reporting success. The root must retain the
 descriptor until the handoff or pre-bootstrap rollback has ended. This is a
 source primitive, not a migration driver or proof that deployed legacy copies
 honor D40. No live lock file or marker is created by this change.
@@ -719,11 +722,14 @@ honor D40. No live lock file or marker is created by this change.
 The root transaction must durably record one lock-create intent under its
 protected site before creating the D40 lock file. The intent binds a
 transaction UUID, boot identity, user-transfer digest and admission digest.
-Only then may explicit creation run. After exclusive acquisition, the pinned
-root driver must perform the pre-protocol process census and re-observe the
-same admission under the lock before writing a lock-created receipt with the
-file identity. A crash in the creation gap reopens the same intent and repeats
-the admission and census checks; it cannot start a second journal. A marker
+Only then may explicit creation run. The pinned root driver must perform a
+process census before creation, including unlinked-file holders, then repeat
+it and re-observe the same admission under exclusive lock before writing a
+lock-created receipt with the inode. The in-process descriptor/path identity
+still checks device and inode; the durable receipt does not pin a transient
+device number across reboot. A crash in the creation gap reopens the same
+intent and repeats the admission and both census checks; it cannot start a
+second journal. A marker
 already present routes to the later full recovery path, never this bootstrap.
 The source journal stores digests, not the private transfer or cold-master
 contents. It is not a full migration driver: the production callbacks, marker,

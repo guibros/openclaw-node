@@ -1,8 +1,10 @@
 import importlib.util
 import fcntl
+import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -28,8 +30,10 @@ class RootJournalTest(unittest.TestCase):
         self.uid = os.getuid()
         self.gid = os.getgid()
         self.transaction = str(uuid.uuid4())
-        self.observation = {'boot': 'c' * 64, 'user_transfer': {'head': 'a' * 64},
-                            'admission': {'masters': ['b' * 64]}}
+        self.observation = {'boot': 'c' * 64,
+                            'user_transfer': {'verified': True, 'root_transaction': self.transaction,
+                                              'head': 'a' * 64},
+                            'admission': {'verified': True, 'masters': ['b' * 64]}}
 
     def begin(self):
         return module.LockBootstrapJournal.begin(self.site, self.lock, self.uid, self.gid,
@@ -42,7 +46,7 @@ class RootJournalTest(unittest.TestCase):
         observed = []
         with journal.acquire_after_intent(self.lock, lambda: observed.append('admission') or self.observation,
                                           lambda: observed.append('census') or {'verified': True}) as lock:
-            self.assertEqual(observed, ['admission', 'census', 'admission'])
+            self.assertEqual(observed, ['admission', 'census', 'census', 'admission'])
             lock.validate()
             self.assertEqual(stat.S_IMODE(self.lock.stat().st_mode), 0o644)
         self.assertEqual([row['event'] for row in journal.records],
@@ -56,7 +60,7 @@ class RootJournalTest(unittest.TestCase):
         journal = self.begin()
         with self.assertRaisesRegex(module.Refused, 'admission changed'):
             journal.acquire_after_intent(self.lock,
-                                         lambda: {**self.observation, 'admission': {'masters': []}},
+                                         lambda: {**self.observation, 'admission': {'verified': True, 'masters': []}},
                                          lambda: {'verified': True})
         self.assertFalse(self.lock.exists())
         self.assertEqual(len(journal.records), 1)
@@ -64,8 +68,13 @@ class RootJournalTest(unittest.TestCase):
     def test_census_failure_reopens_same_intent(self):
         self.begin()
         reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)
+        calls = 0
+        def census():
+            nonlocal calls
+            calls += 1
+            return {'verified': calls == 1}
         with self.assertRaisesRegex(module.Refused, 'census is not verified'):
-            reopened.acquire_after_intent(self.lock, lambda: self.observation, lambda: {'verified': False})
+            reopened.acquire_after_intent(self.lock, lambda: self.observation, census)
         self.assertTrue(self.lock.exists())
         self.assertEqual(len(reopened.records), 1)
         again = module.LockBootstrapJournal(self.site, self.uid, self.gid)
@@ -80,7 +89,7 @@ class RootJournalTest(unittest.TestCase):
             nonlocal calls
             calls += 1
             return self.observation if calls == 1 else {
-                **self.observation, 'admission': {'masters': []}}
+                **self.observation, 'admission': {'verified': True, 'masters': []}}
         with self.assertRaisesRegex(module.Refused, 'changed under exclusion'):
             journal.acquire_after_intent(self.lock, observe, lambda: {'verified': True})
         self.assertTrue(self.lock.exists())
@@ -90,6 +99,15 @@ class RootJournalTest(unittest.TestCase):
         self.lock.write_bytes(b'')
         with self.assertRaisesRegex(module.Refused, 'exists without'):
             self.begin()
+        self.assertFalse((self.site / 'journal').exists())
+
+    def test_transfer_for_another_transaction_refuses_before_journal(self):
+        other = {**self.observation,
+                 'user_transfer': {**self.observation['user_transfer'],
+                                   'root_transaction': str(uuid.uuid4())}}
+        with self.assertRaisesRegex(module.Refused, 'observation is incomplete'):
+            module.LockBootstrapJournal.begin(self.site, self.lock, self.uid, self.gid,
+                                              self.transaction, other)
         self.assertFalse((self.site / 'journal').exists())
 
     def test_modified_chain_refuses_reopen(self):
@@ -132,6 +150,48 @@ class RootJournalTest(unittest.TestCase):
             journal.acquire_after_intent(self.lock, lambda: self.observation,
                                          lambda: {'verified': True})
         self.assertFalse(self.lock.exists())
+
+    def test_marker_appearing_during_census_prevents_receipt(self):
+        journal = self.begin()
+        calls = 0
+        def census():
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                (self.site / 'writer-handoff.json').write_bytes(b'{}')
+            return {'verified': True}
+        with self.assertRaisesRegex(module.Refused, 'handoff changed'):
+            journal.acquire_after_intent(self.lock, lambda: self.observation, census)
+        self.assertEqual(len(journal.records), 1)
+
+    def test_abrupt_exit_reenters_intent_and_creation_gap(self):
+        script = '''import json, os, pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from nats_root_journal import LockBootstrapJournal, _create
+site, lock = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+if sys.argv[4] == 'intent':
+    LockBootstrapJournal.begin(site, lock, os.getuid(), os.getgid(), sys.argv[5], json.loads(sys.argv[6]))
+else:
+    _create(lock, os.getuid(), os.getgid())
+os._exit(19)
+'''
+        def killed(phase):
+            return subprocess.run([sys.executable, '-c', script, str(REPO / 'lib'),
+                                   str(self.site), str(self.lock), phase,
+                                   self.transaction, json.dumps(self.observation)],
+                                  capture_output=True, text=True)
+        first = killed('intent')
+        self.assertEqual(first.returncode, 19, first.stderr)
+        self.assertFalse(self.lock.exists())
+        reopened = module.LockBootstrapJournal(self.site, self.uid, self.gid)
+        self.assertEqual(len(reopened.records), 1)
+        second = killed('created')
+        self.assertEqual(second.returncode, 19, second.stderr)
+        recovered = module.LockBootstrapJournal(self.site, self.uid, self.gid)
+        with recovered.acquire_after_intent(self.lock, lambda: self.observation,
+                                            lambda: {'verified': True}):
+            pass
+        self.assertEqual(len(recovered.records), 2)
 
 
 if __name__ == '__main__':

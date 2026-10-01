@@ -50,6 +50,8 @@ class RootLockTest(unittest.TestCase):
                 self.acquire()
         with self.acquire() as reopened:
             reopened.validate()
+        with self.assertRaisesRegex(root_lock.Refused, 'closed'):
+            reopened.validate()
 
     def test_legacy_shared_holder_blocks_root_exclusive(self):
         self.create()
@@ -84,8 +86,41 @@ class RootLockTest(unittest.TestCase):
         if os.geteuid() != 0:
             with self.assertRaisesRegex(RuntimeError, 'requires macOS root'):
                 root_lock.acquire_root_writer_lock()
-            with self.assertRaisesRegex(RuntimeError, 'requires macOS root'):
-                root_lock.create_root_writer_lock()
+
+    def test_create_rejects_wrong_identity_leftover(self):
+        self.lock.write_bytes(b'')
+        self.lock.chmod(0o600)
+        with self.assertRaisesRegex(root_lock.Refused, 'identity differs'):
+            self.create()
+        self.assertEqual(stat.S_IMODE(self.lock.stat().st_mode), 0o600)
+
+    def test_existing_file_must_sync_before_create_succeeds(self):
+        self.create()
+        original = root_lock.sync_fd
+        def failed_sync(_fd):
+            raise OSError('injected sync failure')
+        root_lock.sync_fd = failed_sync
+        try:
+            with self.assertRaisesRegex(root_lock.Refused, 'creation refused'):
+                self.create()
+        finally:
+            root_lock.sync_fd = original
+
+    def test_kill_after_atomic_create_reopens_same_file(self):
+        script = '''import os, pathlib, sys
+sys.path.insert(0, sys.argv[1])
+import nats_root_lock
+nats_root_lock.os.fchmod = lambda *_: os._exit(23)
+nats_root_lock._create(pathlib.Path(sys.argv[2]), os.getuid(), os.getgid())
+'''
+        killed = subprocess.run([sys.executable, '-c', script, str(REPO / 'lib'), str(self.lock)],
+                                capture_output=True, text=True)
+        self.assertEqual(killed.returncode, 23, killed.stderr)
+        self.assertEqual(stat.S_IMODE(self.lock.stat().st_mode), 0o644)
+        identity = (self.lock.stat().st_dev, self.lock.stat().st_ino)
+        self.assertEqual(self.create(), identity)
+        with self.acquire() as owner:
+            owner.validate()
 
     def test_world_writable_ancestor_refuses(self):
         parent = self.lock.parent
