@@ -232,6 +232,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     try { assertLegacyNatsWriterAllowed(); }
     catch (error) { console.error(error.message); process.exit(1); }
   }
+  delete process.env.OPENCLAW_NATS_LEGACY_REEXEC_ATTEMPT;
+  delete process.env.OPENCLAW_NATS_LEGACY_LOCK_HELD;
 
   if (cmd === 'up') {
     const started = process.platform === 'darwin' ? up(units) : upLinux(units);

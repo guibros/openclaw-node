@@ -248,8 +248,9 @@ cutover exists; step 1.2 remains [A] at v1.2-pre.
 
 Checkpoint 2026-10-01 15:17 EDT: D40 adds the shared-lock prerequisite to
 legacy installer, uninstaller, auth-render, trust-peer sync, cohort init and
-stack control source. A private lock fixture proves shared child lifetime, exclusive
-contention, marker refusal and invalid-file refusal; relevant source tests
-pass. The root-owned lock has not been created, and the existing production
+stack control source. Private lock fixtures prove shared child lifetime,
+exclusive contention, marker refusal and invalid-file refusal. The macOS CI
+job exercises the descriptor handoff and background-child release; relevant
+source tests pass. The root-owned lock has not been created, and the existing production
 entrypoints have not been redeployed from this candidate. Root journal,
 durable user-to-root transfer, client hold and cutover remain open at 1.2[A].
