@@ -50,6 +50,19 @@ done
 
 ### 3. Start the cluster
 
+For this `nats-1..3` layout, declare the watcher's expected service cohort:
+
+```bash
+umask 077
+cat > "$HOME/.openclaw/config/nats-writer-cohort.json" <<'JSON'
+{"schema":1,"activeLabels":["ai.openclaw.nats-1","ai.openclaw.nats-2","ai.openclaw.nats-3"]}
+JSON
+chmod 600 "$HOME/.openclaw/config/nats-writer-cohort.json"
+```
+
+Preserve any existing standalone history and retire its writer before using
+this cluster layout; the cohort declaration only changes monitoring.
+
 ```bash
 # Load all three (order doesn't matter — NATS auto-discovers routes)
 for n in 1 2 3; do

@@ -137,8 +137,8 @@ service failure keeps BROKEN even when another service or policy is unobservable
 | Deploy in sync | `diff -rq` repo lib ↔ workspace lib empty | live |
 | Identity + token + config | token `0600`, identity keypair present | live |
 
-The NATS service cohort defaults to the documented `nats-1..3` layout. A node
-using the single `nats` job or the `nats`, `nats-2`, `nats-3` layout declares
+The NATS service cohort defaults to the installer's single `nats` job. A node
+using the documented `nats-1..3` cluster or the `nats`, `nats-2`, `nats-3` layout declares
 `{"schema":1,"activeLabels":[...]}` in
 `~/.openclaw/config/nats-writer-cohort.json`. After a protected writer
 handoff, the root-owned marker pins the active labels and selects launchd's

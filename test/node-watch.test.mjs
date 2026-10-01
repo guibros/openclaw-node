@@ -143,6 +143,10 @@ describe('node-watch honesty invariants', () => {
     loaded.system.clear();
     cohortContent = null;
     loaded.gui.clear();
+    loaded.gui.add('ai.openclaw.nats');
+    assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.WORKING);
+    cohortContent = JSON.stringify({ schema: 1, activeLabels: documented });
+    loaded.gui.clear();
     for (const label of documented) loaded.gui.add(label);
     assert.equal((await probeCoreLaunchdServices(ctx, { platform: 'darwin' })).status, STATUS.WORKING);
     cohortContent = '{broken';

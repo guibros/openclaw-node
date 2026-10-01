@@ -152,7 +152,7 @@ flight; the source rechecks alone are not a cross-process lock.
 Checkpoint 2026-10-01 12:55 EDT: D27 adds a system-domain NATS watcher path
 under the fixed handoff marker. This Mac's active labels are `nats`, `nats-2`,
 `nats-3`; historical `nats-1` must remain unloaded. A 0600 node-local cohort
-file records that layout; without it, the documented `nats-1..3` layout is
+file records that layout; without it, the installer's single `nats` job is
 the legacy default. The future root marker must pin its active cohort. GUI
 and user-domain known-label duplicates refuse. Owned tests cover both
 layouts, legacy/protected domains and invalid markers. A read-only live probe

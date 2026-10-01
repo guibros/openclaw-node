@@ -436,6 +436,7 @@ protected binary/config/auth, exact old/new config equivalence, service-UID
 isolated replays, system-domain monitoring, targeted auth reload and revocation
 proof remain required before cutover. No source change in this decision starts
 or stops the live bus or closes 1.2.
+The marker content and active-cohort contract are pinned in D27.
 
 ## D25 — Fence the stack entry and isolate auth fixtures (2026-10-01 12:41 EDT)
 
@@ -476,8 +477,8 @@ predecessors have been retired. The separate historical `ai.openclaw.nats-1`
 job remains held. Other nodes may use the documented `nats-1..3` cohort or
 the single `nats` job. In the legacy state, an optional 0600
 `config/nats-writer-cohort.json` under the OpenClaw home declares
-`{"schema":1,"activeLabels":[...]}`; its absence selects documented
-`nats-1..3`. On this Mac the explicit file names the observed active cohort.
+`{"schema":1,"activeLabels":[...]}`; its absence selects the installer's
+single `nats` job. On this Mac the explicit file names the observed active cohort.
 The fixed root handoff marker selects the system domain and pins the same
 `activeLabels` alongside `schema:1` and
 `kind:"openclaw-nats-writer-handoff"`. It is a root-owned, readable,
