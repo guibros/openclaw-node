@@ -85,8 +85,9 @@ class RootJournalTest(unittest.TestCase):
 
     def test_pending_after_hardlink_is_recovered(self):
         with self.begin() as journal:
+            nonce = journal.records[0]['data']['descriptor']['lock_nonce']
             body = {'sequence': 1, 'previous': journal.records[-1]['sha256'],
-                    'event': 'lock-staged', 'data': {'inode': 123, 'nonce': 'a' * 64}}
+                    'event': 'lock-staged', 'data': {'inode': 123, 'nonce': nonce}}
             pending = journal.root / ('.pending-' + uuid.uuid4().hex)
             pending.write_bytes(module.encoded({**body, 'sha256': module.digest(body)}))
             pending.chmod(0o600)
@@ -117,6 +118,22 @@ LockBootstrapJournal(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4
             stage = journal._stage_path(saved)
             inode = journal._create_stage(stage, saved['lock_nonce'])
         with self.reopen() as journal:
+            with self.acquire(journal):
+                pass
+            self.assertEqual(self.lock.stat().st_ino, inode)
+            self.assertFalse(stage.exists())
+
+    def test_reentry_resyncs_existing_stage_before_recording_it(self):
+        with self.begin() as journal:
+            saved = journal.records[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            inode = journal._create_stage(stage, saved['lock_nonce'])
+        with self.reopen() as journal:
+            with patch.object(module, 'sync_fd', wraps=module.sync_fd) as file_sync, patch.object(
+                    module, 'sync_dir', wraps=module.sync_dir) as dir_sync:
+                self.assertEqual(journal._create_stage(stage, saved['lock_nonce']), inode)
+                self.assertEqual(file_sync.call_count, 1)
+                self.assertEqual([call.args[0] for call in dir_sync.call_args_list], [stage.parent])
             with self.acquire(journal):
                 pass
             self.assertEqual(self.lock.stat().st_ino, inode)
@@ -199,6 +216,15 @@ LockBootstrapJournal(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4
             self.assertFalse(self.lock.exists())
             self.assertEqual(len(journal.records), 1)
 
+    def test_census_cannot_mutate_its_comparison_context(self):
+        with self.begin() as journal:
+            def forged(context):
+                context.update(transaction='other', phase='under-exclusion', inode=999)
+                return {**context, 'verified': True}
+            with self.assertRaisesRegex(module.Refused, 'census is not bound'):
+                self.acquire(journal, census=forged)
+            self.assertFalse(self.lock.exists())
+
     def test_census_for_another_phase_or_inode_refuses(self):
         with self.begin() as journal:
             with self.assertRaisesRegex(module.Refused, 'census is not bound'):
@@ -269,6 +295,21 @@ LockBootstrapJournal(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4
                                                   self.transaction, self.observation)
         self.assertFalse(self.ledger.exists())
 
+    def test_lock_path_inside_ledger_refuses_before_begin(self):
+        with self.assertRaisesRegex(module.Refused, 'inside the protected handoff site or ledger'):
+            module.LockBootstrapJournal.begin(self.site, self.ledger / 'writer.lock',
+                                              self.uid, self.gid, self.transaction, self.observation)
+        self.assertFalse(self.ledger.exists())
+
+    def test_staged_nonce_must_match_intent(self):
+        with self.begin() as journal:
+            saved = journal.records[0]['data']['descriptor']
+            stage = journal._stage_path(saved)
+            inode = journal._create_stage(stage, saved['lock_nonce'])
+            journal._append('lock-staged', inode=inode, nonce='d' * 64)
+        with self.assertRaisesRegex(module.Refused, 'nonce differs from intent'):
+            self.reopen()
+
     def test_macos_root_refuses_before_writing(self):
         with patch.object(module.sys, 'platform', 'darwin'), patch.object(
                 module.os, 'geteuid', return_value=0):
@@ -276,6 +317,17 @@ LockBootstrapJournal(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4
                 self.begin()
         self.assertFalse(self.ledger.exists())
         self.assertFalse(self.lock.exists())
+
+    def test_macos_root_reopen_does_not_clean_pending_record(self):
+        with self.begin() as journal:
+            pending = journal.root / ('.pending-' + uuid.uuid4().hex)
+            pending.write_bytes(b'interrupted')
+            pending.chmod(0o600)
+        with patch.object(module.sys, 'platform', 'darwin'), patch.object(
+                module.os, 'geteuid', return_value=0):
+            with self.assertRaisesRegex(module.Refused, 'awaits lifecycle recovery'):
+                self.reopen()
+        self.assertTrue(pending.exists())
 
 
 if __name__ == '__main__':

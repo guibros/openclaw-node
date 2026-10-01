@@ -42,8 +42,10 @@ def bootstrap_target(site, lock_path):
     site_path = pathlib.Path(site).resolve(strict=True)
     target_name = str(target).casefold()
     site_name = str(site_path).casefold()
-    if target_name == site_name or target_name.startswith(site_name + os.sep):
-        raise Refused('root writer lock cannot be inside the protected handoff site')
+    ledger_name = str(site_path.parent / (site_path.name + '-ledger')).casefold()
+    if (target_name == site_name or target_name.startswith(site_name + os.sep)
+            or target_name == ledger_name or target_name.startswith(ledger_name + os.sep)):
+        raise Refused('root writer lock cannot be inside the protected handoff site or ledger')
     if target_name == str(LOCK.resolve(strict=False)).casefold():
         raise Refused('production root writer bootstrap awaits lifecycle recovery')
     return target
@@ -96,6 +98,8 @@ def descriptor_from_observation(transaction, observation, site, lock_path, uid, 
 
 class LockBootstrapJournal:
     def __init__(self, site, uid, gid):
+        if sys.platform == 'darwin' and os.geteuid() == 0:
+            raise Refused('production root writer bootstrap awaits lifecycle recovery')
         self.site = pathlib.Path(site)
         self.root = self.site.parent / (self.site.name + '-ledger')
         self.uid = uid
@@ -152,6 +156,8 @@ class LockBootstrapJournal:
             data = self.records[1]['data']
             if set(data) != {'inode', 'nonce'} or not isinstance(data['inode'], int) or data['inode'] <= 0 or not re.fullmatch(r'[0-9a-f]{64}', str(data['nonce'])):
                 raise Refused('root writer lock stage receipt is incomplete')
+            if data['nonce'] != saved['lock_nonce']:
+                raise Refused('root writer lock stage nonce differs from intent')
         if len(self.records) == 3:
             data = self.records[2]['data']
             if (set(data) != {'inode', 'ctime_ns', 'census_sha256'}
@@ -304,7 +310,16 @@ class LockBootstrapJournal:
                 finally:
                     os.close(fd)
                 sync_dir(path.parent)
-            return self._stage_identity(path, nonce)
+            inode = self._stage_identity(path, nonce)
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            try:
+                if os.fstat(fd).st_ino != inode:
+                    raise Refused('root writer staged lock changed during resync')
+                sync_fd(fd)
+            finally:
+                os.close(fd)
+            sync_dir(path.parent)
+            return inode
         try:
             os.fchmod(fd, 0o644)
             os.fchown(fd, self.uid, self.gid)
@@ -335,7 +350,7 @@ class LockBootstrapJournal:
     def _census(self, callback, saved, phase, inode):
         context = {'transaction': saved['transaction'], 'boot': saved['boot'],
                    'phase': phase, 'inode': inode, 'nonce': saved['lock_nonce']}
-        evidence = callback(context)
+        evidence = callback(dict(context))
         if (not isinstance(evidence, dict) or evidence.get('verified') is not True
                 or any(evidence.get(key) != value for key, value in context.items())):
             raise Refused('old writer process census is not bound to this transaction and lock')
