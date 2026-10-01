@@ -321,3 +321,26 @@ binds forward admission to the current boot, matches the user journal's boot
 hash format, and creates the public outcome directory at its fixed mode under
 a restrictive umask. Focused Mac tests pass 59/59. The revision needs a new
 exact-head CI and Claude review; live state is unchanged and 1.2 remains [A].
+
+Checkpoint 2026-10-01 18:16 EDT: PR #180 merged at e918a3e with 4/4 CI,
+Claude's no-blocker exact-head review, and 59/59 local Mac root-lock fixtures.
+The new user-transfer source branch records a full-node NATS transfer intent
+and freezes its journal until an owner-checked, exact-binding root `returned`
+receipt closes it. Returned windows remain restore-only. Local tests pass
+112/112 for the user journal and hold, 59/59 for the root journal and lock.
+This is source-only: root `declined`, post-marker `rolled-back`, and `accepted`
+outcomes, physical user-journal validation in the root driver, root service
+admission/census, protected marker/rollback, cold masters and live cutover are
+still open. The production macOS-root path remains gated; no live service or
+protected store was changed. Step 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 18:30 EDT: Claude's exact-head read-only review of
+PR #181 at d0eafbc reproduced the user (112 tests) and root (45 tests)
+suites and found a blocking unclosable transfer when no root transaction ever
+began. The branch now gates the production transfer entrypoint until `declined`
+and root validation exist. Returned legacy NATS restoration additionally checks
+the marker and shares the root writer lock around each mutation, while any
+transfer ends the original hold's same-process forward certification. New
+focused controls cover the production gate, shared-lock exclusion and hold
+certification. Exact-head CI/review remain pending for this revision; no live
+root or NATS state was changed. Step 1.2 remains [A] at v1.2-pre.

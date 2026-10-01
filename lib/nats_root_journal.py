@@ -87,13 +87,17 @@ def record_file_public(path, uid, gid):
 
 def valid_descriptor(descriptor):
     if (not isinstance(descriptor, dict) or set(descriptor) !=
-            {'transaction', 'user_transfer_sha256', 'admission_sha256', 'boot', 'lock_nonce',
+            {'transaction', 'user_transfer_sha256', 'user_baseline_sha256', 'user_journal_root',
+             'admission_sha256', 'boot', 'lock_nonce',
              'site', 'lock_path', 'uid', 'gid'}
             or not isinstance(descriptor['site'], str) or not pathlib.Path(descriptor['site']).is_absolute()
             or not isinstance(descriptor['lock_path'], str) or not pathlib.Path(descriptor['lock_path']).is_absolute()
             or not isinstance(descriptor['uid'], int) or descriptor['uid'] < 0
             or not isinstance(descriptor['gid'], int) or descriptor['gid'] < 0
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['user_transfer_sha256']))
+            or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['user_baseline_sha256']))
+            or not isinstance(descriptor['user_journal_root'], str)
+            or not pathlib.Path(descriptor['user_journal_root']).is_absolute()
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['admission_sha256']))
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['lock_nonce']))
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['boot']))):
@@ -110,14 +114,22 @@ def descriptor_from_observation(transaction, observation, site, lock_path, uid, 
             or not isinstance(observation['user_transfer'], dict)
             or not isinstance(observation['admission'], dict)
             or observation['user_transfer'].get('verified') is not True
+            or set(observation['user_transfer']) !=
+            {'verified', 'root_transaction', 'head', 'baseline_sha256', 'journal_root'}
             or observation['user_transfer'].get('root_transaction') != transaction
+            or not re.fullmatch(r'[0-9a-f]{64}', str(observation['user_transfer']['head']))
+            or not re.fullmatch(r'[0-9a-f]{64}', str(observation['user_transfer']['baseline_sha256']))
+            or not isinstance(observation['user_transfer']['journal_root'], str)
+            or not pathlib.Path(observation['user_transfer']['journal_root']).is_absolute()
             or observation['admission'].get('verified') is not True):
         raise Refused('root writer lock admission observation is incomplete')
     descriptor = {'transaction': transaction, 'boot': observation['boot'],
                   'site': str(pathlib.Path(site).absolute()),
                   'lock_path': str(pathlib.Path(lock_path).absolute()),
                   'uid': uid, 'gid': gid, 'lock_nonce': nonce,
-                  'user_transfer_sha256': digest(observation['user_transfer']),
+                  'user_transfer_sha256': observation['user_transfer']['head'],
+                  'user_baseline_sha256': observation['user_transfer']['baseline_sha256'],
+                  'user_journal_root': observation['user_transfer']['journal_root'],
                   'admission_sha256': digest(observation['admission'])}
     valid_descriptor(descriptor)
     return descriptor
@@ -463,8 +475,12 @@ class LockBootstrapJournal:
         terminal = self.current[-1]
         if terminal['event'] != 'returned':
             raise Refused('root writer transaction has no returned outcome')
-        return {'transaction': self.current[0]['data']['descriptor']['transaction'],
-                'outcome': 'returned', 'ledger_sha256': terminal['sha256']}
+        saved = self.current[0]['data']['descriptor']
+        return {'transaction': saved['transaction'], 'outcome': 'returned',
+                'ledger_sha256': terminal['sha256'],
+                'user_journal_root': saved['user_journal_root'],
+                'user_baseline_sha256': saved['user_baseline_sha256'],
+                'user_transfer_sha256': saved['user_transfer_sha256']}
 
     def _check_returned_lock(self):
         lock = self.current[-1]['data']['lock']

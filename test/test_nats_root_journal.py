@@ -37,7 +37,8 @@ class RootJournalTest(unittest.TestCase):
         self.transaction = str(uuid.uuid4())
         self.observation = {'boot': 'c' * 64,
                             'user_transfer': {'verified': True, 'root_transaction': self.transaction,
-                                              'head': 'a' * 64},
+                                              'head': 'a' * 64, 'baseline_sha256': 'e' * 64,
+                                              'journal_root': str(self.base / 'user-journal')},
                             'admission': {'verified': True, 'masters': ['b' * 64]}}
         boot_patch = patch.object(module, 'boot_identity', side_effect=lambda: self.observation['boot'])
         boot_patch.start()
@@ -358,6 +359,9 @@ LockBootstrapJournal(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4
             journal._create_stage(stage, saved['lock_nonce'])
             receipt = self.returned(journal)
             self.assertEqual(receipt['outcome'], 'returned')
+            self.assertEqual(receipt['user_journal_root'], str(self.base / 'user-journal'))
+            self.assertEqual(receipt['user_baseline_sha256'], 'e' * 64)
+            self.assertEqual(receipt['user_transfer_sha256'], 'a' * 64)
             self.assertIsNone(journal.current[-1]['data']['lock'])
             self.assertFalse(stage.exists())
             self.assertFalse(self.lock.exists())

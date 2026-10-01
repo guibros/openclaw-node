@@ -111,6 +111,12 @@ class HoldTests(unittest.TestCase):
             self.journal.seal()
         self.assertTrue(self.journal.resolve())
 
+    def test_transfer_ends_original_hold_certification_in_same_process(self):
+        self.journal.append('nats-transfer-intent', root_transaction='owned-fixture')
+        with self.assertRaisesRegex(Exception, 'ended the certifying execution hold'):
+            self.hold.check_forward()
+        self.assertTrue(JournaledHold(self.journal, self.gate, self.fast).restore_only)
+
     def test_raw_journal_cannot_skip_a_baselined_hold(self):
         with self.assertRaisesRegex(Exception, 'forward facade'):
             self.journal.mutate('mesh-agent', 'stop', lambda: self.fail('must not run'), lambda: {'verified': True})

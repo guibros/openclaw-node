@@ -30,7 +30,8 @@ class JournaledHold:
         self.guard = None
         self.original_session = None
         self._closing = False
-        self.restore_only = journal.reopened
+        self.restore_only = journal.reopened or any(
+            row['event'] == 'nats-transfer-intent' for row in journal.records)
         self.baseline = journal.records[0]['sha256']
         self.saved = copy.deepcopy(journal.prior[ANCHOR].get('execution_hold'))
         require(isinstance(self.saved, dict) and set(self.saved) ==
@@ -95,6 +96,8 @@ class JournaledHold:
 
     def check_forward(self):
         self.validate()
+        require(not any(row['event'] == 'nats-transfer-intent' for row in self.journal.records),
+                'NATS transfer ended the certifying execution hold')
         require(not self.restore_only, 'restored execution hold cannot certify forward work')
         if self._closing and self.guard is None:
             require(self.gate.marker() is None, 'forward close requires an open gate')
@@ -162,7 +165,8 @@ class JournaledHold:
         rows, live = self.intents()
         if (not self.journal.reopened and self.journal.boot == self.journal.records[0]['boot']
                 and self.guard is not None and not self.restore_only and not self.journal.write_failed
-                and not any(row['event'] == 'failed' for row in self.journal.records)):
+                and not any(row['event'] in ('failed', 'nats-transfer-intent')
+                            for row in self.journal.records)):
             self.check_forward()
             return
         self.restore_only = True

@@ -1,4 +1,5 @@
 import datetime
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -20,6 +21,91 @@ TIMER_UNITS = frozenset(('scheduler-heartbeat', 'consolidation-scheduler', 'obse
 TIMER_SCOPE = 'timer-commissioning'
 FULL_NODE_SCOPE = 'full-node'
 TERMINAL = ('sealed', 'resolved')
+NATS_TRANSFER_UNITS = ('nats', 'nats-2', 'nats-3', 'nats-1')
+NATS_WRITER_MARKER = pathlib.Path('/private/var/db/openclaw-nats/writer-handoff.json')
+NATS_ROOT_OUTCOMES = pathlib.Path('/private/var/db/openclaw-nats-outcomes')
+NATS_ROOT_UID = 0
+NATS_LEGACY_LOCK = pathlib.Path('/private/var/db/openclaw-nats-writer.lock')
+
+
+def require_no_nats_marker():
+    try:
+        NATS_WRITER_MARKER.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise Refused('protected NATS marker is unobservable') from error
+    raise Refused('protected NATS marker already exists')
+
+
+def read_nats_root_return(transaction):
+    try:
+        info = NATS_ROOT_OUTCOMES.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == NATS_ROOT_UID
+                and stat.S_IMODE(info.st_mode) == 0o755,
+                'root NATS outcome directory identity differs')
+        directory = os.open(NATS_ROOT_OUTCOMES, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            opened = os.fstat(directory)
+            require((opened.st_dev, opened.st_ino) == (info.st_dev, info.st_ino),
+                    'root NATS outcome directory changed')
+            fd = os.open(transaction + '.json', os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
+            with os.fdopen(fd, 'rb') as handle:
+                file_info = os.fstat(handle.fileno())
+                require(stat.S_ISREG(file_info.st_mode) and file_info.st_uid == NATS_ROOT_UID
+                        and stat.S_IMODE(file_info.st_mode) == 0o644 and file_info.st_nlink == 1,
+                        'root NATS outcome identity differs')
+                receipt = json.load(handle)
+        finally:
+            os.close(directory)
+    except (OSError, ValueError) as error:
+        raise Refused('root NATS outcome is absent or unreadable') from error
+    require(isinstance(receipt, dict) and set(receipt) ==
+            {'transaction', 'outcome', 'ledger_sha256', 'user_journal_root',
+             'user_baseline_sha256', 'user_transfer_sha256'}
+            and receipt['transaction'] == transaction and receipt['outcome'] == 'returned'
+            and all(re.fullmatch(r'[0-9a-f]{64}', str(receipt[key])) for key in
+                    ('ledger_sha256', 'user_baseline_sha256', 'user_transfer_sha256')),
+            'root NATS outcome receipt is incomplete')
+    return receipt
+
+
+@contextlib.contextmanager
+def nats_legacy_restore_guard():
+    require_no_nats_marker()
+    try:
+        named = NATS_LEGACY_LOCK.lstat()
+    except FileNotFoundError:
+        yield
+        require_no_nats_marker()
+        return
+    except OSError as error:
+        raise Refused('legacy NATS writer lock is unobservable') from error
+    require(stat.S_ISREG(named.st_mode) and named.st_uid == NATS_ROOT_UID
+            and stat.S_IMODE(named.st_mode) == 0o644 and named.st_nlink == 1,
+            'legacy NATS writer lock identity differs')
+    try:
+        fd = os.open(NATS_LEGACY_LOCK, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError as error:
+        raise Refused('legacy NATS writer lock is unobservable') from error
+    try:
+        opened = os.fstat(fd)
+        require((opened.st_dev, opened.st_ino, opened.st_ctime_ns) ==
+                (named.st_dev, named.st_ino, named.st_ctime_ns),
+                'legacy NATS writer lock changed')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise Refused('root NATS writer currently holds exclusive exclusion') from error
+        require_no_nats_marker()
+        yield
+        current = NATS_LEGACY_LOCK.lstat()
+        require((current.st_dev, current.st_ino, current.st_ctime_ns) ==
+                (opened.st_dev, opened.st_ino, opened.st_ctime_ns),
+                'legacy NATS writer lock changed during restoration')
+        require_no_nats_marker()
+    finally:
+        os.close(fd)
 
 
 def boot_identity():
@@ -508,6 +594,11 @@ class Journal:
     def append(self, event, **data):
         require(self.lock is not None, 'journal is closed')
         require(not self.sealed, 'sealed journal cannot be changed')
+        require(not self.nats_transfer_open(), 'NATS transfer is open; await a root outcome')
+        return self._append_durable(event, **data)
+
+    def _append_durable(self, event, **data):
+        require(self.lock is not None and not self.sealed, 'journal is closed or sealed')
         require(event != 'sealed' or self.scope != FULL_NODE_SCOPE,
                 'full-node seal requires a continuous launchd and process watch')
         require(not self.write_failed, 'failed durable write requires reopening the journal')
@@ -525,11 +616,116 @@ class Journal:
         self.write_failed = False
         return record
 
+    def nats_transfer_open(self):
+        rows = [row for row in self.records if row['event'] == 'nats-transfer-intent']
+        closed = [row for row in self.records if row['event'] == 'nats-transfer-closed']
+        require(len(rows) <= 1, 'competing NATS transfer intents')
+        require(len(closed) <= 1 and (not closed or rows), 'NATS transfer closure is ambiguous')
+        if not rows:
+            return None
+        row = rows[0]
+        require(set(row) == {'sequence', 'previous', 'event', 'boot', 'at', 'root_transaction',
+                             'units', 'baseline_sha256', 'observations', 'hold_sha256', 'sha256'}
+                and row['units'] == list(NATS_TRANSFER_UNITS)
+                and row['baseline_sha256'] == self.records[0]['sha256']
+                and isinstance(row['observations'], dict)
+                and set(row['observations']) == set(NATS_TRANSFER_UNITS)
+                and re.fullmatch(r'[0-9a-f]{64}', str(row['hold_sha256'])),
+                'NATS transfer record is incomplete')
+        try:
+            require(str(uuid.UUID(row['root_transaction'])) == row['root_transaction'],
+                    'NATS transfer transaction is not canonical')
+        except (TypeError, ValueError) as error:
+            raise Refused('NATS transfer transaction is invalid') from error
+        if closed:
+            terminal = closed[0]
+            require(terminal['sequence'] == row['sequence'] + 1
+                    and set(terminal) == {'sequence', 'previous', 'event', 'boot', 'at',
+                                          'root_transaction', 'outcome', 'root_ledger_sha256',
+                                          'root_receipt_sha256', 'sha256'}
+                    and terminal['root_transaction'] == row['root_transaction']
+                    and terminal['outcome'] == 'returned'
+                    and all(re.fullmatch(r'[0-9a-f]{64}', str(terminal[key])) for key in
+                            ('root_ledger_sha256', 'root_receipt_sha256')),
+                    'NATS transfer closure is incomplete')
+            return None
+        require(row is self.records[-1], 'NATS transfer intent is no longer terminal')
+        return row
+
+    def complete_nats_return(self):
+        require(self.scope == FULL_NODE_SCOPE and self.node_lock is not None,
+                'NATS return requires the full-node preservation owner')
+        require(not self.write_failed and self._read() == self.records,
+                'NATS return requires the exact durable user journal')
+        transfer = self.nats_transfer_open()
+        require(transfer is not None, 'NATS transfer is not awaiting a root outcome')
+        require_no_nats_marker()
+        receipt = read_nats_root_return(transfer['root_transaction'])
+        require(receipt['user_journal_root'] == str(self.root.resolve())
+                and receipt['user_baseline_sha256'] == self.records[0]['sha256']
+                and receipt['user_transfer_sha256'] == transfer['sha256'],
+                'root NATS outcome does not bind this user transfer')
+        require_no_nats_marker()
+        return self._append_durable('nats-transfer-closed',
+                                    root_transaction=transfer['root_transaction'],
+                                    outcome='returned',
+                                    root_ledger_sha256=receipt['ledger_sha256'],
+                                    root_receipt_sha256=hashlib.sha256(encoded(receipt)).hexdigest())
+
+    def transfer_nats(self, root_transaction, hold, observe):
+        require(not (sys.platform == 'darwin' and NATS_WRITER_MARKER ==
+                     pathlib.Path('/private/var/db/openclaw-nats/writer-handoff.json')),
+                'production NATS transfer awaits root decline and journal validation')
+        require(self.scope == FULL_NODE_SCOPE and self.node_lock is not None,
+                'NATS transfer requires the full-node preservation owner')
+        require(hold is not None and hold.journal is self and callable(observe),
+                'NATS transfer requires the original execution hold and observations')
+        try:
+            require(str(uuid.UUID(root_transaction)) == root_transaction,
+                    'NATS transfer transaction is not canonical')
+        except (TypeError, ValueError) as error:
+            raise Refused('NATS transfer transaction is invalid') from error
+        self.require_forward()
+        require(self.nats_transfer_open() is None, 'NATS transfer already exists')
+        require_no_nats_marker()
+        entrypoints = self.check_entrypoints(forward=True)
+        hold_evidence = hold.check_forward()
+        names = {'ai.openclaw.' + unit for unit in NATS_TRANSFER_UNITS}
+        require(not any(names & set(labels) for labels in entrypoints['loaded'].values()),
+                'legacy NATS job is still loaded')
+        observations = {}
+        for unit in NATS_TRANSFER_UNITS:
+            prior = self.prior[unit]
+            actual = observe(unit, prior)
+            require(isinstance(actual, dict) and actual.get('verified') is True
+                    and actual.get('identity') == prior['identity']
+                    and all(isinstance(actual.get(key), bool) for key in ('loaded', 'running', 'disabled')),
+                    'NATS transfer observation is incomplete: ' + unit)
+            if unit == 'nats-1':
+                require(matches(actual, prior), 'held member-1 changed before transfer')
+            else:
+                require(not actual['loaded'] and not actual['running'],
+                        'legacy NATS writer is still active: ' + unit)
+                require(any(row['event'] == 'verified' and row.get('unit') == unit
+                            and row.get('action') in ('unload', 'disable-and-unload')
+                            for row in self.records),
+                        'legacy NATS stop has no verified journal receipt: ' + unit)
+            observations[unit] = actual
+        require_no_nats_marker()
+        hold.check_forward()
+        self.check_entrypoints(forward=True)
+        return self.append('nats-transfer-intent', root_transaction=root_transaction,
+                           units=list(NATS_TRANSFER_UNITS), baseline_sha256=self.records[0]['sha256'],
+                           observations=observations,
+                           hold_sha256=hashlib.sha256(encoded(hold_evidence)).hexdigest())
+
     def pending_intents(self):
         completed = {r['intent'] for r in self.records if r['event'] == 'verified'}
         return [r for r in self.records if r['event'] == 'intent' and r['sequence'] not in completed]
 
     def require_forward(self):
+        require(not any(row['event'] == 'nats-transfer-intent' for row in self.records),
+                'returned NATS transfer is restore-only')
         require(not self.write_failed, 'failed durable write requires reopening the journal')
         require(self.boot == self.records[0]['boot'], 'reboot invalidated preservation; restore prior services only')
         require(not self.reopened, 'reopened preservation may only restore prior services')
@@ -588,6 +784,10 @@ class Journal:
             raise
 
     def recover(self, restore, observe, final_check, diagnostics=None, hold=None):
+        require(self.nats_transfer_open() is None, 'NATS transfer is open; await a root outcome')
+        returned_transfer = any(row['event'] == 'nats-transfer-closed' for row in self.records)
+        if returned_transfer:
+            require_no_nats_marker()
         require(self.node_lock is not None and (self.lock is not None or self.write_failed),
                 'recovery requires the node lock')
         require(not self.sealed, 'sealed journal cannot restore services')
@@ -636,12 +836,16 @@ class Journal:
             prior = self.prior[unit]
             def verify():
                 actual = observe(unit, prior)
+                if returned_transfer and unit.startswith('nats'):
+                    require_no_nats_marker()
                 require(actual.get('identity') == prior['identity'], 'immutable service identity changed')
                 require(matches(actual, prior), 'prior service state was not restored')
                 require(actual.get('verified') is True, 'service readiness was not verified')
                 return actual
             try:
                 actual = observe(unit, prior)
+                if returned_transfer and unit.startswith('nats'):
+                    require_no_nats_marker()
                 require(all(isinstance(actual.get(k), bool) for k in ('loaded', 'running', 'disabled')),
                         'actual service state is incomplete')
                 require(actual.get('identity') == prior['identity'], 'immutable service identity changed')
@@ -658,11 +862,13 @@ class Journal:
                 if held:
                     hold.before_restore()
                 record('restoration-intent', unit=unit, action='restore-prior')
-                restore(unit, prior)
-                if held:
-                    hold.check_closed()
-                evidence = verify()
-                record('recovery-verified', unit=unit, evidence=evidence)
+                guard = nats_legacy_restore_guard() if returned_transfer and unit.startswith('nats') else contextlib.nullcontext()
+                with guard:
+                    restore(unit, prior)
+                    if held:
+                        hold.check_closed()
+                    evidence = verify()
+                    record('recovery-verified', unit=unit, evidence=evidence)
             except Exception as error:
                 errors.append({'unit': unit, 'reason': type(error).__name__})
                 if held and self.write_failed:
@@ -681,6 +887,8 @@ class Journal:
             except Exception as error:
                 errors.append({'unit': unit, 'reason': type(error).__name__})
         try:
+            if returned_transfer:
+                require_no_nats_marker()
             evidence = final_check()
             require(isinstance(evidence, dict) and evidence.get('verified') is True,
                     'final physical ownership or member-1 hold was not verified')

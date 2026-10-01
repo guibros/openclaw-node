@@ -771,3 +771,32 @@ passed. All macOS-root constructors and publication paths remain gated, so
 this is source-only. Reboot abandonment, terminal user-readable outcomes,
 successor transactions, physical admission/census, user transfer, marker and
 rollback states, and the protected driver are still required before live use.
+
+## D44 — Freeze the user preservation journal during NATS transfer (2026-10-01 18:16 EDT)
+
+The original same-boot full-node owner records a nonce-bearing transfer intent
+only after its forward hold remains valid, the three legacy NATS writers have
+verified unload receipts and fresh stopped observations, member-1 still matches
+the held baseline, the loaded-entrypoint inventory agrees, and the protected
+root marker is absent. That record freezes every ordinary user-journal append
+and recovery action. A root-return receipt may close the freeze only when its
+root-owned public file binds the exact transaction, user journal root, baseline
+hash, transfer record hash and durable root ledger head; a marker blocks return.
+After closure, the user journal is restore-only. It cannot resume forward
+certification and must recover the legacy baseline before resolution.
+
+This first source slice implements only the `returned` outcome. A root `accepted`
+outcome requires the new system-service baseline and readiness delta; a
+post-marker rollback requires separate root restoration evidence, and a
+no-root-intent refusal needs a root-owned `declined` outcome. Until those
+branches and the pinned physical root driver are implemented and reviewed,
+the root journal's production macOS-root tripwire remains in place. No live
+preservation hold or NATS service is changed by this decision.
+
+Claude's exact-head challenge of PR #181 found that a transfer could otherwise
+freeze a production journal before any root transaction existed. The user
+transfer entrypoint now also refuses on the production macOS marker path until
+`declined` and root validation exist. A returned legacy restoration checks the
+marker and, when the shared writer lock exists, holds it shared across each
+NATS restore and verification. Any transfer record ends same-process
+`JournaledHold` forward certification, even after a root return.

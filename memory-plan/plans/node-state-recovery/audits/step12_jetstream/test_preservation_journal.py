@@ -9,10 +9,12 @@ import sys
 import tempfile
 import time
 import unittest
+import uuid
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from preservation_journal import FULL_NODE_SCOPE, Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
+import preservation_journal
 from legacy_fixture import legacy_journal
 
 
@@ -83,6 +85,146 @@ class JournalTests(unittest.TestCase):
         if prior is not None:
             return legacy_journal(root or self.root, prior, boot=boot, node_lock=self.node_lock)
         return Journal(root or self.root, boot=boot, node_lock=self.node_lock)
+
+    def prepared_nats_transfer(self):
+        prior = full_node_inventory()
+        loaded = full_entrypoint_evidence(prior)
+        inventory_patch = patch('preservation_journal.capture_entrypoint_inventory',
+                                side_effect=lambda _: copy.deepcopy(loaded))
+        inventory_patch.start()
+        self.addCleanup(inventory_patch.stop)
+        marker = self.parent / 'writer-handoff.json'
+        marker_patch = patch('preservation_journal.NATS_WRITER_MARKER', marker)
+        marker_patch.start()
+        self.addCleanup(marker_patch.stop)
+        journal = Journal(self.root, prior, boot='boot-a', node_lock=self.node_lock,
+                          scope=FULL_NODE_SCOPE)
+        self.addCleanup(journal.close)
+        hold = SimpleNamespace(journal=journal, check_forward=lambda: {'verified': True})
+        for unit in ('nats', 'nats-2', 'nats-3'):
+            journal.mutate(unit, 'unload',
+                           lambda unit=unit: loaded['loaded']['gui'].remove('ai.openclaw.' + unit),
+                           lambda: {'verified': True}, hold=hold)
+        def observe(unit, saved):
+            if unit == 'nats-1':
+                return {**saved, 'verified': True}
+            return {**saved, 'loaded': False, 'running': False, 'verified': True}
+        return journal, hold, observe, marker
+
+    def publish_nats_return(self, journal, transfer, **changes):
+        outcomes = pathlib.Path(self.temp.name) / 'root-outcomes'
+        outcomes.mkdir(mode=0o755, exist_ok=True)
+        outcomes.chmod(0o755)
+        outcomes_patch = patch('preservation_journal.NATS_ROOT_OUTCOMES', outcomes)
+        uid_patch = patch('preservation_journal.NATS_ROOT_UID', os.getuid())
+        outcomes_patch.start()
+        uid_patch.start()
+        self.addCleanup(outcomes_patch.stop)
+        self.addCleanup(uid_patch.stop)
+        receipt = {'transaction': transfer['root_transaction'], 'outcome': 'returned',
+                   'ledger_sha256': 'f' * 64, 'user_journal_root': str(journal.root.resolve()),
+                   'user_baseline_sha256': journal.records[0]['sha256'],
+                   'user_transfer_sha256': transfer['sha256'], **changes}
+        path = outcomes / (transfer['root_transaction'] + '.json')
+        path.write_bytes(encoded(receipt))
+        path.chmod(0o644)
+        return path
+
+    def test_nats_transfer_freezes_user_journal_before_root_outcome(self):
+        journal, hold, observe, _ = self.prepared_nats_transfer()
+        transaction = str(uuid.uuid4())
+        record = journal.transfer_nats(transaction, hold, observe)
+        self.assertEqual(record['root_transaction'], transaction)
+        self.assertEqual(record['event'], 'nats-transfer-intent')
+        before = len(journal.records)
+        with self.assertRaisesRegex(Refused, 'transfer is open'):
+            journal.append('failed', reason='late writer')
+        with self.assertRaisesRegex(Refused, 'transfer is open'):
+            journal.recover(lambda *_: self.fail('legacy restoration ran'),
+                            lambda *_: self.fail('observation ran'),
+                            lambda: self.fail('readiness ran'), hold=hold)
+        self.assertEqual(len(journal.records), before)
+        journal.close()
+        with Journal(self.root, boot='boot-a', node_lock=self.node_lock) as reopened:
+            self.assertEqual(reopened.nats_transfer_open()['sha256'], record['sha256'])
+            with self.assertRaisesRegex(Refused, 'transfer is open'):
+                reopened.append('recovery-started')
+
+    def test_nats_transfer_refuses_marker_and_uncertified_unit(self):
+        journal, hold, observe, marker = self.prepared_nats_transfer()
+        before = len(journal.records)
+        marker.write_text('{}')
+        with self.assertRaisesRegex(Refused, 'marker already exists'):
+            journal.transfer_nats(str(uuid.uuid4()), hold, observe)
+        marker.unlink()
+        with self.assertRaisesRegex(Refused, 'writer is still active'):
+            journal.transfer_nats(str(uuid.uuid4()), hold,
+                                  lambda unit, saved: {**observe(unit, saved), 'running': unit == 'nats'})
+        self.assertEqual(len(journal.records), before)
+
+    def test_nats_return_requires_bound_root_receipt_and_forces_restore_only(self):
+        journal, hold, observe, marker = self.prepared_nats_transfer()
+        transfer = journal.transfer_nats(str(uuid.uuid4()), hold, observe)
+        receipt = self.publish_nats_return(journal, transfer)
+        receipt.chmod(0o600)
+        with self.assertRaisesRegex(Refused, 'outcome identity differs'):
+            journal.complete_nats_return()
+        receipt.chmod(0o644)
+        self.publish_nats_return(journal, transfer, user_transfer_sha256='0' * 64)
+        with self.assertRaisesRegex(Refused, 'does not bind'):
+            journal.complete_nats_return()
+        self.publish_nats_return(journal, transfer)
+        marker.write_text('{}')
+        with self.assertRaisesRegex(Refused, 'marker already exists'):
+            journal.complete_nats_return()
+        marker.unlink()
+        closed = journal.complete_nats_return()
+        self.assertEqual(closed['outcome'], 'returned')
+        self.assertIsNone(journal.nats_transfer_open())
+        marker.write_text('{}')
+        with self.assertRaisesRegex(Refused, 'marker already exists'):
+            journal.recover(lambda *_: self.fail('legacy restore ran behind marker'),
+                            lambda *_: self.fail('observation ran behind marker'),
+                            lambda: self.fail('readiness ran behind marker'), hold=hold)
+        marker.unlink()
+        with self.assertRaisesRegex(Refused, 'restore-only'):
+            journal.mutate('nats', 'unload', lambda: None, lambda: {'verified': True}, hold=hold)
+        journal.close()
+        with Journal(self.root, boot='boot-a', node_lock=self.node_lock) as reopened:
+            self.assertIsNone(reopened.nats_transfer_open())
+            with self.assertRaisesRegex(Refused, 'restore-only'):
+                reopened.require_forward()
+
+    def test_production_transfer_refuses_before_durable_intent(self):
+        journal, hold, observe, _ = self.prepared_nats_transfer()
+        before = len(journal.records)
+        with patch.object(preservation_journal.sys, 'platform', 'darwin'), patch(
+                'preservation_journal.NATS_WRITER_MARKER',
+                pathlib.Path('/private/var/db/openclaw-nats/writer-handoff.json')):
+            with self.assertRaisesRegex(Refused, 'production NATS transfer awaits'):
+                journal.transfer_nats(str(uuid.uuid4()), hold, observe)
+        self.assertEqual(len(journal.records), before)
+
+    def test_returned_legacy_restore_holds_shared_exclusion_and_checks_marker(self):
+        lock = pathlib.Path(self.temp.name) / 'writer.lock'
+        lock.write_bytes(b'nonce')
+        lock.chmod(0o644)
+        marker = pathlib.Path(self.temp.name) / 'writer-handoff.json'
+        with patch('preservation_journal.NATS_LEGACY_LOCK', lock), patch(
+                'preservation_journal.NATS_WRITER_MARKER', marker), patch(
+                'preservation_journal.NATS_ROOT_UID', os.getuid()):
+            with preservation_journal.nats_legacy_restore_guard():
+                script = ('import fcntl,os,sys; '
+                          'f=os.open(sys.argv[1],os.O_RDONLY); '
+                          'fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)')
+                blocked = subprocess.run([sys.executable, '-c', script, str(lock)],
+                                         capture_output=True, text=True)
+                self.assertNotEqual(blocked.returncode, 0)
+                self.assertIn('BlockingIOError', blocked.stderr)
+            marker.write_text('{}')
+            with self.assertRaisesRegex(Refused, 'marker already exists'):
+                with preservation_journal.nats_legacy_restore_guard():
+                    self.fail('legacy restoration entered behind marker')
 
     def test_new_unscoped_journal_refuses_before_creation(self):
         with self.assertRaisesRegex(Refused, 'explicit protected scope'):
