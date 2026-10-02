@@ -638,3 +638,10 @@ administrator session, with no action if its contents differ. Claude found
 no safety blocker in the original daemon sequence and asked for explicit
 preflight, collision, disabled-state and post-action checks; the revised
 head and its CI still need review. No administrator or NATS action occurred.
+
+Checkpoint 2026-10-02 09:17 EDT: the retirement preflight is now required to
+hold the existing owner-private `node.lock` with macOS `lockf -kn -t 0` for the
+whole administrator session. A private temporary-file control confirmed
+`lockf` and the journal's Python `fcntl.flock` contend; the real node lock was
+also acquired and released with no action. This closes the check-to-retire
+race in the written procedure. Live retirement remains unexecuted.

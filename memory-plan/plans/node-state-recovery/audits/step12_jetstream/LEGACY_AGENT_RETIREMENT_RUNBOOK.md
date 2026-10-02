@@ -41,7 +41,25 @@ has been started. Do not run this procedure while a window is unresolved.
 The pinned plist hash is authoritative for all of its contents, including its
 saved NATS URL; do not substitute a hand-copied key list for that hash.
 
-Run these checks as the node user before opening an administrator session:
+Hold the existing node preservation lock exclusively throughout the entire
+preflight, administrator action, and post-action census. It is currently a
+regular `moltymac:staff` 0600 file inside the owner-private preservation
+directory. On this Mac, `/usr/bin/lockf` uses the same BSD `flock(2)` lock as
+the journal; `-n` refuses an absent file, `-t 0` refuses an active owner, and
+`-k` leaves the lock pathname intact. Start a nested shell with:
+
+```sh
+/usr/bin/stat -f '%Su:%Sg %Lp %N' /Users/moltymac/.openclaw/preservation/node.lock
+/usr/bin/lockf -kn -t 0 /Users/moltymac/.openclaw/preservation/node.lock /bin/zsh -l
+```
+
+Run every following command inside that shell and exit it only after the
+post-action checks. If lock acquisition fails, do nothing. Recheck the
+receipt and root paths while holding it; a pre-lock observation cannot rule
+out a preservation controller starting in between.
+
+Run these checks as the node user inside the locked shell before opening an
+administrator session:
 
 ```sh
 printf '%s  %s\n' eaa61962d86643d3fa301875b2f65e5fa8c97fd37468840ddabcb1a5f9701351 /Library/LaunchDaemons/com.openclaw.agent.plist | /usr/bin/shasum -a 256 -c -
