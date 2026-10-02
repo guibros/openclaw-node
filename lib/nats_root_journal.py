@@ -22,6 +22,10 @@ def digest(value):
     return hashlib.sha256(encoded(value)).hexdigest()
 
 
+def reject_nonfinite(value):
+    raise ValueError(f'non-finite JSON constant: {value}')
+
+
 def boot_identity():
     if sys.platform == 'darwin':
         value = subprocess.check_output(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], text=True)
@@ -668,7 +672,7 @@ class LockBootstrapJournal:
                     final = self.root / f'{sequence:06d}.json'
                     if not isinstance(sequence, int) or final.lstat().st_ino != info.st_ino:
                         raise Refused('root journal pending record has no matching final record')
-                except (OSError, ValueError, KeyError, TypeError) as error:
+                except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
                     raise Refused('root journal pending record is ambiguous') from error
             path.unlink()
             sync_dir(self.root)
@@ -712,16 +716,20 @@ class LockBootstrapJournal:
                         if identity != (named.st_dev, named.st_ino, named.st_ctime_ns):
                             raise Refused('root writer record path changed during inspection')
                         self.observed_records.append((name, identity))
-                record = json.loads(raw)
-            except (OSError, ValueError) as error:
+                record = json.loads(raw, parse_constant=reject_nonfinite)
+            except (OSError, ValueError, RecursionError) as error:
                 raise Refused('root writer lock record is unreadable') from error
             previous = records[-1]['sha256'] if records else None
             if not isinstance(record, dict) or set(record) != {'sequence', 'previous', 'event', 'data', 'sha256'}:
                 raise Refused('root writer lock record schema differs')
             body = {key: value for key, value in record.items() if key != 'sha256'}
-            if (record['sequence'] != index or record['previous'] != previous
-                    or not isinstance(record['data'], dict)
-                    or digest(body) != record['sha256']):
+            try:
+                chain_matches = (record['sequence'] == index and record['previous'] == previous
+                                 and isinstance(record['data'], dict)
+                                 and digest(body) == record['sha256'])
+            except (TypeError, ValueError, RecursionError) as error:
+                raise Refused('root writer lock journal chain differs') from error
+            if not chain_matches:
                 raise Refused('root writer lock journal chain differs')
             records.append(record)
         return records

@@ -543,3 +543,12 @@ versus unreadable PIDs, and declares its open-FD coverage. The related local
 suites pass 20/20 and a read-only live scan still observes one
 linked 4222 holder with 141 unreadable and two exited PIDs. Revised-head CI
 and adversarial review are pending; no absence verdict or cutover is allowed.
+
+Checkpoint 2026-10-01 23:40 EDT: PR #191 merged with exact-head 4/4 CI and
+Claude's no-blocker diagnostic review. Its D58 holder census remains read-only
+and does not certify physical absence. PR #192 now includes D59's direct-driver
+refusal for non-finite JSON and recursive raw records, after incorporating
+#191's merged base. The root journal and decline suites pass 87/87 locally.
+Exact-head CI and adversarial review of the revised #192 are pending; the
+protected physical observer, three healthy cold masters and production
+cutover remain open at 1.2 [A]/v1.2-pre.

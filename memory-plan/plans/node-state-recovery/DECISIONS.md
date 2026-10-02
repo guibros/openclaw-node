@@ -1091,3 +1091,10 @@ also pins the D57 non-string transaction refusal; the observer's broad
 exception mapping alone would not prove that driver behavior. These are
 schema refusals on source and owned fixtures. They do not create a physical
 absence verdict, change live NATS state, or lift the protected-root gate.
+
+The direct driver also refuses non-finite JSON constants and recursive raw
+records. Parsing rejects `NaN` and infinities before chain validation, and
+both parse and canonical chain-encoding depth errors become `Refused`. An
+interrupted pending record with excessive depth remains ambiguous rather than
+escaping as an unhandled exception. This protects the refusal boundary for
+malformed bytes; it does not assert that the ledger is physically complete.

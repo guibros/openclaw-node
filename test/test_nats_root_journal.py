@@ -165,7 +165,7 @@ class RootJournalTest(unittest.TestCase):
         with self.assertRaises(module.Refused):
             module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
         with patch.object(module.json, 'loads', side_effect=RecursionError('deep')):
-            with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
+            with self.assertRaisesRegex(module.Refused, 'record is unreadable'):
                 module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
 
     def test_readonly_inspection_maps_rehashed_invalid_lock_to_refusal(self):
@@ -222,6 +222,30 @@ class RootJournalTest(unittest.TestCase):
         record.write_bytes(module.encoded(saved))
         with self.assertRaisesRegex(module.Refused, 'transaction is invalid'):
             self.reopen()
+
+    def test_driver_refuses_nonfinite_json_constants(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        original = record.read_bytes()
+        for constant in (b'NaN', b'Infinity', b'-Infinity'):
+            with self.subTest(constant=constant):
+                record.write_bytes(original.replace(b'"sequence":0', b'"sequence":' + constant))
+                with self.assertRaisesRegex(module.Refused, 'record is unreadable'):
+                    self.reopen()
+
+    def test_driver_refuses_recursive_json_and_chain_encoding(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        original = record.read_bytes()
+        record.write_bytes(b'[' * 1200 + b'0' + b']' * 1200)
+        with self.assertRaises(module.Refused):
+            self.reopen()
+        record.write_bytes(original)
+        with patch.object(module, 'digest', side_effect=RecursionError('deep')):
+            with self.assertRaisesRegex(module.Refused, 'journal chain differs'):
+                self.reopen()
 
     def test_readonly_inspection_refuses_active_driver(self):
         with self.begin():
