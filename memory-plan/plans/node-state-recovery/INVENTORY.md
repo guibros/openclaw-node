@@ -699,3 +699,59 @@ does not make the user-run censuses single-instant or authorize physical
 absence; PID reuse, unreadable processes and in-flight descriptors remain
 explicit limits. The guarded legacy retirement is still awaiting local
 administrator authentication, and step 1.2 remains [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 11:09 EDT: PR #202 merged at `bfe997e8` after exact-head
+CI 4/4 and Claude's no-blocker review of `f7238e3`. Cwd and mapped-vnode
+observations remain diagnostic only. Claude's next read-only driver challenge
+found that the full-node user journal guarded NATS restoration only after a
+returned transfer. D61's source correction applies marker and shared-lock
+checks to every full-node NATS recovery, including no-transfer windows. Owned
+marker and exclusive-lock controls pass with the 85-test journal suite. Exact
+CI and adversarial review of this change are pending. The production driver,
+protected observer, healthy cold masters, and live retirement remain open;
+step 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 11:29 EDT: Claude found no blocker in PR #203's first
+head and its quick delta probe confirmed the held member and final check. The
+follow-up now also brackets hold preparation, final readiness/gate reopen and
+resolution; old unscoped NATS journals use the same exclusion, and a lock
+appearing during an initially lock-free action refuses. Owned regressions pass;
+the full exact-head suite, CI and adversarial delta verdict remain pending.
+No production NATS service was changed, and 1.2 remains [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 11:53 EDT: Claude's PR #203 review found that the
+original unscoped-journal regression could pass after its callbacks were
+swallowed, and that tests still touched the live root marker paths. The
+regression now asserts that no NATS callback ran, and both parent and child
+hold tests use private marker and lock fixtures. A proposed mandatory root
+lock check passed 154/154 local tests but conflicts with recovery after a
+crash before the durable user transfer: root lock bootstrap itself requires
+that transfer. The no-lock checked branch is retained, with an added test
+that recovers an old unscoped journal before bootstrap. Targeted controls
+pass 3/3 after this correction; the revised full suite, exact-head CI and
+Claude delta review are pending. The live root lock remains absent. No
+production NATS service or root path was changed; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:18 EDT: Claude's scratch probe confirmed the
+mandatory-lock deadlock and validated the checked absent-lock recovery. The
+user guard now rechecks immediately before NATS restart, gate unlink and
+terminal row; a detection after a restart or observed gate opening is labelled
+`after_commit`, and a terminal row followed by a receipt/guard failure raises
+`CommittedRefusal` with its hash. Private fixtures replace all real root-path
+reads in the hold suite. The revised journal/hold suites pass 134/134 on this
+Mac, and the separate owned restore-only suite passes 27/27; an earlier
+combined run had two load-sensitive owned readiness failures, with no NATS
+guard involved. The revised PR head, CI and Claude exact-delta review remain
+pending. No live root or NATS state changed; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:32 EDT: Claude found no blocker in PR #203 at
+`c9acbbe` with exact-head CI 4/4, but its mutation pass exposed two missing
+journal-level guards and a test that bypassed the sticky journal write flag.
+The revised tests now assert a new lock before NATS restart refuses, the
+recovery facade passes the NATS check into the gate's last before-open step,
+and a restart that raises is still reported as possibly committed. A real
+sticky `hold-opened` failure now raises `CommittedRefusal` naming the observed
+open gate without attempting another journal append. The revised local
+journal/hold suites pass 138/138; exact-head CI and Claude delta review for
+this final follow-up remain pending. The earlier owned restore-only suite
+passed 27/27. No live root or NATS state changed; 1.2 stays [A]/v1.2-pre.

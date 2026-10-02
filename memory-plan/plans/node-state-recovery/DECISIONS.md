@@ -1135,3 +1135,39 @@ its run counter to the same value after such a reload. The physical driver
 still needs the continuous launchd/process watch and operator control over
 root service changes. The source exclusion alone does not authorize a full-node
 journal, healthy NATS stop, protected root bootstrap, or acceptance of 1.2.
+
+## D61 — Apply old-writer exclusion to every full-node NATS recovery (2026-10-02 11:08 EDT)
+
+The user journal previously checked the protected marker and held the shared
+old-writer lock only after a returned NATS transfer. A full-node restoration
+without any transfer could observe or restart the three legacy servers without
+that check. Recovery of a full-node-scoped journal, or an older unscoped journal
+with installed NATS units, now refuses an existing marker before its first
+write. The hold's preparation, each NATS unit's observation, possible
+restoration and verification (including the held member 1), the final physical
+check, hold completion and gate reopening, and resolution run under the shared
+old-writer lock when it exists. An exclusive root holder or a published marker
+therefore refuses at entry. Before the root lock is staged, the guard checks
+that both marker and lock remain absent on exit. A crash before transfer must
+remain recoverable in this lock-free phase: the root protocol cannot begin
+without a durable user transfer, and its user-transfer reader cannot acquire
+`node.lock` while this journal recovers. Making the root lock mandatory for
+recovery would strand such a pre-transfer journal.
+The guard also supplies a fresh check immediately before a legacy restart,
+inside the gate's final before-open check, and immediately before a terminal
+row. A later detection cannot undo a restart, gate unlink or terminal append:
+recovery records `after_commit=restore` or `after_commit=gate-open` as
+appropriate, using the observed gate marker even if `hold-opened` was not
+written. If that write fails and makes the journal sticky, recovery raises
+`CommittedRefusal` naming the opened gate instead of attempting another
+durable row; a fresh session must inspect the gate and journal. Finalization
+raises `CommittedRefusal` with the terminal hash once
+the row is durable, so a caller cannot interpret a post-commit refusal as
+proof that nothing happened. These checks detect an out-of-protocol privileged
+writer; the node lock and transfer rule are the pre-bootstrap exclusion.
+This user-side guard does not substitute for root physical observation or
+authorize migration. Owned controls hold the lock exclusively, publish a test
+marker, and create or replace the lock mid-action to prove refusal. Private test fixtures
+must never read or create the production marker or lock. The
+production full-node driver, complete readiness checks, legacy root-job
+retirement, healthy cold masters, and cutover remain open at 1.2.

@@ -14,6 +14,7 @@ from unittest.mock import patch
 from journal_hold import ANCHOR, JournaledHold, describe
 from legacy_fixture import legacy_journal
 from preservation_journal import FULL_NODE_SCOPE, Journal, TIMER_SCOPE, TIMER_UNITS, UNITS, matches
+import preservation_journal
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -42,6 +43,16 @@ class HoldTests(unittest.TestCase):
         self.root.chmod(0o700)
         self.parent = self.root / 'journals'
         self.parent.mkdir(mode=0o700)
+        (self.root / 'writer.lock').write_bytes(b'owned writer lock')
+        (self.root / 'writer.lock').chmod(0o644)
+        for name, path in (('NATS_WRITER_MARKER', self.root / 'writer-handoff.json'),
+                           ('NATS_LEGACY_LOCK', self.root / 'writer.lock')):
+            guarded = patch.object(preservation_journal, name, path)
+            guarded.start()
+            self.addCleanup(guarded.stop)
+        root_uid = patch.object(preservation_journal, 'NATS_ROOT_UID', os.getuid())
+        root_uid.start()
+        self.addCleanup(root_uid.stop)
         self.journal_root = self.parent / 'owned'
         self.node_lock = self.root / 'node.lock'
         self.gate_root = self.root / 'gate'
@@ -178,6 +189,81 @@ class HoldTests(unittest.TestCase):
         evidence = self.hold.complete(self.observe, self.final)
         self.assertFalse(evidence['history_certified'])
         self.assertTrue(evidence['gate_open'])
+
+    def test_before_open_rechecks_nats_marker(self):
+        self.published()
+        self.reopen_controller()
+        self.hold.prepare(self.observe, self.final)
+        self.nats_marker = self.root / 'writer-handoff.json'
+        self.nats_marker.write_text('{}')
+        with self.assertRaisesRegex(Exception, 'marker already exists'):
+            self.hold.complete(self.observe, self.final,
+                               before_open=preservation_journal.require_no_nats_marker)
+        self.assertIsNotNone(self.gate.marker())
+
+    def test_recover_passes_nats_recheck_into_gate_reopen(self):
+        self.published()
+        self.reopen_controller()
+        fast = self.hold.fast_check
+        def publish_during_fast_check():
+            result = fast()
+            (self.root / 'writer-handoff.json').write_text('{}')
+            return result
+        self.hold.fast_check = publish_during_fast_check
+        result = self.hold.recover(self.restore, self.observe, self.final)
+        self.assertFalse(result['restored'])
+        error = next(row for row in result['errors'] if row['unit'] == 'execution-hold')
+        self.assertNotIn('after_commit', error)
+        self.assertIsNotNone(self.gate.marker())
+
+    def test_marker_after_gate_open_reports_open_commit(self):
+        self.published()
+        self.reopen_controller()
+        original = self.journal.append
+        marker = self.root / 'writer-handoff.json'
+        def append(event, **data):
+            row = original(event, **data)
+            if event == 'hold-opened':
+                marker.write_text('{}')
+            return row
+        with patch.object(self.journal, 'append', side_effect=append):
+            result = self.hold.recover(self.restore, self.observe, self.final)
+        self.assertFalse(result['restored'])
+        hold_error = next(error for error in result['errors'] if error['unit'] == 'execution-hold')
+        self.assertEqual(hold_error['after_commit'], 'gate-open')
+        self.assertIsNone(self.gate.marker())
+
+    def test_missing_hold_opened_row_reports_observed_open_gate(self):
+        self.published()
+        self.reopen_controller()
+        original = self.journal.append
+        def append(event, **data):
+            if event == 'hold-opened':
+                raise OSError('owned append failure')
+            return original(event, **data)
+        with patch.object(self.journal, 'append', side_effect=append):
+            result = self.hold.recover(self.restore, self.observe, self.final)
+        self.assertFalse(result['restored'])
+        hold_error = next(error for error in result['errors'] if error['unit'] == 'execution-hold')
+        self.assertEqual(hold_error['after_commit'], 'gate-open')
+        self.assertIsNone(self.gate.marker())
+        self.assertFalse(any(row['event'] == 'hold-opened' for row in self.journal.records))
+
+    def test_sticky_hold_opened_write_failure_reports_committed_gate(self):
+        self.published()
+        self.reopen_controller()
+        original = self.journal._record
+        def record(event, **data):
+            if event == 'hold-opened':
+                raise OSError('owned durable write failure')
+            return original(event, **data)
+        with patch.object(self.journal, '_record', side_effect=record):
+            with self.assertRaisesRegex(preservation_journal.CommittedRefusal,
+                                        'gate-open occurred before durable recovery completion'):
+                self.hold.recover(self.restore, self.observe, self.final)
+        self.assertTrue(self.journal.write_failed)
+        self.assertIsNone(self.gate.marker())
+        self.assertFalse(any(row['event'] == 'hold-opened' for row in self.journal.records))
 
     @unittest.skipUnless(sys.platform == 'darwin', 'continuous native observer is a Mac acceptance contract')
     def test_original_native_observer_brackets_every_mutation_and_can_seal(self):
@@ -433,10 +519,14 @@ class HoldTests(unittest.TestCase):
         self.journal.close()
         self.gate.close()
         ready = self.root / 'controller-ready'
-        source = '''import importlib.util,json,pathlib,sys,time
+        source = '''import importlib.util,json,os,pathlib,sys,time
+import preservation_journal as pj
 from preservation_journal import Journal
 from journal_hold import JournaledHold,ANCHOR
 root,gate_root,node_lock,ready=map(pathlib.Path,sys.argv[1:5])
+pj.NATS_WRITER_MARKER=pathlib.Path(sys.argv[7])
+pj.NATS_LEGACY_LOCK=pathlib.Path(sys.argv[8])
+pj.NATS_ROOT_UID=os.getuid()
 spec=importlib.util.spec_from_file_location('gate',sys.argv[5]);g=importlib.util.module_from_spec(spec);spec.loader.exec_module(g)
 phase=sys.argv[6]
 def wait():
@@ -461,7 +551,8 @@ with Journal(root,boot='owned-boot',node_lock=node_lock) as journal:
   hold.recover(lambda *_:None,observe,lambda:{'verified':True})
 '''
         child = subprocess.Popen([sys.executable, '-c', source, str(self.journal_root), str(self.gate_root),
-                                  str(self.node_lock), str(ready), str(SOURCE), phase], cwd=HERE,
+                                  str(self.node_lock), str(ready), str(SOURCE), phase,
+                                  str(self.root / 'writer-handoff.json'), str(self.root / 'writer.lock')], cwd=HERE,
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.children.append(child)
         end = time.monotonic() + 5
