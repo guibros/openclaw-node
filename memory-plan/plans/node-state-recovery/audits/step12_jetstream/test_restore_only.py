@@ -1,10 +1,12 @@
 import copy
+import hashlib
 import importlib.util
 import json
 import os
 import pathlib
 import plistlib
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
@@ -75,7 +77,7 @@ class RestoreOnlyOwned(unittest.TestCase):
             argv = (['/usr/bin/python3', '-I', '-S', str(self.gate_script), 'run', str(self.gate_root),
                      '--lock', self.pin['lock'], '--root-pin', self.pin['root'], '--', '/bin/sh', '-c',
                      'printf "fired\\n" >> "$OWNED_FIRE_LOG"'] if unit == ANCHOR
-                    else ['/usr/local/bin/node', str(self.script)])
+                    else [str(pathlib.Path(shutil.which('node')).resolve(strict=True)), str(self.script)])
             settings = {'Label': label, 'ProgramArguments': argv, 'WorkingDirectory': str(self.root),
                         'StandardOutPath': str(self.root / (unit + '.out')),
                         'StandardErrorPath': str(self.root / (unit + '.err')),
@@ -372,6 +374,35 @@ with Journal(root, node_lock=lock) as journal:
             plist.write_bytes(original)
         self.assertEqual(sorted(path.name for path in self.journal_root.iterdir()), before)
         self.assertFalse(production.exists())
+
+    def test_nonregular_saved_node_refuses_before_content_read(self):
+        fifo = self.root / 'fake-node'
+        os.mkfifo(fifo, 0o700)
+        plist = self.services['mesh-agent'].plist
+        original = plist.read_bytes()
+        try:
+            altered = plistlib.loads(original)
+            altered['ProgramArguments'][0] = str(fifo)
+            raw = plistlib.dumps(altered)
+            plist.write_bytes(raw)
+            prior = copy.deepcopy(self.prior)
+            identity = prior['mesh-agent']['identity']
+            old_node = identity['argv'][0]
+            identity['argv'][0] = str(fifo)
+            identity['files'][str(fifo)] = identity['files'].pop(old_node)
+            identity['plist_sha256'] = hashlib.sha256(raw).hexdigest()
+            def deadline(*_):
+                raise TimeoutError('owned executable read blocked')
+            previous = signal.signal(signal.SIGALRM, deadline)
+            signal.setitimer(signal.ITIMER_REAL, 3)
+            try:
+                with self.assertRaisesRegex(Refused, 'not a regular file'):
+                    OwnedLaunchdAdapter(self.root, prior, 'unused')
+            finally:
+                signal.setitimer(signal.ITIMER_REAL, 0)
+                signal.signal(signal.SIGALRM, previous)
+        finally:
+            plist.write_bytes(original)
 
     def test_missing_receipt_refuses_without_rebuilding_or_restoring(self):
         self.interrupt()

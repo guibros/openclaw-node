@@ -755,3 +755,31 @@ open gate without attempting another journal append. The revised local
 journal/hold suites pass 138/138; exact-head CI and Claude delta review for
 this final follow-up remain pending. The earlier owned restore-only suite
 passed 27/27. No live root or NATS state changed; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:45 EDT: PR #203 merged at `4d6e2c9` after
+exact-head CI 4/4, Claude's no-blocker delta review, and a fresh macOS
+restore-only run passing 27/27 at `93e1e84`. The macOS CI job is being
+extended to run that owned restore-only suite on every source change. This
+does not establish a full-node preservation window, protected root physical
+admission, cold masters, or live NATS restoration; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:51 EDT: the new macOS CI run exposed a fixture
+assumption hidden by the node's local layout: its owned service plist named
+`/usr/local/bin/node`, absent on the hosted arm64 runner. The fixture now
+pins the installed Node executable selected by the job's PATH. This changes
+only owned test setup; exact CI rerun is required before PR #204 can merge.
+
+Checkpoint 2026-10-02 12:55 EDT: the first local rerun after fixing the
+fixture path exposed the owned recovery adapter's matching hardcoded Node
+path. It now accepts the canonical absolute Node executable already saved
+and content-pinned in the journal, then binds the running process to that
+same path. The previously failing ambiguous-open readiness case passes in
+isolation. Full local and exact-head CI runs remain pending.
+
+Checkpoint 2026-10-02 13:03 EDT: the adapter's saved Node path now also
+requires a regular, single-link executable before any content read. An owned
+FIFO-path control refuses before the read; this guards a malformed saved
+baseline from hanging recovery. The earlier exact-head CI at `002dfca` passed
+4/4 and the owned suite passed 27/27 locally. The new 28-case suite and
+corresponding CI run are pending. Protected root admission and live cutover
+remain open at 1.2[A]/v1.2-pre.

@@ -143,7 +143,13 @@ class OwnedLaunchdAdapter:
                     == (REPO / 'workspace-bin/service_gate.py').read_bytes(),
                     'owned gate runner differs from the fixed source')
         else:
-            expected_argv = ['/usr/local/bin/node', str(self.root / OWNED_SERVICE.name)]
+            node = pathlib.Path(saved['argv'][0])
+            require(node.is_absolute() and str(node.resolve(strict=True)) == str(node),
+                    'owned Node executable path differs')
+            info = node.lstat()
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+                    and info.st_mode & 0o111, 'owned Node executable is not a regular file')
+            expected_argv = [str(node), str(self.root / OWNED_SERVICE.name)]
             private_file(self.root / OWNED_SERVICE.name)
             require((self.root / OWNED_SERVICE.name).read_bytes() == OWNED_SERVICE.read_bytes(),
                     'owned entry code differs from the fixed adapter')
@@ -216,7 +222,8 @@ class OwnedLaunchdAdapter:
                 'http://127.0.0.1:' + str(port) + '/ready', timeout=.3) as response:
             value = json.load(response)
         require(value == {'pid': status['pid'], 'ready': True}, 'owned process health differs')
-        binding = self.service(unit).bind(self.prior[unit]['identity']['argv'], '/usr/local/bin/node',
+        binding = self.service(unit).bind(self.prior[unit]['identity']['argv'],
+                                          self.prior[unit]['identity']['argv'][0],
                                           self.prior[unit]['identity']['working_directory'],
                                           self.prior[unit]['identity']['files'])
         require(binding['status']['pid'] == status['pid'], 'owned process generation changed')
