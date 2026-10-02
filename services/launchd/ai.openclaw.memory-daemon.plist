@@ -37,6 +37,10 @@
       <string>${OPENCLAW_NATS}</string>
       <key>OPENCLAW_NODE_ID</key>
       <string>${OPENCLAW_NODE_ID}</string>
+      <key>LLM_MODEL</key>
+      <string>${LLM_MODEL}</string>
+      <key>LLM_BASE_URL</key>
+      <string>${LLM_BASE_URL}</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>10</integer>

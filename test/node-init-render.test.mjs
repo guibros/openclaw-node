@@ -77,6 +77,27 @@ describe('node-init renders the shared service templates', () => {
     withForemanEnv('# MESH_FOREMAN_ENFORCE=1\n', () => switchIn(''));
   });
 
+  it('renders the LLM endpoint from ~/.openclaw/openclaw.env into every LLM service; the process env wins', () => {
+    const saved = { url: process.env.LLM_BASE_URL, model: process.env.LLM_MODEL };
+    delete process.env.LLM_BASE_URL;
+    delete process.env.LLM_MODEL;
+    try {
+      withForemanEnv('LLM_MODEL=qwen3:8b\nLLM_BASE_URL=http://192.168.64.1:11434\n', () => {
+        for (const unit of ['systemd/openclaw-memory-daemon.service', 'systemd/openclaw-mesh-agent.service', 'systemd/openclaw-node-watch.service']) {
+          const text = renderAgent(unit);
+          assert.match(text, /^Environment=LLM_BASE_URL=http:\/\/192\.168\.64\.1:11434$/m, unit);
+          assert.match(text, /^Environment=LLM_MODEL=qwen3:8b$/m, unit);
+        }
+        assert.match(renderAgent('launchd/ai.openclaw.memory-daemon.plist'), /<key>LLM_BASE_URL<\/key>\s*<string>http:\/\/192\.168\.64\.1:11434<\/string>/);
+        process.env.LLM_BASE_URL = 'http://gpu-box:8000';
+        assert.match(renderAgent('systemd/openclaw-memory-daemon.service'), /^Environment=LLM_BASE_URL=http:\/\/gpu-box:8000$/m);
+      });
+    } finally {
+      if (saved.url === undefined) delete process.env.LLM_BASE_URL; else process.env.LLM_BASE_URL = saved.url;
+      if (saved.model === undefined) delete process.env.LLM_MODEL; else process.env.LLM_MODEL = saved.model;
+    }
+  });
+
   it('an unknown placeholder fails loudly instead of shipping ${GARBAGE} into a unit', () => {
     assert.throws(() => renderServiceTemplate('ExecStart=${NODE_BIN} ${NOT_A_VAR}/x', vars), /unrendered template variable/);
   });

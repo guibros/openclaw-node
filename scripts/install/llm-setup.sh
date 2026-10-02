@@ -58,6 +58,21 @@ LLM_BASE_URL="${LLM_BASE_URL:-http://127.0.0.1:11434}"
 
 step "Wave 2: local LLM model"
 
+# The model may already live on another machine: an endpoint recorded earlier (an operator's
+# server, or the VM host's Ollama that install.sh bridged to) or, in a VM, the host's Ollama now
+# (llm-host.sh). Either way it takes the endpoint path below and nothing is pulled here.
+if [ -f "$REPO_DIR/scripts/install/llm-host.sh" ] && [ "$MODE" != embedder ] && [ -z "$ENDPOINT" ]; then
+  . "$REPO_DIR/scripts/install/llm-host.sh"
+  MODEL="$(grep -m1 '^LLM_MODEL=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)"
+  MODEL="${MODEL:-qwen3:8b}"
+  if ! llm_url_is_local "$LLM_BASE_URL"; then
+    ENDPOINT="$LLM_BASE_URL"; ENDPOINT_MODEL="$MODEL"
+  elif [ "${OPENCLAW_LLM_HOST:-1}" != 0 ] && HOST_URL="$(host_ollama_url)" && ollama_has_model "$HOST_URL" "$MODEL"; then
+    info "VM detected ($(vm_hypervisor)): the host's Ollama at $HOST_URL serves $MODEL — using it"
+    ENDPOINT="$HOST_URL"; ENDPOINT_MODEL="$MODEL"
+  fi
+fi
+
 # ollama is only needed to PULL a local model: --embedder-only and --endpoint
 # both skip it (the model lives in the HF cache or on a remote server).
 if [ "$MODE" != embedder ] && [ -z "$ENDPOINT" ]; then
@@ -85,7 +100,10 @@ EMBEDDER_NEEDED=true
 
 echo ""
 echo "  Detected RAM   : ${RAM_GB} GB"
-if [ -n "$REC" ]; then
+if [ -n "$ENDPOINT" ]; then
+  echo "  LLM endpoint   : ${ENDPOINT}  (${ENDPOINT_MODEL} — no model download)"
+  REC_GB=0
+elif [ -n "$REC" ]; then
   echo "  Recommended    : ${REC}  (~${REC_GB} GB download)"
 else
   echo "  Recommended    : none — ${RAM_GB} GB is below the 16 GB floor"

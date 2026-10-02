@@ -12,6 +12,7 @@ const INSTALL_SH = join(ROOT, 'install.sh');
 
 const MODULES = [
   'helpers.sh',
+  'llm-host.sh',
   'system-deps.sh',
   'env.sh',
   'workspace.sh',

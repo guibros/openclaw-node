@@ -7,8 +7,26 @@ step "Step 8.6: LLM Backend"
 if $SKIP_LLM; then
   info "Skipped (--skip-llm) — extraction degrades to regex; local agents have no provider"
 elif $DRY_RUN; then
-  info "[dry-run] would ensure ollama up, RAM-tier LLM_MODEL, model pulled, embedder prefetched"
-else
+  if llm_url_is_local "$LLM_BASE_URL"; then
+    info "[dry-run] would ensure ollama up, RAM-tier LLM_MODEL, model pulled, embedder prefetched"
+  else
+    info "[dry-run] would check $LLM_BASE_URL serves $LLM_MODEL (remote: no local ollama, no pull), embedder prefetched"
+  fi
+elif ! llm_url_is_local "$LLM_BASE_URL"; then
+  # The model lives on another machine (the VM host's Ollama, or an operator endpoint): nothing
+  # to start or pull here, and this machine's RAM says nothing about which model fits there.
+  if ollama_has_model "$LLM_BASE_URL" "$LLM_MODEL"; then
+    info "LLM served by $LLM_BASE_URL ($LLM_MODEL present)"
+  elif curl -fsS --max-time 5 "$LLM_BASE_URL/api/tags" >/dev/null 2>&1; then
+    warn "$LLM_BASE_URL serves Ollama without $LLM_MODEL — on that machine: ollama pull $LLM_MODEL"
+  elif curl -fsS --max-time 5 "$LLM_BASE_URL/v1/models" >/dev/null 2>&1; then
+    info "LLM endpoint reachable: $LLM_BASE_URL (OpenAI-compatible; $LLM_MODEL not checked)"
+  else
+    warn "LLM endpoint unreachable at $LLM_BASE_URL — extraction degrades to regex until it answers"
+  fi
+fi
+
+if ! $SKIP_LLM && ! $DRY_RUN && llm_url_is_local "$LLM_BASE_URL"; then
   if ! curl -fsS --max-time 3 "$LLM_BASE_URL/api/tags" >/dev/null 2>&1; then
     if command -v ollama >/dev/null 2>&1; then
       info "Starting ollama..."
@@ -58,7 +76,9 @@ else
   else
     warn "ollama unreachable at $LLM_BASE_URL — extraction degrades to regex; local agents have no provider"
   fi
+fi
 
+if ! $SKIP_LLM && ! $DRY_RUN; then
   # Embedder prefetch (Xenova/bge-m3, ~2GB one-time HuggingFace download) so the
   # first real search doesn't stall on it.
   if [ -d "$WORKSPACE/node_modules/@huggingface/transformers" ]; then

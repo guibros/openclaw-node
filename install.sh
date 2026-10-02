@@ -97,12 +97,15 @@ for arg in "$@"; do
       echo "                      (openclaw-trust-peer --my-pubkey on the lead). Merged into"
       echo "                      the deploy/operator trust allowlists so lead-signed actions verify."
       echo "  --enable-services   Also enable and start services after installing"
+      echo "In a VM whose host serves Ollama with the node's model, LLM_BASE_URL points at the host"
+      echo "(nothing runs or downloads in the VM). OPENCLAW_LLM_HOST=0 keeps the VM on its own Ollama."
       exit 0
       ;;
   esac
 done
 
 source "$REPO_DIR/scripts/install/helpers.sh"
+source "$REPO_DIR/scripts/install/llm-host.sh"
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
