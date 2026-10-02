@@ -78,27 +78,43 @@ class TimerControlBundleTests(unittest.TestCase):
 
     def test_private_isolated_bundle_verifies_and_detects_code_change(self):
         with tempfile.TemporaryDirectory(prefix='openclaw-timer-control-owned-') as place:
-            root = pathlib.Path(place).resolve()
-            output = root / 'controller'
-            with patch.object(CONTROL, 'BACKUPS', root):
+            home = pathlib.Path(place).resolve()
+            backups = home / CONTROL.BACKUPS.relative_to(pathlib.Path.home())
+            backups.mkdir(parents=True, mode=0o700)
+            transition = backups / CONTROL.TRANSITION.name
+            entries = backups / CONTROL.ENTRIES.name
+            transition.mkdir(mode=0o700)
+            entries.mkdir(mode=0o700)
+            (transition / 'transition-manifest.json').write_bytes(b'owned transition fixture')
+            gate = entries / 'service_gate.py'
+            gate.write_bytes(SOURCE.with_name('service_gate.py').read_bytes())
+            gate.chmod(0o600)
+            (entries / 'timer-entry-manifest.json').write_text(
+                json.dumps({'files': {str(gate): CONTROL.sha(gate)}}))
+            output = backups / 'controller'
+            # The patches below do not reach the --verify child; it re-derives its pins from HOME.
+            owned = {**os.environ, 'HOME': str(home)}
+            with patch.object(CONTROL, 'BACKUPS', backups), \
+                 patch.object(CONTROL, 'TRANSITION', transition), \
+                 patch.object(CONTROL, 'ENTRIES', entries):
                 result = CONTROL.stage(output)
-            try:
-                command = ['/usr/bin/python3', '-I', '-S', str(output / SOURCE.name),
-                           '--verify', result['manifest_sha256']]
-                passed = subprocess.run(command, capture_output=True, text=True)
-                self.assertEqual(passed.returncode, 0, passed.stderr)
-                loaded = CONTROL.modules(output)
-                self.assertEqual(loaded[1], 'timer-commissioning')
-                target = output / 'journal_hold.py'
-                os.chflags(target, 0)
-                with target.open('ab') as file:
-                    file.write(b'\n')
-                refused = subprocess.run(command, capture_output=True, text=True)
-                self.assertEqual(refused.returncode, 2)
-                self.assertIn('timer control code differs', refused.stderr)
-            finally:
-                for item in output.iterdir():
-                    os.chflags(item, 0)
+                try:
+                    command = ['/usr/bin/python3', '-I', '-S', str(output / SOURCE.name),
+                               '--verify', result['manifest_sha256']]
+                    passed = subprocess.run(command, capture_output=True, text=True, env=owned)
+                    self.assertEqual(passed.returncode, 0, passed.stderr)
+                    loaded = CONTROL.modules(output)
+                    self.assertEqual(loaded[1], 'timer-commissioning')
+                    target = output / 'journal_hold.py'
+                    os.chflags(target, 0)
+                    with target.open('ab') as file:
+                        file.write(b'\n')
+                    refused = subprocess.run(command, capture_output=True, text=True, env=owned)
+                    self.assertEqual(refused.returncode, 2)
+                    self.assertIn('timer control code differs', refused.stderr)
+                finally:
+                    for item in output.iterdir():
+                        os.chflags(item, 0)
 
     def test_full_controller_resolves_and_interrupted_run_recovers_restore_only(self):
         for scenario in ('clean', 'recovery', 'advance-crash'):
