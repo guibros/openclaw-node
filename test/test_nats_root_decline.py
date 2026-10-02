@@ -1,5 +1,7 @@
+import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -91,6 +93,9 @@ class RootDeclineTest(unittest.TestCase):
             self.assertEqual([row['event'] for row in root.records], ['transfer-declined'])
             self.assertEqual(root.current[0]['data']['user_evidence']['transfer'],
                              self.transfer)
+            self.assertEqual(root.current[0]['data']['absence_evidence']['verified'], True)
+            self.assertEqual(root.current[0]['data']['absence_evidence']['transaction'],
+                             self.transaction)
             with self.assertRaisesRegex(nats_root_journal.Refused, 'declined'):
                 root.acquire_after_intent(self.lock, self.absence, self.absence)
             with self.assertRaisesRegex(nats_root_journal.Refused, 'declined'):
@@ -202,6 +207,132 @@ class RootDeclineTest(unittest.TestCase):
         self.lock.write_bytes(b'changed')
         with self.assertRaisesRegex(nats_root_journal.Refused, 'identity differs'):
             self.decline()
+
+    def test_exclusive_carried_lock_holder_refuses_before_decline_record(self):
+        self.previous_return()
+        before = len(list((self.base / 'root-site-ledger').glob('*.json')))
+        script = ('import fcntl,os,sys; '
+                  'fd=os.open(sys.argv[1],os.O_RDONLY); '
+                  'fcntl.flock(fd,fcntl.LOCK_EX); '
+                  'print("held",flush=True);sys.stdin.readline()')
+        holder = subprocess.Popen([sys.executable, '-c', script, str(self.lock)],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  text=True)
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), 'held')
+            with self.assertRaisesRegex(nats_root_journal.Refused, 'exclusive exclusion'):
+                self.decline()
+            self.assertEqual(len(list((self.base / 'root-site-ledger').glob('*.json'))), before)
+            holder.stdin.write('\n')
+            holder.stdin.flush()
+            self.assertEqual(holder.wait(timeout=5), 0)
+        finally:
+            if holder.poll() is None:
+                holder.kill()
+                holder.wait(timeout=5)
+            holder.stdin.close()
+            holder.stdout.close()
+        self.assertEqual(self.decline()['outcome'], 'declined')
+
+    def test_shared_carried_lock_blocks_exclusive_writer_through_append(self):
+        self.previous_return()
+        script = ('import fcntl,os,sys; '
+                  'fd=os.open(sys.argv[1],os.O_RDONLY); '
+                  'fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)')
+        def assert_blocked():
+            probe = subprocess.run([sys.executable, '-c', script, str(self.lock)],
+                                   capture_output=True, text=True, timeout=5)
+            self.assertNotEqual(probe.returncode, 0)
+            self.assertIn('BlockingIOError', probe.stderr)
+        def absence(context):
+            assert_blocked()
+            return {**context, 'verified': True}
+        original_append = nats_root_journal.LockBootstrapJournal._append
+        def append_with_probe(journal, event, **data):
+            if event == 'transfer-declined':
+                assert_blocked()
+            return original_append(journal, event, **data)
+        with patch.object(nats_root_journal.LockBootstrapJournal, '_append',
+                          new=append_with_probe):
+            receipt = nats_root_admission.BoundRootJournal.decline(
+                self.site, self.lock, self.uid, self.gid, self.transaction,
+                self.fixture.node_lock, self.fixture.root, self.uid, absence)
+        self.assertEqual(receipt['outcome'], 'declined')
+
+    def test_oversized_absence_evidence_refuses_before_append(self):
+        def oversized(context):
+            return {**context, 'verified': True, 'detail': 'x' * 65536}
+        with self.assertRaisesRegex(nats_root_journal.Refused, 'physical absence evidence'):
+            nats_root_admission.BoundRootJournal.decline(
+                self.site, self.lock, self.uid, self.gid, self.transaction,
+                self.fixture.node_lock, self.fixture.root, self.uid, oversized)
+        self.assertEqual(list((self.base / 'root-site-ledger').glob('*.json')), [])
+
+    def test_lock_appearing_after_observation_refuses_before_commit(self):
+        original = nats_user_transfer.UserTransfer.recheck
+        calls = 0
+        def recheck(user):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                self.lock.write_text('unexpected lock')
+            return original(user)
+        with patch.object(nats_user_transfer.UserTransfer, 'recheck', new=recheck):
+            with self.assertRaisesRegex(nats_root_journal.Refused, 'unexpectedly appeared'):
+                self.decline()
+        self.assertEqual(list((self.base / 'root-site-ledger').glob('*.json')), [])
+
+    def test_marker_appearing_inside_append_refuses_before_commit(self):
+        original = nats_root_journal.LockBootstrapJournal._append
+        def append_with_marker(journal, event, **data):
+            if event == 'transfer-declined':
+                (self.site / 'writer-handoff.json').write_text('{}')
+            return original(journal, event, **data)
+        with patch.object(nats_root_journal.LockBootstrapJournal, '_append',
+                          new=append_with_marker):
+            with self.assertRaisesRegex(nats_root_journal.Refused, 'marker'):
+                self.decline()
+        self.assertEqual(list((self.base / 'root-site-ledger').glob('*.json')), [])
+
+    def test_carried_lock_replaced_inside_append_refuses_before_commit(self):
+        self.previous_return()
+        before = len(list((self.base / 'root-site-ledger').glob('*.json')))
+        original = nats_root_journal.LockBootstrapJournal._append
+        def append_with_replacement(journal, event, **data):
+            if event == 'transfer-declined':
+                self.lock.unlink()
+                self.lock.write_text('replacement')
+            return original(journal, event, **data)
+        with patch.object(nats_root_journal.LockBootstrapJournal, '_append',
+                          new=append_with_replacement):
+            with self.assertRaises(nats_root_journal.Refused):
+                self.decline()
+        self.assertEqual(len(list((self.base / 'root-site-ledger').glob('*.json'))), before)
+
+    def test_noncanonical_absence_evidence_refuses_before_commit(self):
+        for extra in ({'tuple': (1, 2)}, {'integer_key': {1: 'value'}},
+                      {'nan': float('nan')}):
+            with self.subTest(extra=next(iter(extra))):
+                def absence(context):
+                    return {**context, 'verified': True, **extra}
+                with self.assertRaisesRegex(nats_root_journal.Refused,
+                                            'not canonical JSON'):
+                    nats_root_admission.BoundRootJournal.decline(
+                        self.site, self.lock, self.uid, self.gid, self.transaction,
+                        self.fixture.node_lock, self.fixture.root, self.uid, absence)
+                self.assertEqual(list((self.base / 'root-site-ledger').glob('*.json')), [])
+
+    def test_rehashed_absence_evidence_change_refuses_ledger_replay(self):
+        self.decline()
+        path = self.base / 'root-site-ledger' / '000000.json'
+        record = json.loads(path.read_bytes())
+        record['data']['absence_evidence']['verified'] = False
+        record['sha256'] = nats_root_journal.digest(
+            {key: value for key, value in record.items() if key != 'sha256'})
+        path.write_bytes(nats_root_journal.encoded(record))
+        with self.assertRaisesRegex(nats_root_journal.Refused,
+                                    'physical absence evidence differs'):
+            nats_root_journal.LockBootstrapJournal(self.site, self.uid, self.gid)
 
     def test_marker_and_unexplained_stage_refuse_decline(self):
         marker = self.site / 'writer-handoff.json'
