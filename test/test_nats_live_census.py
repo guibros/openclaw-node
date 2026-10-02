@@ -39,6 +39,16 @@ class LiveCensusTest(unittest.TestCase):
             with self.assertRaisesRegex(Refused, 'unobservable'):
                 census.launchd_service('system', 'ai.openclaw.nats')
 
+    def test_launchd_argument_with_line_separator_is_not_split(self):
+        output = ('gui/501/ai.openclaw.nats = {\n'
+                  '\tpath = /tmp/nats.plist\n\tstate = waiting\n'
+                  '\tprogram = /tmp/nats-server\n'
+                  '\targuments = {\n\t\t/tmp/nats-server\n'
+                  '\t\t/tmp/name\fpart\n\t}\n}\n')
+        with patch.object(census, '_command', return_value=(0, output, '')):
+            observed = census.launchd_service('gui/501', 'ai.openclaw.nats')
+        self.assertEqual(observed['arguments'], ['/tmp/nats-server', '/tmp/name\fpart'])
+
     def test_disabled_override_is_explicit(self):
         output = ('disabled services = {\n'
                   '\t"ai.openclaw.nats-1" => disabled\n'

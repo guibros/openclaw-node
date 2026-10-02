@@ -42,7 +42,7 @@ def launchd_service(domain, label):
                            output, re.MULTILINE)
     if len(arguments) != 1:
         raise Refused(f'launchd service {label} arguments are unobservable')
-    arguments = [line[2:] for line in arguments[0].splitlines()]
+    arguments = [line[2:] for line in arguments[0].split('\n')[:-1]]
     pid = re.findall(r'^\tpid = (\d+)$', output, re.MULTILINE)
     if len(pid) > 1 or state == 'running' and len(pid) != 1:
         raise Refused(f'launchd service {label} has ambiguous process state')
