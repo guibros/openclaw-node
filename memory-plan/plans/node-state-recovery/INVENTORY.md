@@ -768,3 +768,10 @@ assumption hidden by the node's local layout: its owned service plist named
 `/usr/local/bin/node`, absent on the hosted arm64 runner. The fixture now
 pins the installed Node executable selected by the job's PATH. This changes
 only owned test setup; exact CI rerun is required before PR #204 can merge.
+
+Checkpoint 2026-10-02 12:55 EDT: the first local rerun after fixing the
+fixture path exposed the owned recovery adapter's matching hardcoded Node
+path. It now accepts the canonical absolute Node executable already saved
+and content-pinned in the journal, then binds the running process to that
+same path. The previously failing ambiguous-open readiness case passes in
+isolation. Full local and exact-head CI runs remain pending.
