@@ -159,6 +159,7 @@ jobs:
             test_preservation_checks.Gates.test_tailscale_exclusion_captures_physical_chain_and_refuses_wrapper_drift \
             test_preservation_checks.Gates.test_excluded_root_file_rejects_unprivileged_owner
           /usr/bin/python3 memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_journal_hold.py
+          PYTHONPATH="$PWD/memory-plan/plans/node-state-recovery/audits/step12_jetstream" /usr/bin/python3 -m unittest -q test_restore_only
           /usr/bin/python3 test/test_nats_root_admission.py
           /usr/bin/python3 test/test_nats_root_decline.py
           /usr/bin/python3 test/test_nats_macos_proc.py

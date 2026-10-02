@@ -755,3 +755,10 @@ open gate without attempting another journal append. The revised local
 journal/hold suites pass 138/138; exact-head CI and Claude delta review for
 this final follow-up remain pending. The earlier owned restore-only suite
 passed 27/27. No live root or NATS state changed; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:45 EDT: PR #203 merged at `4d6e2c9` after
+exact-head CI 4/4, Claude's no-blocker delta review, and a fresh macOS
+restore-only run passing 27/27 at `93e1e84`. The macOS CI job is being
+extended to run that owned restore-only suite on every source change. This
+does not establish a full-node preservation window, protected root physical
+admission, cold masters, or live NATS restoration; 1.2 stays [A]/v1.2-pre.
