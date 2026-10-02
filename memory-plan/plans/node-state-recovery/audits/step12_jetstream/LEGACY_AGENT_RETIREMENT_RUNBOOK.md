@@ -29,7 +29,9 @@ a password is required`). No root action was attempted.
 At 09:06 EDT, `/etc/sudoers.d/openclaw-mesh` was also present as root:wheel
 0440 (227 bytes). `sudo -n -l` showed three legacy passwordless grants:
 `/bin/launchctl load *`, `/bin/launchctl unload *`, and
-`/usr/bin/killall -9 node`. These can undermine a durable retirement. The
+`/usr/bin/killall -9 node`. They can reload the obsolete root job or stop
+Node services, defeating both durable retirement and the proposed root
+boundary. The
 file's contents and hash require administrator access and have not been read;
 they must be inspected before its separate cleanup below.
 
@@ -56,7 +58,21 @@ the journal; `-n` refuses an absent file, `-t 0` refuses an active owner, and
 Run every following command inside that shell and exit it only after the
 post-action checks. If lock acquisition fails, do nothing. Recheck the
 receipt and root paths while holding it; a pre-lock observation cannot rule
-out a preservation controller starting in between.
+out a preservation controller starting in between. Set `umask 077` in the
+locked shell before writing any census or evidence file. Start from the
+repository root; require the checkout contains the merged Tailscale exclusion
+and record its commit for the evidence:
+
+```sh
+umask 077
+/bin/pwd -P
+/usr/bin/git rev-parse --show-toplevel
+/usr/bin/git merge-base --is-ancestor 8b451da19d95aa3cc605ebe713598241902d365c HEAD
+/usr/bin/git rev-parse HEAD
+```
+
+The physical working directory and Git top level must match. A failed
+ancestor check refuses the action.
 
 Run these checks as the node user inside the locked shell before opening an
 administrator session:
@@ -72,13 +88,13 @@ printf '%s  %s\n' eaa61962d86643d3fa301875b2f65e5fa8c97fd37468840ddabcb1a5f97013
 /bin/test ! -e /private/var/db/openclaw-nats-outcomes
 /bin/launchctl print system/com.openclaw.agent
 /bin/launchctl print-disabled system
-python3 -c 'import json,pathlib,sys; d=json.loads((pathlib.Path.home()/".openclaw/preservation/node.lock.state.json").read_text()); sys.exit(0 if d["status"] == "restored" and d["baseline"]["scope"] == "timer-commissioning" else 2)'
+/usr/bin/python3 -c 'import json,pathlib,sys; d=json.loads((pathlib.Path.home()/".openclaw/preservation/node.lock.state.json").read_text()); sys.exit(0 if d["status"] == "restored" and d["baseline"]["scope"] == "timer-commissioning" else 2)'
 ```
 
 Each line must have the expected result: the plist is root:wheel 0644, the
 job is loaded and enabled, and all `test ! -e` checks succeed. An unexpected
 preflight result ends this procedure. Capture the current NATS launchd and
-process census with `python3 bin/nats-live-census.py` from the repository,
+process census with `/usr/bin/python3 bin/nats-live-census.py` from the repository,
 recording its output in an owner-private file outside Git. Repeat that same
 census after the action and investigate any unexpected change; live stores
 may advance while their servers run, so file counts alone are not an
@@ -87,11 +103,18 @@ equality test.
 ## Root action, in order
 
 From the node-user shell still held by `lockf`, enter a nested root shell with
-`sudo -H /bin/sh`. This avoids loading shell startup code as root. The operator
+`/usr/bin/sudo -H /bin/sh`. This avoids loading shell startup code as root. The operator
 types the password locally, never in chat.
 Keep that root shell open until the sudo policy and job have been verified; it
 is the recovery path if the sudoers change unexpectedly breaks authentication.
 The commands in steps 1–3 below run in this root shell without `sudo`.
+Execute each command separately and inspect its exit status and expected
+output before issuing the next. Never paste a whole fenced block: `/bin/sh`
+continues after a failed line, while the absence probes after `bootout` are
+expected to return nonzero. Those are the post-bootout exact-label
+`launchctl print` and `pgrep` lines; both must say absent. A nonzero `bootout`
+itself is ambiguous and requires physical checks. Stop immediately on any
+other failed check.
 
 1. Inspect the legacy sudoers file before any move. Require root:wheel 0440,
    a regular file with no unexpected rule, and exactly the three effective
@@ -103,7 +126,9 @@ The commands in steps 1–3 below run in this root shell without `sudo`.
    differs, leave both the sudoers file and daemon untouched.
 
    ```sh
-   /usr/bin/stat -f '%Su:%Sg %Lp %z %N' /etc/sudoers.d/openclaw-mesh
+   /usr/bin/stat -f '%Su:%Sg %Lp %HT %z %N' /etc/sudoers.d/openclaw-mesh
+   sudoers_hash=$(/usr/bin/shasum -a 256 /etc/sudoers.d/openclaw-mesh | /usr/bin/awk '{print $1}')
+   printf 'sudoers SHA-256: %s\n' "$sudoers_hash"
    /bin/cat /etc/sudoers.d/openclaw-mesh
    /usr/bin/grep -nE '^[[:space:]]*[#@]include' /etc/sudoers /private/etc/sudoers.d/*
    /usr/sbin/visudo -c
@@ -113,8 +138,12 @@ The commands in steps 1–3 below run in this root shell without `sudo`.
    /bin/test ! -e /private/var/db/openclaw-retired-jobs
    ```
 
-2. Create the owner-protected retirement directory. Capture the sudoers
-   SHA-256 in a root-shell variable, require both destinations absent, and
+   The printed hash must contain exactly 64 hexadecimal characters; save it
+   with the root-side evidence before leaving this shell. If the file changes
+   between the hash and copy, the copy's read-check below refuses.
+
+2. Create the owner-protected retirement directory. Use the inspected and
+   recorded sudoers SHA-256, require both destinations absent, and
    read-check the copy before moving the original. `mv -n` must not overwrite
    a destination. Require the installed path absent, the moved copy identical,
    and sudo policy syntax still valid. If the syntax check fails, keep the root
@@ -122,7 +151,6 @@ The commands in steps 1–3 below run in this root shell without `sudo`.
 
    ```sh
    /usr/bin/install -d -o root -g wheel -m 0700 /private/var/db/openclaw-retired-jobs
-   sudoers_hash=$(/usr/bin/shasum -a 256 /etc/sudoers.d/openclaw-mesh | /usr/bin/awk '{print $1}')
    /bin/test ! -e /private/var/db/openclaw-retired-jobs/openclaw-mesh.sudoers.original
    /bin/test ! -e /private/var/db/openclaw-retired-jobs/openclaw-mesh.sudoers.retired
    /usr/bin/install -o root -g wheel -m 0600 /etc/sudoers.d/openclaw-mesh /private/var/db/openclaw-retired-jobs/openclaw-mesh.sudoers.original
@@ -135,12 +163,30 @@ The commands in steps 1–3 below run in this root shell without `sudo`.
    /bin/sync
    ```
 
+   If `visudo -c` fails after the move, keep the root shell open. Recheck
+   the saved original against `$sudoers_hash` and require the installed path
+   absent, then restore from the saved copy and check policy again:
+
+   ```sh
+   printf '%s  %s\n' "$sudoers_hash" /private/var/db/openclaw-retired-jobs/openclaw-mesh.sudoers.original | /usr/bin/shasum -a 256 -c -
+   /bin/test ! -e /etc/sudoers.d/openclaw-mesh
+   /bin/test ! -L /etc/sudoers.d/openclaw-mesh
+   /usr/bin/install -o root -g wheel -m 0440 /private/var/db/openclaw-retired-jobs/openclaw-mesh.sudoers.original /etc/sudoers.d/openclaw-mesh
+   printf '%s  %s\n' "$sudoers_hash" /etc/sudoers.d/openclaw-mesh | /usr/bin/shasum -a 256 -c -
+   /usr/sbin/visudo -c
+   ```
+
+   This is a failure-recovery branch, never part of the successful sequence.
+   If any recovery check differs, diagnose in the still-open root shell and
+   do not touch the daemon.
+
    With the root shell still open, enter a temporary node-user shell using
-   `/usr/bin/su -l moltymac`. Run `sudo -k`, then `sudo -n -l`: it must now
-   fail specifically because a password is required. Run `sudo -v`, entering
+   `/usr/bin/su -l moltymac`. Run `/usr/bin/sudo -k`, then
+   `/usr/bin/sudo -n -l`: it must now fail specifically because a password is
+   required. Run `/usr/bin/sudo -v`, entering
    the operator password locally, and require success. Exit the temporary
    node-user shell back to the root shell. If fresh authentication fails,
-   diagnose and restore the pinned sudoers file from the still-open root
+   diagnose and use the pinned restore branch above from the still-open root
    shell. This is the lockout guard; do not close root access on an untested
    policy. No repository-managed service needs the removed wildcard grants.
 
@@ -190,7 +236,7 @@ The commands in steps 1–3 below run in this root shell without `sudo`.
    Tailscale helper exclusion, not merely `verified=True`:
 
    ```sh
-   PYTHONPATH=memory-plan/plans/node-state-recovery/audits/step12_jetstream python3 -c 'from preservation_checks import capture_entrypoint_inventory; from preservation_journal import UNITS; import sys; e=capture_entrypoint_inventory(UNITS); sys.exit(0 if e["verified"] is True and "com.openclaw.tailscale-up" in e["excluded"] else 2)'
+   PYTHONPATH=memory-plan/plans/node-state-recovery/audits/step12_jetstream /usr/bin/python3 -c 'from preservation_checks import capture_entrypoint_inventory; from preservation_journal import UNITS; import sys; e=capture_entrypoint_inventory(UNITS); sys.exit(0 if e["verified"] is True and "com.openclaw.tailscale-up" in e["excluded"] else 2)'
    ```
 
    Compare the before/after approved LaunchAgents, NATS process identities and
@@ -202,6 +248,12 @@ The commands in steps 1–3 below run in this root shell without `sudo`.
    shell. Repeat the checks after the next reboot. Structural success does not
    authorize a full-node preservation window, healthy cold masters or NATS
    cutover.
+
+   Before exiting the locked shell, run `/usr/bin/lockf -kn -t 0
+   /Users/moltymac/.openclaw/preservation/node.lock /usr/bin/true` from a
+   **second terminal**. It must fail because the first terminal still holds
+   the lock. If it succeeds, the lock was lost; refuse the retirement claim
+   and re-evaluate the observed state.
 
 If any step fails, preserve every original, copy and observed partial state.
 The recovery root shell must not close while sudo policy is unverified. A

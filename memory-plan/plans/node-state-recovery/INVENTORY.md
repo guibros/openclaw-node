@@ -655,3 +655,13 @@ is disabled, booted out and archived. The node lock remains held until the
 draft head `8558076`; this ordering revision still needs exact-head CI and
 adversarial review. The administrator action is still unexecuted, and 1.2
 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-02 09:39 EDT: Claude's exact-head review of PR #200 at
+`1c3e8ee` confirmed the revised lock/sudoers/daemon order and all four CI
+checks, then found procedural gaps in pasted-block failure handling, sudoers
+hash recording and policy restoration. The next source-only follow-up makes
+each command an individually checked step, prints the inspected sudoers hash,
+provides a pinned restore branch, uses absolute sudo/Python paths, and adds
+checkout, private-output and lock-continuity checks. Exact-head CI and review
+of that follow-up remain pending. No administrator or NATS action has run;
+the protected observer, cold masters and cutover remain open at 1.2 [A].
