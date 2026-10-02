@@ -553,3 +553,18 @@ including a two-link pending-record refusal that preserves both names.
 Exact-head CI and adversarial review of the revised #192 are pending; the
 protected physical observer, three healthy cold masters and production
 cutover remain open at 1.2 [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 06:20 EDT: a read-only 23-unit provisional recapture
+includes the operator-approved host Ollama target `http://192.168.64.1:11434`.
+The mesh-agent and memory-daemon plists now hash to `d0d01ead…` and
+`a3fb84ea…`; the former hashes are present in Foreman backups. Memory-daemon
+PID 37477 started at 2026-10-01 22:34:32 EDT and its argv and LLM setting
+match its plist. The env file and Foreman backup remain 0600; no env-file
+digest is published. All 23 structural states match and 59 direct pins over
+29 distinct files were hashed, but the entrypoint preflight still refuses the
+two loaded unapproved system jobs. See the sanitized diagnostic and
+RUNTIME_EVIDENCE.md. The previous 20-unit capture and the 13:40 mesh-agent
+pin are stale. No full-node journal or cold master exists; 1.2 stays [A] at
+v1.2-pre. The source memory-daemon plist template and separate
+`workspace-bin/install-daemon` renderer lack `LLM_BASE_URL`, so a future
+reinstall would undo the live setting until those source gaps are fixed.
