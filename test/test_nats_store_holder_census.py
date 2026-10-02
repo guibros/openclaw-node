@@ -25,7 +25,8 @@ class HolderCensusTest(unittest.TestCase):
             linked_info = linked.stat()
             def process(pid):
                 if pid == 10:
-                    return {'uid': 501, 'vnodes': [
+                    return {'uid': 501, 'start_sec': 100,
+                            'start_usec': 200, 'cwd': None, 'mappings': [], 'vnodes': [
                         {'fd': 3, 'device': linked_info.st_dev,
                          'inode': linked_info.st_ino, 'links': 1, 'path': str(linked)},
                         {'fd': 4, 'device': linked_info.st_dev,
@@ -76,7 +77,8 @@ class HolderCensusTest(unittest.TestCase):
             def snapshot(pid):
                 calls[pid] += 1
                 if pid == 10 and calls[pid] == 2:
-                    return {'uid': 501, 'vnodes': []}
+                    return {'uid': 501, 'start_sec': 100,
+                            'start_usec': 200, 'cwd': None, 'mappings': [], 'vnodes': []}
                 raise Refused('process changed')
             with patch.object(census.proc, 'list_pids', side_effect=[[10, 11, 12], [10, 12]]), \
                     patch.object(census.proc, 'vnode_snapshot', side_effect=snapshot):
@@ -85,8 +87,50 @@ class HolderCensusTest(unittest.TestCase):
             self.assertEqual(report['exited_pids'], [11])
             self.assertEqual(report['unreadable_pids'], [12])
             self.assertEqual(calls, {10: 2, 11: 2, 12: 2})
-            self.assertIn('open vnode file descriptors only',
+            self.assertIn('open vnode file descriptors, mapped files and working directory',
                           report['coverage']['reference_types'])
+
+    def test_working_directory_inside_store_is_reported(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            for suffix in census.SUFFIXES:
+                (home / '.openclaw' / 'nats' / ('jetstream' + suffix)).mkdir(parents=True)
+            cwd = home / '.openclaw' / 'nats' / 'jetstream' / 'stream'
+            cwd.mkdir()
+            info = cwd.stat()
+            process = {'pid': 10, 'uid': 501, 'start_sec': 100,
+                       'start_usec': 200, 'vnodes': [], 'mappings': [],
+                       'cwd': {'device': info.st_dev, 'inode': info.st_ino,
+                               'links': info.st_nlink, 'path': str(cwd)}}
+            with patch.object(census.proc, 'list_pids', return_value=[10]), \
+                    patch.object(census.proc, 'vnode_snapshot', return_value=process):
+                report = census._observe(home)
+            holders = report['stores']['ai.openclaw.nats']['holders']
+            self.assertEqual(len(holders), 1)
+            self.assertEqual(holders[0]['reference'], 'cwd')
+            self.assertIsNone(holders[0]['fd'])
+            self.assertEqual((holders[0]['start_sec'], holders[0]['start_usec']),
+                             (100, 200))
+
+    def test_closed_fd_mapping_inside_store_is_reported(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            for suffix in census.SUFFIXES:
+                (home / '.openclaw' / 'nats' / ('jetstream' + suffix)).mkdir(parents=True)
+            mapped = home / '.openclaw' / 'nats' / 'jetstream' / 'block'
+            mapped.write_bytes(b'owned')
+            info = mapped.stat()
+            process = {'pid': 10, 'uid': 501, 'start_sec': 100,
+                       'start_usec': 200, 'vnodes': [], 'cwd': None,
+                       'mappings': [{'device': info.st_dev, 'inode': info.st_ino,
+                                     'links': info.st_nlink, 'path': str(mapped)}]}
+            with patch.object(census.proc, 'list_pids', return_value=[10]), \
+                    patch.object(census.proc, 'vnode_snapshot', return_value=process):
+                report = census._observe(home)
+            holders = report['stores']['ai.openclaw.nats']['holders']
+            self.assertEqual(len(holders), 1)
+            self.assertEqual(holders[0]['reference'], 'mmap')
+            self.assertIsNone(holders[0]['fd'])
 
     def test_linked_file_created_after_store_walk_needs_fresh_identity(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -103,7 +147,8 @@ class HolderCensusTest(unittest.TestCase):
                 return [10]
             def snapshot(_):
                 info = late.stat()
-                return {'uid': 501, 'vnodes': [{'fd': 3, 'device': info.st_dev,
+                return {'uid': 501, 'start_sec': 100, 'start_usec': 200,
+                        'cwd': None, 'mappings': [], 'vnodes': [{'fd': 3, 'device': info.st_dev,
                          'inode': info.st_ino, 'links': 1,
                          'path': str(late.resolve())}]}
             with patch.object(census.proc, 'list_pids', side_effect=pids), \
@@ -132,7 +177,8 @@ class HolderCensusTest(unittest.TestCase):
                     (root / 'bridge').symlink_to(outside, target_is_directory=True)
                 return [10]
             def snapshot(_):
-                return {'uid': 501, 'vnodes': [{'fd': 3, 'device': info.st_dev,
+                return {'uid': 501, 'start_sec': 100, 'start_usec': 200,
+                        'cwd': None, 'mappings': [], 'vnodes': [{'fd': 3, 'device': info.st_dev,
                          'inode': info.st_ino, 'links': 1,
                          'path': str(root.resolve() / 'bridge' / 'held')}]}
             with patch.object(census.proc, 'list_pids', side_effect=pids), \

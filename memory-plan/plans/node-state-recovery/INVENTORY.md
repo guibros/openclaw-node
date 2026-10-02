@@ -688,3 +688,13 @@ replaced by a FIFO and root or nested store directories replaced by symlinks
 between checks. This narrows diagnostic read races; neither command is a
 protected root observer or an absence certificate. The live retirement and
 full-node preservation gates remain open work at 1.2 [A].
+
+Checkpoint 2026-10-02 10:33 EDT: PR #201 merged at `0b74e32` with CI 4/4
+and Claude's no-blocker review of `44d5bb3`. The next source slice extends
+the same read-only process snapshots to kernel working-directory and mapped
+file vnode identities, including mappings whose original descriptor closed.
+Owned macOS tests cover a cwd inside a store and an unlinked mapping. This
+does not make the user-run censuses single-instant or authorize physical
+absence; PID reuse, unreadable processes and in-flight descriptors remain
+explicit limits. The guarded legacy retirement is still awaiting local
+administrator authentication, and step 1.2 remains [A]/v1.2-pre.
