@@ -1112,8 +1112,16 @@ The baseline saves the plist, wrapper, app and boot identities together with
 launchd's run count. Every forward inventory compares that exclusion exactly.
 The root transfer reader accepts the same strict excluded-job schema and boot
 identity. A new run, changed app, changed disable state, or missing job ends
-the forward window. Recovery records a fresh exclusion anchor before restoring
-services, then requires it unchanged through final verification and resolution.
+the user journal's forward window. That window ends at the NATS transfer
+intent; root-held transfer needs its own continuous observer before any cold
+master or cutover acceptance. Recovery records a fresh exclusion anchor and a
+durable `excluded_unchanged_since_baseline` boolean before restoring services.
+It is false for a changed or unobserved helper, including a run after transfer
+intent, and must not be read as permission to certify the interrupted window.
+An acceptance reader must reject the original forward certificate after any
+`recovery-started` record; a later true value cannot erase an earlier false.
+Recovery then requires the new anchor unchanged through final verification and
+resolution.
 This lets a reboot or vendor app update be reported and restored without
 claiming the original forward window stayed certified. The managed cohort's
 original static identity still applies. Other `com.openclaw.*` jobs remain

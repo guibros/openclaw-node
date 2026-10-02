@@ -98,9 +98,10 @@ class JournalTests(unittest.TestCase):
             return legacy_journal(root or self.root, prior, boot=boot, node_lock=self.node_lock)
         return Journal(root or self.root, boot=boot, node_lock=self.node_lock)
 
-    def prepared_nats_transfer(self):
+    def prepared_nats_transfer(self, excluded=None):
         prior = full_node_inventory()
         loaded = full_entrypoint_evidence(prior)
+        loaded['excluded'] = copy.deepcopy(excluded or {})
         inventory_patch = patch('preservation_journal.capture_entrypoint_inventory',
                                 side_effect=lambda _: copy.deepcopy(loaded))
         inventory_patch.start()
@@ -449,11 +450,40 @@ class JournalTests(unittest.TestCase):
                     lambda: {'verified': True}, hold=hold)
                 self.assertTrue(result['restored'])
                 self.assertEqual(reopened.records[-1]['event'], 'recovery-finished')
+                self.assertFalse(next(row for row in reopened.records
+                    if row['event'] == 'recovery-started')['excluded_unchanged_since_baseline'])
                 self.assertEqual(reopened.check_entrypoints(final=True)['excluded'],
                                  current['excluded'])
                 reopened.resolve()
 
-    def test_excluded_job_run_during_recovery_blocks_resolution(self):
+    def test_excluded_job_run_during_nats_transfer_is_durably_reported(self):
+        journal, hold, observe, _ = self.prepared_nats_transfer(tailscale_record())
+        transfer = journal.transfer_nats(str(uuid.uuid4()), hold, observe)
+        self.publish_nats_return(journal, transfer)
+        current = copy.deepcopy(journal.entrypoint_inventory)
+        current['loaded']['gui'] = sorted(set(current['loaded']['gui']) -
+            {'ai.openclaw.nats', 'ai.openclaw.nats-2', 'ai.openclaw.nats-3'})
+        current['excluded'][TAILSCALE_LABEL]['launchd']['runs'] = 2
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   side_effect=lambda _: copy.deepcopy(current)):
+            closed = journal.complete_nats_outcome()
+            self.assertEqual(closed['outcome'], 'returned')
+            recovery_hold = SimpleNamespace(journal=journal, prepare=lambda *_: None,
+                complete=lambda *_: {'verified': True})
+            def final_check():
+                current['loaded'] = copy.deepcopy(journal.entrypoint_inventory['loaded'])
+                return {'verified': True}
+            result = journal.recover(lambda *_: self.fail('already restored'),
+                lambda unit, _: {**journal.prior[unit], 'verified': True},
+                final_check, hold=recovery_hold)
+            self.assertTrue(result['restored'], result)
+            started = next(row for row in journal.records if row['event'] == 'recovery-started')
+            self.assertFalse(started['excluded_unchanged_since_baseline'])
+            self.assertEqual(started['entrypoint_excluded'][TAILSCALE_LABEL]['launchd']['runs'], 2)
+            journal.resolve()
+
+
+    def test_excluded_job_run_during_recovery_blocks_that_attempt_and_reanchors_on_retry(self):
         prior = full_node_inventory()
         current = full_entrypoint_evidence(prior)
         current['excluded'] = tailscale_record()
@@ -473,6 +503,14 @@ class JournalTests(unittest.TestCase):
                 self.assertIn('final-state', [row['unit'] for row in result['errors']])
                 with self.assertRaisesRegex(Refused, 'unrestored node'):
                     journal.resolve()
+                retried = journal.recover(lambda *_: self.fail('already restored'),
+                    lambda unit, _: {**prior[unit], 'verified': True},
+                    lambda: {'verified': True}, hold=hold)
+                self.assertTrue(retried['restored'])
+                started = [row for row in journal.records if row['event'] == 'recovery-started']
+                self.assertEqual([row['excluded_unchanged_since_baseline'] for row in started],
+                                 [True, False])
+                journal.resolve()
 
     def test_excluded_job_static_drift_cannot_reanchor_recovery(self):
         prior = full_node_inventory()

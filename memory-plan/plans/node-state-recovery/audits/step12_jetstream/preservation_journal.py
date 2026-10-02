@@ -858,13 +858,17 @@ class Journal:
                 raise
             errors.append({'unit': 'journal', 'reason': type(error).__name__})
         excluded_anchor = None
+        excluded_unchanged = False
         if self.scope == FULL_NODE_SCOPE:
             try:
                 excluded_anchor = capture_entrypoint_inventory(UNITS)['excluded']
+                excluded_unchanged = excluded_anchor == self.entrypoint_inventory['excluded']
             except Exception:
                 pass
-        record('recovery-started', original_boot=self.records[0]['boot'],
-               entrypoint_excluded=excluded_anchor)
+        exclusion = ({'entrypoint_excluded': excluded_anchor,
+                      'excluded_unchanged_since_baseline': excluded_unchanged}
+                     if self.scope == FULL_NODE_SCOPE else {})
+        record('recovery-started', original_boot=self.records[0]['boot'], **exclusion)
         try:
             self.check_entrypoints()
         except Exception as error:
