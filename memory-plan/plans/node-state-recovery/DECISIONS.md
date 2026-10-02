@@ -1034,3 +1034,21 @@ embedded newline can be indistinguishable from two arguments for a waiting
 job. The report declares that limit. Reported
 argument and plist-content digests use a fresh private HMAC key per scan so
 they do not expose an offline guess oracle for future low-entropy secrets.
+
+## D57 — Refuse malformed observe-only ledger input uniformly (2026-10-01 22:33 EDT)
+
+The read-only root ledger inspector must return `Refused` for malformed
+records rather than let JSON recursion or a schema type error escape into a
+future physical observer. It maps only the parsing and schema exception
+classes; existing specific `Refused` reasons remain intact. Before opening a
+record from the held directory, it also checks the named entry's type, so a
+pre-existing device or FIFO is rejected without invoking that entry's open
+behavior. The descriptor type and identity checks still decide any race
+after this preliminary check. This changes no root write or recovery path,
+and it does not authorize production decline.
+
+Claude's review also found a rehashed non-string transaction escaping through
+`uuid.UUID` as `AttributeError`. Both intent and decline validators now
+require a string before parsing, and the observe-only boundary maps any
+remaining `AttributeError` to `Refused`. This leaves the driver path with an
+explicit schema refusal and the diagnostic inspector with a uniform failure.

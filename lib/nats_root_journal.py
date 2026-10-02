@@ -120,6 +120,8 @@ def valid_descriptor(descriptor):
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['lock_nonce']))
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['boot']))):
         raise Refused('root writer lock admission descriptor is incomplete')
+    if not isinstance(descriptor['transaction'], str):
+        raise Refused('root writer lock transaction is invalid')
     try:
         if str(uuid.UUID(descriptor['transaction'])) != descriptor['transaction']:
             raise ValueError('noncanonical transaction UUID')
@@ -185,7 +187,8 @@ def valid_decline(data, site, uid, gid, previous, transactions):
     if not isinstance(data, dict) or set(data) != fields:
         raise Refused('root decline record is incomplete')
     try:
-        canonical = str(uuid.UUID(data['transaction'])) == data['transaction']
+        canonical = (isinstance(data['transaction'], str) and
+                     str(uuid.UUID(data['transaction'])) == data['transaction'])
     except (TypeError, ValueError):
         canonical = False
     inherited = previous['data']['lock'] if previous is not None else None
@@ -247,7 +250,8 @@ class LockBootstrapJournal:
     def inspect_readonly(cls, site, uid, gid):
         try:
             return cls._inspect_readonly(site, uid, gid)
-        except (OSError, subprocess.CalledProcessError) as error:
+        except (OSError, subprocess.CalledProcessError, KeyError, TypeError,
+                ValueError, RecursionError, AttributeError) as error:
             raise Refused('root writer ledger is unobservable') from error
 
     @classmethod
@@ -680,6 +684,10 @@ class LockBootstrapJournal:
                     record_file(path, self.uid, self.gid)
                     raw = path.read_bytes()
                 else:
+                    preliminary = os.stat(name, dir_fd=self.fd,
+                                          follow_symlinks=False)
+                    if not stat.S_ISREG(preliminary.st_mode):
+                        raise Refused('root writer record identity differs')
                     record_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW |
                                         os.O_NONBLOCK | os.O_NOCTTY, dir_fd=self.fd)
                     try:

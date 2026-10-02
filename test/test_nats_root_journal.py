@@ -140,6 +140,63 @@ class RootJournalTest(unittest.TestCase):
             module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
         self.assertTrue(pending.exists())
 
+    def test_readonly_inspection_refuses_fifo_before_open(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        record.unlink()
+        os.mkfifo(record, 0o600)
+        opened_record = []
+        original = os.open
+        def observe_open(path, flags, *args, **kwargs):
+            if path == record.name:
+                opened_record.append(path)
+            return original(path, flags, *args, **kwargs)
+        with patch.object(module.os, 'open', side_effect=observe_open):
+            with self.assertRaisesRegex(module.Refused, 'record identity differs'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+        self.assertEqual(opened_record, [])
+
+    def test_readonly_inspection_maps_malformed_json_to_refusal(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        record.write_bytes(b'[' * 1200 + b'0' + b']' * 1200)
+        with self.assertRaises(module.Refused):
+            module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+        with patch.object(module.json, 'loads', side_effect=RecursionError('deep')):
+            with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
+    def test_readonly_inspection_maps_rehashed_invalid_lock_to_refusal(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
+            self.returned(journal)
+        record = self.ledger / '000003.json'
+        saved = json.loads(record.read_bytes())
+        saved['data']['lock'] = 5
+        saved['sha256'] = module.digest({key: value for key, value in saved.items()
+                                          if key != 'sha256'})
+        record.write_bytes(module.encoded(saved))
+        with self.assertRaises(module.Refused):
+            module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+        with patch.object(module.LockBootstrapJournal, '_validate', side_effect=TypeError('bad')):
+            with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
+    def test_readonly_inspection_refuses_nonstring_transaction(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        saved = json.loads(record.read_bytes())
+        saved['data']['descriptor']['transaction'] = True
+        saved['sha256'] = module.digest({key: value for key, value in saved.items()
+                                          if key != 'sha256'})
+        record.write_bytes(module.encoded(saved))
+        with self.assertRaises(module.Refused):
+            module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
     def test_readonly_inspection_refuses_active_driver(self):
         with self.begin():
             with self.assertRaisesRegex(module.Refused, 'ledger is busy'):

@@ -487,3 +487,32 @@ the production migration. Step 1.2 stays [A] at v1.2-pre.
 Claude's second pass also reproduced a control-character parsing ambiguity;
 the next revision refuses such arguments and keys the report digests per
 scan. Exact-head CI and review remain pending.
+
+Checkpoint 2026-10-01 22:33 EDT: D57 tightens the future observer's root
+ledger input boundary. Observe-only reads precheck record type before open
+and map malformed JSON/schema exceptions to `Refused`. Three new controls
+cover an unopened FIFO, deeply nested JSON, and a rehashed invalid returned
+lock; the focused macOS root-journal suite passes 60/60. This does not add
+the protected physical observer, change NATS state, or lift the root gate.
+
+Checkpoint 2026-10-01 22:57 EDT: PR #188 merged at d5b5c13 after 4/4 green
+CI and Claude's exact-head no-blocker review of its diagnostic scope. D57 was
+rebased onto that source and its related root-journal, decline, admission and
+user-transfer suites pass 97/97 locally. D57 still needs exact CI and review;
+the protected physical absence observer and production cutover gates remain
+open at 1.2 [A]/v1.2-pre.
+
+Checkpoint 2026-10-01 22:59 EDT: PR #190's first Ubuntu CI run exposed a
+Python parser-depth difference: 1,200 nested arrays return a list on that
+runner and are refused by schema validation, while macOS raises recursion.
+The test now accepts either clean refusal for that real input and separately
+forces RecursionError and TypeError to verify uniform boundary mapping. The
+source behavior is unchanged; revised CI and Claude review are pending.
+
+Checkpoint 2026-10-01 23:08 EDT: Claude's PR #190 fuzzing found a non-string
+transaction escaping as `AttributeError` after a record was rehashed. D57 now
+requires string UUIDs in intent and decline validation and maps residual
+attribute errors at the read-only boundary. Both new malformed-transaction
+regressions pass; journal and decline suites pass 83/83 locally. Exact-head
+CI and follow-up adversarial review are pending; root production gates remain
+closed.

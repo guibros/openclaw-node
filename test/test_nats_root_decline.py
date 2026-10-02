@@ -110,6 +110,18 @@ class RootDeclineTest(unittest.TestCase):
             with self.assertRaisesRegex(preservation_journal.Refused, 'restore-only'):
                 user.require_forward()
 
+    def test_readonly_inspection_refuses_nonstring_decline_transaction(self):
+        self.decline()
+        record = self.base / 'root-site-ledger' / '000000.json'
+        saved = json.loads(record.read_bytes())
+        saved['data']['transaction'] = True
+        saved['sha256'] = nats_root_journal.digest({key: value for key, value in saved.items()
+                                                    if key != 'sha256'})
+        record.write_bytes(nats_root_journal.encoded(saved))
+        with self.assertRaises(nats_root_journal.Refused):
+            nats_root_journal.LockBootstrapJournal.inspect_readonly(
+                self.site, self.uid, self.gid)
+
     def test_one_link_pending_intent_is_settled_before_decline(self):
         ledger = self.base / 'root-site-ledger'
         ledger.mkdir(mode=0o700)
