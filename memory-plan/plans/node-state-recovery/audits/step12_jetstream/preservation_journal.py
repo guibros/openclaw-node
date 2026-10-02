@@ -38,12 +38,22 @@ def require_no_nats_marker():
     raise Refused('protected NATS marker already exists')
 
 
-def read_nats_root_return(transaction):
+def require_no_outcome_acl(path):
+    if sys.platform == 'darwin':
+        result = subprocess.run(['/bin/ls', '-lde', str(path)], capture_output=True,
+                                text=True, check=True)
+        require(result.stdout and not any(' allow ' in line
+                                          for line in result.stdout.splitlines()[1:]),
+                'root NATS outcome path has an ACL')
+
+
+def read_nats_root_outcome(transaction):
     try:
         info = NATS_ROOT_OUTCOMES.lstat()
         require(stat.S_ISDIR(info.st_mode) and info.st_uid == NATS_ROOT_UID
                 and stat.S_IMODE(info.st_mode) == 0o755,
                 'root NATS outcome directory identity differs')
+        require_no_outcome_acl(NATS_ROOT_OUTCOMES)
         directory = os.open(NATS_ROOT_OUTCOMES, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
             opened = os.fstat(directory)
@@ -55,15 +65,17 @@ def read_nats_root_return(transaction):
                 require(stat.S_ISREG(file_info.st_mode) and file_info.st_uid == NATS_ROOT_UID
                         and stat.S_IMODE(file_info.st_mode) == 0o644 and file_info.st_nlink == 1,
                         'root NATS outcome identity differs')
+                require_no_outcome_acl(NATS_ROOT_OUTCOMES / (transaction + '.json'))
                 receipt = json.load(handle)
         finally:
             os.close(directory)
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
         raise Refused('root NATS outcome is absent or unreadable') from error
     require(isinstance(receipt, dict) and set(receipt) ==
             {'transaction', 'outcome', 'ledger_sha256', 'user_journal_root',
              'user_baseline_sha256', 'user_transfer_sha256'}
-            and receipt['transaction'] == transaction and receipt['outcome'] == 'returned'
+            and receipt['transaction'] == transaction
+            and receipt['outcome'] in ('returned', 'declined')
             and all(re.fullmatch(r'[0-9a-f]{64}', str(receipt[key])) for key in
                     ('ledger_sha256', 'user_baseline_sha256', 'user_transfer_sha256')),
             'root NATS outcome receipt is incomplete')
@@ -647,7 +659,7 @@ class Journal:
                                           'root_transaction', 'outcome', 'root_ledger_sha256',
                                           'root_receipt_sha256', 'sha256'}
                     and terminal['root_transaction'] == row['root_transaction']
-                    and terminal['outcome'] == 'returned'
+                    and terminal['outcome'] in ('returned', 'declined')
                     and all(re.fullmatch(r'[0-9a-f]{64}', str(terminal[key])) for key in
                             ('root_ledger_sha256', 'root_receipt_sha256')),
                     'NATS transfer closure is incomplete')
@@ -655,15 +667,15 @@ class Journal:
         require(row is self.records[-1], 'NATS transfer intent is no longer terminal')
         return row
 
-    def complete_nats_return(self):
+    def complete_nats_outcome(self):
         require(self.scope == FULL_NODE_SCOPE and self.node_lock is not None,
-                'NATS return requires the full-node preservation owner')
+                'NATS outcome requires the full-node preservation owner')
         require(not self.write_failed and self._read() == self.records,
-                'NATS return requires the exact durable user journal')
+                'NATS outcome requires the exact durable user journal')
         transfer = self.nats_transfer_open()
         require(transfer is not None, 'NATS transfer is not awaiting a root outcome')
         require_no_nats_marker()
-        receipt = read_nats_root_return(transfer['root_transaction'])
+        receipt = read_nats_root_outcome(transfer['root_transaction'])
         require(receipt['user_journal_root'] == str(self.root.resolve())
                 and receipt['user_baseline_sha256'] == self.records[0]['sha256']
                 and receipt['user_transfer_sha256'] == transfer['sha256'],
@@ -671,7 +683,7 @@ class Journal:
         require_no_nats_marker()
         return self._append_durable('nats-transfer-closed',
                                     root_transaction=transfer['root_transaction'],
-                                    outcome='returned',
+                                    outcome=receipt['outcome'],
                                     root_ledger_sha256=receipt['ledger_sha256'],
                                     root_receipt_sha256=hashlib.sha256(encoded(receipt)).hexdigest())
 

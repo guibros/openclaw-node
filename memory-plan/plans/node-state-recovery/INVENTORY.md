@@ -402,3 +402,13 @@ the root-owned copies and may only take the pre-marker return path; it cannot
 readmit the writer. The new reboot fixture passes with the user-transfer
 checks. Production release observations and the full outcome lifecycle remain
 open; the root tripwire stays closed.
+
+Checkpoint 2026-10-01 19:56 EDT: a source-only `declined` outcome is now
+recorded in the existing root ledger under owner and ledger locks when no
+root intent survived. A one-link pending root intent is settled; a published
+intent refuses decline. The root receipt can be republished after a crash,
+and the user closure accepts `declined` for restore-only recovery. Twelve
+focused decline controls, 87 root-side controls, 78 user-journal controls,
+and 17 preservation checks pass locally; adversarial review and CI are pending.
+The physical absence callback remains test-supplied and the
+production transfer/root gates remain closed. Step 1.2 stays [A].

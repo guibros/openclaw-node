@@ -159,6 +159,38 @@ def valid_user_evidence(evidence, descriptor):
             raise Refused('root writer user evidence content differs')
 
 
+def valid_decline(data, site, uid, gid, previous, transactions):
+    fields = {'transaction', 'site', 'lock_path', 'uid', 'gid',
+              'user_journal_root', 'user_baseline_sha256', 'user_transfer_sha256',
+              'transfer_boot', 'decline_boot', 'nonce', 'predecessor', 'lock',
+              'user_evidence', 'absence_sha256'}
+    if not isinstance(data, dict) or set(data) != fields:
+        raise Refused('root decline record is incomplete')
+    try:
+        canonical = str(uuid.UUID(data['transaction'])) == data['transaction']
+    except (TypeError, ValueError):
+        canonical = False
+    inherited = previous['data']['lock'] if previous is not None else None
+    if (not canonical or data['transaction'] in transactions
+            or data['site'] != str(site.absolute()) or data['uid'] != uid
+            or data['gid'] != gid or not isinstance(data['lock_path'], str)
+            or not pathlib.Path(data['lock_path']).is_absolute()
+            or not isinstance(data['user_journal_root'], str)
+            or not pathlib.Path(data['user_journal_root']).is_absolute()
+            or any(not re.fullmatch(r'[0-9a-f]{64}', str(data[key]))
+                   for key in ('user_baseline_sha256', 'user_transfer_sha256',
+                               'transfer_boot', 'decline_boot', 'nonce', 'absence_sha256'))
+            or data['predecessor'] != (previous['sha256'] if previous else None)
+            or data['lock'] != inherited):
+        raise Refused('root decline lineage differs')
+    valid_user_evidence(data['user_evidence'], data)
+    baseline = data['user_evidence']['baseline']
+    transfer = data['user_evidence']['transfer']
+    if (baseline.get('boot') != data['transfer_boot']
+            or transfer.get('boot') != data['transfer_boot']):
+        raise Refused('root decline transfer boot differs')
+
+
 class LockBootstrapJournal:
     def __init__(self, site, uid, gid):
         if sys.platform == 'darwin' and os.geteuid() == 0:
@@ -205,18 +237,28 @@ class LockBootstrapJournal:
         self.close()
 
     def _validate(self):
-        if not self.records or self.records[0]['event'] != 'lock-create-intent':
+        if not self.records or self.records[0]['event'] not in ('lock-create-intent',
+                                                               'transfer-declined'):
             raise Refused('root writer lock intent is absent')
         segments = []
         for row in self.records:
-            if row['event'] == 'lock-create-intent':
-                if segments and segments[-1][-1]['event'] != 'returned':
+            if row['event'] in ('lock-create-intent', 'transfer-declined'):
+                if segments and segments[-1][-1]['event'] not in ('returned',
+                                                                   'transfer-declined'):
                     raise Refused('root writer ledger has competing transactions')
                 segments.append([])
             segments[-1].append(row)
         previous = None
         transactions = set()
         for segment in segments:
+            if segment[0]['event'] == 'transfer-declined':
+                if len(segment) != 1:
+                    raise Refused('root decline has an unknown continuation')
+                valid_decline(segment[0]['data'], self.site, self.uid, self.gid,
+                              previous, transactions)
+                transactions.add(segment[0]['data']['transaction'])
+                previous = segment[0]
+                continue
             begin = segment[0]['data']
             if not isinstance(begin, dict) or 'descriptor' not in begin:
                 raise Refused('root writer lock intent is incomplete')
@@ -310,12 +352,17 @@ class LockBootstrapJournal:
             inherited = None
             if journal.records:
                 journal._validate()
-                if journal.current[-1]['event'] != 'returned':
+                if journal.current[-1]['event'] not in ('returned', 'transfer-declined'):
                     raise Refused('root writer ledger already has an active transaction')
-                if any(row['data']['descriptor']['transaction'] == transaction
-                       for row in journal.records if row['event'] == 'lock-create-intent'):
+                if any((row['data']['descriptor']['transaction'] if row['event'] ==
+                        'lock-create-intent' else row['data']['transaction']) == transaction
+                       for row in journal.records if row['event'] in
+                       ('lock-create-intent', 'transfer-declined')):
                     raise Refused('root writer transaction was reused')
-                journal.read_returned_outcome()
+                if journal.current[-1]['event'] == 'returned':
+                    journal.read_returned_outcome()
+                else:
+                    journal.read_declined_outcome()
                 predecessor = journal.current[-1]['sha256']
                 inherited = journal.current[-1]['data']['lock']
             if inherited is None:
@@ -341,6 +388,101 @@ class LockBootstrapJournal:
         except BaseException:
             journal.close()
             raise
+
+    @classmethod
+    def decline(cls, site, lock_path, uid, gid, transaction, user, verify_absence):
+        if sys.platform == 'darwin' and os.geteuid() == 0:
+            raise Refused('production root decline awaits physical admission')
+        if not callable(verify_absence):
+            raise Refused('root decline requires a physical absence check')
+        site = pathlib.Path(site)
+        target = pathlib.Path(lock_path)
+        protected_parent(site, uid, gid)
+        directory(site, uid, gid, 0o755)
+        bootstrap_target(site, target)
+        root = site.parent / (site.name + '-ledger')
+        protected_parent(root, uid, gid)
+        try:
+            root.mkdir(mode=0o700)
+            sync_dir(root.parent)
+        except FileExistsError:
+            pass
+        directory(root, uid, gid, 0o700)
+        journal = object.__new__(cls)
+        journal.site, journal.root, journal.uid, journal.gid = site, root, uid, gid
+        journal.fd = journal._exclusive()
+        try:
+            journal.records = journal._read()
+            if journal.records:
+                journal._validate()
+            observed = user.recheck()
+            if observed['root_transaction'] != transaction:
+                raise Refused('root decline does not bind the user transfer')
+            evidence = {'baseline': user.records[0], 'transfer': user.records[-1]}
+            previous = journal.current[-1] if journal.records else None
+            if previous is not None and previous['event'] not in ('returned',
+                                                                   'transfer-declined'):
+                raise Refused('root intent exists; decline is forbidden')
+            if previous is not None and previous['event'] == 'transfer-declined' and \
+                    previous['data']['transaction'] == transaction:
+                saved = previous['data']
+                if (saved['user_evidence'] != evidence
+                        or saved['user_journal_root'] != observed['journal_root']
+                        or saved['lock_path'] != str(target.absolute())):
+                    raise Refused('root decline reentry differs from the pinned transfer')
+                journal._decline_absence(target, saved['lock'], transaction,
+                                         observed['head'], verify_absence)
+                return journal.publish_declined_outcome()
+            if any((row['data']['descriptor']['transaction'] if row['event'] ==
+                    'lock-create-intent' else row['data']['transaction']) == transaction
+                   for row in journal.records if row['event'] in
+                   ('lock-create-intent', 'transfer-declined')):
+                raise Refused('root transaction was already used')
+            if previous is not None:
+                if previous['event'] == 'returned':
+                    journal.read_returned_outcome()
+                else:
+                    journal.read_declined_outcome()
+            inherited = previous['data']['lock'] if previous is not None else None
+            absence = journal._decline_absence(target, inherited, transaction,
+                                                observed['head'], verify_absence)
+            user.recheck()
+            data = {'transaction': transaction, 'site': str(site.absolute()),
+                    'lock_path': str(target.absolute()), 'uid': uid, 'gid': gid,
+                    'user_journal_root': observed['journal_root'],
+                    'user_baseline_sha256': observed['baseline_sha256'],
+                    'user_transfer_sha256': observed['head'],
+                    'transfer_boot': user.records[0]['boot'],
+                    'decline_boot': boot_identity(),
+                    'nonce': uuid.uuid4().hex + uuid.uuid4().hex,
+                    'predecessor': previous['sha256'] if previous else None,
+                    'lock': inherited, 'user_evidence': evidence,
+                    'absence_sha256': digest(absence)}
+            valid_decline(data, site, uid, gid, previous, set())
+            journal._append('transfer-declined', **data)
+            return journal.publish_declined_outcome()
+        finally:
+            journal.close()
+
+    def _decline_absence(self, target, lock, transaction, transfer_sha256, callback):
+        protected_parent(target, self.uid, self.gid)
+        if present(self.site / 'writer-handoff.json'):
+            raise Refused('root marker blocks decline')
+        if any(path.name.startswith('.openclaw-nats-lock-') for path in target.parent.iterdir()):
+            raise Refused('unexplained writer lock stage blocks decline')
+        self._check_terminal_lock(target, lock)
+        context = {'transaction': transaction, 'boot': boot_identity(),
+                   'phase': 'before-decline', 'lock': lock,
+                   'user_transfer_sha256': transfer_sha256}
+        evidence = callback(json.loads(encoded(context)))
+        if (not isinstance(evidence, dict) or evidence.get('verified') is not True
+                or any(evidence.get(key) != value for key, value in context.items())):
+            raise Refused('root decline physical absence is unverified')
+        if present(self.site / 'writer-handoff.json') or any(
+                path.name.startswith('.openclaw-nats-lock-') for path in target.parent.iterdir()):
+            raise Refused('root handoff changed during decline observation')
+        self._check_terminal_lock(target, lock)
+        return evidence
 
     def _read(self):
         entries = sorted(self.root.iterdir())
@@ -405,7 +547,7 @@ class LockBootstrapJournal:
         pending.unlink()
         sync_dir(self.root)
         self.records.append(record)
-        if event == 'lock-create-intent':
+        if event in ('lock-create-intent', 'transfer-declined'):
             self.current = [record]
         else:
             self.current.append(record)
@@ -515,6 +657,9 @@ class LockBootstrapJournal:
     def _check_returned_lock(self):
         lock = self.current[-1]['data']['lock']
         path = pathlib.Path(self.current[0]['data']['descriptor']['lock_path'])
+        self._check_terminal_lock(path, lock)
+
+    def _check_terminal_lock(self, path, lock):
         if lock is None:
             if present(path):
                 raise Refused('returned lock unexpectedly appeared')
@@ -522,9 +667,7 @@ class LockBootstrapJournal:
               or path.lstat().st_nlink != 1 or path.lstat().st_ctime_ns != lock['ctime_ns']):
             raise Refused('returned writer lock identity changed')
 
-    def read_returned_outcome(self):
-        receipt = self._returned_receipt()
-        self._check_returned_lock()
+    def _read_outcome(self, receipt):
         root = self._outcome_path()
         protected_parent(root, self.uid, self.gid)
         directory(root, self.uid, self.gid, 0o755)
@@ -538,11 +681,29 @@ class LockBootstrapJournal:
             raise Refused('root writer returned outcome differs from ledger')
         return receipt
 
-    def publish_returned_outcome(self):
-        if sys.platform == 'darwin' and os.geteuid() == 0:
-            raise Refused('production root writer bootstrap awaits lifecycle recovery')
+    def read_returned_outcome(self):
         receipt = self._returned_receipt()
         self._check_returned_lock()
+        return self._read_outcome(receipt)
+
+    def _declined_receipt(self):
+        if self.current[0]['event'] != 'transfer-declined':
+            raise Refused('root transfer has no declined outcome')
+        record = self.current[0]
+        saved = record['data']
+        return {'transaction': saved['transaction'], 'outcome': 'declined',
+                'ledger_sha256': record['sha256'],
+                'user_journal_root': saved['user_journal_root'],
+                'user_baseline_sha256': saved['user_baseline_sha256'],
+                'user_transfer_sha256': saved['user_transfer_sha256']}
+
+    def read_declined_outcome(self):
+        receipt = self._declined_receipt()
+        saved = self.current[0]['data']
+        self._check_terminal_lock(pathlib.Path(saved['lock_path']), saved['lock'])
+        return self._read_outcome(receipt)
+
+    def _publish_outcome(self, receipt):
         if present(self.site / 'writer-handoff.json'):
             raise Refused('root writer marker blocks returned outcome')
         root = self._outcome_path()
@@ -577,7 +738,22 @@ class LockBootstrapJournal:
                 sync_fd(handle.fileno())
             os.rename(pending, final)
             sync_dir(root)
-        return self.read_returned_outcome()
+        return self._read_outcome(receipt)
+
+    def publish_returned_outcome(self):
+        if sys.platform == 'darwin' and os.geteuid() == 0:
+            raise Refused('production root writer bootstrap awaits lifecycle recovery')
+        receipt = self._returned_receipt()
+        self._check_returned_lock()
+        return self._publish_outcome(receipt)
+
+    def publish_declined_outcome(self):
+        if sys.platform == 'darwin' and os.geteuid() == 0:
+            raise Refused('production root decline awaits physical admission')
+        receipt = self._declined_receipt()
+        saved = self.current[0]['data']
+        self._check_terminal_lock(pathlib.Path(saved['lock_path']), saved['lock'])
+        return self._publish_outcome(receipt)
 
     def return_before_marker(self, lock_path, verify_release, seconds=10):
         if sys.platform == 'darwin' and os.geteuid() == 0:
@@ -586,6 +762,8 @@ class LockBootstrapJournal:
             raise Refused('root writer return requires a verified boot and release check')
         current_boot = boot_identity()
         bootstrap_target(self.site, lock_path)
+        if self.current[0]['event'] == 'transfer-declined':
+            raise Refused('declined root transaction cannot return')
         if self.current[-1]['event'] == 'returned':
             return self.publish_returned_outcome()
         saved = self.current[0]['data']['descriptor']
@@ -653,6 +831,8 @@ class LockBootstrapJournal:
         if not callable(observe_admission) or not callable(process_census):
             raise Refused('root lock needs admission and process census checks')
         bootstrap_target(self.site, lock_path)
+        if self.current[0]['event'] == 'transfer-declined':
+            raise Refused('declined root transaction cannot be admitted')
         if present(self.site / 'writer-handoff.json'):
             raise Refused('root writer handoff needs the full recovery journal')
         segment = self.current

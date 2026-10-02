@@ -168,17 +168,17 @@ class JournalTests(unittest.TestCase):
         receipt = self.publish_nats_return(journal, transfer)
         receipt.chmod(0o600)
         with self.assertRaisesRegex(Refused, 'outcome identity differs'):
-            journal.complete_nats_return()
+            journal.complete_nats_outcome()
         receipt.chmod(0o644)
         self.publish_nats_return(journal, transfer, user_transfer_sha256='0' * 64)
         with self.assertRaisesRegex(Refused, 'does not bind'):
-            journal.complete_nats_return()
+            journal.complete_nats_outcome()
         self.publish_nats_return(journal, transfer)
         marker.write_text('{}')
         with self.assertRaisesRegex(Refused, 'marker already exists'):
-            journal.complete_nats_return()
+            journal.complete_nats_outcome()
         marker.unlink()
-        closed = journal.complete_nats_return()
+        closed = journal.complete_nats_outcome()
         self.assertEqual(closed['outcome'], 'returned')
         self.assertIsNone(journal.nats_transfer_open())
         marker.write_text('{}')
@@ -194,6 +194,19 @@ class JournalTests(unittest.TestCase):
             self.assertIsNone(reopened.nats_transfer_open())
             with self.assertRaisesRegex(Refused, 'restore-only'):
                 reopened.require_forward()
+
+    def test_nats_return_refuses_root_outcome_acl(self):
+        journal, hold, observe, _ = self.prepared_nats_transfer()
+        transfer = journal.transfer_nats(str(uuid.uuid4()), hold, observe)
+        self.publish_nats_return(journal, transfer)
+        def listed(argv, **_):
+            entry = ' 0: user:operator allow read,write\n' if argv[-1].endswith('.json') else ''
+            return subprocess.CompletedProcess(argv, 0, stdout='root outcome\n' + entry)
+        with patch.object(preservation_journal.sys, 'platform', 'darwin'), patch.object(
+                preservation_journal.subprocess, 'run', side_effect=listed):
+            with self.assertRaisesRegex(Refused, 'outcome path has an ACL'):
+                journal.complete_nats_outcome()
+        self.assertIsNotNone(journal.nats_transfer_open())
 
     def test_production_transfer_refuses_before_durable_intent(self):
         journal, hold, observe, _ = self.prepared_nats_transfer()
