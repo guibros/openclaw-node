@@ -699,3 +699,14 @@ does not make the user-run censuses single-instant or authorize physical
 absence; PID reuse, unreadable processes and in-flight descriptors remain
 explicit limits. The guarded legacy retirement is still awaiting local
 administrator authentication, and step 1.2 remains [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 11:09 EDT: PR #202 merged at `bfe997e8` after exact-head
+CI 4/4 and Claude's no-blocker review of `f7238e3`. Cwd and mapped-vnode
+observations remain diagnostic only. Claude's next read-only driver challenge
+found that the full-node user journal guarded NATS restoration only after a
+returned transfer. D61's source correction applies marker and shared-lock
+checks to every full-node NATS recovery, including no-transfer windows. Owned
+marker and exclusive-lock controls pass with the 85-test journal suite. Exact
+CI and adversarial review of this change are pending. The production driver,
+protected observer, healthy cold masters, and live retirement remain open;
+step 1.2 stays [A]/v1.2-pre.

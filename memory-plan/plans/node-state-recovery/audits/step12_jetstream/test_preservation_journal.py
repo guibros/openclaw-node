@@ -92,6 +92,13 @@ class JournalTests(unittest.TestCase):
         self.parent.mkdir(mode=0o700)
         self.root = self.parent / 'journal'
         self.node_lock = pathlib.Path(self.temp.name) / 'node.lock'
+        self.nats_marker = pathlib.Path(self.temp.name) / 'writer-handoff.json'
+        self.nats_lock = pathlib.Path(self.temp.name) / 'writer.lock'
+        for name, path in (('NATS_WRITER_MARKER', self.nats_marker),
+                           ('NATS_LEGACY_LOCK', self.nats_lock)):
+            guarded = patch.object(preservation_journal, name, path)
+            guarded.start()
+            self.addCleanup(guarded.stop)
 
     def journal(self, prior=None, boot='boot-a', root=None):
         if prior is not None:
@@ -294,6 +301,53 @@ class JournalTests(unittest.TestCase):
                 self.assertFalse(result['restored'])
                 self.assertIn('entrypoints', [row['unit'] for row in result['errors']])
                 self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
+
+    def test_full_scope_recovery_refuses_root_marker_without_transfer(self):
+        prior = full_node_inventory()
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   return_value=full_entrypoint_evidence(prior)):
+            with Journal(self.root, prior, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                before = len(journal.records)
+                self.nats_marker.write_text('{}')
+                with self.assertRaisesRegex(Refused, 'marker already exists'):
+                    journal.recover(lambda *_: self.fail('restoration entered'),
+                                    lambda *_: self.fail('observation entered'),
+                                    lambda: self.fail('readiness entered'), hold=SimpleNamespace(journal=journal))
+                self.assertEqual(len(journal.records), before)
+
+    def test_full_scope_recovery_refuses_exclusive_writer_without_transfer(self):
+        prior = full_node_inventory()
+        current = copy.deepcopy(prior)
+        current['nats'].update(loaded=False, running=False)
+        self.nats_lock.write_bytes(b'owned lock')
+        self.nats_lock.chmod(0o644)
+        script = ('import fcntl,os,sys; '
+                  'fd=os.open(sys.argv[1],os.O_RDONLY); '
+                  'fcntl.flock(fd,fcntl.LOCK_EX); '
+                  'print("locked",flush=True); sys.stdin.read()')
+        holder = subprocess.Popen([sys.executable, '-c', script, str(self.nats_lock)],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), 'locked')
+            with patch('preservation_journal.NATS_ROOT_UID', os.getuid()), patch(
+                    'preservation_journal.capture_entrypoint_inventory',
+                    return_value=full_entrypoint_evidence(prior)):
+                with Journal(self.root, prior, node_lock=self.node_lock,
+                             scope=FULL_NODE_SCOPE) as journal:
+                    restored = []
+                    hold = SimpleNamespace(journal=journal, prepare=lambda *_: None)
+                    result = journal.recover(lambda unit, _: restored.append(unit),
+                        lambda unit, _: {**current[unit], 'verified': True},
+                        lambda: {'verified': True}, hold=hold)
+                    self.assertFalse(result['restored'])
+                    self.assertEqual(restored, [])
+                    self.assertIn('nats', [error['unit'] for error in result['errors']])
+                    self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
+        finally:
+            holder.stdin.close()
+            self.assertEqual(holder.wait(timeout=5), 0)
+            holder.stdout.close()
 
     def test_full_scope_refuses_loaded_inactive_or_restarted_job(self):
         prior = full_node_inventory()

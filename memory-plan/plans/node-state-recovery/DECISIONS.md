@@ -1135,3 +1135,20 @@ its run counter to the same value after such a reload. The physical driver
 still needs the continuous launchd/process watch and operator control over
 root service changes. The source exclusion alone does not authorize a full-node
 journal, healthy NATS stop, protected root bootstrap, or acceptance of 1.2.
+
+## D61 — Apply old-writer exclusion to every full-node NATS recovery (2026-10-02 11:08 EDT)
+
+The user journal previously checked the protected marker and held the shared
+old-writer lock only after a returned NATS transfer. A full-node restoration
+without any transfer could observe or restart the three legacy servers without
+that check. Full-node recovery now refuses an existing marker before its first
+write and before final physical verification. Each NATS unit's observation,
+possible restoration, and verification run under the shared old-writer lock,
+including an already-running unit and a window with no transfer. An exclusive
+root holder or a published marker therefore refuses rather than permitting a
+legacy writer to start. The root protocol still requires a durable user
+transfer before publication; this user-side guard does not substitute for
+root physical observation or authorize migration. Owned controls hold the
+lock exclusively and publish a test marker to prove both refusals. The
+production full-node driver, complete readiness checks, legacy root-job
+retirement, healthy cold masters, and cutover remain open at 1.2.

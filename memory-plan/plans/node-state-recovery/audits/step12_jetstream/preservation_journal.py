@@ -820,8 +820,7 @@ class Journal:
 
     def recover(self, restore, observe, final_check, diagnostics=None, hold=None):
         require(self.nats_transfer_open() is None, 'NATS transfer is open; await a root outcome')
-        returned_transfer = any(row['event'] == 'nats-transfer-closed' for row in self.records)
-        if returned_transfer:
+        if self.scope == FULL_NODE_SCOPE:
             require_no_nats_marker()
         require(self.node_lock is not None and (self.lock is not None or self.write_failed),
                 'recovery requires the node lock')
@@ -882,34 +881,31 @@ class Journal:
             prior = self.prior[unit]
             def verify():
                 actual = observe(unit, prior)
-                if returned_transfer and unit.startswith('nats'):
-                    require_no_nats_marker()
                 require(actual.get('identity') == prior['identity'], 'immutable service identity changed')
                 require(matches(actual, prior), 'prior service state was not restored')
                 require(actual.get('verified') is True, 'service readiness was not verified')
                 return actual
             try:
-                actual = observe(unit, prior)
-                if returned_transfer and unit.startswith('nats'):
-                    require_no_nats_marker()
-                require(all(isinstance(actual.get(k), bool) for k in ('loaded', 'running', 'disabled')),
-                        'actual service state is incomplete')
-                require(actual.get('identity') == prior['identity'], 'immutable service identity changed')
-                record('recovery-observed', unit=unit, evidence=actual)
-                if matches(actual, prior):
-                    require(actual.get('verified') is True, 'existing service readiness was not verified')
-                    record('already-restored', unit=unit, evidence=actual)
-                    continue
-                require(prior['class'] not in ('held', 'absent'), 'held or absent unit needs manual restoration')
-                require(not (prior['class'] == 'timer' and actual['loaded'] and actual['running']),
-                        'timer is busy; re-observe after its current run')
-                require(not (prior['class'] == 'on-demand' and actual['loaded'] and actual['running']),
-                        'on-demand worker is running; operator handoff required')
-                if held:
-                    hold.before_restore()
-                record('restoration-intent', unit=unit, action='restore-prior')
-                guard = nats_legacy_restore_guard() if returned_transfer and unit.startswith('nats') else contextlib.nullcontext()
+                guard = (nats_legacy_restore_guard() if self.scope == FULL_NODE_SCOPE
+                         and unit in NATS_TRANSFER_UNITS else contextlib.nullcontext())
                 with guard:
+                    actual = observe(unit, prior)
+                    require(all(isinstance(actual.get(k), bool) for k in ('loaded', 'running', 'disabled')),
+                            'actual service state is incomplete')
+                    require(actual.get('identity') == prior['identity'], 'immutable service identity changed')
+                    record('recovery-observed', unit=unit, evidence=actual)
+                    if matches(actual, prior):
+                        require(actual.get('verified') is True, 'existing service readiness was not verified')
+                        record('already-restored', unit=unit, evidence=actual)
+                        continue
+                    require(prior['class'] not in ('held', 'absent'), 'held or absent unit needs manual restoration')
+                    require(not (prior['class'] == 'timer' and actual['loaded'] and actual['running']),
+                            'timer is busy; re-observe after its current run')
+                    require(not (prior['class'] == 'on-demand' and actual['loaded'] and actual['running']),
+                            'on-demand worker is running; operator handoff required')
+                    if held:
+                        hold.before_restore()
+                    record('restoration-intent', unit=unit, action='restore-prior')
                     restore(unit, prior)
                     if held:
                         hold.check_closed()
@@ -933,7 +929,7 @@ class Journal:
             except Exception as error:
                 errors.append({'unit': unit, 'reason': type(error).__name__})
         try:
-            if returned_transfer:
+            if self.scope == FULL_NODE_SCOPE:
                 require_no_nats_marker()
             evidence = final_check()
             require(isinstance(evidence, dict) and evidence.get('verified') is True,
