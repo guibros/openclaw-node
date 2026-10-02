@@ -1053,6 +1053,34 @@ require a string before parsing, and the observe-only boundary maps any
 remaining `AttributeError` to `Refused`. This leaves the driver path with an
 explicit schema refusal and the diagnostic inspector with a uniform failure.
 
+## D58 — Report readable store holders without an absence verdict (2026-10-01 23:04 EDT)
+
+The next diagnostic slice scans vnode descriptors for every process name it
+can read, not only `nats-server`. It matches linked store entries by device
+and inode and can identify an unlinked handle when the kernel retains a path
+under one of the four store roots. Unlinked handles on a store device with no
+attributable path are counted separately. Inaccessible PIDs and a changed PID
+list remain visible in the report. The scan does not establish a single
+instant or physical absence, and has no path into the root decline callback.
+Root-run protected observation and writer-lock bracketing are still required
+before any migration decision.
+
+Claude's exact-head challenge found that resolving a retained kernel path
+against the current filesystem could turn an unrelated deleted file into a
+false store holder if its former directory became a symlink. Path comparison
+is now lexical. An unlinked descriptor can match its retained path; a linked
+descriptor missing from the earlier store walk only matches after a fresh
+directory-descriptor traversal with no-follow opens at every component and a
+final no-follow stat confirms the kernel device/inode. The opened store root
+must still have its walked identity. This avoids traversing arbitrary observed
+process paths while finding files created after the walk and refusing a
+symlink inserted inside the store. A failed process snapshot is retried once,
+then separated into exited or still-unreadable PIDs. The report states that it
+covers open vnode file descriptors, not closed-descriptor mappings, cwd/root
+references, or in-flight descriptors. Alternate firmlink or case spellings
+can remain unattributed. None of these diagnostic observations certifies
+physical absence.
+
 ## D59 — Reject malformed returned-lock data in the root driver (2026-10-01 23:16 EDT)
 
 A rehashed `returned` record whose `lock` was a JSON scalar escaped the root
