@@ -1098,3 +1098,40 @@ both parse and canonical chain-encoding depth errors become `Refused`. An
 interrupted pending record with excessive depth remains ambiguous rather than
 escaping as an unhandled exception. This protects the refusal boundary for
 malformed bytes; it does not assert that the ledger is physically complete.
+
+## D60 — Pin the idle Tailscale helper as an explicit full-node exclusion (2026-10-02 08:00 EDT)
+
+The root-managed `com.openclaw.tailscale-up` job may be excluded from the
+23-unit preservation cohort only while its exact one-shot plist is installed
+at the system path, loaded only in the system domain, enabled, idle, and last
+exited successfully. The plist key set is limited to `Label`, exact
+`ProgramArguments`, and `RunAtLoad=true`; its loaded program, arguments,
+properties, and domain must agree. The root-owned wrapper and protected
+ancestors are checked, and the Tailscale app must retain the vendor signature.
+The baseline saves the plist, wrapper, app and boot identities together with
+launchd's run count. Every forward inventory compares that exclusion exactly.
+The root transfer reader accepts the same strict excluded-job schema and boot
+identity. A new run, changed app, changed disable state, or missing job ends
+the user journal's forward window. That window ends at the NATS transfer
+intent; root-held transfer needs its own continuous observer before any cold
+master or cutover acceptance. Recovery records a fresh exclusion anchor and a
+durable `excluded_unchanged_since_baseline` boolean before restoring services.
+It is false for a changed or unobserved helper, including a run after transfer
+intent, and must not be read as permission to certify the interrupted window.
+The user journal's full-node completion is restoration, not cold-master
+acceptance. Root-side observation must decide acceptance before restoration
+begins; no reader may turn a `recovery-started` true into a certificate, and a
+later true value cannot erase an earlier false.
+Recovery then requires the new anchor unchanged through final verification and
+resolution.
+This lets a reboot or vendor app update be reported and restored without
+claiming the original forward window stayed certified. The managed cohort's
+original static identity still applies. Other `com.openclaw.*` jobs remain
+unknown and refuse; this does not exclude or retire `com.openclaw.agent`.
+
+The no-run argument assumes no out-of-band root `bootout` followed by
+`bootstrap` of this label during the preservation window: launchd can reset
+its run counter to the same value after such a reload. The physical driver
+still needs the continuous launchd/process watch and operator control over
+root service changes. The source exclusion alone does not authorize a full-node
+journal, healthy NATS stop, protected root bootstrap, or acceptance of 1.2.

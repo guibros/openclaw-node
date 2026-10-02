@@ -12,7 +12,8 @@ import subprocess
 import sys
 import uuid
 
-from preservation_checks import RESUME_ORDER, Refused, capture_entrypoint_inventory, require
+from preservation_checks import (RESUME_ORDER, Refused, capture_entrypoint_inventory,
+                                 require, valid_tailscale_exclusion)
 
 
 UNITS = frozenset((*RESUME_ORDER, 'nats-1', 'federation-tick'))
@@ -285,10 +286,13 @@ def valid_prior(prior, scope=None):
 
 def valid_entrypoint_inventory(evidence, prior):
     require(isinstance(evidence, dict) and evidence.get('verified') is True
-            and set(evidence) == {'verified', 'installed', 'loaded', 'roots', 'disabled_artifacts'},
+            and set(evidence) == {'verified', 'installed', 'loaded', 'roots',
+                                  'disabled_artifacts', 'excluded'},
             'full-node entrypoint inventory is absent')
     installed = evidence['installed']
     loaded = evidence['loaded']
+    excluded = evidence['excluded']
+    valid_tailscale_exclusion(excluded)
     require(isinstance(installed, dict) and set(installed) ==
             {'ai.openclaw.' + unit for unit in UNITS},
             'full-node installed entrypoints differ from the baseline')
@@ -300,6 +304,8 @@ def valid_entrypoint_inventory(evidence, prior):
     require(set().union(*map(set, loaded.values())) == expected_loaded
             and sum(map(len, loaded.values())) == len(expected_loaded),
             'full-node loaded entrypoints differ from the baseline')
+    require(not set(excluded) & (set(installed) | set().union(*map(set, loaded.values()))),
+            'excluded system job is also in the managed cohort')
     require(isinstance(evidence['roots'], list) and evidence['roots']
             and all(isinstance(root, str) and pathlib.Path(root).is_absolute()
                     for root in evidence['roots'])
@@ -494,6 +500,19 @@ class Journal:
         require(all(current[key] == saved[key] for key in
                     ('installed', 'roots', 'disabled_artifacts')),
                 'full-node installed entrypoint identity changed')
+        recovery = next((row for row in reversed(self.records)
+                         if row['event'] == 'recovery-started'), None)
+        excluded_anchor = (recovery.get('entrypoint_excluded') if recovery is not None
+                           else saved['excluded'])
+        require(isinstance(excluded_anchor, dict),
+                'full-node recovery exclusion anchor is absent')
+        valid_tailscale_exclusion(excluded_anchor)
+        require(set(excluded_anchor) == set(saved['excluded'])
+                and all(excluded_anchor[label]['plist'] == saved['excluded'][label]['plist']
+                        and excluded_anchor[label]['wrapper'] == saved['excluded'][label]['wrapper']
+                        for label in excluded_anchor)
+                and current['excluded'] == excluded_anchor,
+                'full-node excluded system job changed inside the active window')
         require(all(set(current['loaded'][domain]) <= set(saved['loaded'][domain])
                     for domain in ('gui', 'user', 'system')),
                 'full-node job loaded outside its original domain or state')
@@ -838,7 +857,18 @@ class Journal:
             if held:
                 raise
             errors.append({'unit': 'journal', 'reason': type(error).__name__})
-        record('recovery-started', original_boot=self.records[0]['boot'])
+        excluded_anchor = None
+        excluded_unchanged = False
+        if self.scope == FULL_NODE_SCOPE:
+            try:
+                excluded_anchor = capture_entrypoint_inventory(UNITS)['excluded']
+                excluded_unchanged = excluded_anchor == self.entrypoint_inventory['excluded']
+            except Exception:
+                pass
+        exclusion = ({'entrypoint_excluded': excluded_anchor,
+                      'excluded_unchanged_since_baseline': excluded_unchanged}
+                     if self.scope == FULL_NODE_SCOPE else {})
+        record('recovery-started', original_boot=self.records[0]['boot'], **exclusion)
         try:
             self.check_entrypoints()
         except Exception as error:

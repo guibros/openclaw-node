@@ -21,6 +21,27 @@ from journal_hold import JournaledHold, describe
 
 
 class UserTransferTest(unittest.TestCase):
+    def test_root_validates_excluded_job_schema_and_boot(self):
+        prior = fixture_module.full_node_inventory()
+        inventory = fixture_module.full_entrypoint_evidence(prior)
+        inventory['excluded'] = fixture_module.tailscale_record()
+        baseline = {'event': 'baseline', 'scope': 'full-node', 'prior': prior,
+                    'entrypoint_inventory': inventory, 'boot': '6' * 64}
+        module.valid_baseline(baseline)
+        for change in (
+            {'boot': '7' * 64},
+            {'entrypoint_inventory': {**inventory, 'excluded': {
+                **inventory['excluded'], 'com.openclaw.agent': {}}}},
+            {'entrypoint_inventory': {**inventory, 'excluded': {
+                fixture_module.TAILSCALE_LABEL: {
+                    **inventory['excluded'][fixture_module.TAILSCALE_LABEL],
+                    'launchd': {**inventory['excluded'][fixture_module.TAILSCALE_LABEL]['launchd'],
+                                'runs': True}}}}},
+        ):
+            with self.subTest(change=change):
+                with self.assertRaises(module.Refused):
+                    module.valid_baseline({**baseline, **change})
+
     def prepared(self, extra_event=None, boot='boot-a'):
         fixture = fixture_module.JournalTests('test_nats_transfer_freezes_user_journal_before_root_outcome')
         fixture.setUp()
