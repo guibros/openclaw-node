@@ -718,3 +718,28 @@ resolution; old unscoped NATS journals use the same exclusion, and a lock
 appearing during an initially lock-free action refuses. Owned regressions pass;
 the full exact-head suite, CI and adversarial delta verdict remain pending.
 No production NATS service was changed, and 1.2 remains [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 11:53 EDT: Claude's PR #203 review found that the
+original unscoped-journal regression could pass after its callbacks were
+swallowed, and that tests still touched the live root marker paths. The
+regression now asserts that no NATS callback ran, and both parent and child
+hold tests use private marker and lock fixtures. A proposed mandatory root
+lock check passed 154/154 local tests but conflicts with recovery after a
+crash before the durable user transfer: root lock bootstrap itself requires
+that transfer. The no-lock checked branch is retained, with an added test
+that recovers an old unscoped journal before bootstrap. Targeted controls
+pass 3/3 after this correction; the revised full suite, exact-head CI and
+Claude delta review are pending. The live root lock remains absent. No
+production NATS service or root path was changed; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:18 EDT: Claude's scratch probe confirmed the
+mandatory-lock deadlock and validated the checked absent-lock recovery. The
+user guard now rechecks immediately before NATS restart, gate unlink and
+terminal row; a detection after a restart or observed gate opening is labelled
+`after_commit`, and a terminal row followed by a receipt/guard failure raises
+`CommittedRefusal` with its hash. Private fixtures replace all real root-path
+reads in the hold suite. The revised journal/hold suites pass 134/134 on this
+Mac, and the separate owned restore-only suite passes 27/27; an earlier
+combined run had two load-sensitive owned readiness failures, with no NATS
+guard involved. The revised PR head, CI and Claude exact-delta review remain
+pending. No live root or NATS state changed; 1.2 stays [A]/v1.2-pre.

@@ -13,7 +13,7 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from preservation_journal import FULL_NODE_SCOPE, Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
+from preservation_journal import CommittedRefusal, FULL_NODE_SCOPE, Journal, NATS_TRANSFER_UNITS, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
 import preservation_journal
 from preservation_checks import TAILSCALE_BINARY, TAILSCALE_LABEL, TAILSCALE_PLIST, TAILSCALE_WRAPPER
 from legacy_fixture import legacy_journal
@@ -94,11 +94,16 @@ class JournalTests(unittest.TestCase):
         self.node_lock = pathlib.Path(self.temp.name) / 'node.lock'
         self.nats_marker = pathlib.Path(self.temp.name) / 'writer-handoff.json'
         self.nats_lock = pathlib.Path(self.temp.name) / 'writer.lock'
+        self.nats_lock.write_bytes(b'owned writer lock')
+        self.nats_lock.chmod(0o644)
         for name, path in (('NATS_WRITER_MARKER', self.nats_marker),
                            ('NATS_LEGACY_LOCK', self.nats_lock)):
             guarded = patch.object(preservation_journal, name, path)
             guarded.start()
             self.addCleanup(guarded.stop)
+        root_uid = patch.object(preservation_journal, 'NATS_ROOT_UID', os.getuid())
+        root_uid.start()
+        self.addCleanup(root_uid.stop)
 
     def journal(self, prior=None, boot='boot-a', root=None):
         if prior is not None:
@@ -259,10 +264,88 @@ class JournalTests(unittest.TestCase):
                 with preservation_journal.nats_legacy_restore_guard():
                     self.fail('legacy restoration entered behind marker')
 
-    def test_legacy_lock_created_during_restoration_refuses(self):
-        with self.assertRaisesRegex(Refused, 'lock appeared during restoration'):
+    def test_absent_or_replaced_legacy_lock_is_checked(self):
+        self.nats_lock.unlink()
+        with preservation_journal.nats_legacy_restore_guard():
+            pass
+        self.nats_lock.write_bytes(b'owned writer lock')
+        self.nats_lock.chmod(0o644)
+        with self.assertRaisesRegex(Refused, 'writer lock changed during restoration'):
             with preservation_journal.nats_legacy_restore_guard():
-                self.nats_lock.write_bytes(b'new writer lock')
+                self.nats_lock.unlink()
+                self.nats_lock.write_bytes(b'replaced writer lock')
+                self.nats_lock.chmod(0o644)
+
+    def test_unscoped_recovery_without_legacy_lock_can_finish(self):
+        with self.journal(PRIOR) as journal:
+            self.nats_lock.unlink()
+            result = journal.recover(lambda *_: self.fail('restoration entered'),
+                                     lambda unit, _: {**PRIOR[unit], 'verified': True},
+                                     lambda: {'verified': True})
+            self.assertTrue(result['restored'], result)
+            journal.resolve()
+
+    def test_marker_before_resolve_row_refuses_without_terminal_commit(self):
+        with self.journal(PRIOR) as journal:
+            result = journal.recover(lambda *_: self.fail('restoration entered'),
+                                     lambda unit, _: {**PRIOR[unit], 'verified': True},
+                                     lambda: {'verified': True})
+            self.assertTrue(result['restored'], result)
+            original = journal.check_entrypoints
+            def publish_before_row(*args, **kwargs):
+                evidence = original(*args, **kwargs)
+                self.nats_marker.write_text('{}')
+                return evidence
+            with patch.object(journal, 'check_entrypoints', side_effect=publish_before_row):
+                with self.assertRaisesRegex(Refused, 'marker already exists'):
+                    journal.resolve()
+            self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
+
+    def test_resolve_receipt_failure_reports_committed_terminal_row(self):
+        with self.journal(PRIOR) as journal:
+            result = journal.recover(lambda *_: self.fail('restoration entered'),
+                                     lambda unit, _: {**PRIOR[unit], 'verified': True},
+                                     lambda: {'verified': True})
+            self.assertTrue(result['restored'], result)
+            with patch.object(journal, '_state', side_effect=Refused('receipt failed')):
+                with self.assertRaisesRegex(CommittedRefusal, 'resolved committed at'):
+                    journal.resolve()
+            self.assertEqual(journal.records[-1]['event'], 'resolved')
+
+    def test_marker_before_legacy_restart_prevents_the_restart(self):
+        current = copy.deepcopy(PRIOR)
+        current['nats'].update(loaded=False, running=False)
+        with self.journal(PRIOR) as journal:
+            original = journal.append
+            restored = []
+            def append(event, **data):
+                row = original(event, **data)
+                if event == 'restoration-intent' and data.get('unit') == 'nats':
+                    self.nats_marker.write_text('{}')
+                return row
+            with patch.object(journal, 'append', side_effect=append):
+                result = journal.recover(lambda unit, _: restored.append(unit),
+                                         lambda unit, _: {**current[unit], 'verified': True},
+                                         lambda: {'verified': True})
+            self.assertEqual(restored, [])
+            nats_error = next(error for error in result['errors'] if error['unit'] == 'nats')
+            self.assertNotIn('after_commit', nats_error)
+
+    def test_marker_during_legacy_restart_reports_its_commit(self):
+        current = copy.deepcopy(PRIOR)
+        current['nats'].update(loaded=False, running=False)
+        with self.journal(PRIOR) as journal:
+            restored = []
+            def restore(unit, prior):
+                restored.append(unit)
+                current[unit] = copy.deepcopy(prior)
+                self.nats_marker.write_text('{}')
+            result = journal.recover(restore,
+                                     lambda unit, _: {**current[unit], 'verified': True},
+                                     lambda: {'verified': True})
+            self.assertEqual(restored, ['nats'])
+            nats_error = next(error for error in result['errors'] if error['unit'] == 'nats')
+            self.assertEqual(nats_error['after_commit'], 'restore')
 
     def test_old_unscoped_nats_journal_respects_root_exclusion(self):
         with self.journal(PRIOR) as journal:
@@ -276,11 +359,18 @@ class JournalTests(unittest.TestCase):
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
             try:
                 self.assertEqual(holder.stdout.readline().strip(), 'locked')
+                observed = []
+                restored = []
+                def observe(unit, _):
+                    observed.append(unit)
+                    return {**PRIOR[unit], 'verified': True}
                 with patch('preservation_journal.NATS_ROOT_UID', os.getuid()):
-                    result = journal.recover(lambda *_: self.fail('old journal restored a bus'),
-                                             lambda *_: self.fail('old journal observed a bus'),
+                    result = journal.recover(lambda unit, _: restored.append(unit),
+                                             observe,
                                              lambda: self.fail('old journal certified readiness'))
                 self.assertFalse(result['restored'])
+                self.assertEqual(restored, [])
+                self.assertFalse(set(observed) & set(NATS_TRANSFER_UNITS))
                 self.assertIn('nats', [error['unit'] for error in result['errors']])
             finally:
                 holder.stdin.close()
@@ -398,10 +488,12 @@ class JournalTests(unittest.TestCase):
                                    capture_output=True, text=True)
             self.assertNotEqual(probe.returncode, 0)
             self.assertIn('BlockingIOError', probe.stderr)
-        def complete(observe, final_check):
+        def complete(observe, final_check, before_open=None):
             assert_excluded()
             observe('nats', prior['nats'])
             final_check()
+            if before_open is not None:
+                before_open()
             return {'verified': True}
         with patch('preservation_journal.NATS_ROOT_UID', os.getuid()), patch(
                 'preservation_journal.capture_entrypoint_inventory',
@@ -1303,7 +1395,7 @@ with legacy_journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
                 journal.recover(lambda *_: self.fail('ready owner restarted'),
                     lambda unit, prior: {**prior, 'verified': True}, lambda: {'verified': True})
                 with patch('preservation_journal.write_private', side_effect=OSError(errno.EIO, 'receipt gap')):
-                    with self.assertRaises(OSError):
+                    with self.assertRaises(CommittedRefusal):
                         getattr(journal, terminal)()
             with self.assertRaisesRegex(Refused, 'sealed or resolved'):
                 self.journal(root=root)
@@ -1502,7 +1594,7 @@ with legacy_journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
             journal.recover(lambda *_: self.fail('ready owner restarted'),
                 lambda unit, wanted: {**wanted, 'verified': True}, lambda: {'verified': True})
             with patch('preservation_journal.write_private', side_effect=OSError(errno.EIO, 'receipt gap')):
-                with self.assertRaises(OSError):
+                with self.assertRaises(CommittedRefusal):
                     journal.seal()
         head = max(self.root.glob('[0-9]*.json')).read_bytes()
         with self.journal(PRIOR, root=self.parent / 'next'):

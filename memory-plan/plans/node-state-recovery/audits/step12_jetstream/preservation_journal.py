@@ -29,6 +29,10 @@ NATS_ROOT_UID = 0
 NATS_LEGACY_LOCK = pathlib.Path('/private/var/db/openclaw-nats-writer.lock')
 
 
+class CommittedRefusal(Exception):
+    pass
+
+
 def require_no_nats_marker():
     try:
         NATS_WRITER_MARKER.lstat()
@@ -89,16 +93,18 @@ def nats_legacy_restore_guard():
     try:
         named = NATS_LEGACY_LOCK.lstat()
     except FileNotFoundError:
-        yield
-        try:
-            NATS_LEGACY_LOCK.lstat()
-        except FileNotFoundError:
-            pass
-        except OSError as error:
-            raise Refused('legacy NATS writer lock is unobservable') from error
-        else:
-            raise Refused('legacy NATS writer lock appeared during restoration')
-        require_no_nats_marker()
+        def check():
+            try:
+                NATS_LEGACY_LOCK.lstat()
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                raise Refused('legacy NATS writer lock is unobservable') from error
+            else:
+                raise Refused('legacy NATS writer lock appeared during restoration')
+            require_no_nats_marker()
+        yield check
+        check()
         return
     except OSError as error:
         raise Refused('legacy NATS writer lock is unobservable') from error
@@ -118,13 +124,15 @@ def nats_legacy_restore_guard():
             fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise Refused('root NATS writer currently holds exclusive exclusion') from error
-        require_no_nats_marker()
-        yield
-        current = NATS_LEGACY_LOCK.lstat()
-        require((current.st_dev, current.st_ino, current.st_ctime_ns) ==
-                (opened.st_dev, opened.st_ino, opened.st_ctime_ns),
-                'legacy NATS writer lock changed during restoration')
-        require_no_nats_marker()
+        def check():
+            current = NATS_LEGACY_LOCK.lstat()
+            require((current.st_dev, current.st_ino, current.st_ctime_ns) ==
+                    (opened.st_dev, opened.st_ino, opened.st_ctime_ns),
+                    'legacy NATS writer lock changed during restoration')
+            require_no_nats_marker()
+        check()
+        yield check
+        check()
     finally:
         os.close(fd)
 
@@ -897,10 +905,11 @@ class Journal:
                 require(matches(actual, prior), 'prior service state was not restored')
                 require(actual.get('verified') is True, 'service readiness was not verified')
                 return actual
+            committed = None
             try:
                 guard = (nats_legacy_restore_guard() if nats_guarded
                          and unit in NATS_TRANSFER_UNITS else contextlib.nullcontext())
-                with guard:
+                with guard as precommit:
                     actual = observe(unit, prior)
                     require(all(isinstance(actual.get(k), bool) for k in ('loaded', 'running', 'disabled')),
                             'actual service state is incomplete')
@@ -918,13 +927,17 @@ class Journal:
                     if held:
                         hold.before_restore()
                     record('restoration-intent', unit=unit, action='restore-prior')
+                    if precommit is not None:
+                        precommit()
+                        committed = 'restore'
                     restore(unit, prior)
                     if held:
                         hold.check_closed()
                     evidence = verify()
                     record('recovery-verified', unit=unit, evidence=evidence)
             except Exception as error:
-                errors.append({'unit': unit, 'reason': type(error).__name__})
+                errors.append({'unit': unit, 'reason': type(error).__name__,
+                               **({'after_commit': committed} if committed else {})})
                 if held and self.write_failed:
                     break
                 if unit.startswith('nats'):
@@ -954,15 +967,26 @@ class Journal:
         except Exception as error:
             errors.append({'unit': 'final-state', 'reason': type(error).__name__})
         if held and not errors and not self.write_failed:
+            before_complete = len(self.records)
+            gate_was_closed = False
             try:
+                if hasattr(hold, 'gate'):
+                    gate_was_closed = hold.gate.marker() is not None
                 guard = nats_legacy_restore_guard() if nats_guarded else contextlib.nullcontext()
-                with guard:
-                    evidence = hold.complete(observe, final_check)
+                with guard as precommit:
+                    evidence = hold.complete(observe, final_check, precommit)
                     require(isinstance(evidence, dict) and evidence.get('verified') is True,
                             'execution hold restoration was not verified')
                     record('execution-hold-restored', evidence=evidence)
             except Exception as error:
-                errors.append({'unit': 'execution-hold', 'reason': type(error).__name__})
+                try:
+                    observed_open = gate_was_closed and hold.gate.marker() is None
+                except Exception:
+                    observed_open = False
+                opened = observed_open or any(row['event'] == 'hold-opened'
+                                              for row in self.records[before_complete:])
+                errors.append({'unit': 'execution-hold', 'reason': type(error).__name__,
+                               **({'after_commit': 'gate-open'} if opened else {})})
         record('recovery-finished', services_verified=not any(e['unit'] not in ('journal', 'diagnostics')
                                                            for e in errors), errors=list(errors))
         if not errors:
@@ -996,18 +1020,27 @@ class Journal:
         nats_guarded = self.scope == FULL_NODE_SCOPE or (self.scope is None and any(
             self.prior[unit]['class'] != 'absent' for unit in NATS_TRANSFER_UNITS))
         guard = nats_legacy_restore_guard() if nats_guarded else contextlib.nullcontext()
-        with guard:
-            require(self.records[-1]['event'] == 'recovery-finished'
-                    and self.records[-1]['services_verified'] is True and not self.records[-1]['errors'],
-                    'unrestored node cannot be sealed')
-            state = read_private(self.node_state)
-            require(state['status'] == 'restored' and state.get('head') == self.records[-1]['sha256'],
-                    'node restoration receipt is not durable')
-            self.check_entrypoints(final=True)
-            record = self.append(event)
-            self.sealed = True
-            self._state({**self.active, 'status': 'restored', 'head': record['sha256']})
-            return record['sha256']
+        committed = None
+        try:
+            with guard as precommit:
+                require(self.records[-1]['event'] == 'recovery-finished'
+                        and self.records[-1]['services_verified'] is True and not self.records[-1]['errors'],
+                        'unrestored node cannot be sealed')
+                state = read_private(self.node_state)
+                require(state['status'] == 'restored' and state.get('head') == self.records[-1]['sha256'],
+                        'node restoration receipt is not durable')
+                self.check_entrypoints(final=True)
+                if precommit is not None:
+                    precommit()
+                record = self.append(event)
+                committed = record['sha256']
+                self.sealed = True
+                self._state({**self.active, 'status': 'restored', 'head': committed})
+            return committed
+        except Exception as error:
+            if committed is not None:
+                raise CommittedRefusal(f'{event} committed at {committed}; {error}') from error
+            raise
 
     def close(self):
         if self.lock is not None:
