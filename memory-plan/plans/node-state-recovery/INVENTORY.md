@@ -710,3 +710,11 @@ marker and exclusive-lock controls pass with the 85-test journal suite. Exact
 CI and adversarial review of this change are pending. The production driver,
 protected observer, healthy cold masters, and live retirement remain open;
 step 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 11:29 EDT: Claude found no blocker in PR #203's first
+head and its quick delta probe confirmed the held member and final check. The
+follow-up now also brackets hold preparation, final readiness/gate reopen and
+resolution; old unscoped NATS journals use the same exclusion, and a lock
+appearing during an initially lock-free action refuses. Owned regressions pass;
+the full exact-head suite, CI and adversarial delta verdict remain pending.
+No production NATS service was changed, and 1.2 remains [A]/v1.2-pre.

@@ -1141,15 +1141,17 @@ journal, healthy NATS stop, protected root bootstrap, or acceptance of 1.2.
 The user journal previously checked the protected marker and held the shared
 old-writer lock only after a returned NATS transfer. A full-node restoration
 without any transfer could observe or restart the three legacy servers without
-that check. Full-node recovery now refuses an existing marker before its first
-write. Each NATS unit's observation, possible restoration and verification,
-including the held member 1, runs under the shared old-writer lock when it
-exists. The final physical check uses the same guard. An exclusive root holder
-or a published marker therefore refuses. Before the root lock is staged, the
-guard checks the marker on both sides of each action; the root protocol cannot
-start without a durable user transfer while this journal holds `node.lock`.
+that check. Recovery of a full-node-scoped journal, or an older unscoped journal
+with installed NATS units, now refuses an existing marker before its first
+write. The hold's preparation, each NATS unit's observation, possible
+restoration and verification (including the held member 1), the final physical
+check, hold completion and gate reopening, and resolution run under the shared
+old-writer lock when it exists. An exclusive root holder or a published marker
+therefore refuses. Before the root lock is staged, the guard checks that both
+the marker and lock remain absent on exit; the root protocol cannot start
+without a durable user transfer while this journal holds `node.lock`.
 This user-side guard does not substitute for root physical observation or
-authorize migration. Owned controls hold the lock exclusively and publish a
-test marker to prove both refusals. The
+authorize migration. Owned controls hold the lock exclusively, publish a test
+marker, and create a lock mid-action to prove refusal. The
 production full-node driver, complete readiness checks, legacy root-job
 retirement, healthy cold masters, and cutover remain open at 1.2.

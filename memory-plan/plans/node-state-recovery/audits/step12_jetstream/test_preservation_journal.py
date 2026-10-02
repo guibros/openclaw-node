@@ -259,6 +259,34 @@ class JournalTests(unittest.TestCase):
                 with preservation_journal.nats_legacy_restore_guard():
                     self.fail('legacy restoration entered behind marker')
 
+    def test_legacy_lock_created_during_restoration_refuses(self):
+        with self.assertRaisesRegex(Refused, 'lock appeared during restoration'):
+            with preservation_journal.nats_legacy_restore_guard():
+                self.nats_lock.write_bytes(b'new writer lock')
+
+    def test_old_unscoped_nats_journal_respects_root_exclusion(self):
+        with self.journal(PRIOR) as journal:
+            self.nats_lock.write_bytes(b'owned lock')
+            self.nats_lock.chmod(0o644)
+            script = ('import fcntl,os,sys; '
+                      'fd=os.open(sys.argv[1],os.O_RDONLY); '
+                      'fcntl.flock(fd,fcntl.LOCK_EX); '
+                      'print("locked",flush=True); sys.stdin.read()')
+            holder = subprocess.Popen([sys.executable, '-c', script, str(self.nats_lock)],
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            try:
+                self.assertEqual(holder.stdout.readline().strip(), 'locked')
+                with patch('preservation_journal.NATS_ROOT_UID', os.getuid()):
+                    result = journal.recover(lambda *_: self.fail('old journal restored a bus'),
+                                             lambda *_: self.fail('old journal observed a bus'),
+                                             lambda: self.fail('old journal certified readiness'))
+                self.assertFalse(result['restored'])
+                self.assertIn('nats', [error['unit'] for error in result['errors']])
+            finally:
+                holder.stdin.close()
+                self.assertEqual(holder.wait(timeout=5), 0)
+                holder.stdout.close()
+
     def test_new_unscoped_journal_refuses_before_creation(self):
         with self.assertRaisesRegex(Refused, 'explicit protected scope'):
             Journal(self.root, PRIOR, node_lock=self.node_lock)
@@ -345,20 +373,53 @@ class JournalTests(unittest.TestCase):
                     def final_check():
                         final_checks.append(True)
                         return {'verified': True}
-                    result = journal.recover(lambda unit, _: restored.append(unit),
-                                             observe, final_check, hold=hold)
-                    self.assertFalse(result['restored'])
+                    before = len(journal.records)
+                    with self.assertRaisesRegex(Refused, 'exclusive exclusion'):
+                        journal.recover(lambda unit, _: restored.append(unit),
+                                        observe, final_check, hold=hold)
+                    self.assertEqual(len(journal.records), before)
                     self.assertEqual(restored, [])
-                    self.assertNotIn('nats-1', observed)
+                    self.assertEqual(observed, [])
                     self.assertEqual(final_checks, [])
-                    self.assertIn('nats', [error['unit'] for error in result['errors']])
-                    self.assertIn('nats-1', [error['unit'] for error in result['errors']])
-                    self.assertIn('final-state', [error['unit'] for error in result['errors']])
-                    self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
         finally:
             holder.stdin.close()
             self.assertEqual(holder.wait(timeout=5), 0)
             holder.stdout.close()
+
+    def test_full_scope_holds_writer_exclusion_through_gate_reopen_and_resolution(self):
+        prior = full_node_inventory()
+        self.nats_lock.write_bytes(b'owned lock')
+        self.nats_lock.chmod(0o644)
+        script = ('import fcntl,os,sys; '
+                  'fd=os.open(sys.argv[1],os.O_RDONLY); '
+                  'fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)')
+        def assert_excluded():
+            probe = subprocess.run([sys.executable, '-c', script, str(self.nats_lock)],
+                                   capture_output=True, text=True)
+            self.assertNotEqual(probe.returncode, 0)
+            self.assertIn('BlockingIOError', probe.stderr)
+        def complete(observe, final_check):
+            assert_excluded()
+            observe('nats', prior['nats'])
+            final_check()
+            return {'verified': True}
+        with patch('preservation_journal.NATS_ROOT_UID', os.getuid()), patch(
+                'preservation_journal.capture_entrypoint_inventory',
+                return_value=full_entrypoint_evidence(prior)):
+            with Journal(self.root, prior, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                hold = SimpleNamespace(journal=journal, prepare=lambda *_: None,
+                                       complete=complete)
+                result = journal.recover(lambda *_: self.fail('already restored'),
+                    lambda unit, _: {**prior[unit], 'verified': True},
+                    lambda: {'verified': True}, hold=hold)
+                self.assertTrue(result['restored'])
+                self.nats_marker.write_text('{}')
+                with self.assertRaisesRegex(Refused, 'marker already exists'):
+                    journal.resolve()
+                self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
+                self.nats_marker.unlink()
+                self.assertEqual(len(journal.resolve()), 64)
 
     def test_full_scope_refuses_loaded_inactive_or_restarted_job(self):
         prior = full_node_inventory()

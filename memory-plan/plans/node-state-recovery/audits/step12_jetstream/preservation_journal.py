@@ -90,6 +90,14 @@ def nats_legacy_restore_guard():
         named = NATS_LEGACY_LOCK.lstat()
     except FileNotFoundError:
         yield
+        try:
+            NATS_LEGACY_LOCK.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as error:
+            raise Refused('legacy NATS writer lock is unobservable') from error
+        else:
+            raise Refused('legacy NATS writer lock appeared during restoration')
         require_no_nats_marker()
         return
     except OSError as error:
@@ -820,7 +828,9 @@ class Journal:
 
     def recover(self, restore, observe, final_check, diagnostics=None, hold=None):
         require(self.nats_transfer_open() is None, 'NATS transfer is open; await a root outcome')
-        if self.scope == FULL_NODE_SCOPE:
+        nats_guarded = self.scope == FULL_NODE_SCOPE or (self.scope is None and any(
+            self.prior[unit]['class'] != 'absent' for unit in NATS_TRANSFER_UNITS))
+        if nats_guarded:
             require_no_nats_marker()
         require(self.node_lock is not None and (self.lock is not None or self.write_failed),
                 'recovery requires the node lock')
@@ -830,7 +840,9 @@ class Journal:
         require((hold is not None) == held and (not held or hold.journal is self),
                 'baselined execution hold requires its journal recovery facade')
         if held:
-            hold.prepare(observe, final_check)
+            guard = nats_legacy_restore_guard() if nats_guarded else contextlib.nullcontext()
+            with guard:
+                hold.prepare(observe, final_check)
         errors = []
         diagnostics = diagnostics or (lambda row: print(json.dumps(row), file=sys.stderr, flush=True))
         def record(event, **data):
@@ -886,7 +898,7 @@ class Journal:
                 require(actual.get('verified') is True, 'service readiness was not verified')
                 return actual
             try:
-                guard = (nats_legacy_restore_guard() if self.scope == FULL_NODE_SCOPE
+                guard = (nats_legacy_restore_guard() if nats_guarded
                          and unit in NATS_TRANSFER_UNITS else contextlib.nullcontext())
                 with guard:
                     actual = observe(unit, prior)
@@ -920,7 +932,7 @@ class Journal:
         for unit in (u for u in self.prior if u not in RESUME_ORDER and not (held and self.write_failed)):
             try:
                 require(unit in ('nats-1', 'federation-tick'), 'unknown unit needs manual restoration')
-                guard = (nats_legacy_restore_guard() if self.scope == FULL_NODE_SCOPE
+                guard = (nats_legacy_restore_guard() if nats_guarded
                          and unit in NATS_TRANSFER_UNITS else contextlib.nullcontext())
                 with guard:
                     actual = observe(unit, self.prior[unit])
@@ -932,7 +944,7 @@ class Journal:
             except Exception as error:
                 errors.append({'unit': unit, 'reason': type(error).__name__})
         try:
-            guard = nats_legacy_restore_guard() if self.scope == FULL_NODE_SCOPE else contextlib.nullcontext()
+            guard = nats_legacy_restore_guard() if nats_guarded else contextlib.nullcontext()
             with guard:
                 evidence = final_check()
                 require(isinstance(evidence, dict) and evidence.get('verified') is True,
@@ -943,10 +955,12 @@ class Journal:
             errors.append({'unit': 'final-state', 'reason': type(error).__name__})
         if held and not errors and not self.write_failed:
             try:
-                evidence = hold.complete(observe, final_check)
-                require(isinstance(evidence, dict) and evidence.get('verified') is True,
-                        'execution hold restoration was not verified')
-                record('execution-hold-restored', evidence=evidence)
+                guard = nats_legacy_restore_guard() if nats_guarded else contextlib.nullcontext()
+                with guard:
+                    evidence = hold.complete(observe, final_check)
+                    require(isinstance(evidence, dict) and evidence.get('verified') is True,
+                            'execution hold restoration was not verified')
+                    record('execution-hold-restored', evidence=evidence)
             except Exception as error:
                 errors.append({'unit': 'execution-hold', 'reason': type(error).__name__})
         record('recovery-finished', services_verified=not any(e['unit'] not in ('journal', 'diagnostics')
@@ -979,17 +993,21 @@ class Journal:
     def _finalize(self, event):
         require(event != 'sealed' or self.scope != FULL_NODE_SCOPE,
                 'full-node seal requires a continuous launchd and process watch')
-        require(self.records[-1]['event'] == 'recovery-finished'
-                and self.records[-1]['services_verified'] is True and not self.records[-1]['errors'],
-                'unrestored node cannot be sealed')
-        state = read_private(self.node_state)
-        require(state['status'] == 'restored' and state.get('head') == self.records[-1]['sha256'],
-                'node restoration receipt is not durable')
-        self.check_entrypoints(final=True)
-        record = self.append(event)
-        self.sealed = True
-        self._state({**self.active, 'status': 'restored', 'head': record['sha256']})
-        return record['sha256']
+        nats_guarded = self.scope == FULL_NODE_SCOPE or (self.scope is None and any(
+            self.prior[unit]['class'] != 'absent' for unit in NATS_TRANSFER_UNITS))
+        guard = nats_legacy_restore_guard() if nats_guarded else contextlib.nullcontext()
+        with guard:
+            require(self.records[-1]['event'] == 'recovery-finished'
+                    and self.records[-1]['services_verified'] is True and not self.records[-1]['errors'],
+                    'unrestored node cannot be sealed')
+            state = read_private(self.node_state)
+            require(state['status'] == 'restored' and state.get('head') == self.records[-1]['sha256'],
+                    'node restoration receipt is not durable')
+            self.check_entrypoints(final=True)
+            record = self.append(event)
+            self.sealed = True
+            self._state({**self.active, 'status': 'restored', 'head': record['sha256']})
+            return record['sha256']
 
     def close(self):
         if self.lock is not None:
