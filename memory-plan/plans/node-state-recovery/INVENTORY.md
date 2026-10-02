@@ -615,3 +615,60 @@ the changed baseline comparison. Source tests include the returned-transfer
 case. The root-held transfer still needs its own live observer before cold
 master acceptance. The focused preservation suites now pass 104/104. This
 record does not authorize cutover or close 1.2.
+
+Checkpoint 2026-10-02 08:54 EDT: PR #199 merged at 8b451da after its exact-head
+4/4 CI rerun. Claude's no-blocker review was at 4435211; follow-up 0c6c30f
+addressed its test and wording notes without changing production code. It admits the exact idle
+Tailscale system helper as an explicit exclusion and durably reports changes
+observed when recovery starts; it does not certify the root-held transfer. A
+narrow retirement runbook for the obsolete root-managed `com.openclaw.agent`
+has been prepared and the live plist hash, owner, absent entry file and
+repeated exit 1 were rechecked. Noninteractive administrator access is
+unavailable, so no root action occurred. The live full-node preflight still
+refuses that job; the protected observer, three cold masters and cutover remain
+open at 1.2 [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 09:06 EDT: the legacy root-owned
+`/etc/sudoers.d/openclaw-mesh` also remains installed (root:wheel 0440).
+Effective `sudo -n -l` output still grants passwordless wildcard
+`launchctl load/unload` and `killall -9 node`. Those grants can reload the
+obsolete root job or stop Node services, so they also defeat the proposed
+root boundary. PR #200's runbook requires inspection, protected backup and
+removal of those exact legacy rules before retiring the daemon in one locked
+local administrator session, with no action if its contents differ. Claude found
+no safety blocker in the original daemon sequence and asked for explicit
+preflight, collision, disabled-state and post-action checks. No administrator
+or NATS action occurred.
+
+Checkpoint 2026-10-02 09:17 EDT: the retirement preflight is now required to
+hold the existing owner-private `node.lock` with macOS `lockf -kn -t 0` for the
+whole administrator session. A private temporary-file control confirmed
+`lockf` and the journal's Python `fcntl.flock` contend; the real node lock was
+also acquired and released with no action. This closes the check-to-retire
+race in the written procedure. Live retirement remains unexecuted.
+
+Checkpoint 2026-10-02 09:27 EDT: PR #200's ordered procedure now keeps a
+root recovery shell open while the legacy sudoers file is moved, syntax and
+fresh password authentication are checked, and only then the pinned daemon
+is disabled, booted out and archived. The node lock remains held until the
+23-unit preflight and before/after census finish. CI passed 4/4 at the prior
+draft head `8558076`; this ordering revision still needs exact-head CI and
+adversarial review. The administrator action is still unexecuted, and 1.2
+remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-02 09:39 EDT: Claude's exact-head review of PR #200 at
+`1c3e8ee` confirmed the revised lock/sudoers/daemon order and all four CI
+checks, then found procedural gaps in pasted-block failure handling, sudoers
+hash recording and policy restoration. The next source-only follow-up makes
+each command an individually checked step, prints the inspected sudoers hash,
+provides a pinned restore branch, uses absolute sudo/Python paths, and adds
+checkout, private-output and lock-continuity checks. Exact-head CI and review
+of that follow-up remain pending. No administrator or NATS action has run;
+the protected observer, cold masters and cutover remain open at 1.2 [A].
+
+Checkpoint 2026-10-02 09:45 EDT: Claude found no blocker in the `a985298`
+procedure after its three prior gaps were fixed. Its remaining notes led to
+a final instruction that every node-user and root command be checked
+individually, the checkout must have no changes, and the second-terminal
+lock proof precedes any retirement report. CI and review at this final head
+remain pending. No root action has occurred.
