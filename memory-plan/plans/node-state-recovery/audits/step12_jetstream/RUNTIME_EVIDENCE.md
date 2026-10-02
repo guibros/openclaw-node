@@ -774,3 +774,36 @@ loaded inventory. The listener's child check narrows deployment risk but does
 not prove its asynchronous `deploying` flag is false; the full driver must
 obtain that proof and rule out pending catch-up before restoration completes.
 No production service was stopped or modified, and no cold master was taken.
+
+### Provisional 23-unit baseline recapture — 2026-10-02 06:18–06:20 EDT
+
+The operator-approved 2026-10-01 22:33–22:34 EDT host-Ollama change is included
+in a new read-only diagnostic capture at
+`PROVISIONAL_BASELINE_RECAPTURE_20261002.json` (SHA-256
+`28db248d0a02eb6b4e868690ce8b86db2532f810aacbac39e558b24c3ab22261`).
+Both current plists declare `LLM_BASE_URL=http://192.168.64.1:11434`.
+`ai.openclaw.mesh-agent.plist` changed from
+`c9209b9b66ffde255061c790d3c9fa62fffa46fbe7e60357f6472258af578d0c`
+to `d0d01eadea697fdb9c4b43bf3db02846c27ebe09f745bc18cc38a1ade78baa0d`;
+`ai.openclaw.memory-daemon.plist` changed from
+`6c5026f4f5591630dbea5b9ab4c5a6556b1155c0b890613586e234e4b9258f33`
+to `a3fb84ea54bc02e8e7b311a2d19d1a8c601d2d511e4baa93b97fb92a3eba0104`.
+The two Foreman backup plist hashes match those former hashes. The private
+`~/.openclaw/openclaw.env` is still mode 0600, and its single `LLM_BASE_URL`
+entry matches the plists; only its file hash and that Boolean comparison were
+recorded. The operator reports that node-watch was not changed by this action.
+
+At recapture, mesh-agent remained GUI-loaded, idle and enabled. Memory-daemon
+was GUI-loaded and running as PID 37477, started 2026-10-01 22:34:32 EDT; its
+live argv and hashed LLM environment value matched the current plist. All 23
+approved plists were installed, their observed loaded/running/disabled states
+matched the declared structural classes, and 59 direct files were hashed.
+Loaded-domain and plist hashes stayed stable at the read-only recheck. This is
+not transitive dependency or continuous process-provenance evidence.
+
+The source-owned entrypoint preflight still **refused**: 25 relevant jobs were
+installed, 21 approved jobs GUI-loaded, none user-loaded, and the two
+unapproved system jobs `com.openclaw.agent` and `com.openclaw.tailscale-up`
+were loaded. This is a provisional diagnostic, not an accepted full-node
+baseline or a preservation receipt. No full-node journal, quiet window, service
+mutation or cold master was created. Recovery 1.2 remains active at v1.2-pre.

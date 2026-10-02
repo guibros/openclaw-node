@@ -149,3 +149,12 @@ included; the deploy listener stops first and resumes last. The tightened live
 scan still refuses the two unmanaged system jobs. Owned source tests pass, but
 exact CI/review and a production driver remain pending. No live full-node hold
 or healthy NATS cold copy exists.
+
+2026-10-02 06:20 EDT — The operator-approved host-Ollama change is reflected
+in a new read-only 23-unit diagnostic. Mesh-agent remains idle on demand with
+plist SHA-256 `d0d01ead…`; memory-daemon runs as PID 37477 with plist SHA-256
+`a3fb84ea…` and its live LLM setting matches the plist. The 0600 env file
+matches the same target. Structural classes and 59 direct file hashes were
+observed, but the two unmanaged loaded system jobs still fail the multi-domain
+preflight. The recapture is provisional and cannot authorize a preservation
+window; 1.2 remains [A] at v1.2-pre.
