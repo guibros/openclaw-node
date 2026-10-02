@@ -762,3 +762,9 @@ restore-only run passing 27/27 at `93e1e84`. The macOS CI job is being
 extended to run that owned restore-only suite on every source change. This
 does not establish a full-node preservation window, protected root physical
 admission, cold masters, or live NATS restoration; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:51 EDT: the new macOS CI run exposed a fixture
+assumption hidden by the node's local layout: its owned service plist named
+`/usr/local/bin/node`, absent on the hosted arm64 runner. The fixture now
+pins the installed Node executable selected by the job's PATH. This changes
+only owned test setup; exact CI rerun is required before PR #204 can merge.

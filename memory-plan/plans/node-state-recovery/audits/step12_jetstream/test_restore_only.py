@@ -5,6 +5,7 @@ import os
 import pathlib
 import plistlib
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
@@ -75,7 +76,7 @@ class RestoreOnlyOwned(unittest.TestCase):
             argv = (['/usr/bin/python3', '-I', '-S', str(self.gate_script), 'run', str(self.gate_root),
                      '--lock', self.pin['lock'], '--root-pin', self.pin['root'], '--', '/bin/sh', '-c',
                      'printf "fired\\n" >> "$OWNED_FIRE_LOG"'] if unit == ANCHOR
-                    else ['/usr/local/bin/node', str(self.script)])
+                    else [str(pathlib.Path(shutil.which('node')).resolve(strict=True)), str(self.script)])
             settings = {'Label': label, 'ProgramArguments': argv, 'WorkingDirectory': str(self.root),
                         'StandardOutPath': str(self.root / (unit + '.out')),
                         'StandardErrorPath': str(self.root / (unit + '.err')),
