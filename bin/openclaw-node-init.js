@@ -571,6 +571,8 @@ const SERVICE_TEMPLATE_VARS = [
 function serviceTemplateVars({ meshDir, nodeId, config }) {
   const home = os.homedir();
   const env = process.env;
+  const savedLlmUrl = require('../lib/nats-resolve').readEnvFileKey(
+    path.join(home, '.openclaw', 'openclaw.env'), 'LLM_BASE_URL');
   return {
     HOME: home,
     NODE_BIN: process.execPath,
@@ -585,7 +587,7 @@ function serviceTemplateVars({ meshDir, nodeId, config }) {
     OPENCLAW_DEPLOY_TRUSTED_KEYS: env.OPENCLAW_DEPLOY_TRUSTED_KEYS || '',
     MESH_LLM_PROVIDER: config.provider || env.MESH_LLM_PROVIDER || 'claude',
     LLM_MODEL: env.LLM_MODEL || '',
-    LLM_BASE_URL: require('../lib/nats-resolve').resolveEnvKey('LLM_BASE_URL') || '',
+    LLM_BASE_URL: savedLlmUrl || env.LLM_BASE_URL || '',
     // Foreman enforcement is opt-in: unset renders empty, which is shadow. Read it the way
     // install.sh sees it (after exporting ~/.openclaw/openclaw.env), not from the process env
     // alone, where an operator's MESH_FOREMAN_ENFORCE=1 in that file rendered as shadow. The

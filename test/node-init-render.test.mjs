@@ -79,15 +79,20 @@ describe('node-init renders the shared service templates', () => {
     withServiceEnv('# MESH_FOREMAN_ENFORCE=1\n', () => switchIn(''));
   });
 
-  it('renders the saved host Ollama URL for the mesh agent and honors an explicit process override', () => {
+  it('renders the saved host Ollama URL before a stale shell value', () => {
     withServiceEnv('LLM_BASE_URL=http://192.168.64.1:11434\n', () => {
       assert.match(renderAgent('launchd/ai.openclaw.mesh-agent.plist'),
         /<key>LLM_BASE_URL<\/key>\s*<string>http:\/\/192\.168\.64\.1:11434<\/string>/);
       assert.match(renderAgent('systemd/openclaw-mesh-agent.service'),
         /^Environment=LLM_BASE_URL=http:\/\/192\.168\.64\.1:11434$/m);
-      process.env.LLM_BASE_URL = 'http://override:11434';
+      process.env.LLM_BASE_URL = 'http://localhost:11434';
       assert.match(renderAgent('launchd/ai.openclaw.mesh-agent.plist'),
-        /<key>LLM_BASE_URL<\/key>\s*<string>http:\/\/override:11434<\/string>/);
+        /<key>LLM_BASE_URL<\/key>\s*<string>http:\/\/192\.168\.64\.1:11434<\/string>/);
+    });
+    withServiceEnv(null, () => {
+      process.env.LLM_BASE_URL = 'http://caller:11434';
+      assert.match(renderAgent('launchd/ai.openclaw.mesh-agent.plist'),
+        /<key>LLM_BASE_URL<\/key>\s*<string>http:\/\/caller:11434<\/string>/);
     });
   });
 
