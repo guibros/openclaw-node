@@ -160,3 +160,9 @@ multi-domain preflight. The recapture is provisional and cannot authorize a
 preservation window; 1.2 remains [A] at v1.2-pre.
 The source memory-daemon plist template and separate `workspace-bin/install-daemon`
 renderer still omit `LLM_BASE_URL`; a future reinstall would drop the live override.
+
+2026-10-02 06:50 EDT — A source-only candidate adds `LLM_BASE_URL` to the
+memory-daemon launchd template and the direct macOS/systemd/pm2 installer.
+Isolated rendering passes; the live daemon and installed plist are unchanged.
+The full-node baseline is still refused by the two loaded system jobs, and
+1.2 remains [A] at v1.2-pre.

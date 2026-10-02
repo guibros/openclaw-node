@@ -29,6 +29,8 @@
       <string>America/Montreal</string>
       <key>OPENCLAW_WORKSPACE</key>
       <string>${OPENCLAW_WORKSPACE}</string>
+      <key>LLM_BASE_URL</key>
+      <string>${LLM_BASE_URL}</string>
       <!-- R28 fix (repair 7.1): the Block-0 local-first wiring lived only in
            the hand-edited installed plist; a reinstall from this template
            silently reverted the daemon to the remote mesh IP and a

@@ -44,6 +44,21 @@ detect_os() {
 
 OS=$(detect_os)
 
+resolve_llm_base_url() {
+  if [ -n "${LLM_BASE_URL:-}" ]; then
+    return
+  fi
+  local line env_file="$HOME/.openclaw/openclaw.env"
+  if [ -f "$env_file" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        LLM_BASE_URL=*) LLM_BASE_URL="${line#*=}" ;;
+      esac
+    done < "$env_file"
+  fi
+  LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:11434}"
+}
+
 # ============================================================
 # macOS — launchd
 # ============================================================
@@ -55,6 +70,8 @@ install_macos() {
 
   # Build PATH for the daemon
   local daemon_path="$WORKSPACE/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+  local llm_url_xml
+  llm_url_xml=$(printf '%s' "$LLM_BASE_URL" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
 
   cat > "$PLIST_PATH" << PLISTEOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -88,6 +105,8 @@ install_macos() {
       <string>America/Montreal</string>
       <key>OPENCLAW_WORKSPACE</key>
       <string>${WORKSPACE}</string>
+      <key>LLM_BASE_URL</key>
+      <string>${llm_url_xml}</string>
       <key>OPENCLAW_NATS</key>
       <string>${OPENCLAW_NATS:-}</string>
     </dict>
@@ -158,6 +177,7 @@ RestartSec=5
 Environment=HOME=${HOME}
 Environment=TZ=America/Montreal
 Environment=OPENCLAW_WORKSPACE=${WORKSPACE}
+Environment=LLM_BASE_URL=${LLM_BASE_URL}
 Environment=OPENCLAW_NATS=${OPENCLAW_NATS:-}
 Environment=PATH=${WORKSPACE}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 StandardOutput=append:${WORKSPACE}/.tmp/memory-daemon.log
@@ -225,6 +245,7 @@ install_pm2() {
     --log "$WORKSPACE/.tmp/memory-daemon.log" \
     --error "$WORKSPACE/.tmp/memory-daemon.err" \
     --env "OPENCLAW_WORKSPACE=$WORKSPACE" \
+    --env "LLM_BASE_URL=$LLM_BASE_URL" \
     --env "TZ=America/Montreal"
 
   pm2 save
@@ -272,6 +293,7 @@ echo ""
 
 case "$ACTION" in
   install|--install)
+    resolve_llm_base_url
     case "$OS" in
       macos)   install_macos ;;
       linux)   install_linux ;;
