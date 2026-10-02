@@ -247,7 +247,8 @@ class LockBootstrapJournal:
     def inspect_readonly(cls, site, uid, gid):
         try:
             return cls._inspect_readonly(site, uid, gid)
-        except (OSError, subprocess.CalledProcessError) as error:
+        except (OSError, subprocess.CalledProcessError, KeyError, TypeError,
+                ValueError, RecursionError) as error:
             raise Refused('root writer ledger is unobservable') from error
 
     @classmethod
@@ -680,6 +681,10 @@ class LockBootstrapJournal:
                     record_file(path, self.uid, self.gid)
                     raw = path.read_bytes()
                 else:
+                    preliminary = os.stat(name, dir_fd=self.fd,
+                                          follow_symlinks=False)
+                    if not stat.S_ISREG(preliminary.st_mode):
+                        raise Refused('root writer record identity differs')
                     record_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW |
                                         os.O_NONBLOCK | os.O_NOCTTY, dir_fd=self.fd)
                     try:

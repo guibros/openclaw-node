@@ -487,3 +487,10 @@ the production migration. Step 1.2 stays [A] at v1.2-pre.
 Claude's second pass also reproduced a control-character parsing ambiguity;
 the next revision refuses such arguments and keys the report digests per
 scan. Exact-head CI and review remain pending.
+
+Checkpoint 2026-10-01 22:33 EDT: D57 tightens the future observer's root
+ledger input boundary. Observe-only reads precheck record type before open
+and map malformed JSON/schema exceptions to `Refused`. Three new controls
+cover an unopened FIFO, deeply nested JSON, and a rehashed invalid returned
+lock; the focused macOS root-journal suite passes 60/60. This does not add
+the protected physical observer, change NATS state, or lift the root gate.
