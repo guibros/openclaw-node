@@ -1030,5 +1030,5 @@ the raw arguments are removed before output. Both older boolean and newer
 named disabled-override values are accepted, while unknown values refuse.
 Arguments containing control or Unicode line-separator characters refuse,
 since launchctl's text rendering can otherwise be ambiguous. Reported
-argument digests use a fresh private HMAC key per scan so they do not expose
-an offline guess oracle for any future low-entropy argument.
+argument and plist-content digests use a fresh private HMAC key per scan so
+they do not expose an offline guess oracle for future low-entropy secrets.

@@ -130,20 +130,23 @@ class LiveCensusTest(unittest.TestCase):
             self.assertNotIn('/tmp/private.conf', str(report))
             self.assertNotEqual(unit['plist_identity']['argv_hmac_sha256'],
                                 hashlib.sha256('\0'.join(argv).encode()).hexdigest())
+            self.assertNotIn('sha256', unit['plist_identity'])
+            self.assertNotEqual(unit['plist_identity']['content_hmac_sha256'],
+                                hashlib.sha256(plist.read_bytes()).hexdigest())
 
     def test_plist_identity_and_symlink_refusal(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'nats.plist'
             path.write_bytes(plistlib.dumps({'Label': 'ai.openclaw.nats',
                                              'ProgramArguments': ['/tmp/nats-server']}))
-            observed = census.plist_identity(path)
+            observed = census.plist_identity(path, b'0' * 32)
             self.assertEqual(observed['label'], 'ai.openclaw.nats')
             self.assertEqual(observed['argv'], ['/tmp/nats-server'])
             self.assertEqual(observed['inode'], path.stat().st_ino)
             link = Path(temporary) / 'link.plist'
             link.symlink_to(path)
             with self.assertRaisesRegex(Refused, 'single-link'):
-                census.plist_identity(link)
+                census.plist_identity(link, b'0' * 32)
 
     def test_store_counts_and_rejects_symlink(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -76,7 +76,7 @@ def disabled_overrides(domain):
     return result
 
 
-def plist_identity(path):
+def plist_identity(path, report_key):
     path = Path(path)
     before = path.lstat()
     if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
@@ -96,7 +96,8 @@ def plist_identity(path):
         raise Refused('launchd plist cannot be parsed') from error
     if not isinstance(parsed, dict):
         raise Refused('launchd plist is invalid')
-    return {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
+    return {'path': str(path),
+            'content_hmac_sha256': hmac.new(report_key, raw, hashlib.sha256).hexdigest(),
             'device': before.st_dev, 'inode': before.st_ino,
             'uid': before.st_uid, 'gid': before.st_gid,
             'mode': stat.S_IMODE(before.st_mode),
@@ -178,7 +179,7 @@ def _observe(user_uid, user_home):
         for label, service in domain_units.items():
             if not service['loaded']:
                 continue
-            plist = plist_identity(service['plist'])
+            plist = plist_identity(service['plist'], report_key)
             if (plist['label'] != label or not isinstance(plist['argv'], list)
                     or not plist['argv'] or not all(isinstance(arg, str)
                                                    for arg in plist['argv'])
