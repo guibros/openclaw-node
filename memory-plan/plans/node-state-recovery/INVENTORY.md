@@ -631,13 +631,14 @@ open at 1.2 [A]/v1.2-pre.
 Checkpoint 2026-10-02 09:06 EDT: the legacy root-owned
 `/etc/sudoers.d/openclaw-mesh` also remains installed (root:wheel 0440).
 Effective `sudo -n -l` output still grants passwordless wildcard
-`launchctl load/unload` and `killall -9 node`; this can undermine durable
-retirement of the obsolete agent. PR #200's runbook now requires inspection,
-protected backup and removal of those exact legacy rules in the local
-administrator session, with no action if its contents differ. Claude found
+`launchctl load/unload` and `killall -9 node`. Those grants can reload the
+obsolete root job or stop Node services, so they also defeat the proposed
+root boundary. PR #200's runbook requires inspection, protected backup and
+removal of those exact legacy rules before retiring the daemon in one locked
+local administrator session, with no action if its contents differ. Claude found
 no safety blocker in the original daemon sequence and asked for explicit
-preflight, collision, disabled-state and post-action checks; the revised
-head and its CI still need review. No administrator or NATS action occurred.
+preflight, collision, disabled-state and post-action checks. No administrator
+or NATS action occurred.
 
 Checkpoint 2026-10-02 09:17 EDT: the retirement preflight is now required to
 hold the existing owner-private `node.lock` with macOS `lockf -kn -t 0` for the
@@ -645,3 +646,12 @@ whole administrator session. A private temporary-file control confirmed
 `lockf` and the journal's Python `fcntl.flock` contend; the real node lock was
 also acquired and released with no action. This closes the check-to-retire
 race in the written procedure. Live retirement remains unexecuted.
+
+Checkpoint 2026-10-02 09:27 EDT: PR #200's ordered procedure now keeps a
+root recovery shell open while the legacy sudoers file is moved, syntax and
+fresh password authentication are checked, and only then the pinned daemon
+is disabled, booted out and archived. The node lock remains held until the
+23-unit preflight and before/after census finish. CI passed 4/4 at the prior
+draft head `8558076`; this ordering revision still needs exact-head CI and
+adversarial review. The administrator action is still unexecuted, and 1.2
+remains [A] at v1.2-pre.
