@@ -260,7 +260,11 @@ describe('advanceCirclingStep — adaptive convergence integration (real NATS KV
 
   after(async () => {
     await nc?.close();
-    nats?.proc?.kill();
+    if (nats?.proc && nats.proc.exitCode === null && nats.proc.signalCode === null) {
+      const exited = new Promise((resolve) => nats.proc.once('exit', resolve));
+      nats.proc.kill();
+      await exited;
+    }
     await rm(storeDir, { recursive: true, force: true });
   });
 
