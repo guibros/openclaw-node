@@ -231,23 +231,40 @@ def _observe(user_uid, user_home):
                                ('jetstream' + suffix))
         stores[label] = {key: value for key, value in store.items() if key != 'inodes'}
         stores[label]['nats_server_open_vnodes'] = sorted(
-            ({'pid': process['pid'], 'fd': entry['fd'], 'inode': entry['inode']}
+            ({'pid': process['pid'], 'start_sec': process['start_sec'],
+              'start_usec': process['start_usec'], 'fd': entry['fd'],
+              'inode': entry['inode']}
             for process in processes for entry in process['vnodes']
             if (entry['device'], entry['inode']) in store['inodes']),
             key=lambda item: (item['pid'], item['fd']))
+        stores[label]['nats_server_cwd'] = sorted(
+            ({'pid': process['pid'], 'start_sec': process['start_sec'],
+              'start_usec': process['start_usec'],
+              'inode': process['cwd']['inode']}
+             for process in processes if
+             (process['cwd']['device'], process['cwd']['inode']) in store['inodes']),
+            key=lambda item: item['pid'])
+        stores[label]['nats_server_mappings'] = sorted(
+            ({'pid': process['pid'], 'start_sec': process['start_sec'],
+              'start_usec': process['start_usec'], 'inode': entry['inode']}
+             for process in processes for entry in process['mappings']
+             if (entry['device'], entry['inode']) in store['inodes']),
+            key=lambda item: (item['pid'], item['inode']))
     summaries = [{'pid': process['pid'], 'uid': process['uid'],
                   'start_sec': process['start_sec'],
                   'start_usec': process['start_usec'],
                   'executable': process['executable'],
                   'argv_hmac_sha256': argument_digest(process['arguments']),
-                  'vnode_count': len(process['vnodes'])} for process in processes]
+                  'vnode_count': len(process['vnodes']),
+                  'mapping_count': len(process['mappings'])} for process in processes]
     return {'scope': 'live-census-only',
             'coverage': {'domains': [gui, 'system'],
                          'other_domains': 'not checked',
                          'unloaded_plists': 'not checked',
                          'waiting_job_arguments': 'launchctl text; embedded newlines are ambiguous',
                          'processes': 'readable processes named nats-server',
-                         'vnode_holders': 'those processes only; linked store entries only',
+                         'vnode_holders': 'open descriptors, mapped files and working directories of those processes only; linked store entries only',
+                         'process_identity': 'PID and start time stable within each snapshot, not across the full scan',
                          'single_instant': False, 'physical_absence_certified': False},
             'gui': units, 'system': system,
             'processes': summaries, 'unreadable_pids': unreadable,
