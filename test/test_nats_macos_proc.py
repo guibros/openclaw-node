@@ -1,7 +1,10 @@
+import ctypes
+import errno
 import mmap
 import os
 from pathlib import Path
 import stat
+import struct
 import sys
 import tempfile
 import unittest
@@ -9,6 +12,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'lib'))
 import nats_macos_proc as proc
+from nats_root_lock import Refused
 
 
 @unittest.skipUnless(sys.platform == 'darwin', 'macOS process API')
@@ -108,6 +112,45 @@ class MacProcessTest(unittest.TestCase):
             finally:
                 mapping.close()
 
+
+class RegionContractTest(unittest.TestCase):
+    def test_zeroed_working_directory_refuses(self):
+        class Library:
+            def proc_pidinfo(self, _pid, _flavor, _address, _buffer, _size):
+                return proc.VNODE_PATHINFO_SIZE
+        with self.assertRaisesRegex(Refused, 'identity is unobservable'):
+            proc.working_directory(123, Library())
+
+    def test_einval_marks_the_end_of_a_completed_scan(self):
+        class Library:
+            def proc_pidinfo(self, _pid, _flavor, address, buffer, _size):
+                if address == 0:
+                    struct.pack_into('<QQ', buffer, 80, 4096, 4096)
+                    return proc.REGION_PATH_SIZE
+                ctypes.set_errno(errno.EINVAL)
+                return 0
+        self.assertEqual(proc.mapped_vnodes(123, Library()), [])
+
+    def test_midwalk_lookup_failure_is_not_a_complete_scan(self):
+        class Library:
+            def proc_pidinfo(self, _pid, _flavor, address, buffer, _size):
+                if address == 0:
+                    struct.pack_into('<QQ', buffer, 80, 4096, 4096)
+                    return proc.REGION_PATH_SIZE
+                ctypes.set_errno(errno.ESRCH)
+                return 0
+        with self.assertRaisesRegex(Refused, 'unobservable'):
+            proc.mapped_vnodes(123, Library())
+
+    def test_path_without_vnode_identity_refuses(self):
+        class Library:
+            def proc_pidinfo(self, _pid, _flavor, _address, buffer, _size):
+                struct.pack_into('<QQ', buffer, 80, 4096, 4096)
+                ctypes.memmove(ctypes.addressof(buffer) + proc.REGION_PATH_OFFSET,
+                               b'/tmp/mapped\0', 12)
+                return proc.REGION_PATH_SIZE
+        with self.assertRaisesRegex(Refused, 'identity is unobservable'):
+            proc.mapped_vnodes(123, Library())
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,4 +1,5 @@
 import ctypes
+import errno
 import os
 import struct
 import sys
@@ -151,6 +152,8 @@ def working_directory(pid, library=None):
     device, mode, links, inode = struct.unpack_from('<IHHQ', buffer.raw)
     path = buffer.raw[VNODE_INFO_PATH_OFFSET:VNODE_INFO_PATH_SIZE].split(
         b'\0', 1)[0].decode(errors='replace')
+    if not inode or not path:
+        raise Refused('process working directory identity is unobservable')
     return {'device': device, 'inode': inode, 'mode': mode,
             'links': links, 'path': path}
 
@@ -161,10 +164,11 @@ def mapped_vnodes(pid, library=None):
     mapped = {}
     for region in range(32768):
         buffer = ctypes.create_string_buffer(REGION_PATH_SIZE)
+        ctypes.set_errno(0)
         actual = library.proc_pidinfo(pid, PROC_PIDREGIONPATHINFO, address,
                                       buffer, REGION_PATH_SIZE)
         if actual == 0:
-            if region == 0:
+            if region == 0 or ctypes.get_errno() != errno.EINVAL:
                 raise Refused('process memory regions are unobservable')
             return list(mapped.values())
         if actual != REGION_PATH_SIZE:
@@ -173,9 +177,11 @@ def mapped_vnodes(pid, library=None):
         if size == 0 or base < address or base + size <= address or base + size >= 1 << 64:
             raise Refused('process memory regions changed during census')
         device, mode, links, inode = struct.unpack_from('<IHHQ', buffer.raw, 96)
+        path = buffer.raw[REGION_PATH_OFFSET:].split(b'\0', 1)[0].decode(
+            errors='replace')
+        if path and not inode:
+            raise Refused('process mapped file identity is unobservable')
         if inode:
-            path = buffer.raw[REGION_PATH_OFFSET:].split(b'\0', 1)[0].decode(
-                errors='replace')
             mapped[(device, inode, path)] = {
                 'device': device, 'inode': inode, 'mode': mode,
                 'links': links, 'path': path}
