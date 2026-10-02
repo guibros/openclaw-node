@@ -775,3 +775,11 @@ path. It now accepts the canonical absolute Node executable already saved
 and content-pinned in the journal, then binds the running process to that
 same path. The previously failing ambiguous-open readiness case passes in
 isolation. Full local and exact-head CI runs remain pending.
+
+Checkpoint 2026-10-02 13:03 EDT: the adapter's saved Node path now also
+requires a regular, single-link executable before any content read. An owned
+FIFO-path control refuses before the read; this guards a malformed saved
+baseline from hanging recovery. The earlier exact-head CI at `002dfca` passed
+4/4 and the owned suite passed 27/27 locally. The new 28-case suite and
+corresponding CI run are pending. Protected root admission and live cutover
+remain open at 1.2[A]/v1.2-pre.

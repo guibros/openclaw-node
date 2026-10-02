@@ -146,6 +146,9 @@ class OwnedLaunchdAdapter:
             node = pathlib.Path(saved['argv'][0])
             require(node.is_absolute() and str(node.resolve(strict=True)) == str(node),
                     'owned Node executable path differs')
+            info = node.lstat()
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+                    and info.st_mode & 0o111, 'owned Node executable is not a regular file')
             expected_argv = [str(node), str(self.root / OWNED_SERVICE.name)]
             private_file(self.root / OWNED_SERVICE.name)
             require((self.root / OWNED_SERVICE.name).read_bytes() == OWNED_SERVICE.read_bytes(),

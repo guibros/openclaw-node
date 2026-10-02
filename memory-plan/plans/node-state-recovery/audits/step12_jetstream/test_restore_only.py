@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -373,6 +374,27 @@ with Journal(root, node_lock=lock) as journal:
             plist.write_bytes(original)
         self.assertEqual(sorted(path.name for path in self.journal_root.iterdir()), before)
         self.assertFalse(production.exists())
+
+    def test_nonregular_saved_node_refuses_before_content_read(self):
+        fifo = self.root / 'fake-node'
+        os.mkfifo(fifo, 0o700)
+        plist = self.services['mesh-agent'].plist
+        original = plist.read_bytes()
+        try:
+            altered = plistlib.loads(original)
+            altered['ProgramArguments'][0] = str(fifo)
+            raw = plistlib.dumps(altered)
+            plist.write_bytes(raw)
+            prior = copy.deepcopy(self.prior)
+            identity = prior['mesh-agent']['identity']
+            old_node = identity['argv'][0]
+            identity['argv'][0] = str(fifo)
+            identity['files'][str(fifo)] = identity['files'].pop(old_node)
+            identity['plist_sha256'] = hashlib.sha256(raw).hexdigest()
+            with self.assertRaisesRegex(Refused, 'not a regular file'):
+                OwnedLaunchdAdapter(self.root, prior, 'unused')
+        finally:
+            plist.write_bytes(original)
 
     def test_missing_receipt_refuses_without_rebuilding_or_restoring(self):
         self.interrupt()
