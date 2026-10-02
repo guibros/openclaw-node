@@ -1801,6 +1801,41 @@ with legacy_journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
         with self.assertRaisesRegex(Refused, 'resolved entry files'):
             static_identity(unit, dependencies={'package': parent})
 
+    def test_static_identity_refuses_special_files_before_reading(self):
+        import plistlib
+        from preservation_journal import static_identity
+        parent = pathlib.Path(self.temp.name)
+        fifo = parent / 'fake-node'
+        os.mkfifo(fifo)
+        plist = parent / 'owned.plist'
+        plist.write_bytes(plistlib.dumps({'ProgramArguments': [str(fifo)]}))
+        def deadline(*_):
+            raise AssertionError('static identity read blocked')
+        previous = signal.signal(signal.SIGALRM, deadline)
+        signal.setitimer(signal.ITIMER_REAL, 3)
+        try:
+            with self.assertRaisesRegex(Refused, 'bounded regular file'):
+                static_identity(plist)
+            with self.assertRaisesRegex(Refused, 'bounded regular file'):
+                static_identity(fifo)
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous)
+
+    def test_static_identity_refuses_symlinked_and_oversized_plists(self):
+        from preservation_journal import static_identity
+        parent = pathlib.Path(self.temp.name)
+        plist = parent / 'owned.plist'
+        plist.write_bytes(b'plist')
+        alias = parent / 'alias.plist'
+        alias.symlink_to(plist)
+        with self.assertRaises(Refused):
+            static_identity(alias)
+        with plist.open('wb') as handle:
+            handle.truncate((1 << 20) + 1)
+        with self.assertRaisesRegex(Refused, 'bounded regular file'):
+            static_identity(plist)
+
     def test_static_identity_binds_the_resolved_working_directory(self):
         import plistlib
         from preservation_journal import static_identity

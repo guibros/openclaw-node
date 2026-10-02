@@ -208,8 +208,42 @@ def valid_record(record):
     return record
 
 
+def regular_content(path, limit, keep_bytes=False):
+    path = pathlib.Path(path)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_NOCTTY)
+        try:
+            before = os.fstat(fd)
+            require(stat.S_ISREG(before.st_mode) and before.st_size <= limit,
+                    'static identity file is not a bounded regular file')
+            result = bytearray() if keep_bytes else hashlib.sha256()
+            count = 0
+            while chunk := os.read(fd, 1 << 20):
+                count += len(chunk)
+                require(count <= limit, 'static identity file exceeds its size bound')
+                if keep_bytes:
+                    result.extend(chunk)
+                else:
+                    result.update(chunk)
+            after = os.fstat(fd)
+            named = path.lstat()
+            require(stat.S_ISREG(named.st_mode) and
+                    (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns,
+                     before.st_ctime_ns) ==
+                    (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns,
+                     after.st_ctime_ns) and
+                    (named.st_dev, named.st_ino, named.st_ctime_ns) ==
+                    (after.st_dev, after.st_ino, after.st_ctime_ns),
+                    'static identity file changed during capture')
+            return bytes(result) if keep_bytes else result.hexdigest()
+        finally:
+            os.close(fd)
+    except OSError as error:
+        raise Refused('static identity file is unobservable') from error
+
+
 def static_identity(plist_path, files=(), dependencies=None):
-    raw = pathlib.Path(plist_path).read_bytes()
+    raw = regular_content(plist_path, 1 << 20, keep_bytes=True)
     plist = plistlib.loads(raw)
     argv = plist['ProgramArguments']
     dependencies = {name: str(pathlib.Path(path).resolve(strict=True))
@@ -222,7 +256,7 @@ def static_identity(plist_path, files=(), dependencies=None):
     paths.update(path.resolve(strict=True) for path in arguments if path.is_file())
     return {'plist_sha256': hashlib.sha256(raw).hexdigest(), 'argv': argv,
             'working_directory': str(cwd.resolve(strict=True)),
-            'files': {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths},
+            'files': {str(path): regular_content(path, 1 << 30) for path in paths},
             'dependencies': dependencies}
 
 
