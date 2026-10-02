@@ -1,3 +1,4 @@
+import mmap
 import os
 from pathlib import Path
 import sys
@@ -131,6 +132,26 @@ class HolderCensusTest(unittest.TestCase):
             self.assertEqual(len(holders), 1)
             self.assertEqual(holders[0]['reference'], 'mmap')
             self.assertIsNone(holders[0]['fd'])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS process API')
+    def test_unlinked_live_mapping_is_attributed_to_store(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            for suffix in census.SUFFIXES:
+                (home / '.openclaw' / 'nats' / ('jetstream' + suffix)).mkdir(parents=True)
+            block = home / '.openclaw' / 'nats' / 'jetstream' / 'block'
+            block.write_bytes(b'owned' * 1024)
+            with block.open('rb') as handle:
+                mapping = mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ)
+            block.unlink()
+            try:
+                with patch.object(census.proc, 'list_pids', return_value=[os.getpid()]):
+                    report = census._observe(home)
+                holders = report['stores']['ai.openclaw.nats']['holders']
+                self.assertTrue(any(holder['reference'] == 'mmap' and
+                                    holder['unlinked'] for holder in holders))
+            finally:
+                mapping.close()
 
     def test_linked_file_created_after_store_walk_needs_fresh_identity(self):
         with tempfile.TemporaryDirectory() as temporary:
