@@ -1,10 +1,12 @@
 import hashlib
+import hmac
 import os
 from pathlib import Path
 import plistlib
 import re
 import stat
 import subprocess
+import unicodedata
 
 import nats_macos_proc as proc
 from nats_root_lock import Refused
@@ -12,6 +14,12 @@ from nats_root_lock import Refused
 
 LEGACY_LABELS = ('ai.openclaw.nats', 'ai.openclaw.nats-1',
                  'ai.openclaw.nats-2', 'ai.openclaw.nats-3')
+
+
+def _safe_arguments(arguments):
+    return all(not any(unicodedata.category(char)[0] == 'C' or
+                       unicodedata.category(char) in ('Zl', 'Zp')
+                       for char in argument) for argument in arguments)
 
 
 def _command(*args):
@@ -43,6 +51,8 @@ def launchd_service(domain, label):
     if len(arguments) != 1:
         raise Refused(f'launchd service {label} arguments are unobservable')
     arguments = [line[2:] for line in arguments[0].split('\n')[:-1]]
+    if not _safe_arguments(arguments):
+        raise Refused(f'launchd service {label} arguments contain control characters')
     pid = re.findall(r'^\tpid = (\d+)$', output, re.MULTILINE)
     if len(pid) > 1 or state == 'running' and len(pid) != 1:
         raise Refused(f'launchd service {label} has ambiguous process state')
@@ -149,6 +159,10 @@ def observe(user_uid, user_home):
 
 
 def _observe(user_uid, user_home):
+    report_key = os.urandom(32)
+    def argument_digest(arguments):
+        return hmac.new(report_key, '\0'.join(arguments).encode(),
+                        hashlib.sha256).hexdigest()
     home = Path(user_home).resolve()
     gui = f'gui/{user_uid}'
     overrides = disabled_overrides(gui)
@@ -167,7 +181,8 @@ def _observe(user_uid, user_home):
             plist = plist_identity(service['plist'])
             if (plist['label'] != label or not isinstance(plist['argv'], list)
                     or not plist['argv'] or not all(isinstance(arg, str)
-                                                   for arg in plist['argv'])):
+                                                   for arg in plist['argv'])
+                    or not _safe_arguments(plist['argv'])):
                 raise Refused(f'launchd service {label} does not match its plist')
             if service['program'] != plist['argv'][0] or service['arguments'] != plist['argv']:
                 raise Refused(f'launchd service {label} arguments differ from its plist')
@@ -176,8 +191,7 @@ def _observe(user_uid, user_home):
                                                 by_pid[pid]['arguments'] == plist['argv'])
             if service['state'] == 'running' and not service['process_matches_plist']:
                 raise Refused(f'launchd service {label} process differs from its plist')
-            plist['argv_sha256'] = hashlib.sha256(
-                '\0'.join(plist['argv']).encode()).hexdigest()
+            plist['argv_hmac_sha256'] = argument_digest(plist['argv'])
             del plist['argv']
             del service['arguments']
             service['plist_identity'] = plist
@@ -196,8 +210,7 @@ def _observe(user_uid, user_home):
                   'start_sec': process['start_sec'],
                   'start_usec': process['start_usec'],
                   'executable': process['executable'],
-                  'argv_sha256': hashlib.sha256(
-                      '\0'.join(process['arguments']).encode()).hexdigest(),
+                  'argv_hmac_sha256': argument_digest(process['arguments']),
                   'vnode_count': len(process['vnodes'])} for process in processes]
     return {'scope': 'live-census-only',
             'coverage': {'domains': [gui, 'system'],

@@ -1028,3 +1028,7 @@ other domains are unchecked, and says physical absence is not certified.
 Loaded launchd arguments are compared with the plist even for waiting jobs;
 the raw arguments are removed before output. Both older boolean and newer
 named disabled-override values are accepted, while unknown values refuse.
+Arguments containing control or Unicode line-separator characters refuse,
+since launchctl's text rendering can otherwise be ambiguous. Reported
+argument digests use a fresh private HMAC key per scan so they do not expose
+an offline guess oracle for any future low-entropy argument.

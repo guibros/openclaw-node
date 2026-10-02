@@ -1,3 +1,4 @@
+import hashlib
 import os
 from pathlib import Path
 import plistlib
@@ -39,15 +40,15 @@ class LiveCensusTest(unittest.TestCase):
             with self.assertRaisesRegex(Refused, 'unobservable'):
                 census.launchd_service('system', 'ai.openclaw.nats')
 
-    def test_launchd_argument_with_line_separator_is_not_split(self):
+    def test_launchd_argument_with_line_separator_refuses(self):
         output = ('gui/501/ai.openclaw.nats = {\n'
                   '\tpath = /tmp/nats.plist\n\tstate = waiting\n'
                   '\tprogram = /tmp/nats-server\n'
                   '\targuments = {\n\t\t/tmp/nats-server\n'
                   '\t\t/tmp/name\fpart\n\t}\n}\n')
         with patch.object(census, '_command', return_value=(0, output, '')):
-            observed = census.launchd_service('gui/501', 'ai.openclaw.nats')
-        self.assertEqual(observed['arguments'], ['/tmp/nats-server', '/tmp/name\fpart'])
+            with self.assertRaisesRegex(Refused, 'control characters'):
+                census.launchd_service('gui/501', 'ai.openclaw.nats')
 
     def test_disabled_override_is_explicit(self):
         output = ('disabled services = {\n'
@@ -127,6 +128,8 @@ class LiveCensusTest(unittest.TestCase):
             self.assertNotIn('arguments', unit)
             self.assertNotIn('argv', unit['plist_identity'])
             self.assertNotIn('/tmp/private.conf', str(report))
+            self.assertNotEqual(unit['plist_identity']['argv_hmac_sha256'],
+                                hashlib.sha256('\0'.join(argv).encode()).hexdigest())
 
     def test_plist_identity_and_symlink_refusal(self):
         with tempfile.TemporaryDirectory() as temporary:

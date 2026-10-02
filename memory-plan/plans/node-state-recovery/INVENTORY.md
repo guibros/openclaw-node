@@ -484,3 +484,6 @@ for waiting and running GUI/system jobs, and keeps argument values out of the
 report. The new tests run in CI at 595f0df (4/4 green); revised-head CI and
 adversarial review are pending. This does not certify absence or authorize
 the production migration. Step 1.2 stays [A] at v1.2-pre.
+Claude's second pass also reproduced a control-character parsing ambiguity;
+the next revision refuses such arguments and keys the report digests per
+scan. Exact-head CI and review remain pending.
