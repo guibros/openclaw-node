@@ -803,3 +803,18 @@ and oversized plist controls; final exact-head CI for that delta is pending.
 Draft PR #206 separately fixes the NATS test teardown by waiting for its
 private server to exit before removing its store. Root admission and live
 cutover remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-02 13:56 EDT: PR #205 merged at `894dca6` after its
+final exact-head CI passed 4/4 and local journal, hold and owned restore-only
+suites passed 97/97, 43/43 and 28/28. Claude found no blocker in the final
+bounded-read delta. PR #206 merged at `aa5ff69` after exact-head CI passed
+4/4 and Claude's adversarial checks showed that the NATS test server exits
+before its private store is removed, including startup failures; its final
+file-level cleanup hook also makes an injected teardown failure exit nonzero
+under the CI Node 20 and 22 commands. Neither PR changed live services.
+The 2026-10-02 provisional full-node baseline includes the approved host
+Ollama endpoint changes, but still refuses the obsolete system-domain
+`com.openclaw.agent` job. Its guarded retirement runbook is prepared; local
+administrator authentication has not yet been supplied. Protected root
+observer/admission, three healthy cold masters, isolated restores and live
+cutover remain open at 1.2[A]/v1.2-pre.
