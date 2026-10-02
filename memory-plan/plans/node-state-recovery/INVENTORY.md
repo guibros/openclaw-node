@@ -487,3 +487,11 @@ the production migration. Step 1.2 stays [A] at v1.2-pre.
 Claude's second pass also reproduced a control-character parsing ambiguity;
 the next revision refuses such arguments and keys the report digests per
 scan. Exact-head CI and review remain pending.
+
+Checkpoint 2026-10-01 23:04 EDT: D58 adds an independent read-only holder
+command that scans vnode descriptors across readable processes of every name,
+including retained paths for unlinked store files. Seven focused Mac tests
+pass. A live user-level scan found PID 842 holding one linked 4222 entry,
+with 145 unreadable PIDs and 41 unattributed unlinked handles on store
+devices; it explicitly does not certify absence. Exact CI/review are pending.
+The protected root observer, cold masters and cutover remain open at 1.2 [A].

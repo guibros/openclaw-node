@@ -1034,3 +1034,15 @@ embedded newline can be indistinguishable from two arguments for a waiting
 job. The report declares that limit. Reported
 argument and plist-content digests use a fresh private HMAC key per scan so
 they do not expose an offline guess oracle for future low-entropy secrets.
+
+## D58 — Report readable store holders without an absence verdict (2026-10-01 23:04 EDT)
+
+The next diagnostic slice scans vnode descriptors for every process name it
+can read, not only `nats-server`. It matches linked store entries by device
+and inode and can identify an unlinked handle when the kernel retains a path
+under one of the four store roots. Unlinked handles on a store device with no
+attributable path are counted separately. Inaccessible PIDs and a changed PID
+list remain visible in the report. The scan does not establish a single
+instant or physical absence, and has no path into the root decline callback.
+Root-run protected observation and writer-lock bracketing are still required
+before any migration decision.

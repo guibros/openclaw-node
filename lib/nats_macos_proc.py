@@ -146,3 +146,14 @@ def snapshot(pid, library=None):
     if before != after:
         raise Refused('process changed during census')
     return {**before, 'executable': path, 'arguments': argv, 'vnodes': vnodes}
+
+
+def vnode_snapshot(pid, library=None):
+    library = library or _library()
+    before = bsd_info(pid, library)
+    vnodes = [vnode_descriptor(pid, fd, library)
+              for fd, kind in file_descriptors(pid, before['nfiles'], library)
+              if kind == PROX_FDTYPE_VNODE]
+    if before != bsd_info(pid, library):
+        raise Refused('process changed during census')
+    return {**before, 'vnodes': vnodes}
