@@ -133,12 +133,14 @@ def valid_baseline(row):
 
 
 class UserTransfer:
-    def __init__(self, node_lock, journal_root, uid, transaction, prior_boot=False):
+    def __init__(self, node_lock, journal_root, uid, transaction,
+                 prior_boot=False, decline_only=False):
         self.node_lock = pathlib.Path(node_lock)
         self.journal_root = pathlib.Path(journal_root)
         self.uid = uid
         self.transaction = transaction
         self.prior_boot = prior_boot
+        self.decline_only = decline_only
         self.fds = []
         self.locks = []
         try:
@@ -246,6 +248,9 @@ class UserTransfer:
         if self.prior_boot:
             require(isinstance(boot, str) and HEX.fullmatch(boot),
                     'user transfer prior boot is invalid')
+        if self.decline_only:
+            self._validate_decline()
+            return
         require(all(row['event'] in ('baseline', 'intent', 'hold-published',
                                      'verified', 'nats-transfer-intent')
                     for row in self.records),
@@ -334,6 +339,38 @@ class UserTransfer:
                      if row['event'] == 'verified' and isinstance(row.get('intent'), int)}
         require(not any(row['event'] == 'intent' and row['sequence'] not in completed
                         for row in self.records), 'user transfer has an unfinished mutation')
+        receipt = read_owned(self.node_lock.with_name(self.node_lock.name + '.state.json'), self.uid)
+        require(isinstance(receipt, dict) and receipt.get('status') == 'unresolved'
+                and receipt.get('journal_root') == str(self.journal_root.resolve())
+                and receipt.get('baseline') == baseline,
+                'user transfer node receipt differs')
+        self.observation = {'verified': True, 'root_transaction': self.transaction,
+                            'head': transfer['sha256'], 'baseline_sha256': baseline['sha256'],
+                            'journal_root': str(self.journal_root.resolve())}
+
+    def _validate_decline(self):
+        baseline, transfer = self.records[0], self.records[-1]
+        valid_baseline(baseline)
+        require(baseline.get('event') == 'baseline'
+                and transfer.get('event') == 'nats-transfer-intent'
+                and set(transfer) == {'sequence', 'previous', 'event', 'boot', 'at',
+                                      'root_transaction', 'units', 'baseline_sha256',
+                                      'observations', 'hold_sha256', 'hold_evidence', 'sha256'}
+                and transfer.get('root_transaction') == self.transaction
+                and transfer.get('units') == list(NATS)
+                and transfer.get('baseline_sha256') == baseline['sha256']
+                and isinstance(transfer.get('observations'), dict)
+                and set(transfer['observations']) == set(NATS)
+                and isinstance(transfer.get('hold_evidence'), dict)
+                and isinstance(transfer.get('hold_sha256'), str)
+                and HEX.fullmatch(transfer['hold_sha256'])
+                and hashlib.sha256(encoded(transfer['hold_evidence'])).hexdigest() ==
+                transfer['hold_sha256']
+                and sum(row.get('event') == 'nats-transfer-intent'
+                        for row in self.records) == 1
+                and not any(row.get('event') == 'nats-transfer-closed'
+                            for row in self.records),
+                'user transfer is not a unique open terminal intent')
         receipt = read_owned(self.node_lock.with_name(self.node_lock.name + '.state.json'), self.uid)
         require(isinstance(receipt, dict) and receipt.get('status') == 'unresolved'
                 and receipt.get('journal_root') == str(self.journal_root.resolve())

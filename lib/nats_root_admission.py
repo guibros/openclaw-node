@@ -37,6 +37,8 @@ class BoundRootJournal:
         try:
             root = LockBootstrapJournal(site, root_uid, root_gid)
             try:
+                if root.current[0]['event'] != 'lock-create-intent':
+                    raise Refused('declined root transaction cannot be reopened')
                 return cls(root, user, transaction)
             except BaseException:
                 root.close()
@@ -44,6 +46,17 @@ class BoundRootJournal:
         except BaseException:
             user.close()
             raise
+
+    @classmethod
+    def decline(cls, site, lock_path, root_uid, root_gid, transaction,
+                node_lock, user_journal_root, user_uid, verify_absence):
+        user = UserTransfer(node_lock, user_journal_root, user_uid, transaction,
+                            prior_boot=True, decline_only=True)
+        try:
+            return LockBootstrapJournal.decline(site, lock_path, root_uid, root_gid,
+                                                 transaction, user, verify_absence)
+        finally:
+            user.close()
 
     def _check_descriptor(self):
         beginning = self.root.current[0]['data']

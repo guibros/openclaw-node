@@ -882,3 +882,40 @@ the existing user journal remains restore-only. A new root begin still
 requires a current-boot user transfer. This is a source control; production
 root execution remains gated and fresh physical release verification is not
 yet implemented.
+
+## D49 — Decline a transfer only under the root ledger lock (2026-10-01 19:56 EDT)
+
+When an owner has durably frozen a NATS transfer but no root intent was
+published, the root can return it with a `declined` outcome. The decline takes
+the owner node lock, owner journal lock, and root ledger lock in that order.
+It creates the empty root ledger directory if needed, settles pending appends
+with the ledger's own reader under that lock, and refuses any active root
+intent. A one-link pending intent has no effect; a final or two-link intent
+blocks decline. The same root ledger receives a terminal, nonce-bearing
+`transfer-declined` record with exact user baseline/transfer copies, the prior
+ledger head and carried writer lock, old transfer boot, current decline boot,
+and a digest of fresh physical absence evidence. The public root-owned receipt
+can be republished after interruption and binds that record's hash. A later
+root begin rejects reuse of the transaction and inherits the terminal lock
+from a decline belonging to an earlier transaction.
+
+The user consumes only the matching root-owned receipt, closes the transfer
+with outcome `declined`, and restores the legacy NATS state restore-only. The
+receipt reader rejects ACLs on the outcome directory and file. This source
+slice still uses a supplied physical-absence callback in owned tests; the
+production macOS-root decline and transfer gates remain closed until a pinned
+root command, process/service census, protected outcome lifecycle, and live
+restoration checks are implemented. A decline never substitutes for a root
+return if any root intent already exists.
+
+## D50 — Refuse stale root outcomes before recording a decline (2026-10-01 20:09 EDT)
+
+An existing outcome file for the proposed transaction is evidence of a
+root-side inconsistency. The no-intent decline checks the protected outcome
+directory and its transaction slot while holding the root ledger lock, before
+appending `transfer-declined`. It refuses an occupied slot without creating a
+durable decline record, so a stale `returned` receipt cannot strand a newly
+recorded decline whose receipt can never be published. Idempotent reentry of
+an already recorded decline instead verifies the saved user and physical
+identity and republishes the same receipt. This closes Claude's PR #185
+exact-head E4 reproducer; production gates remain closed.
