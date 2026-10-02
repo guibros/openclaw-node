@@ -261,7 +261,20 @@ describe('advanceCirclingStep — adaptive convergence integration (real NATS KV
   after(async () => {
     await nc?.close();
     if (nats?.proc && nats.proc.exitCode === null && nats.proc.signalCode === null) {
-      const exited = new Promise((resolve) => nats.proc.once('exit', resolve));
+      const exited = new Promise((resolve, reject) => {
+        const force = setTimeout(() => nats.proc.kill('SIGKILL'), 1000);
+        const deadline = setTimeout(() => {
+          nats.proc.stdout?.destroy();
+          nats.proc.stderr?.destroy();
+          nats.proc.unref();
+          reject(new Error('NATS test server did not exit'));
+        }, 5000);
+        nats.proc.once('exit', () => {
+          clearTimeout(force);
+          clearTimeout(deadline);
+          resolve();
+        });
+      });
       nats.proc.kill();
       await exited;
     }
