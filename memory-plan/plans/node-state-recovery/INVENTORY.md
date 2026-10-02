@@ -600,7 +600,7 @@ Checkpoint 2026-10-02 08:00 EDT: the D60 source draft admits only the exact
 idle `com.openclaw.tailscale-up` system one-shot as an explicit, rechecked
 exclusion. Its launch count, plist, wrapper, signed app and boot identity are
 saved in the full-node inventory; a later run or drift refuses. The focused
-preservation suites pass 98/98 and the root transfer suite passes 10/10;
+preservation suites pass 103/103 and the root transfer suite passes 10/10;
 read-only validation of the installed
 helper passes. The live preflight still refuses `com.openclaw.agent`, so the
 23-unit baseline remains provisional. No system job or node service was

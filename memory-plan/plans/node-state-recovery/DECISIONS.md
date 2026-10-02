@@ -1109,11 +1109,15 @@ exited successfully. The plist key set is limited to `Label`, exact
 properties, and domain must agree. The root-owned wrapper and protected
 ancestors are checked, and the Tailscale app must retain the vendor signature.
 The baseline saves the plist, wrapper, app and boot identities together with
-launchd's run count. Every forward and final inventory recaptures and compares
-that exclusion exactly. The root transfer reader accepts the same strict
-excluded-job schema and boot identity. A new run, changed app, changed disable state,
-or missing job refuses. Other `com.openclaw.*` jobs remain unknown and refuse;
-this does not exclude or retire `com.openclaw.agent`.
+launchd's run count. Every forward inventory compares that exclusion exactly.
+The root transfer reader accepts the same strict excluded-job schema and boot
+identity. A new run, changed app, changed disable state, or missing job ends
+the forward window. Recovery records a fresh exclusion anchor before restoring
+services, then requires it unchanged through final verification and resolution.
+This lets a reboot or vendor app update be reported and restored without
+claiming the original forward window stayed certified. The managed cohort's
+original static identity still applies. Other `com.openclaw.*` jobs remain
+unknown and refuse; this does not exclude or retire `com.openclaw.agent`.
 
 The no-run argument assumes no out-of-band root `bootout` followed by
 `bootstrap` of this label during the preservation window: launchd can reset

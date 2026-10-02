@@ -498,8 +498,21 @@ class Journal:
         current = capture_entrypoint_inventory(UNITS)
         saved = self.entrypoint_inventory
         require(all(current[key] == saved[key] for key in
-                    ('installed', 'roots', 'disabled_artifacts', 'excluded')),
+                    ('installed', 'roots', 'disabled_artifacts')),
                 'full-node installed entrypoint identity changed')
+        recovery = next((row for row in reversed(self.records)
+                         if row['event'] == 'recovery-started'), None)
+        excluded_anchor = (recovery.get('entrypoint_excluded') if recovery is not None
+                           else saved['excluded'])
+        require(isinstance(excluded_anchor, dict),
+                'full-node recovery exclusion anchor is absent')
+        valid_tailscale_exclusion(excluded_anchor)
+        require(set(excluded_anchor) == set(saved['excluded'])
+                and all(excluded_anchor[label]['plist'] == saved['excluded'][label]['plist']
+                        and excluded_anchor[label]['wrapper'] == saved['excluded'][label]['wrapper']
+                        for label in excluded_anchor)
+                and current['excluded'] == excluded_anchor,
+                'full-node excluded system job changed inside the active window')
         require(all(set(current['loaded'][domain]) <= set(saved['loaded'][domain])
                     for domain in ('gui', 'user', 'system')),
                 'full-node job loaded outside its original domain or state')
@@ -844,7 +857,14 @@ class Journal:
             if held:
                 raise
             errors.append({'unit': 'journal', 'reason': type(error).__name__})
-        record('recovery-started', original_boot=self.records[0]['boot'])
+        excluded_anchor = None
+        if self.scope == FULL_NODE_SCOPE:
+            try:
+                excluded_anchor = capture_entrypoint_inventory(UNITS)['excluded']
+            except Exception:
+                pass
+        record('recovery-started', original_boot=self.records[0]['boot'],
+               entrypoint_excluded=excluded_anchor)
         try:
             self.check_entrypoints()
         except Exception as error:

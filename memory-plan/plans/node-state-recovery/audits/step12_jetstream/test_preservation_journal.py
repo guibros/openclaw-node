@@ -409,13 +409,13 @@ class JournalTests(unittest.TestCase):
                     with self.subTest(change=change):
                         with patch('preservation_journal.capture_entrypoint_inventory',
                                    return_value=changed):
-                            with self.assertRaisesRegex(Refused, 'entrypoint identity changed'):
+                            with self.assertRaisesRegex(Refused, 'excluded system job changed'):
                                 journal.check_entrypoints(final=True)
                 missing = copy.deepcopy(evidence)
                 missing['excluded'] = {}
                 with patch('preservation_journal.capture_entrypoint_inventory',
                            return_value=missing):
-                    with self.assertRaisesRegex(Refused, 'entrypoint identity changed'):
+                    with self.assertRaisesRegex(Refused, 'excluded system job changed'):
                         journal.check_entrypoints(final=True)
         malformed = copy.deepcopy(evidence)
         del malformed['excluded']
@@ -425,6 +425,71 @@ class JournalTests(unittest.TestCase):
         malformed['excluded']['com.openclaw.agent'] = tailscale_record()[TAILSCALE_LABEL]
         with self.assertRaisesRegex(Refused, 'not approved'):
             preservation_journal.valid_entrypoint_inventory(malformed, prior)
+
+    def test_excluded_job_reanchors_for_restore_only_after_reboot_or_app_update(self):
+        prior = full_node_inventory()
+        baseline = full_entrypoint_evidence(prior)
+        baseline['excluded'] = tailscale_record()
+        current = copy.deepcopy(baseline)
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   side_effect=lambda _: copy.deepcopy(current)):
+            with Journal(self.root, prior, boot='6' * 64, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE):
+                pass
+            current['excluded'][TAILSCALE_LABEL]['app']['sha256'] = 'a' * 64
+            current['excluded'][TAILSCALE_LABEL]['launchd']['runs'] = 2
+            current['excluded'][TAILSCALE_LABEL]['boot'] = '7' * 64
+            with Journal(self.root, boot='7' * 64, node_lock=self.node_lock) as reopened:
+                hold = SimpleNamespace(journal=reopened, prepare=lambda *_: None,
+                    complete=lambda *_: {'verified': True})
+                with self.assertRaisesRegex(Refused, 'excluded system job changed'):
+                    reopened.check_entrypoints()
+                result = reopened.recover(lambda *_: self.fail('already restored'),
+                    lambda unit, _: {**prior[unit], 'verified': True},
+                    lambda: {'verified': True}, hold=hold)
+                self.assertTrue(result['restored'])
+                self.assertEqual(reopened.records[-1]['event'], 'recovery-finished')
+                self.assertEqual(reopened.check_entrypoints(final=True)['excluded'],
+                                 current['excluded'])
+                reopened.resolve()
+
+    def test_excluded_job_run_during_recovery_blocks_resolution(self):
+        prior = full_node_inventory()
+        current = full_entrypoint_evidence(prior)
+        current['excluded'] = tailscale_record()
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   side_effect=lambda _: copy.deepcopy(current)):
+            with Journal(self.root, prior, boot='6' * 64, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                hold = SimpleNamespace(journal=journal, prepare=lambda *_: None,
+                    complete=lambda *_: {'verified': True})
+                def final_check():
+                    current['excluded'][TAILSCALE_LABEL]['launchd']['runs'] += 1
+                    return {'verified': True}
+                result = journal.recover(lambda *_: self.fail('already restored'),
+                    lambda unit, _: {**prior[unit], 'verified': True},
+                    final_check, hold=hold)
+                self.assertFalse(result['restored'])
+                self.assertIn('final-state', [row['unit'] for row in result['errors']])
+                with self.assertRaisesRegex(Refused, 'unrestored node'):
+                    journal.resolve()
+
+    def test_excluded_job_static_drift_cannot_reanchor_recovery(self):
+        prior = full_node_inventory()
+        current = full_entrypoint_evidence(prior)
+        current['excluded'] = tailscale_record()
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   side_effect=lambda _: copy.deepcopy(current)):
+            with Journal(self.root, prior, boot='6' * 64, node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                current['excluded'][TAILSCALE_LABEL]['plist']['sha256'] = 'a' * 64
+                hold = SimpleNamespace(journal=journal, prepare=lambda *_: None,
+                    complete=lambda *_: {'verified': True})
+                result = journal.recover(lambda *_: self.fail('already restored'),
+                    lambda unit, _: {**prior[unit], 'verified': True},
+                    lambda: {'verified': True}, hold=hold)
+                self.assertFalse(result['restored'])
+                self.assertIn('entrypoints', [row['unit'] for row in result['errors']])
 
     def test_full_inventory_covers_gateway_viewer_and_installed_unloaded_tick(self):
         self.assertTrue({'gateway', 'workplan-viewer', 'federation-tick'} <= UNITS)

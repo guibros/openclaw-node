@@ -14,13 +14,14 @@ import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from preservation_checks import (
     QuietWindow, Refused, STOP_ORDER, capture, verify_admissions,
     TAILSCALE_BINARY, TAILSCALE_LABEL, TAILSCALE_WRAPPER,
     disabled_entrypoint_artifacts, http_json, installed_entrypoints, loaded_entrypoints, verify_completion,
-    tailscale_launchd_state, valid_tailscale_plist, verify_entrypoint_inventory,
+    root_file, tailscale_exclusion, tailscale_launchd_state, valid_tailscale_plist,
+    verify_entrypoint_inventory,
     verify_queue, verify_streams, verify_timer_idle,
 )
 
@@ -111,6 +112,61 @@ class Gates(unittest.TestCase):
         ):
             self.refused(lambda d=changed_details, s=changed_disabled, l=changed_listing:
                          tailscale_launchd_state(d, s, l))
+
+    def test_tailscale_exclusion_captures_physical_chain_and_refuses_wrapper_drift(self):
+        with tempfile.TemporaryDirectory(prefix='openclaw-excluded-owned-') as root:
+            folder = pathlib.Path(root)
+            helper = folder / (TAILSCALE_LABEL + '.plist')
+            wrapper = folder / 'tailscale'
+            app = folder / 'Tailscale.app'
+            binary = app / 'Contents/MacOS/tailscale'
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b'signed-binary')
+            (app / 'Contents/Info.plist').write_bytes(plistlib.dumps({
+                'CFBundleIdentifier': 'io.tailscale.ipn.macsys', 'CFBundleVersion': '101'}))
+            wrapper.write_bytes(b'#!/bin/sh\n/Applications/Tailscale.app/Contents/MacOS/tailscale "$@"\n')
+            helper.write_bytes(plistlib.dumps({'Label': TAILSCALE_LABEL,
+                'ProgramArguments': [str(wrapper), 'up'], 'RunAtLoad': True}))
+            details = ('system/' + TAILSCALE_LABEL + ' = {\n\tactive count = 0\n'
+                '\tpath = ' + str(helper) + '\n\ttype = LaunchDaemon\n\tstate = not running\n'
+                '\tprogram = ' + str(wrapper) + '\n\targuments = {\n\t\t' +
+                str(wrapper) + '\n\t\tup\n\t}\n\tdomain = system\n\truns = 1\n'
+                '\tlast exit code = 0\n\tproperties = runatload | inferred program | '
+                'system service | managed LWCR | tle system\n}\n')
+            listing = 'services = {\n\t0 0 ' + TAILSCALE_LABEL + '\n}\n'
+            disabled = 'disabled services = {\n\t"' + TAILSCALE_LABEL + '" => enabled\n}\n'
+            def output(command, **_):
+                if command[:2] == ['/bin/launchctl', 'print-disabled']:
+                    return disabled
+                if command[:2] == ['/bin/launchctl', 'print']:
+                    return details
+                return 'boot-id\n'
+            signature = ('Identifier=io.tailscale.ipn.macsys\n'
+                         'CDHash=' + 'a' * 40 + '\nTeamIdentifier=W5364U7YZB\n')
+            with patch('preservation_checks.TAILSCALE_PLIST', helper), \
+                 patch('preservation_checks.TAILSCALE_WRAPPER', wrapper), \
+                 patch('preservation_checks.TAILSCALE_APP', app), \
+                 patch('preservation_checks.TAILSCALE_BINARY', binary), \
+                 patch('preservation_checks.protected_tailscale_ancestry'), \
+                 patch('preservation_checks.root_file', side_effect=lambda path, _: path.read_bytes()), \
+                 patch('preservation_checks.subprocess.check_output', side_effect=output), \
+                 patch('preservation_checks.subprocess.run', side_effect=[Mock(stderr=''),
+                       Mock(stderr=signature), Mock(stderr=''), Mock(stderr=signature)]):
+                result = tailscale_exclusion({TAILSCALE_LABEL: str(helper)}, set(), set(),
+                                             {TAILSCALE_LABEL}, listing)
+                self.assertEqual(result[TAILSCALE_LABEL]['launchd']['runs'], 1)
+                wrapper.write_bytes(b'changed')
+                self.refused(lambda: tailscale_exclusion({TAILSCALE_LABEL: str(helper)},
+                    set(), set(), {TAILSCALE_LABEL}, listing))
+
+    def test_excluded_root_file_rejects_unprivileged_owner(self):
+        if os.getuid() == 0:
+            self.skipTest('owner check needs an unprivileged process')
+        with tempfile.TemporaryDirectory(prefix='openclaw-excluded-owned-') as root:
+            path = pathlib.Path(root) / 'system.plist'
+            path.write_bytes(b'owned')
+            path.chmod(0o644)
+            self.refused(lambda: root_file(path, 0o644))
 
     def test_unclassified_installed_or_loaded_entrypoint_refuses(self):
         with tempfile.TemporaryDirectory(prefix='openclaw-entrypoints-owned-') as root:

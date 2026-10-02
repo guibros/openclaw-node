@@ -72,6 +72,16 @@ def valid_tailscale_plist(data):
             'excluded system job has a trigger or changed arguments')
 
 
+def protected_tailscale_ancestry():
+    for ancestor in (pathlib.Path('/Library'), pathlib.Path('/Library/LaunchDaemons'),
+                     pathlib.Path('/usr'), pathlib.Path('/usr/local'),
+                     pathlib.Path('/usr/local/bin')):
+        info = ancestor.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
+                and not info.st_mode & 0o022 and ancestor.resolve(strict=True) == ancestor,
+                'excluded system job ancestry is writable or redirected')
+
+
 def tailscale_launchd_state(details, disabled, system_listing):
     def field(name):
         values = re.findall(r'^\t' + re.escape(name) + r' = (.+)$', details, re.M)
@@ -120,13 +130,7 @@ def tailscale_exclusion(installed, gui_loaded, user_loaded, system_loaded,
             'excluded system job path or launchd domain differs')
     require(isinstance(system_listing, str), 'excluded system job domain listing is absent')
     try:
-        for ancestor in (pathlib.Path('/Library'), pathlib.Path('/Library/LaunchDaemons'),
-                         pathlib.Path('/usr'), pathlib.Path('/usr/local'),
-                         pathlib.Path('/usr/local/bin')):
-            info = ancestor.lstat()
-            require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
-                    and not info.st_mode & 0o022 and ancestor.resolve(strict=True) == ancestor,
-                    'excluded system job ancestry is writable or redirected')
+        protected_tailscale_ancestry()
         plist_bytes = root_file(TAILSCALE_PLIST, 0o644)
         plist_hash = hashlib.sha256(plist_bytes).hexdigest()
         valid_tailscale_plist(plist_bytes)
