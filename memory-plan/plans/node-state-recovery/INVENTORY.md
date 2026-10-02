@@ -665,3 +665,10 @@ provides a pinned restore branch, uses absolute sudo/Python paths, and adds
 checkout, private-output and lock-continuity checks. Exact-head CI and review
 of that follow-up remain pending. No administrator or NATS action has run;
 the protected observer, cold masters and cutover remain open at 1.2 [A].
+
+Checkpoint 2026-10-02 09:45 EDT: Claude found no blocker in the `a985298`
+procedure after its three prior gaps were fixed. Its remaining notes led to
+a final instruction that every node-user and root command be checked
+individually, the checkout must have no changes, and the second-terminal
+lock proof precedes any retirement report. CI and review at this final head
+remain pending. No root action has occurred.

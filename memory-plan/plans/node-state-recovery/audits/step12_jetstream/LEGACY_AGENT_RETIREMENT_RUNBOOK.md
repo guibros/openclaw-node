@@ -42,6 +42,10 @@ The current full-node preflight already refuses this job, and no such window
 has been started. Do not run this procedure while a window is unresolved.
 The pinned plist hash is authoritative for all of its contents, including its
 saved NATS URL; do not substitute a hand-copied key list for that hash.
+Execute every fenced command one line at a time throughout this procedure;
+inspect its status and expected output before issuing the next. Never paste a
+whole block, including the node-user preflight. A silent failed `test` or
+ancestry check must stop the action.
 
 Hold the existing node preservation lock exclusively throughout the entire
 preflight, administrator action, and post-action census. It is currently a
@@ -69,10 +73,12 @@ umask 077
 /usr/bin/git rev-parse --show-toplevel
 /usr/bin/git merge-base --is-ancestor 8b451da19d95aa3cc605ebe713598241902d365c HEAD
 /usr/bin/git rev-parse HEAD
+/usr/bin/git status --porcelain
 ```
 
 The physical working directory and Git top level must match. A failed
-ancestor check refuses the action.
+ancestor check or any status output refuses the action. Record the exact HEAD
+with the private evidence.
 
 Run these checks as the node user inside the locked shell before opening an
 administrator session:
@@ -241,19 +247,19 @@ other failed check.
 
    Compare the before/after approved LaunchAgents, NATS process identities and
    listeners, and system-domain labels; investigate any unexpected change.
-   Save boot identity, the four protected hashes, disabled override, syntax
-   and fresh-authentication results, preflight result and hashes of the
-   private censuses in an owner-private evidence file. Only after that report
-   the daemon and sudoers rules retired for this boot, then exit the locked
-   shell. Repeat the checks after the next reboot. Structural success does not
-   authorize a full-node preservation window, healthy cold masters or NATS
-   cutover.
-
    Before exiting the locked shell, run `/usr/bin/lockf -kn -t 0
    /Users/moltymac/.openclaw/preservation/node.lock /usr/bin/true` from a
    **second terminal**. It must fail because the first terminal still holds
    the lock. If it succeeds, the lock was lost; refuse the retirement claim
    and re-evaluate the observed state.
+
+   Save boot identity, the four protected hashes, disabled override, syntax
+   and fresh-authentication results, preflight result and hashes of the
+   private censuses in an owner-private evidence file. Only after the
+   second-terminal lock check fails as expected, report the daemon and sudoers
+   rules retired for this boot, then exit the locked shell. Repeat the checks
+   after the next reboot. Structural success does not authorize a full-node
+   preservation window, healthy cold masters or NATS cutover.
 
 If any step fails, preserve every original, copy and observed partial state.
 The recovery root shell must not close while sudo policy is unverified. A
