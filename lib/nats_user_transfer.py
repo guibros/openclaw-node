@@ -24,6 +24,7 @@ NATS = ('nats', 'nats-2', 'nats-3', 'nats-1')
 TIMERS = frozenset(('scheduler-heartbeat', 'consolidation-scheduler', 'observer',
                     'transcript-archive', 'log-rotate'))
 HEX = re.compile(r'[0-9a-f]{64}\Z')
+TAILSCALE_LABEL = 'com.openclaw.tailscale-up'
 
 
 def require(condition, message):
@@ -55,6 +56,47 @@ def read_owned(path, uid, directory_fd=None):
         raise Refused('user preservation file is unreadable') from error
     finally:
         os.close(fd)
+
+
+def valid_excluded_job(excluded, boot):
+    require(isinstance(excluded, dict) and set(excluded) <= {TAILSCALE_LABEL},
+            'user transfer excluded job differs')
+    if not excluded:
+        return
+    item = excluded[TAILSCALE_LABEL]
+    require(isinstance(item, dict) and set(item) ==
+            {'plist', 'wrapper', 'app', 'launchd', 'boot'}
+            and item['boot'] == boot and isinstance(boot, str) and HEX.fullmatch(boot),
+            'user transfer excluded job boot differs')
+    for key, path in (
+        ('plist', '/Library/LaunchDaemons/com.openclaw.tailscale-up.plist'),
+        ('wrapper', '/usr/local/bin/tailscale'),
+    ):
+        value = item[key]
+        require(isinstance(value, dict) and set(value) == {'path', 'sha256'}
+                and value['path'] == path and isinstance(value['sha256'], str)
+                and HEX.fullmatch(value['sha256']),
+                'user transfer excluded job file differs')
+    app = item['app']
+    require(isinstance(app, dict) and set(app) ==
+            {'path', 'sha256', 'bundle_id', 'version', 'team_id', 'cdhash'}
+            and app['path'] == '/Applications/Tailscale.app/Contents/MacOS/tailscale'
+            and isinstance(app['sha256'], str) and HEX.fullmatch(app['sha256'])
+            and app['bundle_id'] == 'io.tailscale.ipn.macsys'
+            and isinstance(app['version'], str) and app['version']
+            and app['team_id'] == 'W5364U7YZB'
+            and isinstance(app['cdhash'], str)
+            and re.fullmatch(r'[0-9a-f]{40,64}', app['cdhash']),
+            'user transfer excluded app differs')
+    launchd = item['launchd']
+    require(isinstance(launchd, dict) and set(launchd) ==
+            {'domain', 'state', 'runs', 'last_exit_code', 'disabled'}
+            and launchd['domain'] == 'system'
+            and launchd['state'] == 'not running'
+            and type(launchd['runs']) is int and launchd['runs'] >= 1
+            and type(launchd['last_exit_code']) is int and launchd['last_exit_code'] == 0
+            and launchd['disabled'] is False,
+            'user transfer excluded launchd state differs')
 
 
 def valid_baseline(row):
@@ -103,11 +145,12 @@ def valid_baseline(row):
     inventory = row.get('entrypoint_inventory')
     labels = {'ai.openclaw.' + unit for unit in UNITS}
     require(isinstance(inventory, dict) and set(inventory) ==
-            {'verified', 'installed', 'loaded', 'roots', 'disabled_artifacts'}
+            {'verified', 'installed', 'loaded', 'roots', 'disabled_artifacts', 'excluded'}
             and inventory['verified'] is True and isinstance(inventory['installed'], dict)
             and set(inventory['installed']) == labels and isinstance(inventory['loaded'], dict)
             and set(inventory['loaded']) == {'gui', 'user', 'system'},
             'user transfer entrypoint inventory differs')
+    valid_excluded_job(inventory['excluded'], row.get('boot'))
     for unit in UNITS:
         installed = inventory['installed']['ai.openclaw.' + unit]
         require(isinstance(installed, dict) and set(installed) == {'path', 'sha256'}

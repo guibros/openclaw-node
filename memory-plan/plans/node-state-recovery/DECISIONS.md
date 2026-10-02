@@ -1110,7 +1110,8 @@ properties, and domain must agree. The root-owned wrapper and protected
 ancestors are checked, and the Tailscale app must retain the vendor signature.
 The baseline saves the plist, wrapper, app and boot identities together with
 launchd's run count. Every forward and final inventory recaptures and compares
-that exclusion exactly. A new run, reload, changed app, changed disable state,
+that exclusion exactly. The root transfer reader accepts the same strict
+excluded-job schema and boot identity. A new run, changed app, changed disable state,
 or missing job refuses. Other `com.openclaw.*` jobs remain unknown and refuse;
 this does not exclude or retire `com.openclaw.agent`.
 
