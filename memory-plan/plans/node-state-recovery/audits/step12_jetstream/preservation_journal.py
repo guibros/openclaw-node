@@ -12,7 +12,8 @@ import subprocess
 import sys
 import uuid
 
-from preservation_checks import RESUME_ORDER, Refused, capture_entrypoint_inventory, require
+from preservation_checks import (RESUME_ORDER, Refused, capture_entrypoint_inventory,
+                                 require, valid_tailscale_exclusion)
 
 
 UNITS = frozenset((*RESUME_ORDER, 'nats-1', 'federation-tick'))
@@ -285,10 +286,13 @@ def valid_prior(prior, scope=None):
 
 def valid_entrypoint_inventory(evidence, prior):
     require(isinstance(evidence, dict) and evidence.get('verified') is True
-            and set(evidence) == {'verified', 'installed', 'loaded', 'roots', 'disabled_artifacts'},
+            and set(evidence) == {'verified', 'installed', 'loaded', 'roots',
+                                  'disabled_artifacts', 'excluded'},
             'full-node entrypoint inventory is absent')
     installed = evidence['installed']
     loaded = evidence['loaded']
+    excluded = evidence['excluded']
+    valid_tailscale_exclusion(excluded)
     require(isinstance(installed, dict) and set(installed) ==
             {'ai.openclaw.' + unit for unit in UNITS},
             'full-node installed entrypoints differ from the baseline')
@@ -300,6 +304,8 @@ def valid_entrypoint_inventory(evidence, prior):
     require(set().union(*map(set, loaded.values())) == expected_loaded
             and sum(map(len, loaded.values())) == len(expected_loaded),
             'full-node loaded entrypoints differ from the baseline')
+    require(not set(excluded) & (set(installed) | set().union(*map(set, loaded.values()))),
+            'excluded system job is also in the managed cohort')
     require(isinstance(evidence['roots'], list) and evidence['roots']
             and all(isinstance(root, str) and pathlib.Path(root).is_absolute()
                     for root in evidence['roots'])
@@ -492,7 +498,7 @@ class Journal:
         current = capture_entrypoint_inventory(UNITS)
         saved = self.entrypoint_inventory
         require(all(current[key] == saved[key] for key in
-                    ('installed', 'roots', 'disabled_artifacts')),
+                    ('installed', 'roots', 'disabled_artifacts', 'excluded')),
                 'full-node installed entrypoint identity changed')
         require(all(set(current['loaded'][domain]) <= set(saved['loaded'][domain])
                     for domain in ('gui', 'user', 'system')),

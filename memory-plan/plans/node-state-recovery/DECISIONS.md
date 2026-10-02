@@ -1098,3 +1098,25 @@ both parse and canonical chain-encoding depth errors become `Refused`. An
 interrupted pending record with excessive depth remains ambiguous rather than
 escaping as an unhandled exception. This protects the refusal boundary for
 malformed bytes; it does not assert that the ledger is physically complete.
+
+## D60 — Pin the idle Tailscale helper as an explicit full-node exclusion (2026-10-02 08:00 EDT)
+
+The root-managed `com.openclaw.tailscale-up` job may be excluded from the
+23-unit preservation cohort only while its exact one-shot plist is installed
+at the system path, loaded only in the system domain, enabled, idle, and last
+exited successfully. The plist key set is limited to `Label`, exact
+`ProgramArguments`, and `RunAtLoad=true`; its loaded program, arguments,
+properties, and domain must agree. The root-owned wrapper and protected
+ancestors are checked, and the Tailscale app must retain the vendor signature.
+The baseline saves the plist, wrapper, app and boot identities together with
+launchd's run count. Every forward and final inventory recaptures and compares
+that exclusion exactly. A new run, reload, changed app, changed disable state,
+or missing job refuses. Other `com.openclaw.*` jobs remain unknown and refuse;
+this does not exclude or retire `com.openclaw.agent`.
+
+The no-run argument assumes no out-of-band root `bootout` followed by
+`bootstrap` of this label during the preservation window: launchd can reset
+its run counter to the same value after such a reload. The physical driver
+still needs the continuous launchd/process watch and operator control over
+root service changes. The source exclusion alone does not authorize a full-node
+journal, healthy NATS stop, protected root bootstrap, or acceptance of 1.2.

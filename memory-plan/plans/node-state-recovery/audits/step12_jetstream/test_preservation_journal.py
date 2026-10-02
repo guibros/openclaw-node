@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 from preservation_journal import FULL_NODE_SCOPE, Journal, Refused, TIMER_SCOPE, TIMER_UNITS, UNITS, encoded, matches, valid_record
 import preservation_journal
+from preservation_checks import TAILSCALE_BINARY, TAILSCALE_LABEL, TAILSCALE_PLIST, TAILSCALE_WRAPPER
 from legacy_fixture import legacy_journal
 
 
@@ -70,7 +71,18 @@ def full_entrypoint_evidence(prior):
                 for unit, state in prior.items()},
             'loaded': {'gui': sorted('ai.openclaw.' + unit for unit, state in prior.items()
                                    if state['loaded']), 'user': [], 'system': []},
-            'roots': ['/owned'], 'disabled_artifacts': {}}
+            'roots': ['/owned'], 'disabled_artifacts': {}, 'excluded': {}}
+
+
+def tailscale_record():
+    return {TAILSCALE_LABEL: {
+        'plist': {'path': str(TAILSCALE_PLIST), 'sha256': '2' * 64},
+        'wrapper': {'path': str(TAILSCALE_WRAPPER), 'sha256': '3' * 64},
+        'app': {'path': str(TAILSCALE_BINARY), 'sha256': '4' * 64,
+                'bundle_id': 'io.tailscale.ipn.macsys', 'version': '1.0',
+                'team_id': 'W5364U7YZB', 'cdhash': '5' * 40},
+        'launchd': {'domain': 'system', 'state': 'not running',
+                    'runs': 1, 'last_exit_code': 0, 'disabled': False}, 'boot': '6' * 64}}
 
 
 class JournalTests(unittest.TestCase):
@@ -372,6 +384,47 @@ class JournalTests(unittest.TestCase):
             with patch('preservation_journal.capture_entrypoint_inventory', return_value=changed):
                 with self.assertRaisesRegex(Refused, 'were not restored'):
                     reopened.check_entrypoints(final=True)
+
+    def test_excluded_system_job_is_durable_and_refuses_later_runs_or_identity_drift(self):
+        prior = full_node_inventory()
+        evidence = full_entrypoint_evidence(prior)
+        evidence['excluded'] = tailscale_record()
+        with patch('preservation_journal.capture_entrypoint_inventory',
+                   return_value=copy.deepcopy(evidence)):
+            with Journal(self.root, prior, boot='boot-a', node_lock=self.node_lock,
+                         scope=FULL_NODE_SCOPE) as journal:
+                self.assertEqual(journal.check_entrypoints(final=True)['excluded'],
+                                 evidence['excluded'])
+                for change in (
+                    ('launchd', 'runs', 2), ('launchd', 'last_exit_code', 1),
+                    ('plist', 'sha256', '7' * 64), ('wrapper', 'sha256', '8' * 64),
+                    ('app', 'sha256', '9' * 64), (None, 'boot', 'a' * 64),
+                ):
+                    changed = copy.deepcopy(evidence)
+                    record = changed['excluded'][TAILSCALE_LABEL]
+                    if change[0] is None:
+                        record[change[1]] = change[2]
+                    else:
+                        record[change[0]][change[1]] = change[2]
+                    with self.subTest(change=change):
+                        with patch('preservation_journal.capture_entrypoint_inventory',
+                                   return_value=changed):
+                            with self.assertRaisesRegex(Refused, 'entrypoint identity changed'):
+                                journal.check_entrypoints(final=True)
+                missing = copy.deepcopy(evidence)
+                missing['excluded'] = {}
+                with patch('preservation_journal.capture_entrypoint_inventory',
+                           return_value=missing):
+                    with self.assertRaisesRegex(Refused, 'entrypoint identity changed'):
+                        journal.check_entrypoints(final=True)
+        malformed = copy.deepcopy(evidence)
+        del malformed['excluded']
+        with self.assertRaisesRegex(Refused, 'inventory is absent'):
+            preservation_journal.valid_entrypoint_inventory(malformed, prior)
+        malformed = copy.deepcopy(evidence)
+        malformed['excluded']['com.openclaw.agent'] = tailscale_record()[TAILSCALE_LABEL]
+        with self.assertRaisesRegex(Refused, 'not approved'):
+            preservation_journal.valid_entrypoint_inventory(malformed, prior)
 
     def test_full_inventory_covers_gateway_viewer_and_installed_unloaded_tick(self):
         self.assertTrue({'gateway', 'workplan-viewer', 'federation-tick'} <= UNITS)

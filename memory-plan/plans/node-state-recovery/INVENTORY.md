@@ -595,3 +595,12 @@ shell. The shared env reader no longer consumes the next line after an empty
 key, while retaining its original first-duplicate rule for NATS. The live
 plists and services are unchanged; this source repair does not certify the
 23-unit diagnostic, remove the two unapproved system jobs, or close 1.2.
+
+Checkpoint 2026-10-02 08:00 EDT: the D60 source draft admits only the exact
+idle `com.openclaw.tailscale-up` system one-shot as an explicit, rechecked
+exclusion. Its launch count, plist, wrapper, signed app and boot identity are
+saved in the full-node inventory; a later run or drift refuses. The focused
+preservation suites pass 98/98, and read-only validation of the installed
+helper passes. The live preflight still refuses `com.openclaw.agent`, so the
+23-unit baseline remains provisional. No system job or node service was
+changed, and 1.2 remains [A] at v1.2-pre.
