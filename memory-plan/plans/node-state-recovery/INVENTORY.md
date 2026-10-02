@@ -617,7 +617,8 @@ master acceptance. The focused preservation suites now pass 104/104. This
 record does not authorize cutover or close 1.2.
 
 Checkpoint 2026-10-02 08:54 EDT: PR #199 merged at 8b451da after its exact-head
-4/4 CI rerun and Claude's no-blocker delta review. It admits the exact idle
+4/4 CI rerun. Claude's no-blocker review was at 4435211; follow-up 0c6c30f
+addressed its test and wording notes without changing production code. It admits the exact idle
 Tailscale system helper as an explicit exclusion and durably reports changes
 observed when recovery starts; it does not certify the root-held transfer. A
 narrow retirement runbook for the obsolete root-managed `com.openclaw.agent`
@@ -626,3 +627,14 @@ repeated exit 1 were rechecked. Noninteractive administrator access is
 unavailable, so no root action occurred. The live full-node preflight still
 refuses that job; the protected observer, three cold masters and cutover remain
 open at 1.2 [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 09:06 EDT: the legacy root-owned
+`/etc/sudoers.d/openclaw-mesh` also remains installed (root:wheel 0440).
+Effective `sudo -n -l` output still grants passwordless wildcard
+`launchctl load/unload` and `killall -9 node`; this can undermine durable
+retirement of the obsolete agent. PR #200's runbook now requires inspection,
+protected backup and removal of those exact legacy rules in the local
+administrator session, with no action if its contents differ. Claude found
+no safety blocker in the original daemon sequence and asked for explicit
+preflight, collision, disabled-state and post-action checks; the revised
+head and its CI still need review. No administrator or NATS action occurred.
