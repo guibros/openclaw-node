@@ -907,3 +907,15 @@ production macOS-root decline and transfer gates remain closed until a pinned
 root command, process/service census, protected outcome lifecycle, and live
 restoration checks are implemented. A decline never substitutes for a root
 return if any root intent already exists.
+
+## D50 — Refuse stale root outcomes before recording a decline (2026-10-01 20:09 EDT)
+
+An existing outcome file for the proposed transaction is evidence of a
+root-side inconsistency. The no-intent decline checks the protected outcome
+directory and its transaction slot while holding the root ledger lock, before
+appending `transfer-declined`. It refuses an occupied slot without creating a
+durable decline record, so a stale `returned` receipt cannot strand a newly
+recorded decline whose receipt can never be published. Idempotent reentry of
+an already recorded decline instead verifies the saved user and physical
+identity and republishes the same receipt. This closes Claude's PR #185
+exact-head E4 reproducer; production gates remain closed.

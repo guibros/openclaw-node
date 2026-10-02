@@ -412,3 +412,10 @@ focused decline controls, 87 root-side controls, 78 user-journal controls,
 and 17 preservation checks pass locally; adversarial review and CI are pending.
 The physical absence callback remains test-supplied and the
 production transfer/root gates remain closed. Step 1.2 stays [A].
+
+Checkpoint 2026-10-01 20:09 EDT: Claude's exact-head PR #185 review found no
+reachable safety blocker and CI passed 4/4, but its E4 probe exposed a stale
+outcome collision detected after the decline record. D50 moves the protected
+transaction-slot check before the durable decline append. The new regression
+passes in the focused 13/13 suite; revised-head CI and review remain pending.
+The production physical driver and step 1.2 runtime acceptance remain open.

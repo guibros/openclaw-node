@@ -443,6 +443,7 @@ class LockBootstrapJournal:
                     journal.read_returned_outcome()
                 else:
                     journal.read_declined_outcome()
+            journal._require_unused_outcome(transaction)
             inherited = previous['data']['lock'] if previous is not None else None
             absence = journal._decline_absence(target, inherited, transaction,
                                                 observed['head'], verify_absence)
@@ -680,6 +681,14 @@ class LockBootstrapJournal:
         if published != receipt:
             raise Refused('root writer returned outcome differs from ledger')
         return receipt
+
+    def _require_unused_outcome(self, transaction):
+        root = self._outcome_path()
+        protected_parent(root, self.uid, self.gid)
+        if present(root):
+            directory(root, self.uid, self.gid, 0o755)
+            if present(root / (transaction + '.json')):
+                raise Refused('root outcome already exists before decline intent')
 
     def read_returned_outcome(self):
         receipt = self._returned_receipt()

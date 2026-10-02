@@ -141,6 +141,18 @@ class RootDeclineTest(unittest.TestCase):
         self.assertFalse(pending.exists())
         self.assertEqual(self.decline(), receipt)
 
+    def test_stale_root_outcome_refuses_before_decline_record(self):
+        outcomes = self.base / 'root-site-outcomes'
+        outcomes.mkdir(mode=0o755)
+        stale = outcomes / (self.transaction + '.json')
+        stale.write_text('{"outcome":"returned"}')
+        stale.chmod(0o644)
+        with self.assertRaisesRegex(nats_root_journal.Refused,
+                                    'outcome already exists before decline intent'):
+            self.decline()
+        self.assertEqual(list((self.base / 'root-site-ledger').glob('*.json')), [])
+        self.assertTrue(stale.exists())
+
     def test_previous_returned_lock_is_carried_into_decline(self):
         self.previous_return()
         receipt = self.decline()
