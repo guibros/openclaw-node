@@ -336,13 +336,24 @@ class JournalTests(unittest.TestCase):
                 with Journal(self.root, prior, node_lock=self.node_lock,
                              scope=FULL_NODE_SCOPE) as journal:
                     restored = []
+                    observed = []
+                    final_checks = []
                     hold = SimpleNamespace(journal=journal, prepare=lambda *_: None)
+                    def observe(unit, _):
+                        observed.append(unit)
+                        return {**current[unit], 'verified': True}
+                    def final_check():
+                        final_checks.append(True)
+                        return {'verified': True}
                     result = journal.recover(lambda unit, _: restored.append(unit),
-                        lambda unit, _: {**current[unit], 'verified': True},
-                        lambda: {'verified': True}, hold=hold)
+                                             observe, final_check, hold=hold)
                     self.assertFalse(result['restored'])
                     self.assertEqual(restored, [])
+                    self.assertNotIn('nats-1', observed)
+                    self.assertEqual(final_checks, [])
                     self.assertIn('nats', [error['unit'] for error in result['errors']])
+                    self.assertIn('nats-1', [error['unit'] for error in result['errors']])
+                    self.assertIn('final-state', [error['unit'] for error in result['errors']])
                     self.assertEqual(journal.records[-1]['event'], 'recovery-finished')
         finally:
             holder.stdin.close()

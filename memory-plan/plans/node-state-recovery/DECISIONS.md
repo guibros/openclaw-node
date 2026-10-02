@@ -1142,13 +1142,14 @@ The user journal previously checked the protected marker and held the shared
 old-writer lock only after a returned NATS transfer. A full-node restoration
 without any transfer could observe or restart the three legacy servers without
 that check. Full-node recovery now refuses an existing marker before its first
-write and before final physical verification. Each NATS unit's observation,
-possible restoration, and verification run under the shared old-writer lock,
-including an already-running unit and a window with no transfer. An exclusive
-root holder or a published marker therefore refuses rather than permitting a
-legacy writer to start. The root protocol still requires a durable user
-transfer before publication; this user-side guard does not substitute for
-root physical observation or authorize migration. Owned controls hold the
-lock exclusively and publish a test marker to prove both refusals. The
+write. Each NATS unit's observation, possible restoration and verification,
+including the held member 1, runs under the shared old-writer lock when it
+exists. The final physical check uses the same guard. An exclusive root holder
+or a published marker therefore refuses. Before the root lock is staged, the
+guard checks the marker on both sides of each action; the root protocol cannot
+start without a durable user transfer while this journal holds `node.lock`.
+This user-side guard does not substitute for root physical observation or
+authorize migration. Owned controls hold the lock exclusively and publish a
+test marker to prove both refusals. The
 production full-node driver, complete readiness checks, legacy root-job
 retirement, healthy cold masters, and cutover remain open at 1.2.

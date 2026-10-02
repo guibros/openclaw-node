@@ -920,22 +920,25 @@ class Journal:
         for unit in (u for u in self.prior if u not in RESUME_ORDER and not (held and self.write_failed)):
             try:
                 require(unit in ('nats-1', 'federation-tick'), 'unknown unit needs manual restoration')
-                actual = observe(unit, self.prior[unit])
-                require(matches(actual, self.prior[unit]) and actual.get('verified') is True
-                        and actual.get('identity') == self.prior[unit]['identity'],
-                        'non-running installed unit or member-1 hold changed')
-                record('held-unit-verified' if unit == 'nats-1' else 'unloaded-unit-verified',
-                       unit=unit, evidence=actual)
+                guard = (nats_legacy_restore_guard() if self.scope == FULL_NODE_SCOPE
+                         and unit in NATS_TRANSFER_UNITS else contextlib.nullcontext())
+                with guard:
+                    actual = observe(unit, self.prior[unit])
+                    require(matches(actual, self.prior[unit]) and actual.get('verified') is True
+                            and actual.get('identity') == self.prior[unit]['identity'],
+                            'non-running installed unit or member-1 hold changed')
+                    record('held-unit-verified' if unit == 'nats-1' else 'unloaded-unit-verified',
+                           unit=unit, evidence=actual)
             except Exception as error:
                 errors.append({'unit': unit, 'reason': type(error).__name__})
         try:
-            if self.scope == FULL_NODE_SCOPE:
-                require_no_nats_marker()
-            evidence = final_check()
-            require(isinstance(evidence, dict) and evidence.get('verified') is True,
-                    'final physical ownership or member-1 hold was not verified')
-            self.check_entrypoints(final=True)
-            record('final-state-verified', evidence=evidence)
+            guard = nats_legacy_restore_guard() if self.scope == FULL_NODE_SCOPE else contextlib.nullcontext()
+            with guard:
+                evidence = final_check()
+                require(isinstance(evidence, dict) and evidence.get('verified') is True,
+                        'final physical ownership or member-1 hold was not verified')
+                self.check_entrypoints(final=True)
+                record('final-state-verified', evidence=evidence)
         except Exception as error:
             errors.append({'unit': 'final-state', 'reason': type(error).__name__})
         if held and not errors and not self.write_failed:
