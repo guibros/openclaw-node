@@ -672,3 +672,19 @@ a final instruction that every node-user and root command be checked
 individually, the checkout must have no changes, and the second-terminal
 lock proof precedes any retirement report. CI and review at this final head
 remain pending. No root action has occurred.
+
+Checkpoint 2026-10-02 09:52 EDT: PR #200 merged at `a629e9a` after exact-head
+CI 4/4 and Claude's no-blocker review of `d181549`. It supplies the guarded
+local retirement procedure only. A Codex terminal is waiting for the operator
+to authenticate locally; no administrator action or node lock is active.
+The 23-unit live preflight still refuses the installed legacy root job.
+Step 1.2 stays [A]/v1.2-pre; protected root observation, healthy cold masters,
+and production cutover remain unbuilt or unaccepted.
+
+Checkpoint 2026-10-02 10:13 EDT: the D56/D58 node-user diagnostics now open
+plists nonblocking without following a final symlink and traverse store
+directories through pinned descriptors. Owned regressions cover a plist
+replaced by a FIFO and root or nested store directories replaced by symlinks
+between checks. This narrows diagnostic read races; neither command is a
+protected root observer or an absence certificate. The live retirement and
+full-node preservation gates remain open work at 1.2 [A].
