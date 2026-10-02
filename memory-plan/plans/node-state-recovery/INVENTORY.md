@@ -494,3 +494,10 @@ and map malformed JSON/schema exceptions to `Refused`. Three new controls
 cover an unopened FIFO, deeply nested JSON, and a rehashed invalid returned
 lock; the focused macOS root-journal suite passes 60/60. This does not add
 the protected physical observer, change NATS state, or lift the root gate.
+
+Checkpoint 2026-10-01 22:57 EDT: PR #188 merged at d5b5c13 after 4/4 green
+CI and Claude's exact-head no-blocker review of its diagnostic scope. D57 was
+rebased onto that source and its related root-journal, decline, admission and
+user-transfer suites pass 97/97 locally. D57 still needs exact CI and review;
+the protected physical absence observer and production cutover gates remain
+open at 1.2 [A]/v1.2-pre.
