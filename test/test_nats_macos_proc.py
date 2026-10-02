@@ -46,6 +46,17 @@ class MacProcessTest(unittest.TestCase):
                 self.assertEqual((observed['device'], observed['inode'], observed['links']),
                                  (info.st_dev, info.st_ino, 0))
 
+    def test_vnode_snapshot_captures_open_file_without_arguments(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / 'held'
+            path.write_bytes(b'owned')
+            with path.open('rb') as handle:
+                observed = proc.vnode_snapshot(os.getpid())
+                self.assertEqual(observed['pid'], os.getpid())
+                self.assertNotIn('arguments', observed)
+                self.assertIn((handle.fileno(), path.stat().st_ino),
+                              {(entry['fd'], entry['inode']) for entry in observed['vnodes']})
+
 
 if __name__ == '__main__':
     unittest.main()

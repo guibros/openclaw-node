@@ -1052,3 +1052,15 @@ Claude's review also found a rehashed non-string transaction escaping through
 require a string before parsing, and the observe-only boundary maps any
 remaining `AttributeError` to `Refused`. This leaves the driver path with an
 explicit schema refusal and the diagnostic inspector with a uniform failure.
+
+## D58 — Report readable store holders without an absence verdict (2026-10-01 23:04 EDT)
+
+The next diagnostic slice scans vnode descriptors for every process name it
+can read, not only `nats-server`. It matches linked store entries by device
+and inode and can identify an unlinked handle when the kernel retains a path
+under one of the four store roots. Unlinked handles on a store device with no
+attributable path are counted separately. Inaccessible PIDs and a changed PID
+list remain visible in the report. The scan does not establish a single
+instant or physical absence, and has no path into the root decline callback.
+Root-run protected observation and writer-lock bracketing are still required
+before any migration decision.
