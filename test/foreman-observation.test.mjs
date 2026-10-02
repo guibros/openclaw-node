@@ -83,6 +83,21 @@ describe('foreman observation — git evidence', () => {
     assert.equal(evidence.diff, '');
     assert.equal(fs.statSync(index).mtimeMs, before);
   });
+  it('reads the worktree index even when the caller inherited another index path', async () => {
+    const dir = tempRepo();
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'one\nchanged\n');
+    const inherited = process.env.GIT_INDEX_FILE;
+    process.env.GIT_INDEX_FILE = path.join(dir, 'missing-index');
+    try {
+      const evidence = await gitEvidence(dir, DEFAULT_LIMITS);
+      assert.match(evidence.status, / M a\.txt/);
+      assert.match(evidence.diff, /\+changed/);
+      assert.deepEqual(evidence.changed_files, ['a.txt']);
+    } finally {
+      if (inherited === undefined) delete process.env.GIT_INDEX_FILE;
+      else process.env.GIT_INDEX_FILE = inherited;
+    }
+  });
   it('bounds the diff to the configured limit', async () => {
     const dir = tempRepo();
     fs.writeFileSync(path.join(dir, 'a.txt'), 'line\n'.repeat(5_000));
