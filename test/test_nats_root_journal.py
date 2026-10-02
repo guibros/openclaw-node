@@ -162,8 +162,11 @@ class RootJournalTest(unittest.TestCase):
             pass
         record = self.ledger / '000000.json'
         record.write_bytes(b'[' * 1200 + b'0' + b']' * 1200)
-        with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
+        with self.assertRaises(module.Refused):
             module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+        with patch.object(module.json, 'loads', side_effect=RecursionError('deep')):
+            with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
 
     def test_readonly_inspection_maps_rehashed_invalid_lock_to_refusal(self):
         with self.begin() as journal:
@@ -176,8 +179,11 @@ class RootJournalTest(unittest.TestCase):
         saved['sha256'] = module.digest({key: value for key, value in saved.items()
                                           if key != 'sha256'})
         record.write_bytes(module.encoded(saved))
-        with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
+        with self.assertRaises(module.Refused):
             module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+        with patch.object(module.LockBootstrapJournal, '_validate', side_effect=TypeError('bad')):
+            with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
 
     def test_readonly_inspection_refuses_active_driver(self):
         with self.begin():

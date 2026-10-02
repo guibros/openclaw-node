@@ -501,3 +501,10 @@ rebased onto that source and its related root-journal, decline, admission and
 user-transfer suites pass 97/97 locally. D57 still needs exact CI and review;
 the protected physical absence observer and production cutover gates remain
 open at 1.2 [A]/v1.2-pre.
+
+Checkpoint 2026-10-01 22:59 EDT: PR #190's first Ubuntu CI run exposed a
+Python parser-depth difference: 1,200 nested arrays return a list on that
+runner and are refused by schema validation, while macOS raises recursion.
+The test now accepts either clean refusal for that real input and separately
+forces RecursionError and TypeError to verify uniform boundary mapping. The
+source behavior is unchanged; revised CI and Claude review are pending.
