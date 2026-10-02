@@ -587,3 +587,11 @@ the separate macOS/systemd/pm2 path. No live service was changed. Node-init's
 mesh-agent renderer still read only the process environment, so a plain-shell
 rerun could drop that service's saved URL; a source-only correction is under
 test. The diagnostic baseline remains provisional and 1.2 stays [A].
+
+Checkpoint 2026-10-02 07:27 EDT: PR #197 merged at 5caf0b6 after exact-head
+4/4 CI and Claude's no-blocker review. Node-init now renders the mesh-agent's
+saved host-Ollama URL even when a stale localhost value is present in the
+shell. The shared env reader no longer consumes the next line after an empty
+key, while retaining its original first-duplicate rule for NATS. The live
+plists and services are unchanged; this source repair does not certify the
+23-unit diagnostic, remove the two unapproved system jobs, or close 1.2.

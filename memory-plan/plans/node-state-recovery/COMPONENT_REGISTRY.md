@@ -173,3 +173,10 @@ Claude's no-blocker review. Memory-daemon source install paths now retain the
 configured host-Ollama URL; no installed service changed. Node-init's
 mesh-agent renderer still needs to read the saved value on a plain-shell rerun.
 The full-node diagnostic remains provisional and 1.2 remains [A].
+
+2026-10-02 07:27 EDT — PR #197 merged at 5caf0b6 with exact-head 4/4 CI and
+Claude's no-blocker review. Node-init now preserves the saved host-Ollama URL
+when rendering mesh-agent from a plain shell, including one with a stale
+localhost value. The live unit and service state were not changed. The
+entrypoint scan still refuses the two loaded unapproved system jobs, so the
+full-node baseline remains provisional and 1.2 remains [A].
