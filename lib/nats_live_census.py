@@ -217,6 +217,7 @@ def _observe(user_uid, user_home):
             'coverage': {'domains': [gui, 'system'],
                          'other_domains': 'not checked',
                          'unloaded_plists': 'not checked',
+                         'waiting_job_arguments': 'launchctl text; embedded newlines are ambiguous',
                          'processes': 'readable processes named nats-server',
                          'vnode_holders': 'those processes only; linked store entries only',
                          'single_instant': False, 'physical_absence_certified': False},

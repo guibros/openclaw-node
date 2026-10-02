@@ -1028,7 +1028,9 @@ other domains are unchecked, and says physical absence is not certified.
 Loaded launchd arguments are compared with the plist even for waiting jobs;
 the raw arguments are removed before output. Both older boolean and newer
 named disabled-override values are accepted, while unknown values refuse.
-Arguments containing control or Unicode line-separator characters refuse,
-since launchctl's text rendering can otherwise be ambiguous. Reported
+Plist arguments containing control or Unicode line-separator characters
+refuse; loaded arguments are checked as launchctl renders them, but an
+embedded newline can be indistinguishable from two arguments for a waiting
+job. The report declares that limit. Reported
 argument and plist-content digests use a fresh private HMAC key per scan so
 they do not expose an offline guess oracle for future low-entropy secrets.

@@ -80,6 +80,7 @@ class LiveCensusTest(unittest.TestCase):
         self.assertFalse(report['coverage']['physical_absence_certified'])
         self.assertFalse(report['coverage']['single_instant'])
         self.assertEqual(report['coverage']['other_domains'], 'not checked')
+        self.assertIn('embedded newlines', report['coverage']['waiting_job_arguments'])
         self.assertEqual(report['unreadable_pids'], 1)
         self.assertEqual(report['stores']['ai.openclaw.nats']['nats_server_open_vnodes'], [])
 
