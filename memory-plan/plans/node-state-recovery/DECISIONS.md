@@ -1019,3 +1019,12 @@ bracket launchd/process/store checks under the writer lock, and refuse any
 unobservable or ambiguous state. It must also verify the protected jobs and
 marker before any cutover action. The current user-owned GUI topology stays
 unchanged.
+
+Claude's first-head review found that an empty process or vnode list could
+look like proof of absence despite unreadable processes, other launchd
+domains, unlinked files and observation churn. The revised report explicitly
+names the checked domains and holder subset, states that unloaded plists and
+other domains are unchecked, and says physical absence is not certified.
+Loaded launchd arguments are compared with the plist even for waiting jobs;
+the raw arguments are removed before output. Both older boolean and newer
+named disabled-override values are accepted, while unknown values refuse.

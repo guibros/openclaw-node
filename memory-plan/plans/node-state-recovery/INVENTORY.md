@@ -475,3 +475,12 @@ member 1 without changing them. The report is diagnostic only. Protected
 fixed-path deployment, complete mutator/store-holder absence, writer-lock
 bracketing, cold masters, isolated restores and live acceptance remain open.
 The macOS-root tripwire stays closed; 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 22:39 EDT: Claude's first-head PR #188 review found no
+blocker for the diagnostic source slice, but reproduced misleading empty
+process/store-holder reports and an unchecked waiting-job argument change.
+The revised census states its incomplete coverage, compares loaded arguments
+for waiting and running GUI/system jobs, and keeps argument values out of the
+report. The new tests run in CI at 595f0df (4/4 green); revised-head CI and
+adversarial review are pending. This does not certify absence or authorize
+the production migration. Step 1.2 stays [A] at v1.2-pre.

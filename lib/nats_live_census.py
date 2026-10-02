@@ -38,11 +38,16 @@ def launchd_service(domain, label):
     state = _field(output, 'state')
     path = _field(output, 'path')
     program = _field(output, 'program')
+    arguments = re.findall(r'^\targuments = \{\n((?:\t\t[^\n]*\n)+)\t\}$',
+                           output, re.MULTILINE)
+    if len(arguments) != 1:
+        raise Refused(f'launchd service {label} arguments are unobservable')
+    arguments = [line[2:] for line in arguments[0].splitlines()]
     pid = re.findall(r'^\tpid = (\d+)$', output, re.MULTILINE)
     if len(pid) > 1 or state == 'running' and len(pid) != 1:
         raise Refused(f'launchd service {label} has ambiguous process state')
     return {'loaded': True, 'state': state, 'pid': int(pid[0]) if pid else None,
-            'plist': path, 'program': program}
+            'plist': path, 'program': program, 'arguments': arguments}
 
 
 def disabled_overrides(domain):
@@ -52,10 +57,12 @@ def disabled_overrides(domain):
     result = {}
     for label in LEGACY_LABELS:
         matches = re.findall(r'^\s*"' + re.escape(label) +
-                             r'" => (enabled|disabled)$', output, re.MULTILINE)
+                             r'" => ([^\n]+)$', output, re.MULTILINE)
         if len(matches) > 1:
             raise Refused(f'launchd disabled override for {label} is ambiguous')
-        result[label] = None if not matches else matches[0] == 'disabled'
+        if matches and matches[0] not in ('enabled', 'disabled', 'true', 'false'):
+            raise Refused(f'launchd disabled override for {label} is unrecognized')
+        result[label] = None if not matches else matches[0] in ('disabled', 'true')
     return result
 
 
@@ -149,37 +156,38 @@ def _observe(user_uid, user_home):
     for label in LEGACY_LABELS:
         service = launchd_service(gui, label)
         service['disabled'] = overrides[label]
-        if service['loaded']:
-            service['plist_identity'] = plist_identity(service['plist'])
         units[label] = service
     system = {label: launchd_service('system', label) for label in LEGACY_LABELS}
     processes, unreadable = nats_processes()
     by_pid = {process['pid']: process for process in processes}
-    for label, service in units.items():
-        if not service['loaded']:
-            continue
-        plist = service['plist_identity']
-        if (plist['label'] != label or not isinstance(plist['argv'], list)
-                or not plist['argv'] or not all(isinstance(arg, str)
-                                               for arg in plist['argv'])):
-            raise Refused(f'launchd service {label} does not match its plist')
-        if service['program'] != plist['argv'][0]:
-            raise Refused(f'launchd service {label} program differs from its plist')
-        pid = service['pid']
-        service['process_matches_plist'] = (pid in by_pid and
-                                            by_pid[pid]['arguments'] == plist['argv'])
-        if service['state'] == 'running' and not service['process_matches_plist']:
-            raise Refused(f'launchd service {label} process differs from its plist')
-        service['plist_identity']['argv_sha256'] = hashlib.sha256(
-            '\0'.join(plist['argv']).encode()).hexdigest()
-        del service['plist_identity']['argv']
+    for domain_units in (units, system):
+        for label, service in domain_units.items():
+            if not service['loaded']:
+                continue
+            plist = plist_identity(service['plist'])
+            if (plist['label'] != label or not isinstance(plist['argv'], list)
+                    or not plist['argv'] or not all(isinstance(arg, str)
+                                                   for arg in plist['argv'])):
+                raise Refused(f'launchd service {label} does not match its plist')
+            if service['program'] != plist['argv'][0] or service['arguments'] != plist['argv']:
+                raise Refused(f'launchd service {label} arguments differ from its plist')
+            pid = service['pid']
+            service['process_matches_plist'] = (pid in by_pid and
+                                                by_pid[pid]['arguments'] == plist['argv'])
+            if service['state'] == 'running' and not service['process_matches_plist']:
+                raise Refused(f'launchd service {label} process differs from its plist')
+            plist['argv_sha256'] = hashlib.sha256(
+                '\0'.join(plist['argv']).encode()).hexdigest()
+            del plist['argv']
+            del service['arguments']
+            service['plist_identity'] = plist
     stores = {}
     for suffix in ('', '-1', '-2', '-3'):
         label = 'ai.openclaw.nats' + suffix
         store = store_identity(home / '.openclaw' / 'nats' /
                                ('jetstream' + suffix))
         stores[label] = {key: value for key, value in store.items() if key != 'inodes'}
-        stores[label]['open_vnodes'] = sorted(
+        stores[label]['nats_server_open_vnodes'] = sorted(
             ({'pid': process['pid'], 'fd': entry['fd'], 'inode': entry['inode']}
             for process in processes for entry in process['vnodes']
             if (entry['device'], entry['inode']) in store['inodes']),
@@ -191,6 +199,13 @@ def _observe(user_uid, user_home):
                   'argv_sha256': hashlib.sha256(
                       '\0'.join(process['arguments']).encode()).hexdigest(),
                   'vnode_count': len(process['vnodes'])} for process in processes]
-    return {'scope': 'live-census-only', 'gui': units, 'system': system,
+    return {'scope': 'live-census-only',
+            'coverage': {'domains': [gui, 'system'],
+                         'other_domains': 'not checked',
+                         'unloaded_plists': 'not checked',
+                         'processes': 'readable processes named nats-server',
+                         'vnode_holders': 'those processes only; linked store entries only',
+                         'single_instant': False, 'physical_absence_certified': False},
+            'gui': units, 'system': system,
             'processes': summaries, 'unreadable_pids': unreadable,
             'stores': stores}

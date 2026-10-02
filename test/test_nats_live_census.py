@@ -18,13 +18,17 @@ class LiveCensusTest(unittest.TestCase):
                   '\tpath = /tmp/ai.openclaw.nats.plist\n'
                   '\tstate = running\n'
                   '\tprogram = /tmp/nats-server\n'
+                  '\targuments = {\n\t\t/tmp/nats-server\n\t\t--config\n'
+                  '\t\t/tmp/nats.conf\n\t}\n'
                   '\tpid = 123\n'
                   '\tnested = {\n\t\tstate = waiting\n\t\tpid = 456\n\t}\n}\n')
         with patch.object(census, '_command', return_value=(0, output, '')):
             observed = census.launchd_service('gui/501', 'ai.openclaw.nats')
         self.assertEqual(observed, {'loaded': True, 'state': 'running',
                                     'pid': 123, 'plist': '/tmp/ai.openclaw.nats.plist',
-                                    'program': '/tmp/nats-server'})
+                                    'program': '/tmp/nats-server',
+                                    'arguments': ['/tmp/nats-server', '--config',
+                                                  '/tmp/nats.conf']})
 
     def test_missing_service_is_distinct_from_failed_query(self):
         missing = 'Bad request.\nCould not find service "ai.openclaw.nats" in domain for system\n'
@@ -44,6 +48,49 @@ class LiveCensusTest(unittest.TestCase):
         self.assertIsNone(observed['ai.openclaw.nats'])
         self.assertTrue(observed['ai.openclaw.nats-1'])
         self.assertFalse(observed['ai.openclaw.nats-2'])
+        with patch.object(census, '_command', return_value=(0,
+                'disabled services = {\n\t"ai.openclaw.nats-1" => true\n}\n', '')):
+            self.assertTrue(census.disabled_overrides('gui/501')['ai.openclaw.nats-1'])
+        with patch.object(census, '_command', return_value=(0,
+                'disabled services = {\n\t"ai.openclaw.nats-1" => unknown\n}\n', '')):
+            with self.assertRaisesRegex(Refused, 'unrecognized'):
+                census.disabled_overrides('gui/501')
+
+    def test_empty_scan_does_not_claim_physical_absence(self):
+        empty = {'loaded': False}
+        store = {'path': '/tmp/jetstream', 'device': 1, 'inode': 2,
+                 'files': 0, 'bytes': 0, 'inodes': {(1, 2)}}
+        with patch.object(census, 'disabled_overrides', return_value={
+                label: None for label in census.LEGACY_LABELS}), \
+                patch.object(census, 'launchd_service', return_value=empty), \
+                patch.object(census, 'nats_processes', return_value=([], 1)), \
+                patch.object(census, 'store_identity', return_value=store):
+            report = census._observe(501, '/tmp')
+        self.assertFalse(report['coverage']['physical_absence_certified'])
+        self.assertFalse(report['coverage']['single_instant'])
+        self.assertEqual(report['coverage']['other_domains'], 'not checked')
+        self.assertEqual(report['unreadable_pids'], 1)
+        self.assertEqual(report['stores']['ai.openclaw.nats']['nats_server_open_vnodes'], [])
+
+    def test_loaded_arguments_must_match_plist_even_when_not_running(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            plist = home / 'nats.plist'
+            plist.write_bytes(plistlib.dumps({'Label': 'ai.openclaw.nats',
+                                              'ProgramArguments': ['/tmp/nats-server',
+                                                                   '--config', '/tmp/right.conf']}))
+            def service(domain, label):
+                if domain == 'gui/501' and label == 'ai.openclaw.nats':
+                    return {'loaded': True, 'state': 'waiting', 'pid': None,
+                            'plist': str(plist), 'program': '/tmp/nats-server',
+                            'arguments': ['/tmp/nats-server', '--config', '/tmp/wrong.conf']}
+                return {'loaded': False}
+            with patch.object(census, 'disabled_overrides', return_value={
+                    label: None for label in census.LEGACY_LABELS}), \
+                    patch.object(census, 'launchd_service', side_effect=service), \
+                    patch.object(census, 'nats_processes', return_value=([], 0)):
+                with self.assertRaisesRegex(Refused, 'arguments differ'):
+                    census._observe(501, home)
 
     def test_plist_identity_and_symlink_refusal(self):
         with tempfile.TemporaryDirectory() as temporary:
