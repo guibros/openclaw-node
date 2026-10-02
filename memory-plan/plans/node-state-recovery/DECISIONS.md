@@ -1067,10 +1067,13 @@ before any migration decision.
 
 Claude's exact-head challenge found that resolving a retained kernel path
 against the current filesystem could turn an unrelated deleted file into a
-false store holder if its former directory became a symlink. Path fallback is
-now lexical and applies only to unlinked descriptors; linked entries require
-device/inode membership. This also avoids filesystem traversal for every
-observed process path. A failed process snapshot is retried once, then
+false store holder if its former directory became a symlink. Path comparison
+is now lexical. An unlinked descriptor can match its retained path; a linked
+descriptor missing from the earlier store walk only matches after a fresh
+no-follow stat of a path lexically inside a known store confirms the kernel
+device/inode. This avoids traversing arbitrary observed process paths while
+still finding files created after the walk. A failed process snapshot is
+retried once, then
 separated into exited or still-unreadable PIDs. The report states that it
 covers open vnode file descriptors, not closed-descriptor mappings, cwd/root
 references, or in-flight descriptors. Alternate firmlink or case spellings

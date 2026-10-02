@@ -88,6 +88,31 @@ class HolderCensusTest(unittest.TestCase):
             self.assertIn('open vnode file descriptors only',
                           report['coverage']['reference_types'])
 
+    def test_linked_file_created_after_store_walk_needs_fresh_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            for suffix in census.SUFFIXES:
+                (home / '.openclaw' / 'nats' / ('jetstream' + suffix)).mkdir(parents=True)
+            late = home / '.openclaw' / 'nats' / 'jetstream' / 'late'
+            calls = 0
+            def pids():
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    late.write_bytes(b'new')
+                return [10]
+            def snapshot(_):
+                info = late.stat()
+                return {'uid': 501, 'vnodes': [{'fd': 3, 'device': info.st_dev,
+                         'inode': info.st_ino, 'links': 1,
+                         'path': str(late.resolve())}]}
+            with patch.object(census.proc, 'list_pids', side_effect=pids), \
+                    patch.object(census.proc, 'vnode_snapshot', side_effect=snapshot):
+                report = census._observe(home)
+            self.assertEqual(report['stores']['ai.openclaw.nats']['holders'][0]['match'],
+                             'path')
+            self.assertEqual(len(report['stores']['ai.openclaw.nats']['holders']), 1)
+
     def test_missing_store_refuses(self):
         with tempfile.TemporaryDirectory() as temporary:
             with self.assertRaises(Refused):

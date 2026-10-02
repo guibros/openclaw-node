@@ -15,6 +15,14 @@ def _under(path, root):
     return os.path.commonpath((os.path.normpath(path), root)) == root
 
 
+def _linked_at_path(entry):
+    try:
+        named = os.stat(entry['path'], follow_symlinks=False)
+    except OSError:
+        return False
+    return (named.st_dev, named.st_ino) == (entry['device'], entry['inode'])
+
+
 def observe(user_home):
     try:
         return _observe(user_home)
@@ -50,7 +58,8 @@ def _observe(user_home):
             matched = False
             for store in stores.values():
                 by_inode = (entry['device'], entry['inode']) in store['inodes']
-                by_path = entry['links'] == 0 and _under(entry['path'], store['realpath'])
+                by_path = (not by_inode and _under(entry['path'], store['realpath'])
+                           and (entry['links'] == 0 or _linked_at_path(entry)))
                 if by_inode or by_path:
                     store['holders'].append({
                         'pid': pid, 'uid': process['uid'], 'fd': entry['fd'],
@@ -77,7 +86,7 @@ def _observe(user_home):
                          'single_instant': False,
                          'physical_absence_certified': False,
                          'reference_types': 'open vnode file descriptors only; excludes closed-fd mappings, cwd/root and in-flight descriptors',
-                         'path_matching': 'lexical retained kernel paths; alternate firmlink or case spelling may be unattributed'},
+                         'path_matching': 'lexical kernel paths; linked paths require a fresh identity match; alternate firmlink or case spelling may be unattributed'},
             'unreadable_pids': unreadable,
             'exited_pids': exited,
             'retry_recovered_pids': retried,

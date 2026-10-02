@@ -528,8 +528,9 @@ The protected root observer, cold masters and cutover remain open at 1.2 [A].
 Checkpoint 2026-10-01 23:20 EDT: Claude's PR #191 review found no blocker for
 its diagnostic scope but reproduced false deleted-file attribution through a
 replaced symlink and identified unlabelled process-snapshot churn. D58 now
-matches retained paths lexically only for unlinked descriptors, retries once,
-reports exited versus unreadable PIDs, and declares its open-FD coverage.
-The focused Mac suites pass 9/9 and a read-only live scan still observes one
+matches retained paths lexically and verifies the current device/inode for a
+linked file created after the store walk. It retries once, reports exited
+versus unreadable PIDs, and declares its open-FD coverage. The related local
+suites pass 19/19 and a read-only live scan still observes one
 linked 4222 holder with 141 unreadable and two exited PIDs. Revised-head CI
 and adversarial review are pending; no absence verdict or cutover is allowed.
