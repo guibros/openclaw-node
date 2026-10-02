@@ -783,3 +783,13 @@ baseline from hanging recovery. The earlier exact-head CI at `002dfca` passed
 4/4 and the owned suite passed 27/27 locally. The new 28-case suite and
 corresponding CI run are pending. Protected root admission and live cutover
 remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-02 13:12 EDT: PR #204 merged at `734c06a` after its
+exact-head CI passed 4/4 and the owned restore-only suite passed 28/28 on
+the hosted macOS runner. Claude found no blocker in the saved-executable
+fix or the special-file refusal; the regression test is now bounded by an
+alarm. A separate source slice makes the shared `static_identity` capture
+read only bounded regular files through non-blocking, no-follow descriptors,
+with a FIFO control. Its journal and hold suites pass 96/96 and 43/43
+locally; owned restore-only and exact-head CI are pending. This is source
+hardening, not a live full-node admission or cutover.
