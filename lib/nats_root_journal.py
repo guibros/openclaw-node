@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import fcntl
 import json
@@ -9,7 +10,8 @@ import subprocess
 import sys
 import uuid
 
-from nats_root_lock import LOCK, Refused, _acquire, protected_parent, require_no_acl, sync_dir, sync_fd
+from nats_root_lock import (LOCK, Refused, _acquire, lock_identity, protected_parent,
+                            require_no_acl, sync_dir, sync_fd)
 
 
 def encoded(value):
@@ -163,7 +165,7 @@ def valid_decline(data, site, uid, gid, previous, transactions):
     fields = {'transaction', 'site', 'lock_path', 'uid', 'gid',
               'user_journal_root', 'user_baseline_sha256', 'user_transfer_sha256',
               'transfer_boot', 'decline_boot', 'nonce', 'predecessor', 'lock',
-              'user_evidence', 'absence_sha256'}
+              'user_evidence', 'absence_evidence', 'absence_sha256'}
     if not isinstance(data, dict) or set(data) != fields:
         raise Refused('root decline record is incomplete')
     try:
@@ -189,6 +191,20 @@ def valid_decline(data, site, uid, gid, previous, transactions):
     if (baseline.get('boot') != data['transfer_boot']
             or transfer.get('boot') != data['transfer_boot']):
         raise Refused('root decline transfer boot differs')
+    absence = data['absence_evidence']
+    try:
+        valid_absence = (isinstance(absence, dict) and len(encoded(absence)) <= 65536
+                         and digest(absence) == data['absence_sha256']
+                         and absence.get('verified') is True
+                         and absence.get('transaction') == data['transaction']
+                         and absence.get('boot') == data['decline_boot']
+                         and absence.get('phase') == 'before-decline'
+                         and absence.get('lock') == inherited
+                         and absence.get('user_transfer_sha256') == data['user_transfer_sha256'])
+    except (TypeError, ValueError, RecursionError):
+        valid_absence = False
+    if not valid_absence:
+        raise Refused('root decline physical absence evidence differs')
 
 
 class LockBootstrapJournal:
@@ -430,9 +446,10 @@ class LockBootstrapJournal:
                         or saved['user_journal_root'] != observed['journal_root']
                         or saved['lock_path'] != str(target.absolute())):
                     raise Refused('root decline reentry differs from the pinned transfer')
-                journal._decline_absence(target, saved['lock'], transaction,
-                                         observed['head'], verify_absence)
-                return journal.publish_declined_outcome()
+                with journal._shared_terminal_lock(target, saved['lock']):
+                    journal._decline_absence(target, saved['lock'], transaction,
+                                             observed['head'], verify_absence)
+                    return journal.publish_declined_outcome()
             if any((row['data']['descriptor']['transaction'] if row['event'] ==
                     'lock-create-intent' else row['data']['transaction']) == transaction
                    for row in journal.records if row['event'] in
@@ -445,22 +462,23 @@ class LockBootstrapJournal:
                     journal.read_declined_outcome()
             journal._require_unused_outcome(transaction)
             inherited = previous['data']['lock'] if previous is not None else None
-            absence = journal._decline_absence(target, inherited, transaction,
-                                                observed['head'], verify_absence)
-            user.recheck()
-            data = {'transaction': transaction, 'site': str(site.absolute()),
-                    'lock_path': str(target.absolute()), 'uid': uid, 'gid': gid,
-                    'user_journal_root': observed['journal_root'],
-                    'user_baseline_sha256': observed['baseline_sha256'],
-                    'user_transfer_sha256': observed['head'],
-                    'transfer_boot': user.records[0]['boot'],
-                    'decline_boot': boot_identity(),
-                    'nonce': uuid.uuid4().hex + uuid.uuid4().hex,
-                    'predecessor': previous['sha256'] if previous else None,
-                    'lock': inherited, 'user_evidence': evidence,
-                    'absence_sha256': digest(absence)}
-            valid_decline(data, site, uid, gid, previous, set())
-            journal._append('transfer-declined', **data)
+            with journal._shared_terminal_lock(target, inherited):
+                absence = journal._decline_absence(target, inherited, transaction,
+                                                    observed['head'], verify_absence)
+                user.recheck()
+                data = {'transaction': transaction, 'site': str(site.absolute()),
+                        'lock_path': str(target.absolute()), 'uid': uid, 'gid': gid,
+                        'user_journal_root': observed['journal_root'],
+                        'user_baseline_sha256': observed['baseline_sha256'],
+                        'user_transfer_sha256': observed['head'],
+                        'transfer_boot': user.records[0]['boot'],
+                        'decline_boot': boot_identity(),
+                        'nonce': uuid.uuid4().hex + uuid.uuid4().hex,
+                        'predecessor': previous['sha256'] if previous else None,
+                        'lock': inherited, 'user_evidence': evidence,
+                        'absence_evidence': absence, 'absence_sha256': digest(absence)}
+                valid_decline(data, site, uid, gid, previous, set())
+                journal._append('transfer-declined', **data)
             return journal.publish_declined_outcome()
         finally:
             journal.close()
@@ -484,6 +502,33 @@ class LockBootstrapJournal:
             raise Refused('root handoff changed during decline observation')
         self._check_terminal_lock(target, lock)
         return evidence
+
+    @contextlib.contextmanager
+    def _shared_terminal_lock(self, target, lock):
+        self._check_terminal_lock(target, lock)
+        if lock is None:
+            yield
+            self._check_terminal_lock(target, lock)
+            return
+        try:
+            fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except OSError as error:
+            raise Refused('carried writer lock is unobservable') from error
+        try:
+            expected = lock_identity(fd, target, self.uid, self.gid)
+            if expected[1:] != (lock['inode'], lock['ctime_ns']):
+                raise Refused('carried writer lock identity changed')
+            try:
+                fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise Refused('protected writer still holds exclusive exclusion') from error
+            if lock_identity(fd, target, self.uid, self.gid) != expected:
+                raise Refused('carried writer lock changed during acquisition')
+            yield
+            if lock_identity(fd, target, self.uid, self.gid) != expected:
+                raise Refused('carried writer lock changed during decline')
+        finally:
+            os.close(fd)
 
     def _read(self):
         entries = sorted(self.root.iterdir())

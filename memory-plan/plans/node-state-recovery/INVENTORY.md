@@ -419,3 +419,13 @@ outcome collision detected after the decline record. D50 moves the protected
 transaction-slot check before the durable decline append. The new regression
 passes in the focused 13/13 suite; revised-head CI and review remain pending.
 The production physical driver and step 1.2 runtime acceptance remain open.
+
+Checkpoint 2026-10-01 20:27 EDT: the next source slice now holds a carried
+writer lock shared through the decline append and stores bounded, replay-
+validated physical absence evidence in the root ledger (D51). Owned probes
+cover an exclusive lock holder, a competing writer during observation and
+append, oversized evidence, and rehashed evidence tampering; the root and
+user-journal suites pass 92/92 and 78/78 locally. The protected
+root-owned observer, fixed production paths, launchd/process/store census,
+root installation, three healthy cold masters and live restoration remain
+open. The production macOS-root gate stays closed; 1.2 remains [A].

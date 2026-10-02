@@ -919,3 +919,18 @@ recorded decline whose receipt can never be published. Idempotent reentry of
 an already recorded decline instead verifies the saved user and physical
 identity and republishes the same receipt. This closes Claude's PR #185
 exact-head E4 reproducer; production gates remain closed.
+
+## D51 — Hold the carried writer lock and retain decline observation (2026-10-01 20:27 EDT)
+
+An exact carried writer lock is opened without following symlinks and held
+shared while a no-intent decline checks physical absence and commits its
+ledger record. A concurrent exclusive holder refuses before the append, and
+an exclusive writer cannot enter during the observation-to-commit bracket.
+The order remains owner node lock, owner journal lock, root ledger lock,
+then shared writer lock. With no carried lock, the existing ledger exclusion
+remains the protocol fence. The record stores a size-bounded copy of the
+physical absence evidence alongside its digest, and replay validates the
+evidence, transaction, boot, carried lock and transfer hash. This is a
+source-only strengthening. It does not authorize a production decline until
+the observer is fixed-path root-owned code with launchd, process and store
+census, and the production tripwire is reviewed separately.
