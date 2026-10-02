@@ -934,3 +934,19 @@ evidence, transaction, boot, carried lock and transfer hash. This is a
 source-only strengthening. It does not authorize a production decline until
 the observer is fixed-path root-owned code with launchd, process and store
 census, and the production tripwire is reviewed separately.
+
+## D52 — Recheck decline gates at the durable commit (2026-10-01 20:37 EDT)
+
+Claude's exact-head review of PR #186 found that a lock substituted after
+physical observation but during user-journal recheck could be detected only
+after `transfer-declined` became durable. The decline now rechecks user state,
+marker, stages, the outcome slot, and the named lock against the held file
+after observation and immediately before hard-link publication. The original
+post-append check remains. Physical evidence must be canonical JSON before
+it is recorded, so tuple values, non-string keys and NaN cannot produce an
+unreadable durable record. Protocol-compliant root actors are excluded by
+the held root ledger lock; an out-of-protocol privileged writer remains
+outside that fence and is not claimed to be atomically excluded. Decline
+records produced by the earlier source-only PR #185 lack the new evidence
+field and cannot be replayed by this format. No production records exist:
+the macOS-root decline tripwire has stayed closed throughout both slices.

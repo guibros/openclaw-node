@@ -446,9 +446,10 @@ class LockBootstrapJournal:
                         or saved['user_journal_root'] != observed['journal_root']
                         or saved['lock_path'] != str(target.absolute())):
                     raise Refused('root decline reentry differs from the pinned transfer')
-                with journal._shared_terminal_lock(target, saved['lock']):
+                with journal._shared_terminal_lock(target, saved['lock']) as check_lock:
                     journal._decline_absence(target, saved['lock'], transaction,
                                              observed['head'], verify_absence)
+                    check_lock()
                     return journal.publish_declined_outcome()
             if any((row['data']['descriptor']['transaction'] if row['event'] ==
                     'lock-create-intent' else row['data']['transaction']) == transaction
@@ -462,10 +463,12 @@ class LockBootstrapJournal:
                     journal.read_declined_outcome()
             journal._require_unused_outcome(transaction)
             inherited = previous['data']['lock'] if previous is not None else None
-            with journal._shared_terminal_lock(target, inherited):
+            with journal._shared_terminal_lock(target, inherited) as check_lock:
                 absence = journal._decline_absence(target, inherited, transaction,
                                                     observed['head'], verify_absence)
                 user.recheck()
+                journal._check_decline_gates(target, inherited)
+                check_lock()
                 data = {'transaction': transaction, 'site': str(site.absolute()),
                         'lock_path': str(target.absolute()), 'uid': uid, 'gid': gid,
                         'user_journal_root': observed['journal_root'],
@@ -478,18 +481,18 @@ class LockBootstrapJournal:
                         'lock': inherited, 'user_evidence': evidence,
                         'absence_evidence': absence, 'absence_sha256': digest(absence)}
                 valid_decline(data, site, uid, gid, previous, set())
-                journal._append('transfer-declined', **data)
+                def before_commit():
+                    user.recheck()
+                    journal._check_decline_gates(target, inherited)
+                    check_lock()
+                    journal._require_unused_outcome(transaction)
+                journal._append('transfer-declined', before_commit=before_commit, **data)
             return journal.publish_declined_outcome()
         finally:
             journal.close()
 
     def _decline_absence(self, target, lock, transaction, transfer_sha256, callback):
-        protected_parent(target, self.uid, self.gid)
-        if present(self.site / 'writer-handoff.json'):
-            raise Refused('root marker blocks decline')
-        if any(path.name.startswith('.openclaw-nats-lock-') for path in target.parent.iterdir()):
-            raise Refused('unexplained writer lock stage blocks decline')
-        self._check_terminal_lock(target, lock)
+        self._check_decline_gates(target, lock)
         context = {'transaction': transaction, 'boot': boot_identity(),
                    'phase': 'before-decline', 'lock': lock,
                    'user_transfer_sha256': transfer_sha256}
@@ -497,18 +500,34 @@ class LockBootstrapJournal:
         if (not isinstance(evidence, dict) or evidence.get('verified') is not True
                 or any(evidence.get(key) != value for key, value in context.items())):
             raise Refused('root decline physical absence is unverified')
+        try:
+            canonical = json.loads(encoded(evidence))
+        except (TypeError, ValueError, RecursionError) as error:
+            raise Refused('root decline physical absence evidence is not canonical JSON') from error
+        if canonical != evidence:
+            raise Refused('root decline physical absence evidence is not canonical JSON')
         if present(self.site / 'writer-handoff.json') or any(
                 path.name.startswith('.openclaw-nats-lock-') for path in target.parent.iterdir()):
             raise Refused('root handoff changed during decline observation')
         self._check_terminal_lock(target, lock)
-        return evidence
+        return canonical
+
+    def _check_decline_gates(self, target, lock):
+        protected_parent(target, self.uid, self.gid)
+        if present(self.site / 'writer-handoff.json'):
+            raise Refused('root marker blocks decline')
+        if any(path.name.startswith('.openclaw-nats-lock-') for path in target.parent.iterdir()):
+            raise Refused('unexplained writer lock stage blocks decline')
+        self._check_terminal_lock(target, lock)
 
     @contextlib.contextmanager
     def _shared_terminal_lock(self, target, lock):
         self._check_terminal_lock(target, lock)
         if lock is None:
-            yield
-            self._check_terminal_lock(target, lock)
+            def validate():
+                self._check_terminal_lock(target, lock)
+            yield validate
+            validate()
             return
         try:
             fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -524,9 +543,11 @@ class LockBootstrapJournal:
                 raise Refused('protected writer still holds exclusive exclusion') from error
             if lock_identity(fd, target, self.uid, self.gid) != expected:
                 raise Refused('carried writer lock changed during acquisition')
-            yield
-            if lock_identity(fd, target, self.uid, self.gid) != expected:
-                raise Refused('carried writer lock changed during decline')
+            def validate():
+                if lock_identity(fd, target, self.uid, self.gid) != expected:
+                    raise Refused('carried writer lock changed during decline')
+            yield validate
+            validate()
         finally:
             os.close(fd)
 
@@ -570,7 +591,7 @@ class LockBootstrapJournal:
             records.append(record)
         return records
 
-    def _append(self, event, **data):
+    def _append(self, event, *, before_commit=None, **data):
         if self.fd is None:
             raise Refused('root writer ledger is closed')
         if os.fstat(self.fd).st_ino != self.root.lstat().st_ino:
@@ -587,6 +608,8 @@ class LockBootstrapJournal:
             handle.write(encoded(record))
             handle.flush()
             sync_fd(handle.fileno())
+        if before_commit is not None:
+            before_commit()
         final = self.root / f'{len(self.records):06d}.json'
         os.link(pending, final, follow_symlinks=False)
         sync_dir(self.root)

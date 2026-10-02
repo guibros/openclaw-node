@@ -429,3 +429,12 @@ user-journal suites pass 92/92 and 78/78 locally. The protected
 root-owned observer, fixed production paths, launchd/process/store census,
 root installation, three healthy cold masters and live restoration remain
 open. The production macOS-root gate stays closed; 1.2 remains [A].
+
+Checkpoint 2026-10-01 20:37 EDT: Claude's exact-head PR #186 review found no
+protocol-reachable blocker and green 4/4 CI, but reproduced a lock change
+detected only after a durable decline. D52 adds commit-boundary rechecks and
+canonical evidence validation. Three new commit-window controls and the
+malformed-evidence control pass; the root journal, bound admission, decline
+and user-transfer suites pass 82/82 locally. Revised-head CI and adversarial
+review are pending. The protected observer, root-owned installation, cold
+masters and live acceptance remain open at 1.2 [A].

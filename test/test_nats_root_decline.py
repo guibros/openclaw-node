@@ -268,6 +268,60 @@ class RootDeclineTest(unittest.TestCase):
                 self.fixture.node_lock, self.fixture.root, self.uid, oversized)
         self.assertEqual(list((self.base / 'root-site-ledger').glob('*.json')), [])
 
+    def test_lock_appearing_after_observation_refuses_before_commit(self):
+        original = nats_user_transfer.UserTransfer.recheck
+        calls = 0
+        def recheck(user):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                self.lock.write_text('unexpected lock')
+            return original(user)
+        with patch.object(nats_user_transfer.UserTransfer, 'recheck', new=recheck):
+            with self.assertRaisesRegex(nats_root_journal.Refused, 'unexpectedly appeared'):
+                self.decline()
+        self.assertEqual(list((self.base / 'root-site-ledger').glob('*.json')), [])
+
+    def test_marker_appearing_inside_append_refuses_before_commit(self):
+        original = nats_root_journal.LockBootstrapJournal._append
+        def append_with_marker(journal, event, **data):
+            if event == 'transfer-declined':
+                (self.site / 'writer-handoff.json').write_text('{}')
+            return original(journal, event, **data)
+        with patch.object(nats_root_journal.LockBootstrapJournal, '_append',
+                          new=append_with_marker):
+            with self.assertRaisesRegex(nats_root_journal.Refused, 'marker'):
+                self.decline()
+        self.assertEqual(list((self.base / 'root-site-ledger').glob('*.json')), [])
+
+    def test_carried_lock_replaced_inside_append_refuses_before_commit(self):
+        self.previous_return()
+        before = len(list((self.base / 'root-site-ledger').glob('*.json')))
+        original = nats_root_journal.LockBootstrapJournal._append
+        def append_with_replacement(journal, event, **data):
+            if event == 'transfer-declined':
+                self.lock.unlink()
+                self.lock.write_text('replacement')
+            return original(journal, event, **data)
+        with patch.object(nats_root_journal.LockBootstrapJournal, '_append',
+                          new=append_with_replacement):
+            with self.assertRaises(nats_root_journal.Refused):
+                self.decline()
+        self.assertEqual(len(list((self.base / 'root-site-ledger').glob('*.json'))), before)
+
+    def test_noncanonical_absence_evidence_refuses_before_commit(self):
+        for extra in ({'tuple': (1, 2)}, {'integer_key': {1: 'value'}},
+                      {'nan': float('nan')}):
+            with self.subTest(extra=next(iter(extra))):
+                def absence(context):
+                    return {**context, 'verified': True, **extra}
+                with self.assertRaisesRegex(nats_root_journal.Refused,
+                                            'not canonical JSON'):
+                    nats_root_admission.BoundRootJournal.decline(
+                        self.site, self.lock, self.uid, self.gid, self.transaction,
+                        self.fixture.node_lock, self.fixture.root, self.uid, absence)
+                self.assertEqual(list((self.base / 'root-site-ledger').glob('*.json')), [])
+
     def test_rehashed_absence_evidence_change_refuses_ledger_replay(self):
         self.decline()
         path = self.base / 'root-site-ledger' / '000000.json'
