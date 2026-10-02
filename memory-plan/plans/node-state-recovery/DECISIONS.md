@@ -1118,8 +1118,10 @@ master or cutover acceptance. Recovery records a fresh exclusion anchor and a
 durable `excluded_unchanged_since_baseline` boolean before restoring services.
 It is false for a changed or unobserved helper, including a run after transfer
 intent, and must not be read as permission to certify the interrupted window.
-An acceptance reader must reject the original forward certificate after any
-`recovery-started` record; a later true value cannot erase an earlier false.
+The user journal's full-node completion is restoration, not cold-master
+acceptance. Root-side observation must decide acceptance before restoration
+begins; no reader may turn a `recovery-started` true into a certificate, and a
+later true value cannot erase an earlier false.
 Recovery then requires the new anchor unchanged through final verification and
 resolution.
 This lets a reboot or vendor app update be reported and restored without

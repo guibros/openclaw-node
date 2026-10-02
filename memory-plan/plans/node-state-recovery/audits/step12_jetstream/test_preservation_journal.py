@@ -473,13 +473,19 @@ class JournalTests(unittest.TestCase):
             def final_check():
                 current['loaded'] = copy.deepcopy(journal.entrypoint_inventory['loaded'])
                 return {'verified': True}
+            failed = journal.recover(lambda *_: self.fail('already restored'),
+                lambda unit, _: {**journal.prior[unit], 'verified': True},
+                lambda: {'verified': False}, hold=recovery_hold)
+            self.assertFalse(failed['restored'])
             result = journal.recover(lambda *_: self.fail('already restored'),
                 lambda unit, _: {**journal.prior[unit], 'verified': True},
                 final_check, hold=recovery_hold)
             self.assertTrue(result['restored'], result)
-            started = next(row for row in journal.records if row['event'] == 'recovery-started')
-            self.assertFalse(started['excluded_unchanged_since_baseline'])
-            self.assertEqual(started['entrypoint_excluded'][TAILSCALE_LABEL]['launchd']['runs'], 2)
+            started = [row for row in journal.records if row['event'] == 'recovery-started']
+            self.assertEqual([row['excluded_unchanged_since_baseline'] for row in started],
+                             [False, False])
+            self.assertTrue(all(row['entrypoint_excluded'][TAILSCALE_LABEL]['launchd']['runs'] == 2
+                                for row in started))
             journal.resolve()
 
 

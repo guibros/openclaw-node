@@ -600,7 +600,7 @@ Checkpoint 2026-10-02 08:00 EDT: the D60 source draft admits only the exact
 idle `com.openclaw.tailscale-up` system one-shot as an explicit, rechecked
 exclusion. Its launch count, plist, wrapper, signed app and boot identity are
 saved in the full-node inventory; a later run or drift refuses. The focused
-preservation suites pass 104/104 and the root transfer suite passes 10/10;
+preservation suites pass 103/103 and the root transfer suite passes 10/10;
 read-only validation of the installed
 helper passes. The live preflight still refuses `com.openclaw.agent`, so the
 23-unit baseline remains provisional. No system job or node service was
@@ -613,4 +613,5 @@ fresh exclusion with the original baseline, without blocking restore-only
 resolution. A run during one recovery attempt fails that attempt; retry records
 the changed baseline comparison. Source tests include the returned-transfer
 case. The root-held transfer still needs its own live observer before cold
-master acceptance; this record does not authorize cutover or close 1.2.
+master acceptance. The focused preservation suites now pass 104/104. This
+record does not authorize cutover or close 1.2.
