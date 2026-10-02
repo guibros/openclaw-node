@@ -1070,11 +1070,12 @@ against the current filesystem could turn an unrelated deleted file into a
 false store holder if its former directory became a symlink. Path comparison
 is now lexical. An unlinked descriptor can match its retained path; a linked
 descriptor missing from the earlier store walk only matches after a fresh
-no-follow stat of a path lexically inside a known store confirms the kernel
-device/inode. This avoids traversing arbitrary observed process paths while
-still finding files created after the walk. A failed process snapshot is
-retried once, then
-separated into exited or still-unreadable PIDs. The report states that it
+directory-descriptor traversal with no-follow opens at every component and a
+final no-follow stat confirms the kernel device/inode. The opened store root
+must still have its walked identity. This avoids traversing arbitrary observed
+process paths while finding files created after the walk and refusing a
+symlink inserted inside the store. A failed process snapshot is retried once,
+then separated into exited or still-unreadable PIDs. The report states that it
 covers open vnode file descriptors, not closed-descriptor mappings, cwd/root
 references, or in-flight descriptors. Alternate firmlink or case spellings
 can remain unattributed. None of these diagnostic observations certifies

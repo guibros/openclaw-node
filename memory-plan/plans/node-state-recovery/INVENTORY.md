@@ -531,6 +531,6 @@ replaced symlink and identified unlabelled process-snapshot churn. D58 now
 matches retained paths lexically and verifies the current device/inode for a
 linked file created after the store walk. It retries once, reports exited
 versus unreadable PIDs, and declares its open-FD coverage. The related local
-suites pass 19/19 and a read-only live scan still observes one
+suites pass 20/20 and a read-only live scan still observes one
 linked 4222 holder with 141 unreadable and two exited PIDs. Revised-head CI
 and adversarial review are pending; no absence verdict or cutover is allowed.

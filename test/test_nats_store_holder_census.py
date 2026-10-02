@@ -113,6 +113,33 @@ class HolderCensusTest(unittest.TestCase):
                              'path')
             self.assertEqual(len(report['stores']['ai.openclaw.nats']['holders']), 1)
 
+    def test_intermediate_symlink_added_after_walk_cannot_attribute_linked_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            for suffix in census.SUFFIXES:
+                (home / '.openclaw' / 'nats' / ('jetstream' + suffix)).mkdir(parents=True)
+            root = home / '.openclaw' / 'nats' / 'jetstream'
+            outside = home / 'outside'
+            outside.mkdir()
+            file = outside / 'held'
+            file.write_bytes(b'foreign')
+            info = file.stat()
+            calls = 0
+            def pids():
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    (root / 'bridge').symlink_to(outside, target_is_directory=True)
+                return [10]
+            def snapshot(_):
+                return {'uid': 501, 'vnodes': [{'fd': 3, 'device': info.st_dev,
+                         'inode': info.st_ino, 'links': 1,
+                         'path': str(root.resolve() / 'bridge' / 'held')}]}
+            with patch.object(census.proc, 'list_pids', side_effect=pids), \
+                    patch.object(census.proc, 'vnode_snapshot', side_effect=snapshot):
+                report = census._observe(home)
+            self.assertEqual(report['stores']['ai.openclaw.nats']['holders'], [])
+
     def test_missing_store_refuses(self):
         with tempfile.TemporaryDirectory() as temporary:
             with self.assertRaises(Refused):

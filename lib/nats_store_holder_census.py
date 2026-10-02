@@ -15,11 +15,29 @@ def _under(path, root):
     return os.path.commonpath((os.path.normpath(path), root)) == root
 
 
-def _linked_at_path(entry):
+def _linked_at_path(entry, store):
+    relative = os.path.relpath(os.path.normpath(entry['path']), store['realpath'])
+    if relative == '.':
+        return False
+    parts = relative.split(os.sep)
+    directory_fd = None
     try:
-        named = os.stat(entry['path'], follow_symlinks=False)
+        directory_fd = os.open(store['realpath'], os.O_RDONLY | os.O_DIRECTORY |
+                               os.O_NOFOLLOW)
+        root = os.fstat(directory_fd)
+        if (root.st_dev, root.st_ino) != (store['device'], store['inode']):
+            return False
+        for part in parts[:-1]:
+            next_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                              dir_fd=directory_fd)
+            os.close(directory_fd)
+            directory_fd = next_fd
+        named = os.stat(parts[-1], dir_fd=directory_fd, follow_symlinks=False)
     except OSError:
         return False
+    finally:
+        if directory_fd is not None:
+            os.close(directory_fd)
     return (named.st_dev, named.st_ino) == (entry['device'], entry['inode'])
 
 
@@ -59,7 +77,7 @@ def _observe(user_home):
             for store in stores.values():
                 by_inode = (entry['device'], entry['inode']) in store['inodes']
                 by_path = (not by_inode and _under(entry['path'], store['realpath'])
-                           and (entry['links'] == 0 or _linked_at_path(entry)))
+                           and (entry['links'] == 0 or _linked_at_path(entry, store)))
                 if by_inode or by_path:
                     store['holders'].append({
                         'pid': pid, 'uid': process['uid'], 'fd': entry['fd'],
