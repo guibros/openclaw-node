@@ -2,10 +2,12 @@
   "approved_unit_count": 23,
   "direct_file_pin_count": 59,
   "disabled_artifact_count": 11,
+  "distinct_direct_file_count": 29,
   "entrypoint_preflight": {
     "accepted": false,
     "reason": "installed OpenClaw jobs differ from the approved cohort"
   },
+  "foreman_backup_directory": "~/.openclaw/backups/foreman",
   "foreman_backups": {
     "ai.openclaw.memory-daemon.plist.20261001T223408.bak": {
       "mode": "0o644",
@@ -51,8 +53,12 @@
   "observed_at": "2026-10-02T06:18:03.080469-04:00",
   "openclaw_env": {
     "llm_base_url_matches_plists": true,
+    "mode": "0o600"
+  },
+  "openclaw_env_backup": {
     "mode": "0o600",
-    "sha256": "40e91e908302acd66262edb507966903237b112b0c7eb9396b29c2ca9ee3aded"
+    "name": "openclaw.env.20261001T223329.bak",
+    "present": true
   },
   "plist_hashes_stable_at_recheck": true,
   "rechecked_at": "2026-10-02T06:20:52.964205-04:00",

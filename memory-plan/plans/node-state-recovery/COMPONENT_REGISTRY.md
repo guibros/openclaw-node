@@ -154,7 +154,9 @@ or healthy NATS cold copy exists.
 in a new read-only 23-unit diagnostic. Mesh-agent remains idle on demand with
 plist SHA-256 `d0d01ead…`; memory-daemon runs as PID 37477 with plist SHA-256
 `a3fb84ea…` and its live LLM setting matches the plist. The 0600 env file
-matches the same target. Structural classes and 59 direct file hashes were
-observed, but the two unmanaged loaded system jobs still fail the multi-domain
-preflight. The recapture is provisional and cannot authorize a preservation
-window; 1.2 remains [A] at v1.2-pre.
+matches the same target. Structural classes and 59 direct pins over 29 distinct
+files were observed. The two unmanaged loaded system jobs still fail the
+multi-domain preflight. The recapture is provisional and cannot authorize a
+preservation window; 1.2 remains [A] at v1.2-pre.
+The source memory-daemon plist template and separate `workspace-bin/install-daemon`
+renderer still omit `LLM_BASE_URL`; a future reinstall would drop the live override.
