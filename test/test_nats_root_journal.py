@@ -165,7 +165,7 @@ class RootJournalTest(unittest.TestCase):
         with self.assertRaises(module.Refused):
             module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
         with patch.object(module.json, 'loads', side_effect=RecursionError('deep')):
-            with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
+            with self.assertRaisesRegex(module.Refused, 'record is unreadable'):
                 module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
 
     def test_readonly_inspection_maps_rehashed_invalid_lock_to_refusal(self):
@@ -185,6 +185,20 @@ class RootJournalTest(unittest.TestCase):
             with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
                 module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
 
+    def test_driver_refuses_rehashed_nondict_returned_lock(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
+            self.returned(journal)
+        record = self.ledger / '000003.json'
+        saved = json.loads(record.read_bytes())
+        saved['data']['lock'] = 5
+        saved['sha256'] = module.digest({key: value for key, value in saved.items()
+                                          if key != 'sha256'})
+        record.write_bytes(module.encoded(saved))
+        with self.assertRaisesRegex(module.Refused, 'return receipt is incomplete'):
+            self.reopen()
+
     def test_readonly_inspection_refuses_nonstring_transaction(self):
         with self.begin():
             pass
@@ -196,6 +210,53 @@ class RootJournalTest(unittest.TestCase):
         record.write_bytes(module.encoded(saved))
         with self.assertRaises(module.Refused):
             module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
+    def test_driver_refuses_nonstring_intent_transaction(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        saved = json.loads(record.read_bytes())
+        saved['data']['descriptor']['transaction'] = True
+        saved['sha256'] = module.digest({key: value for key, value in saved.items()
+                                          if key != 'sha256'})
+        record.write_bytes(module.encoded(saved))
+        with self.assertRaisesRegex(module.Refused, 'transaction is invalid'):
+            self.reopen()
+
+    def test_driver_refuses_nonfinite_json_constants(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        original = record.read_bytes()
+        for constant in (b'NaN', b'Infinity', b'-Infinity'):
+            with self.subTest(constant=constant):
+                record.write_bytes(original.replace(b'"sequence":0', b'"sequence":' + constant))
+                with self.assertRaisesRegex(module.Refused, 'record is unreadable'):
+                    self.reopen()
+
+    def test_driver_refuses_recursive_json_and_chain_encoding(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        original = record.read_bytes()
+        record.write_bytes(b'[' * 1200 + b'0' + b']' * 1200)
+        with self.assertRaises(module.Refused):
+            self.reopen()
+        record.write_bytes(original)
+        with patch.object(module, 'digest', side_effect=RecursionError('deep')):
+            with self.assertRaisesRegex(module.Refused, 'journal chain differs'):
+                self.reopen()
+
+    def test_driver_preserves_recursive_pending_record(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        record.write_bytes(b'[' * 1200 + b'0' + b']' * 1200)
+        pending = self.ledger / ('.pending-' + uuid.uuid4().hex)
+        os.link(record, pending)
+        with self.assertRaisesRegex(module.Refused, 'pending record is ambiguous'):
+            self.reopen()
+        self.assertEqual(record.stat().st_ino, pending.stat().st_ino)
 
     def test_readonly_inspection_refuses_active_driver(self):
         with self.begin():

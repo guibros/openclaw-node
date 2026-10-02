@@ -1080,3 +1080,21 @@ covers open vnode file descriptors, not closed-descriptor mappings, cwd/root
 references, or in-flight descriptors. Alternate firmlink or case spellings
 can remain unattributed. None of these diagnostic observations certifies
 physical absence.
+
+## D59 — Reject malformed returned-lock data in the root driver (2026-10-01 23:16 EDT)
+
+A rehashed `returned` record whose `lock` was a JSON scalar escaped the root
+driver's ledger validation as a raw `TypeError` at `set(lock)`. The driver now
+requires a dictionary before checking its fields, so the ledger refuses with
+the existing incomplete-return reason. A direct driver-constructor control
+also pins the D57 non-string transaction refusal; the observer's broad
+exception mapping alone would not prove that driver behavior. These are
+schema refusals on source and owned fixtures. They do not create a physical
+absence verdict, change live NATS state, or lift the protected-root gate.
+
+The direct driver also refuses non-finite JSON constants and recursive raw
+records. Parsing rejects `NaN` and infinities before chain validation, and
+both parse and canonical chain-encoding depth errors become `Refused`. An
+interrupted pending record with excessive depth remains ambiguous rather than
+escaping as an unhandled exception. This protects the refusal boundary for
+malformed bytes; it does not assert that the ledger is physically complete.

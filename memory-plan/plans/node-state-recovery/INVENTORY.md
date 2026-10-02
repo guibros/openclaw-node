@@ -525,6 +525,15 @@ with 145 unreadable PIDs and 41 unattributed unlinked handles on store
 devices; it explicitly does not certify absence. Exact CI/review are pending.
 The protected root observer, cold masters and cutover remain open at 1.2 [A].
 
+Checkpoint 2026-10-01 23:16 EDT: PR #190 merged after exact-head 4/4 CI and
+Claude's no-blocker review. D59 closes the previously reproduced raw root-
+driver `TypeError` for a rehashed returned record with a non-dictionary lock.
+A direct driver control also pins the non-string intent transaction refusal.
+The root journal and decline suites pass 85/85 locally, including both new
+driver controls. The protected physical observer,
+three healthy cold masters and production cutover remain open; 1.2 stays [A]
+at v1.2-pre.
+
 Checkpoint 2026-10-01 23:20 EDT: Claude's PR #191 review found no blocker for
 its diagnostic scope but reproduced false deleted-file attribution through a
 replaced symlink and identified unlabelled process-snapshot churn. D58 now
@@ -534,3 +543,13 @@ versus unreadable PIDs, and declares its open-FD coverage. The related local
 suites pass 20/20 and a read-only live scan still observes one
 linked 4222 holder with 141 unreadable and two exited PIDs. Revised-head CI
 and adversarial review are pending; no absence verdict or cutover is allowed.
+
+Checkpoint 2026-10-01 23:40 EDT: PR #191 merged with exact-head 4/4 CI and
+Claude's no-blocker diagnostic review. Its D58 holder census remains read-only
+and does not certify physical absence. PR #192 now includes D59's direct-driver
+refusal for non-finite JSON and recursive raw records, after incorporating
+#191's merged base. The root journal and decline suites pass 88/88 locally,
+including a two-link pending-record refusal that preserves both names.
+Exact-head CI and adversarial review of the revised #192 are pending; the
+protected physical observer, three healthy cold masters and production
+cutover remain open at 1.2 [A]/v1.2-pre.
