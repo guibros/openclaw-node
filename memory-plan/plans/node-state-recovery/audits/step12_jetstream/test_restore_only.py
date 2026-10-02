@@ -391,8 +391,16 @@ with Journal(root, node_lock=lock) as journal:
             identity['argv'][0] = str(fifo)
             identity['files'][str(fifo)] = identity['files'].pop(old_node)
             identity['plist_sha256'] = hashlib.sha256(raw).hexdigest()
-            with self.assertRaisesRegex(Refused, 'not a regular file'):
-                OwnedLaunchdAdapter(self.root, prior, 'unused')
+            def deadline(*_):
+                raise TimeoutError('owned executable read blocked')
+            previous = signal.signal(signal.SIGALRM, deadline)
+            signal.setitimer(signal.ITIMER_REAL, 3)
+            try:
+                with self.assertRaisesRegex(Refused, 'not a regular file'):
+                    OwnedLaunchdAdapter(self.root, prior, 'unused')
+            finally:
+                signal.setitimer(signal.ITIMER_REAL, 0)
+                signal.signal(signal.SIGALRM, previous)
         finally:
             plist.write_bytes(original)
 
