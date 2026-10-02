@@ -579,3 +579,11 @@ The normal launchd template rendered and parsed with the host URL. This has not 
 installed or restarted on the live node. The 23-unit diagnostic remains
 provisional, the two system jobs still refuse preflight, and 1.2 stays [A] at
 v1.2-pre pending exact CI and adversarial review.
+
+Checkpoint 2026-10-02 07:10 EDT: PR #196 merged at 0d3237f after exact-head
+4/4 CI and Claude's no-blocker review. The source memory-daemon installers now
+preserve the saved host-Ollama URL across normal launchd/systemd installs and
+the separate macOS/systemd/pm2 path. No live service was changed. Node-init's
+mesh-agent renderer still read only the process environment, so a plain-shell
+rerun could drop that service's saved URL; a source-only correction is under
+test. The diagnostic baseline remains provisional and 1.2 stays [A].

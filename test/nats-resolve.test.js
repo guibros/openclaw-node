@@ -70,6 +70,15 @@ describe('nats-resolve', () => {
     assert.equal(mod.NATS_URL, 'nats://from-env-file:4222');
   });
 
+  it('keeps empty values on their own line without changing duplicate precedence', () => {
+    const file = path.join(tmpDir, 'openclaw.env');
+    fs.writeFileSync(file, 'LLM_BASE_URL=\nLLM_MODEL=qwen3:8b\n');
+    const { readEnvFileKey } = freshRequire();
+    assert.equal(readEnvFileKey(file, 'LLM_BASE_URL'), null);
+    fs.writeFileSync(file, 'LLM_BASE_URL=http://old:11434\nLLM_BASE_URL=http://new:11434\r\n');
+    assert.equal(readEnvFileKey(file, 'LLM_BASE_URL'), 'http://old:11434');
+  });
+
   it('resolves URL from .mesh-config file', () => {
     process.env.HOME = tmpDir;
     delete process.env.OPENCLAW_NATS;
