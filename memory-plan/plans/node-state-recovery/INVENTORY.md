@@ -615,3 +615,14 @@ the changed baseline comparison. Source tests include the returned-transfer
 case. The root-held transfer still needs its own live observer before cold
 master acceptance. The focused preservation suites now pass 104/104. This
 record does not authorize cutover or close 1.2.
+
+Checkpoint 2026-10-02 08:54 EDT: PR #199 merged at 8b451da after its exact-head
+4/4 CI rerun and Claude's no-blocker delta review. It admits the exact idle
+Tailscale system helper as an explicit exclusion and durably reports changes
+observed when recovery starts; it does not certify the root-held transfer. A
+narrow retirement runbook for the obsolete root-managed `com.openclaw.agent`
+has been prepared and the live plist hash, owner, absent entry file and
+repeated exit 1 were rechecked. Noninteractive administrator access is
+unavailable, so no root action occurred. The live full-node preflight still
+refuses that job; the protected observer, three cold masters and cutover remain
+open at 1.2 [A]/v1.2-pre.
