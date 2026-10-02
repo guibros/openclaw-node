@@ -247,6 +247,17 @@ class RootJournalTest(unittest.TestCase):
             with self.assertRaisesRegex(module.Refused, 'journal chain differs'):
                 self.reopen()
 
+    def test_driver_preserves_recursive_pending_record(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        record.write_bytes(b'[' * 1200 + b'0' + b']' * 1200)
+        pending = self.ledger / ('.pending-' + uuid.uuid4().hex)
+        os.link(record, pending)
+        with self.assertRaisesRegex(module.Refused, 'pending record is ambiguous'):
+            self.reopen()
+        self.assertEqual(record.stat().st_ino, pending.stat().st_ino)
+
     def test_readonly_inspection_refuses_active_driver(self):
         with self.begin():
             with self.assertRaisesRegex(module.Refused, 'ledger is busy'):

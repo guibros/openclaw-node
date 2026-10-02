@@ -548,7 +548,8 @@ Checkpoint 2026-10-01 23:40 EDT: PR #191 merged with exact-head 4/4 CI and
 Claude's no-blocker diagnostic review. Its D58 holder census remains read-only
 and does not certify physical absence. PR #192 now includes D59's direct-driver
 refusal for non-finite JSON and recursive raw records, after incorporating
-#191's merged base. The root journal and decline suites pass 87/87 locally.
+#191's merged base. The root journal and decline suites pass 88/88 locally,
+including a two-link pending-record refusal that preserves both names.
 Exact-head CI and adversarial review of the revised #192 are pending; the
 protected physical observer, three healthy cold masters and production
 cutover remain open at 1.2 [A]/v1.2-pre.
