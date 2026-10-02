@@ -508,3 +508,11 @@ runner and are refused by schema validation, while macOS raises recursion.
 The test now accepts either clean refusal for that real input and separately
 forces RecursionError and TypeError to verify uniform boundary mapping. The
 source behavior is unchanged; revised CI and Claude review are pending.
+
+Checkpoint 2026-10-01 23:08 EDT: Claude's PR #190 fuzzing found a non-string
+transaction escaping as `AttributeError` after a record was rehashed. D57 now
+requires string UUIDs in intent and decline validation and maps residual
+attribute errors at the read-only boundary. Both new malformed-transaction
+regressions pass; journal and decline suites pass 83/83 locally. Exact-head
+CI and follow-up adversarial review are pending; root production gates remain
+closed.

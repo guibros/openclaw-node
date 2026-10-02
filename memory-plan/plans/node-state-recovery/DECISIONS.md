@@ -1046,3 +1046,9 @@ pre-existing device or FIFO is rejected without invoking that entry's open
 behavior. The descriptor type and identity checks still decide any race
 after this preliminary check. This changes no root write or recovery path,
 and it does not authorize production decline.
+
+Claude's review also found a rehashed non-string transaction escaping through
+`uuid.UUID` as `AttributeError`. Both intent and decline validators now
+require a string before parsing, and the observe-only boundary maps any
+remaining `AttributeError` to `Refused`. This leaves the driver path with an
+explicit schema refusal and the diagnostic inspector with a uniform failure.

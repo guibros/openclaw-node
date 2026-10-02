@@ -185,6 +185,18 @@ class RootJournalTest(unittest.TestCase):
             with self.assertRaisesRegex(module.Refused, 'ledger is unobservable'):
                 module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
 
+    def test_readonly_inspection_refuses_nonstring_transaction(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        saved = json.loads(record.read_bytes())
+        saved['data']['descriptor']['transaction'] = True
+        saved['sha256'] = module.digest({key: value for key, value in saved.items()
+                                          if key != 'sha256'})
+        record.write_bytes(module.encoded(saved))
+        with self.assertRaises(module.Refused):
+            module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
     def test_readonly_inspection_refuses_active_driver(self):
         with self.begin():
             with self.assertRaisesRegex(module.Refused, 'ledger is busy'):

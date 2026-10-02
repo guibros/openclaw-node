@@ -120,6 +120,8 @@ def valid_descriptor(descriptor):
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['lock_nonce']))
             or not re.fullmatch(r'[0-9a-f]{64}', str(descriptor['boot']))):
         raise Refused('root writer lock admission descriptor is incomplete')
+    if not isinstance(descriptor['transaction'], str):
+        raise Refused('root writer lock transaction is invalid')
     try:
         if str(uuid.UUID(descriptor['transaction'])) != descriptor['transaction']:
             raise ValueError('noncanonical transaction UUID')
@@ -185,7 +187,8 @@ def valid_decline(data, site, uid, gid, previous, transactions):
     if not isinstance(data, dict) or set(data) != fields:
         raise Refused('root decline record is incomplete')
     try:
-        canonical = str(uuid.UUID(data['transaction'])) == data['transaction']
+        canonical = (isinstance(data['transaction'], str) and
+                     str(uuid.UUID(data['transaction'])) == data['transaction'])
     except (TypeError, ValueError):
         canonical = False
     inherited = previous['data']['lock'] if previous is not None else None
@@ -248,7 +251,7 @@ class LockBootstrapJournal:
         try:
             return cls._inspect_readonly(site, uid, gid)
         except (OSError, subprocess.CalledProcessError, KeyError, TypeError,
-                ValueError, RecursionError) as error:
+                ValueError, RecursionError, AttributeError) as error:
             raise Refused('root writer ledger is unobservable') from error
 
     @classmethod
