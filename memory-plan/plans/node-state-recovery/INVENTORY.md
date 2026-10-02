@@ -570,11 +570,12 @@ v1.2-pre. The source memory-daemon plist template and separate
 reinstall would undo the live setting until those source gaps are fixed.
 
 Checkpoint 2026-10-02 06:50 EDT: a source-only correction now threads the
-configured `LLM_BASE_URL` through the memory-daemon launchd template and the
-separate direct installer (macOS, systemd and pm2). The direct installer reads
-only that key from `~/.openclaw/openclaw.env` when no process override exists;
+configured `LLM_BASE_URL` through the memory-daemon launchd and systemd
+templates and the separate direct installer (macOS, systemd and pm2). The
+direct installer reads only that key from `~/.openclaw/openclaw.env` with the
+same precedence as the normal installer;
 an isolated HOME with stub service commands exercised all three render paths.
-The normal template rendered and parsed with the host URL. This has not been
+The normal launchd template rendered and parsed with the host URL. This has not been
 installed or restarted on the live node. The 23-unit diagnostic remains
 provisional, the two system jobs still refuse preflight, and 1.2 stays [A] at
 v1.2-pre pending exact CI and adversarial review.
