@@ -92,6 +92,32 @@ class LiveCensusTest(unittest.TestCase):
                 with self.assertRaisesRegex(Refused, 'arguments differ'):
                     census._observe(501, home)
 
+    def test_loaded_arguments_are_not_exposed_in_report(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            plist = home / 'nats.plist'
+            argv = ['/tmp/nats-server', '--config', '/tmp/private.conf']
+            plist.write_bytes(plistlib.dumps({'Label': 'ai.openclaw.nats',
+                                              'ProgramArguments': argv}))
+            def service(domain, label):
+                if domain == 'gui/501' and label == 'ai.openclaw.nats':
+                    return {'loaded': True, 'state': 'waiting', 'pid': None,
+                            'plist': str(plist), 'program': argv[0],
+                            'arguments': argv.copy()}
+                return {'loaded': False}
+            store = {'path': '/tmp/jetstream', 'device': 1, 'inode': 2,
+                     'files': 0, 'bytes': 0, 'inodes': {(1, 2)}}
+            with patch.object(census, 'disabled_overrides', return_value={
+                    label: None for label in census.LEGACY_LABELS}), \
+                    patch.object(census, 'launchd_service', side_effect=service), \
+                    patch.object(census, 'nats_processes', return_value=([], 0)), \
+                    patch.object(census, 'store_identity', return_value=store):
+                report = census._observe(501, home)
+            unit = report['gui']['ai.openclaw.nats']
+            self.assertNotIn('arguments', unit)
+            self.assertNotIn('argv', unit['plist_identity'])
+            self.assertNotIn('/tmp/private.conf', str(report))
+
     def test_plist_identity_and_symlink_refusal(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'nats.plist'
