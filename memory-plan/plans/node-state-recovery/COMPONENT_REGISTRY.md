@@ -167,3 +167,9 @@ macOS/systemd/pm2 installer.
 Isolated rendering passes; the live daemon and installed plist are unchanged.
 The full-node baseline is still refused by the two loaded system jobs, and
 1.2 remains [A] at v1.2-pre.
+
+2026-10-02 07:10 EDT — PR #196 merged at 0d3237f with exact-head 4/4 CI and
+Claude's no-blocker review. Memory-daemon source install paths now retain the
+configured host-Ollama URL; no installed service changed. Node-init's
+mesh-agent renderer still needs to read the saved value on a plain-shell rerun.
+The full-node diagnostic remains provisional and 1.2 remains [A].

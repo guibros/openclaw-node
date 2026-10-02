@@ -37,8 +37,8 @@ describe('node-init renders the shared service templates', () => {
 
   // The switch is also read from ~/.openclaw/openclaw.env, so each case runs under a temp HOME:
   // the operator's own env file must not decide these assertions.
-  function withForemanEnv(envFile, fn) {
-    const saved = { enforce: process.env.MESH_FOREMAN_ENFORCE, home: process.env.HOME };
+  function withServiceEnv(envFile, fn) {
+    const saved = { enforce: process.env.MESH_FOREMAN_ENFORCE, llm: process.env.LLM_BASE_URL, home: process.env.HOME };
     const home = mkdtempSync(join(tmpdir(), 'openclaw-foreman-'));
     if (envFile !== null) {
       mkdirSync(join(home, '.openclaw'), { recursive: true });
@@ -46,9 +46,11 @@ describe('node-init renders the shared service templates', () => {
     }
     process.env.HOME = home;
     delete process.env.MESH_FOREMAN_ENFORCE;
+    delete process.env.LLM_BASE_URL;
     try { return fn(); } finally {
       process.env.HOME = saved.home;
       if (saved.enforce === undefined) delete process.env.MESH_FOREMAN_ENFORCE; else process.env.MESH_FOREMAN_ENFORCE = saved.enforce;
+      if (saved.llm === undefined) delete process.env.LLM_BASE_URL; else process.env.LLM_BASE_URL = saved.llm;
       rmSync(home, { recursive: true, force: true });
     }
   }
@@ -60,7 +62,7 @@ describe('node-init renders the shared service templates', () => {
   };
 
   it('renders the Foreman switch empty unless the operator set it — empty is shadow (foreman D3)', () => {
-    withForemanEnv(null, () => {
+    withServiceEnv(null, () => {
       switchIn('');
       process.env.MESH_FOREMAN_ENFORCE = '1';
       switchIn('1');
@@ -68,13 +70,25 @@ describe('node-init renders the shared service templates', () => {
   });
 
   it('reads the Foreman switch from ~/.openclaw/openclaw.env, as install.sh does; the process env wins', () => {
-    withForemanEnv('OPENCLAW_NATS=nats://10.0.0.5:4222\nMESH_FOREMAN_ENFORCE=1\n', () => {
+    withServiceEnv('OPENCLAW_NATS=nats://10.0.0.5:4222\nMESH_FOREMAN_ENFORCE=1\n', () => {
       switchIn('1');
       process.env.MESH_FOREMAN_ENFORCE = '0';
       switchIn('0');
     });
     // openclaw.env.example carries the switch commented out: that is still shadow.
-    withForemanEnv('# MESH_FOREMAN_ENFORCE=1\n', () => switchIn(''));
+    withServiceEnv('# MESH_FOREMAN_ENFORCE=1\n', () => switchIn(''));
+  });
+
+  it('renders the saved host Ollama URL for the mesh agent and honors an explicit process override', () => {
+    withServiceEnv('LLM_BASE_URL=http://192.168.64.1:11434\n', () => {
+      assert.match(renderAgent('launchd/ai.openclaw.mesh-agent.plist'),
+        /<key>LLM_BASE_URL<\/key>\s*<string>http:\/\/192\.168\.64\.1:11434<\/string>/);
+      assert.match(renderAgent('systemd/openclaw-mesh-agent.service'),
+        /^Environment=LLM_BASE_URL=http:\/\/192\.168\.64\.1:11434$/m);
+      process.env.LLM_BASE_URL = 'http://override:11434';
+      assert.match(renderAgent('launchd/ai.openclaw.mesh-agent.plist'),
+        /<key>LLM_BASE_URL<\/key>\s*<string>http:\/\/override:11434<\/string>/);
+    });
   });
 
   it('an unknown placeholder fails loudly instead of shipping ${GARBAGE} into a unit', () => {
