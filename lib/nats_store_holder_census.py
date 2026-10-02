@@ -12,8 +12,7 @@ SUFFIXES = ('', '-1', '-2', '-3')
 def _under(path, root):
     if not path or not os.path.isabs(path):
         return False
-    resolved = os.path.realpath(path)
-    return os.path.commonpath((resolved, root)) == root
+    return os.path.commonpath((os.path.normpath(path), root)) == root
 
 
 def observe(user_home):
@@ -32,7 +31,8 @@ def _observe(user_home):
         stores[label] = {**store, 'realpath': os.path.realpath(store['path']),
                          'holders': []}
     before = proc.list_pids()
-    unreadable = []
+    failed = []
+    retried = []
     unattributed_unlinked = 0
     devices = {device for store in stores.values()
                for device, _ in store['inodes']}
@@ -40,13 +40,17 @@ def _observe(user_home):
         try:
             process = proc.vnode_snapshot(pid)
         except Refused:
-            unreadable.append(pid)
-            continue
+            try:
+                process = proc.vnode_snapshot(pid)
+            except Refused:
+                failed.append(pid)
+                continue
+            retried.append(pid)
         for entry in process['vnodes']:
             matched = False
             for store in stores.values():
                 by_inode = (entry['device'], entry['inode']) in store['inodes']
-                by_path = _under(entry['path'], store['realpath'])
+                by_path = entry['links'] == 0 and _under(entry['path'], store['realpath'])
                 if by_inode or by_path:
                     store['holders'].append({
                         'pid': pid, 'uid': process['uid'], 'fd': entry['fd'],
@@ -56,6 +60,9 @@ def _observe(user_home):
             if not matched and entry['links'] == 0 and entry['device'] in devices:
                 unattributed_unlinked += 1
     after = proc.list_pids()
+    remaining = set(after)
+    unreadable = [pid for pid in failed if pid in remaining]
+    exited = [pid for pid in failed if pid not in remaining]
     for store in stores.values():
         store['holders'].sort(key=lambda item: (item['pid'], item['fd']))
         del store['inodes']
@@ -64,9 +71,15 @@ def _observe(user_home):
             'coverage': {'process_name_filter': None,
                          'readable_processes_only': True,
                          'unreadable_pids': len(unreadable),
+                         'exited_pids': len(exited),
+                         'retry_recovered_pids': len(retried),
                          'pid_list_stable': before == after,
                          'single_instant': False,
-                         'physical_absence_certified': False},
+                         'physical_absence_certified': False,
+                         'reference_types': 'open vnode file descriptors only; excludes closed-fd mappings, cwd/root and in-flight descriptors',
+                         'path_matching': 'lexical retained kernel paths; alternate firmlink or case spelling may be unattributed'},
             'unreadable_pids': unreadable,
+            'exited_pids': exited,
+            'retry_recovered_pids': retried,
             'unattributed_unlinked_vnodes_on_store_devices': unattributed_unlinked,
             'stores': stores}

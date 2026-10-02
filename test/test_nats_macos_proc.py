@@ -41,10 +41,12 @@ class MacProcessTest(unittest.TestCase):
             path.write_bytes(b'owned')
             with path.open('rb') as handle:
                 info = os.fstat(handle.fileno())
+                original_path = proc.vnode_descriptor(os.getpid(), handle.fileno())['path']
                 path.unlink()
                 observed = proc.vnode_descriptor(os.getpid(), handle.fileno())
                 self.assertEqual((observed['device'], observed['inode'], observed['links']),
                                  (info.st_dev, info.st_ino, 0))
+                self.assertEqual(observed['path'], original_path)
 
     def test_vnode_snapshot_captures_open_file_without_arguments(self):
         with tempfile.TemporaryDirectory() as root:

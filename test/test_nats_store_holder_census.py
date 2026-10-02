@@ -30,10 +30,13 @@ class HolderCensusTest(unittest.TestCase):
                          'inode': linked_info.st_ino, 'links': 1, 'path': str(linked)},
                         {'fd': 4, 'device': linked_info.st_dev,
                          'inode': linked_info.st_ino + 1000000, 'links': 0,
-                         'path': str(roots[1] / 'deleted')},
+                         'path': str((roots[1] / 'deleted').resolve())},
                         {'fd': 5, 'device': linked_info.st_dev,
                          'inode': linked_info.st_ino + 2000000, 'links': 0,
-                         'path': ''}]}
+                         'path': ''},
+                        {'fd': 6, 'device': linked_info.st_dev,
+                         'inode': linked_info.st_ino + 3000000, 'links': 1,
+                         'path': str((roots[2] / 'unwalked').resolve())}]}
                 raise Refused('process inaccessible')
             with patch.object(census.proc, 'list_pids', side_effect=[[10, 11], [10, 11, 12]]), \
                     patch.object(census.proc, 'vnode_snapshot', side_effect=process):
@@ -43,6 +46,7 @@ class HolderCensusTest(unittest.TestCase):
                              'path')
             self.assertTrue(report['stores']['ai.openclaw.nats-1']['holders'][0]['unlinked'])
             self.assertEqual(report['unattributed_unlinked_vnodes_on_store_devices'], 1)
+            self.assertEqual(report['stores']['ai.openclaw.nats-2']['holders'], [])
             self.assertEqual(report['unreadable_pids'], [11])
             self.assertFalse(report['coverage']['pid_list_stable'])
             self.assertIsNone(report['coverage']['process_name_filter'])
@@ -54,6 +58,35 @@ class HolderCensusTest(unittest.TestCase):
             root = Path(temporary) / 'jetstream'
             root.mkdir()
             self.assertFalse(census._under(str(root) + '-other/block', str(root)))
+
+    def test_replaced_symlink_cannot_reclassify_retained_deleted_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'jetstream'
+            root.mkdir()
+            former = Path(temporary) / 'former'
+            former.symlink_to(root, target_is_directory=True)
+            self.assertFalse(census._under(str(former / 'deleted'), str(root)))
+
+    def test_retries_snapshot_and_distinguishes_exited_pid(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            for suffix in census.SUFFIXES:
+                (home / '.openclaw' / 'nats' / ('jetstream' + suffix)).mkdir(parents=True)
+            calls = {10: 0, 11: 0, 12: 0}
+            def snapshot(pid):
+                calls[pid] += 1
+                if pid == 10 and calls[pid] == 2:
+                    return {'uid': 501, 'vnodes': []}
+                raise Refused('process changed')
+            with patch.object(census.proc, 'list_pids', side_effect=[[10, 11, 12], [10, 12]]), \
+                    patch.object(census.proc, 'vnode_snapshot', side_effect=snapshot):
+                report = census._observe(home)
+            self.assertEqual(report['retry_recovered_pids'], [10])
+            self.assertEqual(report['exited_pids'], [11])
+            self.assertEqual(report['unreadable_pids'], [12])
+            self.assertEqual(calls, {10: 2, 11: 2, 12: 2})
+            self.assertIn('open vnode file descriptors only',
+                          report['coverage']['reference_types'])
 
     def test_missing_store_refuses(self):
         with tempfile.TemporaryDirectory() as temporary:

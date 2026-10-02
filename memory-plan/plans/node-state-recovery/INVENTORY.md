@@ -524,3 +524,12 @@ pass. A live user-level scan found PID 842 holding one linked 4222 entry,
 with 145 unreadable PIDs and 41 unattributed unlinked handles on store
 devices; it explicitly does not certify absence. Exact CI/review are pending.
 The protected root observer, cold masters and cutover remain open at 1.2 [A].
+
+Checkpoint 2026-10-01 23:20 EDT: Claude's PR #191 review found no blocker for
+its diagnostic scope but reproduced false deleted-file attribution through a
+replaced symlink and identified unlabelled process-snapshot churn. D58 now
+matches retained paths lexically only for unlinked descriptors, retries once,
+reports exited versus unreadable PIDs, and declares its open-FD coverage.
+The focused Mac suites pass 9/9 and a read-only live scan still observes one
+linked 4222 holder with 141 unreadable and two exited PIDs. Revised-head CI
+and adversarial review are pending; no absence verdict or cutover is allowed.

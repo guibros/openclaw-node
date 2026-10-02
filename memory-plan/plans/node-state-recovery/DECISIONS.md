@@ -1064,3 +1064,15 @@ list remain visible in the report. The scan does not establish a single
 instant or physical absence, and has no path into the root decline callback.
 Root-run protected observation and writer-lock bracketing are still required
 before any migration decision.
+
+Claude's exact-head challenge found that resolving a retained kernel path
+against the current filesystem could turn an unrelated deleted file into a
+false store holder if its former directory became a symlink. Path fallback is
+now lexical and applies only to unlinked descriptors; linked entries require
+device/inode membership. This also avoids filesystem traversal for every
+observed process path. A failed process snapshot is retried once, then
+separated into exited or still-unreadable PIDs. The report states that it
+covers open vnode file descriptors, not closed-descriptor mappings, cwd/root
+references, or in-flight descriptors. Alternate firmlink or case spellings
+can remain unattributed. None of these diagnostic observations certifies
+physical absence.
