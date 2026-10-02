@@ -1052,3 +1052,14 @@ Claude's review also found a rehashed non-string transaction escaping through
 require a string before parsing, and the observe-only boundary maps any
 remaining `AttributeError` to `Refused`. This leaves the driver path with an
 explicit schema refusal and the diagnostic inspector with a uniform failure.
+
+## D59 — Reject malformed returned-lock data in the root driver (2026-10-01 23:16 EDT)
+
+A rehashed `returned` record whose `lock` was a JSON scalar escaped the root
+driver's ledger validation as a raw `TypeError` at `set(lock)`. The driver now
+requires a dictionary before checking its fields, so the ledger refuses with
+the existing incomplete-return reason. A direct driver-constructor control
+also pins the D57 non-string transaction refusal; the observer's broad
+exception mapping alone would not prove that driver behavior. These are
+schema refusals on source and owned fixtures. They do not create a physical
+absence verdict, change live NATS state, or lift the protected-root gate.

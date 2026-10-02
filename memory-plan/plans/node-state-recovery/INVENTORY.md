@@ -516,3 +516,12 @@ attribute errors at the read-only boundary. Both new malformed-transaction
 regressions pass; journal and decline suites pass 83/83 locally. Exact-head
 CI and follow-up adversarial review are pending; root production gates remain
 closed.
+
+Checkpoint 2026-10-01 23:16 EDT: PR #190 merged after exact-head 4/4 CI and
+Claude's no-blocker review. D59 closes the previously reproduced raw root-
+driver `TypeError` for a rehashed returned record with a non-dictionary lock.
+A direct driver control also pins the non-string intent transaction refusal.
+The root journal and decline suites pass 84/84 locally; both new driver
+controls pass after the last test addition. The protected physical observer,
+three healthy cold masters and production cutover remain open; 1.2 stays [A]
+at v1.2-pre.

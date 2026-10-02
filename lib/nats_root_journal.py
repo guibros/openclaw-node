@@ -417,7 +417,8 @@ class LockBootstrapJournal:
                 if (set(terminal) != {'lock', 'boot', 'release_sha256'}
                         or not re.fullmatch(r'[0-9a-f]{64}', str(terminal['boot']))
                         or not re.fullmatch(r'[0-9a-f]{64}', str(terminal['release_sha256']))
-                        or lock is not None and (set(lock) != {'inode', 'nonce', 'ctime_ns'}
+                        or lock is not None and (not isinstance(lock, dict)
+                            or set(lock) != {'inode', 'nonce', 'ctime_ns'}
                             or not isinstance(lock['inode'], int) or lock['inode'] <= 0
                             or not isinstance(lock['ctime_ns'], int) or lock['ctime_ns'] <= 0
                             or lock['nonce'] != saved['lock_nonce'])
