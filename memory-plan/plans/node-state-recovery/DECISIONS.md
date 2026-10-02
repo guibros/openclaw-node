@@ -998,3 +998,39 @@ identity are checked against opened directories; disappearing paths become
 than claiming the other participant is an active driver. These are
 observe-only source checks, not a physical NATS census or a production
 cutover authorization. The protected macOS-root tripwire remains closed.
+
+## D56 — Separate the live NATS census from cutover authorization (2026-10-01 22:20 EDT)
+
+The first macOS physical-observation slice is a read-only census. It reads
+the exact four legacy GUI and system launchd labels, the GUI disabled
+overrides, the loaded plists, kernel NATS process identities and arguments,
+open vnode identities, and the four distinct JetStream store trees. A
+running GUI job must match the arguments of its loaded plist. The report
+contains hashes of argument vectors rather than their values and declares
+`scope: live-census-only`; inaccessible PIDs are counted, not silently
+treated as absent. On the live node after reboot it observes three running
+legacy jobs, a disabled and unloaded member 1, and no system-domain jobs.
+
+This census is not a root-owned installation, a stable cold-master receipt,
+or a physical-absence verdict. It has no callback into `decline` and cannot
+lift the macOS-root gate. The remaining observer must run from protected
+pinned code and inputs, cover all legacy mutators and unlinked store holders,
+bracket launchd/process/store checks under the writer lock, and refuse any
+unobservable or ambiguous state. It must also verify the protected jobs and
+marker before any cutover action. The current user-owned GUI topology stays
+unchanged.
+
+Claude's first-head review found that an empty process or vnode list could
+look like proof of absence despite unreadable processes, other launchd
+domains, unlinked files and observation churn. The revised report explicitly
+names the checked domains and holder subset, states that unloaded plists and
+other domains are unchecked, and says physical absence is not certified.
+Loaded launchd arguments are compared with the plist even for waiting jobs;
+the raw arguments are removed before output. Both older boolean and newer
+named disabled-override values are accepted, while unknown values refuse.
+Plist arguments containing control or Unicode line-separator characters
+refuse; loaded arguments are checked as launchctl renders them, but an
+embedded newline can be indistinguishable from two arguments for a waiting
+job. The report declares that limit. Reported
+argument and plist-content digests use a fresh private HMAC key per scan so
+they do not expose an offline guess oracle for future low-entropy secrets.

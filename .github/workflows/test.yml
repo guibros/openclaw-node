@@ -29,6 +29,8 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 python3 test/test_nats_user_transfer.py
           PYTHONDONTWRITEBYTECODE=1 python3 test/test_nats_root_admission.py
           PYTHONDONTWRITEBYTECODE=1 python3 test/test_nats_root_decline.py
+          PYTHONDONTWRITEBYTECODE=1 python3 test/test_nats_macos_proc.py
+          PYTHONDONTWRITEBYTECODE=1 python3 test/test_nats_live_census.py
       - name: SQLite recovery fixtures
         if: matrix.node-version == 22
         run: |
@@ -153,6 +155,8 @@ jobs:
           /usr/bin/python3 memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_journal_hold.py
           /usr/bin/python3 test/test_nats_root_admission.py
           /usr/bin/python3 test/test_nats_root_decline.py
+          /usr/bin/python3 test/test_nats_macos_proc.py
+          /usr/bin/python3 test/test_nats_live_census.py
           node --test test/nats-legacy-lock.test.mjs
 
   mission-control-tests:

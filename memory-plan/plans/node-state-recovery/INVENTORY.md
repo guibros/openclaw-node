@@ -464,3 +464,26 @@ descriptor cleanup, opened-directory validation, final record rechecks and
 uniform refusal. Focused regressions pass after the VM restart; full suites
 and revised-head review remain pending. The production observer and root
 installation remain unbuilt; 1.2 stays [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 22:20 EDT: PR #187 merged at cdd7d680 after green
+4/4 CI and Claude's revised-head no-blocker review. D56 adds a read-only
+macOS live census on a new branch: exact four GUI/system labels, disabled
+overrides, plist identities, NATS kernel process identity/arguments and open
+vnode identities, and four store trees. Eight focused tests pass, and the
+command reports the current three running GUI jobs plus disabled/unloaded
+member 1 without changing them. The report is diagnostic only. Protected
+fixed-path deployment, complete mutator/store-holder absence, writer-lock
+bracketing, cold masters, isolated restores and live acceptance remain open.
+The macOS-root tripwire stays closed; 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-01 22:39 EDT: Claude's first-head PR #188 review found no
+blocker for the diagnostic source slice, but reproduced misleading empty
+process/store-holder reports and an unchecked waiting-job argument change.
+The revised census states its incomplete coverage, compares loaded arguments
+for waiting and running GUI/system jobs, and keeps argument values out of the
+report. The new tests run in CI at 595f0df (4/4 green); revised-head CI and
+adversarial review are pending. This does not certify absence or authorize
+the production migration. Step 1.2 stays [A] at v1.2-pre.
+Claude's second pass also reproduced a control-character parsing ambiguity;
+the next revision refuses such arguments and keys the report digests per
+scan. Exact-head CI and review remain pending.
