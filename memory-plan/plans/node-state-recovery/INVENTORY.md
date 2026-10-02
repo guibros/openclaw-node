@@ -438,3 +438,29 @@ malformed-evidence control pass; the root journal, bound admission, decline
 and user-transfer suites pass 82/82 locally. Revised-head CI and adversarial
 review are pending. The protected observer, root-owned installation, cold
 masters and live acceptance remain open at 1.2 [A].
+
+Checkpoint 2026-10-01 20:47 EDT: PR #186 merged with Claude's revised-head
+no-blocker review and green 4/4 CI. D53 adds non-mutating root ledger
+inspection for the future observe-only driver: absent state is reported
+without creation, a valid chain is summarized, pending records stay in place
+and refuse, and an active driver refuses. The focused root-journal suite
+passes 49/49 on macOS. Exact CI/review of this new source slice are pending;
+the fixed-path physical observer, protected installation and live recovery
+remain open at 1.2 [A].
+
+Checkpoint 2026-10-01 20:53 EDT: Claude's PR #187 probe showed a same-site
+stale ledger directory could be substituted during a path-based read. D54
+pins record enumeration and open to the held directory descriptor, rechecks
+the named site/ledger identities, and marks the output `ledger-only` with
+`last_event` rather than suggesting physical safety or a terminal state.
+The focused Mac root-journal suite passes 51/51, including before- and
+after-read swaps. Revised-head CI and review remain pending; production
+physical census and root installation are still unbuilt.
+
+Checkpoint 2026-10-01 22:01 EDT: Claude's 0cb808c review found no blocker and
+green 4/4 CI, but exposed a FIFO hang, a directory-record descriptor leak,
+and path/permission race reports. D55 adds nonblocking typed record opens,
+descriptor cleanup, opened-directory validation, final record rechecks and
+uniform refusal. Focused regressions pass after the VM restart; full suites
+and revised-head review remain pending. The production observer and root
+installation remain unbuilt; 1.2 stays [A] at v1.2-pre.

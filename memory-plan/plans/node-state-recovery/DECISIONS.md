@@ -950,3 +950,51 @@ outside that fence and is not claimed to be atomically excluded. Decline
 records produced by the earlier source-only PR #185 lack the new evidence
 field and cannot be replayed by this format. No production records exist:
 the macOS-root decline tripwire has stayed closed throughout both slices.
+
+## D53 — Separate read-only root inspection from recovery (2026-10-01 20:47 EDT)
+
+The eventual physical observer needs the root ledger head without taking an
+action. The ordinary journal constructor takes exclusive ownership and its
+reader settles pending files, so it cannot serve an observe-only command.
+`inspect_readonly` opens an existing ledger directory without creating it,
+takes a nonblocking shared lock, validates a complete chain, and reports only
+the site/ledger presence, head, count, terminal event and transaction. Any
+pending record refuses and remains untouched, including a published
+two-link pending record. An exclusive active driver also refuses. A missing
+site and ledger are observable as absent, not fabricated as an empty
+transaction. This provides one non-mutating input to the future fixed-path
+observer; it does not perform launchd/process/store census or authorize
+production decline.
+
+## D54 — Bind observe-only reads to the locked directory (2026-10-01 20:53 EDT)
+
+Claude's PR #187 probe replaced the ledger pathname with a valid older copy
+after `inspect_readonly` had locked the original directory. A path-based read
+could then report the old `returned` event while the held directory contained
+an active intent. The read-only path now lists and opens records relative to
+the held directory descriptor, compares each opened record with its named
+identity, and rechecks the site and ledger directory identities before
+returning. The report calls the final record `last_event`, since an active
+intent is not a terminal outcome. It declares `scope: ledger-only` and uses
+`site_directory`/`ledger_directory` names: directory presence is not marker,
+stage, lock or process absence. Owned before-read and after-read swaps
+refuse. A privileged actor writing outside the ledger protocol could still
+swap a name transiently between syscall checks; this is not a claim of
+atomic exclusion from out-of-protocol root activity. The production physical
+observer must bracket the complete launchd/process/store census under its
+own pinned inputs before a decline is authorized.
+
+## D55 — Bound read-only inspection to opened file types and identities (2026-10-01 22:01 EDT)
+
+Claude's revised-head review of PR #187 found no blocker, but a FIFO named as
+a ledger record could block the read-only inspector while it held the shared
+ledger lock. An opened directory record could leak a descriptor. The reader
+now opens each name nonblocking without a controlling terminal, rejects a
+non-regular descriptor before wrapping it as a stream, and closes that
+descriptor on every refusal. It checks record identity again after reading
+and after chain validation. Site and ledger mode, owner, ACL and named
+identity are checked against opened directories; disappearing paths become
+`Refused`. A concurrent driver or inspector now reports a busy ledger rather
+than claiming the other participant is an active driver. These are
+observe-only source checks, not a physical NATS census or a production
+cutover authorization. The protected macOS-root tripwire remains closed.

@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import stat
 import subprocess
 import sys
@@ -100,6 +101,170 @@ class RootJournalTest(unittest.TestCase):
         with self.assertRaisesRegex(module.Refused, 'already has an active transaction'):
             self.begin()
 
+    def test_readonly_inspection_of_absent_state_creates_nothing(self):
+        self.site.rmdir()
+        state = module.LockBootstrapJournal.inspect_readonly(
+            self.site, self.uid, self.gid)
+        self.assertEqual(state, {'scope': 'ledger-only',
+                                 'site_directory': 'absent', 'ledger_directory': 'absent',
+                                 'head': None, 'records': 0,
+                                 'last_event': None, 'transaction': None})
+        self.assertFalse(self.site.exists())
+        self.assertFalse(self.ledger.exists())
+
+    def test_readonly_inspection_validates_chain_without_writes(self):
+        with self.begin() as journal:
+            head = journal.records[-1]['sha256']
+        record = self.ledger / '000000.json'
+        before = record.stat().st_mtime_ns
+        state = module.LockBootstrapJournal.inspect_readonly(
+            self.site, self.uid, self.gid)
+        self.assertEqual(state, {'scope': 'ledger-only',
+                                 'site_directory': 'present', 'ledger_directory': 'present',
+                                 'head': head, 'records': 1,
+                                 'last_event': 'lock-create-intent',
+                                 'transaction': self.transaction})
+        self.assertEqual(record.stat().st_mtime_ns, before)
+
+    def test_readonly_inspection_never_settles_pending_record(self):
+        with self.begin() as journal:
+            pending = journal.root / ('.pending-' + uuid.uuid4().hex)
+            pending.write_bytes(b'interrupted')
+            pending.chmod(0o600)
+        with self.assertRaisesRegex(module.Refused, 'unresolved pending'):
+            module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+        self.assertTrue(pending.exists())
+        pending.unlink()
+        os.link(self.ledger / '000000.json', pending)
+        with self.assertRaisesRegex(module.Refused, 'unresolved pending'):
+            module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+        self.assertTrue(pending.exists())
+
+    def test_readonly_inspection_refuses_active_driver(self):
+        with self.begin():
+            with self.assertRaisesRegex(module.Refused, 'ledger is busy'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
+    def test_readonly_inspection_rechecks_ledger_mode_after_open(self):
+        with self.begin():
+            pass
+        original = os.open
+        def change_mode(path, flags, *args, **kwargs):
+            if Path(path) == self.ledger and flags & os.O_DIRECTORY:
+                self.ledger.chmod(0o777)
+            return original(path, flags, *args, **kwargs)
+        with patch.object(module.os, 'open', side_effect=change_mode):
+            with self.assertRaisesRegex(module.Refused, 'directory identity differs'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
+    def test_readonly_inspection_rechecks_site_mode_after_open(self):
+        with self.begin():
+            pass
+        original = os.open
+        def change_mode(path, flags, *args, **kwargs):
+            if Path(path) == self.site and flags & os.O_DIRECTORY:
+                self.site.chmod(0o777)
+            return original(path, flags, *args, **kwargs)
+        with patch.object(module.os, 'open', side_effect=change_mode):
+            with self.assertRaisesRegex(module.Refused, 'directory identity differs'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
+    def test_readonly_inspection_refuses_stale_ledger_swapped_during_read(self):
+        with self.begin() as journal:
+            with self.acquire(journal):
+                pass
+            self.returned(journal)
+        stale = self.base / 'stale-ledger'
+        shutil.copytree(self.ledger, stale)
+        successor, _ = self.successor()
+        successor.close()
+        original = module.LockBootstrapJournal._read
+        displaced = self.base / 'active-ledger'
+        def swap_before_read(journal, settle_pending=True):
+            if not settle_pending:
+                journal.root.rename(displaced)
+                stale.rename(journal.root)
+            return original(journal, settle_pending)
+        with patch.object(module.LockBootstrapJournal, '_read', new=swap_before_read):
+            with self.assertRaisesRegex(module.Refused, 'path changed'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+        self.assertTrue(displaced.exists())
+
+    def test_readonly_inspection_refuses_ledger_swapped_after_read(self):
+        with self.begin():
+            pass
+        stale = self.base / 'stale-ledger'
+        shutil.copytree(self.ledger, stale)
+        original = module.LockBootstrapJournal._read
+        displaced = self.base / 'active-ledger'
+        def swap_after_read(journal, settle_pending=True):
+            records = original(journal, settle_pending)
+            if not settle_pending:
+                journal.root.rename(displaced)
+                stale.rename(journal.root)
+            return records
+        with patch.object(module.LockBootstrapJournal, '_read', new=swap_after_read):
+            with self.assertRaisesRegex(module.Refused, 'record path changed|ledger changed'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
+    def test_readonly_inspection_refuses_record_swapped_after_validation(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        stale = self.base / 'stale-record.json'
+        shutil.copy2(record, stale)
+        original = module.LockBootstrapJournal._validate
+        def swap_after_validation(journal):
+            result = original(journal)
+            record.unlink()
+            stale.rename(record)
+            return result
+        with patch.object(module.LockBootstrapJournal, '_validate', new=swap_after_validation):
+            with self.assertRaisesRegex(module.Refused, 'record path changed'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
+    def test_readonly_inspection_refuses_disappeared_ledger_as_refused(self):
+        with self.begin():
+            pass
+        original = module.LockBootstrapJournal._validate
+        displaced = self.base / 'displaced-ledger'
+        def remove_after_validation(journal):
+            result = original(journal)
+            journal.root.rename(displaced)
+            return result
+        with patch.object(module.LockBootstrapJournal, '_validate', new=remove_after_validation):
+            with self.assertRaisesRegex(module.Refused, 'unobservable'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+
+    def test_readonly_inspection_refuses_fifo_record_without_waiting(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        record.unlink()
+        os.mkfifo(record, 0o600)
+        script = """import pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from nats_root_journal import LockBootstrapJournal
+LockBootstrapJournal.inspect_readonly(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]))
+"""
+        result = subprocess.run([sys.executable, '-c', script, str(REPO / 'lib'),
+                                 str(self.site), str(self.uid), str(self.gid)],
+                                capture_output=True, text=True, timeout=3)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('record identity differs', result.stderr)
+
+    def test_readonly_inspection_refuses_directory_record_without_fd_leak(self):
+        with self.begin():
+            pass
+        record = self.ledger / '000000.json'
+        record.unlink()
+        record.mkdir()
+        before = len(os.listdir('/dev/fd'))
+        for _ in range(3):
+            with self.assertRaisesRegex(module.Refused, 'record identity differs'):
+                module.LockBootstrapJournal.inspect_readonly(self.site, self.uid, self.gid)
+        self.assertEqual(len(os.listdir('/dev/fd')), before)
+
     def test_pending_before_publication_is_discarded(self):
         with self.begin() as journal:
             pending = journal.root / ('.pending-' + uuid.uuid4().hex)
@@ -137,7 +302,7 @@ LockBootstrapJournal(pathlib.Path(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4
                                      str(self.site), str(self.uid), str(self.gid)],
                                     capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn('active driver', result.stderr)
+            self.assertIn('ledger is busy', result.stderr)
             self.assertEqual(len(list(self.ledger.glob('*.json'))), 1)
 
     def test_recovery_uses_existing_stage_inode(self):
