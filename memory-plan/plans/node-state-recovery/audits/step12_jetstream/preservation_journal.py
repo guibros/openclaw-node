@@ -211,7 +211,7 @@ def valid_record(record):
 def regular_content(path, limit, keep_bytes=False):
     path = pathlib.Path(path)
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_NOCTTY)
         try:
             before = os.fstat(fd)
             require(stat.S_ISREG(before.st_mode) and before.st_size <= limit,

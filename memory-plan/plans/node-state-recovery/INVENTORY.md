@@ -793,3 +793,13 @@ read only bounded regular files through non-blocking, no-follow descriptors,
 with a FIFO control. Its journal and hold suites pass 96/96 and 43/43
 locally; owned restore-only and exact-head CI are pending. This is source
 hardening, not a live full-node admission or cutover.
+
+Checkpoint 2026-10-02 13:26 EDT: PR #205's exact-head CI rerun passed
+4/4; the first attempt failed in an unrelated NATS test teardown race.
+Claude found no blocker in the bounded static-identity read and verified
+existing saved identities remain comparable. Its review prompted an
+`O_NOCTTY` open flag and a stricter FIFO timeout assertion, plus symlinked
+and oversized plist controls; final exact-head CI for that delta is pending.
+Draft PR #206 separately fixes the NATS test teardown by waiting for its
+private server to exit before removing its store. Root admission and live
+cutover remain open at 1.2[A]/v1.2-pre.

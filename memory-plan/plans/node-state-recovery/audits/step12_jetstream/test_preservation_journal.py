@@ -1810,7 +1810,7 @@ with legacy_journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
         plist = parent / 'owned.plist'
         plist.write_bytes(plistlib.dumps({'ProgramArguments': [str(fifo)]}))
         def deadline(*_):
-            raise TimeoutError('static identity read blocked')
+            raise AssertionError('static identity read blocked')
         previous = signal.signal(signal.SIGALRM, deadline)
         signal.setitimer(signal.ITIMER_REAL, 3)
         try:
@@ -1821,6 +1821,20 @@ with legacy_journal(root,prior,boot='boot-a',node_lock=node_lock) as journal:
         finally:
             signal.setitimer(signal.ITIMER_REAL, 0)
             signal.signal(signal.SIGALRM, previous)
+
+    def test_static_identity_refuses_symlinked_and_oversized_plists(self):
+        from preservation_journal import static_identity
+        parent = pathlib.Path(self.temp.name)
+        plist = parent / 'owned.plist'
+        plist.write_bytes(b'plist')
+        alias = parent / 'alias.plist'
+        alias.symlink_to(plist)
+        with self.assertRaises(Refused):
+            static_identity(alias)
+        with plist.open('wb') as handle:
+            handle.truncate((1 << 20) + 1)
+        with self.assertRaisesRegex(Refused, 'bounded regular file'):
+            static_identity(plist)
 
     def test_static_identity_binds_the_resolved_working_directory(self):
         import plistlib
