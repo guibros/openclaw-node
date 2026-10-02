@@ -268,7 +268,9 @@ class JournalTests(unittest.TestCase):
         self.nats_lock.unlink()
         with preservation_journal.nats_legacy_restore_guard():
             pass
-        self.nats_lock.write_bytes(b'owned writer lock')
+        with self.assertRaisesRegex(Refused, 'lock appeared during restoration'):
+            with preservation_journal.nats_legacy_restore_guard():
+                self.nats_lock.write_bytes(b'owned writer lock')
         self.nats_lock.chmod(0o644)
         with self.assertRaisesRegex(Refused, 'writer lock changed during restoration'):
             with preservation_journal.nats_legacy_restore_guard():
@@ -331,6 +333,26 @@ class JournalTests(unittest.TestCase):
             nats_error = next(error for error in result['errors'] if error['unit'] == 'nats')
             self.assertNotIn('after_commit', nats_error)
 
+    def test_lock_appearing_before_legacy_restart_prevents_the_restart(self):
+        current = copy.deepcopy(PRIOR)
+        current['nats'].update(loaded=False, running=False)
+        with self.journal(PRIOR) as journal:
+            self.nats_lock.unlink()
+            original = journal.append
+            restored = []
+            def append(event, **data):
+                row = original(event, **data)
+                if event == 'restoration-intent' and data.get('unit') == 'nats':
+                    self.nats_lock.write_bytes(b'new root lock')
+                return row
+            with patch.object(journal, 'append', side_effect=append):
+                result = journal.recover(lambda unit, _: restored.append(unit),
+                                         lambda unit, _: {**current[unit], 'verified': True},
+                                         lambda: {'verified': True})
+            self.assertEqual(restored, [])
+            nats_error = next(error for error in result['errors'] if error['unit'] == 'nats')
+            self.assertNotIn('after_commit', nats_error)
+
     def test_marker_during_legacy_restart_reports_its_commit(self):
         current = copy.deepcopy(PRIOR)
         current['nats'].update(loaded=False, running=False)
@@ -344,6 +366,19 @@ class JournalTests(unittest.TestCase):
                                      lambda unit, _: {**current[unit], 'verified': True},
                                      lambda: {'verified': True})
             self.assertEqual(restored, ['nats'])
+            nats_error = next(error for error in result['errors'] if error['unit'] == 'nats')
+            self.assertEqual(nats_error['after_commit'], 'restore')
+
+    def test_legacy_restart_exception_still_reports_possible_commit(self):
+        current = copy.deepcopy(PRIOR)
+        current['nats'].update(loaded=False, running=False)
+        with self.journal(PRIOR) as journal:
+            def restore(unit, _):
+                self.assertEqual(unit, 'nats')
+                raise OSError('restart outcome unknown')
+            result = journal.recover(restore,
+                                     lambda unit, _: {**current[unit], 'verified': True},
+                                     lambda: {'verified': True})
             nats_error = next(error for error in result['errors'] if error['unit'] == 'nats')
             self.assertEqual(nats_error['after_commit'], 'restore')
 

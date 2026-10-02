@@ -201,6 +201,21 @@ class HoldTests(unittest.TestCase):
                                before_open=preservation_journal.require_no_nats_marker)
         self.assertIsNotNone(self.gate.marker())
 
+    def test_recover_passes_nats_recheck_into_gate_reopen(self):
+        self.published()
+        self.reopen_controller()
+        fast = self.hold.fast_check
+        def publish_during_fast_check():
+            result = fast()
+            (self.root / 'writer-handoff.json').write_text('{}')
+            return result
+        self.hold.fast_check = publish_during_fast_check
+        result = self.hold.recover(self.restore, self.observe, self.final)
+        self.assertFalse(result['restored'])
+        error = next(row for row in result['errors'] if row['unit'] == 'execution-hold')
+        self.assertNotIn('after_commit', error)
+        self.assertIsNotNone(self.gate.marker())
+
     def test_marker_after_gate_open_reports_open_commit(self):
         self.published()
         self.reopen_controller()
@@ -231,6 +246,22 @@ class HoldTests(unittest.TestCase):
         self.assertFalse(result['restored'])
         hold_error = next(error for error in result['errors'] if error['unit'] == 'execution-hold')
         self.assertEqual(hold_error['after_commit'], 'gate-open')
+        self.assertIsNone(self.gate.marker())
+        self.assertFalse(any(row['event'] == 'hold-opened' for row in self.journal.records))
+
+    def test_sticky_hold_opened_write_failure_reports_committed_gate(self):
+        self.published()
+        self.reopen_controller()
+        original = self.journal._record
+        def record(event, **data):
+            if event == 'hold-opened':
+                raise OSError('owned durable write failure')
+            return original(event, **data)
+        with patch.object(self.journal, '_record', side_effect=record):
+            with self.assertRaisesRegex(preservation_journal.CommittedRefusal,
+                                        'gate-open occurred before durable recovery completion'):
+                self.hold.recover(self.restore, self.observe, self.final)
+        self.assertTrue(self.journal.write_failed)
         self.assertIsNone(self.gate.marker())
         self.assertFalse(any(row['event'] == 'hold-opened' for row in self.journal.records))
 

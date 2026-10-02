@@ -1158,7 +1158,10 @@ inside the gate's final before-open check, and immediately before a terminal
 row. A later detection cannot undo a restart, gate unlink or terminal append:
 recovery records `after_commit=restore` or `after_commit=gate-open` as
 appropriate, using the observed gate marker even if `hold-opened` was not
-written. Finalization raises `CommittedRefusal` with the terminal hash once
+written. If that write fails and makes the journal sticky, recovery raises
+`CommittedRefusal` naming the opened gate instead of attempting another
+durable row; a fresh session must inspect the gate and journal. Finalization
+raises `CommittedRefusal` with the terminal hash once
 the row is durable, so a caller cannot interpret a post-commit refusal as
 proof that nothing happened. These checks detect an out-of-protocol privileged
 writer; the node lock and transfer rule are the pre-bootstrap exclusion.

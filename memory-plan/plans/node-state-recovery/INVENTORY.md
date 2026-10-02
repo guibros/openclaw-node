@@ -743,3 +743,15 @@ Mac, and the separate owned restore-only suite passes 27/27; an earlier
 combined run had two load-sensitive owned readiness failures, with no NATS
 guard involved. The revised PR head, CI and Claude exact-delta review remain
 pending. No live root or NATS state changed; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:32 EDT: Claude found no blocker in PR #203 at
+`c9acbbe` with exact-head CI 4/4, but its mutation pass exposed two missing
+journal-level guards and a test that bypassed the sticky journal write flag.
+The revised tests now assert a new lock before NATS restart refuses, the
+recovery facade passes the NATS check into the gate's last before-open step,
+and a restart that raises is still reported as possibly committed. A real
+sticky `hold-opened` failure now raises `CommittedRefusal` naming the observed
+open gate without attempting another journal append. The revised local
+journal/hold suites pass 138/138; exact-head CI and Claude delta review for
+this final follow-up remain pending. The earlier owned restore-only suite
+passed 27/27. No live root or NATS state changed; 1.2 stays [A]/v1.2-pre.

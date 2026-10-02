@@ -987,6 +987,12 @@ class Journal:
                                               for row in self.records[before_complete:])
                 errors.append({'unit': 'execution-hold', 'reason': type(error).__name__,
                                **({'after_commit': 'gate-open'} if opened else {})})
+        if held and self.write_failed:
+            committed = next((error['after_commit'] for error in errors
+                              if 'after_commit' in error), None)
+            if committed is not None:
+                raise CommittedRefusal(
+                    f'{committed} occurred before durable recovery completion; journal write failed')
         record('recovery-finished', services_verified=not any(e['unit'] not in ('journal', 'diagnostics')
                                                            for e in errors), errors=list(errors))
         if not errors:
