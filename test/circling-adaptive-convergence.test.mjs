@@ -228,17 +228,45 @@ let NATS_BIN = null;
 try { NATS_BIN = execSync('which nats-server', { encoding: 'utf8' }).trim(); } catch { /* skip */ }
 const NATS_SKIP = NATS_BIN ? undefined : 'nats-server not found on PATH';
 
+async function stopNatsServer(proc) {
+  if (!proc?.pid || proc.exitCode !== null || proc.signalCode !== null) return;
+  await new Promise((resolve, reject) => {
+    const force = setTimeout(() => proc.kill('SIGKILL'), 1000);
+    const deadline = setTimeout(() => {
+      proc.stdout?.destroy();
+      proc.stderr?.destroy();
+      proc.unref();
+      reject(new Error('NATS test server did not exit'));
+    }, 5000);
+    proc.once('exit', () => {
+      clearTimeout(force);
+      clearTimeout(deadline);
+      resolve();
+    });
+    proc.kill();
+  });
+}
+
 function startNatsServer({ port, storeDir }) {
   return new Promise((resolve, reject) => {
     const proc = spawnProcess(NATS_BIN, ['-p', String(port), '-a', '127.0.0.1', '-js', '-sd', storeDir], { stdio: 'pipe' });
-    let ready = false;
+    let settled = false;
+    const timer = setTimeout(() => fail(new Error('nats-server start timeout')), 5000);
+    function fail(error) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      stopNatsServer(proc).then(() => reject(error), reject);
+    }
     proc.stderr.on('data', (chunk) => {
-      if (!ready && chunk.toString().includes('Server is ready')) {
-        ready = true; resolve({ proc, port });
+      if (!settled && chunk.toString().includes('Server is ready')) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ proc, port });
       }
     });
-    proc.on('error', reject);
-    setTimeout(() => { if (!ready) reject(new Error('nats-server start timeout')); }, 5000);
+    proc.once('error', fail);
+    proc.once('exit', () => fail(new Error('nats-server exited before ready')));
   });
 }
 
@@ -259,26 +287,12 @@ describe('advanceCirclingStep — adaptive convergence integration (real NATS KV
   });
 
   after(async () => {
-    await nc?.close();
-    if (nats?.proc && nats.proc.exitCode === null && nats.proc.signalCode === null) {
-      const exited = new Promise((resolve, reject) => {
-        const force = setTimeout(() => nats.proc.kill('SIGKILL'), 1000);
-        const deadline = setTimeout(() => {
-          nats.proc.stdout?.destroy();
-          nats.proc.stderr?.destroy();
-          nats.proc.unref();
-          reject(new Error('NATS test server did not exit'));
-        }, 5000);
-        nats.proc.once('exit', () => {
-          clearTimeout(force);
-          clearTimeout(deadline);
-          resolve();
-        });
-      });
-      nats.proc.kill();
-      await exited;
+    try {
+      await nc?.close();
+    } finally {
+      await stopNatsServer(nats?.proc);
+      if (storeDir) await rm(storeDir, { recursive: true, force: true });
     }
-    await rm(storeDir, { recursive: true, force: true });
   });
 
   it('mock session with max_subrounds=3: unanimous SR1 converge → finalizes after SR1 (skips SR2/SR3)', async () => {
