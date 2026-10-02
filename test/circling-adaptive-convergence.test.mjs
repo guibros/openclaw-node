@@ -270,9 +270,19 @@ function startNatsServer({ port, storeDir }) {
   });
 }
 
+let storeDir, nats, nc, kv, collab;
+const PORT = 14879;
+
+after(async () => {
+  try {
+    await nc?.close();
+  } finally {
+    await stopNatsServer(nats?.proc);
+    if (storeDir) await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
 describe('advanceCirclingStep — adaptive convergence integration (real NATS KV)', { skip: NATS_SKIP }, () => {
-  let storeDir, nats, nc, kv, collab;
-  const PORT = 14879;
 
   before(async () => {
     const { connect, StringCodec } = await import('nats');
@@ -284,15 +294,6 @@ describe('advanceCirclingStep — adaptive convergence integration (real NATS KV
     await jsm.streams.add({ name: 'KV_MESH_COLLAB', subjects: ['$KV.MESH_COLLAB.>'] });
     kv = await js.views.kv('MESH_COLLAB');
     collab = new CollabStore(kv);
-  });
-
-  after(async () => {
-    try {
-      await nc?.close();
-    } finally {
-      await stopNatsServer(nats?.proc);
-      if (storeDir) await rm(storeDir, { recursive: true, force: true });
-    }
   });
 
   it('mock session with max_subrounds=3: unanimous SR1 converge → finalizes after SR1 (skips SR2/SR3)', async () => {
