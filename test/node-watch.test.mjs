@@ -81,6 +81,21 @@ describe('node-watch honesty invariants', () => {
     assert.equal(gradeMeshServices([{ ...agent, state: 'waiting' }, bridge]).status, STATUS.BROKEN);
   });
 
+  it('a launchctl-named exit failure never looks like a never-run on-demand worker', async () => {
+    const ctx = makeCtx({
+      fsp: { readFile: async () => JSON.stringify({ channels: { discord: { enabled: true } } }) },
+      exec: async (_command, args) => {
+        const agent = args[1].endsWith('/ai.openclaw.mesh-agent');
+        return { code: 0, stderr: '', stdout: agent
+          ? 'state = not running\nlast exit code = 78: EX_CONFIG\n'
+          : 'state = running\npid = 42\nlast exit code = 0\nHOME => /tmp/test\n' };
+      },
+    });
+    const verdict = await target('net.mesh').run(envFor(ctx));
+    assert.equal(verdict.status, STATUS.BROKEN);
+    assert.match(verdict.detail, /mesh-agent/);
+  });
+
   it('required core labels need a running PID, not mere loaded state', () => {
     const running = { label: 'ai.openclaw.nats', observable: true, loaded: true, running: true, pid: 10 };
     assert.equal(gradeRequiredServices([running]).status, STATUS.WORKING);
