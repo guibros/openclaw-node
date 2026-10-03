@@ -121,6 +121,65 @@ def plist_identity(path, report_key):
             'run_at_load': parsed.get('RunAtLoad'), 'keep_alive': parsed.get('KeepAlive')}
 
 
+def config_identity(path, uid, report_key):
+    path = Path(path)
+    before = path.lstat()
+    if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
+            or before.st_uid != uid or stat.S_IMODE(before.st_mode) != 0o600
+            or before.st_size > 1 << 20):
+        raise Refused('NATS configuration file identity differs')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        opened = os.fstat(fd)
+        if (opened.st_dev, opened.st_ino, opened.st_size, opened.st_ctime_ns,
+                opened.st_mtime_ns) != (before.st_dev, before.st_ino, before.st_size,
+                                        before.st_ctime_ns, before.st_mtime_ns):
+            raise Refused('NATS configuration changed during census')
+        raw = bytearray()
+        while len(raw) < opened.st_size:
+            chunk = os.read(fd, opened.st_size - len(raw))
+            if not chunk:
+                raise Refused('NATS configuration changed during census')
+            raw.extend(chunk)
+        after_open = os.fstat(fd)
+    finally:
+        os.close(fd)
+    after = path.lstat()
+    identity = lambda info: (info.st_dev, info.st_ino, info.st_size,
+                             info.st_ctime_ns, info.st_mtime_ns)
+    if identity(before) != identity(after_open) or identity(before) != identity(after):
+        raise Refused('NATS configuration changed during census')
+    if re.search(rb'(?i)\binclude\b', raw):
+        raise Refused('NATS configuration include closure is undeclared')
+    return {'path': str(path), 'content_hmac_sha256': hmac.new(report_key, raw,
+            hashlib.sha256).hexdigest(), 'device': before.st_dev,
+            'inode': before.st_ino, 'uid': before.st_uid,
+            'mode': stat.S_IMODE(before.st_mode), 'size': before.st_size,
+            'include_closure': 'no include token in current file'}
+
+
+def installed_config_census(home, uid, report_key, gui_units):
+    result = {}
+    for label in LEGACY_LABELS:
+        suffix = label.removeprefix('ai.openclaw.nats')
+        plist_path = home / 'Library' / 'LaunchAgents' / (label + '.plist')
+        config_path = home / '.openclaw' / 'config' / ('nats' + suffix + '.conf')
+        plist = plist_identity(plist_path, report_key)
+        if (plist['label'] != label or plist['argv'] !=
+                ['/opt/homebrew/bin/nats-server', '--config', str(config_path)]):
+            raise Refused(f'installed NATS job {label} differs from its declared config')
+        loaded = gui_units[label]
+        if loaded['loaded'] and loaded['plist'] != str(plist_path):
+            raise Refused(f'loaded NATS job {label} differs from its installed plist')
+        if loaded['loaded'] and loaded['plist_identity']['content_hmac_sha256'] != \
+                plist['content_hmac_sha256']:
+            raise Refused(f'installed NATS job {label} changed during census')
+        del plist['argv']
+        result[label] = {'plist': plist,
+                         'config': config_identity(config_path, uid, report_key)}
+    return result
+
+
 def nats_processes():
     processes = []
     unreadable = 0
@@ -357,10 +416,12 @@ def _observe(user_uid, user_home):
                   'argv_hmac_sha256': argument_digest(process['arguments']),
                   'vnode_count': len(process['vnodes']),
                   'mapping_count': len(process['mappings'])} for process in processes]
+    installed_configs = installed_config_census(home, user_uid, report_key, units)
     return {'scope': 'live-census-only',
             'coverage': {'domains': [gui, 'system'],
                          'other_domains': 'not checked',
-                         'unloaded_plists': 'not checked',
+                         'unloaded_plists': 'four installed legacy GUI NATS plists checked on disk',
+                         'configurations': 'four current on-disk legacy GUI files pinned; running processes may have loaded earlier bytes',
                          'waiting_job_arguments': 'launchctl text; embedded newlines are ambiguous',
                          'processes': 'readable processes named nats-server',
                          'vnode_holders': 'open descriptors, mapped files and working directories of those processes only; linked store entries only',
@@ -370,4 +431,4 @@ def _observe(user_uid, user_home):
             'gui': units, 'system': system,
             'processes': summaries, 'unreadable_pids': unreadable,
             'listeners': listeners, 'system_sockets': sockets,
-            'stores': stores}
+            'stores': stores, 'installed_configs': installed_configs}
