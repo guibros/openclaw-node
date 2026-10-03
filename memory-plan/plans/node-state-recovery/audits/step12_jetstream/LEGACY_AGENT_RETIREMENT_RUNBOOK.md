@@ -1,6 +1,7 @@
 # Retire the obsolete system-domain mesh agent
 
-This is a prepared operator action, not a record that it ran. Federation D4
+This runbook was executed on 2026-10-02 under the node lock; the execution
+record is at the end. Federation D4
 already approves retirement of `com.openclaw.agent`; node-state recovery D22
 requires its durable disposition before a full-node preservation journal. The
 ordinary `uninstall.sh` is too broad for this action because it also unloads
@@ -267,3 +268,29 @@ future explicit reversal of the daemon would reintroduce its known crash loop
 and requires a new operator decision. A reboot must confirm that the job
 remains absent and disabled and the sudoers grant remains absent before the
 retirement is called durable across boots.
+
+## Execution record — 2026-10-02 22:09 EDT
+
+The operator authenticated locally inside the lock-held terminal. The source
+checkout was clean at `d181549fb12a6f5c31aebaf0d2376f634062f8c7`, with
+the pinned Tailscale exclusion. Every preflight above passed. The three legacy
+passwordless sudo grants were found exactly as specified, the sudoers file
+was preserved in two root-private copies and removed from the active include
+directory, `visudo -c` passed, and a fresh node-user password challenge
+restored ordinary sudo access. The target plist hash remained
+`eaa61962d86643d3fa301875b2f65e5fa8c97fd37468840ddabcb1a5f9701351`.
+The job was disabled and booted out, its exact loaded label and process were
+absent, and the installed plist was moved to a protected retired copy matching
+the preflight hash. The root backup directory is root:wheel 0700; all four
+retained files are root:wheel 0600. The node-user postflight accepted the
+23-unit entrypoint cohort and the idle Tailscale exclusion. The three NATS
+process identities and client listeners stayed unchanged. A second terminal
+could not acquire `node.lock` while the work was active; after the locked
+shell exited, it could. No NATS service or store was stopped or migrated.
+
+The owner-private record is
+`~/.openclaw/preservation/legacy-agent-retirement-evidence-20261002.json`;
+its before/after NATS censuses are adjacent. This establishes retirement for
+this boot only. A reboot persistence check, continuous full-node observer,
+production controller, three healthy cold masters, isolated restores and
+live resumption are still required.
