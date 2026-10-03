@@ -210,10 +210,12 @@ absent; memory-daemon reports subject overlap when creating it. Node-watch's
 BROKEN stream verdict is truthful. The old stream is a preservation source,
 not evidence that current event publication works. No stream or service was
 changed. Protocol step 4.1 observed the current-node stream working in August
-under an R=3 topology. A second read-only check at 23:40 found that stream on
-the still-running cluster members at 4223/4224, with 55,173 retained messages
-through 2026-09-23. Its configured replication is one, led by nats-3. The
+under an R=3 topology. A second read-only check at 23:40 found that stream
+visible through the still-running cluster members' JetStream APIs at
+4223/4224, with 55,173
+retained messages through 2026-09-23. Its only replica is led by nats-3. The
 current daemon's standalone path cannot publish while `daedalus` owns
 `local.>` there. Recovery 1.2 must preserve both histories before any subject
-migration; this is a current routing/publication regression, not a reopening of
-the dotted-name source fix.
+migration. Publication to the cluster stream stopped by 2026-09-23T18:11Z;
+the daemon now targets the standalone bus, but the switch's cause and date
+are not established. This failure does not reopen the dotted-name source fix.

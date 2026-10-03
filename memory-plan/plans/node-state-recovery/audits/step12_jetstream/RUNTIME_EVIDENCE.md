@@ -184,6 +184,8 @@ have matching state/config and durable positions; the two unavailable cluster
 assignments still return 500/10118. Expiring health streams are separate.
 Cluster local-events-node has 55,173 messages and durable delivered/ack 55,137,
 with 36 pending and zero ack-pending, unchanged from that older snapshot.
+This is the same stream later observed by its full name,
+`local-events-moltymacs-virtual-machine`, not another cluster stream.
 The stopped member-1 master content hashes and all private/immutable flags
 match. This does not prove every acknowledgement immediately before the crash.
 
@@ -868,16 +870,19 @@ cannot own that subject while the historical stream owns it.
 Protocol step 4.1's AUDIT_PRE.md:19 and AUDIT_POST.md:24-27 observed
 `local-events-moltymacs-virtual-machine` present, initialized by a restarted
 memory daemon and graded WORKING in August under an R=3 topology. A further
-authenticated read-only JetStream check at 23:40 on the still-running cluster
-members at `127.0.0.1:4223` and `:4224` found the exact
-`local-events-moltymacs-virtual-machine` stream on both. Its configuration
-owns `local.>`, has `num_replicas=1` and reports nats-3 as leader. Both members
-reported 55,173 retained messages, sequence 1–55,173, first at
+authenticated read-only JetStream check at 23:40 through the still-running
+cluster members' APIs at `127.0.0.1:4223` and `:4224` found the exact
+`local-events-moltymacs-virtual-machine` stream. Its configuration owns
+`local.>`, has `num_replicas=1`, and reports nats-3 as leader. The stream has
+one stored replica on nats-3; both API queries reported the same 55,173
+retained messages, sequence 1–55,173, first at
 2026-07-16T20:46:15Z and newest at 2026-09-23T18:11:02Z. The current-node
 history therefore survives on the cluster; it is absent only from the
 standalone bus queried above. The 4.1 observation is consistent with this
-topology split. The current daemon's standalone publication failure is a
-runtime routing regression, not a reopening of the dotted-name source fix.
+topology split. Publication to the cluster stream stopped by that newest
+message time; the daemon now targets the standalone bus. The cause and date
+of that switch are not established. This failure does not reopen the
+dotted-name source fix.
 Preserve and restore the cluster history as well as the older `daedalus`
 history before migrating subjects.
 
@@ -886,9 +891,10 @@ official snapshot of the current-node stream with 55,173 messages and last
 sequence 55,173. The separate `standalone-online/manifest.json` records the
 older `daedalus` stream with 24,286 messages and last sequence 24,286. Those
 counts still match the live metadata observed above. The two archives are
-point-in-time, separate-server evidence; this comparison does not create a
-healthy cold master, prove an isolated restore or establish a common quiet
-window.
+point-in-time, separate-server evidence. An earlier qualified isolated restore
+of these online archives is recorded above; this comparison does not create
+the healthy cold masters or isolated restores required by step 1.2, or
+establish a common quiet window.
 
 A private candidate that changed only node-watch's node ID to `daedalus`
 was prepared but **not installed or loaded**. It would make an old stream

@@ -850,14 +850,17 @@ overlap. Changing node-watch alone to `daedalus` would falsely mark historical
 data as current. Preserve and restore the legacy stream before any subject
 repartition or replacement. Protocol step 4.1 observed the current-node stream
 working in August on an R=3 topology. A 23:40 read-only check found that exact
-`local-events-moltymacs-virtual-machine` stream on both still-running cluster
-members at 4223/4224, with 55,173 retained messages through 2026-09-23.
+`local-events-moltymacs-virtual-machine` stream visible through both
+still-running cluster members' JetStream APIs at 4223/4224, with 55,173
+retained messages through 2026-09-23. Its only replica is led by nats-3.
 The existing private 2026-09-28 cluster-online archive records the same
 55,173 messages and last sequence; its separate standalone-online archive
 records the older 24,286-message stream. These online points are not the
-three healthy cold masters or isolated restores.
+three healthy cold masters or the isolated restores required by step 1.2.
 Preserve and restore that newer history as well as the older standalone stream
 before subject migration; prove current-node event emission afterward. The
-current standalone publication failure is a runtime routing regression, not a
-reopening of the dotted-name source fix.
+cluster stream's last retained message is 2026-09-23T18:11:02Z; the daemon now
+targets the standalone bus. The cause and date of that switch are not yet
+established. This publication failure does not reopen the dotted-name source
+fix.
 No bus, plist or service changed. See step12_jetstream/RUNTIME_EVIDENCE.md.
