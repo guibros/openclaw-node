@@ -928,8 +928,9 @@ is ENDED. The live cache refreshed and node-watch graded the cache, daemon
 and ingest WORKING; a 23-unit structural recapture changed only the
 memory-daemon plist since the watcher recapture and retained the operator's
 host-Ollama settings. The existing private Obsidian sync configuration is
-disabled, so the stale `obs.sync` watch remains unresolved; the apparent
-"sync done" child exit was a no-op. The source change also restores the
+disabled; its apparent "sync done" child exit was a no-op. The stale
+`obs.sync` watch reads a separate local concept vault, so its cause remains
+unproven. The source change also restores the
 installed flush-result gate before a future source redeploy. Remaining
 1.2 work still includes full dependency/provenance pins, physical writer
 exclusion, three healthy cold masters and isolated restores, plus truthful

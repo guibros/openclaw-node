@@ -265,8 +265,10 @@ and graph-cache refresh when the session is ENDED, and by exporting that
 routine for an isolated test. Launchd PID 92501 remained running; the real
 graph cache refreshed at 2026-10-03T16:18:10.322Z and node-watch graded
 `obs.graph_cache`, `mem.daemon` and `mem.ingest` WORKING. Obsidian sync is
-explicitly disabled in private config, so its zero-work CLI exit did not
-refresh concept notes; `obs.sync` remains BROKEN and no setting was changed.
+explicitly disabled in private config, so its CLI exit was a no-op. The
+`obs.sync` watch reads a different local concept vault; it remains BROKEN
+because its latest note is stale, without proof that the disabled sync CLI
+caused that condition. No setting was changed.
 The release carries copied first-party files but links shared mutable
 `node_modules`. The source branch restores the installed flush-result gate
 before a future source deployment can replace it. The new 23-unit

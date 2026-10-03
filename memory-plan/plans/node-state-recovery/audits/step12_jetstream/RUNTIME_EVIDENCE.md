@@ -971,10 +971,13 @@ The old process logged SIGTERM and `Daemon stopped`; the new job ran as PID
 exit and a graph refresh; SQLite `graph_cache_meta.last_refresh_at` became
 `2026-10-03T16:18:10.322Z` with 451 nodes and 2388 edges. The next
 node-watch report graded `obs.graph_cache`, `mem.daemon` and `mem.ingest`
-WORKING. `obs.sync` remained BROKEN because the existing private config has
-`enabled:false`; the child exited without writing notes. Calling that exit
-"sync done" in the daemon log is a misleading label, not proof of vault
-publication. The setting remains untouched pending operator intent.
+WORKING. The existing private Obsidian sync config has `enabled:false`, so
+its child exited without writing notes. Calling that exit "sync done" in
+the daemon log is a misleading label, not proof of vault publication.
+`obs.sync` remained BROKEN for stale local concept notes. That probe reads
+a different vault root; the disabled sync command does not establish the
+cause of its staleness. The setting remains untouched pending operator
+intent.
 
 The source-owned entrypoint preflight accepted 23 installed units, 21
 GUI-loaded, no user/system-loaded units, and the same sole Tailscale
@@ -982,7 +985,7 @@ exclusion. Relative to the watcher recapture, only the memory-daemon plist
 changed (`a3fb84ea…` → `7752da7b…`). The source release manifest and
 loaded entry are pinned in
 `POST_MEMORY_DAEMON_BASELINE_RECAPTURE_20261003.json` (SHA-256
-`67980367811098ec4601166059c086e89bb16022aed87bf5d230f36fb60eb1e5`).
+`a8116ea654a9041b606c5a497a3e4c9f7ea2e7256524bbf44433631d0b451a06`).
 The mesh-agent plist and private mode-0600 host-Ollama setting still match
 the October 1 operator addendum. Third-party dependencies remain a shared
 mutable link. The NATS stream overlap remains BROKEN. No NATS history was

@@ -44,7 +44,7 @@
   "limits": [
     "The release copied the installed bin/lib/packages tree, but node_modules is a link to the shared mutable installed dependency tree.",
     "The source branch also restores the installed flush-result gate; the live release was derived from the previous installed daemon, not from this source branch.",
-    "The sync CLI is disabled by existing private config; its no-op exit is not a successful vault write. The stale concept-note watch remains BROKEN.",
+    "The sync CLI is disabled by existing private config; its no-op exit is not a successful vault write. The stale concept-note watch reads a different local vault and remains BROKEN for an unproven reason.",
     "NATS stream subject overlap and both distinct histories remain unresolved; no NATS history was copied, sealed or migrated.",
     "This is a point-in-time structural inventory, not complete transitive dependency/provenance pinning or physical writer exclusion. Node-state-recovery 1.2 remains active at v1.2-pre."
   ],
