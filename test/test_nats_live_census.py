@@ -188,6 +188,11 @@ class LiveCensusTest(unittest.TestCase):
             target.write_text('server_name: #;İnclude other.conf\n')
             with self.assertRaisesRegex(Refused, 'non-ASCII syntax'):
                 census.installed_config_census(home, os.getuid(), b'key', units)
+            for separator in ('#;', '//;', '#,'):
+                target.write_text('server_name\n' + separator + 'İnclude other.conf\n')
+                with self.subTest(separator=separator):
+                    with self.assertRaisesRegex(Refused, 'non-ASCII syntax'):
+                        census.installed_config_census(home, os.getuid(), b'key', units)
             target.write_text('authorization: secret-value\n')
             target.chmod(0o644)
             with self.assertRaisesRegex(Refused, 'identity differs'):

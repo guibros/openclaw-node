@@ -15,6 +15,13 @@ as non-ASCII. Other non-ASCII bytes refuse regardless of line position: NATS
 lowercases the Unicode dotted-I spelling of `include`, and a line-based
 comment exemption can miss it after a semicolon.
 
+This rule applies to the four installed legacy files, not future rendered
+configs. Current source templates include `nats-auth.conf`, which this census
+deliberately refuses until that file is declared and pinned. The separate
+cluster-node template also has a section sign in a comment, which this narrow
+legacy rule refuses. The installed files therefore cannot be re-rendered from
+current templates and treated as an unchanged baseline.
+
 The config files and installed plists are read twice around the listener and
 store scan. Their same-key HMACs and filesystem identities must agree within
 that bracket. The fresh key means HMAC values from separate runs cannot be
