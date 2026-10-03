@@ -818,3 +818,23 @@ Ollama endpoint changes, but still refuses the obsolete system-domain
 administrator authentication has not yet been supplied. Protected root
 observer/admission, three healthy cold masters, isolated restores and live
 cutover remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-02 22:21 EDT: the operator-attested legacy root-agent and
+sudoers retirement was observed at 22:09 in private evidence; a separate
+public preflight observed the job absent at 22:21 on the same boot. Private
+root copies and postflight evidence are retained, and the preservation lock
+is released. A fresh read-only diagnostic
+from main `b6e8874` accepts exactly 23 approved installed jobs, 21 GUI-loaded
+jobs and the pinned idle Tailscale exclusion; no cohort job is loaded in the
+user or system domain. The 23 plist hashes and 59 direct file pins match the
+earlier provisional capture, and both operator-approved host-Ollama plist
+values still match the private env file, whose mode was checked as 0600. This
+is a point-in-time preflight,
+not a Journal baseline or continuous hold. Reboot persistence, complete
+provenance and readiness, the production controller/root observer, three
+healthy cold masters, isolated restores and live resumption remain open at
+1.2 [A]/v1.2-pre. See the runbook execution record and
+`POST_RETIREMENT_BASELINE_RECAPTURE_20261002.json`.
+The merged PR #195 templates for node-watch, health-watch, consolidation-
+scheduler and memory-daemon differ from these installed plists; a re-render
+will change at least four pinned plist hashes and require another capture.

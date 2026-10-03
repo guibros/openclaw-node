@@ -180,3 +180,24 @@ when rendering mesh-agent from a plain shell, including one with a stale
 localhost value. The live unit and service state were not changed. The
 entrypoint scan still refuses the two loaded unapproved system jobs, so the
 full-node baseline remains provisional and 1.2 remains [A].
+
+2026-10-02 22:21 EDT — The operator-attested retirement under the exclusive
+node lock disabled and unloaded the obsolete `com.openclaw.agent` system job,
+retired its three passwordless legacy sudo grants, and preserved the plist
+and sudoers file in root-private storage. The private postflight observed no
+matching process and unchanged NATS identities; the lock is released. The
+private record and its hashes are in the runbook execution record. A fresh
+read-only source-owned preflight independently observed the job absent and
+accepted 23 installed jobs, 21 GUI-loaded, no user- or system-loaded cohort
+jobs, and the explicitly verified idle Tailscale helper as an exclusion.
+All 23 structural states, 23 plist hashes and 59 direct file pins still match
+the earlier provisional capture. Both host-Ollama plists and the private env
+file still target `http://192.168.64.1:11434`. The new diagnostic is
+`POST_RETIREMENT_BASELINE_RECAPTURE_20261002.json`. These point-in-time
+observations are not a full-node Journal baseline or continuous provenance;
+the source template/installer omission above was fixed in merged PR #196.
+Merged PR #195 also changed the templates for node-watch, health-watch,
+consolidation-scheduler and memory-daemon; their installed plists still have
+the captured older shapes. Re-rendering them changes the pinned baseline.
+The production controller, protected root observer, healthy cold masters,
+isolated restores, reboot persistence check and live resumption remain open.

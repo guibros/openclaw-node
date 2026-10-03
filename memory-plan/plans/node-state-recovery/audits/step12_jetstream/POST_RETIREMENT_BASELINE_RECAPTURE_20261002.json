@@ -1,0 +1,434 @@
+{
+  "direct_files_unchanged_since_previous": true,
+  "entrypoint_preflight": {
+    "accepted": true,
+    "disabled_artifact_count": 11,
+    "excluded": [
+      "com.openclaw.tailscale-up"
+    ],
+    "installed_count": 23,
+    "loaded_counts": {
+      "gui": 21,
+      "system": 0,
+      "user": 0
+    }
+  },
+  "entrypoints_stable_at_recheck": true,
+  "host_ollama_plists_and_private_env_match": true,
+  "limits": [
+    "point-in-time diagnostic only",
+    "direct files are not transitive dependencies",
+    "no continuous process or launchd provenance",
+    "no full-node journal or cold master",
+    "retirement reboot persistence not yet verified"
+  ],
+  "observed_at": "2026-10-02T22:21:09.286940-04:00",
+  "plists_unchanged_since_previous": true,
+  "previous_provisional_baseline_sha256": "ffac29dd8e2b9ce83303df5ffb97b38edd9f12d524c768ad74a0053f7bccc395",
+  "source_commit": "b6e8874fa33c69baae24a0f9f0056ba9f73a7375",
+  "type": "read-only post-retirement full-node diagnostic; no journal or preservation authorization",
+  "units": {
+    "consolidation-scheduler": {
+      "class": "timer",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/backups/node-readiness/consolidation-graph-20260930-4/bin/consolidation-scheduler.mjs": "57af6dc929916dd13e81f4f1db4e48e98de9c03e815d0919734af994d6d6961e",
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry-manifest.json": "96e829f379978d0b67e61d2464d3624e4a9d426e8671fac4dab1e9c5a47d4644",
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry.py": "7d038edac646b378a3e8aabc58ad39f9d2018f2cf5ceb0895910dc726f175a8e",
+        "/usr/bin/python3": "3e7d30871a9740446f33a907b14d28f10ebe6d4e1c146a4c0788308f573a6609",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": null,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.consolidation-scheduler.plist",
+        "sha256": "7a71838185680e371aad3193947aff4dc1604278110deca879a98fe641a201e4"
+      },
+      "running": false
+    },
+    "federation-tick": {
+      "class": "unloaded",
+      "direct_file_hashes": {
+        "/bin/bash": "07ad8525844ce61471e08e8c515b76bf063bac482394152bad814026cd577f69"
+      },
+      "disabled": true,
+      "loaded_domains": [],
+      "pid": null,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.federation-tick.plist",
+        "sha256": "4e2e8196eea05df4ce513d22018d3e318675f832ee70e952a4c72eb7fde15133"
+      },
+      "running": false
+    },
+    "gateway": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287",
+        "/usr/local/lib/node_modules/openclaw/dist/index.js": "418a08c2571c3d9ba34de4c259335a7ac4d0950f25f898be860f5689dbf9a7c9"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 830,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.gateway.plist",
+        "sha256": "6212f92dd85d69be499f222fb433f1d755c651248d003e735302f6e9f9188091"
+      },
+      "running": true
+    },
+    "health-watch": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/openclaw-nodedev/bin/health-watch.mjs": "1dd9cc377f5ade6b306fe955b3584aaf3c0f4b80463c6e2b1195a52e05c8387f",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 838,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.health-watch.plist",
+        "sha256": "fa2f9e38454d2341ac70e305ca77f0864dda308abbfd140dce45ee0b40f77123"
+      },
+      "running": true
+    },
+    "lane-watchdog": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/openclaw/bin/lane-watchdog.js": "1e0a73e472c3f203d492c4000aa34aebbf4f618c11c6cee87984250cfd2fc8b3",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 839,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.lane-watchdog.plist",
+        "sha256": "d4e0f0cf53ea72bbf8cbab20ac785ac00e150977749f462fc64a3f70c36ccfc9"
+      },
+      "running": true
+    },
+    "log-rotate": {
+      "class": "timer",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry-manifest.json": "96e829f379978d0b67e61d2464d3624e4a9d426e8671fac4dab1e9c5a47d4644",
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry.py": "7d038edac646b378a3e8aabc58ad39f9d2018f2cf5ceb0895910dc726f175a8e",
+        "/Users/moltymac/openclaw/bin/log-rotate": "feb64afe51e9d3e39038ae9fab73ca8f9f92726f63955350809a5b52d2491faa",
+        "/bin/bash": "07ad8525844ce61471e08e8c515b76bf063bac482394152bad814026cd577f69",
+        "/usr/bin/python3": "3e7d30871a9740446f33a907b14d28f10ebe6d4e1c146a4c0788308f573a6609"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": null,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.log-rotate.plist",
+        "sha256": "2f08e2c68b4009222827888a250a05870c610d323c5b8e02332646bbd024eb9f"
+      },
+      "running": false
+    },
+    "memory-daemon": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/workspace/bin/memory-daemon.mjs": "c11809ee14fe19de4077fe9e9b3a7fc91d2a4aa59c71ff171635e00be2c2c5dc",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "host_ollama_declared": true,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 37477,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.memory-daemon.plist",
+        "sha256": "a3fb84ea54bc02e8e7b311a2d19d1a8c601d2d511e4baa93b97fb92a3eba0104"
+      },
+      "running": true
+    },
+    "mesh-agent": {
+      "class": "on-demand",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/releases/worker-drain-69b7f37-foreman-5cb71b7-e57f89b/bin/mesh-agent.js": "1304cb310551cec27739852686bafcd356641d6c4e993011fb74fba5ed14666c",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "host_ollama_declared": true,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": null,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-agent.plist",
+        "sha256": "d0d01eadea697fdb9c4b43bf3db02846c27ebe09f745bc18cc38a1ade78baa0d"
+      },
+      "running": false
+    },
+    "mesh-bridge": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/releases/bridge-drain-9056e59-e57f89b/bin/mesh-bridge.js": "f894fc1813cdb0fa40d73f6ba81c97cb1c10b8b18ba76204c0f4aae5a74deaeb",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 840,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-bridge.plist",
+        "sha256": "48af7a5863df2d67fe71ab084b655e90298e613186bf0e125bb80afd025025df"
+      },
+      "running": true
+    },
+    "mesh-deploy-listener": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/openclaw/bin/mesh-deploy-listener.js": "30b3bf275a32baa7939066c9c62c971a4d985b506436d20556150e3eea011f78",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 841,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-deploy-listener.plist",
+        "sha256": "c434b6fdffef4713e47d49e58c5e66eeb1f93c2eba0bfac4e1589cf808410da4"
+      },
+      "running": true
+    },
+    "mesh-health-publisher": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/openclaw-nodedev/bin/mesh-health-publisher.js": "b65cd6b7c4420855f19dd557e02187281fd01839e67faa79715afd3d9936dc76",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 1057,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-health-publisher.plist",
+        "sha256": "d53af50a0563bc9dd710cb42d9f83a7dcfce80c9dc5eca07f44f60c55a7b12e9"
+      },
+      "running": true
+    },
+    "mesh-task-daemon": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/releases/task-ready-b190671-e57f89b/bin/mesh-task-daemon.js": "22c2784052ec9dde8f8dc1ac582ecd58b2db02aaf60d05cfe3524adfbcb3bb51",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 834,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-task-daemon.plist",
+        "sha256": "3a07bb90777dbaf6c442cf902c0ef8c0f94ff8e7343837784c5f2a2fad578402"
+      },
+      "running": true
+    },
+    "mesh-tool-discord": {
+      "class": "known-broken",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/releases/discord-inactive-f21c6df-e57/bin/mesh-tool-discord.js": "d1341cfa04a3289c2338cc0e4a76e77dbf28d4c50f08ce5b18371c468b321d17",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": null,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.mesh-tool-discord.plist",
+        "sha256": "6f53257453c9e8351d6c361840d474fc2be38f5548ce51bc635d446de430f67c"
+      },
+      "running": false
+    },
+    "mission-control": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/usr/local/lib/node_modules/npm/bin/npm-cli.js": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 850,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.mission-control.plist",
+        "sha256": "0c30956ba8159d7f19e0243bf0081bb7507ee41fe8983e330a8224def5c4ff78"
+      },
+      "running": true
+    },
+    "nats": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/config/nats.conf": "c3e447dd5f7550f7b77ac57eecb8738b8f300e8148dbd93d5d9c1794d9230f11",
+        "/opt/homebrew/Cellar/nats-server/2.12.6/bin/nats-server": "c3a71e72f6fc5dd008988f34b57fd2ab1fe69ab18d409f0a0aeebc51160e76e1"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 842,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.nats.plist",
+        "sha256": "60405a897771454b3e3d6a5bcda818eee2592d08e5990bda03856a4b4d5bf9c4"
+      },
+      "running": true
+    },
+    "nats-1": {
+      "class": "held",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/config/nats-1.conf": "a3faf9bb0b008c0033f54ef3a06291cdc39708ed9c6883d278982c55d927980c",
+        "/opt/homebrew/Cellar/nats-server/2.12.6/bin/nats-server": "c3a71e72f6fc5dd008988f34b57fd2ab1fe69ab18d409f0a0aeebc51160e76e1"
+      },
+      "disabled": true,
+      "loaded_domains": [],
+      "pid": null,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.nats-1.plist",
+        "sha256": "24107585b642829c6323109370167706e4e84b916a28b60bfad8cb987ebef206"
+      },
+      "running": false
+    },
+    "nats-2": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/config/nats-2.conf": "d84723dd2ad44ecb3691f33802b3a0ba34388c93373aefc6c957b3b0be08733d",
+        "/opt/homebrew/Cellar/nats-server/2.12.6/bin/nats-server": "c3a71e72f6fc5dd008988f34b57fd2ab1fe69ab18d409f0a0aeebc51160e76e1"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 855,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.nats-2.plist",
+        "sha256": "ac3d1784844b536a1c24d3487527efeffa05f3bc6ea098cc027890b70e7ad72a"
+      },
+      "running": true
+    },
+    "nats-3": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/config/nats-3.conf": "ced7db951e6fe06fc17cd709bb7b54d64e3497390ea189daa265eb25189406dc",
+        "/opt/homebrew/Cellar/nats-server/2.12.6/bin/nats-server": "c3a71e72f6fc5dd008988f34b57fd2ab1fe69ab18d409f0a0aeebc51160e76e1"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 826,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.nats-3.plist",
+        "sha256": "07779cc9708447e540a8209fd4c8601e87ac97f97f1aa20109d8cf036e269705"
+      },
+      "running": true
+    },
+    "node-watch": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/releases/monitor-nats-cohort-529ee53/bin/node-watch.mjs": "367acda5a2e245c5b564d472d7f97b5886defe3f84cd0a189e678cad67d9a71b",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 833,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.node-watch.plist",
+        "sha256": "f5b934c3d0a84a058a02bc5944144d4d5dd88c0623bd3a3fca79e46fa65d640b"
+      },
+      "running": true
+    },
+    "observer": {
+      "class": "timer",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/observer/bin/observer.mjs": "a0bc229bce8f1b59f978655a16f183475e403095f3eb8e7243e10dd0869a6e5f",
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry-manifest.json": "96e829f379978d0b67e61d2464d3624e4a9d426e8671fac4dab1e9c5a47d4644",
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry.py": "7d038edac646b378a3e8aabc58ad39f9d2018f2cf5ceb0895910dc726f175a8e",
+        "/usr/bin/python3": "3e7d30871a9740446f33a907b14d28f10ebe6d4e1c146a4c0788308f573a6609",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": null,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.observer.plist",
+        "sha256": "55aab77dedc5465054ec3cd6e3defa504737bef63ff44eff1b11bc6f6551516d"
+      },
+      "running": false
+    },
+    "scheduler-heartbeat": {
+      "class": "timer",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry-manifest.json": "96e829f379978d0b67e61d2464d3624e4a9d426e8671fac4dab1e9c5a47d4644",
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry.py": "7d038edac646b378a3e8aabc58ad39f9d2018f2cf5ceb0895910dc726f175a8e",
+        "/Users/moltymac/.openclaw/workspace/bin/scheduler-heartbeat.mjs": "4fcd33b5f42df64197f1821c4f37f7d641a2d7b0732c6a20c62abbcc5e77288c",
+        "/usr/bin/python3": "3e7d30871a9740446f33a907b14d28f10ebe6d4e1c146a4c0788308f573a6609",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": null,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.scheduler-heartbeat.plist",
+        "sha256": "7dd2d6733bc5a5924c5106e471126931515ef5e3801f6eb2fe924f23fa126ec9"
+      },
+      "running": false
+    },
+    "transcript-archive": {
+      "class": "timer",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry-manifest.json": "96e829f379978d0b67e61d2464d3624e4a9d426e8671fac4dab1e9c5a47d4644",
+        "/Users/moltymac/.openclaw/backups/node-readiness/timer-entry-candidate-20260930-5/timer-entry.py": "7d038edac646b378a3e8aabc58ad39f9d2018f2cf5ceb0895910dc726f175a8e",
+        "/Users/moltymac/.openclaw/workspace/bin/archive-transcripts.sh": "3f8e3d4ec9ad97e90d52ecbb3b057a2c2f6b38e56ad85c97cc8407adbeb7ee60",
+        "/bin/sh": "e4d71aa95be0725c351e9d1d273d35ccdb0a8bdb31a57927c8738431b89788f5",
+        "/usr/bin/python3": "3e7d30871a9740446f33a907b14d28f10ebe6d4e1c146a4c0788308f573a6609"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": null,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.transcript-archive.plist",
+        "sha256": "6f0e7711f17df8144835dc9d9b591567a84fca3be8434bbe839c943c3559fe7c"
+      },
+      "running": false
+    },
+    "workplan-viewer": {
+      "class": "daemon",
+      "direct_file_hashes": {
+        "/Users/moltymac/.openclaw/releases/viewer-b4bbac2-e57f89b/workspace-bin/workplan-viewer.mjs": "0f1066e0a408be9c7048441cde12f40c3c5636838d178ab5303a8e3e7e343c6d",
+        "/usr/local/bin/node": "aed3321cf1a2ad333514339e8f7fc58a01ed9b6ac0d1325cd052260004928287"
+      },
+      "disabled": false,
+      "loaded_domains": [
+        "gui"
+      ],
+      "pid": 832,
+      "plist": {
+        "path": "/Users/moltymac/Library/LaunchAgents/ai.openclaw.workplan-viewer.plist",
+        "sha256": "6d2c46a7b599e9b5f5c4a0cee4cbd839c46783dac617ad78f611ac74fedf1324"
+      },
+      "running": true
+    }
+  }
+}
