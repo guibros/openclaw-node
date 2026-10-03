@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {
   WATCH_TARGETS, runWatch, formatHtml, STATUS,
-  parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway, probeCoreLaunchdServices,
+  parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway, probeCoreLaunchdServices, probeMeshServices,
 } from '../lib/node-watch.mjs';
 import { resolveNodeConfig } from '../lib/node-acceptance.mjs';
 
@@ -71,7 +71,7 @@ describe('node-watch honesty invariants', () => {
   it('an idle on-demand mesh worker is unverified, while a failed worker is broken', () => {
     const agent = {
       label: 'ai.openclaw.mesh-agent', observable: true, loaded: true,
-      running: false, pid: null, state: 'not running', lastExitCode: null,
+      running: false, pid: null, state: 'not running', lastExitCode: null, exitKnown: true,
     };
     const bridge = { label: 'ai.openclaw.mesh-bridge', observable: true, loaded: true, running: true, pid: 42 };
     const idle = gradeMeshServices([agent, bridge]);
@@ -84,29 +84,37 @@ describe('node-watch honesty invariants', () => {
   it('the mesh target separates idle workers from spawn, signal and peer failures', async () => {
     let agentOutput = 'state = not running\nlast exit code = 78: EX_CONFIG\n';
     let bridgeDown = false;
+    let discordEnabled = true;
+    let discordOutput = 'state = running\npid = 42\nlast exit code = 0\nHOME => /tmp/test\n';
     const ctx = makeCtx({
-      fsp: { readFile: async () => JSON.stringify({ channels: { discord: { enabled: true } } }) },
+      fsp: { readFile: async () => JSON.stringify({ channels: { discord: { enabled: discordEnabled } } }) },
       exec: async (_command, args) => {
         const agent = args[1].endsWith('/ai.openclaw.mesh-agent');
+        const discord = args[1].endsWith('/ai.openclaw.mesh-tool-discord');
         const stopped = bridgeDown && args[1].endsWith('/ai.openclaw.mesh-bridge');
         return { code: 0, stderr: '', stdout: agent
-          ? agentOutput : stopped ? 'state = not running\nlast exit code = 1\nHOME => /tmp/test\n'
+          ? agentOutput : discord ? discordOutput : stopped ? 'state = not running\nlast exit code = 1\nHOME => /tmp/test\n'
             : 'state = running\npid = 42\nlast exit code = 0\nHOME => /tmp/test\n' };
       },
     });
-    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.BROKEN);
+    assert.equal((await probeMeshServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
     agentOutput = 'state = not running\nlast exit code = (never exited)\nlast terminating signal = Killed: 9\n';
-    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.BROKEN);
+    assert.equal((await probeMeshServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
     agentOutput = 'state = not running\n';
-    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.BROKEN);
+    assert.equal((await probeMeshServices(ctx, { platform: 'darwin' })).status, STATUS.BROKEN);
     agentOutput = 'state = not running\nlast exit code = 0\n';
-    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.UNKNOWN);
+    assert.equal((await probeMeshServices(ctx, { platform: 'darwin' })).status, STATUS.UNKNOWN);
     agentOutput = 'state = not running\nlast exit code = (never exited)\n';
-    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.UNKNOWN);
+    assert.equal((await probeMeshServices(ctx, { platform: 'darwin' })).status, STATUS.UNKNOWN);
     bridgeDown = true;
-    const peerFailure = await target('net.mesh').run(envFor(ctx));
+    const peerFailure = await probeMeshServices(ctx, { platform: 'darwin' });
     assert.equal(peerFailure.status, STATUS.BROKEN);
     assert.match(peerFailure.detail, /mesh-bridge/);
+    bridgeDown = false;
+    agentOutput = 'state = running\npid = 42\nlast exit code = 0\n';
+    discordEnabled = false;
+    discordOutput = 'state = not running\nHOME => /tmp/test\n';
+    assert.equal((await probeMeshServices(ctx, { platform: 'darwin' })).status, STATUS.UNKNOWN);
   });
 
   it('required core labels need a running PID, not mere loaded state', () => {
