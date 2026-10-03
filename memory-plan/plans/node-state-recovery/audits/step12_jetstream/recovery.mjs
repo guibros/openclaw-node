@@ -165,13 +165,37 @@ export function hashTree(dir) {
   return entries;
 }
 
+function sourceIdentity(dir) {
+  const entries = [];
+  const walk = current => {
+    const st = fs.lstatSync(current, { bigint: true });
+    assert(!st.isSymbolicLink() && (st.isDirectory() || st.isFile()));
+    entries.push({
+      path: path.relative(dir, current) || '.',
+      type: st.isDirectory() ? 'directory' : 'file',
+      device: st.dev.toString(), inode: st.ino.toString(),
+      links: st.nlink.toString(), mode: st.mode.toString(),
+      uid: st.uid.toString(), gid: st.gid.toString(),
+      size: st.size.toString(), mtimeNs: st.mtimeNs.toString(),
+      ctimeNs: st.ctimeNs.toString(),
+    });
+    if (st.isDirectory()) {
+      for (const name of fs.readdirSync(current).sort()) walk(path.join(current, name));
+    }
+  };
+  walk(dir);
+  return entries;
+}
+
 export function copyCold(source, target) {
   assert(!fs.existsSync(target));
   privateDir(path.dirname(target));
+  const sourceBefore = sourceIdentity(source);
   const before = hashTree(source);
   fs.cpSync(source, target, { recursive: true, force: false, errorOnExist: true, preserveTimestamps: true });
   secureTree(target);
   durableTree(target);
+  assert.deepEqual(sourceIdentity(source), sourceBefore, 'source identity changed during cold copy');
   assert.deepEqual(hashTree(source), before, 'source changed during cold copy');
   assert.deepEqual(hashTree(target), before, 'copy content differs');
   const parent = fs.openSync(path.dirname(target), 'r');
