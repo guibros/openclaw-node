@@ -818,8 +818,8 @@ corrected before a future recapture.
 
 ### Post-retirement read-only recapture — 2026-10-02 22:21 EDT
 
-The guarded retirement in `LEGACY_AGENT_RETIREMENT_RUNBOOK.md` completed for
-this boot. The fresh diagnostic
+The operator-attested retirement is recorded with private evidence hashes in
+`LEGACY_AGENT_RETIREMENT_RUNBOOK.md`. The fresh diagnostic
 `POST_RETIREMENT_BASELINE_RECAPTURE_20261002.json` has SHA-256
 `6b574a510c5dbe1bee3bce718a6d6f873cbf2739dd0b07d611336316fa00d550`.
 It was captured with source commit
@@ -828,9 +828,11 @@ multi-domain preflight accepted exactly 23 installed cohort jobs, 21 GUI-loaded
 jobs, no user- or system-loaded cohort jobs, and the verified idle Tailscale
 exclusion. All 23 saved structural loaded/running/disabled states matched,
 all 23 plist hashes and 59 direct file hashes matched the earlier provisional
-capture, and a second entrypoint scan and file hash pass were stable. The
+capture. A second entrypoint scan matched the first, and a second direct-file
+hash pass matched; the artifact records the former, while the latter and the
+mode-0600 env-file check came from the one-off private capture script. The
 memory-daemon and mesh-agent plists still declare
-`LLM_BASE_URL=http://192.168.64.1:11434`; the mode-0600 env file has the
+`LLM_BASE_URL=http://192.168.64.1:11434`; the private env file has the
 same setting. No raw env file content is stored in the artifact.
 
 This establishes a point-in-time structural and direct-file baseline only.
@@ -838,4 +840,8 @@ It does not pin transitive dependencies, continuously observe launchd or
 processes, create a full-node Journal, establish a quiet window, make a cold
 master or restore a service. Root retirement remains untested across reboot.
 The source install paths now retain the host-Ollama value via merged PRs #196
-and #197. Step 1.2 remains active at `v1.2-pre`.
+and #197. Merged PR #195 also added host-Ollama template fields to node-watch,
+health-watch, consolidation-scheduler and memory-daemon, but the installed
+plists retain their older shapes. Re-rendering from main changes at least
+four of the 23 pinned plist hashes and requires a new capture. Step 1.2
+remains active at `v1.2-pre`.

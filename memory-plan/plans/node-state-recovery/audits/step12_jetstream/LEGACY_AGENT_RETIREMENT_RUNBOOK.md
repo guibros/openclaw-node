@@ -271,7 +271,9 @@ retirement is called durable across boots.
 
 ## Execution record — 2026-10-02 22:09 EDT
 
-The operator authenticated locally inside the lock-held terminal. The source
+The operator authenticated locally inside the lock-held terminal. This is an
+operator-attested execution record, not independently public root evidence.
+The source
 checkout was clean at `d181549fb12a6f5c31aebaf0d2376f634062f8c7`, with
 the pinned Tailscale exclusion. Every preflight above passed. The three legacy
 passwordless sudo grants were found exactly as specified, the sudoers file
@@ -289,8 +291,14 @@ could not acquire `node.lock` while the work was active; after the locked
 shell exited, it could. No NATS service or store was stopped or migrated.
 
 The owner-private record is
-`~/.openclaw/preservation/legacy-agent-retirement-evidence-20261002.json`;
-its before/after NATS censuses are adjacent. This establishes retirement for
-this boot only. A reboot persistence check, continuous full-node observer,
+`~/.openclaw/preservation/legacy-agent-retirement-evidence-20261002.json`
+(SHA-256 `1688ea0c09de3239291a7a11ff4eeb9aab83a7e85d6598cf91535d8d671ba40b`);
+its before and after NATS censuses are adjacent, with SHA-256
+`fa92c5adfb3ab8155396ab678b81a325fd3120e77b1b2df941ebed87e0272b3e`
+and `9e49ffdba18402ac4cc945adb3768d64b02bfbd184aa7cd4abee2e255fc42232`
+respectively. Retirement was observed at 22:09 in private evidence and the
+job was absent in the public 22:21 preflight on this boot; continuity between
+or after those observations is unproved. A reboot persistence check,
+continuous full-node observer,
 production controller, three healthy cold masters, isolated restores and
 live resumption are still required.
