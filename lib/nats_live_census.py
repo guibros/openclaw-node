@@ -118,6 +118,7 @@ def plist_identity(path, report_key):
             'uid': before.st_uid, 'gid': before.st_gid,
             'mode': stat.S_IMODE(before.st_mode),
             'label': parsed.get('Label'), 'argv': parsed.get('ProgramArguments'),
+            'session_type': parsed.get('LimitLoadToSessionType'),
             'run_at_load': parsed.get('RunAtLoad'), 'keep_alive': parsed.get('KeepAlive')}
 
 
@@ -176,6 +177,8 @@ def installed_config_census(home, uid, report_key, gui_units):
                 or Path(argv[0]).name != 'nats-server'
                 or argv[1:] != ['--config', str(config_path)]):
             raise Refused(f'installed NATS job {label} differs from its declared config')
+        if plist['session_type'] not in (None, 'Aqua', ['Aqua']):
+            raise Refused(f'installed NATS job {label} can load outside the GUI session')
         loaded = gui_units[label]
         if loaded['loaded'] and loaded['plist'] != str(plist_path):
             raise Refused(f'loaded NATS job {label} differs from its installed plist')
@@ -436,7 +439,7 @@ def _observe(user_uid, user_home):
         raise Refused('installed NATS configuration changed during census')
     return {'scope': 'live-census-only',
             'coverage': {'domains': [gui, user_domain, 'system'],
-                         'other_domains': 'other sessions not checked',
+                         'other_domains': 'other sessions and users not checked',
                          'unloaded_plists': 'four installed legacy GUI NATS plists checked on disk',
                          'configurations': 'four current on-disk legacy GUI files agree around listener/store scan; fresh HMACs cannot be compared across scans; running processes may have loaded earlier bytes',
                          'installed_binary': 'absolute nats-server argv spelling observed, not an approved binary identity',

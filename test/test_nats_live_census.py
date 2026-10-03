@@ -90,7 +90,7 @@ class LiveCensusTest(unittest.TestCase):
                 census._observe(501, '/tmp')
         self.assertFalse(report['coverage']['physical_absence_certified'])
         self.assertFalse(report['coverage']['single_instant'])
-        self.assertEqual(report['coverage']['other_domains'], 'other sessions not checked')
+        self.assertEqual(report['coverage']['other_domains'], 'other sessions and users not checked')
         self.assertEqual(report['coverage']['domains'], ['gui/501', 'user/501', 'system'])
         self.assertFalse(any(service['loaded'] for service in report['user'].values()))
         self.assertIn('on-disk', report['coverage']['configurations'])
@@ -275,6 +275,12 @@ class LiveCensusTest(unittest.TestCase):
                 path.write_bytes(plistlib.dumps(installed))
             self.assertEqual(len(census.installed_config_census(home, os.getuid(),
                                                                   b'key', units)), 4)
+            parked = agents / 'ai.openclaw.nats-1.plist'
+            changed = plistlib.loads(parked.read_bytes())
+            changed['LimitLoadToSessionType'] = ['Aqua', 'Background']
+            parked.write_bytes(plistlib.dumps(changed))
+            with self.assertRaisesRegex(Refused, 'outside the GUI session'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
 
     def test_listener_census_binds_loopback_port_to_pid(self):
         def command(*args):
