@@ -867,14 +867,19 @@ cannot own that subject while the historical stream owns it.
 
 Protocol step 4.1's AUDIT_PRE.md:19 and AUDIT_POST.md:24-27 observed
 `local-events-moltymacs-virtual-machine` present, initialized by a restarted
-memory daemon and graded WORKING in August under an R=3 topology. The transition
-to today's standalone-bus state is unexplained: the current-node stream may
-have disappeared during a rollback/restore, or the earlier audit may have
-observed a different server. This is a runtime regression from that accepted
-observation, not a reopening of the dotted-name source fix. Locate and preserve
-any surviving copy of the current-node stream, starting with the still-running
-cluster members, their `local-events-node` stream and the step 1.2 archives,
-as well as the historical `daedalus` stream.
+memory daemon and graded WORKING in August under an R=3 topology. A further
+authenticated read-only JetStream check at 23:40 on the still-running cluster
+members at `127.0.0.1:4223` and `:4224` found the exact
+`local-events-moltymacs-virtual-machine` stream on both. Its configuration
+owns `local.>`, has `num_replicas=1` and reports nats-3 as leader. Both members
+reported 55,173 retained messages, sequence 1–55,173, first at
+2026-07-16T20:46:15Z and newest at 2026-09-23T18:11:02Z. The current-node
+history therefore survives on the cluster; it is absent only from the
+standalone bus queried above. The 4.1 observation is consistent with this
+topology split. The current daemon's standalone publication failure is a
+runtime routing regression, not a reopening of the dotted-name source fix.
+Preserve and restore the cluster history as well as the older `daedalus`
+history before migrating subjects.
 
 A private candidate that changed only node-watch's node ID to `daedalus`
 was prepared but **not installed or loaded**. It would make an old stream
