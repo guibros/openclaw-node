@@ -54,3 +54,25 @@ it('keeps local Ollama recovery available', async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+it('uses the local Ollama default when no endpoint is configured', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'health-watch-default-'));
+  const previousUrl = process.env.LLM_BASE_URL;
+  const previousFetch = globalThis.fetch;
+  let request;
+  try {
+    delete process.env.LLM_BASE_URL;
+    globalThis.fetch = async (url, options) => {
+      request = { url, options };
+      return { ok: true };
+    };
+    assert.equal(await maybeAutoRestartOllama(stuckSnapshot(dir)), true);
+    assert.equal(request.url, 'http://localhost:11434/api/generate');
+    assert.deepEqual(JSON.parse(request.options.body), { model: 'qwen3:8b', keep_alive: 0 });
+  } finally {
+    if (previousUrl === undefined) delete process.env.LLM_BASE_URL;
+    else process.env.LLM_BASE_URL = previousUrl;
+    globalThis.fetch = previousFetch;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
