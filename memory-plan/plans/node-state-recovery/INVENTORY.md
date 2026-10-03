@@ -936,3 +936,17 @@ installed flush-result gate before a future source redeploy. Remaining
 exclusion, three healthy cold masters and isolated restores, plus truthful
 resumption. Neither maintenance nor this point-in-time recapture closes
 1.2[A]/v1.2-pre. See the post-memory-daemon recapture in step12_jetstream.
+
+Checkpoint 2026-10-03 12:48 EDT: the watcher now grades local vault-note
+freshness across the five managed Markdown directories, so a recent
+session/daily note no longer loses to stale concepts. A private release
+passed an isolated live-vault read and replaced the running watcher entry;
+the next report showed vault, graph cache, ingestion and memory daemon
+WORKING. A new 23-unit structural recapture changed only the node-watch
+plist since the memory-daemon recapture and retained the operator's
+host-Ollama settings. The Obsidian sync CLI remains disabled; vault-note
+freshness is not external sync proof. The release still links shared
+dependencies, and neither this repair nor the recapture certifies physical
+writer absence, three healthy cold masters or a NATS cutover. Step 1.2
+remains [A]/v1.2-pre; see the post-vault-watcher artifact in
+step12_jetstream.

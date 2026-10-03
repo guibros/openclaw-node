@@ -990,3 +990,39 @@ The mesh-agent plist and private mode-0600 host-Ollama setting still match
 the October 1 operator addendum. Third-party dependencies remain a shared
 mutable link. The NATS stream overlap remains BROKEN. No NATS history was
 copied, sealed or migrated, and this is not a full-node Journal baseline.
+
+### Local vault-note watcher correction — 2026-10-03 12:48 EDT
+
+The `obs.sync` watcher reported BROKEN because it examined only the
+`concepts/` directory, whose newest note was over four hours old. The same
+local vault had fresh Markdown notes in `sessions/` and `daily/`. The probe
+now checks all five directories managed by `obsidian-vault.mjs` and labels
+the observed signal "Local vault notes". Its ID remains `obs.sync` for
+report continuity. This signal does not establish publication by the
+separate Obsidian sync CLI, which remains disabled by private config.
+
+The focused source suite passed 57/57, including a regression that holds
+concept notes stale while a session note is fresh, then verifies stale and
+empty-vault outcomes. A staged release copied the previous watcher release
+and replaced only `lib/node-watch.mjs`; its patched file SHA-256 is
+`49979e31c04e150c67aa0df17a477a8c95c71719d9d8ca83404e998da91ea133`.
+An isolated read from that release graded the real vault WORKING. The live
+plist was backed up before its entry changed from the prior release to
+`node-watch-vault-20261003`; launchd now runs PID 7411. The first watcher
+report after restart briefly missed the healthy memory-daemon PID; the
+next report and an independent launchctl/health-check read saw PID 92501.
+That report grades `obs.sync`, `obs.graph_cache`, `mem.daemon` and
+`mem.ingest` WORKING (24 WORKING, 2 BROKEN, 3 OFF, 7 UNKNOWN overall).
+`net.stream` and `fed.grappe.members` remain BROKEN.
+
+The source-owned entrypoint preflight again accepted 23 installed units,
+21 GUI-loaded, and the same sole Tailscale exclusion. Only the node-watch
+plist changed since the post-memory-daemon recapture (`0fa1cf48…` to
+`63704075…`); both host-Ollama plist settings and the mode-0600 private env
+still match the October 1 operator addendum. The sanitized artifact is
+`POST_VAULT_WATCHER_BASELINE_RECAPTURE_20261003.json` (SHA-256
+`9af514c37d50617c4087fc8089fd51272dfb60762de11a8931755610a751d023`).
+Third-party dependencies remain a shared mutable link. This is a
+point-in-time structural recapture, not a full-node Journal baseline,
+physical writer exclusion or permission to move NATS histories. Recovery
+1.2 remains at `v1.2-pre`.

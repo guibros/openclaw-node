@@ -2,8 +2,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import fs from 'node:fs/promises';
 import os from 'node:os';
+import fs from 'node:fs/promises';
 import {
   WATCH_TARGETS, runWatch, formatHtml, STATUS,
   parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway, probeCoreLaunchdServices, probeMeshServices,
@@ -400,6 +400,33 @@ describe('node-watch disabled Discord lifecycle', () => {
 });
 
 describe('node-watch observed verdicts', () => {
+  it('vault freshness follows recent session notes when concepts are stale', async () => {
+    const vault = await fs.mkdtemp(path.join(os.tmpdir(), 'node-watch-vault-'));
+    const prior = process.env.OBSIDIAN_VAULT_PATH;
+    process.env.OBSIDIAN_VAULT_PATH = vault;
+    try {
+      await fs.mkdir(path.join(vault, 'concepts'));
+      await fs.mkdir(path.join(vault, 'sessions'));
+      const concept = path.join(vault, 'concepts', 'old.md');
+      const session = path.join(vault, 'sessions', 'recent.md');
+      const marker = path.join(vault, 'sessions', 'recent.tmp');
+      await Promise.all([fs.writeFile(concept, ''), fs.writeFile(session, ''), fs.writeFile(marker, '')]);
+      const old = new Date(Date.now() - 3 * 3600_000);
+      const recent = new Date(Date.now() - 30 * 60_000);
+      await Promise.all([fs.utimes(concept, old, old), fs.utimes(session, recent, recent)]);
+      const ctx = makeCtx({ fsp: fs });
+      assert.equal((await target('obs.sync').run(envFor(ctx))).status, STATUS.WORKING);
+      await fs.utimes(session, old, old);
+      assert.equal((await target('obs.sync').run(envFor(ctx))).status, STATUS.BROKEN);
+      await Promise.all([fs.rm(concept), fs.rm(session)]);
+      assert.equal((await target('obs.sync').run(envFor(ctx))).status, STATUS.UNKNOWN);
+    } finally {
+      if (prior === undefined) delete process.env.OBSIDIAN_VAULT_PATH;
+      else process.env.OBSIDIAN_VAULT_PATH = prior;
+      await fs.rm(vault, { recursive: true, force: true });
+    }
+  });
+
   it('HyperAgent is WORKING only with a successful deploy probe and fresh scheduler tick', async () => {
     const probes = { 'L0-HYPERAGENT': { run: async () => ({ status: 'PASS', detail: 'imports' }) } };
     const fresh = makeCtx({

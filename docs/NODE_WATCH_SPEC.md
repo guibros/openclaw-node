@@ -75,7 +75,7 @@ delegates to a `node-acceptance` probe · **applic.** = applicability gate (OFF 
 ### Obsidian (memory subsystem)
 | Element | Watch signal | Probe |
 |---|---|---|
-| Obsidian sync | vault notes written < 2h | live |
+| Local vault notes | newest Markdown note in a managed vault directory written < 2h | live |
 | Graph cache (retrieval ch.5) | `graph-cache.db` `last_refresh_at` < 30min | live |
 | Vault link integrity | no dangling wikilinks | live (wraps read-only `checkVaultLinks`; heavy → one-shot/`--deep`) |
 
