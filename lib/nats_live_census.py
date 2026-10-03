@@ -204,9 +204,10 @@ def verify_listener_owners(units, system, processes, listeners):
     running = [(label, service) for domain in (units, system)
                for label, service in domain.items()
                if service['loaded'] and service['state'] == 'running']
-    if sum(domain[label]['loaded'] for domain in (units, system)
-           for label in ('ai.openclaw.nats', 'ai.openclaw.nats-1')) > 1:
-        raise Refused('standalone and member-1 jobs compete for the same listeners')
+    for port in LISTENER_PORTS:
+        if sum(domain[label]['loaded'] for domain in (units, system)
+               for label, ports in SERVICE_PORTS.items() if port in ports) > 1:
+            raise Refused(f'loaded NATS jobs compete for TCP listener {port}')
     for port, listener in listeners.items():
         if listener is not None and (listener['pid'] not in by_pid or
                                      len([label for label, service in running
