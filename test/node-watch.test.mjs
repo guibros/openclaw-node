@@ -2,6 +2,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import {
   WATCH_TARGETS, runWatch, formatHtml, STATUS,
   parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway, probeCoreLaunchdServices,
@@ -488,43 +490,11 @@ describe('node-watch runner', () => {
   });
 });
 
-// ── mem.ingest / mem.extraction honesty graders (memory_ingest_remediation) ──
-// Regression fixtures are the REAL 2026-07-16 failure values: newest transcript
-// Jul 16 14:50Z while state.db's newest message was Jul 14 23:04:49Z (~40h lag)
-// and newest entity landing Jul 11 — all graded WORKING by the old presence-only
-// probes while ingest ran dark.
-import { gradeIngest, gradeExtraction } from '../lib/node-watch.mjs';
+// ── memory ingest/extraction regressions ─────────────────────────────────────
+import { gradeExtraction } from '../lib/node-watch.mjs';
 
 const T_MSG_LAST = Date.parse('2026-07-14T23:04:49.727Z');
-const T_TRANSCRIPT = Date.parse('2026-07-16T14:50:00Z');
 const T_ENTITY_LAST = Date.parse('2026-07-11T19:46:58.327Z');
-
-describe('gradeIngest (freshness, not presence)', () => {
-  it('REGRESSION: the live 40h-dark state grades BROKEN, not WORKING', () => {
-    const v = gradeIngest({ messageCount: 13117, lastMessageMs: T_MSG_LAST, newestTranscriptMs: T_TRANSCRIPT });
-    assert.equal(v.status, STATUS.BROKEN);
-    assert.match(v.detail, /LAGGING 39\.8h/);
-  });
-  it('REGRESSION: enabled source dirs missing grades BROKEN naming them (the silent-skip failure)', () => {
-    const v = gradeIngest({
-      messageCount: 13117, lastMessageMs: T_MSG_LAST, newestTranscriptMs: null,
-      missingSources: ['claude-code-workspace (/Users/x/.claude/projects/Users-x--openclaw-workspace)'],
-    });
-    assert.equal(v.status, STATUS.BROKEN);
-    assert.match(v.detail, /MISSING/);
-    assert.match(v.detail, /claude-code-workspace/);
-  });
-  it('keeping pace (transcript newer by < budget) → WORKING', () => {
-    const now = Date.parse('2026-07-16T15:00:00Z');
-    const v = gradeIngest({ messageCount: 100, lastMessageMs: now - 5 * 60_000, newestTranscriptMs: now });
-    assert.equal(v.status, STATUS.WORKING);
-  });
-  it('no sources observable → UNKNOWN (never green blind); transcripts but zero messages → BROKEN', () => {
-    assert.equal(gradeIngest({ messageCount: 5, lastMessageMs: T_MSG_LAST, newestTranscriptMs: null }).status, STATUS.UNKNOWN);
-    assert.equal(gradeIngest({ messageCount: 0, lastMessageMs: NaN, newestTranscriptMs: T_TRANSCRIPT }).status, STATUS.BROKEN);
-    assert.equal(gradeIngest({ messageCount: 0, lastMessageMs: NaN, newestTranscriptMs: null }).status, STATUS.UNKNOWN);
-  });
-});
 
 describe('gradeExtraction (keeps pace with ingest)', () => {
   it('REGRESSION: entities 5 days behind flowing ingest grades BROKEN', () => {
@@ -538,15 +508,152 @@ describe('gradeExtraction (keeps pace with ingest)', () => {
   });
 });
 
-describe('gradeIngest lag budget calibration (tool-marathon tolerance)', () => {
-  it('45min mtime-lead during a tool-heavy stretch → WORKING (not a false alarm)', () => {
-    const now = Date.parse('2026-07-16T21:30:00Z');
-    const v = gradeIngest({ messageCount: 554, lastMessageMs: now - 45 * 60_000, newestTranscriptMs: now });
-    assert.equal(v.status, STATUS.WORKING);
+describe('mem.ingest configured-source parity', () => {
+  it('does not accept metadata-only sources and immediately flags fresh archive inconsistency', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'node-watch-ingest-empty-'));
+    try {
+      const home = path.join(root, '.openclaw');
+      const source = path.join(root, 'transcripts');
+      await fs.mkdir(path.join(home, 'config'), { recursive: true });
+      await fs.mkdir(source);
+      await fs.writeFile(path.join(home, 'config', 'transcript-sources.json'), JSON.stringify({
+        sources: [{ name: 'test', path: source, format: 'claude-code', enabled: true }],
+      }));
+      const file = path.join(source, 'fresh.jsonl');
+      await fs.writeFile(file, JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
+      let inconsistent = false;
+      const recent = new Date().toISOString();
+      const ctx = makeCtx({
+        config: { ...config, home, stateDb: path.join(home, 'state.db') },
+        fsp: fs,
+        queryDb: (_p, fn) => fn({ prepare: (sql) => ({ get: () => sql.includes('archived_session_id')
+          ? { archived_session_id: inconsistent ? 'fresh' : null, message_count: inconsistent ? 1 : null,
+            end_time: inconsistent ? recent : null, actual_count: 0 }
+          : { n: 0 } }) }),
+      });
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
+      inconsistent = true;
+      await fs.writeFile(file, JSON.stringify({ type: 'user', message: { content: 'fresh turn' }, timestamp: recent }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
-  it('a real 3h lag still grades BROKEN', () => {
-    const now = Date.parse('2026-07-16T21:30:00Z');
-    const v = gradeIngest({ messageCount: 554, lastMessageMs: now - 3 * 3600_000, newestTranscriptMs: now });
-    assert.equal(v.status, STATUS.BROKEN);
+
+  it('ignores later metadata-only writes but catches an unarchived conversation turn', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'node-watch-ingest-'));
+    try {
+      const home = path.join(root, '.openclaw');
+      const source = path.join(root, 'transcripts');
+      await fs.mkdir(path.join(home, 'config'), { recursive: true });
+      await fs.mkdir(source);
+      const registry = path.join(home, 'config', 'transcript-sources.json');
+      await fs.writeFile(registry, JSON.stringify({
+        sources: [{ name: 'test', path: source, format: 'claude-code', enabled: true }],
+      }));
+      const file = path.join(source, 'session-1.jsonl');
+      const old = new Date(Date.now() - 3 * 3600_000).toISOString();
+      await fs.writeFile(file, [
+        JSON.stringify({ type: 'user', message: { content: 'hello' }, timestamp: old }),
+        JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }),
+        '',
+      ].join('\n'));
+      await fs.utimes(file, new Date(old), new Date(old));
+      const localConfig = { ...config, home, stateDb: path.join(home, 'state.db') };
+      let declaredCount = 1;
+      let storedRows = 1;
+      let hasSession = true;
+      let archivedLast = old;
+      const ctx = makeCtx({
+        config: localConfig,
+        fsp: fs,
+        queryDb: (_p, fn) => fn({
+          prepare: (sql) => ({ get: (sessionId) => {
+            if (sql.includes('MAX(timestamp)')) return { t: old };
+            if (sql.includes('archived_session_id')) return {
+              archived_session_id: hasSession && sessionId === 'session-1' ? sessionId : null,
+              message_count: hasSession && sessionId === 'session-1' ? declaredCount : null,
+              end_time: hasSession && sessionId === 'session-1' ? archivedLast : null,
+              actual_count: sessionId === 'session-1' ? storedRows : 0,
+            };
+            return { n: 1 };
+          } }),
+        }),
+      });
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      await fs.writeFile(registry, JSON.stringify({
+        sources: [{ name: 'test', path: source, format: 'openclaw-gateway', enabled: true }],
+      }));
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      await fs.writeFile(registry, JSON.stringify({
+        sources: [{ name: 'test', path: source, format: 'claude-code', enabled: true }],
+      }));
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      hasSession = false;
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      hasSession = true;
+      storedRows = 0;
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      storedRows = 1;
+      declaredCount = 0;
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      declaredCount = 1;
+      archivedLast = new Date(Date.parse(old) - 1000).toISOString();
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      archivedLast = old;
+      const recentTurn = new Date().toISOString();
+      await fs.appendFile(file, JSON.stringify({ type: 'assistant', message: { content: 'reply' }, timestamp: recentTurn }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
+      const stale = new Date(Date.now() - 3 * 3600_000);
+      await fs.utimes(file, stale, stale);
+      const lagged = await target('mem.ingest').run(envFor(ctx));
+      assert.equal(lagged.status, STATUS.BROKEN);
+      assert.match(lagged.detail, /overdue or inconsistent archive state/);
+      await fs.writeFile(path.join(source, 'newer.jsonl'), JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      const link = path.join(source, 'linked.jsonl');
+      await fs.symlink(file, link);
+      const mixed = await target('mem.ingest').run(envFor(ctx));
+      assert.equal(mixed.status, STATUS.BROKEN);
+      assert.match(mixed.detail, /other file\(s\) unobservable/);
+      await fs.unlink(link);
+      declaredCount = 2;
+      storedRows = 2;
+      archivedLast = recentTurn;
+      await fs.writeFile(path.join(source, 'ignored.txt'), JSON.stringify({ type: 'user', message: { content: 'not a source' } }));
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      await fs.symlink(file, link);
+      assert.match((await target('mem.ingest').run(envFor(ctx))).detail, /not regular/);
+      await fs.unlink(link);
+      let reads = 0;
+      const raceCtx = { ...ctx, fsp: { ...fs, lstat: async (candidate) => {
+        if (candidate === file && ++reads === 2) {
+          await fs.appendFile(file, JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
+        }
+        return fs.lstat(candidate);
+      } } };
+      assert.equal((await target('mem.ingest').run(envFor(raceCtx))).status, STATUS.UNKNOWN);
+      await fs.appendFile(file, JSON.stringify({ type: 'user', message: { content: 'old unarchived turn' }, timestamp: old }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      await fs.appendFile(file, JSON.stringify({ type: 'assistant', message: { content: 'newer unarchived reply' }, timestamp: new Date().toISOString() }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      await fs.appendFile(file, JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
+      let swapped = false;
+      const swapCtx = { ...ctx, fsp: { ...fs, open: async (candidate, flags) => {
+        if (candidate === file && !swapped) {
+          swapped = true;
+          await fs.rename(file, link);
+          await fs.symlink(link, file);
+        }
+        return fs.open(candidate, flags);
+      } } };
+      const swappedVerdict = await target('mem.ingest').run(envFor(swapCtx));
+      assert.equal(swapped, true);
+      assert.equal(swappedVerdict.status, STATUS.UNKNOWN);
+      await fs.rename(source, path.join(root, 'missing-source'));
+      assert.match((await target('mem.ingest').run(envFor(ctx))).detail, /MISSING/);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 });
