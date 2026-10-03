@@ -29,6 +29,8 @@ is **not** BROKEN. Watch mode does not change the systems it observes; it writes
 and a private `~/.openclaw/.node-watch-ingest.sqlite` ledger to time import stalls across restarts.
 Pending transcript sessions stay UNKNOWN for their first two hours without archive progress,
 even when a copied transcript contains old timestamps. Archive inconsistency is BROKEN immediately.
+If a restore leaves a transcript and its archive consistently caught up at a smaller count,
+the prior ingest-lag clock clears.
 Heavy probes (LLM
 generate/embed/extract) run one-shot or with `--deep`; in the continuous loop they report
 UNKNOWN("not probed this cycle"), never a stale WORKING.

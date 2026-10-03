@@ -24,7 +24,7 @@ test('ingest lag survives restarts, ignores copied timestamps, and resets only o
       { overdue: [], lower: [] });
     assert.deepEqual(observe(entry(0), start + 5 * 3600_000), { overdue: [file], lower: [file] });
     assert.deepEqual(observe(entry(0, { pending: false }), start + 7 * 3600_000),
-      { overdue: [file], lower: [file] });
+      { overdue: [], lower: [] });
     assert.deepEqual(observe(entry(1, { pending: false }), start + 7 * 3600_000),
       { overdue: [], lower: [] });
     assert.deepEqual(observe(entry(0), start + 10 * 3600_000), { overdue: [], lower: [] });
