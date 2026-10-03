@@ -539,9 +539,12 @@ describe('mem.ingest configured-source parity', () => {
         queryDb: (_p, fn) => fn({
           prepare: (sql) => ({ get: (sessionId) => {
             if (sql.includes('MAX(timestamp)')) return { t: old };
-            if (sql.includes('SELECT message_count')) return hasSession && sessionId === 'session-1'
-              ? { message_count: declaredCount, end_time: archivedLast } : undefined;
-            if (sql.includes('WHERE session_id')) return { n: sessionId === 'session-1' ? storedRows : 0 };
+            if (sql.includes('archived_session_id')) return {
+              archived_session_id: hasSession && sessionId === 'session-1' ? sessionId : null,
+              message_count: hasSession && sessionId === 'session-1' ? declaredCount : null,
+              end_time: hasSession && sessionId === 'session-1' ? archivedLast : null,
+              actual_count: sessionId === 'session-1' ? storedRows : 0,
+            };
             return { n: 1 };
           } }),
         }),
