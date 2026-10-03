@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import pathlib
@@ -47,6 +48,28 @@ def free_port():
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0))
         return sock.getsockname()[1]
+
+
+class HealthRetryTests(unittest.TestCase):
+    def test_transient_health_timeout_retries_before_binding_same_process(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            plist = pathlib.Path(temporary) / 'agent.plist'
+            plist.write_bytes(plistlib.dumps({
+                'EnvironmentVariables': {'OWNED_HEALTH_PORT': '1234'}}))
+            adapter = OwnedLaunchdAdapter.__new__(OwnedLaunchdAdapter)
+            adapter.prior = {'mesh-agent': {'identity': {
+                'argv': ['/bin/node', '/tmp/agent'],
+                'working_directory': temporary, 'files': {}}}}
+            with patch.object(adapter, 'plist', return_value=plist), \
+                    patch.object(adapter, 'service') as service, \
+                    patch('restore_only.urllib.request.build_opener') as build:
+                build.return_value.open.side_effect = [
+                    TimeoutError('slow response'),
+                    io.BytesIO(b'{"pid":123,"ready":true}')]
+                service.return_value.bind.return_value = {'status': {'pid': 123}}
+                self.assertTrue(adapter.health('mesh-agent', {'running': True, 'pid': 123}))
+                self.assertEqual(build.return_value.open.call_count, 2)
+                service.return_value.bind.assert_called_once()
 
 
 @unittest.skipUnless(sys.platform == 'darwin', 'requires owned macOS launchd jobs')

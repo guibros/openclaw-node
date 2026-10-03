@@ -218,9 +218,18 @@ class OwnedLaunchdAdapter:
         plist = plistlib.loads(self.plist(unit).read_bytes())
         port = int(plist['EnvironmentVariables']['OWNED_HEALTH_PORT'])
         require(1 <= port <= 65535, 'owned health port differs')
-        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
-                'http://127.0.0.1:' + str(port) + '/ready', timeout=.3) as response:
-            value = json.load(response)
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        deadline = time.monotonic() + 3
+        while True:
+            try:
+                with opener.open('http://127.0.0.1:' + str(port) + '/ready',
+                                 timeout=.5) as response:
+                    value = json.load(response)
+                break
+            except OSError as error:
+                if time.monotonic() >= deadline:
+                    raise Refused('owned process health endpoint did not respond') from error
+                time.sleep(.05)
         require(value == {'pid': status['pid'], 'ready': True}, 'owned process health differs')
         binding = self.service(unit).bind(self.prior[unit]['identity']['argv'],
                                           self.prior[unit]['identity']['argv'][0],

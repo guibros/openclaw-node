@@ -895,3 +895,11 @@ node accepts four current config observations;
 35 focused tests pass. This does not establish running-process config bytes,
 physical absence, cold masters or a quiet window. Step 1.2 remains [A] at
 v1.2-pre; see step12_jetstream/NATS_CONFIG_CENSUS_20261003.md.
+
+Checkpoint 2026-10-03 10:25 EDT: PR #217's first macOS run exposed a
+transient owned-fixture health timeout during restore-only recovery; an
+unchanged exact-head rerun passed all four jobs. The owned adapter now retries
+only transport failures for a bounded three seconds before binding the same
+process identity. A transient-timeout regression and the previously failing
+owned timer recovery case pass locally. This does not alter production
+services or establish a full-node preservation window; 1.2 remains [A].
