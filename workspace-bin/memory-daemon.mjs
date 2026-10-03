@@ -564,6 +564,61 @@ function emitErrorEvent(boundary, err, sessionId) {
   );
 }
 
+/**
+ * The single completion-truth gate for every runFlush() result (protocol 4.5).
+ *
+ * Five trigger paths reach runFlush — interval, session-end ACTIVE->ENDED,
+ * pre-compression ACTIVE->IDLE, session-end IDLE->ENDED, and NATS-triggered.
+ * Only the interval path ever read `result.degraded`, so on the other four a
+ * failed LLM extraction still emitted a clean memory.synthesized event and the
+ * daemon reported success. Degradation is a completion failure, not a variant
+ * of success: it emits exactly one memory.error and suppresses the clean
+ * extract/synthesize events.
+ *
+ * `ctx.sessionId` is required rather than derived, because a degraded result
+ * returns from the regex fallback in pre-compression-flush.mjs with neither an
+ * `extraction` object nor a session id.
+ *
+ * @param {object|null} result — runFlush() return value
+ * @param {{trigger: string, sessionId: string|null, synthesisLabel?: string}} ctx
+ * @returns {{skipped: boolean, degraded: boolean, emitted: 'error'|'ok'|null, sessionId: string|null}}
+ */
+function handleFlushResult(result, ctx = {}) {
+  const trigger = ctx.trigger || 'flush';
+  const synthesisLabel = ctx.synthesisLabel || trigger;
+  const sessionId = result?.extraction?.session_id || ctx.sessionId || null;
+
+  // A missing result is indistinguishable from a failed one; never treat it as success.
+  if (!result) {
+    log(`  ${trigger}: ⚠ FLUSH RETURNED NO RESULT — treating as degraded`);
+    emitDegradeEvent(sessionId, { extraction_error: 'runFlush returned no result' });
+    return { skipped: false, degraded: true, emitted: 'error', sessionId };
+  }
+
+  // Dedup/threshold skip is not a completion — no events, no verdict.
+  if (result.skippedByCheck) {
+    return { skipped: true, degraded: false, emitted: null, sessionId };
+  }
+
+  if (result.degraded) {
+    log(
+      `  ${trigger}: ⚠ EXTRACTION DEGRADED — LLM failed, regex fallback used`
+      + (result.fallback_path ? ` (diverted to ${result.fallback_path}; structured MEMORY.md protected)` : '')
+      + `: ${result.extraction_error || ''}`
+    );
+    emitDegradeEvent(sessionId, result);
+    return { skipped: false, degraded: true, emitted: 'error', sessionId };
+  }
+
+  if (result.extraction) {
+    emitExtractEvent(result.extraction.session_id || sessionId, result.extraction);
+  }
+  if (result.synthesis) {
+    emitSynthesizeEvent(result.synthesis.session_id || sessionId, synthesisLabel, result.synthesis);
+  }
+  return { skipped: false, degraded: false, emitted: 'ok', sessionId };
+}
+
 function initMemoryBudget(config) {
   if (memoryBudget) return memoryBudget;
   memoryBudget = createBudget(config.workspace || WORKSPACE, {
@@ -1114,16 +1169,11 @@ async function runPhase2ThrottledWork(config, sessionState) {
             charBudget: budget.charBudget,
           }));
           log(`  Phase 2: interval synthesis [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added`);
-          if (result.degraded) {
-            log(`  Phase 2: ⚠ EXTRACTION DEGRADED — LLM failed, regex fallback used${result.fallback_path ? ` (diverted to ${result.fallback_path}; structured MEMORY.md protected)` : ''}: ${result.extraction_error || ''}`);
-            emitDegradeEvent(result.extraction?.session_id || path.basename(currentJsonl, '.jsonl'), result);
-          }
-          if (result.extraction) {
-            emitExtractEvent(result.extraction.session_id, result.extraction);
-          }
-          if (result.synthesis) {
-            emitSynthesizeEvent(result.synthesis.session_id, 'interval', result.synthesis);
-          }
+          handleFlushResult(result, {
+            trigger: 'Phase 2: interval synthesis',
+            sessionId: path.basename(currentJsonl, '.jsonl'),
+            synthesisLabel: 'interval',
+          });
           if (memoryBudget && (result.added > 0 || result.merged > 0)) {
             memoryBudget.reload();
           }
@@ -1135,6 +1185,13 @@ async function runPhase2ThrottledWork(config, sessionState) {
   if (stage1.length > 0) {
     await Promise.allSettled(stage1);
   }
+
+  saveThrottleState(throttle);
+}
+
+async function runNodeVaultMaintenance(config) {
+  const now = Date.now();
+  const throttle = loadThrottleState();
 
   // Stage 2: Obsidian sync — runs AFTER stage 1 so fresh ClawVault data,
   // trust-registry updates, and recaps are all picked up and pushed to vault.
@@ -1162,7 +1219,6 @@ async function runPhase2ThrottledWork(config, sessionState) {
     } catch (e) { log(`  Phase 2: graph-cache refresh failed: ${e.message}`); emitErrorEvent('graph_cache_refresh', e); }
   }
 
-  // Always persist throttle timestamps (Obsidian sync updates outside stage1)
   saveThrottleState(throttle);
 }
 
@@ -1189,11 +1245,12 @@ async function handleTransitions(transitions, config) {
           const result = await serializeFlush(() => runFlushInWorker(endingJsonl, memoryMd, {
             charBudget: budget.charBudget,
           }));
-          if (result.extraction) {
-            emitExtractEvent(result.extraction.session_id, result.extraction);
-          }
-          if (result.synthesis) {
-            emitSynthesizeEvent(result.synthesis.session_id, 'session_end', result.synthesis);
+          const verdict = handleFlushResult(result, {
+            trigger: 'session-end synthesis',
+            sessionId: t.sessionId,
+            synthesisLabel: 'session_end',
+          });
+          if (!verdict.degraded && result.synthesis) {
             log(`  session-end synthesis [${result.mode}]: ${result.synthesis.artifacts_written.length} artifacts, ${result.synthesis.duration_ms}ms`);
           }
         } catch (e) { log(`  session-end synthesis failed: ${e.message}`); emitErrorEvent('extract', e, t.sessionId); }
@@ -1240,14 +1297,13 @@ async function handleTransitions(transitions, config) {
           if (!result.skippedByCheck) {
             log(`  pre-compression flush triggered (${result.check?.pctUsed}% of ${result.check?.threshold} token threshold)`);
             log(`  flush [${result.mode || 'regex'}]: ${result.facts} facts found, ${result.added} added, ${result.merged} merged, ${result.skipped} skipped`);
-            if (result.extraction) {
-              emitExtractEvent(result.extraction.session_id, result.extraction);
-            }
-            if (result.synthesis) {
-              // R10 (repair 2.11): this is the ACTIVE→IDLE pre-compression
-              // flush — its own label, not 'interval'.
-              emitSynthesizeEvent(result.synthesis.session_id, 'idle', result.synthesis);
-            }
+            // R10 (repair 2.11): this is the ACTIVE→IDLE pre-compression
+            // flush — its own label, not 'interval'.
+            handleFlushResult(result, {
+              trigger: 'pre-compression flush',
+              sessionId: path.basename(currentJsonl, '.jsonl'),
+              synthesisLabel: 'idle',
+            });
             if (memoryBudget && (result.added > 0 || result.merged > 0)) {
               memoryBudget.reload();
               log('  memory-budget: snapshot reloaded after flush');
@@ -1288,11 +1344,12 @@ async function handleTransitions(transitions, config) {
           const result = await serializeFlush(() => runFlushInWorker(currentJsonl, memoryMd, {
             charBudget: budget.charBudget,
           }));
-          if (result.extraction) {
-            emitExtractEvent(result.extraction.session_id, result.extraction);
-          }
-          if (result.synthesis) {
-            emitSynthesizeEvent(result.synthesis.session_id, 'session_end', result.synthesis);
+          const verdict = handleFlushResult(result, {
+            trigger: 'end-of-session flush',
+            sessionId: t.sessionId || path.basename(currentJsonl, '.jsonl'),
+            synthesisLabel: 'session_end',
+          });
+          if (!verdict.degraded && result.synthesis) {
             log(`  session-end synthesis [${result.mode}]: ${result.synthesis.artifacts_written.length} artifacts, ${result.synthesis.duration_ms}ms`);
           }
           if (result.added > 0 || result.merged > 0) {
@@ -1739,12 +1796,11 @@ async function main() {
             }));
             if (!result.skippedByCheck) {
               log(`  nats-triggered flush [${result.mode || 'regex'}]: ${result.facts} facts, ${result.added} added, ${result.merged} merged`);
-              if (result.extraction) {
-                emitExtractEvent(result.extraction.session_id, result.extraction);
-              }
-              if (result.synthesis) {
-                emitSynthesizeEvent(result.synthesis.session_id, 'manual', result.synthesis);
-              }
+              handleFlushResult(result, {
+                trigger: 'nats-triggered flush',
+                sessionId: path.basename(currentJsonl, '.jsonl'),
+                synthesisLabel: 'manual',
+              });
               if (memoryBudget && (result.added > 0 || result.merged > 0)) {
                 memoryBudget.reload();
                 log('  memory-budget: snapshot reloaded after nats-triggered flush');
@@ -1939,6 +1995,7 @@ async function main() {
       if (sm.state === STATES.ACTIVE || sm.state === STATES.IDLE) {
         await runPhase2ThrottledWork(config, sm.state);
       }
+      await runNodeVaultMaintenance(config);
 
       // 6. Persist state
       saveDaemonState(sm);
@@ -1974,7 +2031,11 @@ async function main() {
   // setInterval handle above prevents Node from exiting
 }
 
-main().catch(err => {
-  console.error(`Fatal: ${err.message}`);
-  process.exit(1);
-});
+if (process.env.OPENCLAW_MEMORY_DAEMON_NO_AUTOSTART !== '1') {
+  main().catch(err => {
+    console.error(`Fatal: ${err.message}`);
+    process.exit(1);
+  });
+}
+
+export { runNodeVaultMaintenance, handleFlushResult };
