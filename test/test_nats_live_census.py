@@ -176,6 +176,9 @@ class LiveCensusTest(unittest.TestCase):
             target.write_text('include other.conf\n')
             with self.assertRaisesRegex(Refused, 'include closure'):
                 census.installed_config_census(home, os.getuid(), b'key', units)
+            target.write_text('port: $NATS_PORT\n')
+            with self.assertRaisesRegex(Refused, 'environment substitution'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
             target.write_text('authorization: secret-value\n')
             target.unlink()
             target.symlink_to(configs / 'nats.conf')

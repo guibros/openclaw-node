@@ -151,11 +151,13 @@ def config_identity(path, uid, report_key):
         raise Refused('NATS configuration changed during census')
     if re.search(rb'(?i)\binclude\b', raw):
         raise Refused('NATS configuration include closure is undeclared')
+    if b'$' in raw:
+        raise Refused('NATS configuration environment substitution is undeclared')
     return {'path': str(path), 'content_hmac_sha256': hmac.new(report_key, raw,
             hashlib.sha256).hexdigest(), 'device': before.st_dev,
             'inode': before.st_ino, 'uid': before.st_uid,
             'mode': stat.S_IMODE(before.st_mode), 'size': before.st_size,
-            'include_closure': 'no include token in current file'}
+            'include_closure': 'no include token or dollar substitution in current file'}
 
 
 def installed_config_census(home, uid, report_key, gui_units):

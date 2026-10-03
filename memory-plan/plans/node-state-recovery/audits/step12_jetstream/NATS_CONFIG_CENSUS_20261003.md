@@ -6,8 +6,8 @@ argument shape, and compares a loaded GUI job's earlier plist observation
 with the reopened installed file. Each current config must be a single-link,
 owner-owned 0600 regular file under 1 MiB. The report carries a fresh-key
 HMAC, filesystem identity and size, without publishing config bytes or a
-reusable secret hash. A config containing any `include` token refuses because
-its dependency closure has not been declared.
+reusable secret hash. A config containing any `include` token or `$` refuses
+because include and environment-substitution dependencies have not been declared.
 
 On this node, the read-only census accepted all four installed plists and
 configs. The focused live/holder suites passed 35 tests. No service, config,

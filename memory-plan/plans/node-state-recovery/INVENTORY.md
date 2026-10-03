@@ -890,7 +890,7 @@ remains open.
 
 Checkpoint 2026-10-03 09:47 EDT: the read-only legacy NATS census now binds
 all four installed GUI plists to their current private config files and
-refuses undeclared include tokens. The live node accepts four config pins;
+refuses undeclared include or substitution tokens. The live node accepts four config pins;
 35 focused tests pass. This does not establish running-process config bytes,
 physical absence, cold masters or a quiet window. Step 1.2 remains [A] at
 v1.2-pre; see step12_jetstream/NATS_CONFIG_CENSUS_20261003.md.
