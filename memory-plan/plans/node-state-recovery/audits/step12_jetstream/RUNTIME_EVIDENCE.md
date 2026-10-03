@@ -905,3 +905,50 @@ publication and verify new events. A source-only change to node-scoped subjects
 will still overlap the legacy `local.>` subject; that broad subject
 must be narrowed or retired after preservation. The migration remains behind
 the cold-master and isolated-restore gates still open in step 1.2.
+
+### Node-watch ingest correction and structural recapture — 2026-10-03 11:48 EDT
+
+The installed node-watch still used an older mtime-based ingest grade and
+reported a 648-hour lag. The current merged source, run against a private
+SQLite backup and the configured transcripts, instead found that all 11
+configured session turn counts and last timestamps matched the archive. A
+private release was copied from `4bc1b9361236ec81140fad636424934d73ae75ad`;
+its manifest SHA-256 is
+`dafa9459504b38d5aa837d3dc8f1fe700fb3915613d0eee1efccc87780cbbedb`.
+The generated event-schema output was byte-identical across two builds. The
+release retains a shared, mutable third-party `node_modules` link, recorded
+as a limitation in its manifest.
+
+An isolated HOME/DB run and a disposable launchd job both graded `mem.ingest`
+WORKING. The first attempt to reload the live node-watch label through
+`launchctl bootstrap` returned EIO; the old plist was restored byte-for-byte
+and the old job was loaded and observed running. A subsequent controlled
+bootout, wait for the label to disappear, and `launchctl load` of the new
+plist succeeded. The installed plist changed only `ProgramArguments[1]` from
+the old release to the new release. Its SHA-256 changed from
+`f5b934c3d0a84a058a02bc5944144d4d5dd88c0623bd3a3fca79e46fa65d640b`
+to `0fa1cf482b6c2ba470eb45a3e2b8ed8c377095ad5193a7e20a4ad97f031daf7a`.
+The old plist backup and release remain available. The loaded job was running
+as PID 77468, with the new release path in launchd's actual arguments.
+
+Four live watch reports at 15:44:36, 15:45:38, 15:46:38 and 15:48:38 UTC
+graded `mem.ingest` WORKING for the same 11 sessions. At the last report,
+the node had 22 WORKING, 4 BROKEN, 3 OFF and 7 UNKNOWN signals. `net.stream`
+remains BROKEN because the current-node stream is absent on the standalone
+bus; the old historical and cluster histories remain separate and untouched.
+
+The fresh source-owned entrypoint preflight accepted 23 installed jobs,
+21 GUI-loaded jobs and no user- or system-loaded cohort jobs; Tailscale was
+the sole verified exclusion. Against the October 2 recapture, only the
+node-watch plist hash changed, and all other prior direct file hashes matched.
+Both host-Ollama plist hashes remained `d0d01eadea697fdb9c4b43bf3db02846c27ebe09f745bc18cc38a1ade78baa0d`
+and `a3fb84ea54bc02e8e7b311a2d19d1a8c601d2d511e4baa93b97fb92a3eba0104`;
+the private env file remained mode 0600 with the same URL. The sanitized
+`POST_WATCHER_BASELINE_RECAPTURE_20261003.json` has SHA-256
+`2cc18876e6942f97e6ed284007f4aef8fae4431d76485b11c91f5f412048895b`.
+
+This is a point-in-time structural recapture and a live watcher correction,
+not a full-node Journal baseline. It does not establish transitive dependency
+pinning, continuous process provenance or physical writer exclusion. No NATS
+history was copied, sealed or migrated. Step 1.2 remains active at
+`v1.2-pre`.
