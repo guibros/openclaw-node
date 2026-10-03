@@ -184,6 +184,8 @@ have matching state/config and durable positions; the two unavailable cluster
 assignments still return 500/10118. Expiring health streams are separate.
 Cluster local-events-node has 55,173 messages and durable delivered/ack 55,137,
 with 36 pending and zero ack-pending, unchanged from that older snapshot.
+This is the same stream later observed by its full name,
+`local-events-moltymacs-virtual-machine`, not another cluster stream.
 The stopped member-1 master content hashes and all private/immutable flags
 match. This does not prove every acknowledgement immediately before the crash.
 
@@ -845,3 +847,61 @@ health-watch, consolidation-scheduler and memory-daemon, but the installed
 plists retain their older shapes. Re-rendering from main changes at least
 four of the 23 pinned plist hashes and requires a new capture. Step 1.2
 remains active at `v1.2-pre`.
+
+### Local event-stream overlap — read-only, 2026-10-02 23:17–23:23 EDT
+
+The existing node-watch snapshot at 23:17:45 EDT reported `net.stream`
+BROKEN: `local-events-moltymacs-virtual-machine` was not found. An
+authenticated read-only JetStream list on the standalone `127.0.0.1:4222`
+bus returned only `local-events-daedalus` among `local-events-*` streams.
+Its configuration owns `local.>` and its state reports 24,286
+messages, first at 2026-05-29T23:28:39Z and newest retained at
+2026-07-14T23:33:25Z. The installed node-watch, memory-daemon, mesh-agent
+and consolidation-scheduler plists all declare
+`OPENCLAW_NODE_ID=moltymacs-virtual-machine`; this is not a lone watcher
+misconfiguration. The memory-daemon log after its 2026-10-01 22:34 restart
+records `Local event log unavailable (subjects overlap with an existing
+stream)`. In `lib/local-event-log.mjs`, `createLocalEventLog` assigns the
+same `local.>` subject to each per-node stream name. That source behavior
+is consistent with the live daemon's logged overlap error, though the running
+daemon file differs from committed source. A second stream on this server
+cannot own that subject while the historical stream owns it.
+
+Protocol step 4.1's AUDIT_PRE.md:19 and AUDIT_POST.md:24-27 observed
+`local-events-moltymacs-virtual-machine` present, initialized by a restarted
+memory daemon and graded WORKING in August under an R=3 topology. A further
+authenticated read-only JetStream check at 23:40 through the still-running
+cluster members' APIs at `127.0.0.1:4223` and `:4224` found the exact
+`local-events-moltymacs-virtual-machine` stream. Its configuration owns
+`local.>`, has `num_replicas=1`, and reports nats-3 as leader. The stream has
+one stored replica on nats-3; both API queries reported the same 55,173
+retained messages, sequence 1–55,173, first at
+2026-07-16T20:46:15Z and newest at 2026-09-23T18:11:02Z. The current-node
+history therefore survives on the cluster; it is absent only from the
+standalone bus queried above. The 4.1 observation is consistent with this
+topology split. Publication to the cluster stream stopped by that newest
+message time; the daemon now targets the standalone bus. The cause and date
+of that switch are not established. This failure does not reopen the
+dotted-name source fix.
+Preserve and restore the cluster history as well as the older `daedalus`
+history before migrating subjects.
+
+The private 2026-09-28 `cluster-online/manifest.json` records a completed
+official snapshot of the current-node stream with 55,173 messages and last
+sequence 55,173. The separate `standalone-online/manifest.json` records the
+older `daedalus` stream with 24,286 messages and last sequence 24,286. Those
+counts still match the live metadata observed above. The two archives are
+point-in-time, separate-server evidence. An earlier qualified isolated restore
+of these online archives is recorded above; this comparison does not create
+the healthy cold masters or isolated restores required by step 1.2, or
+establish a common quiet window.
+
+A private candidate that changed only node-watch's node ID to `daedalus`
+was prepared but **not installed or loaded**. It would make an old stream
+look current and leave publication disabled. Neither a NATS stream nor any
+live plist, service or model was changed. The required order is to preserve and
+restore both histories before changing subjects, then establish current-node
+publication and verify new events. A source-only change to node-scoped subjects
+will still overlap the legacy `local.>` subject; that broad subject
+must be narrowed or retired after preservation. The migration remains behind
+the cold-master and isolated-restore gates still open in step 1.2.
