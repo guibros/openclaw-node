@@ -516,7 +516,8 @@ describe('mem.ingest configured-source parity', () => {
       const source = path.join(root, 'transcripts');
       await fs.mkdir(path.join(home, 'config'), { recursive: true });
       await fs.mkdir(source);
-      await fs.writeFile(path.join(home, 'config', 'transcript-sources.json'), JSON.stringify({
+      const registry = path.join(home, 'config', 'transcript-sources.json');
+      await fs.writeFile(registry, JSON.stringify({
         sources: [{ name: 'test', path: source, format: 'claude-code', enabled: true }],
       }));
       const file = path.join(source, 'session-1.jsonl');
@@ -546,6 +547,14 @@ describe('mem.ingest configured-source parity', () => {
         }),
       });
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      await fs.writeFile(registry, JSON.stringify({
+        sources: [{ name: 'test', path: source, format: 'openclaw-gateway', enabled: true }],
+      }));
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      await fs.writeFile(registry, JSON.stringify({
+        sources: [{ name: 'test', path: source, format: 'claude-code', enabled: true }],
+      }));
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
       hasSession = false;
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
       hasSession = true;
@@ -565,7 +574,7 @@ describe('mem.ingest configured-source parity', () => {
       await fs.utimes(file, stale, stale);
       const lagged = await target('mem.ingest').run(envFor(ctx));
       assert.equal(lagged.status, STATUS.BROKEN);
-      assert.match(lagged.detail, /differ from the archive/);
+      assert.match(lagged.detail, /overdue or inconsistent archive state/);
       await fs.writeFile(path.join(source, 'newer.jsonl'), JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
       const link = path.join(source, 'linked.jsonl');
@@ -591,6 +600,8 @@ describe('mem.ingest configured-source parity', () => {
       } } };
       assert.equal((await target('mem.ingest').run(envFor(raceCtx))).status, STATUS.UNKNOWN);
       await fs.appendFile(file, JSON.stringify({ type: 'user', message: { content: 'old unarchived turn' }, timestamp: old }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      await fs.appendFile(file, JSON.stringify({ type: 'assistant', message: { content: 'newer unarchived reply' }, timestamp: new Date().toISOString() }) + '\n');
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
       await fs.appendFile(file, JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
       let swapped = false;
