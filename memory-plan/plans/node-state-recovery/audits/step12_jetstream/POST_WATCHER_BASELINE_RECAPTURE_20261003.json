@@ -1,0 +1,113 @@
+{
+  "entrypoint_preflight": {
+    "accepted": true,
+    "disabled_artifact_count": 11,
+    "excluded": [
+      "com.openclaw.tailscale-up"
+    ],
+    "installed_count": 23,
+    "loaded_counts": {
+      "gui": 21,
+      "system": 0,
+      "user": 0
+    }
+  },
+  "host_ollama": {
+    "plists": {
+      "memory-daemon": {
+        "host_url_matches": true,
+        "plist_sha256": "a3fb84ea54bc02e8e7b311a2d19d1a8c601d2d511e4baa93b97fb92a3eba0104"
+      },
+      "mesh-agent": {
+        "host_url_matches": true,
+        "plist_sha256": "d0d01eadea697fdb9c4b43bf3db02846c27ebe09f745bc18cc38a1ade78baa0d"
+      }
+    },
+    "private_env_host_url_matches": true,
+    "private_env_mode": "0600"
+  },
+  "installed_plist_sha256": {
+    "ai.openclaw.consolidation-scheduler": "7a71838185680e371aad3193947aff4dc1604278110deca879a98fe641a201e4",
+    "ai.openclaw.federation-tick": "4e2e8196eea05df4ce513d22018d3e318675f832ee70e952a4c72eb7fde15133",
+    "ai.openclaw.gateway": "6212f92dd85d69be499f222fb433f1d755c651248d003e735302f6e9f9188091",
+    "ai.openclaw.health-watch": "fa2f9e38454d2341ac70e305ca77f0864dda308abbfd140dce45ee0b40f77123",
+    "ai.openclaw.lane-watchdog": "d4e0f0cf53ea72bbf8cbab20ac785ac00e150977749f462fc64a3f70c36ccfc9",
+    "ai.openclaw.log-rotate": "2f08e2c68b4009222827888a250a05870c610d323c5b8e02332646bbd024eb9f",
+    "ai.openclaw.memory-daemon": "a3fb84ea54bc02e8e7b311a2d19d1a8c601d2d511e4baa93b97fb92a3eba0104",
+    "ai.openclaw.mesh-agent": "d0d01eadea697fdb9c4b43bf3db02846c27ebe09f745bc18cc38a1ade78baa0d",
+    "ai.openclaw.mesh-bridge": "48af7a5863df2d67fe71ab084b655e90298e613186bf0e125bb80afd025025df",
+    "ai.openclaw.mesh-deploy-listener": "c434b6fdffef4713e47d49e58c5e66eeb1f93c2eba0bfac4e1589cf808410da4",
+    "ai.openclaw.mesh-health-publisher": "d53af50a0563bc9dd710cb42d9f83a7dcfce80c9dc5eca07f44f60c55a7b12e9",
+    "ai.openclaw.mesh-task-daemon": "3a07bb90777dbaf6c442cf902c0ef8c0f94ff8e7343837784c5f2a2fad578402",
+    "ai.openclaw.mesh-tool-discord": "6f53257453c9e8351d6c361840d474fc2be38f5548ce51bc635d446de430f67c",
+    "ai.openclaw.mission-control": "0c30956ba8159d7f19e0243bf0081bb7507ee41fe8983e330a8224def5c4ff78",
+    "ai.openclaw.nats": "60405a897771454b3e3d6a5bcda818eee2592d08e5990bda03856a4b4d5bf9c4",
+    "ai.openclaw.nats-1": "24107585b642829c6323109370167706e4e84b916a28b60bfad8cb987ebef206",
+    "ai.openclaw.nats-2": "ac3d1784844b536a1c24d3487527efeffa05f3bc6ea098cc027890b70e7ad72a",
+    "ai.openclaw.nats-3": "07779cc9708447e540a8209fd4c8601e87ac97f97f1aa20109d8cf036e269705",
+    "ai.openclaw.node-watch": "0fa1cf482b6c2ba470eb45a3e2b8ed8c377095ad5193a7e20a4ad97f031daf7a",
+    "ai.openclaw.observer": "55aab77dedc5465054ec3cd6e3defa504737bef63ff44eff1b11bc6f6551516d",
+    "ai.openclaw.scheduler-heartbeat": "7dd2d6733bc5a5924c5106e471126931515ef5e3801f6eb2fe924f23fa126ec9",
+    "ai.openclaw.transcript-archive": "6f0e7711f17df8144835dc9d9b591567a84fca3be8434bbe839c943c3559fe7c",
+    "ai.openclaw.workplan-viewer": "6d2c46a7b599e9b5f5c4a0cee4cbd839c46783dac617ad78f611ac74fedf1324"
+  },
+  "limits": [
+    "point-in-time structural and direct-file evidence only",
+    "shared mutable third-party dependency tree is not transitively pinned",
+    "no continuous launchd/process or physical-writer exclusion",
+    "no full-node journal, common quiet window, healthy cold masters or isolated restores",
+    "step 1.2 remains active at v1.2-pre"
+  ],
+  "node_watch": {
+    "entry_sha256": "367acda5a2e245c5b564d472d7f97b5886defe3f84cd0a189e678cad67d9a71b",
+    "launchd_pid": 77468,
+    "launchd_running": true,
+    "loaded_entry": "/Users/moltymac/.openclaw/releases/node-watch-ingest-4bc1b936/bin/node-watch.mjs",
+    "old_plist_backup": "/Users/moltymac/.openclaw/backups/node-watch/ai.openclaw.node-watch.plist.1791042273.bak",
+    "old_release_retained": true,
+    "plist_sha256": "0fa1cf482b6c2ba470eb45a3e2b8ed8c377095ad5193a7e20a4ad97f031daf7a",
+    "release_manifest_mode": "0600",
+    "release_manifest_sha256": "dafa9459504b38d5aa837d3dc8f1fe700fb3915613d0eee1efccc87780cbbedb",
+    "shared_mutable_node_modules": true
+  },
+  "observed_at": "2026-10-03T11:48:58.421771-04:00",
+  "other_prior_direct_file_hashes_unchanged": true,
+  "plist_changes_since_prior": [
+    {
+      "after": "0fa1cf482b6c2ba470eb45a3e2b8ed8c377095ad5193a7e20a4ad97f031daf7a",
+      "before": "f5b934c3d0a84a058a02bc5944144d4d5dd88c0623bd3a3fca79e46fa65d640b",
+      "unit": "node-watch"
+    }
+  ],
+  "prior_baseline_sha256": "6b574a510c5dbe1bee3bce718a6d6f873cbf2739dd0b07d611336316fa00d550",
+  "source_commit": "4bc1b9361236ec81140fad636424934d73ae75ad",
+  "type": "read-only post-deployment full-node structural recapture; no seal or preservation authorization",
+  "watch_reports": [
+    {
+      "matching_configured_sessions": 11,
+      "mem_ingest": "WORKING",
+      "timestamp": "2026-10-03T15:44:36.693Z"
+    },
+    {
+      "matching_configured_sessions": 11,
+      "mem_ingest": "WORKING",
+      "timestamp": "2026-10-03T15:45:38.992Z"
+    },
+    {
+      "matching_configured_sessions": 11,
+      "mem_ingest": "WORKING",
+      "timestamp": "2026-10-03T15:46:38.880Z"
+    },
+    {
+      "counts": {
+        "BROKEN": 4,
+        "OFF": 3,
+        "UNKNOWN": 7,
+        "WORKING": 22
+      },
+      "matching_configured_sessions": 11,
+      "mem_ingest": "WORKING",
+      "timestamp": "2026-10-03T15:48:38.575Z"
+    }
+  ]
+}
