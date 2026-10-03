@@ -14,6 +14,11 @@ from nats_root_lock import Refused
 
 LEGACY_LABELS = ('ai.openclaw.nats', 'ai.openclaw.nats-1',
                  'ai.openclaw.nats-2', 'ai.openclaw.nats-3')
+LISTENER_PORTS = (4222, 8222, 6222, 4223, 8223, 6223, 4224, 8224, 6224)
+SERVICE_PORTS = {'ai.openclaw.nats': (4222, 8222),
+                 'ai.openclaw.nats-1': (4222, 8222, 6222),
+                 'ai.openclaw.nats-2': (4223, 8223, 6223),
+                 'ai.openclaw.nats-3': (4224, 8224, 6224)}
 
 
 def _safe_arguments(arguments):
@@ -131,6 +136,94 @@ def nats_processes():
     return processes, unreadable
 
 
+def tcp_listener_census():
+    result = {}
+    for port in LISTENER_PORTS:
+        code, output, error = _command('/usr/sbin/lsof', '-nP', f'-iTCP:{port}',
+                                       '-sTCP:LISTEN', '-Fpcn')
+        if code not in (0, 1) or error or code == 1 and output:
+            raise Refused(f'TCP listener {port} is unobservable')
+        rows = []
+        pid = command = descriptor = None
+        for line in output.splitlines():
+            field, value = line[:1], line[1:]
+            if field == 'p':
+                if not value.isdecimal():
+                    raise Refused(f'TCP listener {port} has an invalid PID')
+                pid, command, descriptor = int(value), None, None
+            elif field == 'c':
+                command = value
+            elif field == 'f':
+                descriptor = value
+            elif field == 'n':
+                if pid is None or command is None or descriptor is None:
+                    raise Refused(f'TCP listener {port} has incomplete process identity')
+                rows.append({'pid': pid, 'command': command,
+                             'descriptor': descriptor, 'address': value})
+        if code == 0 and not rows or len(rows) > 1:
+            raise Refused(f'TCP listener {port} is ambiguous')
+        if rows and (rows[0]['address'] != f'127.0.0.1:{port}'
+                     or rows[0]['command'] != 'nats-server'):
+            raise Refused(f'TCP listener {port} is not the expected loopback NATS server')
+        result[str(port)] = rows[0] if rows else None
+    return result
+
+
+def tcp_socket_census():
+    code, output, error = _command('/usr/sbin/netstat', '-an', '-p', 'tcp')
+    if code or error or 'Proto Recv-Q Send-Q  Local Address' not in output:
+        raise Refused('system TCP listening sockets are unobservable')
+    result = {str(port): [] for port in LISTENER_PORTS}
+    for line in output.splitlines():
+        parts = line.split()
+        if not parts or parts[-1] != 'LISTEN' or not parts[0].startswith('tcp'):
+            continue
+        if len(parts) < 6:
+            raise Refused('system TCP listening row is incomplete')
+        local = parts[3]
+        address, separator, port = local.rpartition('.')
+        if not separator or not port.isdecimal():
+            raise Refused('system TCP listening address is unobservable')
+        if port in result:
+            result[port].append((parts[0], address))
+    for port, sockets in result.items():
+        if len(sockets) > 1 or sockets and sockets[0] != ('tcp4', '127.0.0.1'):
+            raise Refused(f'system TCP listener {port} differs from loopback cohort')
+    return {port: bool(sockets) for port, sockets in result.items()}
+
+
+def verify_socket_visibility(listeners, sockets):
+    if set(listeners) != set(sockets) or any((listener is not None) != sockets[port]
+                                             for port, listener in listeners.items()):
+        raise Refused('lsof and system TCP listener views differ')
+    return True
+
+
+def verify_listener_owners(units, system, processes, listeners):
+    by_pid = {process['pid']: process for process in processes}
+    running = [(label, service) for domain in (units, system)
+               for label, service in domain.items()
+               if service['loaded'] and service['state'] == 'running']
+    for port in LISTENER_PORTS:
+        if sum(domain[label]['loaded'] for domain in (units, system)
+               for label, ports in SERVICE_PORTS.items() if port in ports) > 1:
+            raise Refused(f'loaded NATS jobs compete for TCP listener {port}')
+    for port, listener in listeners.items():
+        if listener is not None and (listener['pid'] not in by_pid or
+                                     len([label for label, service in running
+                                          if int(port) in SERVICE_PORTS[label]
+                                          and service['pid'] == listener['pid']]) != 1):
+            raise Refused(f'TCP listener {port} has no bound launchd NATS process identity')
+    for domain in (units, system):
+        for label, ports in SERVICE_PORTS.items():
+            unit = domain[label]
+            if unit['loaded'] and unit['state'] == 'running':
+                if any(listeners[str(port)] is None or
+                       listeners[str(port)]['pid'] != unit['pid'] for port in ports):
+                    raise Refused(f'launchd service {label} does not own its client and monitor listeners')
+    return True
+
+
 def store_identity(path):
     root = Path(path)
     info = root.lstat()
@@ -200,7 +293,10 @@ def _observe(user_uid, user_home):
         service = launchd_service(gui, label)
         service['disabled'] = overrides[label]
         units[label] = service
+    system_overrides = disabled_overrides('system')
     system = {label: launchd_service('system', label) for label in LEGACY_LABELS}
+    for label in LEGACY_LABELS:
+        system[label]['disabled'] = system_overrides[label]
     processes, unreadable = nats_processes()
     by_pid = {process['pid']: process for process in processes}
     for domain_units in (units, system):
@@ -224,6 +320,10 @@ def _observe(user_uid, user_home):
             del plist['argv']
             del service['arguments']
             service['plist_identity'] = plist
+    listeners = tcp_listener_census()
+    sockets = tcp_socket_census()
+    verify_socket_visibility(listeners, sockets)
+    verify_listener_owners(units, system, processes, listeners)
     stores = {}
     for suffix in ('', '-1', '-2', '-3'):
         label = 'ai.openclaw.nats' + suffix
@@ -265,7 +365,9 @@ def _observe(user_uid, user_home):
                          'processes': 'readable processes named nats-server',
                          'vnode_holders': 'open descriptors, mapped files and working directories of those processes only; linked store entries only',
                          'process_identity': 'PID and start time stable within each snapshot, not across the full scan',
+                         'listener_ports': 'nine named ports, separately read with lsof and system netstat; listening state only, no connected-client, future-owner, atomic or physical absence claim',
                          'single_instant': False, 'physical_absence_certified': False},
             'gui': units, 'system': system,
             'processes': summaries, 'unreadable_pids': unreadable,
+            'listeners': listeners, 'system_sockets': sockets,
             'stores': stores}
