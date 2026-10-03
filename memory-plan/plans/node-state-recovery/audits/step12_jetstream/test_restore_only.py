@@ -107,7 +107,7 @@ class HealthRetryTests(unittest.TestCase):
                     adapter.health('mesh-agent', {'running': True, 'pid': 123})
 
                 service.return_value.bind.reset_mock()
-                for body in (b'{"pid":123.0,"ready":true}',
+                for body in (b'[]', b'{"pid":123.0,"ready":true}',
                              b'{"pid":123,"ready":1}',
                              b'{"pid":true,"ready":true}'):
                     with self.subTest(body=body):

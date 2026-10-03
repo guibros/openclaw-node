@@ -917,6 +917,7 @@ services or establish a full-node preservation window; 1.2 remains [A].
 Checkpoint 2026-10-03 10:48 EDT: PR #219 merged after exact-head CI passed
 4/4 and Claude found no blocker in the bounded owned health retry. A follow-up
 owned-only control refuses redirects and non-boolean or non-integer health
-fields before accepting the restored process. Its focused controls pass; full
-owned suite and review remain pending. Neither change certifies a production
-quiet window or changes live services; step 1.2 remains [A]/v1.2-pre.
+fields before accepting the restored process. The owned suite passed 30/30,
+exact-head CI passed 4/4, and Claude found no blocker. Neither change
+certifies a production quiet window or changes live services; step 1.2
+remains [A]/v1.2-pre.
