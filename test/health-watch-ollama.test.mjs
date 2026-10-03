@@ -5,13 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { maybeAutoRestartOllama } from '../bin/health-watch.mjs';
 
-function stuckSnapshot(dir, llmBaseUrl) {
+function stuckSnapshot(dir, llmBaseUrl, llmModel = 'qwen3:8b') {
   const path = join(dir, 'queue.json');
   writeFileSync(path, JSON.stringify({
     ts: Date.now(),
     llm_base_url: llmBaseUrl,
+    llm_model: llmModel,
     consecutive_timeouts: { extraction: 3, analysis: 0 },
-    current_job: { model: 'qwen3:8b' },
+    current_job: null,
   }));
   return path;
 }
@@ -92,6 +93,28 @@ it('does not evict local Ollama for a stuck remote daemon', async () => {
   } finally {
     if (previousUrl === undefined) delete process.env.LLM_BASE_URL;
     else process.env.LLM_BASE_URL = previousUrl;
+    globalThis.fetch = previousFetch;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+it('does not evict a different local model after a timeout clears the current job', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'health-watch-model-'));
+  const previousUrl = process.env.LLM_BASE_URL;
+  const previousModel = process.env.LLM_MODEL;
+  const previousFetch = globalThis.fetch;
+  let requests = 0;
+  try {
+    process.env.LLM_BASE_URL = 'http://localhost:11434';
+    process.env.LLM_MODEL = 'qwen3:8b';
+    globalThis.fetch = () => { requests++; return Promise.resolve({ ok: true }); };
+    assert.equal(await maybeAutoRestartOllama(stuckSnapshot(dir, process.env.LLM_BASE_URL, 'other:7b')), false);
+    assert.equal(requests, 0);
+  } finally {
+    if (previousUrl === undefined) delete process.env.LLM_BASE_URL;
+    else process.env.LLM_BASE_URL = previousUrl;
+    if (previousModel === undefined) delete process.env.LLM_MODEL;
+    else process.env.LLM_MODEL = previousModel;
     globalThis.fetch = previousFetch;
     rmSync(dir, { recursive: true, force: true });
   }

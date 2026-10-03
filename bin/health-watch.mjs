@@ -149,6 +149,11 @@ export async function maybeAutoRestartOllama(snapshotPath) {
     console.warn('[health-watch] Ollama appears stuck, but the daemon endpoint does not match the recovery endpoint');
     return false;
   }
+  const model = process.env.LLM_MODEL || 'qwen3:8b';
+  if (snapshot.llm_model !== model || (snapshot.current_job?.model && snapshot.current_job.model !== model)) {
+    console.warn('[health-watch] Ollama appears stuck, but the daemon model does not match the recovery model');
+    return false;
+  }
   let local = false;
   try {
     const url = new URL(baseUrl);
@@ -167,7 +172,6 @@ export async function maybeAutoRestartOllama(snapshotPath) {
     return false;
   }
 
-  const model = snapshot.current_job?.model || process.env.LLM_MODEL || 'qwen3:8b';
   console.warn(`[health-watch] daemon's Ollama appears stuck (consecutive_timeouts=${JSON.stringify(snapshot.consecutive_timeouts)}). Unloading ${model} via keep_alive:0.`);
 
   try {

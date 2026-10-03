@@ -524,6 +524,7 @@ describe('cross-process snapshot (R12, repair 3.3)', () => {
     const written = exportStateSnapshot(file);
     assert.equal(written.pid, process.pid);
     assert.equal(written.llm_base_url, process.env.LLM_BASE_URL || 'http://localhost:11434');
+    assert.equal(written.llm_model, process.env.LLM_MODEL || 'qwen3:8b');
 
     const read = readStateSnapshot(file);
     assert.ok(read, 'fresh snapshot must read back');
@@ -531,6 +532,26 @@ describe('cross-process snapshot (R12, repair 3.3)', () => {
     assert.equal(read.pid, process.pid);
 
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('exports the configured daemon endpoint', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'queue-endpoint-'));
+    const file = join(dir, 'state.json');
+    const previousUrl = process.env.LLM_BASE_URL;
+    const previousModel = process.env.LLM_MODEL;
+    try {
+      process.env.LLM_BASE_URL = 'http://192.168.64.1:11434';
+      process.env.LLM_MODEL = 'test-model:7b';
+      assert.equal(exportStateSnapshot(file).llm_base_url, 'http://192.168.64.1:11434');
+      assert.equal(readStateSnapshot(file).llm_base_url, 'http://192.168.64.1:11434');
+      assert.equal(readStateSnapshot(file).llm_model, 'test-model:7b');
+    } finally {
+      if (previousUrl === undefined) delete process.env.LLM_BASE_URL;
+      else process.env.LLM_BASE_URL = previousUrl;
+      if (previousModel === undefined) delete process.env.LLM_MODEL;
+      else process.env.LLM_MODEL = previousModel;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('stale or missing snapshots read as null — never as "idle"', () => {
