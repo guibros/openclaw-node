@@ -81,6 +81,8 @@ fi
 export MESH_LLM_PROVIDER="${OPENCLAW_PROVIDER:-${MESH_LLM_PROVIDER:-}}"
 export LLM_MODEL="${LLM_MODEL:-qwen3:8b}"
 export LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:11434}"
+# Before the unit templates render: in a VM, the host's Ollama (llm-host.sh).
+$SKIP_LLM || bridge_llm_to_host || true
 
 # Set defaults for template substitution
 export OPENCLAW_NODE_ID="${OPENCLAW_NODE_ID:-$(hostname -s)}"

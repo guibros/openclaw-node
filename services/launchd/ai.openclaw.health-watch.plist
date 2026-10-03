@@ -33,6 +33,10 @@
       <string>${OPENCLAW_NATS}</string>
       <key>OPENCLAW_NODE_ID</key>
       <string>daedalus</string>
+      <key>LLM_MODEL</key>
+      <string>${LLM_MODEL}</string>
+      <key>LLM_BASE_URL</key>
+      <string>${LLM_BASE_URL}</string>
       <key>HEALTH_WATCH_INTERVAL_SEC</key>
       <string>60</string>
     </dict>

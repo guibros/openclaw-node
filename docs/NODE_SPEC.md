@@ -74,7 +74,7 @@ Written to `~/.openclaw/openclaw.env` by install (generated where marked ⚙; RA
 | `OPENCLAW_NODE_ROLE` | macOS `lead` / Linux `worker` | | service-manifest role filter | which units install |
 | `MESH_LLM_PROVIDER` | none (chosen at install) | ⚙ | `lib/llm-providers.js` → mesh-agent | the node's mind: claude · openai (codex) · gemini · deepseek · kimi · minimax · aider · ollama · shell. `install.sh --provider=NAME`, the install prompt, or a CLI on PATH; D11 still refuses local models for grappe workers |
 | `LLM_MODEL` | `qwen3:8b` ⚖ | ⚙ | llm-client (extraction) + probes | the local model tag — extraction/probe organ ONLY, never a grappe worker's mind (D11) |
-| `LLM_BASE_URL` | `http://localhost:11434` | ⚙ | llm-client, probes | ollama endpoint |
+| `LLM_BASE_URL` | `http://localhost:11434` | ⚙ | llm-client, probes | ollama endpoint. In a VM whose host serves Ollama with `LLM_MODEL`, install.sh points it at the host through the VM's gateway, and nothing runs or downloads in the VM (`scripts/install/llm-host.sh`). `OPENCLAW_LLM_HOST=0` keeps a VM on its own Ollama |
 | `USE_LLM_EXTRACTION` | `true` | | pre-compression-flush | extraction mode (falls back to regex, loudly watched) |
 | `OPENCLAW_TIMEZONE` | `America/Montreal` | | timers, memory files | timestamps |
 | optional: `ANTHROPIC/OPENAI/GOOGLE_API_KEY`, `DISCORD_BOT_TOKEN`, `OBSIDIAN_API_KEY`, `KNOWLEDGE_MODEL`, `LLM_TIMEOUT`, `LLM_ANALYSIS_TIMEOUT` | — | | respective adapters | cloud/off-node extras; the core node runs with none of them |
