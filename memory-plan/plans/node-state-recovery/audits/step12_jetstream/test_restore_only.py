@@ -74,7 +74,8 @@ class HealthRetryTests(unittest.TestCase):
                 build.return_value.open.reset_mock()
                 service.return_value.bind.reset_mock()
                 build.return_value.open.side_effect = TimeoutError('still unavailable')
-                with patch('restore_only.time.monotonic', side_effect=[0, 4]):
+                with patch('restore_only.time.monotonic', side_effect=[0, 4]), \
+                        patch('restore_only.time.sleep', side_effect=AssertionError('retry did not stop')):
                     with self.assertRaisesRegex(Refused, 'did not respond'):
                         adapter.health('mesh-agent', {'running': True, 'pid': 123})
                 service.return_value.bind.assert_not_called()
