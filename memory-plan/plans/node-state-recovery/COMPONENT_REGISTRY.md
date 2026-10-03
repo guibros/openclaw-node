@@ -219,3 +219,23 @@ current daemon's standalone path cannot publish while `daedalus` owns
 migration. Publication to the cluster stream stopped by 2026-09-23T18:11Z;
 the daemon now targets the standalone bus, but the switch's cause and date
 are not established. This failure does not reopen the dotted-name source fix.
+
+2026-10-03 08:47 EDT — Retained server logs establish repeated ownership
+flips on the shared 4222/8222 pair: cluster member 1 won on August 24 and
+August 30; standalone won on August 26 and September 6. Member 1 restarted
+under the same ownership on September 5. The memory daemon's current-node
+event log initialized on cluster-serving observations and refused for subject
+overlap after standalone took the listener. Its current plist, an October 1
+backup with preserved July 14 modification time, and loaded launchd state
+point to port 4222, but do not exclude an intermediate rendering. The cluster
+stream's final eight messages are consolidation-decay subjects, not proof of
+which process published them.
+See `audits/step12_jetstream/PORT_4222_FORENSIC_20261003.md`. Both histories
+remain without healthy cold masters or their isolated acceptance. No service changed.
+
+2026-10-03 08:58 EDT follow-up — retained logs show member 1 winning again
+on September 22 and standalone regaining 4222 on September 25. The
+September 22–25 interval supplies a path for later cluster publications;
+the final message subjects still do not establish the publisher. The first
+retained cluster-stream message dates to July 16 and its single replica is
+on member 3; no accepted cold master holds that history. No service changed.
