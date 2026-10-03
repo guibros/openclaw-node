@@ -553,3 +553,268 @@ including a two-link pending-record refusal that preserves both names.
 Exact-head CI and adversarial review of the revised #192 are pending; the
 protected physical observer, three healthy cold masters and production
 cutover remain open at 1.2 [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 06:20 EDT: a read-only 23-unit provisional recapture
+includes the operator-approved host Ollama target `http://192.168.64.1:11434`.
+The mesh-agent and memory-daemon plists now hash to `d0d01ead…` and
+`a3fb84ea…`; the former hashes are present in Foreman backups. Memory-daemon
+PID 37477 started at 2026-10-01 22:34:32 EDT and its argv and LLM setting
+match its plist. The env file and Foreman backup remain 0600; no env-file
+digest is published. All 23 structural states match and 59 direct pins over
+29 distinct files were hashed, but the entrypoint preflight still refuses the
+two loaded unapproved system jobs. See the sanitized diagnostic and
+RUNTIME_EVIDENCE.md. The previous 20-unit capture and the 13:40 mesh-agent
+pin are stale. No full-node journal or cold master exists; 1.2 stays [A] at
+v1.2-pre. The source memory-daemon plist template and separate
+`workspace-bin/install-daemon` renderer lack `LLM_BASE_URL`, so a future
+reinstall would undo the live setting until those source gaps are fixed.
+
+Checkpoint 2026-10-02 06:50 EDT: a source-only correction now threads the
+configured `LLM_BASE_URL` through the memory-daemon launchd and systemd
+templates and the separate direct installer (macOS, systemd and pm2). The
+direct installer reads only that key from `~/.openclaw/openclaw.env` with the
+same precedence as the normal installer;
+an isolated HOME with stub service commands exercised all three render paths.
+The normal launchd template rendered and parsed with the host URL. This has not been
+installed or restarted on the live node. The 23-unit diagnostic remains
+provisional, the two system jobs still refuse preflight, and 1.2 stays [A] at
+v1.2-pre pending exact CI and adversarial review.
+
+Checkpoint 2026-10-02 07:10 EDT: PR #196 merged at 0d3237f after exact-head
+4/4 CI and Claude's no-blocker review. The source memory-daemon installers now
+preserve the saved host-Ollama URL across normal launchd/systemd installs and
+the separate macOS/systemd/pm2 path. No live service was changed. Node-init's
+mesh-agent renderer still read only the process environment, so a plain-shell
+rerun could drop that service's saved URL; a source-only correction is under
+test. The diagnostic baseline remains provisional and 1.2 stays [A].
+
+Checkpoint 2026-10-02 07:27 EDT: PR #197 merged at 5caf0b6 after exact-head
+4/4 CI and Claude's no-blocker review. Node-init now renders the mesh-agent's
+saved host-Ollama URL even when a stale localhost value is present in the
+shell. The shared env reader no longer consumes the next line after an empty
+key, while retaining its original first-duplicate rule for NATS. The live
+plists and services are unchanged; this source repair does not certify the
+23-unit diagnostic, remove the two unapproved system jobs, or close 1.2.
+
+Checkpoint 2026-10-02 08:00 EDT: the D60 source draft admits only the exact
+idle `com.openclaw.tailscale-up` system one-shot as an explicit, rechecked
+exclusion. Its launch count, plist, wrapper, signed app and boot identity are
+saved in the full-node inventory; a later run or drift refuses. The focused
+preservation suites pass 103/103 and the root transfer suite passes 10/10;
+read-only validation of the installed
+helper passes. The live preflight still refuses `com.openclaw.agent`, so the
+23-unit baseline remains provisional. No system job or node service was
+changed, and 1.2 remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-02 08:30 EDT: Claude's bc99aac challenge confirmed the
+reboot/update recovery wedge is fixed but found an unreported helper run after
+NATS transfer intent. Recovery now records a durable boolean comparing the
+fresh exclusion with the original baseline, without blocking restore-only
+resolution. A run during one recovery attempt fails that attempt; retry records
+the changed baseline comparison. Source tests include the returned-transfer
+case. The root-held transfer still needs its own live observer before cold
+master acceptance. The focused preservation suites now pass 104/104. This
+record does not authorize cutover or close 1.2.
+
+Checkpoint 2026-10-02 08:54 EDT: PR #199 merged at 8b451da after its exact-head
+4/4 CI rerun. Claude's no-blocker review was at 4435211; follow-up 0c6c30f
+addressed its test and wording notes without changing production code. It admits the exact idle
+Tailscale system helper as an explicit exclusion and durably reports changes
+observed when recovery starts; it does not certify the root-held transfer. A
+narrow retirement runbook for the obsolete root-managed `com.openclaw.agent`
+has been prepared and the live plist hash, owner, absent entry file and
+repeated exit 1 were rechecked. Noninteractive administrator access is
+unavailable, so no root action occurred. The live full-node preflight still
+refuses that job; the protected observer, three cold masters and cutover remain
+open at 1.2 [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 09:06 EDT: the legacy root-owned
+`/etc/sudoers.d/openclaw-mesh` also remains installed (root:wheel 0440).
+Effective `sudo -n -l` output still grants passwordless wildcard
+`launchctl load/unload` and `killall -9 node`. Those grants can reload the
+obsolete root job or stop Node services, so they also defeat the proposed
+root boundary. PR #200's runbook requires inspection, protected backup and
+removal of those exact legacy rules before retiring the daemon in one locked
+local administrator session, with no action if its contents differ. Claude found
+no safety blocker in the original daemon sequence and asked for explicit
+preflight, collision, disabled-state and post-action checks. No administrator
+or NATS action occurred.
+
+Checkpoint 2026-10-02 09:17 EDT: the retirement preflight is now required to
+hold the existing owner-private `node.lock` with macOS `lockf -kn -t 0` for the
+whole administrator session. A private temporary-file control confirmed
+`lockf` and the journal's Python `fcntl.flock` contend; the real node lock was
+also acquired and released with no action. This closes the check-to-retire
+race in the written procedure. Live retirement remains unexecuted.
+
+Checkpoint 2026-10-02 09:27 EDT: PR #200's ordered procedure now keeps a
+root recovery shell open while the legacy sudoers file is moved, syntax and
+fresh password authentication are checked, and only then the pinned daemon
+is disabled, booted out and archived. The node lock remains held until the
+23-unit preflight and before/after census finish. CI passed 4/4 at the prior
+draft head `8558076`; this ordering revision still needs exact-head CI and
+adversarial review. The administrator action is still unexecuted, and 1.2
+remains [A] at v1.2-pre.
+
+Checkpoint 2026-10-02 09:39 EDT: Claude's exact-head review of PR #200 at
+`1c3e8ee` confirmed the revised lock/sudoers/daemon order and all four CI
+checks, then found procedural gaps in pasted-block failure handling, sudoers
+hash recording and policy restoration. The next source-only follow-up makes
+each command an individually checked step, prints the inspected sudoers hash,
+provides a pinned restore branch, uses absolute sudo/Python paths, and adds
+checkout, private-output and lock-continuity checks. Exact-head CI and review
+of that follow-up remain pending. No administrator or NATS action has run;
+the protected observer, cold masters and cutover remain open at 1.2 [A].
+
+Checkpoint 2026-10-02 09:45 EDT: Claude found no blocker in the `a985298`
+procedure after its three prior gaps were fixed. Its remaining notes led to
+a final instruction that every node-user and root command be checked
+individually, the checkout must have no changes, and the second-terminal
+lock proof precedes any retirement report. CI and review at this final head
+remain pending. No root action has occurred.
+
+Checkpoint 2026-10-02 09:52 EDT: PR #200 merged at `a629e9a` after exact-head
+CI 4/4 and Claude's no-blocker review of `d181549`. It supplies the guarded
+local retirement procedure only. A Codex terminal is waiting for the operator
+to authenticate locally; no administrator action or node lock is active.
+The 23-unit live preflight still refuses the installed legacy root job.
+Step 1.2 stays [A]/v1.2-pre; protected root observation, healthy cold masters,
+and production cutover remain unbuilt or unaccepted.
+
+Checkpoint 2026-10-02 10:13 EDT: the D56/D58 node-user diagnostics now open
+plists nonblocking without following a final symlink and traverse store
+directories through pinned descriptors. Owned regressions cover a plist
+replaced by a FIFO and root or nested store directories replaced by symlinks
+between checks. This narrows diagnostic read races; neither command is a
+protected root observer or an absence certificate. The live retirement and
+full-node preservation gates remain open work at 1.2 [A].
+
+Checkpoint 2026-10-02 10:33 EDT: PR #201 merged at `0b74e32` with CI 4/4
+and Claude's no-blocker review of `44d5bb3`. The next source slice extends
+the same read-only process snapshots to kernel working-directory and mapped
+file vnode identities, including mappings whose original descriptor closed.
+An owned macOS test covers cwd identity, a fixture covers cwd inside a store,
+and another native test covers an unlinked mapping. This
+does not make the user-run censuses single-instant or authorize physical
+absence; PID reuse, unreadable processes and in-flight descriptors remain
+explicit limits. The guarded legacy retirement is still awaiting local
+administrator authentication, and step 1.2 remains [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 11:09 EDT: PR #202 merged at `bfe997e8` after exact-head
+CI 4/4 and Claude's no-blocker review of `f7238e3`. Cwd and mapped-vnode
+observations remain diagnostic only. Claude's next read-only driver challenge
+found that the full-node user journal guarded NATS restoration only after a
+returned transfer. D61's source correction applies marker and shared-lock
+checks to every full-node NATS recovery, including no-transfer windows. Owned
+marker and exclusive-lock controls pass with the 85-test journal suite. Exact
+CI and adversarial review of this change are pending. The production driver,
+protected observer, healthy cold masters, and live retirement remain open;
+step 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 11:29 EDT: Claude found no blocker in PR #203's first
+head and its quick delta probe confirmed the held member and final check. The
+follow-up now also brackets hold preparation, final readiness/gate reopen and
+resolution; old unscoped NATS journals use the same exclusion, and a lock
+appearing during an initially lock-free action refuses. Owned regressions pass;
+the full exact-head suite, CI and adversarial delta verdict remain pending.
+No production NATS service was changed, and 1.2 remains [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 11:53 EDT: Claude's PR #203 review found that the
+original unscoped-journal regression could pass after its callbacks were
+swallowed, and that tests still touched the live root marker paths. The
+regression now asserts that no NATS callback ran, and both parent and child
+hold tests use private marker and lock fixtures. A proposed mandatory root
+lock check passed 154/154 local tests but conflicts with recovery after a
+crash before the durable user transfer: root lock bootstrap itself requires
+that transfer. The no-lock checked branch is retained, with an added test
+that recovers an old unscoped journal before bootstrap. Targeted controls
+pass 3/3 after this correction; the revised full suite, exact-head CI and
+Claude delta review are pending. The live root lock remains absent. No
+production NATS service or root path was changed; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:18 EDT: Claude's scratch probe confirmed the
+mandatory-lock deadlock and validated the checked absent-lock recovery. The
+user guard now rechecks immediately before NATS restart, gate unlink and
+terminal row; a detection after a restart or observed gate opening is labelled
+`after_commit`, and a terminal row followed by a receipt/guard failure raises
+`CommittedRefusal` with its hash. Private fixtures replace all real root-path
+reads in the hold suite. The revised journal/hold suites pass 134/134 on this
+Mac, and the separate owned restore-only suite passes 27/27; an earlier
+combined run had two load-sensitive owned readiness failures, with no NATS
+guard involved. The revised PR head, CI and Claude exact-delta review remain
+pending. No live root or NATS state changed; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:32 EDT: Claude found no blocker in PR #203 at
+`c9acbbe` with exact-head CI 4/4, but its mutation pass exposed two missing
+journal-level guards and a test that bypassed the sticky journal write flag.
+The revised tests now assert a new lock before NATS restart refuses, the
+recovery facade passes the NATS check into the gate's last before-open step,
+and a restart that raises is still reported as possibly committed. A real
+sticky `hold-opened` failure now raises `CommittedRefusal` naming the observed
+open gate without attempting another journal append. The revised local
+journal/hold suites pass 138/138; exact-head CI and Claude delta review for
+this final follow-up remain pending. The earlier owned restore-only suite
+passed 27/27. No live root or NATS state changed; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:45 EDT: PR #203 merged at `4d6e2c9` after
+exact-head CI 4/4, Claude's no-blocker delta review, and a fresh macOS
+restore-only run passing 27/27 at `93e1e84`. The macOS CI job is being
+extended to run that owned restore-only suite on every source change. This
+does not establish a full-node preservation window, protected root physical
+admission, cold masters, or live NATS restoration; 1.2 stays [A]/v1.2-pre.
+
+Checkpoint 2026-10-02 12:51 EDT: the new macOS CI run exposed a fixture
+assumption hidden by the node's local layout: its owned service plist named
+`/usr/local/bin/node`, absent on the hosted arm64 runner. The fixture now
+pins the installed Node executable selected by the job's PATH. This changes
+only owned test setup; exact CI rerun is required before PR #204 can merge.
+
+Checkpoint 2026-10-02 12:55 EDT: the first local rerun after fixing the
+fixture path exposed the owned recovery adapter's matching hardcoded Node
+path. It now accepts the canonical absolute Node executable already saved
+and content-pinned in the journal, then binds the running process to that
+same path. The previously failing ambiguous-open readiness case passes in
+isolation. Full local and exact-head CI runs remain pending.
+
+Checkpoint 2026-10-02 13:03 EDT: the adapter's saved Node path now also
+requires a regular, single-link executable before any content read. An owned
+FIFO-path control refuses before the read; this guards a malformed saved
+baseline from hanging recovery. The earlier exact-head CI at `002dfca` passed
+4/4 and the owned suite passed 27/27 locally. The new 28-case suite and
+corresponding CI run are pending. Protected root admission and live cutover
+remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-02 13:12 EDT: PR #204 merged at `734c06a` after its
+exact-head CI passed 4/4 and the owned restore-only suite passed 28/28 on
+the hosted macOS runner. Claude found no blocker in the saved-executable
+fix or the special-file refusal; the regression test is now bounded by an
+alarm. A separate source slice makes the shared `static_identity` capture
+read only bounded regular files through non-blocking, no-follow descriptors,
+with a FIFO control. Its journal and hold suites pass 96/96 and 43/43
+locally; owned restore-only and exact-head CI are pending. This is source
+hardening, not a live full-node admission or cutover.
+
+Checkpoint 2026-10-02 13:26 EDT: PR #205's exact-head CI rerun passed
+4/4; the first attempt failed in an unrelated NATS test teardown race.
+Claude found no blocker in the bounded static-identity read and verified
+existing saved identities remain comparable. Its review prompted an
+`O_NOCTTY` open flag and a stricter FIFO timeout assertion, plus symlinked
+and oversized plist controls; final exact-head CI for that delta is pending.
+Draft PR #206 separately fixes the NATS test teardown by waiting for its
+private server to exit before removing its store. Root admission and live
+cutover remain open at 1.2[A]/v1.2-pre.
+
+Checkpoint 2026-10-02 13:56 EDT: PR #205 merged at `894dca6` after its
+final exact-head CI passed 4/4 and local journal, hold and owned restore-only
+suites passed 97/97, 43/43 and 28/28. Claude found no blocker in the final
+bounded-read delta. PR #206 merged at `aa5ff69` after exact-head CI passed
+4/4 and Claude's adversarial checks showed that the NATS test server exits
+before its private store is removed, including startup failures; its final
+file-level cleanup hook also makes an injected teardown failure exit nonzero
+under the CI Node 20 and 22 commands. Neither PR changed live services.
+The 2026-10-02 provisional full-node baseline includes the approved host
+Ollama endpoint changes, but still refuses the obsolete system-domain
+`com.openclaw.agent` job. Its guarded retirement runbook is prepared; local
+administrator authentication has not yet been supplied. Protected root
+observer/admission, three healthy cold masters, isolated restores and live
+cutover remain open at 1.2[A]/v1.2-pre.

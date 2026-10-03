@@ -228,23 +228,61 @@ let NATS_BIN = null;
 try { NATS_BIN = execSync('which nats-server', { encoding: 'utf8' }).trim(); } catch { /* skip */ }
 const NATS_SKIP = NATS_BIN ? undefined : 'nats-server not found on PATH';
 
-function startNatsServer({ port, storeDir }) {
-  return new Promise((resolve, reject) => {
-    const proc = spawnProcess(NATS_BIN, ['-p', String(port), '-a', '127.0.0.1', '-js', '-sd', storeDir], { stdio: 'pipe' });
-    let ready = false;
-    proc.stderr.on('data', (chunk) => {
-      if (!ready && chunk.toString().includes('Server is ready')) {
-        ready = true; resolve({ proc, port });
-      }
+async function stopNatsServer(proc) {
+  if (!proc?.pid || proc.exitCode !== null || proc.signalCode !== null) return;
+  await new Promise((resolve, reject) => {
+    const force = setTimeout(() => proc.kill('SIGKILL'), 1000);
+    const deadline = setTimeout(() => {
+      proc.stdout?.destroy();
+      proc.stderr?.destroy();
+      proc.unref();
+      reject(new Error('NATS test server did not exit'));
+    }, 5000);
+    proc.once('exit', () => {
+      clearTimeout(force);
+      clearTimeout(deadline);
+      resolve();
     });
-    proc.on('error', reject);
-    setTimeout(() => { if (!ready) reject(new Error('nats-server start timeout')); }, 5000);
+    proc.kill();
   });
 }
 
+function startNatsServer({ port, storeDir }) {
+  return new Promise((resolve, reject) => {
+    const proc = spawnProcess(NATS_BIN, ['-p', String(port), '-a', '127.0.0.1', '-js', '-sd', storeDir], { stdio: 'pipe' });
+    let settled = false;
+    const timer = setTimeout(() => fail(new Error('nats-server start timeout')), 5000);
+    function fail(error) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      stopNatsServer(proc).then(() => reject(error), reject);
+    }
+    proc.stderr.on('data', (chunk) => {
+      if (!settled && chunk.toString().includes('Server is ready')) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ proc, port });
+      }
+    });
+    proc.once('error', fail);
+    proc.once('exit', () => fail(new Error('nats-server exited before ready')));
+  });
+}
+
+let storeDir, nats, nc, kv, collab;
+const PORT = 14879;
+
+after(async () => {
+  try {
+    await nc?.close();
+  } finally {
+    await stopNatsServer(nats?.proc);
+    if (storeDir) await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
 describe('advanceCirclingStep — adaptive convergence integration (real NATS KV)', { skip: NATS_SKIP }, () => {
-  let storeDir, nats, nc, kv, collab;
-  const PORT = 14879;
 
   before(async () => {
     const { connect, StringCodec } = await import('nats');
@@ -256,12 +294,6 @@ describe('advanceCirclingStep — adaptive convergence integration (real NATS KV
     await jsm.streams.add({ name: 'KV_MESH_COLLAB', subjects: ['$KV.MESH_COLLAB.>'] });
     kv = await js.views.kv('MESH_COLLAB');
     collab = new CollabStore(kv);
-  });
-
-  after(async () => {
-    await nc?.close();
-    nats?.proc?.kill();
-    await rm(storeDir, { recursive: true, force: true });
   });
 
   it('mock session with max_subrounds=3: unanimous SR1 converge → finalizes after SR1 (skips SR2/SR3)', async () => {

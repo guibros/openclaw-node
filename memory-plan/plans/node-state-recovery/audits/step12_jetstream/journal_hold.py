@@ -213,7 +213,7 @@ class JournaledHold:
             self._protect(self.intents()[1])
         self.check_closed()
 
-    def complete(self, observe, final_check):
+    def complete(self, observe, final_check, before_open=None):
         self.validate()
         evidence = self.readiness(observe, final_check)
         self.journal.append('hold-reopen-ready', evidence=evidence)
@@ -240,6 +240,8 @@ class JournaledHold:
                 require(isinstance(result, dict) and result.get('verified') is True
                         and result.get('baseline_sha256') == self.baseline,
                         'fast final baseline readiness was not verified')
+                if before_open is not None:
+                    before_open()
                 return result
             self.gate.reopen(self.guard.receipt, self.seconds, before_open=ready)
             self.journal.append('hold-opened', intent=intent['sequence'], baseline_sha256=self.baseline,

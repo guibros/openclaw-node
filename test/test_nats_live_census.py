@@ -149,6 +149,22 @@ class LiveCensusTest(unittest.TestCase):
             with self.assertRaisesRegex(Refused, 'single-link'):
                 census.plist_identity(link, b'0' * 32)
 
+    def test_plist_replaced_with_fifo_after_lstat_refuses_without_waiting(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'nats.plist'
+            path.write_bytes(plistlib.dumps({'Label': 'ai.openclaw.nats'}))
+            saved = Path(temporary) / 'saved.plist'
+            original_open = os.open
+            def replace(target, flags, *args, **kwargs):
+                self.assertTrue(flags & os.O_NOFOLLOW)
+                self.assertTrue(flags & os.O_NONBLOCK)
+                path.rename(saved)
+                os.mkfifo(path)
+                return original_open(target, flags, *args, **kwargs)
+            with patch.object(census.os, 'open', side_effect=replace):
+                with self.assertRaisesRegex(Refused, 'regular single-link'):
+                    census.plist_identity(path, b'0' * 32)
+
     def test_store_counts_and_rejects_symlink(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / 'jetstream'
@@ -164,6 +180,43 @@ class LiveCensusTest(unittest.TestCase):
             (root / 'escape').symlink_to(stored)
             with self.assertRaisesRegex(Refused, 'non-regular'):
                 census.store_identity(root)
+
+    def test_store_replaced_with_symlink_after_lstat_refuses(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'jetstream'
+            root.mkdir()
+            outside = Path(temporary) / 'outside'
+            outside.mkdir()
+            (outside / 'block').write_bytes(b'foreign')
+            saved = Path(temporary) / 'saved'
+            original_open = os.open
+            def replace(target, flags, *args, **kwargs):
+                self.assertTrue(flags & os.O_NOFOLLOW)
+                root.rename(saved)
+                root.symlink_to(outside, target_is_directory=True)
+                return original_open(target, flags, *args, **kwargs)
+            with patch.object(census.os, 'open', side_effect=replace):
+                with self.assertRaisesRegex(Refused, 'changed'):
+                    census.store_identity(root)
+
+    def test_nested_directory_replaced_with_symlink_refuses(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'jetstream'
+            child = root / 'stream'
+            child.mkdir(parents=True)
+            outside = Path(temporary) / 'outside'
+            outside.mkdir()
+            (outside / 'block').write_bytes(b'foreign')
+            original_open = os.open
+            def replace(target, flags, *args, **kwargs):
+                if target == 'stream':
+                    self.assertTrue(flags & os.O_NOFOLLOW)
+                    child.rmdir()
+                    child.symlink_to(outside, target_is_directory=True)
+                return original_open(target, flags, *args, **kwargs)
+            with patch.object(census.os, 'open', side_effect=replace):
+                with self.assertRaisesRegex(Refused, 'changed'):
+                    census.store_identity(root)
 
 
 if __name__ == '__main__':

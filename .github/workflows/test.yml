@@ -153,7 +153,13 @@ jobs:
           /usr/bin/python3 test/test_nats_root_journal.py
           /usr/bin/python3 test/test_nats_user_transfer.py
           /usr/bin/python3 memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_preservation_journal.py
+          PYTHONPATH="$PWD/memory-plan/plans/node-state-recovery/audits/step12_jetstream" /usr/bin/python3 -m unittest -q \
+            test_preservation_checks.Gates.test_only_exact_tailscale_system_job_can_be_excluded \
+            test_preservation_checks.Gates.test_tailscale_exclusion_refuses_loaded_activity_and_plist_triggers \
+            test_preservation_checks.Gates.test_tailscale_exclusion_captures_physical_chain_and_refuses_wrapper_drift \
+            test_preservation_checks.Gates.test_excluded_root_file_rejects_unprivileged_owner
           /usr/bin/python3 memory-plan/plans/node-state-recovery/audits/step12_jetstream/test_journal_hold.py
+          PYTHONPATH="$PWD/memory-plan/plans/node-state-recovery/audits/step12_jetstream" /usr/bin/python3 -m unittest -q test_restore_only
           /usr/bin/python3 test/test_nats_root_admission.py
           /usr/bin/python3 test/test_nats_root_decline.py
           /usr/bin/python3 test/test_nats_macos_proc.py

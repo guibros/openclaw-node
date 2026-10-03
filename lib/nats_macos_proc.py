@@ -1,4 +1,5 @@
 import ctypes
+import errno
 import os
 import struct
 import sys
@@ -9,9 +10,16 @@ from nats_root_lock import Refused
 PROC_PIDLISTFDS = 1
 PROC_PIDTBSDINFO = 3
 PROC_PIDFDVNODEPATHINFO = 2
+PROC_PIDREGIONPATHINFO = 8
+PROC_PIDVNODEPATHINFO = 9
 PROX_FDTYPE_VNODE = 1
 BSD_INFO_SIZE = 136
 VNODE_PATH_SIZE = 1200
+VNODE_PATHINFO_SIZE = 2352
+VNODE_INFO_PATH_SIZE = 1176
+VNODE_INFO_PATH_OFFSET = 152
+REGION_PATH_SIZE = 1272
+REGION_PATH_OFFSET = 248
 
 
 def _library():
@@ -134,6 +142,53 @@ def vnode_descriptor(pid, fd, library=None):
             'mode': mode, 'links': links, 'path': path}
 
 
+def working_directory(pid, library=None):
+    library = library or _library()
+    buffer = ctypes.create_string_buffer(VNODE_PATHINFO_SIZE)
+    actual = library.proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0,
+                                  buffer, VNODE_PATHINFO_SIZE)
+    if actual != VNODE_PATHINFO_SIZE:
+        raise Refused('process working directory is unobservable')
+    device, mode, links, inode = struct.unpack_from('<IHHQ', buffer.raw)
+    path = buffer.raw[VNODE_INFO_PATH_OFFSET:VNODE_INFO_PATH_SIZE].split(
+        b'\0', 1)[0].decode(errors='replace')
+    if not inode or not path:
+        raise Refused('process working directory identity is unobservable')
+    return {'device': device, 'inode': inode, 'mode': mode,
+            'links': links, 'path': path}
+
+
+def mapped_vnodes(pid, library=None):
+    library = library or _library()
+    address = 0
+    mapped = {}
+    for region in range(32768):
+        buffer = ctypes.create_string_buffer(REGION_PATH_SIZE)
+        ctypes.set_errno(0)
+        actual = library.proc_pidinfo(pid, PROC_PIDREGIONPATHINFO, address,
+                                      buffer, REGION_PATH_SIZE)
+        if actual == 0:
+            if region == 0 or ctypes.get_errno() != errno.EINVAL:
+                raise Refused('process memory regions are unobservable')
+            return list(mapped.values())
+        if actual != REGION_PATH_SIZE:
+            raise Refused('process memory regions are unobservable')
+        base, size = struct.unpack_from('<QQ', buffer.raw, 80)
+        if size == 0 or base < address or base + size <= address or base + size >= 1 << 64:
+            raise Refused('process memory regions changed during census')
+        device, mode, links, inode = struct.unpack_from('<IHHQ', buffer.raw, 96)
+        path = buffer.raw[REGION_PATH_OFFSET:].split(b'\0', 1)[0].decode(
+            errors='replace')
+        if path and not inode:
+            raise Refused('process mapped file identity is unobservable')
+        if inode:
+            mapped[(device, inode, path)] = {
+                'device': device, 'inode': inode, 'mode': mode,
+                'links': links, 'path': path}
+        address = base + size
+    raise Refused('process memory region list is too large')
+
+
 def snapshot(pid, library=None):
     library = library or _library()
     before = bsd_info(pid, library)
@@ -142,10 +197,13 @@ def snapshot(pid, library=None):
     vnodes = [vnode_descriptor(pid, fd, library)
               for fd, kind in file_descriptors(pid, before['nfiles'], library)
               if kind == PROX_FDTYPE_VNODE]
+    cwd = working_directory(pid, library)
+    mappings = mapped_vnodes(pid, library)
     after = bsd_info(pid, library)
     if before != after:
         raise Refused('process changed during census')
-    return {**before, 'executable': path, 'arguments': argv, 'vnodes': vnodes}
+    return {**before, 'executable': path, 'arguments': argv,
+            'vnodes': vnodes, 'cwd': cwd, 'mappings': mappings}
 
 
 def vnode_snapshot(pid, library=None):
@@ -154,6 +212,8 @@ def vnode_snapshot(pid, library=None):
     vnodes = [vnode_descriptor(pid, fd, library)
               for fd, kind in file_descriptors(pid, before['nfiles'], library)
               if kind == PROX_FDTYPE_VNODE]
+    cwd = working_directory(pid, library)
+    mappings = mapped_vnodes(pid, library)
     if before != bsd_info(pid, library):
         raise Refused('process changed during census')
-    return {**before, 'vnodes': vnodes}
+    return {**before, 'vnodes': vnodes, 'cwd': cwd, 'mappings': mappings}

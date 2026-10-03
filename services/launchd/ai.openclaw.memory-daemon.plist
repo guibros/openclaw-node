@@ -29,6 +29,10 @@
       <string>America/Montreal</string>
       <key>OPENCLAW_WORKSPACE</key>
       <string>${OPENCLAW_WORKSPACE}</string>
+      <key>LLM_MODEL</key>
+      <string>${LLM_MODEL}</string>
+      <key>LLM_BASE_URL</key>
+      <string>${LLM_BASE_URL}</string>
       <!-- R28 fix (repair 7.1): the Block-0 local-first wiring lived only in
            the hand-edited installed plist; a reinstall from this template
            silently reverted the daemon to the remote mesh IP and a
@@ -37,10 +41,6 @@
       <string>${OPENCLAW_NATS}</string>
       <key>OPENCLAW_NODE_ID</key>
       <string>${OPENCLAW_NODE_ID}</string>
-      <key>LLM_MODEL</key>
-      <string>${LLM_MODEL}</string>
-      <key>LLM_BASE_URL</key>
-      <string>${LLM_BASE_URL}</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>10</integer>

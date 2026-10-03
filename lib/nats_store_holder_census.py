@@ -72,7 +72,11 @@ def _observe(user_home):
                 failed.append(pid)
                 continue
             retried.append(pid)
-        for entry in process['vnodes']:
+        references = [('fd', entry) for entry in process['vnodes']]
+        references.extend(('mmap', entry) for entry in process['mappings'])
+        if process['cwd']:
+            references.append(('cwd', process['cwd']))
+        for reference, entry in references:
             matched = False
             for store in stores.values():
                 by_inode = (entry['device'], entry['inode']) in store['inodes']
@@ -80,7 +84,10 @@ def _observe(user_home):
                            and (entry['links'] == 0 or _linked_at_path(entry, store)))
                 if by_inode or by_path:
                     store['holders'].append({
-                        'pid': pid, 'uid': process['uid'], 'fd': entry['fd'],
+                        'pid': pid, 'uid': process['uid'],
+                        'start_sec': process['start_sec'],
+                        'start_usec': process['start_usec'],
+                        'reference': reference, 'fd': entry.get('fd'),
                         'inode': entry['inode'], 'unlinked': entry['links'] == 0,
                         'match': 'inode' if by_inode else 'path'})
                     matched = True
@@ -91,7 +98,8 @@ def _observe(user_home):
     unreadable = [pid for pid in failed if pid in remaining]
     exited = [pid for pid in failed if pid not in remaining]
     for store in stores.values():
-        store['holders'].sort(key=lambda item: (item['pid'], item['fd']))
+        store['holders'].sort(key=lambda item: (
+            item['pid'], item['reference'], item['fd'] if item['fd'] is not None else -1))
         del store['inodes']
         del store['realpath']
     return {'scope': 'readable-process-vnode-census',
@@ -102,8 +110,9 @@ def _observe(user_home):
                          'retry_recovered_pids': len(retried),
                          'pid_list_stable': before == after,
                          'single_instant': False,
+                         'process_identity': 'PID and start time stable within each snapshot, not across the full scan',
                          'physical_absence_certified': False,
-                         'reference_types': 'open vnode file descriptors only; excludes closed-fd mappings, cwd/root and in-flight descriptors',
+                         'reference_types': 'open vnode file descriptors, mapped files and working directory; excludes process root and in-flight descriptors',
                          'path_matching': 'lexical kernel paths; linked paths require a fresh identity match; alternate firmlink or case spelling may be unattributed'},
             'unreadable_pids': unreadable,
             'exited_pids': exited,

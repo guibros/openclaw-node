@@ -8,6 +8,7 @@ import plistlib
 import re
 import stat
 import subprocess
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -32,6 +33,190 @@ RESUME_ORDER = (
     'scheduler-heartbeat', 'node-watch', 'health-watch', 'gateway',
     'workplan-viewer', 'mesh-deploy-listener',
 )
+TAILSCALE_LABEL = 'com.openclaw.tailscale-up'
+TAILSCALE_PLIST = pathlib.Path('/Library/LaunchDaemons/com.openclaw.tailscale-up.plist')
+TAILSCALE_WRAPPER = pathlib.Path('/usr/local/bin/tailscale')
+TAILSCALE_APP = pathlib.Path('/Applications/Tailscale.app')
+TAILSCALE_BINARY = TAILSCALE_APP / 'Contents/MacOS/tailscale'
+TAILSCALE_WRAPPER_BYTES = b'#!/bin/sh\n/Applications/Tailscale.app/Contents/MacOS/tailscale "$@"\n'
+
+
+def root_file(path, mode):
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_gid == 0
+            and stat.S_IMODE(info.st_mode) == mode and info.st_nlink == 1
+            and path.resolve(strict=True) == path,
+            'excluded system job file identity differs: ' + str(path))
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        opened = os.fstat(fd)
+        require((opened.st_dev, opened.st_ino, opened.st_ctime_ns) ==
+                (info.st_dev, info.st_ino, info.st_ctime_ns),
+                'excluded system job file changed while opening: ' + str(path))
+        with os.fdopen(fd, 'rb', closefd=False) as handle:
+            data = handle.read()
+        current = path.lstat()
+        require((current.st_dev, current.st_ino, current.st_ctime_ns) ==
+                (opened.st_dev, opened.st_ino, opened.st_ctime_ns),
+                'excluded system job file changed while reading: ' + str(path))
+        return data
+    finally:
+        os.close(fd)
+
+
+def valid_tailscale_plist(data):
+    plist = plistlib.loads(data)
+    require(plist == {'Label': TAILSCALE_LABEL,
+                      'ProgramArguments': [str(TAILSCALE_WRAPPER), 'up'],
+                      'RunAtLoad': True},
+            'excluded system job has a trigger or changed arguments')
+
+
+def protected_tailscale_ancestry():
+    for ancestor in (pathlib.Path('/Library'), pathlib.Path('/Library/LaunchDaemons'),
+                     pathlib.Path('/usr'), pathlib.Path('/usr/local'),
+                     pathlib.Path('/usr/local/bin')):
+        info = ancestor.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
+                and not info.st_mode & 0o022 and ancestor.resolve(strict=True) == ancestor,
+                'excluded system job ancestry is writable or redirected')
+
+
+def tailscale_launchd_state(details, disabled, system_listing):
+    def field(name):
+        values = re.findall(r'^\t' + re.escape(name) + r' = (.+)$', details, re.M)
+        require(len(values) == 1, 'excluded system job launchd field is absent or repeated: ' + name)
+        return values[0]
+    arguments = re.findall(r'^\targuments = \{\n(.*?)^\t\}', details, re.M | re.S)
+    require(len(arguments) == 1 and [line.strip() for line in arguments[0].splitlines()]
+            == [str(TAILSCALE_WRAPPER), 'up']
+            and field('path') == str(TAILSCALE_PLIST)
+            and field('type') == 'LaunchDaemon'
+            and field('program') == str(TAILSCALE_WRAPPER)
+            and field('domain') == 'system'
+            and field('state') == 'not running'
+            and field('active count') == '0'
+            and field('last exit code') == '0'
+            and field('properties') ==
+                'runatload | inferred program | system service | managed LWCR | tle system'
+            and not re.search(r'^\tpid = ', details, re.M),
+            'excluded system job was started or its loaded definition differs')
+    runs = field('runs')
+    require(re.fullmatch(r'[1-9][0-9]*', runs) is not None,
+            'excluded system job run count is invalid')
+    status = re.findall(r'^\s*"' + re.escape(TAILSCALE_LABEL) +
+                        r'" => (enabled|disabled)$', disabled, re.M)
+    require(status == ['enabled'], 'excluded system job disable state differs')
+    services = re.search(r'^\s*services = \{\n(.*?)^\s*\}', system_listing,
+                         re.M | re.S)
+    require(services is not None, 'system launchd service listing is absent')
+    entries = [line.split() for line in services[1].splitlines()
+               if line.split() and line.split()[-1] == TAILSCALE_LABEL]
+    require(len(entries) == 1 and entries[0] == ['0', '0', TAILSCALE_LABEL],
+            'excluded system job listing shows activity or duplicate identity')
+    return {'domain': 'system', 'state': 'not running', 'runs': int(runs),
+            'last_exit_code': 0, 'disabled': False}
+
+
+def tailscale_exclusion(installed, gui_loaded, user_loaded, system_loaded,
+                        system_listing=None):
+    present = TAILSCALE_LABEL in installed or any(TAILSCALE_LABEL in labels for labels in
+        (gui_loaded, user_loaded, system_loaded))
+    if not present:
+        return {}
+    require(installed.get(TAILSCALE_LABEL) == str(TAILSCALE_PLIST)
+            and TAILSCALE_LABEL in system_loaded
+            and TAILSCALE_LABEL not in gui_loaded and TAILSCALE_LABEL not in user_loaded,
+            'excluded system job path or launchd domain differs')
+    require(isinstance(system_listing, str), 'excluded system job domain listing is absent')
+    try:
+        protected_tailscale_ancestry()
+        plist_bytes = root_file(TAILSCALE_PLIST, 0o644)
+        plist_hash = hashlib.sha256(plist_bytes).hexdigest()
+        valid_tailscale_plist(plist_bytes)
+        wrapper_bytes = root_file(TAILSCALE_WRAPPER, 0o755)
+        wrapper_hash = hashlib.sha256(wrapper_bytes).hexdigest()
+        require(wrapper_bytes == TAILSCALE_WRAPPER_BYTES,
+                'excluded system job wrapper changed')
+        binary_hash = hashlib.sha256(root_file(TAILSCALE_BINARY, 0o755)).hexdigest()
+        info = plistlib.loads(root_file(TAILSCALE_APP / 'Contents/Info.plist', 0o644))
+        require(info.get('CFBundleIdentifier') == 'io.tailscale.ipn.macsys'
+                and isinstance(info.get('CFBundleVersion'), str),
+                'excluded system job app identity differs')
+        subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict',
+                        str(TAILSCALE_APP)], check=True, capture_output=True, timeout=15)
+        signature = subprocess.run(['/usr/bin/codesign', '-dv', '--verbose=4',
+                                    str(TAILSCALE_APP)], check=True,
+                                   capture_output=True, text=True, timeout=15).stderr
+        team = re.search(r'^TeamIdentifier=(\S+)$', signature, re.M)
+        identifier = re.search(r'^Identifier=(\S+)$', signature, re.M)
+        cdhash = re.search(r'^CDHash=([0-9a-f]+)$', signature, re.M)
+        require(team is not None and team[1] == 'W5364U7YZB'
+                and identifier is not None and identifier[1] == 'io.tailscale.ipn.macsys'
+                and cdhash is not None,
+                'excluded system job app signature differs')
+        require(hashlib.sha256(root_file(TAILSCALE_BINARY, 0o755)).hexdigest() == binary_hash,
+                'excluded system job app changed during signature check')
+        details = subprocess.check_output(['/bin/launchctl', 'print',
+            'system/' + TAILSCALE_LABEL], text=True, timeout=10)
+        disabled = subprocess.check_output(['/bin/launchctl', 'print-disabled', 'system'],
+                                           text=True, timeout=10)
+        launchd = tailscale_launchd_state(details, disabled, system_listing)
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        raise Refused('excluded system job could not be verified') from error
+    boot = (subprocess.check_output(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'],
+                                    text=True).strip() if sys.platform == 'darwin' else
+            pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip())
+    return {TAILSCALE_LABEL: {
+        'plist': {'path': str(TAILSCALE_PLIST), 'sha256': plist_hash},
+        'wrapper': {'path': str(TAILSCALE_WRAPPER), 'sha256': wrapper_hash},
+        'app': {'path': str(TAILSCALE_BINARY), 'sha256': binary_hash,
+                'bundle_id': info['CFBundleIdentifier'], 'version': info['CFBundleVersion'],
+                'team_id': team[1], 'cdhash': cdhash[1]},
+        'launchd': launchd,
+        'boot': hashlib.sha256(boot.encode()).hexdigest(),
+    }}
+
+
+def valid_tailscale_exclusion(excluded):
+    require(isinstance(excluded, dict) and set(excluded) <= {TAILSCALE_LABEL},
+            'full-node excluded job is not approved')
+    if not excluded:
+        return
+    item = excluded[TAILSCALE_LABEL]
+    require(isinstance(item, dict) and set(item) ==
+            {'plist', 'wrapper', 'app', 'launchd', 'boot'},
+            'full-node excluded job record is incomplete')
+    for key, path in (('plist', TAILSCALE_PLIST), ('wrapper', TAILSCALE_WRAPPER)):
+        value = item[key]
+        require(isinstance(value, dict) and set(value) == {'path', 'sha256'}
+                and value['path'] == str(path)
+                and isinstance(value['sha256'], str)
+                and re.fullmatch(r'[0-9a-f]{64}', value['sha256']),
+                'full-node excluded job file identity is invalid')
+    app = item['app']
+    require(isinstance(app, dict) and set(app) ==
+            {'path', 'sha256', 'bundle_id', 'version', 'team_id', 'cdhash'}
+            and app['path'] == str(TAILSCALE_BINARY)
+            and isinstance(app['sha256'], str)
+            and re.fullmatch(r'[0-9a-f]{64}', app['sha256'])
+            and app['bundle_id'] == 'io.tailscale.ipn.macsys'
+            and isinstance(app['version'], str) and app['version']
+            and app['team_id'] == 'W5364U7YZB'
+            and isinstance(app['cdhash'], str)
+            and re.fullmatch(r'[0-9a-f]+', app['cdhash']),
+            'full-node excluded job app identity is invalid')
+    launchd = item['launchd']
+    require(isinstance(launchd, dict) and set(launchd) ==
+            {'domain', 'state', 'runs', 'last_exit_code', 'disabled'}
+            and launchd['domain'] == 'system'
+            and launchd['state'] == 'not running'
+            and type(launchd['runs']) is int and launchd['runs'] >= 1
+            and type(launchd['last_exit_code']) is int and launchd['last_exit_code'] == 0
+            and launchd['disabled'] is False
+            and isinstance(item['boot'], str)
+            and re.fullmatch(r'[0-9a-f]{64}', item['boot']),
+            'full-node excluded job launchd state is invalid')
 
 
 def production_entrypoint_roots(home=None):
@@ -215,21 +400,33 @@ def loaded_entrypoints(domain_text, domain, protected_roots, inspect=None):
 
 
 def verify_entrypoint_inventory(installed, gui_loaded, user_loaded, system_loaded, expected,
-                                roots=(), disabled_artifacts=None):
+                                roots=(), disabled_artifacts=None, excluded=None):
     expected = {'ai.openclaw.' + unit for unit in expected}
-    require(set(installed) == expected, 'installed OpenClaw jobs differ from the approved cohort')
-    require(gui_loaded <= expected and user_loaded <= expected and system_loaded <= expected,
+    excluded = excluded if excluded is not None else {}
+    valid_tailscale_exclusion(excluded)
+    excluded_labels = set(excluded)
+    require(set(installed) == expected | excluded_labels,
+            'installed OpenClaw jobs differ from the approved cohort')
+    require(gui_loaded <= expected and user_loaded <= expected
+            and system_loaded <= expected | excluded_labels
+            and excluded_labels <= system_loaded,
             'unclassified OpenClaw job is loaded')
     require(not (gui_loaded & user_loaded or gui_loaded & system_loaded or user_loaded & system_loaded),
             'OpenClaw job is loaded in two launchd domains')
+    if excluded_labels:
+        path = installed[TAILSCALE_LABEL]
+        require(excluded[TAILSCALE_LABEL]['plist']['sha256'] ==
+                hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest(),
+                'excluded system job plist changed')
     return {'verified': True,
             'installed': {label: {'path': path,
                                   'sha256': hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()}
-                          for label, path in sorted(installed.items())},
+                          for label, path in sorted(installed.items()) if label not in excluded_labels},
             'loaded': {'gui': sorted(gui_loaded), 'user': sorted(user_loaded),
-                       'system': sorted(system_loaded)},
+                       'system': sorted(system_loaded - excluded_labels)},
             'roots': sorted(str(pathlib.Path(root).resolve(strict=False)) for root in roots),
-            'disabled_artifacts': dict(sorted((disabled_artifacts or {}).items()))}
+            'disabled_artifacts': dict(sorted((disabled_artifacts or {}).items())),
+            'excluded': excluded}
 
 
 def capture_entrypoint_inventory(expected):
@@ -240,13 +437,24 @@ def capture_entrypoint_inventory(expected):
     installed = installed_entrypoints(directories, roots)
     disabled = disabled_entrypoint_artifacts(directories)
     domains = ('gui/' + str(os.getuid()), 'user/' + str(os.getuid()), 'system')
-    loaded = [loaded_entrypoints(subprocess.check_output(['/bin/launchctl', 'print', domain],
-               text=True, timeout=10), domain, roots) for domain in domains]
+    listings = [subprocess.check_output(['/bin/launchctl', 'print', domain],
+                text=True, timeout=10) for domain in domains]
+    loaded = [loaded_entrypoints(listing, domain, roots)
+              for listing, domain in zip(listings, domains)]
+    expected_labels = {'ai.openclaw.' + unit for unit in expected}
+    require(set(installed) <= expected_labels | {TAILSCALE_LABEL}
+            and loaded[0] <= expected_labels and loaded[1] <= expected_labels
+            and loaded[2] <= expected_labels | {TAILSCALE_LABEL},
+            'unclassified OpenClaw job is installed or loaded')
+    excluded = tailscale_exclusion(installed, *loaded, system_listing=listings[2])
     evidence = verify_entrypoint_inventory(installed, *loaded, expected,
-                                           roots=roots, disabled_artifacts=disabled)
+                                           roots=roots, disabled_artifacts=disabled,
+                                           excluded=excluded)
     again = installed_entrypoints(directories, roots)
     require(again == installed and all(hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
-            == evidence['installed'][label]['sha256'] for label, path in again.items()),
+            == (evidence['excluded'][label]['plist']['sha256'] if label in excluded else
+                evidence['installed'][label]['sha256']) for label, path in again.items())
+            and tailscale_exclusion(again, *loaded, system_listing=listings[2]) == excluded,
             'installed entrypoint changed during preflight')
     return evidence
 

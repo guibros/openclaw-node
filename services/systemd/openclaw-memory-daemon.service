@@ -12,9 +12,9 @@ Environment=PATH=${HOME}/.openclaw/workspace/.npm-global/bin:/usr/local/bin:/usr
 Environment=NODE_PATH=${HOME}/openclaw/node_modules:${HOME}/openclaw/lib
 Environment=OPENCLAW_NATS=${OPENCLAW_NATS}
 Environment=OPENCLAW_NODE_ID=${OPENCLAW_NODE_ID}
+Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
 Environment=LLM_MODEL=${LLM_MODEL}
 Environment=LLM_BASE_URL=${LLM_BASE_URL}
-Environment=OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
 Environment=TZ=America/Montreal
 WorkingDirectory=${OPENCLAW_WORKSPACE}
 StandardOutput=append:${OPENCLAW_WORKSPACE}/.tmp/openclaw-memory-daemon.log

@@ -149,3 +149,34 @@ included; the deploy listener stops first and resumes last. The tightened live
 scan still refuses the two unmanaged system jobs. Owned source tests pass, but
 exact CI/review and a production driver remain pending. No live full-node hold
 or healthy NATS cold copy exists.
+
+2026-10-02 06:20 EDT — The operator-approved host-Ollama change is reflected
+in a new read-only 23-unit diagnostic. Mesh-agent remains idle on demand with
+plist SHA-256 `d0d01ead…`; memory-daemon runs as PID 37477 with plist SHA-256
+`a3fb84ea…` and its live LLM setting matches the plist. The 0600 env file
+matches the same target. Structural classes and 59 direct pins over 29 distinct
+files were observed. The two unmanaged loaded system jobs still fail the
+multi-domain preflight. The recapture is provisional and cannot authorize a
+preservation window; 1.2 remains [A] at v1.2-pre.
+The source memory-daemon plist template and separate `workspace-bin/install-daemon`
+renderer still omit `LLM_BASE_URL`; a future reinstall would drop the live override.
+
+2026-10-02 06:50 EDT — A source-only candidate adds `LLM_BASE_URL` to the
+memory-daemon launchd and systemd templates and the direct
+macOS/systemd/pm2 installer.
+Isolated rendering passes; the live daemon and installed plist are unchanged.
+The full-node baseline is still refused by the two loaded system jobs, and
+1.2 remains [A] at v1.2-pre.
+
+2026-10-02 07:10 EDT — PR #196 merged at 0d3237f with exact-head 4/4 CI and
+Claude's no-blocker review. Memory-daemon source install paths now retain the
+configured host-Ollama URL; no installed service changed. Node-init's
+mesh-agent renderer still needs to read the saved value on a plain-shell rerun.
+The full-node diagnostic remains provisional and 1.2 remains [A].
+
+2026-10-02 07:27 EDT — PR #197 merged at 5caf0b6 with exact-head 4/4 CI and
+Claude's no-blocker review. Node-init now preserves the saved host-Ollama URL
+when rendering mesh-agent from a plain shell, including one with a stale
+localhost value. The live unit and service state were not changed. The
+entrypoint scan still refuses the two loaded unapproved system jobs, so the
+full-node baseline remains provisional and 1.2 remains [A].

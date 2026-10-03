@@ -81,9 +81,20 @@ def plist_identity(path, report_key):
     before = path.lstat()
     if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
         raise Refused('launchd plist is not a regular single-link file')
-    with path.open('rb') as handle:
-        raw = handle.read()
-        opened = os.fstat(handle.fileno())
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError as error:
+        raise Refused('launchd plist changed during census') from error
+    try:
+        opened = os.fstat(fd)
+        if (not stat.S_ISREG(opened.st_mode) or opened.st_nlink != 1
+                or opened.st_size > 1 << 20):
+            raise Refused('launchd plist is not a bounded regular single-link file')
+        raw = os.read(fd, opened.st_size + 1)
+        if len(raw) != opened.st_size or os.fstat(fd).st_ctime_ns != opened.st_ctime_ns:
+            raise Refused('launchd plist changed during census')
+    finally:
+        os.close(fd)
     after = path.lstat()
     if (before.st_dev, before.st_ino, before.st_ctime_ns) != (
             opened.st_dev, opened.st_ino, opened.st_ctime_ns) or (
@@ -128,20 +139,37 @@ def store_identity(path):
     count = 0
     bytes_total = 0
     inodes = {(info.st_dev, info.st_ino)}
-    def refuse_walk(error):
-        raise Refused('NATS store tree is unobservable') from error
-    try:
-        for directory, dirs, files in os.walk(root, followlinks=False, onerror=refuse_walk):
-            for name in dirs + files:
-                item = Path(directory) / name
-                current = item.lstat()
-                if stat.S_ISLNK(current.st_mode) or not (
-                        stat.S_ISREG(current.st_mode) or stat.S_ISDIR(current.st_mode)):
-                    raise Refused('NATS store contains a non-regular entry')
-                inodes.add((current.st_dev, current.st_ino))
-                if stat.S_ISREG(current.st_mode):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
+    def walk(directory_fd):
+        nonlocal count, bytes_total
+        with os.scandir(directory_fd) as entries:
+            for entry in entries:
+                current = entry.stat(follow_symlinks=False)
+                if stat.S_ISDIR(current.st_mode):
+                    child_fd = os.open(entry.name, flags, dir_fd=directory_fd)
+                    try:
+                        opened = os.fstat(child_fd)
+                        if (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino):
+                            raise Refused('NATS store tree changed during census')
+                        inodes.add((opened.st_dev, opened.st_ino))
+                        walk(child_fd)
+                    finally:
+                        os.close(child_fd)
+                elif stat.S_ISREG(current.st_mode):
+                    inodes.add((current.st_dev, current.st_ino))
                     count += 1
                     bytes_total += current.st_size
+                else:
+                    raise Refused('NATS store contains a non-regular entry')
+    try:
+        root_fd = os.open(root, flags)
+        try:
+            opened = os.fstat(root_fd)
+            if (info.st_dev, info.st_ino) != (opened.st_dev, opened.st_ino):
+                raise Refused('NATS store root changed during census')
+            walk(root_fd)
+        finally:
+            os.close(root_fd)
     except OSError as error:
         raise Refused('NATS store tree changed during census') from error
     after = root.lstat()
@@ -203,23 +231,40 @@ def _observe(user_uid, user_home):
                                ('jetstream' + suffix))
         stores[label] = {key: value for key, value in store.items() if key != 'inodes'}
         stores[label]['nats_server_open_vnodes'] = sorted(
-            ({'pid': process['pid'], 'fd': entry['fd'], 'inode': entry['inode']}
+            ({'pid': process['pid'], 'start_sec': process['start_sec'],
+              'start_usec': process['start_usec'], 'fd': entry['fd'],
+              'inode': entry['inode']}
             for process in processes for entry in process['vnodes']
             if (entry['device'], entry['inode']) in store['inodes']),
             key=lambda item: (item['pid'], item['fd']))
+        stores[label]['nats_server_cwd'] = sorted(
+            ({'pid': process['pid'], 'start_sec': process['start_sec'],
+              'start_usec': process['start_usec'],
+              'inode': process['cwd']['inode']}
+             for process in processes if
+             (process['cwd']['device'], process['cwd']['inode']) in store['inodes']),
+            key=lambda item: item['pid'])
+        stores[label]['nats_server_mappings'] = sorted(
+            ({'pid': process['pid'], 'start_sec': process['start_sec'],
+              'start_usec': process['start_usec'], 'inode': entry['inode']}
+             for process in processes for entry in process['mappings']
+             if (entry['device'], entry['inode']) in store['inodes']),
+            key=lambda item: (item['pid'], item['inode']))
     summaries = [{'pid': process['pid'], 'uid': process['uid'],
                   'start_sec': process['start_sec'],
                   'start_usec': process['start_usec'],
                   'executable': process['executable'],
                   'argv_hmac_sha256': argument_digest(process['arguments']),
-                  'vnode_count': len(process['vnodes'])} for process in processes]
+                  'vnode_count': len(process['vnodes']),
+                  'mapping_count': len(process['mappings'])} for process in processes]
     return {'scope': 'live-census-only',
             'coverage': {'domains': [gui, 'system'],
                          'other_domains': 'not checked',
                          'unloaded_plists': 'not checked',
                          'waiting_job_arguments': 'launchctl text; embedded newlines are ambiguous',
                          'processes': 'readable processes named nats-server',
-                         'vnode_holders': 'those processes only; linked store entries only',
+                         'vnode_holders': 'open descriptors, mapped files and working directories of those processes only; linked store entries only',
+                         'process_identity': 'PID and start time stable within each snapshot, not across the full scan',
                          'single_instant': False, 'physical_absence_certified': False},
             'gui': units, 'system': system,
             'processes': summaries, 'unreadable_pids': unreadable,
