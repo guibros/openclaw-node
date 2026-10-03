@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 from journal_hold import ANCHOR, describe
@@ -70,6 +71,37 @@ class HealthRetryTests(unittest.TestCase):
                 self.assertTrue(adapter.health('mesh-agent', {'running': True, 'pid': 123}))
                 self.assertEqual(build.return_value.open.call_count, 2)
                 service.return_value.bind.assert_called_once()
+                build.return_value.open.reset_mock()
+                service.return_value.bind.reset_mock()
+                build.return_value.open.side_effect = TimeoutError('still unavailable')
+                with patch('restore_only.time.monotonic', side_effect=[0, 4]):
+                    with self.assertRaisesRegex(Refused, 'did not respond'):
+                        adapter.health('mesh-agent', {'running': True, 'pid': 123})
+                service.return_value.bind.assert_not_called()
+                build.return_value.open.reset_mock()
+                build.return_value.open.side_effect = ValueError('invalid response')
+                with self.assertRaisesRegex(ValueError, 'invalid response'):
+                    adapter.health('mesh-agent', {'running': True, 'pid': 123})
+                self.assertEqual(build.return_value.open.call_count, 1)
+                build.return_value.open.reset_mock()
+                build.return_value.open.side_effect = [io.BytesIO(
+                    b'{"pid":999,"ready":true}')]
+                with self.assertRaisesRegex(Refused, 'health differs'):
+                    adapter.health('mesh-agent', {'running': True, 'pid': 123})
+                self.assertEqual(build.return_value.open.call_count, 1)
+                service.return_value.bind.assert_not_called()
+                build.return_value.open.reset_mock()
+                build.return_value.open.side_effect = urllib.error.HTTPError(
+                    'http://127.0.0.1:1234/ready', 503, 'unavailable', None, None)
+                with self.assertRaisesRegex(Refused, 'response differs'):
+                    adapter.health('mesh-agent', {'running': True, 'pid': 123})
+                self.assertEqual(build.return_value.open.call_count, 1)
+                build.return_value.open.reset_mock()
+                build.return_value.open.side_effect = [io.BytesIO(
+                    b'{"pid":123,"ready":true}')]
+                service.return_value.bind.return_value = {'status': {'pid': 999}}
+                with self.assertRaisesRegex(Refused, 'generation changed'):
+                    adapter.health('mesh-agent', {'running': True, 'pid': 123})
 
 
 @unittest.skipUnless(sys.platform == 'darwin', 'requires owned macOS launchd jobs')

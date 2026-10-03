@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -226,6 +227,8 @@ class OwnedLaunchdAdapter:
                                  timeout=.5) as response:
                     value = json.load(response)
                 break
+            except urllib.error.HTTPError as error:
+                raise Refused('owned process health response differs') from error
             except OSError as error:
                 if time.monotonic() >= deadline:
                     raise Refused('owned process health endpoint did not respond') from error
