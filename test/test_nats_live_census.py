@@ -277,6 +277,12 @@ class LiveCensusTest(unittest.TestCase):
                                                                   b'key', units)), 4)
             parked = agents / 'ai.openclaw.nats-1.plist'
             changed = plistlib.loads(parked.read_bytes())
+            for accepted in ('Aqua', ['Aqua']):
+                changed['LimitLoadToSessionType'] = accepted
+                parked.write_bytes(plistlib.dumps(changed))
+                with self.subTest(session_type=accepted):
+                    self.assertEqual(len(census.installed_config_census(
+                        home, os.getuid(), b'key', units)), 4)
             changed['LimitLoadToSessionType'] = ['Aqua', 'Background']
             parked.write_bytes(plistlib.dumps(changed))
             with self.assertRaisesRegex(Refused, 'outside the GUI session'):
