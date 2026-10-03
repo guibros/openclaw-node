@@ -107,6 +107,24 @@ class RecoveryTests(unittest.TestCase):
         os.mkfifo(self.root / 'pipe')
         backup.inventory_stores(self.root, ('fixture.db',))
 
+    def test_inventory_excludes_only_the_private_watcher_ledger_schema(self):
+        ledger = self.root / '.node-watch-ingest.sqlite'
+        connection = sqlite3.connect(ledger)
+        connection.execute('CREATE TABLE pending (path TEXT PRIMARY KEY, archived INTEGER NOT NULL, since_ms INTEGER NOT NULL, seen_ms INTEGER NOT NULL)')
+        connection.close()
+        ledger.chmod(0o600)
+        result = backup.inventory_stores(self.root, ('fixture.db',))
+        self.assertIn('.node-watch-ingest.sqlite', result['excluded'])
+        ledger.chmod(0o644)
+        with self.assertRaisesRegex(RuntimeError, 'invalid file identity'):
+            backup.inventory_stores(self.root, ('fixture.db',))
+        ledger.chmod(0o600)
+        connection = sqlite3.connect(ledger)
+        connection.execute('CREATE TABLE unrelated(data BLOB)')
+        connection.close()
+        with self.assertRaisesRegex(RuntimeError, 'schema differs'):
+            backup.inventory_stores(self.root, ('fixture.db',))
+
     def test_manifest_replacement_failure_retains_previous(self):
         path = self.root / 'manifest.json'
         backup.write_manifest(path, {'verified': 1})

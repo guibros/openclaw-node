@@ -36,6 +36,7 @@ EXCLUDED_LINKS = {
     'plugin-skills/browser-automation': 'skill source-code link',
 }
 EXCLUDED_FILES = {
+    '.node-watch-ingest.sqlite': 'derived watcher ingest-lag clock; restart begins a new 2h UNKNOWN window',
     'state.db.bak-2026-07-04-pre-v4': 'historical recovery copy',
     'state.db.bak-2026-07-03-predeployday': 'historical recovery copy',
     'state.db.bak-pre-heal-20260530-142727': 'historical recovery copy',
@@ -43,6 +44,19 @@ EXCLUDED_FILES = {
     'memory/main.sqlite.tmp-5c2f6a45-63d5-46c4-b5f1-e2d57f017fc6': 'unpromoted gateway reindex temporary; unchanged since 2026-02-04, no open owner',
     'memory/main.sqlite.tmp-4c374136-e5c9-42e1-895e-509021c85fb9': 'unpromoted gateway reindex temporary; unchanged since 2026-02-04, no open owner',
 }
+
+
+def verify_watch_ledger(path):
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1:
+        raise RuntimeError('node-watch ingest ledger has invalid file identity')
+    with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=15)) as connection:
+        objects = connection.execute("SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchall()
+        columns = connection.execute('PRAGMA table_info(pending)').fetchall()
+    if objects != [('table', 'pending')] or [(row[1], row[2], row[5]) for row in columns] != [
+            ('path', 'TEXT', 1), ('archived', 'INTEGER', 0),
+            ('since_ms', 'INTEGER', 0), ('seen_ms', 'INTEGER', 0)]:
+        raise RuntimeError('node-watch ingest ledger schema differs')
 
 
 def inventory_stores(root, declared=STORES):
@@ -80,6 +94,8 @@ def inventory_stores(root, declared=STORES):
                     continue
             relative = str(path.relative_to(root))
             if relative in EXCLUDED_FILES:
+                if relative == '.node-watch-ingest.sqlite':
+                    verify_watch_ledger(path)
                 excluded[relative] = EXCLUDED_FILES[relative]
             else:
                 found.add(relative)

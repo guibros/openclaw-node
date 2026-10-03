@@ -6,8 +6,8 @@ operator runs it on the deployment to get real status. Reuses `lib/health-check.
 `node-acceptance` probes (no parallel implementation, MASTER_PLAN §4.6).
 
 This is the single source of truth for *what the node watches to know it works*. Companion to
-`docs/NODE_ACCEPTANCE.md` (the one-shot deploy gate); both consume the same probes — watch is the
-continuous, read-only view.
+`docs/NODE_ACCEPTANCE.md` (the one-shot deploy gate); both consume the same probes. Watch observes
+the node continuously and writes only its own reports and private ingest-lag ledger.
 
 ---
 

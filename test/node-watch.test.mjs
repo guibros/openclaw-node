@@ -632,6 +632,11 @@ describe('mem.ingest configured-source parity', () => {
         }),
       });
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      ctx.observeIngestLag = () => { throw new Error('ledger unavailable'); };
+      const unavailable = await target('mem.ingest').run(envFor(ctx));
+      assert.equal(unavailable.status, STATUS.UNKNOWN);
+      assert.match(unavailable.detail, /ledger unavailable/);
+      delete ctx.observeIngestLag;
       await fs.writeFile(registry, JSON.stringify({
         sources: [{ name: 'test', path: source, format: 'openclaw-gateway', enabled: true }],
       }));
@@ -661,7 +666,7 @@ describe('mem.ingest configured-source parity', () => {
       now += 2 * 3600_000 + 1;
       const lagged = await target('mem.ingest').run(envFor(ctx));
       assert.equal(lagged.status, STATUS.BROKEN);
-      assert.match(lagged.detail, /overdue, regressed or inconsistent archive state/);
+      assert.match(lagged.detail, /overdue or inconsistent archive state/);
       await fs.writeFile(path.join(source, 'newer.jsonl'), JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
       const link = path.join(source, 'linked.jsonl');
