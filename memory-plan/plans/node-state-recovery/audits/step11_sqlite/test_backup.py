@@ -125,35 +125,19 @@ class RecoveryTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'schema differs'):
             backup.inventory_stores(self.root, ('fixture.db',))
 
-    def test_inventory_accepts_derived_watcher_ledger_after_interrupted_write(self):
+    def test_inventory_reads_wal_before_excluding_watcher_ledger(self):
         ledger = self.root / '.node-watch-ingest.sqlite'
         with closing(sqlite3.connect(ledger)) as connection:
             connection.execute('CREATE TABLE pending (path TEXT PRIMARY KEY, archived INTEGER NOT NULL, since_ms INTEGER NOT NULL, seen_ms INTEGER NOT NULL)')
             connection.commit()
-        ledger.chmod(0o600)
-        ready = self.root / 'ledger-write-ready'
-        script = ('import pathlib, sqlite3, sys, time\n'
-                  'connection = sqlite3.connect(sys.argv[1])\n'
-                  "connection.execute('BEGIN IMMEDIATE')\n"
-                  "connection.execute(\"INSERT INTO pending VALUES ('session', 1, 2, 3)\")\n"
-                  'pathlib.Path(sys.argv[2]).touch()\n'
-                  'time.sleep(30)\n')
-        process = subprocess.Popen([sys.executable, '-c', script, str(ledger), str(ready)])
-        try:
-            deadline = time.monotonic() + 5
-            while not ready.exists():
-                self.assertIsNone(process.poll())
-                self.assertLess(time.monotonic(), deadline)
-                time.sleep(0.01)
-            process.kill()
-            process.wait(timeout=5)
-            self.assertTrue(Path(str(ledger) + '-journal').exists())
-            result = backup.inventory_stores(self.root, ('fixture.db',))
-            self.assertIn('.node-watch-ingest.sqlite', result['excluded'])
-        finally:
-            if process.poll() is None:
-                process.kill()
-                process.wait(timeout=5)
+            ledger.chmod(0o600)
+            connection.execute('PRAGMA journal_mode=WAL')
+            connection.execute('PRAGMA wal_autocheckpoint=0')
+            connection.execute('CREATE TABLE unrelated(data BLOB)')
+            connection.commit()
+            self.assertTrue(Path(str(ledger) + '-wal').exists())
+            with self.assertRaisesRegex(RuntimeError, 'schema differs'):
+                backup.inventory_stores(self.root, ('fixture.db',))
 
     def test_manifest_replacement_failure_retains_previous(self):
         path = self.root / 'manifest.json'

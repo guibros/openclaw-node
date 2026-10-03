@@ -50,7 +50,7 @@ def verify_watch_ledger(path):
     info = path.lstat()
     if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1:
         raise RuntimeError('node-watch ingest ledger has invalid file identity')
-    with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro&immutable=1', uri=True, timeout=15)) as connection:
+    with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=15)) as connection:
         objects = connection.execute("SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchall()
         columns = connection.execute('PRAGMA table_info(pending)').fetchall()
     if objects != [('table', 'pending')] or [(row[1], row[2], row[5]) for row in columns] != [

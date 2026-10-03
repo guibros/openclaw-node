@@ -31,6 +31,8 @@ Pending transcript sessions stay UNKNOWN for their first two hours without archi
 even when a copied transcript contains old timestamps. Archive inconsistency is BROKEN immediately.
 If a restore leaves a transcript and its archive consistently caught up at a smaller count,
 the prior ingest-lag clock clears.
+An interrupted SQLite write can leave a hot ledger journal; the read-only recovery inventory
+refuses it until a writer recovers the journal, and losing this derived ledger restarts the two-hour clock.
 Heavy probes (LLM
 generate/embed/extract) run one-shot or with `--deep`; in the continuous loop they report
 UNKNOWN("not probed this cycle"), never a stale WORKING.
