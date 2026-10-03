@@ -149,9 +149,7 @@ def config_identity(path, uid, report_key):
                              info.st_ctime_ns, info.st_mtime_ns)
     if identity(before) != identity(after_open) or identity(before) != identity(after):
         raise Refused('NATS configuration changed during census')
-    if any(any(byte >= 128 for byte in line)
-           for line in raw.splitlines()
-           if not line.lstrip().startswith((b'#', b'//'))):
+    if any(byte >= 128 for byte in raw.replace(b'\xe2\x80\x94', b'')):
         raise Refused('NATS configuration contains undeclared non-ASCII syntax')
     if re.search(rb'(?i)\binclude\b', raw):
         raise Refused('NATS configuration include closure is undeclared')

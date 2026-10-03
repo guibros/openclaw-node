@@ -10,8 +10,10 @@ owner-owned 0600 regular file under 1 MiB. The report carries a fresh-key
 HMAC, filesystem identity and size, without publishing config bytes or a
 reusable secret hash. A config containing any `include` token or `$` refuses
 because include and environment-substitution dependencies have not been declared.
-Non-ASCII bytes outside full-line comments also refuse: NATS lowercases the
-Unicode dotted-I spelling of `include`, which an ASCII byte search misses.
+Only the em dash already present in this node's template comments is allowed
+as non-ASCII. Other non-ASCII bytes refuse regardless of line position: NATS
+lowercases the Unicode dotted-I spelling of `include`, and a line-based
+comment exemption can miss it after a semicolon.
 
 The config files and installed plists are read twice around the listener and
 store scan. Their same-key HMACs and filesystem identities must agree within

@@ -165,7 +165,7 @@ class LiveCensusTest(unittest.TestCase):
             for label in census.LEGACY_LABELS:
                 suffix = label.removeprefix('ai.openclaw.nats')
                 config = configs / ('nats' + suffix + '.conf')
-                config.write_text('# Café\nauthorization: secret-value\n')
+                config.write_text('# —\nauthorization: secret-value\n')
                 config.chmod(0o600)
                 (agents / (label + '.plist')).write_bytes(plistlib.dumps({
                     'Label': label,
@@ -183,6 +183,9 @@ class LiveCensusTest(unittest.TestCase):
             with self.assertRaisesRegex(Refused, 'environment substitution'):
                 census.installed_config_census(home, os.getuid(), b'key', units)
             target.write_text('İnclude other.conf\n')
+            with self.assertRaisesRegex(Refused, 'non-ASCII syntax'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            target.write_text('server_name: #;İnclude other.conf\n')
             with self.assertRaisesRegex(Refused, 'non-ASCII syntax'):
                 census.installed_config_census(home, os.getuid(), b'key', units)
             target.write_text('authorization: secret-value\n')
