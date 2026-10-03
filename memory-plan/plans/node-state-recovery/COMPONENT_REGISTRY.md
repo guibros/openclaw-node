@@ -239,3 +239,19 @@ September 22–25 interval supplies a path for later cluster publications;
 the final message subjects still do not establish the publisher. The first
 retained cluster-stream message dates to July 16 and its single replica is
 on member 3; no accepted cold master holds that history. No service changed.
+
+2026-10-03 11:48 EDT — Node-watch is now running from the private
+`node-watch-ingest-4bc1b936` release (launchd PID 77468). Its installed
+plist changed only the entry path and has SHA-256
+`0fa1cf482b6c2ba470eb45a3e2b8ed8c377095ad5193a7e20a4ad97f031daf7a`;
+the old plist and release are retained for rollback. Four live watch reports
+graded `mem.ingest` WORKING against 11 matching transcript sessions, replacing
+the old false mtime-based 648-hour lag. The last snapshot has 22 WORKING,
+4 BROKEN, 3 OFF and 7 UNKNOWN results. The stream/history split remains
+BROKEN, so the node is not operationally accepted. A fresh 23-unit structural
+preflight found only this plist changed from the October 2 baseline; the
+operator's host-Ollama plist hashes and mode-0600 env setting still match.
+`audits/step12_jetstream/POST_WATCHER_BASELINE_RECAPTURE_20261003.json`
+records the point-in-time evidence. The release's third-party dependency link
+is shared and mutable; continuous process provenance, physical writer
+exclusion and the healthy cold masters remain open at recovery 1.2.
