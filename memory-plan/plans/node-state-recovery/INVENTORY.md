@@ -877,3 +877,9 @@ publications. See `audits/step12_jetstream/PORT_4222_FORENSIC_20261003.md`.
 Step 1.2 remains [A]/v1.2-pre: the full-node quiet-window controller, three
 healthy cold masters, their isolated restores, protected writer and truthful
 service restoration remain open. No live state changed.
+
+Checkpoint 2026-10-03 08:58 EDT: follow-up retained logs show member 1
+serving 4222 on September 22 while standalone failed its monitor bind, then
+standalone serving 4222 on September 25 while member 1 failed. This supports
+the port-ownership explanation for post-September-6 cluster messages without
+identifying their publisher. See the same forensic note. Step 1.2 remains open.

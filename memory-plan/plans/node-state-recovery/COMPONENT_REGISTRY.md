@@ -230,3 +230,8 @@ an intermediate rendering. The cluster stream's final eight messages are
 consolidation-decay subjects, not proof of which process published them.
 See `audits/step12_jetstream/PORT_4222_FORENSIC_20261003.md`. Both histories
 remain without healthy cold masters or their isolated acceptance. No service changed.
+
+2026-10-03 08:58 EDT follow-up — retained logs show member 1 winning again
+on September 22 and standalone regaining 4222 on September 25. The
+September 22–25 interval supplies a path for later cluster publications;
+the final message subjects still do not establish the publisher. No service changed.
