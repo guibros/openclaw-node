@@ -866,11 +866,13 @@ fix.
 No bus, plist or service changed. See step12_jetstream/RUNTIME_EVIDENCE.md.
 
 Checkpoint 2026-10-03 08:47 EDT: a read-only review of retained NATS and
-memory-daemon logs identifies a repeated 4222/8222 startup collision between
-standalone and cluster member 1. Member 1 won on August 24 and September 5;
-standalone won on August 26 and September 6. The September 6 daemon overlap
-refusal followed standalone's successful bind by ten seconds. The daemon's
-currently loaded endpoint and saved July plist both name port 4222, though
+memory-daemon logs identifies a repeated 4222/8222 collision between
+standalone and cluster member 1. Member 1 won on August 24 and August 30;
+standalone won on August 26 and September 6. Member 1 restarted under the
+same ownership on September 5. The September 6 daemon overlap refusal
+followed standalone's successful bind by ten seconds. The daemon's currently
+loaded endpoint and an October 1 backup with July 14 modification time name
+port 4222, though
 intermediate renders are not fully proven. This explains the listener
 ownership transition without treating later cluster decay events as daemon
 publications. See `audits/step12_jetstream/PORT_4222_FORENSIC_20261003.md`.
