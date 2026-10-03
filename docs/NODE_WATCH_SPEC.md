@@ -25,7 +25,11 @@ Every element resolves to exactly one of:
 **The rule that fixes the lie:** nothing is ever WORKING without an observation. A target with no
 implemented probe returns **UNKNOWN, never green**. Staleness of a daemon-guaranteed signal (e.g. graph
 cache refresh) is **BROKEN**; absence of activity for an activity-driven signal (e.g. no recent sessions)
-is **not** BROKEN. Watch mode is **read-only** — no synthetic writes per tick. Heavy probes (LLM
+is **not** BROKEN. Watch mode does not change the systems it observes; it writes its own reports
+and a private `~/.openclaw/.node-watch-ingest.sqlite` ledger to time import stalls across restarts.
+Pending transcript sessions stay UNKNOWN for their first two hours without archive progress,
+even when a copied transcript contains old timestamps. Archive inconsistency is BROKEN immediately.
+Heavy probes (LLM
 generate/embed/extract) run one-shot or with `--deep`; in the continuous loop they report
 UNKNOWN("not probed this cycle"), never a stale WORKING.
 
@@ -58,7 +62,7 @@ delegates to a `node-acceptance` probe · **applic.** = applicability gate (OFF 
 | Element | Watch signal | Probe |
 |---|---|---|
 | Memory daemon | process alive | reuse (health) |
-| Session ingest | state.db readable + recent messages | live |
+| Session ingest | configured transcript turns match archived counts and last timestamps | live |
 | LLM extraction | entities present, latest `last_seen` | live |
 | Knowledge index | `.knowledge.db` `last_index_time` < 2h | live |
 | Inject server :7893 | authorized POST returns block + items | reuse (`MEM-L2-INJECT`) |

@@ -613,9 +613,11 @@ describe('mem.ingest configured-source parity', () => {
       let storedRows = 1;
       let hasSession = true;
       let archivedLast = old;
+      let now = Date.now();
       const ctx = makeCtx({
         config: localConfig,
         fsp: fs,
+        now: () => now,
         queryDb: (_p, fn) => fn({
           prepare: (sql) => ({ get: (sessionId) => {
             if (sql.includes('MAX(timestamp)')) return { t: old };
@@ -655,9 +657,11 @@ describe('mem.ingest configured-source parity', () => {
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
       const stale = new Date(Date.now() - 3 * 3600_000);
       await fs.utimes(file, stale, stale);
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
+      now += 2 * 3600_000 + 1;
       const lagged = await target('mem.ingest').run(envFor(ctx));
       assert.equal(lagged.status, STATUS.BROKEN);
-      assert.match(lagged.detail, /overdue or inconsistent archive state/);
+      assert.match(lagged.detail, /overdue, regressed or inconsistent archive state/);
       await fs.writeFile(path.join(source, 'newer.jsonl'), JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
       const link = path.join(source, 'linked.jsonl');
@@ -683,6 +687,8 @@ describe('mem.ingest configured-source parity', () => {
       } } };
       assert.equal((await target('mem.ingest').run(envFor(raceCtx))).status, STATUS.UNKNOWN);
       await fs.appendFile(file, JSON.stringify({ type: 'user', message: { content: 'old unarchived turn' }, timestamp: old }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
+      now += 2 * 3600_000 + 1;
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
       await fs.appendFile(file, JSON.stringify({ type: 'assistant', message: { content: 'newer unarchived reply' }, timestamp: new Date().toISOString() }) + '\n');
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
