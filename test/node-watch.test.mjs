@@ -2,6 +2,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import {
   WATCH_TARGETS, runWatch, formatHtml, STATUS,
   parseLaunchdPrint, gradeMeshServices, gradeRequiredServices, gradeGateway, probeCoreLaunchdServices,
@@ -548,5 +550,46 @@ describe('gradeIngest lag budget calibration (tool-marathon tolerance)', () => {
     const now = Date.parse('2026-07-16T21:30:00Z');
     const v = gradeIngest({ messageCount: 554, lastMessageMs: now - 3 * 3600_000, newestTranscriptMs: now });
     assert.equal(v.status, STATUS.BROKEN);
+  });
+});
+
+describe('mem.ingest configured-source parity', () => {
+  it('ignores later metadata-only writes but catches an unarchived conversation turn', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'node-watch-ingest-'));
+    try {
+      const home = path.join(root, '.openclaw');
+      const source = path.join(root, 'transcripts');
+      await fs.mkdir(path.join(home, 'config'), { recursive: true });
+      await fs.mkdir(source);
+      await fs.writeFile(path.join(home, 'config', 'transcript-sources.json'), JSON.stringify({
+        sources: [{ name: 'test', path: source, format: 'claude-code', enabled: true }],
+      }));
+      const file = path.join(source, 'session-1.jsonl');
+      const old = new Date(Date.now() - 3 * 3600_000).toISOString();
+      await fs.writeFile(file, [
+        JSON.stringify({ type: 'user', message: { content: 'hello' }, timestamp: old }),
+        JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }),
+        '',
+      ].join('\n'));
+      const localConfig = { ...config, home, stateDb: path.join(home, 'state.db') };
+      const ctx = makeCtx({
+        config: localConfig,
+        fsp: fs,
+        queryDb: (_p, fn) => fn({
+          prepare: (sql) => ({ get: () => {
+            if (sql.includes('MAX(timestamp)')) return { t: old };
+            if (sql.includes('SELECT message_count')) return { message_count: 1 };
+            return { n: 1 };
+          } }),
+        }),
+      });
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      await fs.appendFile(file, JSON.stringify({ type: 'assistant', message: { content: 'reply' }, timestamp: new Date().toISOString() }) + '\n');
+      const lagged = await target('mem.ingest').run(envFor(ctx));
+      assert.equal(lagged.status, STATUS.BROKEN);
+      assert.match(lagged.detail, /unarchived turns/);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 });
