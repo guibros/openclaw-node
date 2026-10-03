@@ -905,3 +905,11 @@ could create a second job at a later login.
 The diagnostic still checks only this user's domains plus system and sets
 `physical_absence_certified: false`; full-node hold, protected observer, cold
 masters, isolated restores and cutover remain open at 1.2 [A]/v1.2-pre.
+
+Checkpoint 2026-10-03 10:25 EDT: PR #217's first macOS run exposed a
+transient owned-fixture health timeout during restore-only recovery; an
+unchanged exact-head rerun passed all four jobs. The owned adapter now retries
+only transport failures for a bounded three seconds before binding the same
+process identity. A transient-timeout regression and the previously failing
+owned timer recovery case pass locally. This does not alter production
+services or establish a full-node preservation window; 1.2 remains [A].
