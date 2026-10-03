@@ -81,19 +81,32 @@ describe('node-watch honesty invariants', () => {
     assert.equal(gradeMeshServices([{ ...agent, state: 'waiting' }, bridge]).status, STATUS.BROKEN);
   });
 
-  it('a launchctl-named exit failure never looks like a never-run on-demand worker', async () => {
+  it('the mesh target separates idle workers from spawn, signal and peer failures', async () => {
+    let agentOutput = 'state = not running\nlast exit code = 78: EX_CONFIG\n';
+    let bridgeDown = false;
     const ctx = makeCtx({
       fsp: { readFile: async () => JSON.stringify({ channels: { discord: { enabled: true } } }) },
       exec: async (_command, args) => {
         const agent = args[1].endsWith('/ai.openclaw.mesh-agent');
+        const stopped = bridgeDown && args[1].endsWith('/ai.openclaw.mesh-bridge');
         return { code: 0, stderr: '', stdout: agent
-          ? 'state = not running\nlast exit code = 78: EX_CONFIG\n'
-          : 'state = running\npid = 42\nlast exit code = 0\nHOME => /tmp/test\n' };
+          ? agentOutput : stopped ? 'state = not running\nlast exit code = 1\nHOME => /tmp/test\n'
+            : 'state = running\npid = 42\nlast exit code = 0\nHOME => /tmp/test\n' };
       },
     });
-    const verdict = await target('net.mesh').run(envFor(ctx));
-    assert.equal(verdict.status, STATUS.BROKEN);
-    assert.match(verdict.detail, /mesh-agent/);
+    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.BROKEN);
+    agentOutput = 'state = not running\nlast exit code = (never exited)\nlast terminating signal = Killed: 9\n';
+    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.BROKEN);
+    agentOutput = 'state = not running\n';
+    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.BROKEN);
+    agentOutput = 'state = not running\nlast exit code = 0\n';
+    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.UNKNOWN);
+    agentOutput = 'state = not running\nlast exit code = (never exited)\n';
+    assert.equal((await target('net.mesh').run(envFor(ctx))).status, STATUS.UNKNOWN);
+    bridgeDown = true;
+    const peerFailure = await target('net.mesh').run(envFor(ctx));
+    assert.equal(peerFailure.status, STATUS.BROKEN);
+    assert.match(peerFailure.detail, /mesh-bridge/);
   });
 
   it('required core labels need a running PID, not mere loaded state', () => {
