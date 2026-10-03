@@ -83,7 +83,7 @@ test('HyperAgent maintenance ticks even when the session state is ENDED', () => 
 });
 
 test('synthesis trigger labels are truthful per call site (R10, repair 2.11)', () => {
-  const labels = [...daemonSrc.matchAll(/emitSynthesizeEvent\([^,]+, '([a-z_]+)'/g)].map((m) => m[1]);
+  const labels = [...daemonSrc.matchAll(/synthesisLabel: '([a-z_]+)'/g)].map((m) => m[1]);
   labels.sort();
   // Phase-2 interval, IDLE→ENDED end, ACTIVE→IDLE pre-compression (its own
   // label), ACTIVE→ENDED end, NATS-triggered manual.
