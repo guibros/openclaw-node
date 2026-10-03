@@ -82,11 +82,16 @@ class LiveCensusTest(unittest.TestCase):
                     str(port): None for port in census.LISTENER_PORTS}), \
                 patch.object(census, 'tcp_socket_census', return_value={
                     str(port): False for port in census.LISTENER_PORTS}), \
-                patch.object(census, 'store_identity', return_value=store):
+                patch.object(census, 'store_identity', return_value=store), \
+                patch.object(census, 'installed_config_census', return_value={}) as configs:
             report = census._observe(501, '/tmp')
+            configs.side_effect = [{'config': 'before'}, {'config': 'after'}]
+            with self.assertRaisesRegex(Refused, 'changed during census'):
+                census._observe(501, '/tmp')
         self.assertFalse(report['coverage']['physical_absence_certified'])
         self.assertFalse(report['coverage']['single_instant'])
         self.assertEqual(report['coverage']['other_domains'], 'not checked')
+        self.assertIn('on-disk', report['coverage']['configurations'])
         self.assertIn('embedded newlines', report['coverage']['waiting_job_arguments'])
         self.assertIn('no connected-client', report['coverage']['listener_ports'])
         self.assertEqual(report['unreadable_pids'], 1)
@@ -136,7 +141,8 @@ class LiveCensusTest(unittest.TestCase):
                         str(port): None for port in census.LISTENER_PORTS}), \
                     patch.object(census, 'tcp_socket_census', return_value={
                         str(port): False for port in census.LISTENER_PORTS}), \
-                    patch.object(census, 'store_identity', return_value=store):
+                    patch.object(census, 'store_identity', return_value=store), \
+                    patch.object(census, 'installed_config_census', return_value={}):
                 report = census._observe(501, home)
             unit = report['gui']['ai.openclaw.nats']
             self.assertNotIn('arguments', unit)
@@ -147,6 +153,114 @@ class LiveCensusTest(unittest.TestCase):
             self.assertNotIn('sha256', unit['plist_identity'])
             self.assertNotEqual(unit['plist_identity']['content_hmac_sha256'],
                                 hashlib.sha256(plist.read_bytes()).hexdigest())
+
+    def test_installed_config_census_pins_all_four_without_exposing_contents(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            agents = home / 'Library' / 'LaunchAgents'
+            configs = home / '.openclaw' / 'config'
+            agents.mkdir(parents=True)
+            configs.mkdir(parents=True)
+            units = {label: {'loaded': False} for label in census.LEGACY_LABELS}
+            for label in census.LEGACY_LABELS:
+                suffix = label.removeprefix('ai.openclaw.nats')
+                config = configs / ('nats' + suffix + '.conf')
+                config.write_text('# —\nauthorization: secret-value\n')
+                config.chmod(0o600)
+                (agents / (label + '.plist')).write_bytes(plistlib.dumps({
+                    'Label': label,
+                    'ProgramArguments': ['/opt/homebrew/bin/nats-server',
+                                         '--config', str(config)]}))
+            result = census.installed_config_census(home, os.getuid(), b'key', units)
+            self.assertEqual(set(result), set(census.LEGACY_LABELS))
+            self.assertNotIn('secret-value', str(result))
+            self.assertNotIn('arguments', str(result))
+            target = configs / 'nats-1.conf'
+            target.write_text('include other.conf\n')
+            with self.assertRaisesRegex(Refused, 'include closure'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            target.write_text('port: $NATS_PORT\n')
+            with self.assertRaisesRegex(Refused, 'environment substitution'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            target.write_text('İnclude other.conf\n')
+            with self.assertRaisesRegex(Refused, 'non-ASCII syntax'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            target.write_text('server_name: #;İnclude other.conf\n')
+            with self.assertRaisesRegex(Refused, 'non-ASCII syntax'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            for separator in ('#;', '//;', '#,'):
+                target.write_text('server_name\n' + separator + 'İnclude other.conf\n')
+                with self.subTest(separator=separator):
+                    with self.assertRaisesRegex(Refused, 'non-ASCII syntax'):
+                        census.installed_config_census(home, os.getuid(), b'key', units)
+            target.write_text('authorization: secret-value\n')
+            target.chmod(0o644)
+            with self.assertRaisesRegex(Refused, 'identity differs'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            target.chmod(0o600)
+            sibling = configs / 'same-inode.conf'
+            os.link(target, sibling)
+            with self.assertRaisesRegex(Refused, 'identity differs'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            sibling.unlink()
+            target.write_bytes(b'x' * ((1 << 20) + 1))
+            with self.assertRaisesRegex(Refused, 'identity differs'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            target.unlink()
+            target.symlink_to(configs / 'nats.conf')
+            with self.assertRaisesRegex(Refused, 'identity differs'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+
+    def test_loaded_job_must_use_the_installed_config_plist(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            agents = home / 'Library' / 'LaunchAgents'
+            configs = home / '.openclaw' / 'config'
+            agents.mkdir(parents=True)
+            configs.mkdir(parents=True)
+            units = {label: {'loaded': False} for label in census.LEGACY_LABELS}
+            for label in census.LEGACY_LABELS:
+                suffix = label.removeprefix('ai.openclaw.nats')
+                config = configs / ('nats' + suffix + '.conf')
+                config.write_text('port: 4222\n')
+                config.chmod(0o600)
+                (agents / (label + '.plist')).write_bytes(plistlib.dumps({
+                    'Label': label,
+                    'ProgramArguments': ['/opt/homebrew/bin/nats-server',
+                                         '--config', str(config)]}))
+            units['ai.openclaw.nats'] = {'loaded': True, 'plist': '/tmp/other.plist'}
+            with self.assertRaisesRegex(Refused, 'differs from its installed plist'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            actual = agents / 'ai.openclaw.nats.plist'
+            units['ai.openclaw.nats'] = {
+                'loaded': True, 'plist': str(actual),
+                'plist_identity': {'content_hmac_sha256': '0' * 64}}
+            with self.assertRaisesRegex(Refused, 'changed during census'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            units['ai.openclaw.nats']['plist_identity'] = {
+                'content_hmac_sha256': census.plist_identity(actual, b'key')['content_hmac_sha256']}
+            self.assertEqual(len(census.installed_config_census(home, os.getuid(),
+                                                                  b'key', units)), 4)
+            units['ai.openclaw.nats'] = {'loaded': False}
+            original = actual.read_bytes()
+            changed = plistlib.loads(original)
+            changed['ProgramArguments'][2] = '/tmp/other.conf'
+            actual.write_bytes(plistlib.dumps(changed))
+            with self.assertRaisesRegex(Refused, 'declared config'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            changed['ProgramArguments'][2] = str(configs / 'nats.conf')
+            changed['Label'] = 'ai.openclaw.nats-1'
+            actual.write_bytes(plistlib.dumps(changed))
+            with self.assertRaisesRegex(Refused, 'declared config'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            for label in census.LEGACY_LABELS:
+                path = agents / (label + '.plist')
+                installed = plistlib.loads(path.read_bytes())
+                installed['Label'] = label
+                installed['ProgramArguments'][0] = '/usr/local/bin/nats-server'
+                path.write_bytes(plistlib.dumps(installed))
+            self.assertEqual(len(census.installed_config_census(home, os.getuid(),
+                                                                  b'key', units)), 4)
 
     def test_listener_census_binds_loopback_port_to_pid(self):
         def command(*args):
@@ -255,7 +369,8 @@ class LiveCensusTest(unittest.TestCase):
                 patch.object(census, 'nats_processes', return_value=([], 0)), \
                 patch.object(census, 'tcp_listener_census', return_value={
                     str(port): None for port in census.LISTENER_PORTS}), \
-                patch.object(census, 'tcp_socket_census', return_value=sockets):
+                patch.object(census, 'tcp_socket_census', return_value=sockets), \
+                patch.object(census, 'installed_config_census', return_value={}):
             with self.assertRaisesRegex(Refused, 'views differ'):
                 census._observe(501, '/tmp')
 

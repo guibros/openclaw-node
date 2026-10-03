@@ -887,3 +887,11 @@ interval provides a possible path for the cluster's last observed message at
 14:11 EDT on September 23. It does not explain earlier post-September-6
 messages or identify their publisher. See the same forensic note. Step 1.2
 remains open.
+
+Checkpoint 2026-10-03 09:47 EDT: the read-only legacy NATS census now binds
+all four installed GUI plists to their current private config files and
+refuses undeclared include, substitution or active non-ASCII tokens. The live
+node accepts four current config observations;
+35 focused tests pass. This does not establish running-process config bytes,
+physical absence, cold masters or a quiet window. Step 1.2 remains [A] at
+v1.2-pre; see step12_jetstream/NATS_CONFIG_CENSUS_20261003.md.
