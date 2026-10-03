@@ -24,6 +24,7 @@ import {
 } from '../lib/health-check.mjs';
 import { writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
+import { isIP } from 'node:net';
 import path from 'node:path';
 import os from 'node:os';
 import { createRequire } from 'node:module';
@@ -143,17 +144,37 @@ export async function maybeAutoRestartOllama(snapshotPath) {
   const snapshot = mod.readStateSnapshot(snapshotPath);
   if (!snapshot || !mod.snapshotLooksStuck(snapshot)) return false;
 
+  const baseUrl = process.env.LLM_BASE_URL || 'http://localhost:11434';
+  if (snapshot.llm_base_url !== baseUrl) {
+    console.warn('[health-watch] Ollama appears stuck, but the daemon endpoint does not match the recovery endpoint');
+    return false;
+  }
+  const model = process.env.LLM_MODEL || 'qwen3:8b';
+  if (snapshot.llm_model !== model || (snapshot.current_job?.model && snapshot.current_job.model !== model)) {
+    console.warn('[health-watch] Ollama appears stuck, but the daemon model does not match the recovery model');
+    return false;
+  }
+  let local = false;
+  try {
+    const url = new URL(baseUrl);
+    local = (url.hostname === 'localhost' || url.hostname === '[::1]'
+      || (isIP(url.hostname) === 4 && url.hostname.startsWith('127.')))
+      && ['http:', 'https:'].includes(url.protocol);
+  } catch { local = false; }
+  if (!local) {
+    console.warn('[health-watch] Ollama appears stuck, but auto-eviction is limited to a local endpoint');
+    return false;
+  }
+
   _localRestarts = _localRestarts.filter(ts => Date.now() - ts < RESTART_WINDOW_MS);
   if (_localRestarts.length >= RESTART_MAX) {
     console.warn(`[health-watch] Ollama stuck but restart rate-limited (${_localRestarts.length} restarts in last 15min) — abstaining`);
     return false;
   }
 
-  const model = snapshot.current_job?.model || process.env.LLM_MODEL || 'qwen3:8b';
   console.warn(`[health-watch] daemon's Ollama appears stuck (consecutive_timeouts=${JSON.stringify(snapshot.consecutive_timeouts)}). Unloading ${model} via keep_alive:0.`);
 
   try {
-    const baseUrl = process.env.LLM_BASE_URL || 'http://localhost:11434';
     const res = await fetch(`${baseUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
