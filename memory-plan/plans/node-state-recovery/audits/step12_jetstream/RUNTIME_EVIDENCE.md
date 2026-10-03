@@ -881,6 +881,15 @@ runtime routing regression, not a reopening of the dotted-name source fix.
 Preserve and restore the cluster history as well as the older `daedalus`
 history before migrating subjects.
 
+The private 2026-09-28 `cluster-online/manifest.json` records a completed
+official snapshot of the current-node stream with 55,173 messages and last
+sequence 55,173. The separate `standalone-online/manifest.json` records the
+older `daedalus` stream with 24,286 messages and last sequence 24,286. Those
+counts still match the live metadata observed above. The two archives are
+point-in-time, separate-server evidence; this comparison does not create a
+healthy cold master, prove an isolated restore or establish a common quiet
+window.
+
 A private candidate that changed only node-watch's node ID to `daedalus`
 was prepared but **not installed or loaded**. It would make an old stream
 look current and leave publication disabled. Neither a NATS stream nor any
