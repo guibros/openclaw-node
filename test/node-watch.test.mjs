@@ -613,9 +613,11 @@ describe('mem.ingest configured-source parity', () => {
       let storedRows = 1;
       let hasSession = true;
       let archivedLast = old;
+      let now = Date.now();
       const ctx = makeCtx({
         config: localConfig,
         fsp: fs,
+        now: () => now,
         queryDb: (_p, fn) => fn({
           prepare: (sql) => ({ get: (sessionId) => {
             if (sql.includes('MAX(timestamp)')) return { t: old };
@@ -630,6 +632,11 @@ describe('mem.ingest configured-source parity', () => {
         }),
       });
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      ctx.observeIngestLag = () => { throw new Error('ledger unavailable'); };
+      const unavailable = await target('mem.ingest').run(envFor(ctx));
+      assert.equal(unavailable.status, STATUS.UNKNOWN);
+      assert.match(unavailable.detail, /ledger unavailable/);
+      delete ctx.observeIngestLag;
       await fs.writeFile(registry, JSON.stringify({
         sources: [{ name: 'test', path: source, format: 'openclaw-gateway', enabled: true }],
       }));
@@ -655,6 +662,8 @@ describe('mem.ingest configured-source parity', () => {
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
       const stale = new Date(Date.now() - 3 * 3600_000);
       await fs.utimes(file, stale, stale);
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
+      now += 2 * 3600_000 + 1;
       const lagged = await target('mem.ingest').run(envFor(ctx));
       assert.equal(lagged.status, STATUS.BROKEN);
       assert.match(lagged.detail, /overdue or inconsistent archive state/);
@@ -671,6 +680,22 @@ describe('mem.ingest configured-source parity', () => {
       archivedLast = recentTurn;
       await fs.writeFile(path.join(source, 'ignored.txt'), JSON.stringify({ type: 'user', message: { content: 'not a source' } }));
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      const twoTurns = await fs.readFile(file, 'utf8');
+      await fs.appendFile(file, JSON.stringify({ type: 'user', message: { content: 'pending before restore' }, timestamp: recentTurn }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
+      declaredCount = 1;
+      storedRows = 1;
+      archivedLast = old;
+      const lowerPending = await target('mem.ingest').run(envFor(ctx));
+      assert.equal(lowerPending.status, STATUS.UNKNOWN);
+      assert.match(lowerPending.detail, /below a prior observation/);
+      await fs.writeFile(file, `${twoTurns.split('\n')[0]}\n`);
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      await fs.writeFile(file, twoTurns);
+      declaredCount = 2;
+      storedRows = 2;
+      archivedLast = recentTurn;
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
       await fs.symlink(file, link);
       assert.match((await target('mem.ingest').run(envFor(ctx))).detail, /not regular/);
       await fs.unlink(link);
@@ -683,6 +708,8 @@ describe('mem.ingest configured-source parity', () => {
       } } };
       assert.equal((await target('mem.ingest').run(envFor(raceCtx))).status, STATUS.UNKNOWN);
       await fs.appendFile(file, JSON.stringify({ type: 'user', message: { content: 'old unarchived turn' }, timestamp: old }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
+      now += 2 * 3600_000 + 1;
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
       await fs.appendFile(file, JSON.stringify({ type: 'assistant', message: { content: 'newer unarchived reply' }, timestamp: new Date().toISOString() }) + '\n');
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
