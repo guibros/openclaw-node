@@ -145,6 +145,10 @@ export async function maybeAutoRestartOllama(snapshotPath) {
   if (!snapshot || !mod.snapshotLooksStuck(snapshot)) return false;
 
   const baseUrl = process.env.LLM_BASE_URL || 'http://localhost:11434';
+  if (snapshot.llm_base_url !== baseUrl) {
+    console.warn('[health-watch] Ollama appears stuck, but the daemon endpoint does not match the recovery endpoint');
+    return false;
+  }
   let local = false;
   try {
     const url = new URL(baseUrl);

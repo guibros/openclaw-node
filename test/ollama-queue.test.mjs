@@ -523,6 +523,7 @@ describe('cross-process snapshot (R12, repair 3.3)', () => {
     await requestExtraction(async () => 'done', { model: 'qwen3:8b' });
     const written = exportStateSnapshot(file);
     assert.equal(written.pid, process.pid);
+    assert.equal(written.llm_base_url, process.env.LLM_BASE_URL || 'http://localhost:11434');
 
     const read = readStateSnapshot(file);
     assert.ok(read, 'fresh snapshot must read back');
