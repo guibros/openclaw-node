@@ -571,23 +571,67 @@ describe('mem.ingest configured-source parity', () => {
         JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }),
         '',
       ].join('\n'));
+      await fs.utimes(file, new Date(old), new Date(old));
       const localConfig = { ...config, home, stateDb: path.join(home, 'state.db') };
+      let declaredCount = 1;
+      let storedRows = 1;
+      let hasSession = true;
+      let archivedLast = old;
       const ctx = makeCtx({
         config: localConfig,
         fsp: fs,
         queryDb: (_p, fn) => fn({
-          prepare: (sql) => ({ get: () => {
+          prepare: (sql) => ({ get: (sessionId) => {
             if (sql.includes('MAX(timestamp)')) return { t: old };
-            if (sql.includes('SELECT message_count')) return { message_count: 1 };
+            if (sql.includes('SELECT message_count')) return hasSession && sessionId === 'session-1'
+              ? { message_count: declaredCount, end_time: archivedLast } : undefined;
+            if (sql.includes('WHERE session_id')) return { n: sessionId === 'session-1' ? storedRows : 0 };
             return { n: 1 };
           } }),
         }),
       });
       assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
-      await fs.appendFile(file, JSON.stringify({ type: 'assistant', message: { content: 'reply' }, timestamp: new Date().toISOString() }) + '\n');
+      hasSession = false;
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      hasSession = true;
+      storedRows = 0;
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      storedRows = 1;
+      declaredCount = 0;
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      declaredCount = 1;
+      archivedLast = new Date(Date.parse(old) - 1000).toISOString();
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      archivedLast = old;
+      const recentTurn = new Date().toISOString();
+      await fs.appendFile(file, JSON.stringify({ type: 'assistant', message: { content: 'reply' }, timestamp: recentTurn }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
+      const stale = new Date(Date.now() - 3 * 3600_000);
+      await fs.utimes(file, stale, stale);
       const lagged = await target('mem.ingest').run(envFor(ctx));
       assert.equal(lagged.status, STATUS.BROKEN);
       assert.match(lagged.detail, /unarchived turns/);
+      await fs.writeFile(path.join(source, 'newer.jsonl'), JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+      declaredCount = 2;
+      storedRows = 2;
+      archivedLast = recentTurn;
+      await fs.writeFile(path.join(source, 'ignored.txt'), JSON.stringify({ type: 'user', message: { content: 'not a source' } }));
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.WORKING);
+      const link = path.join(source, 'linked.jsonl');
+      await fs.symlink(file, link);
+      assert.match((await target('mem.ingest').run(envFor(ctx))).detail, /not regular/);
+      await fs.unlink(link);
+      let reads = 0;
+      const raceCtx = { ...ctx, fsp: { ...fs, lstat: async (candidate) => {
+        if (candidate === file && ++reads === 2) {
+          await fs.appendFile(file, JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
+        }
+        return fs.lstat(candidate);
+      } } };
+      assert.equal((await target('mem.ingest').run(envFor(raceCtx))).status, STATUS.UNKNOWN);
+      await fs.appendFile(file, JSON.stringify({ type: 'user', message: { content: 'old unarchived turn' }, timestamp: old }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
