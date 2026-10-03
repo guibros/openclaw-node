@@ -896,6 +896,16 @@ node accepts four current config observations;
 physical absence, cold masters or a quiet window. Step 1.2 remains [A] at
 v1.2-pre; see step12_jetstream/NATS_CONFIG_CENSUS_20261003.md.
 
+Checkpoint 2026-10-03 10:14 EDT: the next read-only diagnostic checks the
+`user/<uid>` launchd domain for the four legacy NATS labels and refuses any
+loaded job there before scanning processes or stores. A local 36-test focused
+suite passes, and this node currently has zero loaded user-domain NATS jobs.
+Installed GUI NATS plists also refuse Background session eligibility, which
+could create a second job at a later login.
+The diagnostic still checks only this user's domains plus system and sets
+`physical_absence_certified: false`; full-node hold, protected observer, cold
+masters, isolated restores and cutover remain open at 1.2 [A]/v1.2-pre.
+
 Checkpoint 2026-10-03 10:25 EDT: PR #217's first macOS run exposed a
 transient owned-fixture health timeout during restore-only recovery; an
 unchanged exact-head rerun passed all four jobs. The owned adapter now retries
