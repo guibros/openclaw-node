@@ -75,12 +75,15 @@ class LiveCensusTest(unittest.TestCase):
                 label: None for label in census.LEGACY_LABELS}), \
                 patch.object(census, 'launchd_service', return_value=empty), \
                 patch.object(census, 'nats_processes', return_value=([], 1)), \
+                patch.object(census, 'tcp_listener_census', return_value={
+                    str(port): None for port in census.LISTENER_PORTS}), \
                 patch.object(census, 'store_identity', return_value=store):
             report = census._observe(501, '/tmp')
         self.assertFalse(report['coverage']['physical_absence_certified'])
         self.assertFalse(report['coverage']['single_instant'])
         self.assertEqual(report['coverage']['other_domains'], 'not checked')
         self.assertIn('embedded newlines', report['coverage']['waiting_job_arguments'])
+        self.assertIn('no atomic', report['coverage']['listener_ports'])
         self.assertEqual(report['unreadable_pids'], 1)
         self.assertEqual(report['stores']['ai.openclaw.nats']['nats_server_open_vnodes'], [])
 
@@ -123,6 +126,8 @@ class LiveCensusTest(unittest.TestCase):
                     label: None for label in census.LEGACY_LABELS}), \
                     patch.object(census, 'launchd_service', side_effect=service), \
                     patch.object(census, 'nats_processes', return_value=([], 0)), \
+                    patch.object(census, 'tcp_listener_census', return_value={
+                        str(port): None for port in census.LISTENER_PORTS}), \
                     patch.object(census, 'store_identity', return_value=store):
                 report = census._observe(501, home)
             unit = report['gui']['ai.openclaw.nats']
@@ -134,6 +139,49 @@ class LiveCensusTest(unittest.TestCase):
             self.assertNotIn('sha256', unit['plist_identity'])
             self.assertNotEqual(unit['plist_identity']['content_hmac_sha256'],
                                 hashlib.sha256(plist.read_bytes()).hexdigest())
+
+    def test_listener_census_binds_loopback_port_to_pid(self):
+        def command(*args):
+            port = int(args[2].split(':')[-1])
+            return (0, f'p842\ncnats-server\nf8\nn127.0.0.1:{port}\n', '')
+        with patch.object(census, '_command', side_effect=command):
+            listeners = census.tcp_listener_census()
+        self.assertEqual(set(listeners), {str(port) for port in census.LISTENER_PORTS})
+        self.assertEqual(listeners['4222']['pid'], 842)
+
+    def test_listener_census_refuses_wildcard_and_ambiguous_owner(self):
+        with patch.object(census, '_command', return_value=(
+                0, 'p842\ncnats-server\nf8\nn*:4222\n', '')):
+            with self.assertRaisesRegex(Refused, 'loopback'):
+                census.tcp_listener_census()
+        with patch.object(census, '_command', return_value=(
+                0, 'p842\ncnats-server\nf8\nn127.0.0.1:4222\n'
+                   'p843\ncnats-server\nf8\nn127.0.0.1:4222\n', '')):
+            with self.assertRaisesRegex(Refused, 'ambiguous'):
+                census.tcp_listener_census()
+
+    def test_listener_census_distinguishes_absent_from_unobservable(self):
+        with patch.object(census, '_command', return_value=(1, '', '')):
+            self.assertTrue(all(value is None for value in
+                                census.tcp_listener_census().values()))
+        with patch.object(census, '_command', return_value=(1, '', 'permission denied')):
+            with self.assertRaisesRegex(Refused, 'unobservable'):
+                census.tcp_listener_census()
+
+    def test_listener_owner_must_match_loaded_service_and_process(self):
+        listeners = {str(port): None for port in census.LISTENER_PORTS}
+        listeners['4222'] = {'pid': 842}
+        listeners['8222'] = {'pid': 842}
+        units = {label: {'loaded': False} for label in census.LEGACY_LABELS}
+        units['ai.openclaw.nats'] = {'loaded': True, 'state': 'running', 'pid': 842}
+        system = {label: {'loaded': False} for label in census.LEGACY_LABELS}
+        self.assertTrue(census.verify_listener_owners(units, system, [{'pid': 842}], listeners))
+        listeners['8222'] = {'pid': 843}
+        with self.assertRaisesRegex(Refused, 'no bound launchd NATS process'):
+            census.verify_listener_owners(units, system, [{'pid': 842}], listeners)
+        with self.assertRaisesRegex(Refused, 'does not own'):
+            system['ai.openclaw.nats-1'] = {'loaded': True, 'state': 'running', 'pid': 843}
+            census.verify_listener_owners(units, system, [{'pid': 842}, {'pid': 843}], listeners)
 
     def test_plist_identity_and_symlink_refusal(self):
         with tempfile.TemporaryDirectory() as temporary:
