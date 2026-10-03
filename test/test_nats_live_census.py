@@ -90,7 +90,9 @@ class LiveCensusTest(unittest.TestCase):
                 census._observe(501, '/tmp')
         self.assertFalse(report['coverage']['physical_absence_certified'])
         self.assertFalse(report['coverage']['single_instant'])
-        self.assertEqual(report['coverage']['other_domains'], 'not checked')
+        self.assertEqual(report['coverage']['other_domains'], 'other sessions and users not checked')
+        self.assertEqual(report['coverage']['domains'], ['gui/501', 'user/501', 'system'])
+        self.assertFalse(any(service['loaded'] for service in report['user'].values()))
         self.assertIn('on-disk', report['coverage']['configurations'])
         self.assertIn('embedded newlines', report['coverage']['waiting_job_arguments'])
         self.assertIn('no connected-client', report['coverage']['listener_ports'])
@@ -117,6 +119,18 @@ class LiveCensusTest(unittest.TestCase):
                     patch.object(census, 'nats_processes', return_value=([], 0)):
                 with self.assertRaisesRegex(Refused, 'arguments differ'):
                     census._observe(501, home)
+
+    def test_user_domain_nats_job_refuses_before_process_or_store_scan(self):
+        def service(domain, label):
+            return {'loaded': domain == 'user/501' and label == 'ai.openclaw.nats',
+                    'state': 'waiting'}
+        with patch.object(census, 'disabled_overrides', return_value={
+                label: None for label in census.LEGACY_LABELS}), \
+                patch.object(census, 'launchd_service', side_effect=service), \
+                patch.object(census, 'nats_processes') as processes:
+            with self.assertRaisesRegex(Refused, 'unexpected user-domain'):
+                census._observe(501, '/tmp')
+            processes.assert_not_called()
 
     def test_loaded_arguments_are_not_exposed_in_report(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -261,6 +275,18 @@ class LiveCensusTest(unittest.TestCase):
                 path.write_bytes(plistlib.dumps(installed))
             self.assertEqual(len(census.installed_config_census(home, os.getuid(),
                                                                   b'key', units)), 4)
+            parked = agents / 'ai.openclaw.nats-1.plist'
+            changed = plistlib.loads(parked.read_bytes())
+            for accepted in ('Aqua', ['Aqua']):
+                changed['LimitLoadToSessionType'] = accepted
+                parked.write_bytes(plistlib.dumps(changed))
+                with self.subTest(session_type=accepted):
+                    self.assertEqual(len(census.installed_config_census(
+                        home, os.getuid(), b'key', units)), 4)
+            changed['LimitLoadToSessionType'] = ['Aqua', 'Background']
+            parked.write_bytes(plistlib.dumps(changed))
+            with self.assertRaisesRegex(Refused, 'outside the GUI session'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
 
     def test_listener_census_binds_loopback_port_to_pid(self):
         def command(*args):
