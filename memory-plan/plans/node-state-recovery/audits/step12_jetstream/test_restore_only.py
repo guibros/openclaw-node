@@ -1,5 +1,6 @@
 import copy
 import hashlib
+import http.server
 import importlib.util
 import io
 import json
@@ -13,6 +14,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import urllib.error
@@ -103,6 +105,55 @@ class HealthRetryTests(unittest.TestCase):
                 service.return_value.bind.return_value = {'status': {'pid': 999}}
                 with self.assertRaisesRegex(Refused, 'generation changed'):
                     adapter.health('mesh-agent', {'running': True, 'pid': 123})
+
+                service.return_value.bind.reset_mock()
+                for body in (b'{"pid":123.0,"ready":true}',
+                             b'{"pid":123,"ready":1}',
+                             b'{"pid":true,"ready":true}'):
+                    with self.subTest(body=body):
+                        build.return_value.open.side_effect = [io.BytesIO(body)]
+                        with self.assertRaisesRegex(Refused, 'health differs'):
+                            adapter.health('mesh-agent', {'running': True, 'pid': 123})
+                        service.return_value.bind.assert_not_called()
+
+    def test_health_redirect_is_refused_without_following_it(self):
+        paths = []
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                paths.append(self.path)
+                if self.path == '/ready':
+                    self.send_response(302)
+                    self.send_header('Location', '/accepted')
+                    self.end_headers()
+                else:
+                    body = b'{"pid":123,"ready":true}'
+                    self.send_response(200)
+                    self.send_header('Content-Length', str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+
+            def log_message(self, *_):
+                pass
+
+        server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as temporary:
+                plist = pathlib.Path(temporary) / 'agent.plist'
+                plist.write_bytes(plistlib.dumps({'EnvironmentVariables': {
+                    'OWNED_HEALTH_PORT': str(server.server_port)}}))
+                adapter = OwnedLaunchdAdapter.__new__(OwnedLaunchdAdapter)
+                with patch.object(adapter, 'plist', return_value=plist), \
+                        patch.object(adapter, 'service') as service:
+                    with self.assertRaisesRegex(Refused, 'response differs'):
+                        adapter.health('mesh-agent', {'running': True, 'pid': 123})
+                    service.assert_not_called()
+                self.assertEqual(paths, ['/ready'])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
 
 
 @unittest.skipUnless(sys.platform == 'darwin', 'requires owned macOS launchd jobs')
