@@ -882,6 +882,8 @@ service restoration remain open. No live state changed.
 
 Checkpoint 2026-10-03 08:58 EDT: follow-up retained logs show member 1
 serving 4222 on September 22 while standalone failed its monitor bind, then
-standalone serving 4222 on September 25 while member 1 failed. This supports
-the port-ownership explanation for post-September-6 cluster messages without
-identifying their publisher. See the same forensic note. Step 1.2 remains open.
+standalone serving 4222 on September 25 while member 1 failed. The member-1
+interval provides a possible path for the cluster's last observed message at
+14:11 EDT on September 23. It does not explain earlier post-September-6
+messages or identify their publisher. See the same forensic note. Step 1.2
+remains open.
