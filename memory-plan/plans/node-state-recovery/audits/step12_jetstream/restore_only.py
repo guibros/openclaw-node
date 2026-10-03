@@ -29,6 +29,11 @@ gate_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate_module)
 
 
+class NoHealthRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, file, code, message, headers, newurl):
+        return None
+
+
 def private_dir(path):
     info = path.lstat()
     require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
@@ -219,7 +224,7 @@ class OwnedLaunchdAdapter:
         plist = plistlib.loads(self.plist(unit).read_bytes())
         port = int(plist['EnvironmentVariables']['OWNED_HEALTH_PORT'])
         require(1 <= port <= 65535, 'owned health port differs')
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoHealthRedirect())
         deadline = time.monotonic() + 3
         while True:
             try:
@@ -233,7 +238,10 @@ class OwnedLaunchdAdapter:
                 if time.monotonic() >= deadline:
                     raise Refused('owned process health endpoint did not respond') from error
                 time.sleep(.05)
-        require(value == {'pid': status['pid'], 'ready': True}, 'owned process health differs')
+        require(type(value) is dict and type(value.get('pid')) is int
+                and type(value.get('ready')) is bool
+                and value == {'pid': status['pid'], 'ready': True},
+                'owned process health differs')
         binding = self.service(unit).bind(self.prior[unit]['identity']['argv'],
                                           self.prior[unit]['identity']['argv'][0],
                                           self.prior[unit]['identity']['working_directory'],
