@@ -255,3 +255,24 @@ operator's host-Ollama plist hashes and mode-0600 env setting still match.
 records the point-in-time evidence. The release's third-party dependency link
 is shared and mutable; continuous process provenance, physical writer
 exclusion and the healthy cold masters remain open at recovery 1.2.
+
+2026-10-03 12:24 EDT — The memory daemon now runs from the staged
+`~/.openclaw/releases/memory-daemon-vault-20261003` copy. Its loaded plist
+changed from `a3fb84ea…` to `7752da7b…` solely to repoint the entry; the
+former plist is retained under `~/.openclaw/backups/memory-daemon/`. The
+release changes the installed daemon only by running throttled vault sync
+and graph-cache refresh when the session is ENDED, and by exporting that
+routine for an isolated test. Launchd PID 92501 remained running; the real
+graph cache refreshed at 2026-10-03T16:18:10.322Z and node-watch graded
+`obs.graph_cache`, `mem.daemon` and `mem.ingest` WORKING. Obsidian sync is
+explicitly disabled in private config, so its zero-work CLI exit did not
+refresh concept notes; `obs.sync` remains BROKEN and no setting was changed.
+The release carries copied first-party files but links shared mutable
+`node_modules`. The source branch restores the installed flush-result gate
+before a future source deployment can replace it. The new 23-unit
+structural recapture changed only the memory-daemon plist since the watcher
+recapture; the mesh-agent and memory-daemon host-Ollama settings still match
+the operator's addendum. See
+`audits/step12_jetstream/POST_MEMORY_DAEMON_BASELINE_RECAPTURE_20261003.json`.
+Recovery 1.2 remains active without physical writer exclusion or healthy
+cold masters.

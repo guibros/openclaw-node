@@ -952,3 +952,38 @@ not a full-node Journal baseline. It does not establish transitive dependency
 pinning, continuous process provenance or physical writer exclusion. No NATS
 history was copied, sealed or migrated. Step 1.2 remains active at
 `v1.2-pre`.
+
+### Memory-daemon node-scoped maintenance — 2026-10-03 12:24 EDT
+
+The installed daemon's persisted session state was ENDED. Its previous
+entry ran both Obsidian sync and graph-cache refresh only inside the
+ACTIVE/IDLE branch; the graph cache had not refreshed since September 28.
+A private release copied the installed first-party execution tree and
+changed only that scheduling boundary. It passed an isolated HOME/vault
+control: one sync and one graph refresh, with the second call throttled.
+The installed completion-result gate was retained in that release and
+restored to committed source. Focused source tests passed 31/31.
+
+The live `ai.openclaw.memory-daemon` plist was backed up byte-for-byte,
+then its entry path alone was repointed after the old launchd job stopped.
+The old process logged SIGTERM and `Daemon stopped`; the new job ran as PID
+92501 from the staged release. The daemon logged an Obsidian sync child
+exit and a graph refresh; SQLite `graph_cache_meta.last_refresh_at` became
+`2026-10-03T16:18:10.322Z` with 451 nodes and 2388 edges. The next
+node-watch report graded `obs.graph_cache`, `mem.daemon` and `mem.ingest`
+WORKING. `obs.sync` remained BROKEN because the existing private config has
+`enabled:false`; the child exited without writing notes. Calling that exit
+"sync done" in the daemon log is a misleading label, not proof of vault
+publication. The setting remains untouched pending operator intent.
+
+The source-owned entrypoint preflight accepted 23 installed units, 21
+GUI-loaded, no user/system-loaded units, and the same sole Tailscale
+exclusion. Relative to the watcher recapture, only the memory-daemon plist
+changed (`a3fb84ea…` → `7752da7b…`). The source release manifest and
+loaded entry are pinned in
+`POST_MEMORY_DAEMON_BASELINE_RECAPTURE_20261003.json` (SHA-256
+`67980367811098ec4601166059c086e89bb16022aed87bf5d230f36fb60eb1e5`).
+The mesh-agent plist and private mode-0600 host-Ollama setting still match
+the October 1 operator addendum. Third-party dependencies remain a shared
+mutable link. The NATS stream overlap remains BROKEN. No NATS history was
+copied, sealed or migrated, and this is not a full-node Journal baseline.
