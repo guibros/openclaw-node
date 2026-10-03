@@ -83,8 +83,11 @@ class LiveCensusTest(unittest.TestCase):
                 patch.object(census, 'tcp_socket_census', return_value={
                     str(port): False for port in census.LISTENER_PORTS}), \
                 patch.object(census, 'store_identity', return_value=store), \
-                patch.object(census, 'installed_config_census', return_value={}):
+                patch.object(census, 'installed_config_census', return_value={}) as configs:
             report = census._observe(501, '/tmp')
+            configs.side_effect = [{'config': 'before'}, {'config': 'after'}]
+            with self.assertRaisesRegex(Refused, 'changed during census'):
+                census._observe(501, '/tmp')
         self.assertFalse(report['coverage']['physical_absence_certified'])
         self.assertFalse(report['coverage']['single_instant'])
         self.assertEqual(report['coverage']['other_domains'], 'not checked')
@@ -162,7 +165,7 @@ class LiveCensusTest(unittest.TestCase):
             for label in census.LEGACY_LABELS:
                 suffix = label.removeprefix('ai.openclaw.nats')
                 config = configs / ('nats' + suffix + '.conf')
-                config.write_text('authorization: secret-value\n')
+                config.write_text('# Café\nauthorization: secret-value\n')
                 config.chmod(0o600)
                 (agents / (label + '.plist')).write_bytes(plistlib.dumps({
                     'Label': label,
@@ -179,7 +182,22 @@ class LiveCensusTest(unittest.TestCase):
             target.write_text('port: $NATS_PORT\n')
             with self.assertRaisesRegex(Refused, 'environment substitution'):
                 census.installed_config_census(home, os.getuid(), b'key', units)
+            target.write_text('İnclude other.conf\n')
+            with self.assertRaisesRegex(Refused, 'non-ASCII syntax'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
             target.write_text('authorization: secret-value\n')
+            target.chmod(0o644)
+            with self.assertRaisesRegex(Refused, 'identity differs'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            target.chmod(0o600)
+            sibling = configs / 'same-inode.conf'
+            os.link(target, sibling)
+            with self.assertRaisesRegex(Refused, 'identity differs'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            sibling.unlink()
+            target.write_bytes(b'x' * ((1 << 20) + 1))
+            with self.assertRaisesRegex(Refused, 'identity differs'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
             target.unlink()
             target.symlink_to(configs / 'nats.conf')
             with self.assertRaisesRegex(Refused, 'identity differs'):
@@ -213,6 +231,26 @@ class LiveCensusTest(unittest.TestCase):
                 census.installed_config_census(home, os.getuid(), b'key', units)
             units['ai.openclaw.nats']['plist_identity'] = {
                 'content_hmac_sha256': census.plist_identity(actual, b'key')['content_hmac_sha256']}
+            self.assertEqual(len(census.installed_config_census(home, os.getuid(),
+                                                                  b'key', units)), 4)
+            units['ai.openclaw.nats'] = {'loaded': False}
+            original = actual.read_bytes()
+            changed = plistlib.loads(original)
+            changed['ProgramArguments'][2] = '/tmp/other.conf'
+            actual.write_bytes(plistlib.dumps(changed))
+            with self.assertRaisesRegex(Refused, 'declared config'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            changed['ProgramArguments'][2] = str(configs / 'nats.conf')
+            changed['Label'] = 'ai.openclaw.nats-1'
+            actual.write_bytes(plistlib.dumps(changed))
+            with self.assertRaisesRegex(Refused, 'declared config'):
+                census.installed_config_census(home, os.getuid(), b'key', units)
+            for label in census.LEGACY_LABELS:
+                path = agents / (label + '.plist')
+                installed = plistlib.loads(path.read_bytes())
+                installed['Label'] = label
+                installed['ProgramArguments'][0] = '/usr/local/bin/nats-server'
+                path.write_bytes(plistlib.dumps(installed))
             self.assertEqual(len(census.installed_config_census(home, os.getuid(),
                                                                   b'key', units)), 4)
 
@@ -323,7 +361,8 @@ class LiveCensusTest(unittest.TestCase):
                 patch.object(census, 'nats_processes', return_value=([], 0)), \
                 patch.object(census, 'tcp_listener_census', return_value={
                     str(port): None for port in census.LISTENER_PORTS}), \
-                patch.object(census, 'tcp_socket_census', return_value=sockets):
+                patch.object(census, 'tcp_socket_census', return_value=sockets), \
+                patch.object(census, 'installed_config_census', return_value={}):
             with self.assertRaisesRegex(Refused, 'views differ'):
                 census._observe(501, '/tmp')
 

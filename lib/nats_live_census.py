@@ -149,6 +149,10 @@ def config_identity(path, uid, report_key):
                              info.st_ctime_ns, info.st_mtime_ns)
     if identity(before) != identity(after_open) or identity(before) != identity(after):
         raise Refused('NATS configuration changed during census')
+    if any(any(byte >= 128 for byte in line)
+           for line in raw.splitlines()
+           if not line.lstrip().startswith((b'#', b'//'))):
+        raise Refused('NATS configuration contains undeclared non-ASCII syntax')
     if re.search(rb'(?i)\binclude\b', raw):
         raise Refused('NATS configuration include closure is undeclared')
     if b'$' in raw:
@@ -157,6 +161,7 @@ def config_identity(path, uid, report_key):
             hashlib.sha256).hexdigest(), 'device': before.st_dev,
             'inode': before.st_ino, 'uid': before.st_uid,
             'mode': stat.S_IMODE(before.st_mode), 'size': before.st_size,
+            'ctime_ns': before.st_ctime_ns, 'mtime_ns': before.st_mtime_ns,
             'include_closure': 'no include token or dollar substitution in current file'}
 
 
@@ -167,8 +172,11 @@ def installed_config_census(home, uid, report_key, gui_units):
         plist_path = home / 'Library' / 'LaunchAgents' / (label + '.plist')
         config_path = home / '.openclaw' / 'config' / ('nats' + suffix + '.conf')
         plist = plist_identity(plist_path, report_key)
-        if (plist['label'] != label or plist['argv'] !=
-                ['/opt/homebrew/bin/nats-server', '--config', str(config_path)]):
+        argv = plist['argv']
+        if (plist['label'] != label or not isinstance(argv, list) or len(argv) != 3
+                or not isinstance(argv[0], str) or not Path(argv[0]).is_absolute()
+                or Path(argv[0]).name != 'nats-server'
+                or argv[1:] != ['--config', str(config_path)]):
             raise Refused(f'installed NATS job {label} differs from its declared config')
         loaded = gui_units[label]
         if loaded['loaded'] and loaded['plist'] != str(plist_path):
@@ -381,6 +389,7 @@ def _observe(user_uid, user_home):
             del plist['argv']
             del service['arguments']
             service['plist_identity'] = plist
+    installed_configs = installed_config_census(home, user_uid, report_key, units)
     listeners = tcp_listener_census()
     sockets = tcp_socket_census()
     verify_socket_visibility(listeners, sockets)
@@ -418,12 +427,14 @@ def _observe(user_uid, user_home):
                   'argv_hmac_sha256': argument_digest(process['arguments']),
                   'vnode_count': len(process['vnodes']),
                   'mapping_count': len(process['mappings'])} for process in processes]
-    installed_configs = installed_config_census(home, user_uid, report_key, units)
+    if installed_config_census(home, user_uid, report_key, units) != installed_configs:
+        raise Refused('installed NATS configuration changed during census')
     return {'scope': 'live-census-only',
             'coverage': {'domains': [gui, 'system'],
                          'other_domains': 'not checked',
                          'unloaded_plists': 'four installed legacy GUI NATS plists checked on disk',
-                         'configurations': 'four current on-disk legacy GUI files pinned; running processes may have loaded earlier bytes',
+                         'configurations': 'four current on-disk legacy GUI files agree around listener/store scan; fresh HMACs cannot be compared across scans; running processes may have loaded earlier bytes',
+                         'installed_binary': 'absolute nats-server argv spelling observed, not an approved binary identity',
                          'waiting_job_arguments': 'launchctl text; embedded newlines are ambiguous',
                          'processes': 'readable processes named nats-server',
                          'vnode_holders': 'open descriptors, mapped files and working directories of those processes only; linked store entries only',
