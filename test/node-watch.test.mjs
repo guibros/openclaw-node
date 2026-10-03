@@ -509,6 +509,37 @@ describe('gradeExtraction (keeps pace with ingest)', () => {
 });
 
 describe('mem.ingest configured-source parity', () => {
+  it('does not accept metadata-only sources and immediately flags fresh archive inconsistency', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'node-watch-ingest-empty-'));
+    try {
+      const home = path.join(root, '.openclaw');
+      const source = path.join(root, 'transcripts');
+      await fs.mkdir(path.join(home, 'config'), { recursive: true });
+      await fs.mkdir(source);
+      await fs.writeFile(path.join(home, 'config', 'transcript-sources.json'), JSON.stringify({
+        sources: [{ name: 'test', path: source, format: 'claude-code', enabled: true }],
+      }));
+      const file = path.join(source, 'fresh.jsonl');
+      await fs.writeFile(file, JSON.stringify({ type: 'last-prompt', timestamp: new Date().toISOString() }) + '\n');
+      let inconsistent = false;
+      const recent = new Date().toISOString();
+      const ctx = makeCtx({
+        config: { ...config, home, stateDb: path.join(home, 'state.db') },
+        fsp: fs,
+        queryDb: (_p, fn) => fn({ prepare: (sql) => ({ get: () => sql.includes('archived_session_id')
+          ? { archived_session_id: inconsistent ? 'fresh' : null, message_count: inconsistent ? 1 : null,
+            end_time: inconsistent ? recent : null, actual_count: 0 }
+          : { n: 0 } }) }),
+      });
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.UNKNOWN);
+      inconsistent = true;
+      await fs.writeFile(file, JSON.stringify({ type: 'user', message: { content: 'fresh turn' }, timestamp: recent }) + '\n');
+      assert.equal((await target('mem.ingest').run(envFor(ctx))).status, STATUS.BROKEN);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('ignores later metadata-only writes but catches an unarchived conversation turn', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'node-watch-ingest-'));
     try {
