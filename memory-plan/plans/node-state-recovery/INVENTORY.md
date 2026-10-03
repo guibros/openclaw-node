@@ -841,11 +841,16 @@ will change at least four pinned plist hashes and require another capture.
 
 Checkpoint 2026-10-02 23:23 EDT: authenticated read-only JetStream observation
 found only `local-events-daedalus` on the standalone bus. Its `local.>`
-subject owns 24,286 messages, last published 2026-07-14; the current
+subject and holds 24,286 messages, newest retained from 2026-07-14; the current
 `moltymacs-virtual-machine` stream is absent. All four inspected current
 service plists use `OPENCLAW_NODE_ID=moltymacs-virtual-machine`, and the
 memory-daemon logs reject creation of its local stream because subjects
 overlap. Changing node-watch alone to `daedalus` would falsely mark historical
 data as current. Preserve and restore the legacy stream before any subject
-repartition or replacement; prove current-node event emission afterward.
+repartition or replacement. Protocol step 4.1 observed the current-node stream
+working in August on an R=3 topology; its absence from this standalone bus is
+unexplained. Locate and preserve any surviving copy of that newer stream as
+well, including in the step 1.2 archives or former cluster, before migration;
+prove current-node event emission afterward. This is a runtime regression
+from the 4.1 observation, not a reopening of the dotted-name source fix.
 No bus, plist or service changed. See step12_jetstream/RUNTIME_EVIDENCE.md.

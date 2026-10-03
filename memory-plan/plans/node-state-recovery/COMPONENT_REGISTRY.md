@@ -203,9 +203,14 @@ The production controller, protected root observer, healthy cold masters,
 isolated restores, reboot persistence check and live resumption remain open.
 
 2026-10-02 23:23 EDT — The standalone bus has a historical
-`local-events-daedalus` stream with broad `local.>` ownership, last written
-2026-07-14. The current node's `local-events-moltymacs-virtual-machine` is
+`local-events-daedalus` stream with broad `local.>` ownership; its newest
+retained message is from 2026-07-14. The current node's
+`local-events-moltymacs-virtual-machine` is
 absent; memory-daemon reports subject overlap when creating it. Node-watch's
 BROKEN stream verdict is truthful. The old stream is a preservation source,
 not evidence that current event publication works. No stream or service was
-changed. Recovery 1.2 must preserve this history before any subject migration.
+changed. Protocol step 4.1 observed the current-node stream working in August
+under an R=3 topology. Whether that stream was lost from the standalone bus or
+survives on another server or in an archive is unresolved. Recovery 1.2 must
+locate and preserve both histories before any subject migration; this is a
+current runtime regression, not a reopening of the dotted-name source fix.
