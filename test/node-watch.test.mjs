@@ -68,6 +68,19 @@ describe('node-watch honesty invariants', () => {
     assert.match(gradeMeshServices(running).detail, /PID evidence/);
   });
 
+  it('an idle on-demand mesh worker is unverified, while a failed worker is broken', () => {
+    const agent = {
+      label: 'ai.openclaw.mesh-agent', observable: true, loaded: true,
+      running: false, pid: null, state: 'not running', lastExitCode: null,
+    };
+    const bridge = { label: 'ai.openclaw.mesh-bridge', observable: true, loaded: true, running: true, pid: 42 };
+    const idle = gradeMeshServices([agent, bridge]);
+    assert.equal(idle.status, STATUS.UNKNOWN);
+    assert.match(idle.detail, /idle on demand; execution path not probed/);
+    assert.equal(gradeMeshServices([{ ...agent, lastExitCode: 1 }, bridge]).status, STATUS.BROKEN);
+    assert.equal(gradeMeshServices([{ ...agent, state: 'waiting' }, bridge]).status, STATUS.BROKEN);
+  });
+
   it('required core labels need a running PID, not mere loaded state', () => {
     const running = { label: 'ai.openclaw.nats', observable: true, loaded: true, running: true, pid: 10 };
     assert.equal(gradeRequiredServices([running]).status, STATUS.WORKING);
