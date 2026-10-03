@@ -173,6 +173,21 @@ assert(hashTree(emptyCopy).some(entry => entry.path === 'nested-empty' && entry.
 fs.rmdirSync(path.join(emptyCopy, 'nested-empty'));
 assert.notDeepEqual(hashTree(emptyCopy), hashTree(emptySource));
 results.emptyDirectories = true;
+const identitySource = path.join(root, 'identity-source'); privateDir(identitySource);
+const identityFile = path.join(identitySource, 'same.txt'); fs.writeFileSync(identityFile, 'same');
+const replacement = path.join(root, 'same-replacement.txt'); fs.writeFileSync(replacement, 'same');
+const originalCopy = fs.cpSync;
+fs.cpSync = (...args) => {
+  fs.renameSync(replacement, identityFile);
+  return originalCopy(...args);
+};
+try {
+  assert.throws(() => copyCold(identitySource, path.join(root, 'identity-copy')),
+    /source identity changed during cold copy/);
+} finally {
+  fs.cpSync = originalCopy;
+}
+results.sourceIdentity = true;
 let passed = false;
 let phase = 'snapshot-history';
 const originalRecord = { seq: 1, subject: 'history.x', time: '2026-09-28T00:00:00.123456789Z', hdrs: Buffer.from('NATS/1.0\r\nX-Key: a\r\n\r\n').toString('base64'), data: Buffer.from([0, 255, 1]).toString('base64') };
