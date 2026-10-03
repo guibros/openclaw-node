@@ -838,3 +838,14 @@ healthy cold masters, isolated restores and live resumption remain open at
 The merged PR #195 templates for node-watch, health-watch, consolidation-
 scheduler and memory-daemon differ from these installed plists; a re-render
 will change at least four pinned plist hashes and require another capture.
+
+Checkpoint 2026-10-02 23:23 EDT: authenticated read-only JetStream observation
+found only `local-events-daedalus` on the standalone bus. Its `local.>`
+subject owns 24,286 messages, last published 2026-07-14; the current
+`moltymacs-virtual-machine` stream is absent. All four inspected current
+service plists use `OPENCLAW_NODE_ID=moltymacs-virtual-machine`, and the
+memory-daemon logs reject creation of its local stream because subjects
+overlap. Changing node-watch alone to `daedalus` would falsely mark historical
+data as current. Preserve and restore the legacy stream before any subject
+repartition or replacement; prove current-node event emission afterward.
+No bus, plist or service changed. See step12_jetstream/RUNTIME_EVIDENCE.md.

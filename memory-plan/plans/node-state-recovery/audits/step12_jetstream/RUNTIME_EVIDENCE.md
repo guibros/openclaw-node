@@ -845,3 +845,28 @@ health-watch, consolidation-scheduler and memory-daemon, but the installed
 plists retain their older shapes. Re-rendering from main changes at least
 four of the 23 pinned plist hashes and requires a new capture. Step 1.2
 remains active at `v1.2-pre`.
+
+### Local event-stream overlap — read-only, 2026-10-02 23:17–23:23 EDT
+
+The existing node-watch snapshot at 23:17:45 EDT reported `net.stream`
+BROKEN: `local-events-moltymacs-virtual-machine` was not found. An
+authenticated read-only JetStream list on the standalone `127.0.0.1:4222`
+bus returned only `local-events-daedalus` among `local-events-*` streams.
+Its configuration subscribes to `local.>` and its state reports 24,286
+messages, first at 2026-05-29T23:28:39Z and last at
+2026-07-14T23:33:25Z. The installed node-watch, memory-daemon, mesh-agent
+and consolidation-scheduler plists all declare
+`OPENCLAW_NODE_ID=moltymacs-virtual-machine`; this is not a lone watcher
+misconfiguration. The memory-daemon log after its 2026-10-01 22:34 restart
+records `Local event log unavailable (subjects overlap with an existing
+stream)`. In `lib/local-event-log.mjs`, `createLocalEventLog` assigns the
+same `local.>` subject to each per-node stream name, so a second stream on
+this server cannot be created while the historical stream owns it.
+
+A private candidate that changed only node-watch's node ID to `daedalus`
+was prepared but **not installed or loaded**. It would make an old stream
+look current and leave publication disabled. Neither a NATS stream nor any
+live plist, service or model was changed. The accepted repair must preserve
+and restore the old stream, then establish disjoint subject ownership and
+verify new current-node events. That migration is constrained by the same
+cold-master and isolated-restore gates still open in step 1.2.

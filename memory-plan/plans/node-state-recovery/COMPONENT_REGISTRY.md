@@ -201,3 +201,11 @@ consolidation-scheduler and memory-daemon; their installed plists still have
 the captured older shapes. Re-rendering them changes the pinned baseline.
 The production controller, protected root observer, healthy cold masters,
 isolated restores, reboot persistence check and live resumption remain open.
+
+2026-10-02 23:23 EDT — The standalone bus has a historical
+`local-events-daedalus` stream with broad `local.>` ownership, last written
+2026-07-14. The current node's `local-events-moltymacs-virtual-machine` is
+absent; memory-daemon reports subject overlap when creating it. Node-watch's
+BROKEN stream verdict is truthful. The old stream is a preservation source,
+not evidence that current event publication works. No stream or service was
+changed. Recovery 1.2 must preserve this history before any subject migration.
